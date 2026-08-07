@@ -30,18 +30,23 @@ explained through a cooking analogy:
 
 ## Prerequisites
 
-- A machine with 2+ CPU cores and 4GB+ RAM
+- A machine with 2+ CPU cores and 4GB+ RAM (ideally a separate machine or VM, not your primary dev machine)
 - Familiarity with running commands in the terminal
 - 10 minutes of your time
 
+<details>
+<summary>Why a separate machine?</summary>
+
+Coder's value comes from remote development.
+Hosting the Coder server on a separate machine, such as a cloud VM, a spare desktop, or on-premises hardware, gives you and your team infrastructure that's more powerful, always-on, and reachable from anywhere, instead of tying your dev environment to your own laptop.
+
+When you're ready to move past this tutorial, install the Coder server on a separate machine and connect to it remotely.
+Refer to the [Install guide](../install/index.md) for supported platforms and installation methods.
+
+</details>
+
 > [!TIP]
 > If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can train the coding agent on the following steps (install a container runtime, install Coder, create your first template, and launch a workspace).
-
-> [!NOTE]
-> This guide installs the Coder server on the same machine you're working from so you can try Coder quickly.
-> That's fine for this tutorial, but Coder's real value comes from remote development.
-> By hosting the Coder server on a separate machine (a cloud VM, a spare desktop, or on-premise hardware), you and your team can provision workspaces on infrastructure that's more powerful, always-on, and reachable from anywhere, instead of tying your dev environment to your own laptop.
-> When you're ready to move past this tutorial, install the Coder server on a separate machine and connect to it remotely. Refer to the [Install guide](../install/index.md) for supported platforms and installation methods.
 
 ## Step 1: Install a container runtime
 
@@ -151,11 +156,6 @@ Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
 ## Step 2: Install and start Coder
 
 Install the `coder` CLI to get started:
-
-> [!NOTE]
-> For this quickstart, install and run the Coder server on the same machine you're using right now.
-> In a real deployment, install the Coder server on a separate machine (not your laptop) so its compute stays available and shareable, independent of any one person's device.
-> Refer to the [Install guide](../install/index.md) for details on installing on a separate host.
 
 <div class="tabs">
 
