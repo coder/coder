@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import {
 	File as FileViewer,
 	type SupportedLanguages,
@@ -11,6 +10,7 @@ import {
 	type UrlTransform,
 } from "streamdown";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { useTheme } from "#/theme/context";
 import { cn } from "#/utils/cn";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
@@ -184,8 +184,7 @@ const createComponents = (
 			);
 		},
 
-		// Horizontal rule: reset browser default inset/ridge border
-		// (preflight is disabled) to a clean 1px solid line.
+		// Horizontal rule: only a top border so it reads as a clean divider.
 		hr: () => (
 			<hr className="my-6 border-0 border-t border-solid border-border-default" />
 		),
