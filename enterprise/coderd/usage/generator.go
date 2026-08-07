@@ -2,6 +2,7 @@ package usage
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"sync"
 	"time"
@@ -239,18 +240,28 @@ func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error 
 	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
 	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
 	if database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
-		// The insert's ON CONFLICT (id) arbiter only sees committed rows,
-		// so two replicas inserting this bucket's deterministic id
-		// concurrently can trip the bucket unique index instead of the
-		// arbiter. If the bucket's row landed under the same id, the other
-		// replica won the race and the bucket is complete. Otherwise a
-		// non-generator writer holds the bucket under a different id,
-		// which is exactly what the unique index exists to surface.
+		// This comment is the owning description of the bucket-index race;
+		// the query and migration comments point here. The insert's ON
+		// CONFLICT (id) arbiter only sees committed rows, so two replicas
+		// inserting this bucket's deterministic id concurrently can trip
+		// the bucket unique index instead of the arbiter. If the bucket's
+		// row landed under the same id, the other replica won the race and
+		// the bucket is complete. Otherwise a non-generator writer holds
+		// the bucket under a different id, which is exactly what the
+		// unique index exists to surface.
 		exists, existsErr := g.db.UsageEventExistsByID(ctx, stableID)
-		if existsErr == nil && exists {
+		switch {
+		case existsErr != nil:
+			// Neither state is established: the bucket may be complete
+			// under our id or held by a foreign writer. Carry both errors
+			// so the log does not accuse a non-generator writer when the
+			// exists check simply failed.
+			return xerrors.Errorf("check bucket owner after unique violation: %w", errors.Join(err, existsErr))
+		case exists:
 			return nil
+		default:
+			return xerrors.Errorf("bucket already recorded under a different id: %w", err)
 		}
-		return xerrors.Errorf("bucket already recorded under a different id: %w", err)
 	}
 	if err != nil {
 		return xerrors.Errorf("insert usage event: %w", err)

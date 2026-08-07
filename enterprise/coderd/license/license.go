@@ -93,6 +93,7 @@ func Entitlements(
 	}
 
 	entitlements, err := LicensesEntitlements(ctx, now, licenses, enablements, keys, FeatureArguments{
+		Logger:                logger,
 		ActiveUserCount:       activeUserCount,
 		ActiveAISeatCount:     activeAISeatCount,
 		ReplicaCount:          replicaCount,
@@ -119,11 +120,10 @@ func Entitlements(
 				StartDate: startTime,
 				EndDate:   endTime,
 			})
-			// IsQueryCanceledError also matches a cancel that reached
-			// Postgres (SQLSTATE 57014), which lib/pq reports instead of
-			// the context sentinels once the query is on the wire.
-			if err != nil && !database.IsQueryCanceledError(err) {
-				// The caller reports a stable message, so log the cause here.
+			// measureUsage reports a stable message, so log the cause
+			// here, unless the whole computation is aborting anyway; see
+			// usageMeasurementAborted for the shared policy.
+			if err != nil && !usageMeasurementAborted(ctx, err) {
 				logger.Error(ctx, "get managed agent usage for entitlements", slog.Error(err))
 			}
 			return count, err
@@ -141,11 +141,10 @@ func Entitlements(
 				StartTime: startTime,
 				EndTime:   endTime,
 			})
-			// IsQueryCanceledError also matches a cancel that reached
-			// Postgres (SQLSTATE 57014), which lib/pq reports instead of
-			// the context sentinels once the query is on the wire.
-			if err != nil && !database.IsQueryCanceledError(err) {
-				// The caller reports a stable message, so log the cause here.
+			// measureUsage reports a stable message, so log the cause
+			// here, unless the whole computation is aborting anyway; see
+			// usageMeasurementAborted for the shared policy.
+			if err != nil && !usageMeasurementAborted(ctx, err) {
 				logger.Error(ctx, "get agent runtime usage for entitlements", slog.Error(err))
 			}
 			return runtimeMs, err
@@ -159,6 +158,11 @@ func Entitlements(
 }
 
 type FeatureArguments struct {
+	// Logger receives server-side diagnostics for conditions whose
+	// operator-facing message is a stable text, such as ignored license
+	// claims. The zero value is a no-op logger, which tests exercising
+	// unrelated features rely on.
+	Logger                slog.Logger
 	ActiveUserCount       int64
 	ActiveAISeatCount     int64
 	ReplicaCount          int
@@ -551,12 +555,10 @@ func LicensesEntitlements(
 			}
 
 			// Agent runtime hours are encoded as up to three claims and are
-			// decoded together after this loop, see
-			// decodeAgentRuntimeHours. The feature name itself is never a
-			// valid claim. The allocation must come from the dedicated
-			// claim so the soft and hard limits can be measured against it;
-			// claims that do not fit together are ignored with a warning,
-			// never rejected.
+			// decoded together after this loop, see decodeAgentRuntimeHours
+			// (which also handles the feature name itself appearing as a
+			// claim, and owns the tolerate-and-warn policy for unusable
+			// claims).
 			if featureName == codersdk.FeatureAgentRuntimeHours ||
 				isAgentRuntimeHoursClaim(featureName) {
 				continue
@@ -623,7 +625,7 @@ func LicensesEntitlements(
 
 		// The loop above skips Agent runtime hours because the
 		// three claims that encode them decode into a single feature.
-		runtimeFeature, granted, claimsIgnored := decodeAgentRuntimeHours(claims.Features, entitlement, codersdk.UsagePeriod{
+		runtimeFeature, granted, ignoredClaims := decodeAgentRuntimeHours(claims.Features, entitlement, codersdk.UsagePeriod{
 			IssuedAt: claims.IssuedAt.Time,
 			Start:    usagePeriodStart,
 			End:      usagePeriodEnd,
@@ -631,12 +633,19 @@ func LicensesEntitlements(
 		if granted {
 			entitlements.AddFeature(codersdk.FeatureAgentRuntimeHours, runtimeFeature)
 		}
-		if claimsIgnored && !slices.Contains(entitlements.Warnings, codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText) {
+		if len(ignoredClaims) > 0 {
 			// A dropped claim means the license does not say what its
-			// issuer thought it says; surface that once, without
-			// invalidating the license.
-			entitlements.Warnings = append(entitlements.Warnings,
-				codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText)
+			// issuer thought it says; surface that without invalidating
+			// the license. The published warning is a stable text, so the
+			// license and claim detail support needs goes to the log.
+			featureArguments.Logger.Warn(ctx, "ignored unusable Coder Agent runtime hour claims in license",
+				slog.F("license_id", license.UUID),
+				slog.F("ignored_claims", ignoredClaims),
+			)
+			if !slices.Contains(entitlements.Warnings, codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText) {
+				entitlements.Warnings = append(entitlements.Warnings,
+					codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText)
+			}
 		}
 
 		addonFeatures := make(map[codersdk.FeatureName]codersdk.Feature)
@@ -755,7 +764,7 @@ func LicensesEntitlements(
 		// end.
 		managedAgentCount, ok, err := measureUsage(ctx, &entitlements,
 			featureArguments.ManagedAgentCountFn, *agentLimit.UsagePeriod,
-			"managed agent count", codersdk.LicenseManagedAgentUsageUnavailableWarningText)
+			"managed agent count", codersdk.LicenseManagedAgentUsageUnavailableErrorText)
 		if err != nil {
 			return entitlements, err
 		}
@@ -782,14 +791,8 @@ func LicensesEntitlements(
 	// Usage is measured and published even for a zero allocation, which
 	// reports the feature disabled: see decodeAgentRuntimeHours.
 	//
-	// The reported usage can be lower than real usage and does not always
-	// catch up: the in-progress hour has not been emitted as an event yet,
-	// closed hours become eligible for generation only after a lag (which
-	// assumes chat message inserts commit within that lag; a transaction
-	// outliving it lands rows in an already-sealed bucket, and that runtime
-	// is dropped), buckets still missing beyond the generator's trailing
-	// window are forfeited outright (e.g. after extended downtime), and
-	// entitlements are only recomputed on the refresh interval. See
+	// The reported usage can trail real usage and does not always catch
+	// up; the sources of staleness and loss are documented on
 	// enterprise/coderd/usage.AgentRuntimeInterval,
 	// AgentRuntimeEligibilityLag, AgentRuntimeWindow, and
 	// enterprise/coderd.Options.EntitlementsUpdateInterval.
@@ -797,17 +800,15 @@ func LicensesEntitlements(
 	if entitlements.HasLicense && runtimeHours.UsagePeriod != nil {
 		runtimeMs, ok, err := measureUsage(ctx, &entitlements,
 			featureArguments.AgentRuntimeMsFn, *runtimeHours.UsagePeriod,
-			"agent runtime", codersdk.LicenseAgentRuntimeUsageUnavailableWarningText)
+			"agent runtime", codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
 		if err != nil {
 			return entitlements, err
 		}
 		if ok {
 			actualHours := agentRuntimeMsToHours(runtimeMs)
 			runtimeHours.Actual = &actualHours
-			// Write the patched feature back directly: the feature
-			// contest is already settled, and routing this through
-			// AddFeature would silently drop the write if
-			// Feature.Compare ever stopped preferring a non-nil Actual.
+			// Written back directly rather than through AddFeature; see
+			// the managed-agent write-back above for why.
 			entitlements.Features[codersdk.FeatureAgentRuntimeHours] = runtimeHours
 
 			// The allocation is dereferenced without a nil check because
@@ -946,6 +947,23 @@ func LicensesEntitlements(
 	return entitlements, nil
 }
 
+// usageMeasurementAborted is the single classification for usage-measurement
+// failures, shared by measureUsage (which decides whether to abort the whole
+// entitlements computation) and the measurement closures in Entitlements
+// (which decide whether to log the cause). A failure aborts only when the
+// computation's own context is dead: the caller went away or coderd is
+// shutting down, so nothing should be published or logged for it.
+//
+// The abort must not key on the error looking like a cancel: Postgres raises
+// SQLSTATE 57014 (query_canceled) for statement_timeout kills as well as
+// client cancels, and aborting on those would fail every entitlements
+// refresh, and coderd startup, on a deployment whose statement_timeout is
+// shorter than a usage query. Any failure with a live context degrades into
+// the stable "usage unavailable" diagnostic instead.
+func usageMeasurementAborted(ctx context.Context, err error) bool {
+	return err != nil && ctx.Err() != nil
+}
+
 // measureUsage runs one usage-measurement closure over the feature's usage
 // period and applies the shared error policy, keeping the managed-agent and
 // runtime-hours paths from drifting apart:
@@ -953,14 +971,12 @@ func LicensesEntitlements(
 //   - A nil closure is a wiring bug (production always provides both), so it
 //     fails the whole LicensesEntitlements call rather than degrading into an
 //     operator-facing message for a state only a Coder developer can create.
-//   - A canceled query also fails the whole call: the caller went away or is
-//     shutting down, so nothing should be published or logged for it.
+//   - A failure while the computation is being canceled also fails the whole
+//     call: see usageMeasurementAborted.
 //   - Any other failure appends the stable unavailableText (the cause is
-//     logged by the closure; this string is served publicly). It lands in
-//     entitlements.Errors, matching where measurement failures were counted
-//     before this feature, so the coderd_license_errors Prometheus gauge
-//     remains the alertable signal for them; the dashboard renders the text
-//     as a muted diagnostic rather than a license error.
+//     logged by the closure; this string is served publicly). See the
+//     LicenseManagedAgentUsageUnavailableErrorText doc in codersdk for why
+//     it lands in entitlements.Errors yet renders as a muted diagnostic.
 //
 // It returns the measured value and true only on success.
 func measureUsage(
@@ -976,7 +992,7 @@ func measureUsage(
 	}
 	value, err := fn(ctx, usagePeriod.Start, usagePeriod.End)
 	switch {
-	case database.IsQueryCanceledError(err):
+	case usageMeasurementAborted(ctx, err):
 		return 0, false, xerrors.Errorf("get %s: %w", what, err)
 	case err != nil:
 		entitlements.Errors = append(entitlements.Errors, unavailableText)
@@ -1040,8 +1056,8 @@ const (
 // Agent runtime hour license claims. These are the canonical claim names
 // minted by github.com/coder/license. All three claims map to the single
 // codersdk.FeatureAgentRuntimeHours feature and are decoded together, see
-// decodeAgentRuntimeHours. Claims that do not fit together never invalidate
-// the license: the unusable claims are ignored and a warning is published.
+// decodeAgentRuntimeHours (which owns the tolerate-and-warn policy for
+// claims that do not fit together).
 //
 // The unit for all three claims is hours.
 const (
@@ -1110,32 +1126,34 @@ func agentRuntimeMsToHours(ms int64) int64 {
 // decodeAgentRuntimeHours builds the codersdk.FeatureAgentRuntimeHours feature
 // from the claims that encode it. It reports granted=false when the license
 // carries no usable allocation claim, in which case the license does not
-// grant the feature.
+// grant the feature. The per-claim validity rules live on the Claim*
+// constants above.
 //
 // Nonsensical claim combinations never invalidate the license: rejecting a
 // signed license for a cosmetic threshold claim would drop the deployment to
 // unlicensed and take every paid feature with it, so, matching how the
 // feature loop skips nonsensical claims elsewhere, they are ignored instead.
-// A negative allocation is treated as if the claim were absent. A soft limit
-// is kept only when it is positive and below the allocation: a zero soft
-// limit would fire the advisory warning at zero usage, permanently, so it is
-// treated as "no soft limit". A hard limit is kept only when it is at least
-// the allocation. A zero allocation has no hour budget for the thresholds to
-// measure against, so both limit claims are ignored alongside it.
-//
-// Ignoring a claim must not be silent, or an incorrectly issued license (say, a soft
-// limit minted above the allocation) would produce a deployment that looks
-// healthy and never fires the warning the customer was sold. claimsIgnored
-// reports that at least one present claim was dropped so the caller can emit
-// codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText.
+// Ignoring a claim must not be silent, or an incorrectly issued license
+// (say, a soft limit minted above the allocation) would produce a deployment
+// that looks healthy and never fires the warning the customer was sold.
+// ignoredClaims names every dropped claim so the caller can warn and log.
+// That includes the feature name itself minted as a claim: it is never valid
+// here (the allocation must come from the dedicated claim), but it is the
+// shape every other metered feature uses and therefore the most plausible
+// issuer mistake, so it must not be dropped without a signal either.
 //
 // A zero allocation grants the feature without an hour budget: it reports
-// Enabled false (which hides the feature in the dashboard) and never fires
-// the hour-threshold warnings. Actual is still measured and published so
+// Enabled false (which hides the feature in the dashboard), never fires the
+// hour-threshold warnings, and drops both limit claims since there is no
+// budget to measure them against. Actual is still measured and published so
 // direct readers of the entitlements API can see the runtime being consumed.
 // CODAGT-856 will make a zero allocation force a concurrency-limited mode;
 // that mode does not exist yet.
-func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (feature codersdk.Feature, granted bool, claimsIgnored bool) {
+func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (feature codersdk.Feature, granted bool, ignoredClaims []string) {
+	if _, ok := features[codersdk.FeatureAgentRuntimeHours]; ok {
+		ignoredClaims = append(ignoredClaims, string(codersdk.FeatureAgentRuntimeHours))
+	}
+
 	allocation, allocOk := features[ClaimAgentRuntimeHoursAllocation]
 	soft, softOk := features[ClaimAgentRuntimeHoursLimitSoft]
 	hard, hardOk := features[ClaimAgentRuntimeHoursLimitHard]
@@ -1143,8 +1161,16 @@ func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement
 	if !allocOk || allocation < 0 {
 		// Without a usable allocation the feature is not granted, so any
 		// present runtime-hour claim is being dropped.
-		claimsIgnored = (allocOk && allocation < 0) || softOk || hardOk
-		return codersdk.Feature{}, false, claimsIgnored
+		if allocOk && allocation < 0 {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursAllocation)
+		}
+		if softOk {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitSoft)
+		}
+		if hardOk {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitHard)
+		}
+		return codersdk.Feature{}, false, ignoredClaims
 	}
 
 	feature = codersdk.Feature{
@@ -1157,17 +1183,17 @@ func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement
 		if soft > 0 && soft < allocation {
 			feature.SoftLimit = &soft
 		} else {
-			claimsIgnored = true
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitSoft)
 		}
 	}
 	if hardOk {
 		if allocation > 0 && hard >= allocation {
 			feature.HardLimit = &hard
 		} else {
-			claimsIgnored = true
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitHard)
 		}
 	}
-	return feature, true, claimsIgnored
+	return feature, true, ignoredClaims
 }
 
 // Claims is the full set of claims in a license.

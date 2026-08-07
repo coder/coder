@@ -1,11 +1,14 @@
 package license
 
 import (
+	"context"
 	"math"
 	"testing"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/xerrors"
 )
 
 func TestNextLicenseValidityPeriod(t *testing.T) {
@@ -181,4 +184,38 @@ func TestAgentRuntimeMsToHoursDivisor(t *testing.T) {
 	// Pins the divisor: the maximum int64 of milliseconds converts to the
 	// exact whole-hour count only when the divisor is milliseconds per hour.
 	assert.EqualValues(t, math.MaxInt64/3_600_000, agentRuntimeMsToHours(math.MaxInt64))
+}
+
+// TestUsageMeasurementAborted pins the abort classification both layers of
+// the usage-failure policy share: measureUsage's abort decision and the
+// measurement closures' log suppression.
+func TestUsageMeasurementAborted(t *testing.T) {
+	t.Parallel()
+
+	liveCtx := context.Background()
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Postgres reports SQLSTATE 57014 for client cancels and for
+	// statement_timeout kills alike, so the code alone cannot identify an
+	// abort.
+	queryCanceled := &pq.Error{Code: "57014", Message: "canceling statement due to user request"}
+	statementTimeout := &pq.Error{Code: "57014", Message: "canceling statement due to statement timeout"}
+
+	// Success is never an abort, whatever the context state.
+	assert.False(t, usageMeasurementAborted(liveCtx, nil))
+	assert.False(t, usageMeasurementAborted(canceledCtx, nil))
+
+	// Failures with a live context degrade into the stable diagnostic,
+	// even when Postgres phrases them as cancels: a statement_timeout
+	// abort here would wedge every refresh and coderd startup.
+	assert.False(t, usageMeasurementAborted(liveCtx, statementTimeout))
+	assert.False(t, usageMeasurementAborted(liveCtx, queryCanceled))
+	assert.False(t, usageMeasurementAborted(liveCtx, xerrors.New("kaboom")))
+
+	// Any failure while our own context is dead aborts: the caller went
+	// away, so nothing should be published or logged.
+	assert.True(t, usageMeasurementAborted(canceledCtx, context.Canceled))
+	assert.True(t, usageMeasurementAborted(canceledCtx, queryCanceled))
+	assert.True(t, usageMeasurementAborted(canceledCtx, xerrors.New("kaboom")))
 }

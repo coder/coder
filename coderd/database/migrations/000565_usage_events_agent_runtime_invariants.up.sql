@@ -26,9 +26,9 @@ ALTER TABLE usage_events
 -- their (id) arbiter, so re-inserting a bucket under its deterministic id
 -- stays a silent no-op, while a duplicate bucket row under a different id
 -- (which only a non-generator writer can produce) raises a unique violation
--- instead of being counted twice. Concurrent replicas inserting the same id
--- can surface that violation too; the generator recognizes that race and
--- treats it as benign (see enterprise/coderd/usage/generator.go).
+-- instead of being counted twice. Concurrent same-id inserts can surface
+-- that violation too; generateBucket in enterprise/coderd/usage/generator.go
+-- owns the description of that race and resolves it.
 DROP INDEX idx_usage_events_agent_runtime;
 CREATE UNIQUE INDEX idx_usage_events_agent_runtime
   ON usage_events (event_type, created_at)

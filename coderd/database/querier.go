@@ -1241,10 +1241,9 @@ type sqlcQuerier interface {
 	// exact re-inserts of the same event: for hb_agent_runtime_v1, a duplicate
 	// bucket under a different id conflicts on idx_usage_events_agent_runtime,
 	// which is not the arbiter, so it raises instead of being silently dropped.
-	// The arbiter's pre-check only sees committed rows, so two replicas
-	// inserting the same id concurrently can also surface that unique violation;
-	// the generator recognizes this race and treats it as benign (see
-	// enterprise/coderd/usage/generator.go).
+	// Concurrent same-id inserts can trip that index too; generateBucket in
+	// enterprise/coderd/usage/generator.go owns the description of that race
+	// and resolves it.
 	InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
 	// InsertUserGroupsByID adds a user to all provided groups, if they exist.

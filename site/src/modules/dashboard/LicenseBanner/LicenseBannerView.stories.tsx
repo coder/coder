@@ -5,10 +5,10 @@ import {
 	LicenseAgentRuntimeHoursAllocationReachedWarningText,
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 	LicenseAgentRuntimeHoursSoftLimitWarningText,
-	LicenseAgentRuntimeUsageUnavailableWarningText,
+	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
-	LicenseManagedAgentUsageUnavailableWarningText,
+	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
 import {
@@ -20,7 +20,7 @@ import {
 } from "#/testHelpers/entities";
 import { docs } from "#/utils/docs";
 import { DashboardContext, type DashboardValue } from "../DashboardProvider";
-import { LicenseBanner } from "./LicenseBanner";
+import { formatLicenseMessage, LicenseBanner } from "./LicenseBanner";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
@@ -186,14 +186,6 @@ export const ManagedAgentLimitExceededWithOtherWarnings: Story = {
 	},
 };
 
-// Renders a warning template the way the backend does, substituting each
-// %d placeholder in order.
-const formatWarning = (template: string, ...values: number[]): string =>
-	values.reduce(
-		(message, value) => message.replace("%d", `${value}`),
-		template,
-	);
-
 const renderLicenseBanner = ({
 	errors = [],
 	warnings = [],
@@ -309,7 +301,7 @@ export const AgentRuntimeHoursSoftLimit: Story = {
 	render: () =>
 		renderLicenseBanner({
 			warnings: [
-				formatWarning(
+				formatLicenseMessage(
 					LicenseAgentRuntimeHoursSoftLimitWarningText,
 					90,
 					100,
@@ -321,7 +313,7 @@ export const AgentRuntimeHoursSoftLimit: Story = {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByRole("status");
 		await expect(banner).toHaveTextContent(
-			"Your deployment is approaching its Coder Agent runtime hours allocation: 90 of the 100 hours included in the current license term are used, reaching the advisory soft limit of 80 hours.",
+			"Your deployment is approaching its Coder Agent runtime hours allocation: 90 of the 100 hours included in the current license term are used, at or above the advisory soft limit of 80 hours.",
 		);
 		// The advisory soft-limit warning renders in the muted variant,
 		// unlike the allocation-reached warning below.
@@ -338,7 +330,7 @@ export const AgentRuntimeHoursAllocationReached: Story = {
 	render: () =>
 		renderLicenseBanner({
 			warnings: [
-				formatWarning(
+				formatLicenseMessage(
 					LicenseAgentRuntimeHoursAllocationReachedWarningText,
 					100,
 					100,
@@ -360,18 +352,18 @@ export const AgentRuntimeHoursAllocationReached: Story = {
 
 // Each entry of the frontend's diagnosticMessages set is pinned on both
 // properties the set drives: the muted variant and the suppressed sales
-// link. The "unavailable" pair arrives on the errors channel, where it feeds
-// the coderd_license_errors gauge without rendering as a license error.
+// link. The "unavailable" pair arrives on the errors channel; see the
+// LicenseManagedAgentUsageUnavailableErrorText doc for why.
 export const AgentRuntimeUsageUnavailable: Story = {
 	render: () =>
 		renderLicenseBanner({
-			errors: [LicenseAgentRuntimeUsageUnavailableWarningText],
+			errors: [LicenseAgentRuntimeUsageUnavailableErrorText],
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByRole("status");
 		await expect(banner).toHaveTextContent(
-			LicenseAgentRuntimeUsageUnavailableWarningText,
+			LicenseAgentRuntimeUsageUnavailableErrorText,
 		);
 		await expect(banner).toHaveClass(mutedVariantClass);
 		await expect(
@@ -383,13 +375,13 @@ export const AgentRuntimeUsageUnavailable: Story = {
 export const ManagedAgentUsageUnavailable: Story = {
 	render: () =>
 		renderLicenseBanner({
-			errors: [LicenseManagedAgentUsageUnavailableWarningText],
+			errors: [LicenseManagedAgentUsageUnavailableErrorText],
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByRole("status");
 		await expect(banner).toHaveTextContent(
-			LicenseManagedAgentUsageUnavailableWarningText,
+			LicenseManagedAgentUsageUnavailableErrorText,
 		);
 		await expect(banner).toHaveClass(mutedVariantClass);
 		await expect(
@@ -422,8 +414,8 @@ export const UsageDiagnosticsOnlyHeading: Story = {
 	render: () =>
 		renderLicenseBanner({
 			errors: [
-				LicenseManagedAgentUsageUnavailableWarningText,
-				LicenseAgentRuntimeUsageUnavailableWarningText,
+				LicenseManagedAgentUsageUnavailableErrorText,
+				LicenseAgentRuntimeUsageUnavailableErrorText,
 			],
 		}),
 	play: async ({ canvasElement }) => {

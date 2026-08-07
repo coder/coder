@@ -17,6 +17,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1051,12 +1052,10 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
-		// Both failures surface their stable text without the raw cause.
-		// They land in Errors so the coderd_license_errors gauge keeps
-		// counting measurement failures; the dashboard renders these exact
-		// texts as muted diagnostics rather than license errors.
-		require.Contains(t, entitlements.Errors, codersdk.LicenseManagedAgentUsageUnavailableWarningText)
-		require.Contains(t, entitlements.Errors, codersdk.LicenseAgentRuntimeUsageUnavailableWarningText)
+		// Both failures surface their stable text without the raw cause,
+		// on the channel the codersdk constant docs prescribe.
+		require.Contains(t, entitlements.Errors, codersdk.LicenseManagedAgentUsageUnavailableErrorText)
+		require.Contains(t, entitlements.Errors, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
 		for _, entry := range append(entitlements.Errors, entitlements.Warnings...) {
 			require.NotContains(t, entry, "kaboom")
 		}
@@ -1071,9 +1070,9 @@ func TestEntitlements(t *testing.T) {
 	t.Run("UsageQueryCancelDoesNotLogError", func(t *testing.T) {
 		t.Parallel()
 
-		// A canceled context aborts the whole entitlements refresh, e.g.
-		// during shutdown, and must not log a false query-failure alarm at
-		// error level.
+		// A query failing while the refresh's own context is canceled,
+		// e.g. during shutdown, aborts the whole entitlements refresh and
+		// must not log a false query-failure alarm at error level.
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
 
@@ -1107,9 +1106,55 @@ func TestEntitlements(t *testing.T) {
 		var logBuf bytes.Buffer
 		logger := testutil.Logger(t).AppendSinks(sloghuman.Sink(&logBuf))
 
-		_, err := license.Entitlements(context.Background(), logger, mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := license.Entitlements(ctx, logger, mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
 		require.ErrorContains(t, err, "get agent runtime")
 		require.NotContains(t, logBuf.String(), "get agent runtime usage for entitlements")
+	})
+
+	t.Run("ManagedAgentQueryCancelDoesNotLogError", func(t *testing.T) {
+		t.Parallel()
+
+		// The managed agent sibling of UsageQueryCancelDoesNotLogError:
+		// its closure carries the same suppression guard, and the managed
+		// agent usage is measured first, so the runtime query is never
+		// reached.
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		licenseOpts := (&coderdenttest.LicenseOptions{
+			FeatureSet: codersdk.FeatureSetPremium,
+			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
+			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
+			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
+			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
+		}).UserLimit(100)
+
+		lic := database.License{
+			ID:  1,
+			JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
+			Exp: licenseOpts.ExpiresAt,
+		}
+
+		mDB.EXPECT().GetUnexpiredLicenses(gomock.Any()).Return([]database.License{lic}, nil)
+		mDB.EXPECT().GetActiveUserCount(gomock.Any(), false).Return(int64(1), nil)
+		mDB.EXPECT().GetActiveAISeatCount(gomock.Any()).Return(int64(0), nil)
+		mDB.EXPECT().
+			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
+			Return(int64(0), context.Canceled)
+		mDB.EXPECT().
+			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
+			Return([]database.Template{}, nil)
+
+		var logBuf bytes.Buffer
+		logger := testutil.Logger(t).AppendSinks(sloghuman.Sink(&logBuf))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := license.Entitlements(ctx, logger, mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
+		require.ErrorContains(t, err, "get managed agent count")
+		require.NotContains(t, logBuf.String(), "get managed agent usage for entitlements")
 	})
 
 	t.Run("AIGovernanceSeatWarnings", func(t *testing.T) {
@@ -1521,6 +1566,9 @@ func TestLicenseEntitlements(t *testing.T) {
 		// KeepNilManagedAgentCountFn is the managed agent sibling of
 		// KeepNilAgentRuntimeMsFn.
 		KeepNilManagedAgentCountFn bool
+		// CancelContext cancels the context passed to LicensesEntitlements
+		// before the call, exercising the usage-measurement abort policy.
+		CancelContext bool
 
 		ExpectedErrorContains string
 		AssertEntitlements    func(t *testing.T, entitlements codersdk.Entitlements)
@@ -1970,9 +2018,10 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			// A query failure is surfaced as a stable text in Errors (the
-			// channel the coderd_license_errors gauge counts) and leaves
-			// Actual unset without aborting the rest of the entitlements.
+			// A query failure is surfaced as a stable text in Errors (see
+			// the codersdk constant docs for the channel choice) and
+			// leaves Actual unset without aborting the rest of the
+			// entitlements.
 			Name: "AgentRuntimeHours/QueryError",
 			Licenses: []*coderdenttest.LicenseOptions{
 				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
@@ -1985,7 +2034,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
 				assertNoWarnings(t, entitlements)
 				require.Len(t, entitlements.Errors, 1)
-				assert.Equal(t, codersdk.LicenseAgentRuntimeUsageUnavailableWarningText, entitlements.Errors[0])
+				assert.Equal(t, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText, entitlements.Errors[0])
 				// The raw error is logged rather than exposed on the
 				// unauthenticated entitlements payload.
 				assert.NotContains(t, entitlements.Errors[0], "kaboom")
@@ -2011,7 +2060,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
 				assertNoWarnings(t, entitlements)
 				require.Len(t, entitlements.Errors, 1)
-				assert.Equal(t, codersdk.LicenseManagedAgentUsageUnavailableWarningText, entitlements.Errors[0])
+				assert.Equal(t, codersdk.LicenseManagedAgentUsageUnavailableErrorText, entitlements.Errors[0])
 				assert.NotContains(t, entitlements.Errors[0], "kaboom")
 				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 				assert.Nil(t, feature.Actual)
@@ -2038,12 +2087,14 @@ func TestLicenseEntitlements(t *testing.T) {
 			ExpectedErrorContains:      "developer error: no closure provided to measure managed agent count usage",
 		},
 		{
-			// A canceled context aborts the whole call rather than degrading
-			// to an entitlements error.
+			// A failure while the computation's own context is canceled
+			// aborts the whole call rather than degrading to an
+			// entitlements error.
 			Name: "AgentRuntimeHours/ContextCanceled",
 			Licenses: []*coderdenttest.LicenseOptions{
 				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
+			CancelContext: true,
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
 					return 0, context.Canceled
@@ -2057,6 +2108,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
 			},
+			CancelContext: true,
 			Arguments: license.FeatureArguments{
 				ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
 					return 0, context.Canceled
@@ -2066,19 +2118,62 @@ func TestLicenseEntitlements(t *testing.T) {
 		},
 		{
 			// A cancel that reached Postgres comes back as SQLSTATE 57014
-			// rather than a context sentinel; it must abort the call the
-			// same way instead of publishing a false "usage unavailable"
-			// diagnostic.
+			// rather than a context sentinel; with our context dead it
+			// must abort the call the same way instead of publishing a
+			// false "usage unavailable" diagnostic.
 			Name: "AgentRuntimeHours/QueryCanceledInPostgres",
 			Licenses: []*coderdenttest.LicenseOptions{
 				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
+			CancelContext: true,
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
 					return 0, xerrors.Errorf("query: %w", &pq.Error{Code: "57014"})
 				},
 			},
 			ExpectedErrorContains: "get agent runtime",
+		},
+		{
+			// Postgres raises the same SQLSTATE 57014 for statement_timeout
+			// kills. With a live context that is a query failure, not a
+			// shutdown: it must degrade into the stable diagnostic instead
+			// of aborting every refresh (and coderd startup) on deployments
+			// with an aggressive statement_timeout.
+			Name: "AgentRuntimeHours/StatementTimeout",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 0, xerrors.Errorf("query: %w", &pq.Error{Code: "57014", Message: "canceling statement due to statement timeout"})
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoWarnings(t, entitlements)
+				require.Len(t, entitlements.Errors, 1)
+				assert.Equal(t, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText, entitlements.Errors[0])
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.Nil(t, feature.Actual)
+			},
+		},
+		{
+			// The managed agent sibling of StatementTimeout.
+			Name: "ManagedAgentLimit/StatementTimeout",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
+			},
+			Arguments: license.FeatureArguments{
+				ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 0, xerrors.Errorf("query: %w", &pq.Error{Code: "57014", Message: "canceling statement due to statement timeout"})
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoWarnings(t, entitlements)
+				require.Len(t, entitlements.Errors, 1)
+				assert.Equal(t, codersdk.LicenseManagedAgentUsageUnavailableErrorText, entitlements.Errors[0])
+				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+				assert.Nil(t, feature.Actual)
+			},
 		},
 		{
 			// A grace-period license still reports Actual and still warns at
@@ -2143,7 +2238,13 @@ func TestLicenseEntitlements(t *testing.T) {
 				}
 			}
 
-			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, tc.Enablements, coderdenttest.Keys, tc.Arguments)
+			ctx := context.Background()
+			if tc.CancelContext {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
+			entitlements, err := license.LicensesEntitlements(ctx, time.Now(), generatedLicenses, tc.Enablements, coderdenttest.Keys, tc.Arguments)
 			if tc.ExpectedErrorContains != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.ExpectedErrorContains)
@@ -2733,9 +2834,9 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 	t.Parallel()
 
 	// These cases exercise claim decoding rather than usage accounting, so
-	// they report no runtime. LicensesEntitlements records a warning when
-	// the feature is present but the function is unset, so it must always
-	// be supplied.
+	// they report no runtime. A nil AgentRuntimeMsFn fails the whole
+	// LicensesEntitlements call as a developer error when the feature is
+	// present, so the closure must always be supplied.
 	noRuntime := func() license.FeatureArguments {
 		return license.FeatureArguments{
 			AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
@@ -3286,6 +3387,32 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectClaimsIgnored: true,
 		},
+		{
+			// The feature name itself is never a valid claim: the
+			// allocation must come from the dedicated claim. It is the
+			// shape every other metered feature uses, so a license minting
+			// it is the most plausible issuer mistake and must warn
+			// rather than being dropped silently.
+			name: "FeatureNameAsClaim",
+			features: license.Features{
+				codersdk.FeatureAgentRuntimeHours: 100,
+			},
+			expectClaimsIgnored: true,
+		},
+		{
+			// The feature name claim is dropped (with the warning) even
+			// when a usable allocation claim grants the feature.
+			name: "FeatureNameAlongsideAllocation",
+			features: license.Features{
+				codersdk.FeatureAgentRuntimeHours:        50,
+				license.ClaimAgentRuntimeHoursAllocation: 100,
+			},
+			expectFeature: &codersdk.Feature{
+				Enabled: true,
+				Limit:   ptr.Ref[int64](100),
+			},
+			expectClaimsIgnored: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -3308,9 +3435,11 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 				}),
 			}
 
+			var logBuf bytes.Buffer
 			entitlements, err := license.LicensesEntitlements(
 				context.Background(), time.Now(), []database.License{lic},
 				map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{
+					Logger: slog.Make(sloghuman.Sink(&logBuf)),
 					AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
 						return 0, nil
 					},
@@ -3326,13 +3455,19 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			require.NotNil(t, userLimit.Limit)
 			require.EqualValues(t, 100, *userLimit.Limit)
 
-			// Dropped claims are tolerated but never silent.
+			// Dropped claims are tolerated but never silent: the operator
+			// sees the stable warning, and the log names the license and
+			// the dropped claims for support.
 			if tc.expectClaimsIgnored {
 				require.Contains(t, entitlements.Warnings,
 					codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText)
+				logs := logBuf.String()
+				require.Contains(t, logs, "ignored unusable Coder Agent runtime hour claims in license")
+				require.Contains(t, logs, lic.UUID.String())
 			} else {
 				require.NotContains(t, entitlements.Warnings,
 					codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText)
+				require.Empty(t, logBuf.String())
 			}
 
 			// Every known feature name has a default entry in the map, so

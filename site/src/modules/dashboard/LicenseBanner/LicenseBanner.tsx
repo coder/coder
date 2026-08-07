@@ -2,11 +2,11 @@ import type { FC } from "react";
 import {
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 	LicenseAgentRuntimeHoursSoftLimitWarningText,
-	LicenseAgentRuntimeUsageUnavailableWarningText,
+	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
-	LicenseManagedAgentUsageUnavailableWarningText,
+	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -30,16 +30,28 @@ const isAIGovernanceWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
 	message.startsWith(aiGovernanceOverLimitWarningPrefix);
 
+// Renders a license message template the way the backend's fmt.Sprintf call
+// sites do, substituting each %d placeholder in order. Also used by the
+// stories, so what they pin is what production renders.
+export const formatLicenseMessage = (
+	template: string,
+	...values: number[]
+): string =>
+	values.reduce(
+		(message, value) => message.replace("%d", `${value}`),
+		template,
+	);
+
 // Diagnostics about the license or the usage measurement rather than about
 // usage itself. They point the operator at the coderd logs or at Coder
 // support, so they render muted, without the exceedance heading, and without
-// a sales link. The "unavailable" pair arrives via entitlements.errors so
-// the alertable coderd_license_errors gauge keeps counting measurement
-// failures, but nothing about the license is wrong, so they must not render
-// as license errors.
+// a sales link. The "unavailable" pair arrives via entitlements.errors but
+// must not render as license errors; the
+// LicenseManagedAgentUsageUnavailableErrorText doc in codersdk owns the
+// explanation of that channel split.
 const diagnosticMessages: readonly string[] = [
-	LicenseManagedAgentUsageUnavailableWarningText,
-	LicenseAgentRuntimeUsageUnavailableWarningText,
+	LicenseManagedAgentUsageUnavailableErrorText,
+	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 ];
 
@@ -76,9 +88,12 @@ const aiGovernanceOverLimitMessage = (
 	}
 
 	const overLimitSeats = actual - limit;
-	return LicenseAIGovernanceOverLimitWarningText.replace("%d", `${actual}`)
-		.replace("%d", `${limit}`)
-		.replace("%d", `${overLimitSeats}`);
+	return formatLicenseMessage(
+		LicenseAIGovernanceOverLimitWarningText,
+		actual,
+		limit,
+		overLimitSeats,
+	);
 };
 
 const aiGovernanceNearLimitMessage = (
@@ -184,9 +199,8 @@ export const LicenseBanner: FC = () => {
 	const messages: LicenseBannerMessage[] = [
 		...errors.map((message) => ({
 			message,
-			// Measurement diagnostics travel in the errors channel for the
-			// Prometheus gauge but are not license errors; see
-			// diagnosticMessages.
+			// Measurement diagnostics travel in the errors channel but are
+			// not license errors; see diagnosticMessages.
 			variant: isDiagnosticMessage(message)
 				? ("warning" as const)
 				: ("error" as const),
