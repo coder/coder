@@ -5684,8 +5684,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
@@ -11752,8 +11752,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
@@ -13979,8 +13979,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
                         }
@@ -15632,6 +15632,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
+                    }
+                },
+                "network_call_logs": {
+                    "description": "NetworkCallLogs is the chronological list of individual network calls made\nduring the session, holding the earliest calls up to a server-side cap.\nNetworkCalls remains authoritative for whole-session totals, so a shorter\nlist than NetworkCalls.Total means the list was truncated. Empty when the\nsession did not pass through Agent Firewall.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentFirewallLog"
                     }
                 },
                 "network_calls": {
@@ -17400,6 +17407,9 @@ const docTemplate = `{
                 "debug_logging_enabled": {
                     "type": "boolean"
                 },
+                "hook_allow_insecure": {
+                    "type": "boolean"
+                },
                 "hook_enabled": {
                     "type": "boolean"
                 },
@@ -17521,7 +17531,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
-                    "description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
+                    "description": "Name is the tool name with the ` + "`" + `\u003cserver\u003e__` + "`" + ` prefix the agent adds\nstripped, so it reads as the server exposes it.",
                     "type": "string"
                 }
             }
@@ -17937,6 +17947,10 @@ const docTemplate = `{
                 },
                 "file_name": {
                     "type": "string"
+                },
+                "hook_rewritten": {
+                    "description": "HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.",
+                    "type": "boolean"
                 },
                 "is_error": {
                     "type": "boolean"
@@ -19051,6 +19065,10 @@ const docTemplate = `{
                 "activity_bump_ms": {
                     "description": "ActivityBumpMillis allows optionally specifying the activity bump\nduration for all workspaces created from this template. Defaults to 1h\nbut can be set to 0 to disable activity bumping.",
                     "type": "integer"
+                },
+                "agents_allowed": {
+                    "description": "AgentsAllowed controls whether Coder Agents can create workspaces using\nthis template. Defaults to true.",
+                    "type": "boolean"
                 },
                 "allow_user_autostart": {
                     "description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled when using\nan enterprise license.",
@@ -20341,7 +20359,6 @@ const docTemplate = `{
                 "mcp-server-http",
                 "workspace-build-updates",
                 "nats_pubsub",
-                "minimum-implicit-member",
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "chat-advisor",
@@ -20356,7 +20373,6 @@ const docTemplate = `{
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
-                "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
@@ -20373,7 +20389,6 @@ const docTemplate = `{
                 "Enables the MCP HTTP server functionality.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
-                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Enables the advisor tool for root agent chats.",
@@ -20389,7 +20404,6 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
-                "ExperimentMinimumImplicitMember",
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentChatAdvisor",
@@ -24602,6 +24616,9 @@ const docTemplate = `{
                 "activity_bump_ms": {
                     "type": "integer"
                 },
+                "agents_allowed": {
+                    "type": "boolean"
+                },
                 "allow_user_autostart": {
                     "description": "AllowUserAutostart and AllowUserAutostop are enterprise-only. Their\nvalues are only used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "boolean"
@@ -25989,6 +26006,10 @@ const docTemplate = `{
                 "activity_bump_ms": {
                     "description": "ActivityBumpMillis allows optionally specifying the activity bump\nduration for all workspaces created from this template. Defaults to 1h\nbut can be set to 0 to disable activity bumping.",
                     "type": "integer"
+                },
+                "agents_allowed": {
+                    "description": "AgentsAllowed controls whether Coder Agents can create workspaces using\nthis template. If omitted, the current value is preserved.",
+                    "type": "boolean"
                 },
                 "allow_user_autostart": {
                     "type": "boolean"
@@ -29972,7 +29993,7 @@ const docTemplate = `{
         },
         "Authorization": {
             "type": "apiKey",
-            "name": "Authorizaiton",
+            "name": "Authorization",
             "in": "header"
         },
         "CoderSessionToken": {

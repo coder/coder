@@ -3,7 +3,7 @@ import { type FC, useRef, useState } from "react";
 import type { UserSecret } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,

@@ -260,6 +260,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		HistoryVersion:    input.HistoryVersion,
 		GenerationAttempt: chat.GenerationAttempt,
 	}
+	modelInvokedAt := s.opts.MessagePartBuffer.ModelInvokedAt(key)
 	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
@@ -277,12 +278,18 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		}
 		return taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
 	}
+	interruptedAt := s.opts.Clock.Now("chatworker", "interrupt")
+	var attemptRuntime time.Duration
+	if !modelInvokedAt.IsZero() {
+		attemptRuntime = interruptedAt.Sub(modelInvokedAt)
+	}
 	partialMessages, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
 		parts:          parts,
 		modelConfigID:  chat.LastModelConfigID,
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         s.opts.Logger,
-		interruptedAt:  s.opts.Clock.Now("chatworker", "interrupt"),
+		interruptedAt:  interruptedAt,
+		attemptRuntime: attemptRuntime,
 	})
 	if err != nil {
 		return xerrors.Errorf("convert buffered parts: %w", err)

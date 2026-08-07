@@ -81,10 +81,11 @@ export const IconField: FC<IconFieldProps> = ({
 				/>
 				<InputGroupAddon align="inline-end" className="gap-1.5">
 					{hasIcon && (
-						<span className="flex size-5 items-center justify-center [&_img]:max-w-full [&_img]:object-contain">
+						<span className="flex size-5 items-center justify-center">
 							<ExternalImage
 								alt=""
 								src={stringValue}
+								className="max-w-full object-contain"
 								onError={(event) => {
 									event.currentTarget.style.display = "none";
 								}}

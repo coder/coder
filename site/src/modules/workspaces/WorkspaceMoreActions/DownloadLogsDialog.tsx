@@ -10,7 +10,7 @@ import { Alert } from "#/components/Alert/Alert";
 import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
-} from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+} from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
 import { getWorkspaceAgents } from "#/utils/workspace";

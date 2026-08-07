@@ -348,9 +348,8 @@ export const WithMemberAIBudget: Story = {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("AI budget")).toBeInTheDocument();
 		await expect(await canvas.findByText("Budget group")).toBeInTheDocument();
-		// Dates depend on the runner's timezone; match loosely.
 		await expect(
-			await canvas.findByText(/^AI budget period: \w+ \d+ - \w+ \d+, 2026$/),
+			await canvas.findByText("AI budget period: June 1 - July 1, 2026"),
 		).toBeInTheDocument();
 
 		await expect(
@@ -365,7 +364,7 @@ export const WithMemberAIBudget: Story = {
 		);
 		await expect(
 			await body.findByText(
-				/^Monthly AI spend for this user\. Resets .*The group's default limit is \$7,000 per member\.$/,
+				/^Estimated monthly AI spend for this user\. Resets .*The group's default limit is \$7,000 per member\.$/,
 			),
 		).toBeInTheDocument();
 		await userEvent.click(
@@ -434,7 +433,9 @@ export const AIBudgetActionDisabledForOtherGroup: Story = {
 			}),
 		);
 		await expect(
-			await body.findByText(/^Monthly AI spend for this user\. Resets .*\.$/),
+			await body.findByText(
+				/^Estimated monthly AI spend for this user\. Resets .*\.$/,
+			),
 		).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
 

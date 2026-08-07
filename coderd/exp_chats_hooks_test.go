@@ -309,17 +309,26 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 
 	messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
-	var allowedCall *codersdk.ChatMessagePart
+	var allowedCall, deniedCall *codersdk.ChatMessagePart
 	for _, message := range messages.Messages {
 		for i := range message.Content {
 			part := &message.Content[i]
-			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolCallID == allowedToolCallID {
+			if part.Type != codersdk.ChatMessagePartTypeToolCall {
+				continue
+			}
+			switch part.ToolCallID {
+			case allowedToolCallID:
 				allowedCall = part
+			case deniedToolCallID:
+				deniedCall = part
 			}
 		}
 	}
 	require.NotNil(t, allowedCall)
 	require.JSONEq(t, `{"query":"public documentation"}`, string(allowedCall.Args))
+	require.True(t, allowedCall.HookRewritten)
+	require.NotNil(t, deniedCall)
+	require.False(t, deniedCall.HookRewritten)
 
 	err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 		Results: []codersdk.ToolResult{{
@@ -343,7 +352,7 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 			continue
 		}
 		for _, part := range message.Content {
-			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "Search result approved by policy." {
+			if part.Type == codersdk.ChatMessagePartTypeHookNotice && part.Text == "Search result approved by policy." {
 				foundPostToolNotice = true
 			}
 		}
@@ -410,19 +419,20 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 		return resp.ID
 	}
 
-	redactedFile := uploadFile("redacted.png")
+	createFile := uploadFile("create.png")
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
 		ModelConfigID:  &model.ID,
 		Content: []codersdk.ChatInputPart{
 			{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME create"},
-			{Type: codersdk.ChatInputPartTypeFile, FileID: redactedFile},
+			{Type: codersdk.ChatInputPartTypeFile, FileID: createFile},
 		},
 	})
 	require.NoError(t, err)
 	created, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Empty(t, created.Files, "overridden create must not link dropped attachments")
+	require.Len(t, created.Files, 1, "an overridden create must keep linking its attachments")
+	require.Equal(t, createFile, created.Files[0].ID)
 
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
@@ -437,23 +447,37 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 	require.False(t, sendResp.Queued)
 	afterSend, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, afterSend.Files, 1)
-	require.Equal(t, keptFile, afterSend.Files[0].ID)
+	require.Len(t, afterSend.Files, 2)
+	require.ElementsMatch(t, []uuid.UUID{createFile, keptFile}, []uuid.UUID{afterSend.Files[0].ID, afterSend.Files[1].ID})
 
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
-	droppedFile := uploadFile("dropped.png")
-	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+	overriddenFile := uploadFile("overridden.png")
+	sendResp, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 		Content: []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeFileReference, FileName: "main.go", StartLine: 1, EndLine: 3, Content: "package main"},
 			{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME send"},
-			{Type: codersdk.ChatInputPartTypeFile, FileID: droppedFile},
+			{Type: codersdk.ChatInputPartTypeFile, FileID: overriddenFile},
 		},
 	})
 	require.NoError(t, err)
+	require.False(t, sendResp.Queued)
 	afterOverride, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, afterOverride.Files, 1, "overridden send must not link dropped attachments")
-	require.Equal(t, keptFile, afterOverride.Files[0].ID)
+	require.Len(t, afterOverride.Files, 3, "an overridden send must keep linking its attachments")
+	require.ElementsMatch(t, []uuid.UUID{createFile, keptFile, overriddenFile}, []uuid.UUID{
+		afterOverride.Files[0].ID,
+		afterOverride.Files[1].ID,
+		afterOverride.Files[2].ID,
+	})
+
+	require.NotNil(t, sendResp.Message)
+	require.Equal(t, codersdk.ChatMessageRoleUser, sendResp.Message.Role)
+	require.Equal(t, []codersdk.ChatMessagePart{
+		codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
+		codersdk.ChatMessageText("redacted"),
+		codersdk.ChatMessageFile(overriddenFile, "image/png", "overridden.png"),
+	}, sendResp.Message.Content)
 }
 
 func TestChatHookNoticeMessagesInResponses(t *testing.T) {
@@ -576,7 +600,7 @@ func TestChatHookNoticeMessagesInResponses(t *testing.T) {
 			continue
 		}
 		for _, part := range message.Content {
-			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "session notice" {
+			if part.Type == codersdk.ChatMessagePartTypeHookNotice && part.Text == "session notice" {
 				sessionNoticeFound = true
 			}
 		}

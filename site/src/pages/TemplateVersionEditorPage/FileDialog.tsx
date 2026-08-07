@@ -1,6 +1,6 @@
-import TextField from "@mui/material/TextField";
 import { type ChangeEvent, type FC, useState } from "react";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { FormField } from "#/components/FormField/FormField";
 import { type FileTree, isFolder, validatePath } from "#/utils/filetree";
 
 interface CreateFileDialogProps {
@@ -63,22 +63,25 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 						Specify the path to a file to be created. This path can contain
 						slashes too.
 					</p>
-					<TextField
+					<FormField
 						autoFocus
 						onKeyDown={(event) => {
 							if (event.key === "Enter") {
 								handleConfirm();
 							}
 						}}
-						error={Boolean(error)}
-						helperText={error}
-						name="file-path"
-						autoComplete="off"
-						id="file-path"
-						placeholder="example.tf"
-						value={pathValue}
-						onChange={handleChange}
+						field={{
+							name: "file-path",
+							id: "file-path",
+							value: pathValue,
+							onChange: handleChange,
+							onBlur: () => {},
+							error: Boolean(error),
+							helperText: error,
+						}}
 						label="File Path"
+						autoComplete="off"
+						placeholder="example.tf"
 					/>
 				</div>
 			}
@@ -184,22 +187,25 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 						Rename <strong>{filename}</strong> to something else. This path can
 						contain slashes too!
 					</p>
-					<TextField
+					<FormField
 						autoFocus
 						onKeyDown={(event) => {
 							if (event.key === "Enter") {
 								handleConfirm();
 							}
 						}}
-						error={Boolean(error)}
-						helperText={error}
-						name="file-path"
-						autoComplete="off"
-						id="file-path"
-						placeholder={filename}
-						value={pathValue}
-						onChange={handleChange}
+						field={{
+							name: "file-path",
+							id: "file-path",
+							value: pathValue,
+							onChange: handleChange,
+							onBlur: () => {},
+							error: Boolean(error),
+							helperText: error,
+						}}
 						label="File Path"
+						autoComplete="off"
+						placeholder={filename}
 					/>
 				</div>
 			}

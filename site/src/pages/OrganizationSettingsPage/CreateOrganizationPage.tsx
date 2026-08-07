@@ -26,6 +26,7 @@ const CreateOrganizationPage: FC = () => {
 				<CreateOrganizationPageView
 					error={error}
 					isEntitled={feats.multiple_organizations}
+					permissions={permissions}
 					onSubmit={async (values) => {
 						await createOrganizationMutation.mutateAsync(values);
 						toast.success(

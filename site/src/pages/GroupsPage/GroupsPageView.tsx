@@ -8,7 +8,6 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -19,12 +18,15 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
+import { SpendEstimateDocsLink } from "./AICostControl";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
 const EM_DASH = "\u2014";
@@ -57,6 +59,7 @@ type GroupsPageViewProps = {
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
 	showAIBudget: boolean;
+	permissions: Permissions;
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
@@ -65,6 +68,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	canCreateGroup,
 	groupsEnabled,
 	showAIBudget,
+	permissions,
 }) => {
 	if (!groupsEnabled) {
 		return (
@@ -72,6 +76,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 				message="Groups"
 				description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
 				documentationLink={docs("/admin/users/groups-roles")}
+				canViewPremium={permissions.viewAllLicenses}
 			/>
 		);
 	}
@@ -94,7 +99,14 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 										message="AI spend couldn't be loaded, so budgets aren't shown."
 									/>
 								) : (
-									<StatusIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
+									<StatusIconTooltip
+										message={
+											<>
+												Estimated AI spend compared to the group's AI budget for
+												the active period. <SpendEstimateDocsLink />
+											</>
+										}
+									/>
 								)}
 							</div>
 						</TableHead>
@@ -129,28 +141,24 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	}
 	if (groups.length === 0) {
 		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState
-						message="No groups yet"
-						description={
-							canCreateGroup
-								? "Create your first group"
-								: "You don't have permission to create a group"
-						}
-						cta={
-							canCreateGroup && (
-								<Button asChild>
-									<RouterLink to="create">
-										<PlusIcon className="size-icon-sm" />
-										Create group
-									</RouterLink>
-								</Button>
-							)
-						}
-					/>
-				</TableCell>
-			</TableRow>
+			<TableEmpty
+				message="No groups yet"
+				description={
+					canCreateGroup
+						? "Create your first group"
+						: "You don't have permission to create a group"
+				}
+				cta={
+					canCreateGroup && (
+						<Button asChild>
+							<RouterLink to="create">
+								<PlusIcon className="size-icon-sm" />
+								Create group
+							</RouterLink>
+						</Button>
+					)
+				}
+			/>
 		);
 	}
 	return (

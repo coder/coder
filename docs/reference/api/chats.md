@@ -165,7 +165,7 @@ Status Code **200**
 | `»»» status`              | [codersdk.ChatContextResourceStatus](schemas.md#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
 | `»»» tools`               | array                                                                              | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
 | `»»»» description`        | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
-| `»»»» name`               | string                                                                             | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                          |
+| `»»»» name`               | string                                                                             | false    |              | Name is the tool name with the `<server>__` prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                          |
 | `» created_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `» diff_status`           | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» additions`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
@@ -1674,6 +1674,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -1756,6 +1757,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -1891,6 +1893,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -1972,6 +1975,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -2054,6 +2058,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -2190,6 +2195,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -2271,6 +2277,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -2695,6 +2702,7 @@ Experimental: this endpoint is subject to change.
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -2775,6 +2783,7 @@ Experimental: this endpoint is subject to change.
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -2843,6 +2852,7 @@ Experimental: this endpoint is subject to change.
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {

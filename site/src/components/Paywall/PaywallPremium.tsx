@@ -4,22 +4,34 @@ import { cn } from "#/utils/cn";
 import {
 	Paywall,
 	PaywallContent,
-	PaywallCTA,
+	PaywallCTALink,
 	PaywallDescription,
 	PaywallDocumentationLink,
 	PaywallFeature,
 	PaywallFeatures,
+	PaywallGuidance,
 	PaywallHeading,
 	PaywallSeparator,
 	PaywallStack,
 	PaywallTitle,
 } from "./Paywall";
 
+const PREMIUM_FEATURES = [
+	"High availability & workspace proxies",
+	"Multi-org & role-based access control",
+	"24x7 global support with SLA",
+	"Unlimited Git & external auth integrations",
+];
+
+const PREMIUM_PAGE_PATH = "/deployment/premium";
+
 type PaywallPremiumProps = React.ComponentProps<"div"> & {
 	message: string;
 	description: ReactNode;
 	documentationLink: string;
 	compact?: boolean;
+	/** Whether the viewer can reach the in-app Premium page. */
+	canViewPremium: boolean;
 };
 
 const PaywallPremium = ({
@@ -27,16 +39,10 @@ const PaywallPremium = ({
 	description,
 	documentationLink,
 	compact = false,
+	canViewPremium: canViewLicenses,
 	className,
 	...props
 }: PaywallPremiumProps) => {
-	const PREMIUM_FEATURES = [
-		"High availability & workspace proxies",
-		"Multi-org & role-based access control",
-		"24x7 global support with SLA",
-		"Unlimited Git & external auth integrations",
-	];
-
 	return (
 		<Paywall
 			className={cn(
@@ -76,9 +82,15 @@ const PaywallPremium = ({
 						</PaywallFeature>
 					))}
 				</PaywallFeatures>
-				<PaywallCTA href="https://coder.com/pricing#compare-plans">
-					Learn about Premium
-				</PaywallCTA>
+				{canViewLicenses ? (
+					<PaywallCTALink to={PREMIUM_PAGE_PATH}>
+						Learn about Premium
+					</PaywallCTALink>
+				) : (
+					<PaywallGuidance>
+						Contact your deployment administrator for Premium.
+					</PaywallGuidance>
+				)}
 			</PaywallStack>
 		</Paywall>
 	);

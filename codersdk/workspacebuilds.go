@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -147,7 +146,7 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 		return WorkspaceBuild{}, ReadBodyAsError(res)
 	}
 	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+	return workspaceBuild, ReadBodyAsJSON(res, &workspaceBuild)
 }
 
 type CancelWorkspaceBuildStatus string
@@ -233,7 +232,7 @@ func (c *Client) WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx cont
 		return WorkspaceBuild{}, ReadBodyAsError(res)
 	}
 	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+	return workspaceBuild, ReadBodyAsJSON(res, &workspaceBuild)
 }
 
 func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) ([]WorkspaceBuildParameter, error) {
@@ -246,7 +245,7 @@ func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) 
 		return nil, ReadBodyAsError(res)
 	}
 	var params []WorkspaceBuildParameter
-	return params, json.NewDecoder(res.Body).Decode(&params)
+	return params, ReadBodyAsJSON(res, &params)
 }
 
 type TimingStage string
@@ -313,5 +312,5 @@ func (c *Client) WorkspaceBuildTimings(ctx context.Context, build uuid.UUID) (Wo
 		return WorkspaceBuildTimings{}, ReadBodyAsError(res)
 	}
 	var timings WorkspaceBuildTimings
-	return timings, json.NewDecoder(res.Body).Decode(&timings)
+	return timings, ReadBodyAsJSON(res, &timings)
 }

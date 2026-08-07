@@ -15,18 +15,14 @@ import {
 } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
@@ -35,6 +31,7 @@ type AppearanceSettingsPageViewProps = {
 	appearance: UpdateAppearanceConfig;
 	isEntitled: boolean;
 	isPremium: boolean;
+	permissions: Permissions;
 	onSaveAppearance: (
 		newConfig: Partial<UpdateAppearanceConfig>,
 	) => Promise<void>;
@@ -42,7 +39,7 @@ type AppearanceSettingsPageViewProps = {
 
 export const AppearanceSettingsPageView: FC<
 	AppearanceSettingsPageViewProps
-> = ({ appearance, isEntitled, isPremium, onSaveAppearance }) => {
+> = ({ appearance, isEntitled, isPremium, permissions, onSaveAppearance }) => {
 	const form = useFormik<{
 		application_name: string;
 		logo_url: string;
@@ -68,29 +65,20 @@ export const AppearanceSettingsPageView: FC<
 				</SettingsHeader>
 
 				<Badges>
-					<Tooltip>
-						{isEntitled && !isPremium ? (
-							<EnterpriseBadge />
+					{isEntitled ? (
+						isPremium ? (
+							<PremiumBadge />
 						) : (
-							<TooltipTrigger asChild>
-								<span>
-									<PremiumBadge />
-								</span>
-							</TooltipTrigger>
-						)}
-
-						<TooltipContent
-							sideOffset={-28}
-							collisionPadding={16}
-							className="p-0"
-						>
-							<PopoverPaywall
-								message="Appearance"
-								description="With a Premium license, you can customize branding and announcement banners for your deployment."
-								documentationLink={docs("/admin/setup/appearance")}
-							/>
-						</TooltipContent>
-					</Tooltip>
+							<EnterpriseBadge />
+						)
+					) : (
+						<PaywallPremium
+							message="Appearance"
+							description="With a Premium license, you can customize branding and announcement banners for your deployment."
+							documentationLink={docs("/admin/setup/appearance")}
+							canViewPremium={permissions.viewAllLicenses}
+						/>
+					)}
 				</Badges>
 
 				<VerticalForm

@@ -1,9 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-} from "../../utils/usageLimitMessage";
+import { type ChatDetailError, chatDetailErrorsEqual } from "./chatError";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 

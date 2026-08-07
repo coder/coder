@@ -242,6 +242,31 @@ func TestPatchGroup(t *testing.T) {
 		require.Equal(t, "hi", group.Name)
 	})
 
+	t.Run("RenameCasingOnlyOK", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "supportshare",
+		})
+		require.NoError(t, err)
+
+		// GetGroupByOrgAndName now matches names case-insensitively, so the
+		// conflict check must exclude the group being renamed. Otherwise it
+		// would find itself and reject a rename that only changes casing.
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			Name: "SupportShare",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "SupportShare", group.Name)
+	})
+
 	t.Run("AddUsers", func(t *testing.T) {
 		t.Parallel()
 

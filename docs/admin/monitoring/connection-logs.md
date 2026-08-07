@@ -1,4 +1,4 @@
-# Connection Logs
+# Connection Logs (Premium)
 
 > [!NOTE]
 > Connection logs require a

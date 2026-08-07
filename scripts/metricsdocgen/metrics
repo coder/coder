@@ -166,7 +166,7 @@ coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allow
 coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="+Inf"} 0
 coder_ai_gateway_cost_control_enforcement_duration_seconds_sum{outcome="allowed"} 0
 coder_ai_gateway_cost_control_enforcement_duration_seconds_count{outcome="allowed"} 0
-# HELP coder_ai_gateway_cost_control_unpriced_token_usage_records_total The number of recorded AI token-usage records for which no model price was found (provider: anthropic, openai, copilot).
+# HELP coder_ai_gateway_cost_control_unpriced_token_usage_records_total The number of recorded AI token-usage records for which no (provider, model) price was found.
 # TYPE coder_ai_gateway_cost_control_unpriced_token_usage_records_total counter
 coder_ai_gateway_cost_control_unpriced_token_usage_records_total{model="gpt-5-nano",provider="openai"} 0
 # HELP coder_ai_gateway_injected_tool_invocations_total The number of times an injected MCP tool was invoked by AI Gateway.
