@@ -19,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -248,6 +249,15 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionCreate,
+		OrganizationID: organization.ID,
+	})
+	defer commitAudit()
 	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) {
 		httpapi.Forbidden(rw)
 		return
@@ -441,6 +451,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	aReq.New = inserted
+
 	httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(inserted))
 }
 
@@ -544,6 +556,21 @@ func (api *API) getMCPServerConfigForMutation(rw http.ResponseWriter, r *http.Re
 func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
+	// Set Old before the write-authz check so a write-denied 403 is
+	// audited. Read-denied callers were already concealed with 404 by
+	// the param middleware and never reach this handler.
+	aReq.Old = httpmw.MCPServerConfigParam(r)
+	aReq.UpdateOrganizationID(aReq.Old.OrganizationID)
+
 	existing, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionUpdate)
 	if !ok {
 		return
@@ -873,6 +900,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	aReq.New = updated
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated))
 }
 
@@ -888,6 +917,21 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionDelete,
+	})
+	defer commitAudit()
+
+	// Set Old before the write-authz check so a write-denied 403 is
+	// audited. Read-denied callers were already concealed with 404 by
+	// the param middleware and never reach this handler.
+	aReq.Old = httpmw.MCPServerConfigParam(r)
+	aReq.UpdateOrganizationID(aReq.Old.OrganizationID)
+
 	config, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionDelete)
 	if !ok {
 		return
