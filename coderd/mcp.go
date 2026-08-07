@@ -315,8 +315,12 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				ModelIntent:             req.ModelIntent,
 				AllowInPlanMode:         req.AllowInPlanMode,
 				ForwardCoderHeaders:     req.ForwardCoderHeaders,
-				CreatedBy:               apiKey.UserID,
-				UpdatedBy:               apiKey.UserID,
+				GroupACL: database.ChatACL{
+					organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+				},
+				UserACL:   database.ChatACL{},
+				CreatedBy: apiKey.UserID,
+				UpdatedBy: apiKey.UserID,
 			})
 			if err != nil {
 				switch {
@@ -503,8 +507,12 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		ModelIntent:             req.ModelIntent,
 		AllowInPlanMode:         req.AllowInPlanMode,
 		ForwardCoderHeaders:     req.ForwardCoderHeaders,
-		CreatedBy:               apiKey.UserID,
-		UpdatedBy:               apiKey.UserID,
+		GroupACL: database.ChatACL{
+			organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		},
+		UserACL:   database.ChatACL{},
+		CreatedBy: apiKey.UserID,
+		UpdatedBy: apiKey.UserID,
 	})
 	if err != nil {
 		switch {

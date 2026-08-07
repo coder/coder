@@ -99,6 +99,8 @@ INSERT INTO mcp_server_configs (
     model_intent,
     allow_in_plan_mode,
     forward_coder_headers,
+    group_acl,
+    user_acl,
     created_by,
     updated_by
 ) VALUES (
@@ -129,6 +131,8 @@ INSERT INTO mcp_server_configs (
     @model_intent::boolean,
     @allow_in_plan_mode::boolean,
     @forward_coder_headers::boolean,
+    @group_acl,
+    @user_acl,
     @created_by::uuid,
     @updated_by::uuid
 )
@@ -171,6 +175,14 @@ WHERE
     id = @id::uuid
 RETURNING
     *;
+
+-- name: UpdateMCPServerConfigACLByID :exec
+UPDATE mcp_server_configs
+SET
+    group_acl = @group_acl,
+    user_acl = @user_acl
+WHERE
+    id = @id::uuid;
 
 -- name: DeleteMCPServerConfigByID :exec
 DELETE FROM
