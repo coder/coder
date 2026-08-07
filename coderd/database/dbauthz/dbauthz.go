@@ -4064,10 +4064,7 @@ func (q *querier) GetMCPServerConfigsByOrganization(ctx context.Context, organiz
 	if err != nil {
 		return nil, xerrors.Errorf("prepare sql filter: %w", err)
 	}
-	return q.db.GetAuthorizedMCPServerConfigs(ctx, database.GetAuthorizedMCPServerConfigsParams{
-		OrganizationID: organizationID,
-		Prepared:       prepared,
-	})
+	return q.db.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
 }
 
 func (q *querier) GetMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
@@ -9399,6 +9396,6 @@ func (q *querier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID uui
 	return q.db.GetAuthorizedChatsByChatFileID(ctx, fileID, prepared)
 }
 
-func (q *querier) GetAuthorizedMCPServerConfigs(ctx context.Context, arg database.GetAuthorizedMCPServerConfigsParams) ([]database.MCPServerConfig, error) {
-	return q.db.GetAuthorizedMCPServerConfigs(ctx, arg)
+func (q *querier) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	return q.db.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
 }

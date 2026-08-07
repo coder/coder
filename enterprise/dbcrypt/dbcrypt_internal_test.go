@@ -1012,10 +1012,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetAuthorizedMCPServerConfigs(ctx, database.GetAuthorizedMCPServerConfigsParams{
-			OrganizationID: cfg.OrganizationID,
-			Prepared:       allowAllPreparedAuthorized{},
-		})
+		cfgs, err := crypt.GetAuthorizedMCPServerConfigs(ctx, cfg.OrganizationID, allowAllPreparedAuthorized{})
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		require.Equal(t, cfg.ID, cfgs[0].ID)
