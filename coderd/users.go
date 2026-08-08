@@ -740,6 +740,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 				"deleted_account_name":      user.Username,
 				"deleted_account_user_name": user.Name,
 				"initiator":                 accountDeleter.Name,
+				"account_type":              accountTypeLabel(user),
 			},
 			"api-users-delete",
 			user.ID,
@@ -1078,6 +1079,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 			"suspended_account_name":      targetUser.Username,
 			"suspended_account_user_name": targetUser.Name,
 			"initiator":                   actingUserName,
+			"account_type":                accountTypeLabel(targetUser),
 		}
 		data = map[string]any{
 			"user": map[string]any{"id": targetUser.ID, "name": targetUser.Name, "email": targetUser.Email},
@@ -1089,6 +1091,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 			"activated_account_name":      targetUser.Username,
 			"activated_account_user_name": targetUser.Name,
 			"initiator":                   actingUserName,
+			"account_type":                accountTypeLabel(targetUser),
 		}
 		data = map[string]any{
 			"user": map[string]any{"id": targetUser.ID, "name": targetUser.Name, "email": targetUser.Email},
@@ -2038,6 +2041,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		return user, xerrors.Errorf("find user admins: %w", err)
 	}
 
+	accountType := accountTypeLabel(user)
+
 	for _, u := range userAdmins {
 		if u.ID == user.ID {
 			// If the new user is an admin, don't notify them about themselves.
@@ -2052,6 +2057,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 				"created_account_name":      user.Username,
 				"created_account_user_name": user.Name,
 				"initiator":                 req.accountCreatorName,
+				"account_type":              accountType,
 			},
 			map[string]any{
 				"user": map[string]any{"id": user.ID, "name": user.Name, "email": user.Email},
@@ -2064,6 +2070,15 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}
 
 	return user, err
+}
+
+// accountTypeLabel returns the notification label value that account lifecycle
+// templates branch on to describe the account as a user or a service account.
+func accountTypeLabel(u database.User) string {
+	if u.IsServiceAccount {
+		return "service"
+	}
+	return "user"
 }
 
 // findUserAdmins fetches all users with user admin permission including owners.
