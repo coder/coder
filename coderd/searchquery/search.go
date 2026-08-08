@@ -160,6 +160,8 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	filter := database.GetUsersParams{
 		Search:           parser.String(values, "", "search"),
 		Name:             parser.String(values, "", "name"),
+		ExactUsername:    parser.String(values, "", "username"),
+		ExactEmail:       parser.String(values, "", "email"),
 		Status:           httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
 		IsServiceAccount: parser.NullableBoolean(values, sql.NullBool{}, "service_account"),
 		RbacRole:         parser.Strings(values, []string{}, "role"),
