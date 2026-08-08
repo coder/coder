@@ -28,6 +28,10 @@ import {
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 
+// A deployment that just finished setup has no templates, so the first user is
+// handed off to the template builder instead of an empty dashboard.
+export const setupCompleteRedirect = "/templates/new/builder";
+
 const usernameValidator = nameValidator("Username");
 const usernameFromEmail = (email: string): string => {
 	try {
@@ -210,7 +214,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					{authMethods?.github.enabled && (
 						<>
 							<Button className="w-full" asChild type="submit" size="lg">
-								<a href="/api/v2/users/oauth2/github/callback">
+								<a
+									href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
+										setupCompleteRedirect,
+									)}`}
+								>
 									<ExternalImage src="/icon/github.svg?blackWithColor" />
 									GitHub
 								</a>
