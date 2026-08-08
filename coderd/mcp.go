@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -152,7 +153,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 
 	// Organization admins can see disabled configs and management fields.
-	// Other members see enabled configs with management fields redacted.
+	// Other members see enabled configs granted by their ACL, with management fields redacted.
 	isAdmin := api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID))
 
 	var configs []database.MCPServerConfig
@@ -160,7 +161,13 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	if isAdmin {
 		configs, err = api.Database.GetMCPServerConfigsByOrganization(ctx, organization.ID)
 	} else {
-		configs, err = api.Database.GetEnabledMCPServerConfigsByOrganization(ctx, organization.ID)
+		prepared, prepareErr := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceMCPServerConfig.Type)
+		if prepareErr != nil {
+			httpapi.InternalServerError(rw, prepareErr)
+			return
+		}
+		configs, err = api.Database.GetAuthorizedMCPServerConfigs(ctx, organization.ID, prepared)
+		configs = slices.DeleteFunc(configs, func(config database.MCPServerConfig) bool { return !config.Enabled })
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -315,8 +322,12 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				ModelIntent:             req.ModelIntent,
 				AllowInPlanMode:         req.AllowInPlanMode,
 				ForwardCoderHeaders:     req.ForwardCoderHeaders,
-				CreatedBy:               apiKey.UserID,
-				UpdatedBy:               apiKey.UserID,
+				GroupACL: database.ChatACL{
+					organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+				},
+				UserACL:   database.ChatACL{},
+				CreatedBy: apiKey.UserID,
+				UpdatedBy: apiKey.UserID,
 			})
 			if err != nil {
 				switch {
@@ -503,8 +514,12 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		ModelIntent:             req.ModelIntent,
 		AllowInPlanMode:         req.AllowInPlanMode,
 		ForwardCoderHeaders:     req.ForwardCoderHeaders,
-		CreatedBy:               apiKey.UserID,
-		UpdatedBy:               apiKey.UserID,
+		GroupACL: database.ChatACL{
+			organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		},
+		UserACL:   database.ChatACL{},
+		CreatedBy: apiKey.UserID,
+		UpdatedBy: apiKey.UserID,
 	})
 	if err != nil {
 		switch {

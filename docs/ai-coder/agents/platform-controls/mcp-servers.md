@@ -168,11 +168,12 @@ wins.
 
 ## Permissions
 
-| Action                        | Required role       |
-|-------------------------------|---------------------|
-| Create, update, or delete     | Organization admin  |
-| View enabled servers          | Organization member |
-| OAuth2 connect and disconnect | Organization member |
+| Action                        | Required role              |
+|-------------------------------|----------------------------|
+| Create, update, or delete     | Organization admin         |
+| View enabled servers          | Member granted through ACL |
+| OAuth2 connect and disconnect | Member granted through ACL |
+| Manage ACLs                   | Organization admin         |
 
 Members only see enabled servers in their own organizations. Sensitive fields
 such as API keys and client secrets are redacted in API responses.
@@ -181,3 +182,13 @@ The **MCP servers** settings page is part of deployment settings, so opening
 it in the dashboard also requires permission to edit deployment
 configuration. Organization admins without that permission manage servers
 through the API.
+
+### Access control
+
+Each server has a group and user ACL that controls which members can see and
+use it. New servers grant read access to the organization's **Everyone** group,
+so all members have access by default. Admins can remove the Everyone entry and
+grant specific groups or users instead through the API
+(`GET`/`PATCH /api/experimental/mcp-servers/{id}/acl`); there is no ACL editor
+in the settings page. ACL management is available in all editions and does not
+require an enterprise entitlement. ACL changes are recorded in the audit log.

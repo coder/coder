@@ -3070,3 +3070,81 @@ func TestMigration000565MCPServerConfigsOrganizationID(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, danglingIDs)
 }
+
+func TestMigration000567MCPServerConfigACL(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 566
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", priorMigrationVersion)
+		}
+		if version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	var defaultOrgID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx, `SELECT id FROM organizations WHERE is_default = true`).Scan(&defaultOrgID)
+	require.NoError(t, err)
+
+	orgID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO organizations (
+			id, name, display_name, description, icon, created_at, updated_at,
+			is_default, deleted, default_org_member_roles
+		) VALUES ($1, 'migration-567-org', 'Migration 567 Org', '', '', $2, $2, false, false, '{}')
+	`, orgID, now)
+	require.NoError(t, err)
+
+	configIDs := []uuid.UUID{uuid.New(), uuid.New()}
+	orgIDs := []uuid.UUID{defaultOrgID, orgID}
+	for i, configID := range configIDs {
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO mcp_server_configs (
+				id, organization_id, display_name, slug, description, url, auth_type,
+				availability, enabled, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, 'unchanged', $5, 'none', 'default_on', true, $6, $6)
+		`, configID, orgIDs[i], fmt.Sprintf("Migration 567 Config %d", i), fmt.Sprintf("migration-567-config-%d", i), fmt.Sprintf("https://mcp.example.com/%d", i), now)
+		require.NoError(t, err)
+	}
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, 567, version)
+
+	for i, configID := range configIDs {
+		var displayName, description string
+		var enabled bool
+		var groupACL, userACL string
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT display_name, description, enabled, group_acl::text, user_acl::text
+			FROM mcp_server_configs WHERE id = $1
+		`, configID).Scan(&displayName, &description, &enabled, &groupACL, &userACL)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("Migration 567 Config %d", i), displayName)
+		require.Equal(t, "unchanged", description)
+		require.True(t, enabled)
+		require.JSONEq(t, fmt.Sprintf(`{%q:{"permissions":["read"]}}`, orgIDs[i].String()), groupACL)
+		require.JSONEq(t, `{}`, userACL)
+	}
+
+	for _, column := range []string{"group_acl", "user_acl"} {
+		var defaultValue string
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT column_default FROM information_schema.columns
+			WHERE table_name = 'mcp_server_configs' AND column_name = $1
+		`, column).Scan(&defaultValue)
+		require.NoError(t, err)
+		require.Equal(t, "'{}'::jsonb", defaultValue)
+	}
+}

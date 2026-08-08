@@ -435,6 +435,108 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 	require.Equal(t, "enabled-server", memberConfigs[0].Slug)
 }
 
+func TestMCPServerConfigACL(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	mAudit := audit.NewMock()
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+		Auditor:             mAudit,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	groupMemberClient, groupMember := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	nonMemberClient, nonMember := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: groupMember.ID})
+	config := createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "acl-server", true)
+
+	mAudit.ResetLogs()
+	err := adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+			group.ID.String():                 codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.NoError(t, err)
+	logs := mAudit.AuditLogs()
+	require.Len(t, logs, 1)
+	require.Equal(t, database.AuditActionWrite, logs[0].Action)
+	require.Equal(t, config.ID, logs[0].ResourceID)
+	require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+
+	aclResponse, err := adminClient.MCPServerConfigACL(ctx, config.ID)
+	require.NoError(t, err)
+	require.Len(t, aclResponse.Groups, 1)
+	require.Equal(t, group.ID, aclResponse.Groups[0].ID)
+	require.Equal(t, 1, aclResponse.Groups[0].TotalMemberCount)
+
+	configs, err := groupMemberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	_, err = groupMemberClient.MCPServerConfigByID(ctx, config.ID)
+	require.NoError(t, err)
+
+	configs, err = nonMemberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Empty(t, configs)
+	_, err = nonMemberClient.MCPServerConfigByID(ctx, config.ID)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+	mAudit.ResetLogs()
+	err = groupMemberClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	logs = mAudit.AuditLogs()
+	require.Len(t, logs, 1)
+	require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
+	require.Equal(t, groupMember.ID, logs[0].UserID)
+
+	err = adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			nonMember.ID.String(): codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.NoError(t, err)
+	_, err = nonMemberClient.MCPServerConfigByID(ctx, config.ID)
+	require.NoError(t, err)
+
+	// The sparse user-only update must merge with the existing ACL, not
+	// clobber the earlier group grant.
+	aclResponse, err = adminClient.MCPServerConfigACL(ctx, config.ID)
+	require.NoError(t, err)
+	require.Len(t, aclResponse.Groups, 1)
+	require.Equal(t, group.ID, aclResponse.Groups[0].ID)
+	require.Len(t, aclResponse.Users, 1)
+	require.Equal(t, nonMember.ID, aclResponse.Users[0].ID)
+
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+	err = adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			otherGroup.ID.String(): codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Error(), otherGroup.ID.String())
+
+	foreignUser := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: foreignUser.ID})
+	err = adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			foreignUser.ID.String(): codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Error(), foreignUser.ID.String())
+}
+
 // TestMCPServerConfigsSecretsNeverLeaked is a load-bearing test that
 // ensures secret fields (OAuth2 client secret, API key value, custom
 // headers) are never present in API responses for any caller. If this

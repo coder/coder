@@ -718,6 +718,7 @@ export type APIKeyScope =
 	| "mcp_server_config:create"
 	| "mcp_server_config:delete"
 	| "mcp_server_config:read"
+	| "mcp_server_config:share"
 	| "mcp_server_config:update"
 	| "notification_message:*"
 	| "notification_message:create"
@@ -963,6 +964,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"mcp_server_config:create",
 	"mcp_server_config:delete",
 	"mcp_server_config:read",
+	"mcp_server_config:share",
 	"mcp_server_config:update",
 	"notification_message:*",
 	"notification_message:create",
@@ -5905,6 +5907,27 @@ export interface MCPServerConfig {
 }
 
 // From codersdk/mcp.go
+export interface MCPServerConfigACL {
+	readonly users: readonly MCPServerConfigUser[];
+	readonly groups: readonly MCPServerConfigGroup[];
+}
+
+// From codersdk/mcp.go
+export interface MCPServerConfigGroup extends Group {
+	readonly role: MCPServerConfigRole;
+}
+
+// From codersdk/mcp.go
+export type MCPServerConfigRole = "" | "read";
+
+export const MCPServerConfigRoles: MCPServerConfigRole[] = ["", "read"];
+
+// From codersdk/mcp.go
+export interface MCPServerConfigUser extends MinimalUser {
+	readonly role: MCPServerConfigRole;
+}
+
+// From codersdk/mcp.go
 /**
  * MCPServerOAuth2DisconnectResponse reports whether the removed token
  * was also revoked at the OAuth provider.
@@ -9615,6 +9638,12 @@ export interface UpdateInboxNotificationReadStatusRequest {
 export interface UpdateInboxNotificationReadStatusResponse {
 	readonly notification: InboxNotification;
 	readonly unread_count: number;
+}
+
+// From codersdk/mcp.go
+export interface UpdateMCPServerConfigACLRequest {
+	readonly user_roles?: Record<string, MCPServerConfigRole>;
+	readonly group_roles?: Record<string, MCPServerConfigRole>;
 }
 
 // From codersdk/mcp.go

@@ -124,6 +124,7 @@ export const RBACResourceActions: Partial<
 		create: "create a new MCP server config",
 		delete: "delete MCP server config",
 		read: "read MCP server config",
+		share: "share MCP server config with other users or groups",
 		update: "update MCP server config",
 	},
 	notification_message: {
