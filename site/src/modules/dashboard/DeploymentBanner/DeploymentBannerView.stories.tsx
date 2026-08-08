@@ -33,6 +33,8 @@ export const WithHealthIssues: Story = {
 	},
 };
 
+// Muting a section only silences the sidebar bell. An error-severity section
+// stays in the top-nav banner even when it is dismissed.
 export const WithDismissedHealthIssues: Story = {
 	args: {
 		health: {
@@ -47,8 +49,9 @@ export const WithDismissedHealthIssues: Story = {
 		const canvas = within(canvasElement);
 		const trigger = canvas.getByTestId("deployment-health-trigger");
 		await userEvent.hover(trigger);
-		await waitFor(() =>
-			expect(screen.getByRole("tooltip")).toBeInTheDocument(),
-		);
+		const tooltip = await screen.findByRole("tooltip");
+		await expect(
+			within(tooltip).getByText("We're noticing workspace proxy issues."),
+		).toBeInTheDocument();
 	},
 };
