@@ -1088,11 +1088,11 @@ const AgentChatPage: FC = () => {
 	const chatMessagesList = (() => {
 		const pages = chatMessagesQuery.data?.pages;
 		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages and deduplicate by ID.
-		// Cross-page duplication can occur when upsertCacheMessages
-		// writes a message into page 0 while the same ID still
-		// exists in a later page. Last occurrence wins so the
-		// most up-to-date content is preserved.
+		// Collect all messages and deduplicate by ID as a defense
+		// against cross-page duplicates. Cache upserts fan the same
+		// fresh value out to every page containing an ID, so any
+		// surviving duplicates are value-identical and either
+		// occurrence is safe to render.
 		const all = pages.flatMap((p) => p.messages);
 		const byID = new Map(all.map((m) => [m.id, m]));
 		const deduped = Array.from(byID.values());

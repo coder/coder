@@ -1,3 +1,4 @@
+import isEqual from "lodash/isEqual";
 import {
 	type InfiniteData,
 	type QueryClient,
@@ -815,6 +816,120 @@ export const patchChatMessages = (
 	queryClient.setQueryData<
 		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 	>(chatMessagesKey(chatId), updater);
+
+const replaceMessagesInPage = (
+	page: TypesGen.ChatMessagesResponse,
+	incomingByID: ReadonlyMap<number, TypesGen.ChatMessage>,
+	foundIDs: Set<number>,
+): TypesGen.ChatMessagesResponse => {
+	let pageChanged = false;
+
+	const nextMessages = page.messages.map((existing) => {
+		const incoming = incomingByID.get(existing.id);
+		if (!incoming) {
+			return existing;
+		}
+
+		foundIDs.add(existing.id);
+		if (isEqual(existing, incoming)) {
+			return existing;
+		}
+
+		pageChanged = true;
+		return incoming;
+	});
+
+	return pageChanged ? { ...page, messages: nextMessages } : page;
+};
+
+const upsertMessagesAcrossPages = (
+	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
+	messages: readonly TypesGen.ChatMessage[],
+): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
+	if (!currentData?.pages?.length || messages.length === 0) {
+		return currentData;
+	}
+
+	const incomingByID = new Map(
+		messages.map((message) => [message.id, message]),
+	);
+	const foundIDs = new Set<number>();
+	const nextPages = currentData.pages.map((page) =>
+		replaceMessagesInPage(page, incomingByID, foundIDs),
+	);
+	const pagesChanged = nextPages.some(
+		(page, index) => page !== currentData.pages[index],
+	);
+
+	const messagesToInsert = [...incomingByID.values()].filter(
+		(message) => !foundIDs.has(message.id),
+	);
+	if (messagesToInsert.length === 0) {
+		return pagesChanged ? { ...currentData, pages: nextPages } : currentData;
+	}
+
+	const firstPage = nextPages[0];
+	const firstPageMessages = [...firstPage.messages, ...messagesToInsert].sort(
+		(a, b) => b.id - a.id,
+	);
+
+	return {
+		...currentData,
+		pages: [
+			{ ...firstPage, messages: firstPageMessages },
+			...nextPages.slice(1),
+		],
+	};
+};
+
+const replaceMessagesHistory = (
+	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
+	messages: readonly TypesGen.ChatMessage[],
+): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
+	if (!currentData?.pages?.length) {
+		return currentData;
+	}
+
+	const firstPage = currentData.pages[0];
+	const nextMessages = [...messages].sort((a, b) => b.id - a.id);
+	const alreadyReplaced =
+		currentData.pages.length === 1 &&
+		!firstPage.has_more &&
+		firstPage.messages.length === nextMessages.length &&
+		firstPage.messages.every((existing, index) =>
+			isEqual(existing, nextMessages[index]),
+		);
+
+	if (alreadyReplaced) {
+		return currentData;
+	}
+
+	return {
+		...currentData,
+		pages: [{ ...firstPage, messages: nextMessages, has_more: false }],
+		pageParams: currentData.pageParams.slice(0, 1),
+	};
+};
+
+export const upsertChatMessages = (
+	queryClient: QueryClient,
+	chatId: string,
+	messages: readonly TypesGen.ChatMessage[],
+) => {
+	return patchChatMessages(queryClient, chatId, (currentData) =>
+		upsertMessagesAcrossPages(currentData, messages),
+	);
+};
+
+export const replaceChatMessagesHistory = (
+	queryClient: QueryClient,
+	chatId: string,
+	messages: readonly TypesGen.ChatMessage[],
+) => {
+	return patchChatMessages(queryClient, chatId, (currentData) =>
+		replaceMessagesHistory(currentData, messages),
+	);
+};
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 export const CHAT_SEARCH_LIMIT = 50;
