@@ -117,7 +117,7 @@ test("change login type to OIDC", async () => {
 	await user.click(updateButton);
 
 	await waitFor(() => {
-		expect(convertToOAUTHSpy).toHaveBeenCalledWith({
+		expect(convertToOAUTHSpy.mock.calls[0]?.[0]).toEqual({
 			password: "password123",
 			to_type: "github",
 		});

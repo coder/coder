@@ -1,7 +1,7 @@
 import type { Meta, Parameters, StoryObj } from "@storybook/react-vite";
-import { useQueryClient } from "react-query";
 import { action } from "storybook/actions";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import { templateVersionRoot } from "#/api/queries/templates";
 import type {
 	TemplateVersion,
@@ -125,27 +125,23 @@ export const OnlyDormantWorkspaces: Story = {
 
 export const FetchError: Story = {
 	beforeEach: (ctx) => {
-		const { workspaces, queries } = createPatchedDependencies(3);
+		const { workspaces } = createPatchedDependencies(3);
 		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
-		ctx.parameters.queries = queries;
+		spyOn(API, "getTemplateVersion").mockRejectedValue(
+			new Error("Workspaces? Sir, this is a Wendy's."),
+		);
 	},
-	decorators: [
-		(Story, ctx) => {
-			const queryClient = useQueryClient();
-			queryClient.clear();
-
-			for (const ws of ctx.args.workspacesToUpdate) {
-				void queryClient.fetchQuery({
-					queryKey: [templateVersionRoot, ws.template_active_version_id],
-					queryFn: () => {
-						throw new Error("Workspaces? Sir, this is a Wendy's.");
-					},
-				});
-			}
-
-			return <Story />;
-		},
-	],
+	play: async () => {
+		const modal = within(
+			screen.getByRole("dialog", { name: "Review updates" }),
+		);
+		await modal.findByText("Workspaces? Sir, this is a Wendy's.");
+		await expect(
+			modal.getByRole("button", {
+				name: "Unable to complete batch update because of workspace error",
+			}),
+		).toBeDisabled();
+	},
 };
 
 export const TransitioningWorkspaces: Story = {
