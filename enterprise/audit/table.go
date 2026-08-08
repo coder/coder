@@ -500,13 +500,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"description":                 ActionTrack,
 		"icon_url":                    ActionTrack,
 		"transport":                   ActionTrack,
-		"url":                         ActionTrack,
+		"url":                         ActionSecret, // May embed credentials in userinfo or query; show change, never contents.
 		"auth_type":                   ActionTrack,
 		"oauth2_client_id":            ActionTrack,
 		"oauth2_client_secret":        ActionSecret, // Credential; show change, never contents.
 		"oauth2_client_secret_key_id": ActionIgnore, // dbcrypt bookkeeping.
-		"oauth2_auth_url":             ActionTrack,
-		"oauth2_token_url":            ActionTrack,
+		"oauth2_auth_url":             ActionSecret, // May embed credentials in userinfo or query; show change, never contents.
+		"oauth2_token_url":            ActionSecret, // May embed credentials in userinfo or query; show change, never contents.
 		"oauth2_scopes":               ActionTrack,
 		"api_key_header":              ActionTrack,
 		"api_key_value":               ActionSecret, // Credential; show change, never contents.
@@ -524,7 +524,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"model_intent":                ActionTrack,
 		"allow_in_plan_mode":          ActionTrack,
 		"forward_coder_headers":       ActionTrack,
-		"oauth2_revocation_url":       ActionTrack,
+		"oauth2_revocation_url":       ActionSecret, // May embed credentials in userinfo or query; show change, never contents.
 		"organization_id":             ActionIgnore, // Never changes after creation; carried by the audit log's organization ID.
 	},
 	&database.UserSkill{}: {

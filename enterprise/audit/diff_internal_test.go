@@ -528,7 +528,7 @@ func Test_diff(t *testing.T) {
 			exp: audit.Map{
 				"display_name":         audit.OldNew{Old: "", New: "GitHub MCP"},
 				"slug":                 audit.OldNew{Old: "", New: "github"},
-				"url":                  audit.OldNew{Old: "", New: "https://mcp.example.com/v1"},
+				"url":                  audit.OldNew{Old: "", New: "", Secret: true},
 				"auth_type":            audit.OldNew{Old: "", New: "api_key"},
 				"api_key_header":       audit.OldNew{Old: "", New: "X-Api-Key"},
 				"api_key_value":        audit.OldNew{Old: "", New: "", Secret: true},
@@ -575,12 +575,14 @@ func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
 		"plaintext-oauth-secret",
 		"plaintext-api-key",
 		"Bearer plaintext-header",
+		"url-embedded-credential",
 	}
 	left := audit.Empty[database.MCPServerConfig]()
 	right := database.MCPServerConfig{
 		ID:                 uuid.UUID{1},
 		DisplayName:        "GitHub MCP",
 		AuthType:           "oauth2",
+		Url:                "https://mcp.example.com/v1?api_key=" + secrets[3],
 		OAuth2ClientID:     "client-id",
 		OAuth2ClientSecret: secrets[0],
 		APIKeyValue:        secrets[1],
