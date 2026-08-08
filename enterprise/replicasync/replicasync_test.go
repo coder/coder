@@ -279,6 +279,48 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, server.UpdateNow(ctx))
 		requireNoCallback(t, called)
 	})
+	t.Run("CallbacksOnlyOnChange", func(t *testing.T) {
+		t.Parallel()
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
+		defer srv.Close()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			RelayAddress:   srv.URL,
+			UpdateInterval: time.Hour, // syncs are triggered explicitly via pubsub below
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		called := make(chan struct{}, 8)
+		server.SetCallback("test", func() { called <- struct{}{} })
+		// SetCallback invokes the callback once upon registration.
+		testutil.RequireReceive(ctx, t, called)
+
+		// A sync that leaves the replica set unchanged must not fire
+		// callbacks. Self().UpdatedAt advancing proves the sync ran.
+		before := server.Self().UpdatedAt
+		require.NoError(t, pubsub.Publish(replicasync.PubsubEvent, []byte(uuid.NewString())))
+		require.Eventually(t, func() bool {
+			return server.Self().UpdatedAt.After(before)
+		}, testutil.WaitShort, testutil.IntervalFast)
+		requireNoCallback(t, called)
+
+		// A sync that discovers a new peer fires callbacks.
+		peer, err := db.InsertReplica(ctx, database.InsertReplicaParams{
+			ID:           uuid.New(),
+			CreatedAt:    dbtime.Now(),
+			StartedAt:    dbtime.Now(),
+			UpdatedAt:    dbtime.Now(),
+			RelayAddress: srv.URL,
+			Primary:      true,
+		})
+		require.NoError(t, err)
+		require.NoError(t, pubsub.Publish(replicasync.PubsubEvent, []byte(peer.ID.String())))
+		testutil.RequireReceive(ctx, t, called)
+	})
 	t.Run("FetchNATSPeers", func(t *testing.T) {
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)

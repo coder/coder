@@ -99,7 +99,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		closed:      make(chan struct{}),
 		closeCancel: cancelFunc,
 	}
-	err = manager.syncReplicas(ctx)
+	err = manager.syncReplicas(ctx, false)
 	if err != nil {
 		return nil, xerrors.Errorf("run replica: %w", err)
 	}
@@ -135,9 +135,10 @@ func (m *Manager) ID() uuid.UUID {
 	return m.id
 }
 
-// UpdateNow synchronously updates replicas.
+// UpdateNow synchronously updates replicas. Callbacks fire even if the
+// replica set is unchanged.
 func (m *Manager) UpdateNow(ctx context.Context) error {
-	return m.syncReplicas(ctx)
+	return m.syncReplicas(ctx, true)
 }
 
 // PublishUpdate notifies all other replicas to update.
@@ -172,7 +173,7 @@ func (m *Manager) loop(ctx context.Context) {
 			continue
 		case <-updateTicker.C:
 		}
-		err := m.syncReplicas(ctx)
+		err := m.syncReplicas(ctx, false)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			m.logger.Warn(ctx, "run replica update loop", slog.Error(err))
 		}
@@ -193,7 +194,7 @@ func (m *Manager) subscribe(ctx context.Context) error {
 	// it will reprocess afterwards.
 	var update func()
 	update = func() {
-		err := m.syncReplicas(ctx)
+		err := m.syncReplicas(ctx, false)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			m.logger.Warn(ctx, "run replica from subscribe", slog.Error(err))
 		}
@@ -235,7 +236,10 @@ func (m *Manager) subscribe(ctx context.Context) error {
 	return nil
 }
 
-func (m *Manager) syncReplicas(ctx context.Context) error {
+// syncReplicas updates the manager's view of the replica set and heartbeats
+// the self replica row. Registered callbacks fire only when the peer set or
+// the self error state changed, or when forceCallbacks is true.
+func (m *Manager) syncReplicas(ctx context.Context, forceCallbacks bool) error {
 	m.closeMutex.Lock()
 	select {
 	case <-m.closed:
@@ -255,6 +259,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	}
 
 	m.mutex.Lock()
+	oldPeers := m.peers
 	m.peers = make([]database.Replica, 0, len(replicas))
 	for _, replica := range replicas {
 		if replica.ID == m.id {
@@ -268,6 +273,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		}
 		m.peers = append(m.peers, replica)
 	}
+	peersChanged := !replicasEqual(oldPeers, m.peers)
 	m.mutex.Unlock()
 
 	client := http.Client{
@@ -357,7 +363,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 			return xerrors.Errorf("update replica: %w", err)
 		}
 	}
-	if m.self.Error != replica.Error {
+	selfErrorChanged := m.self.Error != replica.Error
+	if selfErrorChanged {
 		// Publish an update occurred!
 		err = m.PublishUpdate()
 		if err != nil {
@@ -365,10 +372,42 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		}
 	}
 	m.self = replica
-	for _, callback := range m.callbacks {
-		go callback()
+	if forceCallbacks || peersChanged || selfErrorChanged {
+		for _, callback := range m.callbacks {
+			go callback()
+		}
 	}
 	return nil
+}
+
+// replicasEqual reports whether two replica slices contain the same replicas
+// with identical peer-relevant fields. Heartbeat-only fields (UpdatedAt,
+// DatabaseLatency) are ignored so a routine heartbeat does not register as a
+// change.
+func replicasEqual(a, b []database.Replica) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	byID := make(map[uuid.UUID]database.Replica, len(a))
+	for _, r := range a {
+		byID[r.ID] = r
+	}
+	for _, r := range b {
+		o, ok := byID[r.ID]
+		if !ok {
+			return false
+		}
+		if o.RelayAddress != r.RelayAddress ||
+			o.RegionID != r.RegionID ||
+			o.Primary != r.Primary ||
+			o.ClusterHost != r.ClusterHost ||
+			o.NATSPort != r.NATSPort ||
+			o.Error != r.Error ||
+			o.Version != r.Version {
+			return false
+		}
+	}
+	return true
 }
 
 // DERPPingPeerReplica pings a peer replica over it's internal relay address to
