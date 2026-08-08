@@ -484,7 +484,27 @@ func TestPostChats(t *testing.T) {
 			ModelConfigID: ptr.Ref(disabledConfig.ID),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: this model is disabled. Enable it or choose another model.", sdkErr.Message)
+	})
+
+	t.Run("NotFoundModelConfigRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			ModelConfigID: ptr.Ref(uuid.New()),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
 	})
 
 	t.Run("ProviderDisabledModelConfigRejected", func(t *testing.T) {

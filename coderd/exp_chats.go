@@ -988,10 +988,11 @@ type userChatModelAvailability struct {
 type chatModelConfigUnavailableReason string
 
 const (
-	chatModelConfigAvailable                          chatModelConfigUnavailableReason = ""
-	chatModelConfigUnavailableModelNotFoundOrDisabled chatModelConfigUnavailableReason = "model_not_found_or_disabled"
-	chatModelConfigUnavailableProviderDisabled        chatModelConfigUnavailableReason = "provider_disabled"
-	chatModelConfigUnavailableCredentialsMissing      chatModelConfigUnavailableReason = "credentials_missing"
+	chatModelConfigAvailable                     chatModelConfigUnavailableReason = ""
+	chatModelConfigUnavailableModelNotFound      chatModelConfigUnavailableReason = "model_not_found"
+	chatModelConfigUnavailableModelDisabled      chatModelConfigUnavailableReason = "model_disabled"
+	chatModelConfigUnavailableProviderDisabled   chatModelConfigUnavailableReason = "provider_disabled"
+	chatModelConfigUnavailableCredentialsMissing chatModelConfigUnavailableReason = "credentials_missing"
 )
 
 // getUserChatProviderAvailability returns the enabled chat providers and models
@@ -1132,7 +1133,7 @@ func (api *API) userCanUseChatModelConfig(
 	modelConfigID uuid.UUID,
 ) (database.ChatModelConfig, chatModelConfigUnavailableReason, error) {
 	if modelConfigID == uuid.Nil {
-		return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
+		return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFound, nil
 	}
 	//nolint:gocritic // Non-admin users need deployment config validation.
 	model, err := api.Database.GetChatModelConfigByID(
@@ -1141,12 +1142,12 @@ func (api *API) userCanUseChatModelConfig(
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
-			return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
+			return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFound, nil
 		}
 		return database.ChatModelConfig{}, chatModelConfigAvailable, err
 	}
 	if !model.Enabled {
-		return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
+		return database.ChatModelConfig{}, chatModelConfigUnavailableModelDisabled, nil
 	}
 
 	availability, err := api.getUserChatProviderAvailability(ctx, userID)
@@ -1170,7 +1171,7 @@ func (api *API) userCanUseChatModelConfig(
 	// Active configs always carry a provider FK (CHECK
 	// chat_model_configs_ai_provider_required_when_active), so an unset FK
 	// means the config is not usable.
-	return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
+	return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFound, nil
 }
 
 func (api *API) validateUserChatModelConfigAvailable(
@@ -1188,9 +1189,13 @@ func (api *API) validateUserChatModelConfigAvailable(
 	switch reason {
 	case chatModelConfigAvailable:
 		return modelConfig, 0, nil
-	case chatModelConfigUnavailableModelNotFoundOrDisabled:
+	case chatModelConfigUnavailableModelNotFound:
 		return database.ChatModelConfig{}, http.StatusBadRequest, &codersdk.Response{
-			Message: "Invalid model_config_id: model config not found or disabled.",
+			Message: "Invalid model_config_id: model config not found.",
+		}
+	case chatModelConfigUnavailableModelDisabled:
+		return database.ChatModelConfig{}, http.StatusBadRequest, &codersdk.Response{
+			Message: "Invalid model_config_id: this model is disabled. Enable it or choose another model.",
 		}
 	case chatModelConfigUnavailableCredentialsMissing:
 		return database.ChatModelConfig{}, http.StatusBadRequest, &codersdk.Response{
