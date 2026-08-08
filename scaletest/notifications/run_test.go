@@ -22,8 +22,6 @@ import (
 	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
-	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/notifications"
 	"github.com/coder/coder/v2/scaletest/smtpmock"
 	"github.com/coder/coder/v2/testutil"
@@ -47,28 +45,30 @@ func TestRun(t *testing.T) {
 
 	const numReceivingUsers = 2
 	const numRegularUsers = 2
+	const totalUsers = numReceivingUsers + numRegularUsers
+	metrics := notifications.NewMetrics(prometheus.NewRegistry())
+
+	// The generator triggers a single template-deleted notification, so that is
+	// the notification the receiving runners expect.
+	expectedNotificationsIDs := map[uuid.UUID]struct{}{
+		notificationsLib.TemplateTemplateDeleted: {},
+	}
+
 	dialBarrier := new(sync.WaitGroup)
 	receivingWatchBarrier := new(sync.WaitGroup)
-	dialBarrier.Add(numReceivingUsers + numRegularUsers)
+	dialBarrier.Add(totalUsers)
 	receivingWatchBarrier.Add(numReceivingUsers)
-	metrics := notifications.NewMetrics(prometheus.NewRegistry())
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
-	expectedNotificationsIDs := map[uuid.UUID]struct{}{
-		notificationsLib.TemplateUserAccountCreated: {},
-		notificationsLib.TemplateUserAccountDeleted: {},
-	}
-
-	// Start receiving runners who will receive notifications
 	receivingRunners := make([]*notifications.Runner, 0, numReceivingUsers)
-	for i := range numReceivingUsers {
+	receivingUsernames := make([]string, 0, numReceivingUsers)
+	for i := 0; i < numReceivingUsers; i++ {
+		userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		receivingUsernames = append(receivingUsernames, user.Username)
 		runnerCfg := notifications.Config{
-			User: createusers.Config{
-				OrganizationID: firstUser.OrganizationID,
-				Username:       "receiving-user-" + strconv.Itoa(i),
-			},
-			Roles:                    []string{codersdk.RoleOwner},
+			PreCreatedUser:           user,
+			SessionToken:             userClient.SessionToken(),
 			NotificationTimeout:      testutil.WaitLong,
 			DialTimeout:              testutil.WaitLong,
 			Metrics:                  metrics,
@@ -76,8 +76,7 @@ func TestRun(t *testing.T) {
 			ReceivingWatchBarrier:    receivingWatchBarrier,
 			ExpectedNotificationsIDs: expectedNotificationsIDs,
 		}
-		err := runnerCfg.Validate()
-		require.NoError(t, err)
+		require.NoError(t, runnerCfg.Validate())
 
 		runner := notifications.NewRunner(client, runnerCfg)
 		receivingRunners = append(receivingRunners, runner)
@@ -86,39 +85,32 @@ func TestRun(t *testing.T) {
 		})
 	}
 
-	// Start regular user runners who will maintain websocket connections
-	regularRunners := make([]*notifications.Runner, 0, numRegularUsers)
-	for i := range numRegularUsers {
+	for i := 0; i < numRegularUsers; i++ {
+		userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		runnerCfg := notifications.Config{
-			User: createusers.Config{
-				OrganizationID: firstUser.OrganizationID,
-			},
-			Roles:                 []string{},
+			PreCreatedUser:        user,
+			SessionToken:          userClient.SessionToken(),
 			NotificationTimeout:   testutil.WaitLong,
 			DialTimeout:           testutil.WaitLong,
 			Metrics:               metrics,
 			DialBarrier:           dialBarrier,
 			ReceivingWatchBarrier: receivingWatchBarrier,
 		}
-		err := runnerCfg.Validate()
-		require.NoError(t, err)
+		require.NoError(t, runnerCfg.Validate())
 
 		runner := notifications.NewRunner(client, runnerCfg)
-		regularRunners = append(regularRunners, runner)
 		eg.Go(func() error {
 			return runner.Run(runCtx, "regular-"+strconv.Itoa(i), io.Discard)
 		})
 	}
 
-	// Trigger notifications by creating and deleting a user
+	// Once all runners are connected, dispatch the notification to each
+	// receiving user.
 	eg.Go(func() error {
-		// Wait for all runners to connect
 		dialBarrier.Wait()
 
-		for i := 0; i < numReceivingUsers; i++ {
-			err := sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountCreated)
-			require.NoError(t, err)
-			err = sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountDeleted)
+		for _, username := range receivingUsernames {
+			err := sendInboxNotification(runCtx, t, db, inboxHandler, username, notificationsLib.TemplateTemplateDeleted)
 			require.NoError(t, err)
 		}
 
@@ -128,31 +120,11 @@ func TestRun(t *testing.T) {
 	err := eg.Wait()
 	require.NoError(t, err, "runner execution should complete successfully")
 
-	cleanupEg, cleanupCtx := errgroup.WithContext(ctx)
-	for i, runner := range receivingRunners {
-		cleanupEg.Go(func() error {
-			return runner.Cleanup(cleanupCtx, "receiving-"+strconv.Itoa(i), io.Discard)
-		})
-	}
-	for i, runner := range regularRunners {
-		cleanupEg.Go(func() error {
-			return runner.Cleanup(cleanupCtx, "regular-"+strconv.Itoa(i), io.Discard)
-		})
-	}
-	err = cleanupEg.Wait()
-	require.NoError(t, err)
-
-	users, err := client.Users(ctx, codersdk.UsersRequest{})
-	require.NoError(t, err)
-	require.Len(t, users.Users, 1)
-	require.Equal(t, firstUser.UserID, users.Users[0].ID)
-
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
 		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time)
 
-		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountCreated)
-		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
+		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateTemplateDeleted)
 	}
 }
 
@@ -175,14 +147,9 @@ func TestRunWithSMTP(t *testing.T) {
 	smtpAPIMux.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
 		summaries := []smtpmock.EmailSummary{
 			{
-				Subject:                "TemplateUserAccountCreated",
+				Subject:                "TemplateTemplateDeleted",
 				Date:                   time.Now(),
-				NotificationTemplateID: notificationsLib.TemplateUserAccountCreated,
-			},
-			{
-				Subject:                "TemplateUserAccountDeleted",
-				Date:                   time.Now(),
-				NotificationTemplateID: notificationsLib.TemplateUserAccountDeleted,
+				NotificationTemplateID: notificationsLib.TemplateTemplateDeleted,
 			},
 		}
 
@@ -195,17 +162,11 @@ func TestRunWithSMTP(t *testing.T) {
 
 	const numReceivingUsers = 2
 	const numRegularUsers = 2
-	dialBarrier := new(sync.WaitGroup)
-	receivingWatchBarrier := new(sync.WaitGroup)
-	dialBarrier.Add(numReceivingUsers + numRegularUsers)
-	receivingWatchBarrier.Add(numReceivingUsers)
+	const totalUsers = numReceivingUsers + numRegularUsers
 	metrics := notifications.NewMetrics(prometheus.NewRegistry())
 
-	eg, runCtx := errgroup.WithContext(ctx)
-
 	expectedNotificationsIDs := map[uuid.UUID]struct{}{
-		notificationsLib.TemplateUserAccountCreated: {},
-		notificationsLib.TemplateUserAccountDeleted: {},
+		notificationsLib.TemplateTemplateDeleted: {},
 	}
 
 	mClock := quartz.NewMock(t)
@@ -214,15 +175,21 @@ func TestRunWithSMTP(t *testing.T) {
 
 	httpClient := &http.Client{}
 
-	// Start receiving runners who will receive notifications
+	dialBarrier := new(sync.WaitGroup)
+	receivingWatchBarrier := new(sync.WaitGroup)
+	dialBarrier.Add(totalUsers)
+	receivingWatchBarrier.Add(numReceivingUsers)
+
+	eg, runCtx := errgroup.WithContext(ctx)
+
 	receivingRunners := make([]*notifications.Runner, 0, numReceivingUsers)
-	for i := range numReceivingUsers {
+	receivingUsernames := make([]string, 0, numReceivingUsers)
+	for i := 0; i < numReceivingUsers; i++ {
+		userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		receivingUsernames = append(receivingUsernames, user.Username)
 		runnerCfg := notifications.Config{
-			User: createusers.Config{
-				OrganizationID: firstUser.OrganizationID,
-				Username:       "receiving-user-" + strconv.Itoa(i),
-			},
-			Roles:                    []string{codersdk.RoleOwner},
+			PreCreatedUser:           user,
+			SessionToken:             userClient.SessionToken(),
 			NotificationTimeout:      testutil.WaitLong,
 			DialTimeout:              testutil.WaitLong,
 			Metrics:                  metrics,
@@ -233,8 +200,7 @@ func TestRunWithSMTP(t *testing.T) {
 			SMTPRequestTimeout:       testutil.WaitLong,
 			SMTPHttpClient:           httpClient,
 		}
-		err := runnerCfg.Validate()
-		require.NoError(t, err)
+		require.NoError(t, runnerCfg.Validate())
 
 		runner := notifications.NewRunner(client, runnerCfg).WithClock(mClock)
 		receivingRunners = append(receivingRunners, runner)
@@ -243,43 +209,34 @@ func TestRunWithSMTP(t *testing.T) {
 		})
 	}
 
-	// Start regular user runners who will maintain websocket connections
-	regularRunners := make([]*notifications.Runner, 0, numRegularUsers)
-	for i := range numRegularUsers {
+	for i := 0; i < numRegularUsers; i++ {
+		userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		runnerCfg := notifications.Config{
-			User: createusers.Config{
-				OrganizationID: firstUser.OrganizationID,
-			},
-			Roles:                 []string{},
+			PreCreatedUser:        user,
+			SessionToken:          userClient.SessionToken(),
 			NotificationTimeout:   testutil.WaitLong,
 			DialTimeout:           testutil.WaitLong,
 			Metrics:               metrics,
 			DialBarrier:           dialBarrier,
 			ReceivingWatchBarrier: receivingWatchBarrier,
 		}
-		err := runnerCfg.Validate()
-		require.NoError(t, err)
+		require.NoError(t, runnerCfg.Validate())
 
 		runner := notifications.NewRunner(client, runnerCfg)
-		regularRunners = append(regularRunners, runner)
 		eg.Go(func() error {
 			return runner.Run(runCtx, "regular-"+strconv.Itoa(i), io.Discard)
 		})
 	}
 
-	// Trigger notifications by creating and deleting a user
 	eg.Go(func() error {
-		// Wait for all runners to connect
 		dialBarrier.Wait()
 
-		for i := 0; i < numReceivingUsers; i++ {
+		for range receivingUsernames {
 			smtpTrap.MustWait(runCtx).MustRelease(runCtx)
 		}
 
-		for i := 0; i < numReceivingUsers; i++ {
-			err := sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountCreated)
-			require.NoError(t, err)
-			err = sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountDeleted)
+		for _, username := range receivingUsernames {
+			err := sendInboxNotification(runCtx, t, db, inboxHandler, username, notificationsLib.TemplateTemplateDeleted)
 			require.NoError(t, err)
 		}
 
@@ -292,35 +249,14 @@ func TestRunWithSMTP(t *testing.T) {
 	err := eg.Wait()
 	require.NoError(t, err, "runner execution with SMTP should complete successfully")
 
-	cleanupEg, cleanupCtx := errgroup.WithContext(ctx)
-	for i, runner := range receivingRunners {
-		cleanupEg.Go(func() error {
-			return runner.Cleanup(cleanupCtx, "receiving-"+strconv.Itoa(i), io.Discard)
-		})
-	}
-	for i, runner := range regularRunners {
-		cleanupEg.Go(func() error {
-			return runner.Cleanup(cleanupCtx, "regular-"+strconv.Itoa(i), io.Discard)
-		})
-	}
-	err = cleanupEg.Wait()
-	require.NoError(t, err)
-
-	users, err := client.Users(ctx, codersdk.UsersRequest{})
-	require.NoError(t, err)
-	require.Len(t, users.Users, 1)
-	require.Equal(t, firstUser.UserID, users.Users[0].ID)
-
-	// Verify that notifications were received via both websocket and SMTP
+	// Verify that notifications were received via both websocket and SMTP.
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
 		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time)
 		smtpReceiptTimes := metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time)
 
-		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountCreated)
-		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
-		require.Contains(t, smtpReceiptTimes, notificationsLib.TemplateUserAccountCreated)
-		require.Contains(t, smtpReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
+		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateTemplateDeleted)
+		require.Contains(t, smtpReceiptTimes, notificationsLib.TemplateTemplateDeleted)
 	}
 }
 
