@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { rewriteLocalhostURL } from "#/utils/portForward";
+import { ChatUrlTransformContext } from "../../../context/ChatUrlTransformContext";
 import { Tool } from "./Tool";
 
 const runningPayload = {
@@ -175,6 +177,55 @@ export const InteractiveSingleQuestion: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "Submit" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const QuestionLocalhostLinkRewritten: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext
+				value={(url) =>
+					rewriteLocalhostURL(
+						url,
+						"*.proxy.example.com",
+						"main",
+						"my-ws",
+						"alice",
+					)
+				}
+			>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
+	args: {
+		status: "completed",
+		result: JSON.stringify({
+			questions: [
+				{
+					header: "Preview Check",
+					question:
+						"Open http://localhost:3000/apps?tab=1 and confirm the layout looks right.",
+					options: [
+						{ label: "Looks good", description: "" },
+						{ label: "Needs changes", description: "" },
+					],
+				},
+			],
+		}),
+		isChatCompleted: true,
+		isLatestAskUserQuestion: true,
+		onSendAskUserQuestionResponse: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = await canvas.findByRole("link", {
+			name: "http://localhost:3000/apps?tab=1",
+		});
+		expect(link).toHaveAttribute(
+			"href",
+			"http://3000--main--my-ws--alice.proxy.example.com/apps?tab=1",
+		);
 	},
 };
 

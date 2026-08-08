@@ -15,11 +15,9 @@ import {
 } from "react";
 
 import { useQuery } from "react-query";
-import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
-
 import { AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -89,112 +87,94 @@ const ReasoningDisclosure = memo<{
 	id: string;
 	text: string;
 	isStreaming?: boolean;
-	urlTransform?: UrlTransform;
 	thinkingDisplayMode?: ThinkingDisplayMode;
-}>(
-	({
-		id,
-		text,
-		isStreaming = false,
-		urlTransform,
-		thinkingDisplayMode: mode = "auto",
-	}) => {
-		const [manualToggle, setManualToggle] = useState<boolean | null>(null);
+}>(({ id, text, isStreaming = false, thinkingDisplayMode: mode = "auto" }) => {
+	const [manualToggle, setManualToggle] = useState<boolean | null>(null);
 
-		// Reset manual override on streaming transitions so
-		// auto/preview modes collapse when streaming stops.
-		const [prevStreaming, setPrevStreaming] = useState(isStreaming);
-		if (prevStreaming !== isStreaming) {
-			setPrevStreaming(isStreaming);
-			if (mode === "auto" || mode === "preview") {
-				setManualToggle(null);
+	// Reset manual override on streaming transitions so
+	// auto/preview modes collapse when streaming stops.
+	const [prevStreaming, setPrevStreaming] = useState(isStreaming);
+	if (prevStreaming !== isStreaming) {
+		setPrevStreaming(isStreaming);
+		if (mode === "auto" || mode === "preview") {
+			setManualToggle(null);
+		}
+	}
+
+	const autoExpanded = (() => {
+		switch (mode) {
+			case "always_expanded":
+				return true;
+			case "always_collapsed":
+				return false;
+			case "auto":
+			case "preview":
+				return isStreaming;
+			default: {
+				const _exhaustive: never = mode;
+				return _exhaustive;
 			}
 		}
+	})();
 
-		const autoExpanded = (() => {
-			switch (mode) {
-				case "always_expanded":
-					return true;
-				case "always_collapsed":
-					return false;
-				case "auto":
-				case "preview":
-					return isStreaming;
-				default: {
-					const _exhaustive: never = mode;
-					return _exhaustive;
-				}
-			}
-		})();
+	const expanded = manualToggle ?? autoExpanded;
 
-		const expanded = manualToggle ?? autoExpanded;
+	const isPreviewConstrained =
+		mode === "preview" && isStreaming && manualToggle === null;
 
-		const isPreviewConstrained =
-			mode === "preview" && isStreaming && manualToggle === null;
+	const previewScrollRef = useRef<HTMLDivElement>(null);
 
-		const previewScrollRef = useRef<HTMLDivElement>(null);
+	const { visibleText } = useSmoothStreamingText({
+		fullText: text,
+		isStreaming,
+		bypassSmoothing: !isStreaming,
+		streamKey: id,
+	});
+	const displayText = isStreaming ? visibleText : text;
+	const { title, body } = getThinkingDisclosureDisplay(displayText);
+	const hasText = body.trim().length > 0;
 
-		const { visibleText } = useSmoothStreamingText({
-			fullText: text,
-			isStreaming,
-			bypassSmoothing: !isStreaming,
-			streamKey: id,
-		});
-		const displayText = isStreaming ? visibleText : text;
-		const { title, body } = getThinkingDisclosureDisplay(displayText);
-		const hasText = body.trim().length > 0;
+	// Auto-scroll the preview container to the bottom as new
+	// thinking content streams in. useLayoutEffect avoids a
+	// visible frame where content has grown but not scrolled.
+	const displayTextLength = body.length;
+	useLayoutEffect(() => {
+		if (displayTextLength && isPreviewConstrained && previewScrollRef.current) {
+			previewScrollRef.current.scrollTop =
+				previewScrollRef.current.scrollHeight;
+		}
+	}, [displayTextLength, isPreviewConstrained]);
 
-		// Auto-scroll the preview container to the bottom as new
-		// thinking content streams in. useLayoutEffect avoids a
-		// visible frame where content has grown but not scrolled.
-		const displayTextLength = body.length;
-		useLayoutEffect(() => {
-			if (
-				displayTextLength &&
-				isPreviewConstrained &&
-				previewScrollRef.current
-			) {
-				previewScrollRef.current.scrollTop =
-					previewScrollRef.current.scrollHeight;
-			}
-		}, [displayTextLength, isPreviewConstrained]);
-
-		return (
-			<div data-transcript-row="">
-				<ToolCall.Root
-					className="w-full"
-					status={isStreaming ? "running" : "completed"}
-					hasContent={hasText}
-					expanded={expanded}
-					onExpandedChange={(open) => setManualToggle(open)}
-				>
-					<ToolCall.Header
-						iconName="thinking"
-						label={title}
-						showStatus={false}
-					/>
-					<ToolCall.Content>
-						<div
-							ref={previewScrollRef}
-							className={cn(
-								"mt-1.5",
-								isPreviewConstrained && "max-h-24 overflow-y-auto",
-							)}
+	return (
+		<div data-transcript-row="">
+			<ToolCall.Root
+				className="w-full"
+				status={isStreaming ? "running" : "completed"}
+				hasContent={hasText}
+				expanded={expanded}
+				onExpandedChange={(open) => setManualToggle(open)}
+			>
+				<ToolCall.Header iconName="thinking" label={title} showStatus={false} />
+				<ToolCall.Content>
+					<div
+						ref={previewScrollRef}
+						className={cn(
+							"mt-1.5",
+							isPreviewConstrained && "max-h-24 overflow-y-auto",
+						)}
+					>
+						<Response
+							className="text-[11px] text-content-secondary"
+							streaming={isStreaming}
 						>
-							<Response
-								className="text-[11px] text-content-secondary"
-								urlTransform={urlTransform}
-								streaming={isStreaming}
-							>
-								{body}
-							</Response>
-						</div>
-					</ToolCall.Content>
-				</ToolCall.Root>
-			</div>
-		);
-	},
-);
+							{body}
+						</Response>
+					</div>
+				</ToolCall.Content>
+			</ToolCall.Root>
+		</div>
+	);
+});
 
 // Wrapper that runs the smooth-streaming jitter buffer on a single
 // response block. Only used during live streaming — historical
@@ -202,19 +182,14 @@ const ReasoningDisclosure = memo<{
 const SmoothedResponse = memo<{
 	text: string;
 	streamKey: string;
-	urlTransform?: UrlTransform;
-}>(({ text, streamKey, urlTransform }) => {
+}>(({ text, streamKey }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming: true,
 		bypassSmoothing: false,
 		streamKey,
 	});
-	return (
-		<Response streaming urlTransform={urlTransform}>
-			{visibleText}
-		</Response>
-	);
+	return <Response streaming>{visibleText}</Response>;
 });
 
 const ReadFileTimelineBlock = memo<{
@@ -270,7 +245,6 @@ export const BlockList: FC<{
 	latestAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	hasUserResponseAfterAskQuestion?: boolean;
-	urlTransform?: UrlTransform;
 }> = ({
 	blocks,
 	tools,
@@ -289,7 +263,6 @@ export const BlockList: FC<{
 	latestAskUserQuestionToolId,
 	askUserQuestionResponseTextByToolId,
 	hasUserResponseAfterAskQuestion = false,
-	urlTransform,
 }) => {
 	const prefQuery = useQuery(preferenceSettings());
 	const thinkingDisplayMode: ThinkingDisplayMode =
@@ -335,13 +308,9 @@ export const BlockList: FC<{
 								key={`${keyPrefix}-response-${index}`}
 								text={block.text}
 								streamKey={keyPrefix}
-								urlTransform={urlTransform}
 							/>
 						) : (
-							<Response
-								key={`${keyPrefix}-response-${index}`}
-								urlTransform={urlTransform}
-							>
+							<Response key={`${keyPrefix}-response-${index}`}>
 								{block.text}
 							</Response>
 						);
@@ -362,7 +331,6 @@ export const BlockList: FC<{
 									lastDisplayBlockIsThinking &&
 									index === displayBlocks.length - 1
 								}
-								urlTransform={urlTransform}
 								thinkingDisplayMode={thinkingDisplayMode}
 							/>
 						);
@@ -535,12 +503,11 @@ const TimelineNotice: FC<{ children?: ReactNode }> = ({ children }) => (
 
 const LifecycleHookNotice: FC<{
 	children: string;
-	urlTransform?: UrlTransform;
-}> = ({ children, urlTransform }) => (
+}> = ({ children }) => (
 	<TimelineNotice>
 		<div className="flex flex-col gap-1">
 			<AlertTitle>Lifecycle hook</AlertTitle>
-			<Response urlTransform={urlTransform}>{children}</Response>
+			<Response>{children}</Response>
 		</div>
 	</TimelineNotice>
 );
@@ -569,7 +536,6 @@ const ChatMessageItem = memo<{
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
 	onImplementPlan?: () => Promise<void> | void;
-	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
@@ -604,7 +570,6 @@ const ChatMessageItem = memo<{
 		nextUserMessageId,
 		onJumpToUserMessage,
 
-		urlTransform,
 		mcpServers,
 		subagentTitles,
 		subagentVariants,
@@ -636,16 +601,13 @@ const ChatMessageItem = memo<{
 				>
 					{parsed.hookNotices.length > 0 ? (
 						parsed.hookNotices.map((notice, index) => (
-							<LifecycleHookNotice
-								key={`${message.id}-hook-notice-${index}`}
-								urlTransform={urlTransform}
-							>
+							<LifecycleHookNotice key={`${message.id}-hook-notice-${index}`}>
 								{notice}
 							</LifecycleHookNotice>
 						))
 					) : (
 						<TimelineNotice>
-							<Response urlTransform={urlTransform}>{parsed.markdown}</Response>
+							<Response>{parsed.markdown}</Response>
 						</TimelineNotice>
 					)}
 				</div>
@@ -700,7 +662,6 @@ const ChatMessageItem = memo<{
 										}
 										onImageClick={setPreviewImage}
 										onTextFileClick={setPreviewText}
-										urlTransform={urlTransform}
 										mcpServers={mcpServers}
 									/>
 								</div>
@@ -709,10 +670,7 @@ const ChatMessageItem = memo<{
 					)}
 				</ConversationItem>
 				{parsed.hookNotices.map((notice, index) => (
-					<LifecycleHookNotice
-						key={`${message.id}-hook-notice-${index}`}
-						urlTransform={urlTransform}
-					>
+					<LifecycleHookNotice key={`${message.id}-hook-notice-${index}`}>
 						{notice}
 					</LifecycleHookNotice>
 				))}
@@ -848,7 +806,6 @@ const StickyUserMessage = memo<{
 	nextUserMessageId?: number;
 	onJumpToUserMessage?: (messageId: number) => void;
 	registerSentinel?: (messageId: number, el: HTMLDivElement | null) => void;
-	urlTransform?: UrlTransform;
 }>(
 	({
 		message,
@@ -860,7 +817,6 @@ const StickyUserMessage = memo<{
 		nextUserMessageId,
 		onJumpToUserMessage,
 		registerSentinel,
-		urlTransform,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
 		const [isReady, setIsReady] = useState(false);
@@ -1104,7 +1060,6 @@ const StickyUserMessage = memo<{
 							prevUserMessageId={prevUserMessageId}
 							nextUserMessageId={nextUserMessageId}
 							onJumpToUserMessage={onJumpToUserMessage}
-							urlTransform={urlTransform}
 						/>
 					</div>
 
@@ -1150,7 +1105,6 @@ const StickyUserMessage = memo<{
 									prevUserMessageId={prevUserMessageId}
 									nextUserMessageId={nextUserMessageId}
 									onJumpToUserMessage={onJumpToUserMessage}
-									urlTransform={urlTransform}
 									fadeFromBottom
 								/>
 							</div>
@@ -1194,7 +1148,6 @@ interface ConversationTimelineProps {
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
-	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	showDesktopPreviews?: boolean;
 	hasActiveStream?: boolean;
@@ -1211,7 +1164,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
-		urlTransform,
 		mcpServers,
 		showDesktopPreviews,
 		hasActiveStream,
@@ -1349,7 +1301,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
 									onJumpToUserMessage={jumpToUserMessage}
 									registerSentinel={registerSentinel}
-									urlTransform={urlTransform}
 								/>
 							);
 						}
@@ -1372,7 +1323,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								hasUserResponseAfterAskQuestion={
 									hasUserResponseAfterAskQuestion
 								}
-								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 								hideActions={!isLastInChain}
 								hasActiveStream={Boolean(hasActiveStream)}

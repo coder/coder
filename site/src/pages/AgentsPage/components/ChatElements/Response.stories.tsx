@@ -1,5 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { type FC, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
+import { rewriteLocalhostURL } from "#/utils/portForward";
+import {
+	type ChatUrlTransform,
+	ChatUrlTransformContext,
+} from "../../context/ChatUrlTransformContext";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -188,6 +194,149 @@ export const JsxInProse: Story = {
 		expect(marker).toBeInTheDocument();
 		const marker2 = await canvas.findByText(/commentBox=\{commentBox\}/);
 		expect(marker2).toBeInTheDocument();
+	},
+};
+
+const chatUrlTransform = (url: string) =>
+	rewriteLocalhostURL(url, "*.proxy.example.com", "main", "my-ws", "alice");
+
+export const LocalhostLinkFromChatContext: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext value={chatUrlTransform}>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
+	args: {
+		children:
+			"Open [the preview](http://localhost:3000/apps?tab=1) or [the docs](https://coder.com/docs).",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const preview = await canvas.findByRole("link", { name: "the preview" });
+		expect(preview).toHaveAttribute(
+			"href",
+			"http://3000--main--my-ws--alice.proxy.example.com/apps?tab=1",
+		);
+		const docs = canvas.getByRole("link", { name: "the docs" });
+		expect(docs).toHaveAttribute("href", "https://coder.com/docs");
+	},
+};
+
+const TransformArrivesAfterRender: FC<{ children: string }> = ({
+	children,
+}) => {
+	const [transform, setTransform] = useState<ChatUrlTransform | undefined>(
+		undefined,
+	);
+	return (
+		<ChatUrlTransformContext value={transform}>
+			<button
+				type="button"
+				onClick={() => setTransform(() => chatUrlTransform)}
+			>
+				Load workspace data
+			</button>
+			<Response streaming>{children}</Response>
+		</ChatUrlTransformContext>
+	);
+};
+
+export const LocalhostLinkRewrittenMidStream: Story = {
+	render: () => (
+		<TransformArrivesAfterRender>
+			Open [the preview](http://localhost:3000/apps?tab=1) now.
+		</TransformArrivesAfterRender>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const preview = await canvas.findByRole("link", { name: "the preview" });
+		expect(preview).toHaveAttribute("href", "http://localhost:3000/apps?tab=1");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Load workspace data" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByRole("link", { name: "the preview" })).toHaveAttribute(
+				"href",
+				"http://3000--main--my-ws--alice.proxy.example.com/apps?tab=1",
+			);
+		});
+	},
+};
+
+const TransformSwitchesWorkspace: FC = () => {
+	const [workspace, setWorkspace] = useState("ws-a");
+	const transform = (url: string) =>
+		rewriteLocalhostURL(url, "*.proxy.example.com", "main", workspace, "alice");
+	return (
+		<ChatUrlTransformContext value={transform}>
+			<button type="button" onClick={() => setWorkspace("ws-b")}>
+				Switch workspace
+			</button>
+			<Response>Open [the preview](http://localhost:3000/).</Response>
+		</ChatUrlTransformContext>
+	);
+};
+
+export const LocalhostLinkRetargetsOnWorkspaceChange: Story = {
+	render: () => <TransformSwitchesWorkspace />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const preview = await canvas.findByRole("link", { name: "the preview" });
+		expect(preview).toHaveAttribute(
+			"href",
+			"http://3000--main--ws-a--alice.proxy.example.com/",
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Switch workspace" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByRole("link", { name: "the preview" })).toHaveAttribute(
+				"href",
+				"http://3000--main--ws-b--alice.proxy.example.com/",
+			);
+		});
+	},
+};
+
+export const LocalhostImageRewrittenFromChatContext: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext value={chatUrlTransform}>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
+	args: {
+		children: "![preview shot](http://localhost:3000/screenshot.png)",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = await canvas.findByRole("img", { name: "preview shot" });
+		expect(image).toHaveAttribute(
+			"src",
+			"http://3000--main--my-ws--alice.proxy.example.com/screenshot.png",
+		);
+	},
+};
+
+export const ExplicitUrlTransformWinsOverContext: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext value={chatUrlTransform}>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
+	args: {
+		children: "Open [the preview](http://localhost:3000/).",
+		urlTransform: () => "https://prop-wins.example.com/",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const preview = await canvas.findByRole("link", { name: "the preview" });
+		expect(preview).toHaveAttribute("href", "https://prop-wins.example.com/");
 	},
 };
 

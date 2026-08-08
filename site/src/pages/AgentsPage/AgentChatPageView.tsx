@@ -9,7 +9,6 @@ import {
 	useState,
 } from "react";
 import { useQueryClient } from "react-query";
-import type { UrlTransform } from "streamdown";
 import { v4 as uuidv4 } from "uuid";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -54,6 +53,10 @@ import { RightPanel } from "./components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTabControl";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
+import {
+	type ChatUrlTransform,
+	ChatUrlTransformContext,
+} from "./context/ChatUrlTransformContext";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import {
@@ -212,7 +215,7 @@ interface AgentChatPageViewProps {
 	onFetchMoreMessages: () => void;
 	messageCount: number;
 
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 
 	// MCP server state.
 	mcpServers: readonly TypesGen.MCPServerConfig[];
@@ -908,26 +911,27 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							messageCount={messageCount}
 						>
 							<div className="px-4" data-chat-scroll-content>
-								<ChatPageTimeline
-									store={store}
-									persistedError={persistedError}
-									onEditUserMessage={
-										isOtherUserReadOnly
-											? undefined
-											: editing.handleEditUserMessage
-									}
-									editingMessageId={editing.editingMessageId}
-									urlTransform={urlTransform}
-									mcpServers={mcpServers}
-									onImplementPlan={
-										isOtherUserReadOnly ? undefined : onImplementPlan
-									}
-									onSendAskUserQuestionResponse={
-										isOtherUserReadOnly
-											? undefined
-											: canSendAskUserQuestionResponse
-									}
-								/>
+								<ChatUrlTransformContext value={urlTransform}>
+									<ChatPageTimeline
+										store={store}
+										persistedError={persistedError}
+										onEditUserMessage={
+											isOtherUserReadOnly
+												? undefined
+												: editing.handleEditUserMessage
+										}
+										editingMessageId={editing.editingMessageId}
+										mcpServers={mcpServers}
+										onImplementPlan={
+											isOtherUserReadOnly ? undefined : onImplementPlan
+										}
+										onSendAskUserQuestionResponse={
+											isOtherUserReadOnly
+												? undefined
+												: canSendAskUserQuestionResponse
+										}
+									/>
+								</ChatUrlTransformContext>
 							</div>
 						</ChatScrollContainer>
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">

@@ -16,7 +16,6 @@ import {
 } from "react-query";
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
-import type { UrlTransform } from "streamdown";
 import {
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
@@ -103,6 +102,7 @@ import {
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
+import type { ChatUrlTransform } from "./context/ChatUrlTransformContext";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
@@ -1511,7 +1511,7 @@ const AgentChatPage: FC = () => {
 	const agentName = workspaceAgent?.name;
 	const wsName = workspace?.name;
 	const wsOwner = workspace?.owner_name;
-	const urlTransform: UrlTransform = (url) => {
+	const urlTransform: ChatUrlTransform = (url) => {
 		if (!proxyHost || !agentName || !wsName || !wsOwner) {
 			return url;
 		}

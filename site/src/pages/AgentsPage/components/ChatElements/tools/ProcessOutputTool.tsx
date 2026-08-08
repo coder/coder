@@ -10,6 +10,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { LinkifiedText } from "../LinkifiedText";
 import {
 	type AgentDisplayState,
 	isAgentDisplayFullyExpanded,
@@ -78,6 +79,26 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	const toggleOutputExpansion = () => {
 		setOutputFullyExpanded((expanded) => !expanded);
 	};
+	// Browsers may scroll clipped output to reveal focus, so scrollTop detects hidden links.
+	const handleTranscriptFocus = (event: React.FocusEvent<HTMLPreElement>) => {
+		if (outputFullyExpanded || !overflows) {
+			return;
+		}
+		const pre = event.currentTarget;
+		const target = event.target;
+		const focusInClippedArea =
+			pre.scrollTop > 0 ||
+			target.getBoundingClientRect().bottom >
+				pre.getBoundingClientRect().bottom;
+		if (focusInClippedArea) {
+			pre.scrollTop = 0;
+			setOutputFullyExpanded(true);
+			// The focused link may remain off-screen after the expanded layout commits.
+			requestAnimationFrame(() => {
+				target.scrollIntoView({ block: "nearest" });
+			});
+		}
+	};
 	const hasHeaderActions = Boolean(killedBySignal) || showExitCode || hasOutput;
 
 	return (
@@ -134,6 +155,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 				>
 					<pre
 						ref={measureRef}
+						onFocus={handleTranscriptFocus}
 						style={
 							outputFullyExpanded
 								? undefined
@@ -144,7 +166,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 							isError ? "text-content-destructive" : "text-content-secondary",
 						)}
 					>
-						{output}
+						<LinkifiedText text={output} />
 					</pre>
 				</ScrollArea>
 				{overflows && (

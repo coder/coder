@@ -1,4 +1,3 @@
-import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
@@ -35,7 +34,6 @@ interface LiveStreamTailContentProps {
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
-	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
@@ -47,7 +45,6 @@ export const LiveStreamTailContent = ({
 	subagentTitles,
 	subagentVariants,
 	subagentStatusOverrides,
-	urlTransform,
 	mcpServers,
 }: LiveStreamTailContentProps) => {
 	const shouldRenderStreamSection = shouldRenderStreamingSection(liveStatus);
@@ -84,7 +81,6 @@ export const LiveStreamTailContent = ({
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					subagentStatusOverrides={subagentStatusOverrides}
-					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 				/>
 			)}
@@ -99,7 +95,6 @@ interface LiveStreamTailProps {
 	isTranscriptEmpty: boolean;
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
-	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
@@ -109,7 +104,6 @@ export const LiveStreamTail = ({
 	isTranscriptEmpty,
 	subagentTitles,
 	subagentVariants,
-	urlTransform,
 	mcpServers,
 }: LiveStreamTailProps) => {
 	const streamState = useChatSelector(store, selectStreamState);
@@ -146,7 +140,6 @@ export const LiveStreamTail = ({
 			subagentTitles={subagentTitles}
 			subagentVariants={subagentVariants}
 			subagentStatusOverrides={subagentStatusOverrides}
-			urlTransform={urlTransform}
 			mcpServers={mcpServers}
 		/>
 	);

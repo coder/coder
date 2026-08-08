@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
+import { rewriteLocalhostURL } from "#/utils/portForward";
+import { ChatUrlTransformContext } from "../../../context/ChatUrlTransformContext";
 import { ExecuteTool } from "./ExecuteTool";
 
 const longCommand =
@@ -197,6 +199,69 @@ export const ParsedCommandsWithIntent: Story = {
 			["cd", "/repo"],
 			["go", "test"],
 		],
+	},
+};
+
+const devServerOutput = [
+	"  ➜  Local:   http://localhost:3000/",
+	"  ➜  Network: http://127.0.0.1:3000/",
+	"Docs at https://vite.dev/guide/.",
+].join("\n");
+
+export const LocalhostUrlInOutput: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext
+				value={(url) =>
+					rewriteLocalhostURL(
+						url,
+						"*.proxy.example.com",
+						"main",
+						"my-ws",
+						"alice",
+					)
+				}
+			>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
+	args: {
+		command: "pnpm dev",
+		transcriptBlocks: [{ kind: "output", text: devServerOutput }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const local = await canvas.findByRole("link", {
+			name: "http://localhost:3000/",
+		});
+		expect(local).toHaveAttribute(
+			"href",
+			"http://3000--main--my-ws--alice.proxy.example.com/",
+		);
+		const network = canvas.getByRole("link", {
+			name: "http://127.0.0.1:3000/",
+		});
+		expect(network).toHaveAttribute(
+			"href",
+			"http://3000--main--my-ws--alice.proxy.example.com/",
+		);
+		const docs = canvas.getByRole("link", { name: "https://vite.dev/guide/" });
+		expect(docs).toHaveAttribute("href", "https://vite.dev/guide/");
+	},
+};
+
+export const LocalhostUrlInOutputWithoutTransform: Story = {
+	args: {
+		command: "pnpm dev",
+		transcriptBlocks: [{ kind: "output", text: devServerOutput }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const local = await canvas.findByRole("link", {
+			name: "http://localhost:3000/",
+		});
+		expect(local).toHaveAttribute("href", "http://localhost:3000/");
 	},
 };
 

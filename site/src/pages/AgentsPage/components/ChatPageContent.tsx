@@ -1,7 +1,6 @@
 import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
-import type { UrlTransform } from "streamdown";
 import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -86,7 +85,6 @@ interface ChatPageTimelineProps {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
@@ -97,7 +95,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	editingMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
-	urlTransform,
 	mcpServers,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
@@ -157,7 +154,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					isChatCompleted={isChatCompleted}
 					hasActiveStream={hasStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
 				/>
@@ -167,7 +163,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					isTranscriptEmpty={parsedMessages.length === 0}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
-					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 				/>
 			</div>
