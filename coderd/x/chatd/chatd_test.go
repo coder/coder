@@ -1646,6 +1646,214 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	require.Len(t, messages, 1)
 }
 
+func TestMessageFileLinking(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	insertFile := func(name string) uuid.UUID {
+		t.Helper()
+		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			Name:           name,
+			Mimetype:       "image/png",
+			Data:           []byte("png-bytes"),
+		})
+		require.NoError(t, err)
+		return row.ID
+	}
+	linkedFileIDs := func(chatID uuid.UUID) []uuid.UUID {
+		t.Helper()
+		rows, err := db.GetChatFileMetadataByChatID(ctx, chatID)
+		require.NoError(t, err)
+		ids := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		return ids
+	}
+
+	fileCreate := insertFile("create.png")
+	fileSend := insertFile("send.png")
+	fileQueued := insertFile("queued.png")
+	fileEdit := insertFile("edit.png")
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "file-linking",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("with attachment"),
+			codersdk.ChatMessageFile(fileCreate, "image/png", "create.png"),
+		},
+	})
+	require.NoError(t, err)
+	require.Contains(t, linkedFileIDs(chat.ID), fileCreate)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID: chat.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("another attachment"),
+			codersdk.ChatMessageFile(fileSend, "image/png", "send.png"),
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, sendResult.Queued)
+	require.Contains(t, linkedFileIDs(chat.ID), fileSend)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	var userMessageID int64
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleUser {
+			userMessageID = msg.ID
+			break
+		}
+	}
+	require.NotZero(t, userMessageID)
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: userMessageID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("edited attachment"),
+			codersdk.ChatMessageFile(fileEdit, "image/png", "edit.png"),
+		},
+	})
+	require.NoError(t, err)
+	editedLinks := linkedFileIDs(chat.ID)
+	require.Contains(t, editedLinks, fileEdit)
+	require.Contains(t, editedLinks, fileCreate)
+
+	// Queued files must be linked before promotion to prevent purge.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+	queuedResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID: chat.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued attachment"),
+			codersdk.ChatMessageFile(fileQueued, "image/png", "queued.png"),
+		},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, queuedResult.Queued)
+	require.Contains(t, linkedFileIDs(chat.ID), fileQueued)
+}
+
+func TestMessageFileLinkingCapRollsBack(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "cap-rollback",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	capFileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
+	for i := range codersdk.MaxChatFileIDs {
+		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			Name:           fmt.Sprintf("cap-%d.png", i),
+			Mimetype:       "image/png",
+			Data:           []byte("png-bytes"),
+		})
+		require.NoError(t, err)
+		capFileIDs = append(capFileIDs, row.ID)
+	}
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		FileIds:      capFileIDs,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	extra, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		Name:           "extra.png",
+		Mimetype:       "image/png",
+		Data:           []byte("png-bytes"),
+	})
+	require.NoError(t, err)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	messagesBefore, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID: chat.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("one too many"),
+			codersdk.ChatMessageFile(extra.ID, "image/png", "extra.png"),
+		},
+	})
+	require.ErrorIs(t, err, chatstate.ErrChatFileCapExceeded)
+
+	messagesAfter, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, messagesAfter, len(messagesBefore), "rejected send must not persist a message")
+	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, files, codersdk.MaxChatFileIDs)
+
+	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID: chat.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("re-reference"),
+			codersdk.ChatMessageFile(capFileIDs[0], "image/png", "cap-0.png"),
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, sendResult.Queued)
+}
+
 func TestPlanTurnPromptContract(t *testing.T) {
 	t.Parallel()
 
