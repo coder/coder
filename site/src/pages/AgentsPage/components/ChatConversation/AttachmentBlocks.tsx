@@ -4,7 +4,12 @@ import {
 	FileIcon,
 	FileTextIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import {
+	type FC,
+	type MouseEvent as ReactMouseEvent,
+	type ReactNode,
+	useState,
+} from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -14,9 +19,11 @@ import {
 import { cn } from "#/utils/cn";
 import { useLatestAbortController } from "../../hooks/useLatestAbortController";
 import {
+	type AttachmentDownloadTarget,
 	type AttachmentFailure,
 	attachmentFailureFromError,
 	getChatFileURL,
+	handleAttachmentDownloadClick,
 	isAbortError,
 	probeAttachmentFailure,
 } from "../../utils/chatAttachments";
@@ -54,17 +61,39 @@ const ATTACHMENT_FALLBACK_EXTENSIONS: Record<string, string> = {
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document":
 		"docx",
 	"application/x-tar": "tar",
+	"application/xml": "xml",
 	"image/jpeg": "jpg",
+	"text/csv": "csv",
 	"text/markdown": "md",
 	"text/plain": "txt",
 };
 
-const sanitizeAttachmentExtension = (value: string): string => {
-	const sanitized = value
+const sanitizeAttachmentExtension = (value: string): string =>
+	value
 		.replace(/[^a-z0-9]/gi, "")
 		.slice(0, 4)
-		.toLowerCase();
-	return sanitized || "file";
+		.toLowerCase() || "file";
+
+const getMediaTypeExtension = (mediaType: string): string | null => {
+	if (mediaType === "application/octet-stream") {
+		return null;
+	}
+	const mapped = ATTACHMENT_FALLBACK_EXTENSIONS[mediaType];
+	if (mapped) {
+		return mapped;
+	}
+	const [type, subtype = ""] = mediaType.split("/");
+	if (subtype.endsWith("+json")) {
+		return "json";
+	}
+	if (subtype.endsWith("+xml")) {
+		const base = subtype.slice(0, -"+xml".length);
+		return /^[a-z0-9]{1,8}$/i.test(base) ? base.toLowerCase() : "xml";
+	}
+	// Unmapped non-image subtypes are not assumed to be filename extensions.
+	return type === "image" && /^[a-z0-9]{1,8}$/i.test(subtype)
+		? subtype.toLowerCase()
+		: null;
 };
 
 const getAttachmentExtension = (
@@ -74,24 +103,22 @@ const getAttachmentExtension = (
 	if (mapped) {
 		return mapped;
 	}
-	const trimmedName = block.name?.trim();
-	if (trimmedName) {
-		const lastDot = trimmedName.lastIndexOf(".");
-		// Keep dotfiles like `.env` out of the extension path, while still
-		// allowing ordinary `name.ext` filenames to contribute a fallback.
-		if (lastDot > 0 && lastDot < trimmedName.length - 1) {
-			return sanitizeAttachmentExtension(trimmedName.slice(lastDot + 1));
-		}
+	const name = block.name?.trim();
+	const lastDot = name?.lastIndexOf(".") ?? -1;
+	if (name && lastDot > 0 && lastDot < name.length - 1) {
+		return sanitizeAttachmentExtension(name.slice(lastDot + 1));
 	}
-	const subtype = block.media_type.split("/")[1] ?? "";
-	if (subtype.endsWith("+json")) {
-		return "json";
-	}
-	return sanitizeAttachmentExtension(subtype);
+	return (
+		getMediaTypeExtension(block.media_type) ??
+		sanitizeAttachmentExtension(block.media_type.split("/")[1] ?? "")
+	);
 };
 
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
+
+const isSuffixPreservingMediaType = (mediaType: string): boolean =>
+	mediaType.startsWith("text/");
 
 const getAttachmentHref = (block: FileAttachmentBlock): string | null => {
 	if (block.file_id) {
@@ -119,15 +146,31 @@ const getAttachmentDisplayName = (
 	return "Attached file";
 };
 
+const extensionAliases = new Set(["jpg:jpeg", "tiff:tif"]);
+
 const getAttachmentDownloadName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
 	const name = block.name?.trim();
-	if (name) {
+	if (!name) {
+		const extension = getAttachmentExtension(block);
+		return extension === "file" ? "attachment" : `attachment.${extension}`;
+	}
+	const mediaExtension = getMediaTypeExtension(block.media_type);
+	if (!mediaExtension || name.startsWith(".")) {
 		return name;
 	}
-	const extension = getAttachmentExtension(block);
-	return extension === "file" ? "attachment" : `attachment.${extension}`;
+	if (
+		isSuffixPreservingMediaType(block.media_type) &&
+		/\.[^.\s]+$/.test(name)
+	) {
+		return name;
+	}
+	const suffix = name.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toLowerCase();
+	return suffix === mediaExtension ||
+		extensionAliases.has(`${mediaExtension}:${suffix}`)
+		? name
+		: `${name}.${mediaExtension}`;
 };
 
 const getAttachmentBadgeLabel = (
@@ -137,28 +180,72 @@ const getAttachmentBadgeLabel = (
 	return extension === "file" ? "" : extension.toUpperCase();
 };
 
+const useAttachmentDownloadClick = (target: AttachmentDownloadTarget) => {
+	const [isPending, setIsPending] = useState(false);
+	// Prevents share sheets and error toasts from appearing after unmount.
+	const downloadRequest = useLatestAbortController();
+	const onClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+		event.stopPropagation();
+		if (isPending) {
+			event.preventDefault();
+			return;
+		}
+		const controller = downloadRequest.start();
+		const pending = handleAttachmentDownloadClick(
+			event,
+			target,
+			controller.signal,
+		);
+		if (!pending) {
+			downloadRequest.clear(controller);
+			return;
+		}
+		setIsPending(true);
+		void pending.finally(() => {
+			if (downloadRequest.clear(controller)) {
+				setIsPending(false);
+			}
+		});
+	};
+	return { isPending, onClick };
+};
+
 const DownloadOverlay: FC<{
 	href: string;
 	displayName: string;
 	downloadName: string;
-}> = ({ href, displayName, downloadName }) => (
-	<a
-		href={href}
-		download={downloadName}
-		onClick={(event) => event.stopPropagation()}
-		aria-label={`Download ${displayName}`}
-		className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-	>
-		<DownloadIcon aria-hidden="true" className="size-3.5" />
-	</a>
-);
+	mediaType: string;
+}> = ({ href, displayName, downloadName, mediaType }) => {
+	const { isPending, onClick } = useAttachmentDownloadClick({
+		href,
+		fileName: downloadName,
+		mediaType,
+	});
+	return (
+		<a
+			href={href}
+			download={downloadName}
+			onClick={onClick}
+			aria-label={`Download ${displayName}`}
+			aria-disabled={isPending}
+			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+		>
+			{isPending ? (
+				<Spinner size="sm" loading className="size-3.5" />
+			) : (
+				<DownloadIcon aria-hidden="true" className="size-3.5" />
+			)}
+		</a>
+	);
+};
 
 const AttachmentPreviewFrame: FC<{
 	href: string | null;
 	displayName: string;
 	downloadName: string;
+	mediaType: string;
 	children: ReactNode;
-}> = ({ href, displayName, downloadName, children }) => {
+}> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
 		<div className="group/attachment relative inline-flex flex-col items-start">
 			{children}
@@ -167,6 +254,7 @@ const AttachmentPreviewFrame: FC<{
 					href={href}
 					displayName={displayName}
 					downloadName={downloadName}
+					mediaType={mediaType}
 				/>
 			) : null}
 		</div>
@@ -385,6 +473,7 @@ const RemoteTextAttachmentButton: FC<{
 			href={frameHref}
 			displayName={fileName ?? "Pasted text"}
 			downloadName={downloadName}
+			mediaType={mediaType ?? ""}
 		>
 			{button}
 		</AttachmentPreviewFrame>
@@ -525,13 +614,19 @@ const FileCard: FC<{
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
 	const badgeLabel = getAttachmentBadgeLabel(block);
+	const { isPending, onClick } = useAttachmentDownloadClick({
+		href,
+		fileName: downloadName,
+		mediaType: block.media_type,
+	});
 
 	return (
 		<a
 			href={href}
 			download={downloadName}
-			onClick={(event) => event.stopPropagation()}
+			onClick={onClick}
 			aria-label={`Download ${displayName}`}
+			aria-disabled={isPending}
 			className="inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border-default bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary"
 		>
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
@@ -552,10 +647,18 @@ const FileCard: FC<{
 				</div>
 				<div className="text-xs text-content-secondary">Download file</div>
 			</div>
-			<DownloadIcon
-				aria-hidden="true"
-				className="size-4 shrink-0 text-content-secondary"
-			/>
+			{isPending ? (
+				<Spinner
+					size="sm"
+					loading
+					className="size-4 shrink-0 text-content-secondary"
+				/>
+			) : (
+				<DownloadIcon
+					aria-hidden="true"
+					className="size-4 shrink-0 text-content-secondary"
+				/>
+			)}
 		</a>
 	);
 };
@@ -616,6 +719,7 @@ export const AttachmentBlock: FC<{
 				href={href}
 				displayName={displayName}
 				downloadName={downloadName}
+				mediaType={block.media_type}
 			>
 				{button}
 			</AttachmentPreviewFrame>
@@ -641,6 +745,7 @@ export const AttachmentBlock: FC<{
 				href={href}
 				displayName={displayName}
 				downloadName={downloadName}
+				mediaType={block.media_type}
 			>
 				{image}
 			</AttachmentPreviewFrame>

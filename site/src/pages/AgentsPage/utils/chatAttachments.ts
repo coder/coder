@@ -1,5 +1,7 @@
+import { toast } from "sonner";
 import { isApiErrorResponse } from "#/api/errors";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
+import { decodeDataURL } from "./dataUrls";
 
 const undisplayableAttachmentDetail = "File exists but could not be displayed.";
 
@@ -61,6 +63,190 @@ export async function probeAttachmentFailure(
 	const response = await fetch(src, { signal });
 	return classifyAttachmentFailureResponse(response);
 }
+
+type IOSNavigator = Navigator & { standalone?: boolean };
+
+const isIOS = (): boolean =>
+	/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+	// iPadOS 13+ reports a macOS user agent; the touchscreen is the tell.
+	(navigator.userAgent.includes("Mac") && navigator.maxTouchPoints > 1);
+
+const isStandaloneDisplayMode = (): boolean => {
+	const nav: IOSNavigator = navigator;
+	return (
+		matchMedia("(display-mode: standalone)").matches || nav.standalone === true
+	);
+};
+
+const canShareFile = (file: File): boolean =>
+	typeof navigator.share === "function" &&
+	typeof navigator.canShare === "function" &&
+	navigator.canShare({ files: [file] });
+
+export type AttachmentDownloadTarget = {
+	href: string;
+	fileName: string;
+	mediaType: string;
+};
+
+const errorHasName = (error: unknown, name: string): boolean =>
+	typeof error === "object" &&
+	error !== null &&
+	"name" in error &&
+	error.name === name;
+
+const showDownloadFailure = (
+	fileName: string,
+	options: {
+		description?: string;
+		action?: { label: string; onClick: () => void };
+	},
+): void => {
+	toast.error(`Couldn't download ${fileName}`, options);
+};
+
+// iOS blocks top-level data: navigation, so inline attachments open through
+// a short-lived blob URL instead of their data: href.
+const openAttachmentInTab = (href: string, file: File): void => {
+	if (!href.startsWith("data:")) {
+		open(href, "_blank", "noopener");
+		return;
+	}
+	const blobUrl = URL.createObjectURL(file);
+	open(blobUrl, "_blank", "noopener");
+	setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+};
+
+const openFallbackAction = (target: AttachmentDownloadTarget, file: File) => ({
+	label: "Open",
+	onClick: () => openAttachmentInTab(target.href, file),
+});
+
+// Production CSP excludes data: from connect-src, so inline hrefs are
+// decoded locally instead.
+const fileFromDataURL = ({
+	href,
+	fileName,
+	mediaType,
+}: AttachmentDownloadTarget): File | null => {
+	const decoded = decodeDataURL(href);
+	return decoded
+		? new File([decoded.bytes], fileName, {
+				type: decoded.mediaType || mediaType || "application/octet-stream",
+			})
+		: null;
+};
+
+const shareFileViaSheet = (
+	file: File,
+	target: AttachmentDownloadTarget,
+	signal?: AbortSignal,
+): Promise<void> =>
+	navigator.share({ files: [file] }).catch((error: unknown) => {
+		if (errorHasName(error, "AbortError") || signal?.aborted) {
+			return;
+		}
+		if (errorHasName(error, "NotAllowedError")) {
+			showDownloadFailure(target.fileName, {
+				description: "The file is ready to save.",
+				action: {
+					label: "Save",
+					onClick: () => void shareFileViaSheet(file, target),
+				},
+			});
+			return;
+		}
+		showDownloadFailure(target.fileName, {
+			description: error instanceof Error ? error.message : undefined,
+			action: openFallbackAction(target, file),
+		});
+	});
+
+const shareAttachmentFile = async (
+	target: AttachmentDownloadTarget,
+	signal?: AbortSignal,
+): Promise<void> => {
+	let file: File;
+	if (target.href.startsWith("data:")) {
+		const decoded = fileFromDataURL(target);
+		if (!decoded) {
+			showDownloadFailure(target.fileName, {
+				description: "The attachment data could not be decoded.",
+			});
+			return;
+		}
+		file = decoded;
+	} else {
+		try {
+			const response = await fetch(target.href, { signal });
+			if (signal?.aborted) {
+				return;
+			}
+			if (!response.ok) {
+				throw new Error(
+					response.statusText
+						? `${response.status} ${response.statusText}`
+						: `HTTP ${response.status}`,
+				);
+			}
+			const blob = await response.blob();
+			file = new File([blob], target.fileName, {
+				type: blob.type || target.mediaType || "application/octet-stream",
+			});
+		} catch (error) {
+			if (errorHasName(error, "AbortError")) {
+				return;
+			}
+			showDownloadFailure(target.fileName, {
+				description: error instanceof Error ? error.message : undefined,
+			});
+			return;
+		}
+	}
+	if (signal?.aborted) {
+		return;
+	}
+	if (!canShareFile(file)) {
+		showDownloadFailure(target.fileName, {
+			description: "This file cannot be shared on this device.",
+			action: openFallbackAction(target, file),
+		});
+		return;
+	}
+	await shareFileViaSheet(file, target, signal);
+};
+
+/**
+ * Avoids iOS standalone PWA QuickLook, which can leave no way back to the app.
+ * Uses the share sheet when possible, or a dismissible tab when file sharing
+ * is unavailable. Other environments keep native download behavior.
+ */
+export const handleAttachmentDownloadClick = (
+	event: { preventDefault: () => void },
+	target: AttachmentDownloadTarget,
+	signal?: AbortSignal,
+): Promise<void> | undefined => {
+	if (!isIOS() || !isStandaloneDisplayMode()) {
+		return undefined;
+	}
+	event.preventDefault();
+	const probe = new File(["0"], target.fileName, { type: target.mediaType });
+	if (canShareFile(probe)) {
+		return shareAttachmentFile(target, signal);
+	}
+	// Open the fallback tab during the click gesture to satisfy popup blockers.
+	const file = target.href.startsWith("data:")
+		? fileFromDataURL(target)
+		: probe;
+	if (file) {
+		openAttachmentInTab(target.href, file);
+	} else {
+		showDownloadFailure(target.fileName, {
+			description: "The attachment data could not be decoded.",
+		});
+	}
+	return undefined;
+};
 
 // Filename extensions to list in the file-picker's `accept` attribute
 // alongside the MIME types. Browsers and operating systems do not always
