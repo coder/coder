@@ -341,6 +341,11 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				}
 			}
 
+			// Audit the insert immediately so a row that persists
+			// after a later discovery or update failure still has a
+			// creation record.
+			aReq.New = inserted
+
 			// Now build the callback URL with the actual ID.
 			callbackURL := api.AccessURL.String() + mcpServerOAuth2CallbackPath(inserted.ID)
 			httpClient := api.HTTPClient
@@ -356,6 +361,9 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 						slog.F("config_id", inserted.ID),
 						slog.Error(deleteErr),
 					)
+				} else {
+					// Nothing persisted, so skip the audit entry.
+					aReq.New = database.MCPServerConfig{}
 				}
 
 				api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",
@@ -653,6 +661,18 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
+		// Re-fetch under a row lock so the merge base and the audit
+		// baseline are the row this update actually replaces. The
+		// middleware snapshot may be stale by now, and merging onto
+		// it would silently revert a concurrent update without
+		// recording the reverted fields in the audit diff.
+		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, existing.ID)
+		if err != nil {
+			return err
+		}
+		existing = current
+		aReq.Old = current
+
 		displayName := existing.DisplayName
 		if req.DisplayName != nil {
 			displayName = strings.TrimSpace(*req.DisplayName)

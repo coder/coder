@@ -293,6 +293,32 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
 	})
 
+	t.Run("AutoDiscoveryFailureNotAudited", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, mAudit := newAuditedMCPClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		mAudit.ResetLogs()
+		// Discovery fails immediately: nothing listens on the URL.
+		// The partially inserted row is cleaned up, so no audit
+		// entry may reference it.
+		_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:  "Audit Discovery Failure",
+			Slug:         "audit-discovery-failure",
+			Transport:    "streamable_http",
+			URL:          "http://127.0.0.1:1",
+			AuthType:     "oauth2",
+			Availability: "default_on",
+			Enabled:      true,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Empty(t, mAudit.AuditLogs())
+	})
+
 	t.Run("DeletedResourceMarked", func(t *testing.T) {
 		t.Parallel()
 
