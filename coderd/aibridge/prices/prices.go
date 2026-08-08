@@ -6,6 +6,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"sync"
 
 	"golang.org/x/xerrors"
 
@@ -59,4 +60,55 @@ func parseSeed(data []byte) ([]seedRow, error) {
 		return nil, err
 	}
 	return rows, nil
+}
+
+// SupportedProviders lists the provider types a price may be set for.
+//
+// Listed explicitly rather than derived from ai_provider_type so a new
+// provider is opt-in. Generic passthrough types such as openai-compat stand in
+// for an unknown upstream vendor, so a price cannot be attributed to a model
+// served through one, and auto-including a future passthrough type would
+// silently start accepting meaningless prices. Referencing the generated
+// constants still breaks the build if a value is renamed or removed.
+func SupportedProviders() []database.AIProviderType {
+	return []database.AIProviderType{
+		database.AIProviderTypeAnthropic,
+		database.AIProviderTypeAzure,
+		database.AIProviderTypeBedrock,
+		database.AIProviderTypeCopilot,
+		database.AIProviderTypeGoogle,
+		database.AIProviderTypeOpenai,
+		database.AIProviderTypeOpenrouter,
+		database.AIProviderTypeVercel,
+	}
+}
+
+// defaultPricedModels indexes the embedded price book by provider and model.
+// Built on first use, since a deployment that never sets a price never needs
+// it.
+var defaultPricedModels = sync.OnceValue(func() map[modelKey]struct{} {
+	rows, err := parseSeed(seedJSON)
+	if err != nil {
+		// Unreachable in a correctly built binary, and TestSeed fails on a
+		// malformed seed long before a deployment runs one.
+		panic(xerrors.Errorf("parse embedded price seed: %w", err))
+	}
+	index := make(map[modelKey]struct{}, len(rows))
+	for _, row := range rows {
+		index[modelKey{provider: row.Provider, model: row.Model}] = struct{}{}
+	}
+	return index
+})
+
+type modelKey struct {
+	provider string
+	model    string
+}
+
+// IsDefaultPriced reports whether the embedded price book already carries a
+// price for the model. Coder owns those prices and re-applies them on every
+// startup, so an operator price set for one would not survive a restart.
+func IsDefaultPriced(provider, model string) bool {
+	_, ok := defaultPricedModels()[modelKey{provider: provider, model: model}]
+	return ok
 }
