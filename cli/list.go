@@ -168,13 +168,35 @@ func (r *RootCmd) list() *serpent.Command {
 // convert workspaces to scheduleListRow.
 func QueryConvertWorkspaces[T any](ctx context.Context, client *codersdk.Client, filter codersdk.WorkspaceFilter, convertF func(time.Time, codersdk.Workspace) T) ([]T, error) {
 	var empty []T
-	workspaces, err := client.Workspaces(ctx, filter)
+	workspaces, err := queryAllWorkspaces(ctx, client, filter)
 	if err != nil {
 		return empty, xerrors.Errorf("query workspaces: %w", err)
 	}
-	converted := make([]T, len(workspaces.Workspaces))
-	for i, workspace := range workspaces.Workspaces {
+	converted := make([]T, len(workspaces))
+	for i, workspace := range workspaces {
 		converted[i] = convertF(time.Now(), workspace)
 	}
 	return converted, nil
+}
+
+// pageLimit is the number of rows requested per page when the CLI fetches a
+// list endpoint to exhaustion.
+const pageLimit = 100
+
+// queryAllWorkspaces fetches workspaces page by page until a page returns
+// fewer rows than requested, which marks the end of the result set.
+func queryAllWorkspaces(ctx context.Context, client *codersdk.Client, filter codersdk.WorkspaceFilter) ([]codersdk.Workspace, error) {
+	filter.Limit = pageLimit
+	var workspaces []codersdk.Workspace
+	for {
+		page, err := client.Workspaces(ctx, filter)
+		if err != nil {
+			return nil, err
+		}
+		workspaces = append(workspaces, page.Workspaces...)
+		if len(page.Workspaces) < pageLimit {
+			return workspaces, nil
+		}
+		filter.Offset += len(page.Workspaces)
+	}
 }

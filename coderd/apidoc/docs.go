@@ -2078,8 +2078,7 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Page limit",
                         "name": "limit",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "integer",
@@ -2239,8 +2238,7 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Page limit",
                         "name": "limit",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "integer",
@@ -5794,7 +5792,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit, if 0 returns all members",
+                        "description": "Page limit",
                         "name": "limit",
                         "in": "query"
                     },

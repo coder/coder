@@ -48,12 +48,23 @@ func (r *RootCmd) userList() *serpent.Command {
 				req.Search = fmt.Sprintf("github_com_user_id:%d", githubUserID)
 			}
 
-			res, err := client.Users(inv.Context(), req)
-			if err != nil {
-				return err
+			// Fetch pages until a page returns fewer rows than requested,
+			// which marks the end of the result set.
+			req.Limit = pageLimit
+			users := []codersdk.User{}
+			for {
+				res, err := client.Users(inv.Context(), req)
+				if err != nil {
+					return err
+				}
+				users = append(users, res.Users...)
+				if len(res.Users) < pageLimit {
+					break
+				}
+				req.Offset += len(res.Users)
 			}
 
-			out, err := formatter.Format(inv.Context(), res.Users)
+			out, err := formatter.Format(inv.Context(), users)
 			if err != nil {
 				return err
 			}

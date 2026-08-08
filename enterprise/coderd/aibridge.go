@@ -33,12 +33,6 @@ import (
 )
 
 const (
-	maxListSessionsLimit     = 1000
-	maxListModelsLimit       = 1000
-	maxListClientsLimit      = 1000
-	defaultListSessionsLimit = 100
-	defaultListModelsLimit   = 100
-	defaultListClientsLimit  = 100
 	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
 	// requests. This is hardcoded to keep configuration simple.
 	aiBridgeRateLimitWindow              = time.Second
@@ -175,16 +169,6 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Query parameters have invalid values.",
 			Detail:  "Cannot use both after_session_id and offset pagination in the same request.",
-		})
-		return
-	}
-	if page.Limit == 0 {
-		page.Limit = defaultListSessionsLimit
-	}
-	if page.Limit > maxListSessionsLimit || page.Limit < 1 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid pagination limit value.",
-			Detail:  fmt.Sprintf("Pagination limit must be in range (0, %d]", maxListSessionsLimit),
 		})
 		return
 	}
@@ -518,18 +502,6 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if page.Limit == 0 {
-		page.Limit = defaultListModelsLimit
-	}
-
-	if page.Limit > maxListModelsLimit || page.Limit < 1 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid pagination limit value.",
-			Detail:  fmt.Sprintf("Pagination limit must be in range (0, %d]", maxListModelsLimit),
-		})
-		return
-	}
-
 	queryStr := r.URL.Query().Get("q")
 	filter, errs := searchquery.AIBridgeModels(queryStr, page)
 
@@ -568,18 +540,6 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 
 	page, ok := coderd.ParsePagination(rw, r)
 	if !ok {
-		return
-	}
-
-	if page.Limit == 0 {
-		page.Limit = defaultListClientsLimit
-	}
-
-	if page.Limit > maxListClientsLimit || page.Limit < 1 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid pagination limit value.",
-			Detail:  fmt.Sprintf("Pagination limit must be in range (0, %d]", maxListClientsLimit),
-		})
 		return
 	}
 

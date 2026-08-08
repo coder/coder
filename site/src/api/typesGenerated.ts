@@ -6943,9 +6943,11 @@ export interface Pagination {
 	 */
 	readonly after_id?: string;
 	/**
-	 * Limit sets the maximum number of users to be returned
-	 * in a single page. If the limit is <= 0, there is no limit
-	 * and all users are returned.
+	 * Limit sets the maximum number of results returned in a single page.
+	 * When set, it must be a positive integer no greater than the server's
+	 * maximum page size, otherwise the request is rejected. A value of 0
+	 * omits the query parameter entirely, and the server resolves the page
+	 * size to its maximum.
 	 */
 	readonly limit?: number;
 	/**
