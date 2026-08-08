@@ -310,6 +310,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		enabled: Boolean(organizationId),
 	});
 	const mcpServers = mcpServersQuery.data ?? [];
+	// Sending before the organization's MCP list resolves would
+	// silently drop its default-on server selection, so the composer
+	// waits for this query.
+	const isMCPSelectionUnresolved =
+		Boolean(organizationId) && !mcpServersQuery.isSuccess;
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -556,6 +561,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
+					{mcpServersQuery.error != null && (
+						<ErrorAlert error={mcpServersQuery.error} />
+					)}
 					{showOrganizations && permittedOrgs.length > 1 && (
 						<CompactOrgSelector
 							value={selectedOrg}
@@ -581,6 +589,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							isCreating ||
 							isForbidden ||
 							isPersonalModelOverridesLoading ||
+							isMCPSelectionUnresolved ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
 						}
