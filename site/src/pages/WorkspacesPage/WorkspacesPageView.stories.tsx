@@ -255,6 +255,22 @@ export const AllStates: Story = {
 	},
 };
 
+export const WorkspaceNameIsALink: Story = {
+	args: {
+		workspaces: allWorkspaces,
+		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const workspace = allWorkspaces[0];
+		const link = await canvas.findByRole("link", { name: workspace.name });
+		expect(link).toHaveAttribute(
+			"href",
+			`/@${workspace.owner_name}/${workspace.name}`,
+		);
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		workspaces: undefined,

@@ -18,7 +18,7 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { API } from "#/api/api";
 import { templateVersion } from "#/api/queries/templates";
 import {
@@ -64,7 +64,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -182,6 +181,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					const activeOrg = dashboard.organizations.find(
 						(o) => o.id === workspace.organization_id,
 					);
+					const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
 
 					return (
 						<WorkspacesRow
@@ -192,6 +192,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							<TableCell>
 								<div className="flex items-center gap-5">
 									<Checkbox
+										className="relative z-10"
 										data-testid={`checkbox-${workspace.id}`}
 										disabled={cantBeChecked(workspace)}
 										checked={checked}
@@ -214,14 +215,31 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									<AvatarData
 										title={
 											<div className="flex items-center gap-1">
-												<span className="whitespace-nowrap">
+												<Link
+													to={workspacePageLink}
+													className={cn(
+														"whitespace-nowrap text-inherit no-underline",
+														// Stretch the anchor across the whole row so the
+														// entire row is a real link (right-click "Open in
+														// new tab", middle-click, Cmd/Ctrl click). The row
+														// is positioned relative and interactive controls
+														// are raised above this overlay with z-10.
+														"after:content-[''] after:absolute after:inset-0",
+														// Show the keyboard focus outline on the whole row
+														// (via the stretched pseudo-element) rather than
+														// only around the name text.
+														"outline-none focus-visible:after:rounded-md focus-visible:after:outline focus-visible:after:outline-1 focus-visible:after:-outline-offset-1 focus-visible:after:outline-border-secondary",
+													)}
+												>
 													{workspace.name}
-												</span>
+												</Link>
 												{workspace.favorite && (
 													<StarIcon className="size-icon-xs" />
 												)}
 												{workspace.outdated && (
-													<WorkspaceOutdatedTooltip workspace={workspace} />
+													<span className="relative z-10 inline-flex">
+														<WorkspaceOutdatedTooltip workspace={workspace} />
+													</span>
 												)}
 												{workspace.task_id && (
 													<Badge size="xs" variant="default">
@@ -229,10 +247,15 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													</Badge>
 												)}
 												{chatsByWorkspace?.[workspace.id] && (
-													<Badge size="xs" variant="info" hover asChild>
+													<Badge
+														size="xs"
+														variant="info"
+														hover
+														asChild
+														className="relative z-10"
+													>
 														<Link
 															to={`/agents/${chatsByWorkspace[workspace.id]}`}
-															onClick={(e) => e.stopPropagation()}
 															aria-label={`View agent conversation for ${workspace.name}`}
 														>
 															Agent
@@ -248,10 +271,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													{workspace.owner_name}
 													{workspace.shared_with &&
 														workspace.shared_with.length > 0 && (
-															<WorkspaceSharingIndicator
-																sharedWith={workspace.shared_with}
-																settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
-															/>
+															<span className="relative z-10 inline-flex">
+																<WorkspaceSharingIndicator
+																	sharedWith={workspace.shared_with}
+																	settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
+																/>
+															</span>
 														)}
 												</div>
 											</div>
@@ -321,34 +346,15 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	children,
 	checked,
 }) => {
-	const navigate = useNavigate();
-
-	const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
-	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
-	const { role, hover, ...clickableProps } = useClickableTableRow({
-		onMiddleClick: openLinkInNewTab,
-		onClick: (event) => {
-			// Order of booleans actually matters here for Windows-Mac compatibility;
-			// meta key is Cmd on Macs, but on Windows, it's either the Windows key,
-			// or the key does nothing at all (depends on the browser)
-			const shouldOpenInNewTab =
-				event.shiftKey || event.metaKey || event.ctrlKey;
-
-			if (shouldOpenInNewTab) {
-				openLinkInNewTab();
-			} else {
-				navigate(workspacePageLink);
-			}
-		},
-	});
-
 	return (
 		<TableRow
-			{...clickableProps}
+			hover
 			data-testid={`workspace-${workspace.id}`}
 			className={cn([
+				// Positioning context for the stretched workspace-name anchor that
+				// turns the whole row into a real link.
+				"relative",
 				checked ? "bg-surface-secondary hover:bg-surface-secondary" : undefined,
-				clickableProps.className,
 			])}
 		>
 			{children}
@@ -483,6 +489,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 	return (
 		<TableCell
+			className="relative z-10"
 			onClick={(e) => {
 				// Prevent the click in the actions to trigger the row click
 				e.stopPropagation();
