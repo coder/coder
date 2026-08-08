@@ -7,14 +7,22 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
 	"go.opentelemetry.io/otel/semconv/v1.14.0/netconv"
 	"go.opentelemetry.io/otel/trace"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpmw/patternmatcher"
 )
+
+// SessionIDBaggageKey is the W3C baggage key clients use to propagate the
+// per-session correlation ID described in the connection-log RFC. The value is
+// a 16-byte identifier encoded as a 32-character hexadecimal string.
+const SessionIDBaggageKey = "session_id"
 
 // Middleware adds tracing to http routes.
 func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Handler {
@@ -36,7 +44,20 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			if tracer == nil || !re.MatchString(r.URL.Path) {
+			if !re.MatchString(r.URL.Path) {
+				next.ServeHTTP(rw, r)
+				return
+			}
+
+			// Read the session_id from baggage and add it to the log context.
+			// This is done even when tracing is disabled so that logs can
+			// always be correlated by session_id.
+			sessionID := sessionIDFromHeaders(r.Header)
+			if sessionID != "" {
+				r = r.WithContext(slog.With(r.Context(), slog.F("session_id", sessionID)))
+			}
+
+			if tracer == nil {
 				next.ServeHTTP(rw, r)
 				return
 			}
@@ -45,6 +66,10 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 			// "method route" format once request finishes.
 			r, span := StartHTTPSpan(tracer, rw, r, fmt.Sprintf("%s %s", r.Method, r.RequestURI))
 			defer span.End()
+
+			if sessionID != "" {
+				span.SetAttributes(attribute.String("session_id", sessionID))
+			}
 
 			sw, ok := rw.(*StatusWriter)
 			if !ok {
@@ -57,6 +82,38 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 			EndHTTPSpan(r, sw.Status, span)
 		})
 	}
+}
+
+// sessionIDFromHeaders extracts and validates the session_id baggage member
+// from the request headers. It returns an empty string when the member is
+// absent or malformed. Extraction uses an explicit baggage propagator so it
+// does not depend on the globally configured text map propagator.
+func sessionIDFromHeaders(h http.Header) string {
+	ctx := propagation.Baggage{}.Extract(context.Background(), propagation.HeaderCarrier(h))
+	id := baggage.FromContext(ctx).Member(SessionIDBaggageKey).Value()
+	if !validSessionID(id) {
+		return ""
+	}
+	return id
+}
+
+// validSessionID reports whether s is a 32-character hexadecimal string, the
+// encoding the RFC mandates for the 16-byte session ID. Validating guards
+// against logging arbitrary client-controlled baggage values.
+func validSessionID(s string) bool {
+	if len(s) != 32 {
+		return false
+	}
+	for _, c := range s {
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'a' && c <= 'f':
+		case c >= 'A' && c <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // StartHTTPSpan starts a span, propagating inbound trace context and writing
