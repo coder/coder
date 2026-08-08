@@ -96,6 +96,10 @@ type sqlcQuerier interface {
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
+	// Counts fresh-owner active slots and unowned running chats by pool.
+	// @exclude_chat_id excludes active counts only, keeping stale-owner
+	// takeovers capacity-neutral.
+	CountChatCapacityByPool(ctx context.Context, arg CountChatCapacityByPoolParams) (CountChatCapacityByPoolRow, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
@@ -488,6 +492,10 @@ type sqlcQuerier interface {
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
+	// A chat waits for capacity only when it is running, unarchived, unowned,
+	// and its pool is full. Pool fullness distinguishes capacity waits from
+	// ordinary worker pickup delay.
+	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
 	// Returns the queue head (lowest position, then lowest id).
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
@@ -527,8 +535,10 @@ type sqlcQuerier interface {
 	// Missing ownership is worker_id IS NULL. Inconsistent ownership is
 	// runner_id IS NULL while worker_id is set. Stale ownership is no
 	// heartbeat row for (chat_id, runner_id), or one older than
-	// @stale_seconds by database time. Candidates are ordered by oldest
-	// updated_at first so workers drain stale runnable chats predictably.
+	// @stale_seconds by database time. Interrupting and requires_action
+	// bypass admission. Interleaved per-pool FIFO ordering by updated_at
+	// prevents one full pool starving the other; @exclude_ids skips prior
+	// attempts within a pass.
 	GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error)
 	// Returns the global TTL for chat workspaces as a Go duration string.
 	// Returns "0s" (disabled) when no value has been configured.
@@ -1266,6 +1276,10 @@ type sqlcQuerier interface {
 	// Supports an inclusive lower bound (seq_after) and an exclusive upper bound
 	// (seq_before) for fetching events between two known interceptions.
 	ListBoundaryLogsBySessionID(ctx context.Context, arg ListBoundaryLogsBySessionIDParams) ([]BoundaryLog, error)
+	// Returns every chat able to wait for capacity: running, unarchived, with
+	// no live owner heartbeat. Workers reconcile their local capacity queues
+	// against it without paging all acquisition candidates.
+	ListChatCapacityWaiting(ctx context.Context, staleSeconds int32) ([]ListChatCapacityWaitingRow, error)
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)

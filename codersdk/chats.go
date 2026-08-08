@@ -141,9 +141,13 @@ type Chat struct {
 	// Context reports the chat's pinned workspace-context state and
 	// whether it has drifted from the agent's latest pushed snapshot.
 	// Nil when the chat has no pinned context yet.
-	Context    *ChatContext   `json:"context,omitempty"`
-	Warnings   []string       `json:"warnings,omitempty"`
-	ClientType ChatClientType `json:"client_type"`
+	Context *ChatContext `json:"context,omitempty"`
+	// QueuedForCapacity reports that the chat is waiting for a concurrent
+	// agent slot. It is derived, not stored: single-chat reads and
+	// capacity_change watch events carry it, list responses leave it false.
+	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
+	Warnings          []string       `json:"warnings,omitempty"`
+	ClientType        ChatClientType `json:"client_type"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -1852,7 +1856,10 @@ const (
 	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
 	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
 	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
-	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
+	// ChatWatchEventKindCapacityChange signals a capacity-queue change;
+	// QueuedForCapacity carries the current state.
+	ChatWatchEventKindCapacityChange ChatWatchEventKind = "capacity_change"
+	ChatWatchEventKindActionRequired ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context changed: it drifted from the agent's latest
 	// pushed snapshot, or hydration first populated it (a first-turn

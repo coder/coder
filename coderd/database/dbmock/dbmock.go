@@ -498,6 +498,21 @@ func (mr *MockStoreMockRecorder) CountAuthorizedConnectionLogs(ctx, arg, prepare
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAuthorizedConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountAuthorizedConnectionLogs), ctx, arg, prepared)
 }
 
+// CountChatCapacityByPool mocks base method.
+func (m *MockStore) CountChatCapacityByPool(ctx context.Context, arg database.CountChatCapacityByPoolParams) (database.CountChatCapacityByPoolRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountChatCapacityByPool", ctx, arg)
+	ret0, _ := ret[0].(database.CountChatCapacityByPoolRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountChatCapacityByPool indicates an expected call of CountChatCapacityByPool.
+func (mr *MockStoreMockRecorder) CountChatCapacityByPool(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatCapacityByPool", reflect.TypeOf((*MockStore)(nil).CountChatCapacityByPool), ctx, arg)
+}
+
 // CountChatQueuedMessages mocks base method.
 func (m *MockStore) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	m.ctrl.T.Helper()
@@ -3148,6 +3163,21 @@ func (m *MockStore) GetChatPlanModeInstructions(ctx context.Context) (string, er
 func (mr *MockStoreMockRecorder) GetChatPlanModeInstructions(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatPlanModeInstructions", reflect.TypeOf((*MockStore)(nil).GetChatPlanModeInstructions), ctx)
+}
+
+// GetChatQueuedForCapacity mocks base method.
+func (m *MockStore) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatQueuedForCapacity", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatQueuedForCapacity indicates an expected call of GetChatQueuedForCapacity.
+func (mr *MockStoreMockRecorder) GetChatQueuedForCapacity(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedForCapacity", reflect.TypeOf((*MockStore)(nil).GetChatQueuedForCapacity), ctx, arg)
 }
 
 // GetChatQueuedMessageByID mocks base method.
@@ -8906,6 +8936,21 @@ func (m *MockStore) ListBoundaryLogsBySessionID(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) ListBoundaryLogsBySessionID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBoundaryLogsBySessionID", reflect.TypeOf((*MockStore)(nil).ListBoundaryLogsBySessionID), ctx, arg)
+}
+
+// ListChatCapacityWaiting mocks base method.
+func (m *MockStore) ListChatCapacityWaiting(ctx context.Context, staleSeconds int32) ([]database.ListChatCapacityWaitingRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListChatCapacityWaiting", ctx, staleSeconds)
+	ret0, _ := ret[0].([]database.ListChatCapacityWaitingRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListChatCapacityWaiting indicates an expected call of ListChatCapacityWaiting.
+func (mr *MockStoreMockRecorder) ListChatCapacityWaiting(ctx, staleSeconds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatCapacityWaiting", reflect.TypeOf((*MockStore)(nil).ListChatCapacityWaiting), ctx, staleSeconds)
 }
 
 // ListChatContextResourcesByChatID mocks base method.

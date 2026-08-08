@@ -189,13 +189,14 @@ type Server struct {
 	configCacheUnsubscribe         func()
 	providerCacheUnsubscribe       func()
 
-	usageTracker      *workspacestats.UsageTracker
-	clock             quartz.Clock
-	metrics           *chatloop.Metrics
-	chatWorker        *chatWorker
-	messagePartBuffer *messagepartbuffer.Buffer
-	streamSyncPoller  *streamSyncPoller
-	recordingSem      chan struct{}
+	usageTracker         *workspacestats.UsageTracker
+	clock                quartz.Clock
+	metrics              *chatloop.Metrics
+	chatWorker           *chatWorker
+	messagePartBuffer    *messagepartbuffer.Buffer
+	streamSyncPoller     *streamSyncPoller
+	recordingSem         chan struct{}
+	agentCapacityLimiter AgentCapacityLimiter
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
@@ -2996,6 +2997,9 @@ type Config struct {
 
 	PrometheusRegistry prometheus.Registerer
 
+	// AgentCapacityLimiterFactory limits concurrent chat agents when non-nil.
+	AgentCapacityLimiterFactory AgentCapacityLimiterFactory
+
 	// OIDCTokenSource resolves the calling user's OIDC access
 	// token for MCP servers configured with auth_type=user_oidc.
 	// May be nil if the deployment has no OIDC provider; servers
@@ -3127,6 +3131,19 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	p.streamPartsDialer = streamPartsDialerForServer(workerID, localStreamPartsDialer, cfg.StreamPartsDialer)
 	p.streamSyncPoller = newStreamSyncPoller(ctx, cfg.Database, clk, cfg.Logger.Named("chatstream"))
 	p.streamSyncPoller.Start()
+	agentCapacityLimiter := AgentCapacityLimiter(noopAgentCapacityLimiter{})
+	var agentCapacityMetrics *capacityMetrics
+	if cfg.AgentCapacityLimiterFactory != nil {
+		// A nil factory result falls back to the noop like a nil factory,
+		// keeping the server and worker limiters non-nil.
+		if limiter := cfg.AgentCapacityLimiterFactory(int32(inFlightChatStaleAfter.Seconds())); limiter != nil {
+			agentCapacityLimiter = limiter
+			if cfg.PrometheusRegistry != nil {
+				agentCapacityMetrics = newCapacityMetrics(cfg.PrometheusRegistry)
+			}
+		}
+	}
+	p.agentCapacityLimiter = agentCapacityLimiter
 	chatWorker, err := newChatWorker(p, chatWorkerOptions{
 		WorkerID:              workerID,
 		Store:                 cfg.Database,
@@ -3134,6 +3151,8 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		Logger:                cfg.Logger.Named("chatworker"),
 		Clock:                 clk,
 		MessagePartBuffer:     p.messagePartBuffer,
+		AgentCapacityLimiter:  agentCapacityLimiter,
+		CapacityMetrics:       agentCapacityMetrics,
 		AcquisitionInterval:   pendingChatAcquireInterval,
 		AcquisitionBatchSize:  maxChatsPerAcquire,
 		HeartbeatInterval:     chatHeartbeatInterval,
@@ -3248,12 +3267,49 @@ func chatWatchEventSDKChat(chat database.Chat, diffStatus *codersdk.ChatDiffStat
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
 func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
-	if p.pubsub == nil {
-		return
-	}
-	event := codersdk.ChatWatchEvent{
+	p.publishChatWatchEvent(chat, codersdk.ChatWatchEvent{
 		Kind: kind,
 		Chat: chatWatchEventSDKChat(chat, diffStatus),
+	})
+}
+
+// publishChatCapacityChange broadcasts the derived queued-for-capacity state.
+// Queued state has no database column, so the event payload carries the value
+// the worker observed at refusal or admission.
+func (p *Server) publishChatCapacityChange(chat database.Chat, queued bool) {
+	sdkChat := chatWatchEventSDKChat(chat, nil)
+	sdkChat.QueuedForCapacity = queued
+	p.publishChatWatchEvent(chat, codersdk.ChatWatchEvent{
+		Kind: codersdk.ChatWatchEventKindCapacityChange,
+		Chat: sdkChat,
+	})
+}
+
+// ChatQueuedForCapacity derives whether the chat is waiting for a
+// concurrent-agent capacity slot. It reports false when the deployment is
+// currently uncapped.
+func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) (bool, error) {
+	limits, capped := p.agentCapacityLimiter.Limits()
+	if !capped {
+		return false, nil
+	}
+	if chat.Archived || chat.Status != database.ChatStatusRunning {
+		return false, nil
+	}
+	// The pool count spans other users' chats, which the requester cannot
+	// read directly.
+	//nolint:gocritic // Capacity accounting is chatd-internal state.
+	return p.db.GetChatQueuedForCapacity(dbauthz.AsChatd(ctx), database.GetChatQueuedForCapacityParams{
+		ChatID:           chat.ID,
+		StaleSeconds:     int32(p.inFlightChatStaleAfter.Seconds()),
+		RootCapacity:     limits.Root,
+		SubagentCapacity: limits.Subagent,
+	})
+}
+
+func (p *Server) publishChatWatchEvent(chat database.Chat, event codersdk.ChatWatchEvent) {
+	if p.pubsub == nil {
+		return
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {
@@ -3266,7 +3322,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
 			slog.F("chat_id", chat.ID),
-			slog.F("kind", kind),
+			slog.F("kind", event.Kind),
 			slog.Error(err),
 		)
 	}
