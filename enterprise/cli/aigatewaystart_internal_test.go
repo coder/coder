@@ -5,28 +5,70 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
 
 	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/aibridge"
+	aibridgemetrics "github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/cli/clitest"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
+
+const (
+	// testAIProviderName is the configured AI provider name. The aibridge mux
+	// routes by provider name, so it is also the first path segment of LLM
+	// routes.
+	testAIProviderName = "openai"
+
+	// mockAIUpstreamResponse is the fixed non-streaming chat completion the
+	// mock upstream returns.
+	mockAIUpstreamResponse = `{
+  "id": "chatcmpl-standalone-test",
+  "object": "chat.completion",
+  "created": 1753343279,
+  "model": "gpt-4.1",
+  "choices": [
+    {
+      "index": 0,
+      "message": {"role": "assistant", "content": "standalone gateway response"},
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+}`
+)
+
+// mockAIUpstream is a mock upstream LLM API returning a fixed response and
+// counting the requests it received.
+type mockAIUpstream struct {
+	server *httptest.Server
+	hits   chan struct{}
+}
 
 // failThenSucceedReloader fails the first failUntil reloads, then succeeds,
 // modeling a coderd connection or provider fetch that recovers after a few
@@ -95,13 +137,71 @@ func (p *controlledShutdownPool) Shutdown(ctx context.Context) error {
 	return errors.Join(p.CachedBridgePool.Shutdown(ctx), p.err)
 }
 
-type standaloneGatewayTestParams struct {
-	params standaloneGatewayParams
-	pool   *controlledShutdownPool
+// testAIGatewayCoderd is an enterprise coderd entitled for AI Gov, with
+// an AI Gateway key a standalone gateway authenticates with and a member
+// user whose session token authenticates LLM traffic.
+type testAIGatewayCoderd struct {
+	client       *codersdk.Client
+	bridgeConfig codersdk.AIBridgeConfig
+	key          codersdk.CreateAIGatewayKeyResponse
+	userClient   *codersdk.Client
+	user         codersdk.User
 }
 
-func newStandaloneGatewayTestParams(t *testing.T) *standaloneGatewayTestParams {
+// testStandaloneGateway embeds the production gateway and adds the
+// bookkeeping needed to run it in a test goroutine.
+type testStandaloneGateway struct {
+	*standaloneGateway
+
+	baseURL *url.URL
+	cancel  context.CancelFunc
+
+	// done receives the result of standaloneGateway.run exactly once.
+	// Cleanup waits on finished.
+	done chan error
+	// finished is closed after standaloneGateway.run returns.
+	finished chan struct{}
+}
+
+// testGatewayConfig collects the ways a test can customize
+// newTestStandaloneGateway.
+type testGatewayConfig struct {
+	params []func(*standaloneGatewayParams)
+	// reloader replaces the production provider reloader. It runs after
+	// construction because a reloader typically needs the constructed daemon.
+	reloader func(daemon *aibridged.Server) aibridged.ProviderReloader
+	// httpHandler replaces the production gateway mux.
+	httpHandler http.Handler
+}
+
+type testGatewayOption func(*testGatewayConfig)
+
+func withGatewayParams(mutate func(*standaloneGatewayParams)) testGatewayOption {
+	return func(c *testGatewayConfig) { c.params = append(c.params, mutate) }
+}
+
+func withGatewayReloader(build func(daemon *aibridged.Server) aibridged.ProviderReloader) testGatewayOption {
+	return func(c *testGatewayConfig) { c.reloader = build }
+}
+
+func withGatewayHTTPHandler(handler http.Handler) testGatewayOption {
+	return func(c *testGatewayConfig) { c.httpHandler = handler }
+}
+
+// newTestStandaloneGateway is the single way internal tests construct a
+// standalone gateway: the production constructor fed with test-default
+// parameters (a dialer that blocks until its context ends, a
+// controlledShutdownPool, and a port-0 listener). All customization goes
+// through testGatewayOption values. The returned pool exposes the shutdown
+// knobs of the default pool; it is inert when withGatewayParams replaced the
+// pool.
+func newTestStandaloneGateway(t *testing.T, opts ...testGatewayOption) (*standaloneGateway, *controlledShutdownPool) {
 	t.Helper()
+
+	var cfg testGatewayConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 
 	logger := slog.Make()
 	tracer := sdktrace.NewTracerProvider().Tracer("test")
@@ -112,18 +212,32 @@ func newStandaloneGatewayTestParams(t *testing.T) *standaloneGatewayTestParams {
 	})
 
 	pool := &controlledShutdownPool{CachedBridgePool: cachedPool}
-	return &standaloneGatewayTestParams{
-		params: standaloneGatewayParams{
-			httpAddress: "127.0.0.1:0",
+	params := standaloneGatewayParams{
+		httpAddress: "127.0.0.1:0",
 
-			dialer: blockingStandaloneDaemonDialer,
-			pool:   pool,
+		dialer: blockingStandaloneDaemonDialer,
+		pool:   pool,
 
-			logger: logger,
-			tracer: tracer,
-		},
-		pool: pool,
+		logger: logger,
+		tracer: tracer,
 	}
+	for _, m := range cfg.params {
+		m(&params)
+	}
+
+	gateway, err := newStandaloneGateway(params)
+	require.NoError(t, err)
+	if cfg.reloader != nil {
+		gateway.reloader = cfg.reloader(gateway.daemon)
+	}
+	if cfg.httpHandler != nil {
+		gateway.httpServer.Handler = cfg.httpHandler
+	}
+
+	t.Cleanup(func() {
+		require.NoError(t, shutdownWithTimeout(gateway.daemon.Shutdown, testutil.WaitShort))
+	})
+	return gateway, pool
 }
 
 func TestStandaloneGatewayLoadProviders(t *testing.T) {
@@ -177,14 +291,13 @@ func TestStandaloneGatewayLoadProviders(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 			defer cancel()
-			logger := slog.Make()
-			daemon := newTestStandaloneDaemon(t, logger)
-			reloader, calls := tc.setup(t, daemon, cancel)
-			gateway := &standaloneGateway{
-				daemon:         daemon,
-				providerLogger: logger,
-				reloader:       reloader,
-			}
+			var calls *atomic.Int32
+			modifyReloader := withGatewayReloader(func(daemon *aibridged.Server) aibridged.ProviderReloader {
+				reloader, reloaderCalls := tc.setup(t, daemon, cancel)
+				calls = reloaderCalls
+				return reloader
+			})
+			gateway, _ := newTestStandaloneGateway(t, modifyReloader)
 
 			err := gateway.loadProviders(ctx)
 			if tc.wantErr == nil {
@@ -202,34 +315,21 @@ func TestStandaloneGatewayHealthAndReadiness(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slog.Make()
-	tracer := sdktrace.NewTracerProvider().Tracer("test")
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger, nil, tracer)
-	require.NoError(t, err)
 	connections := make(chan drpc.Conn, 2)
-	dialer := func(ctx context.Context) (aibridged.DRPCClient, error) {
-		select {
-		case conn := <-connections:
-			return &aibridged.Client{Conn: conn}, nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
+	modifyDialer := withGatewayParams(func(p *standaloneGatewayParams) {
+		p.dialer = func(ctx context.Context) (aibridged.DRPCClient, error) {
+			select {
+			case conn := <-connections:
+				return &aibridged.Client{Conn: conn}, nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		}
-	}
-	daemon, err := aibridged.New(ctx, pool, dialer, logger, tracer)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, shutdownWithTimeout(daemon.Shutdown, testutil.WaitShort))
 	})
-
-	gateway := &standaloneGateway{
-		daemon:         daemon,
-		providerLogger: logger,
-		reloader:       &failThenSucceedReloader{},
-	}
-	gateway.httpServer = &http.Server{
-		Handler:           newGatewayMux(daemon, gateway.ready, func(next http.Handler) http.Handler { return next }),
-		ReadHeaderTimeout: testutil.WaitShort,
-	}
+	modifyReloader := withGatewayReloader(func(*aibridged.Server) aibridged.ProviderReloader {
+		return &failThenSucceedReloader{}
+	})
+	gateway, _ := newTestStandaloneGateway(t, modifyDialer, modifyReloader)
 
 	// The HTTP server is healthy before the daemon connects or providers load.
 	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
@@ -238,7 +338,7 @@ func TestStandaloneGatewayHealthAndReadiness(t *testing.T) {
 	// A daemon connection alone does not make the gateway ready.
 	firstConn := &connectedDRPCConn{closed: make(chan struct{})}
 	connections <- firstConn
-	require.Eventually(t, daemon.Ready, testutil.WaitShort, testutil.IntervalFast)
+	require.Eventually(t, gateway.daemon.Ready, testutil.WaitShort, testutil.IntervalFast)
 	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
 	require.Equal(t, http.StatusServiceUnavailable, readyzStatus(t, gateway))
 
@@ -249,13 +349,13 @@ func TestStandaloneGatewayHealthAndReadiness(t *testing.T) {
 
 	// Losing the daemon connection affects readiness but not HTTP health.
 	require.NoError(t, firstConn.Close())
-	require.Eventually(t, func() bool { return !daemon.Ready() }, testutil.WaitShort, testutil.IntervalFast)
+	require.Eventually(t, func() bool { return !gateway.daemon.Ready() }, testutil.WaitShort, testutil.IntervalFast)
 	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
 	require.Equal(t, http.StatusServiceUnavailable, readyzStatus(t, gateway))
 
 	// Readiness recovers when the daemon reconnects; providers remain loaded.
 	connections <- &connectedDRPCConn{closed: make(chan struct{})}
-	require.Eventually(t, daemon.Ready, testutil.WaitShort, testutil.IntervalFast)
+	require.Eventually(t, gateway.daemon.Ready, testutil.WaitShort, testutil.IntervalFast)
 	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
 	require.Equal(t, http.StatusOK, readyzStatus(t, gateway))
 }
@@ -285,7 +385,6 @@ func TestAIGatewayStart_HealthBeforeReady(t *testing.T) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	t.Cleanup(coderSrv.Close)
-	gatewayAddress := fmt.Sprintf("127.0.0.1:%d", testutil.RandomPort(t))
 
 	var root RootCmd
 	cmd, err := root.Command(root.enterpriseOnly())
@@ -294,44 +393,36 @@ func TestAIGatewayStart_HealthBeforeReady(t *testing.T) {
 		"--url", coderSrv.URL,
 		"ai-gateway", "start",
 		"--key", "test-key",
-		"--http-address", gatewayAddress,
+		"--http-address", "127.0.0.1:0",
 	)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	// Watch the command for an early exit so a clash on gatewayAddress is
-	// reported as a bind failure instead of a probe timeout.
-	cmdDone := make(chan error, 1)
-	clitest.StartWithAssert(t, inv.WithContext(ctx), func(_ *testing.T, err error) {
-		cmdDone <- err
-	})
+	inv = inv.WithContext(ctx)
+	pty := ptytest.New(t).Attach(inv)
+	clitest.Start(t, inv)
 
-	// healthz check
+	// Extract bound address from the startup log.
+	pty.ExpectMatch(ctx, "standalone AI Gateway listening")
+	line := pty.ReadLine(ctx)
+	matches := regexp.MustCompile(`address=([0-9.]+:[0-9]+)`).FindStringSubmatch(line)
+	require.Len(t, matches, 2, "listener address not found in startup log: %q", line)
+	baseURL := "http://" + matches[1]
+
+	// The startup log line is emitted after the listener is bound, no need for retry loop.
 	client := &http.Client{Timeout: testutil.WaitShort}
-	baseURL := "http://" + gatewayAddress
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		select {
-		case err := <-cmdDone:
-			t.Fatalf("ai-gateway start exited before serving: %v", err)
-		default:
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+healthzPath, nil)
-		if err != nil {
-			return false
-		}
-		resp, err := client.Do(req)
-		if err != nil {
-			return false
-		}
-		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}, testutil.IntervalFast)
-
-	// readyz check (unavailable due to no connection to coderd)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+readyzPath, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+healthzPath, nil)
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// readyz check (unavailable due to no connection to coderd)
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, baseURL+readyzPath, nil)
+	require.NoError(t, err)
+	resp2, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+	require.Equal(t, http.StatusServiceUnavailable, resp2.StatusCode)
 }
 
 func TestRunStandaloneGateway_ContextCanceled(t *testing.T) {
@@ -340,10 +431,7 @@ func TestRunStandaloneGateway_ContextCanceled(t *testing.T) {
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	runCtx, cancelRun := context.WithCancel(testCtx)
 	defer cancelRun()
-	test := newStandaloneGatewayTestParams(t)
-
-	gateway, err := newStandaloneGateway(test.params)
-	require.NoError(t, err)
+	gateway, _ := newTestStandaloneGateway(t)
 	runDone := make(chan error, 1)
 	go func() {
 		runDone <- gateway.run(runCtx)
@@ -360,14 +448,13 @@ func TestRunStandaloneGateway_ContextCanceled(t *testing.T) {
 func TestRunStandaloneGateway_DaemonExited(t *testing.T) {
 	t.Parallel()
 
-	test := newStandaloneGatewayTestParams(t)
-	test.params.dialer = func(context.Context) (aibridged.DRPCClient, error) {
-		return nil, codersdk.NewError(http.StatusUnauthorized, codersdk.Response{Message: "invalid gateway key"})
-	}
-
-	gateway, err := newStandaloneGateway(test.params)
-	require.NoError(t, err)
-	err = gateway.run(testutil.Context(t, testutil.WaitShort))
+	modifyDialer := withGatewayParams(func(p *standaloneGatewayParams) {
+		p.dialer = func(context.Context) (aibridged.DRPCClient, error) {
+			return nil, codersdk.NewError(http.StatusUnauthorized, codersdk.Response{Message: "invalid gateway key"})
+		}
+	})
+	gateway, _ := newTestStandaloneGateway(t, modifyDialer)
+	err := gateway.run(testutil.Context(t, testutil.WaitShort))
 	require.ErrorContains(t, err, "AI Gateway daemon exited")
 	require.True(t, gateway.drpcClosed.Load(), "DRPC connection must be closed before run returns")
 	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before run returns")
@@ -378,18 +465,18 @@ func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 	t.Parallel()
 
 	testCtx := testutil.Context(t, testutil.WaitShort)
-	test := newStandaloneGatewayTestParams(t)
+	modifyTLS := withGatewayParams(func(p *standaloneGatewayParams) {
+		p.tlsCertFile = filepath.Join(t.TempDir(), "missing.crt")
+		p.tlsKeyFile = filepath.Join(t.TempDir(), "missing.key")
+	})
+	gateway, pool := newTestStandaloneGateway(t, modifyTLS)
 	shutdownErr := xerrors.New("pool shutdown failed")
 	shutdownStarted := make(chan struct{}, 1)
 	shutdownRelease := make(chan struct{})
-	test.pool.err = shutdownErr
-	test.pool.started = shutdownStarted
-	test.pool.release = shutdownRelease
-	test.params.tlsCertFile = filepath.Join(t.TempDir(), "missing.crt")
-	test.params.tlsKeyFile = filepath.Join(t.TempDir(), "missing.key")
+	pool.err = shutdownErr
+	pool.started = shutdownStarted
+	pool.release = shutdownRelease
 
-	gateway, err := newStandaloneGateway(test.params)
-	require.NoError(t, err)
 	runDone := make(chan error, 1)
 	go func() {
 		runDone <- gateway.run(testCtx)
@@ -400,7 +487,7 @@ func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open until daemon shutdown completes")
 	close(shutdownRelease)
 
-	err = testutil.RequireReceive(testCtx, t, runDone)
+	err := testutil.RequireReceive(testCtx, t, runDone)
 	require.False(t, gateway.drpcClosed.Load(), "DRPC connection shutdown must not be marked successful after an error")
 	require.ErrorContains(t, err, "serve:")
 	require.ErrorContains(t, err, "shutdown AI Gateway daemon:")
@@ -410,17 +497,20 @@ func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 func TestRunStandaloneGateway_ListenAndShutdownErrors(t *testing.T) {
 	t.Parallel()
 
-	test := newStandaloneGatewayTestParams(t)
-	shutdownErr := xerrors.New("pool shutdown failed")
-	test.pool.err = shutdownErr
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = listener.Close()
 	})
-	test.params.httpAddress = listener.Addr().String()
+	// Occupy an address so binding the gateway listener fails.
+	modifyAddr := withGatewayParams(func(p *standaloneGatewayParams) {
+		p.httpAddress = listener.Addr().String()
+	})
+	gateway, pool := newTestStandaloneGateway(t, modifyAddr)
+	shutdownErr := xerrors.New("pool shutdown failed")
+	pool.err = shutdownErr
 
-	err = runStandaloneGateway(testutil.Context(t, testutil.WaitShort), test.params)
+	err = gateway.run(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, listener.Close())
 	require.ErrorContains(t, err, "listen on")
 	require.ErrorContains(t, err, "shutdown AI Gateway daemon:")
@@ -432,14 +522,7 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 
 	// Set up a running daemon, provider reloader, and blocked HTTP request.
 	testCtx := testutil.Context(t, testutil.WaitShort)
-	logger := slog.Make()
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger, nil, sdktrace.NewTracerProvider().Tracer("test"))
-	require.NoError(t, err)
 
-	daemon, err := aibridged.New(context.Background(), pool, blockingStandaloneDaemonDialer, logger, sdktrace.NewTracerProvider().Tracer("test"))
-	require.NoError(t, err)
-
-	httpAddress := "127.0.0.1:0"
 	// inFlightPath scopes the blocking handler to the request this test keeps in
 	// flight. Another test may probe a port the OS later assigns to this
 	// listener, and such traffic must not stand in for that request.
@@ -448,29 +531,24 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	handlerStarted := make(chan struct{}, 1)
 	httpShutdownStarted := make(chan struct{}, 1)
 	releaseHandler := make(chan struct{})
-	gateway := &standaloneGateway{
-		daemon: daemon,
-		httpServer: &http.Server{
-			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != inFlightPath {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				select {
-				case handlerStarted <- struct{}{}:
-				default:
-				}
-				<-releaseHandler
-				w.WriteHeader(http.StatusNoContent)
-			}),
-			ReadHeaderTimeout: testutil.WaitShort,
-		},
-		httpAddress:    httpAddress,
-		logger:         logger,
-		providerLogger: logger,
-		reloader:       reloader,
-		listenerReady:  make(chan struct{}),
-	}
+	modifyReloader := withGatewayReloader(func(*aibridged.Server) aibridged.ProviderReloader {
+		return reloader
+	})
+	// The gateway mux is replaced with a handler this test can block, so an
+	// in-flight request is observable during shutdown.
+	modifyHandler := withGatewayHTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != inFlightPath {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		select {
+		case handlerStarted <- struct{}{}:
+		default:
+		}
+		<-releaseHandler
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	gateway, _ := newTestStandaloneGateway(t, modifyReloader, modifyHandler)
 	gateway.httpServer.RegisterOnShutdown(func() {
 		httpShutdownStarted <- struct{}{}
 	})
@@ -537,20 +615,6 @@ func requireListening(ctx context.Context, t *testing.T, gateway *standaloneGate
 		t.Fatalf("gateway never started listening: %v", ctx.Err())
 	}
 	return ""
-}
-
-func newTestStandaloneDaemon(t *testing.T, logger slog.Logger) *aibridged.Server {
-	t.Helper()
-
-	tracer := sdktrace.NewTracerProvider().Tracer("test")
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger, nil, tracer)
-	require.NoError(t, err)
-	daemon, err := aibridged.New(context.Background(), pool, blockingStandaloneDaemonDialer, logger, tracer)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, daemon.Close())
-	})
-	return daemon
 }
 
 func blockingStandaloneDaemonDialer(ctx context.Context) (aibridged.DRPCClient, error) {
@@ -753,4 +817,182 @@ func TestAIGatewayStart_InheritedOptions(t *testing.T) {
 		"options from source groups are neither inherited nor dropped.\n"+
 			"Check if option is applicable for standalone AI Gateway.\n"+
 			"If so, add it to aiGatewayInheritedEnvs, otherwise add it to the dropped set: %v", unclassified)
+}
+
+func newMockAIUpstream(t *testing.T) *mockAIUpstream {
+	t.Helper()
+
+	u := &mockAIUpstream{hits: make(chan struct{}, 16)}
+	u.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		u.hits <- struct{}{}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(mockAIUpstreamResponse))
+	}))
+	t.Cleanup(u.server.Close)
+	return u
+}
+
+// setupAIGatewayCoderd starts coderd with the AI Bridge entitlement and
+// creates the AI Gateway key used for the /api/v2/ai-gateway/serve handshake.
+func setupAIGatewayCoderd(t *testing.T, mutate ...func(*coderdenttest.Options)) *testAIGatewayCoderd {
+	t.Helper()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	opts := &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{codersdk.FeatureAIBridge: 1},
+		},
+	}
+	for _, m := range mutate {
+		m(opts)
+	}
+
+	client, firstUser := coderdenttest.New(t, opts)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:gocritic // Owner role is needed for gateway key management.
+	key, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "standalone-test"})
+	require.NoError(t, err)
+
+	userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+	return &testAIGatewayCoderd{
+		client:       client,
+		bridgeConfig: dv.AI.BridgeConfig,
+		key:          key,
+		userClient:   userClient,
+		user:         user,
+	}
+}
+
+// createTestAIProvider registers an OpenAI-compatible provider pointing at
+// upstreamURL. The standalone gateway fetches it over DRPC during its initial
+// provider load.
+func createTestAIProvider(ctx context.Context, t *testing.T, client *codersdk.Client, upstreamURL string) {
+	t.Helper()
+
+	//nolint:gocritic // Owner role is needed for provider management.
+	_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:    codersdk.AIProviderTypeOpenAI,
+		Name:    testAIProviderName,
+		Enabled: true,
+		BaseURL: upstreamURL,
+		APIKeys: []string{"sk-standalone-test"},
+	})
+	require.NoError(t, err)
+}
+
+func startTestStandaloneGateway(t *testing.T, coderd *testAIGatewayCoderd) *testStandaloneGateway {
+	t.Helper()
+
+	modify := withGatewayParams(func(p *standaloneGatewayParams) {
+		// Losing the connection to coderd is exercised deliberately, so logged
+		// errors must not fail the test.
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("ai-gateway")
+		tracer := sdktrace.NewTracerProvider().Tracer("test")
+
+		registry := prometheus.NewRegistry()
+		gatewayRegisterer := prometheus.WrapRegistererWithPrefix(aibridgemetrics.PrometheusMetricPrefix, registry)
+		metrics := aibridge.NewMetrics(gatewayRegisterer)
+
+		pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger.Named("pool"), metrics, tracer)
+		require.NoError(t, err)
+
+		p.bridgeConfig = coderd.bridgeConfig
+		p.coderURL = coderd.client.URL.String()
+		p.dialer = aibridged.NewWebsocketDialer(coderd.client.URL, coderd.client.HTTPClient.Transport, coderd.key.Key)
+		p.pool = pool
+		p.logger = logger
+		p.metrics = metrics
+		p.providerMetrics = aibridged.NewMetrics(gatewayRegisterer)
+		p.tracer = tracer
+	})
+	gateway, _ := newTestStandaloneGateway(t, modify)
+
+	runCtx, cancel := context.WithCancel(context.Background())
+	g := &testStandaloneGateway{
+		standaloneGateway: gateway,
+		cancel:            cancel,
+		done:              make(chan error, 1),
+		finished:          make(chan struct{}),
+	}
+	go func() {
+		defer close(g.finished)
+		g.done <- gateway.run(runCtx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-g.finished:
+		case <-time.After(testutil.WaitLong):
+			t.Error("standalone gateway did not stop")
+		}
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	g.baseURL = &url.URL{Scheme: "http", Host: requireListening(ctx, t, gateway, g.done)}
+	return g
+}
+
+// status probes an HTTP path on the gateway listener.
+func (g *testStandaloneGateway) status(ctx context.Context, path string) (int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.baseURL.JoinPath(path).String(), nil)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode, nil
+}
+
+func (g *testStandaloneGateway) requireEventualStatus(ctx context.Context, t *testing.T, path string, want int) {
+	t.Helper()
+
+	require.Eventuallyf(t, func() bool {
+		got, err := g.status(ctx, path)
+		return err == nil && got == want
+	}, testutil.WaitLong, testutil.IntervalFast, "%s never returned %d", path, want)
+}
+
+// TestStandaloneGateway_RevokedKeyLifecycle covers the key revocation
+// sequence: coderd closes the active session once the key is gone, and the
+// gateway's reconnect attempt is rejected with 401, which the connect loop
+// treats as fatal and terminates the process.
+func TestStandaloneGateway_RevokedKeyLifecycle(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	// coderd checks key existence and entitlement on a 60s ticker. Replacing
+	// the ticker lets the test force that check instead of waiting for it.
+	keyCheck := make(chan time.Time, 1)
+	coderd := setupAIGatewayCoderd(t, func(opts *coderdenttest.Options) {
+		opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
+			return keyCheck, func() {}
+		}
+	})
+	upstream := newMockAIUpstream(t)
+	createTestAIProvider(ctx, t, coderd.client, upstream.server.URL)
+
+	gateway := startTestStandaloneGateway(t, coderd)
+	gateway.requireEventualStatus(ctx, t, readyzPath, http.StatusOK)
+
+	//nolint:gocritic // Owner role is needed for gateway key management.
+	require.NoError(t, coderd.client.DeleteAIGatewayKey(ctx, coderd.key.ID))
+	keyCheck <- time.Now()
+
+	// Readiness does drop when coderd closes the session, but the connect loop
+	// redials within its 50ms floor and the 401 tears the gateway down, so the
+	// transient 503 window is not reliably observable here. Reconnection
+	// readiness transitions are covered by the reconnection tests.
+	err := testutil.RequireReceive(ctx, t, gateway.done)
+	require.ErrorContains(t, err, "AI Gateway daemon exited")
+	require.ErrorContains(t, err, "AI Gateway key invalid")
+	require.False(t, gateway.daemon.Ready())
+	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must be closed after the daemon exits")
 }
