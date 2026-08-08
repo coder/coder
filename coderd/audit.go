@@ -501,6 +501,18 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch chat", slog.Error(err))
 		}
 		return false
+	case database.ResourceTypeMCPServerConfig:
+		// MCP server configs are hard-deleted, so a 404 means deleted.
+		_, err := api.Database.GetMCPServerConfigByID(ctx, alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		// Config reads are org-scoped, so an auditor can lack read on
+		// the config's organization. That is not worth logging.
+		if err != nil && !dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "unable to fetch mcp server config", slog.Error(err))
+		}
+		return false
 	case database.ResourceTypeUserSecret:
 		_, err := api.Database.GetUserSecretByID(ctx, alog.AuditLog.ResourceID)
 		if xerrors.Is(err, sql.ErrNoRows) {
