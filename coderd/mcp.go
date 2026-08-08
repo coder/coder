@@ -61,12 +61,7 @@ func newOIDCMCPTokenSource(db database.Store, config promoauth.OAuth2Config, log
 	}
 }
 
-// OIDCAccessToken implements mcpclient.UserOIDCTokenSource. It
-// refreshes expired tokens and persists the refreshed token back
-// to user_links. The chatd dbauthz subject does not grant
-// ResourceSystem.Read, so the user_links calls elevate to
-// AsSystemRestricted; the per-user authorization is already
-// enforced by the API handler that owns ctx.
+// OIDCAccessToken refreshes and persists the user's OIDC token.
 func (s *oidcMCPTokenSource) OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error) {
 	//nolint:gocritic // user_links read needs system access; the
 	// caller's user identity is supplied via the userID parameter.

@@ -1652,7 +1652,6 @@ func TestMCPServerUserTokens(t *testing.T) {
 		require.Equal(t, ciphers[0].HexDigest(), got.AccessTokenKeyID.String)
 		require.Equal(t, ciphers[0].HexDigest(), got.RefreshTokenKeyID.String)
 
-		// Raw values must be encrypted.
 		rawTok, err := db.GetMCPServerUserTokenByID(ctx, tok.ID)
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, accessToken)
