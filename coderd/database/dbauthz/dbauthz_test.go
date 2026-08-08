@@ -7612,14 +7612,17 @@ func TestAsChatd(t *testing.T) {
 		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceDeploymentConfig)
 		require.Error(t, err, "deployment config update should not be allowed")
 
-		// User read_personal (needed for GetUserChatCustomPrompt).
-		err = auth.Authorize(ctx, actor, policy.ActionReadPersonal, rbac.ResourceUser)
-		require.NoError(t, err, "user read_personal should be allowed")
-
-		// User update_personal (needed to persist refreshed MCP OAuth2
-		// tokens and permanent refresh failures for chat owners).
-		err = auth.Authorize(ctx, actor, policy.ActionUpdatePersonal, rbac.ResourceUser)
-		require.NoError(t, err, "user update_personal should be allowed")
+		// Pin the complete ResourceUser action set: read_personal (user
+		// chat custom prompts) and update_personal (MCP OAuth2 token
+		// refresh persistence) only, so a future broad grant fails here.
+		for _, action := range rbac.ResourceUser.AvailableActions() {
+			err := auth.Authorize(ctx, actor, action, rbac.ResourceUser)
+			if action == policy.ActionReadPersonal || action == policy.ActionUpdatePersonal {
+				require.NoError(t, err, "user %s should be allowed", action)
+			} else {
+				require.Error(t, err, "user %s should be denied", action)
+			}
+		}
 	})
 
 	t.Run("DeniedActions", func(t *testing.T) {
