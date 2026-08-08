@@ -69,8 +69,8 @@ importers:
         specifier: 5.2.7
         version: 5.2.7
       '@fontsource/jetbrains-mono':
-        specifier: 5.2.8
-        version: 5.2.8
+        specifier: 5.3.0
+        version: 5.3.0
       '@fontsource/source-code-pro':
         specifier: 5.3.0
         version: 5.3.0
@@ -1004,8 +1004,8 @@ packages:
   '@fontsource/ibm-plex-mono@5.2.7':
     resolution: {integrity: sha512-MKAb8qV+CaiMQn2B0dIi1OV3565NYzp3WN5b4oT6LTkk+F0jR6j0ZN+5BKJiIhffDC3rtBULsYZE65+0018z9w==, tarball: https://registry.npmjs.org/@fontsource/ibm-plex-mono/-/ibm-plex-mono-5.2.7.tgz}
 
-  '@fontsource/jetbrains-mono@5.2.8':
-    resolution: {integrity: sha512-6w8/SG4kqvIMu7xd7wt6x3idn1Qux3p9N62s6G3rfldOUYHpWcc2FKrqf+Vo44jRvqWj2oAtTHrZXEP23oSKwQ==, tarball: https://registry.npmjs.org/@fontsource/jetbrains-mono/-/jetbrains-mono-5.2.8.tgz}
+  '@fontsource/jetbrains-mono@5.3.0':
+    resolution: {integrity: sha512-fqDfB5I9f1p1TV486aUgB9t8zP84P0O1FtQR5Ol9vjwPy+S+EIGlVYm1cvj2W5shcZMTg2nZFdVMoH5wFu8a1A==, tarball: https://registry.npmjs.org/@fontsource/jetbrains-mono/-/jetbrains-mono-5.3.0.tgz}
 
   '@fontsource/source-code-pro@5.3.0':
     resolution: {integrity: sha512-JxaCODU69HDS3mVra9u96nyBF911La6IvtGLgpQD+PZLxJ1i9IxooNfLR6Y37kx06IFjVGkvoUmg3WPwh/8gBg==, tarball: https://registry.npmjs.org/@fontsource/source-code-pro/-/source-code-pro-5.3.0.tgz}
@@ -6957,7 +6957,7 @@ snapshots:
 
   '@fontsource/ibm-plex-mono@5.2.7': {}
 
-  '@fontsource/jetbrains-mono@5.2.8': {}
+  '@fontsource/jetbrains-mono@5.3.0': {}
 
   '@fontsource/source-code-pro@5.3.0': {}
 
