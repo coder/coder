@@ -189,4 +189,5 @@ use it. New servers grant read access to the organization's **Everyone** group,
 so all members have access by default. Admins can remove the Everyone entry and
 grant specific groups or users instead through the API
 (`GET`/`PATCH /api/experimental/mcp-servers/{id}/acl`); there is no ACL editor
-in the settings page. ACL changes are recorded in the audit log.
+in the settings page. ACL management is available in all editions and does not
+require an enterprise entitlement. ACL changes are recorded in the audit log.
