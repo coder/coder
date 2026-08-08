@@ -18655,11 +18655,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status_code": {
-                    "description": "StatusCode is the HTTP status code of the request.",
+                    "description": "StatusCode is the HTTP status code or tunnel authorization outcome.",
                     "type": "integer"
                 },
                 "user": {
-                    "description": "User is omitted if the connection event was from an unauthenticated user.",
+                    "description": "User is omitted if the connection event was unauthenticated or system-initiated.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.User"

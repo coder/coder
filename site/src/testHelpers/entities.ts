@@ -3068,6 +3068,48 @@ export const MockWebConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
+const MockTunnelWebInfo: TypesGen.ConnectionLogWebInfo = {
+	user_agent: "coder-cli/2.0.0",
+	user: MockUserMember,
+	slug_or_port: "",
+	status_code: 101,
+};
+
+export const MockTunnelConnectionLog: TypesGen.ConnectionLog = {
+	...MockWebConnectionLog,
+	type: "tunnel",
+	web_info: MockTunnelWebInfo,
+};
+
+export const MockDeniedTunnelConnectionLog: TypesGen.ConnectionLog = {
+	...MockTunnelConnectionLog,
+	id: "09747acf-207f-4f53-a875-fde339924f60",
+	web_info: {
+		...MockTunnelWebInfo,
+		status_code: 403,
+	},
+};
+
+export const MockCoderdTunnelConnectionLog: TypesGen.ConnectionLog = {
+	...MockTunnelConnectionLog,
+	id: "6b5f793f-1193-48db-9597-b4fb4bffaf5d",
+	web_info: {
+		...MockTunnelWebInfo,
+		user: null,
+		user_agent: "coderd",
+	},
+};
+
+export const MockWorkspaceProxyTunnelConnectionLog: TypesGen.ConnectionLog = {
+	...MockCoderdTunnelConnectionLog,
+	id: "324a6da6-d7c7-4377-bb63-45ba63f57d84",
+	web_info: {
+		...MockTunnelWebInfo,
+		user: null,
+		user_agent: "wsproxy/us-central",
+	},
+};
+
 export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
 	connect_time: "2022-05-19T16:45:57.122Z",
