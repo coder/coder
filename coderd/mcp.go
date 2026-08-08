@@ -256,7 +256,18 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			// Auto-discovery flow: we need the config ID first to
 			// build the correct callback URL.  Insert the record
 			// with empty OAuth2 fields, perform discovery, then
-			// update.
+			// update. The flow also updates the row with discovered
+			// credentials and deletes it when discovery fails, so
+			// require those actions up front rather than inserting a
+			// row a create-only caller can neither finish nor remove.
+			if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) ||
+				!api.Authorize(r, policy.ActionDelete, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) {
+				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+					Message: "OAuth2 auto-discovery requires permission to update and delete MCP server configs.",
+					Detail:  "Provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url manually, or use credentials with broader MCP server config permissions.",
+				})
+				return
+			}
 			customHeadersJSON, err := marshalCustomHeaders(req.CustomHeaders)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
