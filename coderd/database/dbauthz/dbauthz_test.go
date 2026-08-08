@@ -1737,7 +1737,7 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("UpdateMCPServerConfigACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		arg := database.UpdateMCPServerConfigACLByIDParams{ID: config.ID}
+		arg := database.UpdateMCPServerConfigACLByIDParams{ID: config.ID, UpdatedBy: uuid.New()}
 		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
 		dbm.EXPECT().UpdateMCPServerConfigACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(config, policy.ActionShare)

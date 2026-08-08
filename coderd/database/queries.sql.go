@@ -18043,19 +18043,27 @@ const updateMCPServerConfigACLByID = `-- name: UpdateMCPServerConfigACLByID :exe
 UPDATE mcp_server_configs
 SET
     group_acl = $1,
-    user_acl = $2
+    user_acl = $2,
+    updated_by = $3::uuid,
+    updated_at = NOW()
 WHERE
-    id = $3::uuid
+    id = $4::uuid
 `
 
 type UpdateMCPServerConfigACLByIDParams struct {
-	GroupACL ChatACL   `db:"group_acl" json:"group_acl"`
-	UserACL  ChatACL   `db:"user_acl" json:"user_acl"`
-	ID       uuid.UUID `db:"id" json:"id"`
+	GroupACL  ChatACL   `db:"group_acl" json:"group_acl"`
+	UserACL   ChatACL   `db:"user_acl" json:"user_acl"`
+	UpdatedBy uuid.UUID `db:"updated_by" json:"updated_by"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateMCPServerConfigACLByID(ctx context.Context, arg UpdateMCPServerConfigACLByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateMCPServerConfigACLByID, arg.GroupACL, arg.UserACL, arg.ID)
+	_, err := q.db.ExecContext(ctx, updateMCPServerConfigACLByID,
+		arg.GroupACL,
+		arg.UserACL,
+		arg.UpdatedBy,
+		arg.ID,
+	)
 	return err
 }
 
