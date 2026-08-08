@@ -2335,7 +2335,8 @@ CREATE TABLE external_auth_links (
     oauth_access_token_key_id text,
     oauth_refresh_token_key_id text,
     oauth_extra jsonb,
-    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
+    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL,
+    refresh_lease_expires_at timestamp with time zone
 );
 
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
@@ -2343,6 +2344,8 @@ COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of th
 COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
 COMMENT ON COLUMN external_auth_links.oauth_refresh_failure_reason IS 'This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.';
+
+COMMENT ON COLUMN external_auth_links.refresh_lease_expires_at IS 'Indicates a replica is refreshing the token; prevents concurrent refreshes.';
 
 CREATE TABLE files (
     hash character varying(64) NOT NULL,

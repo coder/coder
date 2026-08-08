@@ -105,6 +105,14 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireExternalAuthLinkRefreshLease(ctx, arg)
+	m.queryLatencies.WithLabelValues("AcquireExternalAuthLinkRefreshLease").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireExternalAuthLinkRefreshLease").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	r0 := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -4921,6 +4929,14 @@ func (m queryMetricsStore) RegisterWorkspaceProxy(ctx context.Context, arg datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg database.ReleaseExternalAuthLinkRefreshLeaseParams) error {
+	start := time.Now()
+	r0 := m.s.ReleaseExternalAuthLinkRefreshLease(ctx, arg)
+	m.queryLatencies.WithLabelValues("ReleaseExternalAuthLinkRefreshLease").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseExternalAuthLinkRefreshLease").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.RemoveUserFromGroups(ctx, arg)
@@ -5319,14 +5335,6 @@ func (m queryMetricsStore) UpdateExternalAuthLink(ctx context.Context, arg datab
 	m.queryLatencies.WithLabelValues("UpdateExternalAuthLink").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateExternalAuthLink").Inc()
 	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateExternalAuthLinkRefreshToken(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateExternalAuthLinkRefreshToken").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateExternalAuthLinkRefreshToken").Inc()
-	return r0
 }
 
 func (m queryMetricsStore) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
