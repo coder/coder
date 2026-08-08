@@ -195,8 +195,11 @@ const ChatSearchResultsList: FC<ChatSearchResultsListProps> = ({
 
 	if ((chats?.length ?? 0) === 0) {
 		return (
-			<div className="flex h-[300px] items-center justify-center">
-				<p className="text-sm text-content-secondary">No matching chats</p>
+			<div className="flex h-[300px] items-center justify-center px-6 text-center">
+				<p className="text-sm text-content-secondary">
+					No matching chats. Message content is indexed periodically, so very
+					recent messages may not be searchable yet.
+				</p>
 			</div>
 		);
 	}

@@ -41,52 +41,74 @@ describe("normalizeChatSearchInput", () => {
 		);
 	});
 
-	it("converts bare search text into a title filter", () => {
-		expect(normalizeChatSearchInput("Fix")).toBe('title:"Fix"');
+	it("converts bare search text into a quoted FTS search filter", () => {
+		expect(normalizeChatSearchInput("Fix")).toBe('search:"Fix"');
 		expect(normalizeChatSearchInput("fix auth middleware")).toBe(
-			'title:"fix auth middleware"',
+			'search:"fix auth middleware"',
 		);
-		expect(normalizeChatSearchInput("fix:lint")).toBe('title:"fix:lint"');
+		expect(normalizeChatSearchInput("hello world")).toBe(
+			'search:"hello world"',
+		);
+		expect(normalizeChatSearchInput("fix:lint")).toBe('search:"fix:lint"');
 	});
 
-	it("combines key:value filters with a title fallback for bare text", () => {
+	it("combines key:value filters with an FTS search fallback for bare text", () => {
 		expect(normalizeChatSearchInput("has_unread:true fix auth")).toBe(
-			'has_unread:true title:"fix auth"',
+			'has_unread:true search:"fix auth"',
 		);
 		expect(normalizeChatSearchInput("archived:true fix:lint")).toBe(
-			'archived:true title:"fix:lint"',
+			'archived:true search:"fix:lint"',
 		);
 		expect(normalizeChatSearchInput("fix has_unread:true auth")).toBe(
-			'has_unread:true title:"fix auth"',
+			'has_unread:true search:"fix auth"',
 		);
 		expect(
 			normalizeChatSearchInput(
 				"diff_url:https://github.com/coder/coder/pull/26016 fix",
 			),
-		).toBe('diff_url:"https://github.com/coder/coder/pull/26016" title:"fix"');
+		).toBe('diff_url:"https://github.com/coder/coder/pull/26016" search:"fix"');
 		expect(
 			normalizeChatSearchInput('archived:true title:"chat title" fix'),
-		).toBe('archived:true title:"chat title fix"');
+		).toBe('archived:true search:"chat title fix"');
 	});
 
-	it("combines duplicate title filters into one title filter", () => {
+	it("combines duplicate title filters into one search filter", () => {
 		expect(normalizeChatSearchInput("title:Fix title:Race")).toBe(
-			'title:"Fix Race"',
+			'search:"Fix Race"',
 		);
 		expect(
 			normalizeChatSearchInput('has_unread:true title:"chat title" title:Race'),
-		).toBe('has_unread:true title:"chat title Race"');
+		).toBe('has_unread:true search:"chat title Race"');
 	});
 
-	it("strips quotes from bare text", () => {
+	it("preserves quoted websearch phrases in bare text", () => {
+		// A leading/trailing quote pair is passed through so websearch_to_tsquery
+		// can interpret it as a quoted phrase.
+		expect(normalizeChatSearchInput('"fix race condition"')).toBe(
+			'search:"fix race condition"',
+		);
 		expect(normalizeChatSearchInput('Fix "auth" middleware')).toBe(
-			'title:"Fix auth middleware"',
+			'search:Fix "auth" middleware',
 		);
 	});
 
-	it("treats a trailing-colon filter as bare title text", () => {
-		// `title:` is not a well-formed key:value pair, so it should be searched
-		// for as a literal title substring.
-		expect(normalizeChatSearchInput("title:")).toBe('title:"title:"');
+	it("preserves websearch operators alongside a quoted phrase", () => {
+		expect(normalizeChatSearchInput('"fix race" OR deadlock -timeout')).toBe(
+			'search:"fix race" OR deadlock -timeout',
+		);
+	});
+
+	it("strips stray quotes from bare text before wrapping", () => {
+		// Unbalanced quotes would break the backend's query parser, which has no
+		// escape handling for embedded quotes.
+		expect(normalizeChatSearchInput("it's a \"test")).toBe(
+			'search:"it\'s a test"',
+		);
+	});
+
+	it("treats a trailing-colon filter as bare search text", () => {
+		// `title:` is not a well-formed key:value pair, so it is wrapped as an
+		// FTS phrase.
+		expect(normalizeChatSearchInput("title:")).toBe('search:"title:"');
 	});
 });

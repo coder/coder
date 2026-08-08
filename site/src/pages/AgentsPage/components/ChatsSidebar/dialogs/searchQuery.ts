@@ -1,7 +1,8 @@
 // The backend's search-query parser toggles its quoted-state on every `"` and
 // has no backslash-escape handling, so escaping quotes here would produce a
-// query the backend cannot parse. Stripping quotes from bare text keeps the
-// resulting `title:"..."` filter well-formed for the backend.
+// query the backend cannot parse. Stripping quotes from structured filter
+// values keeps the resulting `key:"..."` token well-formed for the backend.
+// Bare free text is not sanitized this way so that FTS quoted phrases survive.
 const sanitizeChatSearchValue = (value: string): string => {
 	return value.replaceAll('"', "");
 };
@@ -10,9 +11,32 @@ const addDefaultURLScheme = (value: string): string => {
 	return /^[a-z][a-z\d+\-.]*:\/\//i.test(value) ? value : `https://${value}`;
 };
 
+// Bare free text may contain websearch operators (quoted phrases, OR,
+// -negation). Detect a leading/trailing quote pair so those pass through
+// unmodified; everything else gets wrapped in a single quoted phrase.
+const hasWebSearchQuotes = (value: string): boolean => {
+	const first = value.indexOf('"');
+	const last = value.lastIndexOf('"');
+	return (
+		first !== -1 && last > first && /\S/.test(value.slice(first + 1, last))
+	);
+};
+
+// Wrap bare free text in a quoted phrase so multi-word input reaches the
+// backend's FTS filter as a single token. Quotes are stripped first because
+// the backend's query parser has no escape handling for embedded quotes.
+const toSearchPhrase = (terms: string): string => {
+	const joined = terms.trim();
+	if (hasWebSearchQuotes(joined)) {
+		return joined;
+	}
+	return `"${sanitizeChatSearchValue(joined)}"`;
+};
+
 // Filter keys that may pass through to the backend unchanged. `title` is not
 // listed here because bare text and `title:` filters are merged into a single
-// title filter; see the title-handling branch in normalizeChatSearchInput.
+// FTS `search:` filter; see the search-handling branch in
+// normalizeChatSearchInput.
 const passthroughChatSearchFilterKeys = new Set([
 	"archived",
 	"diff_url",
@@ -107,7 +131,7 @@ const normalizePassthroughChatSearchFilter = ({
 /**
  * Normalizes raw search input into a query string the chat search API accepts.
  *
- * Bare text and `title:` filters are merged into a single `title:"..."`
+ * Bare text and `title:` filters are merged into a single `search:` FTS
  * filter (the backend rejects a parameter that appears more than once).
  * Recognized `key:value` filters are normalized for backend syntax.
  */
@@ -122,26 +146,26 @@ export const normalizeChatSearchInput = (
 	const tokens = splitSearchInput(trimmedInput);
 	const passthroughFilters: string[] = [];
 	const normalizedTokens: string[] = [];
-	const titleTerms: string[] = [];
-	let hasBareTitleText = false;
+	const searchTerms: string[] = [];
+	let hasBareSearchText = false;
 
 	for (const token of tokens) {
 		const keyValuePair = getKeyValuePair(token);
 		if (!keyValuePair) {
-			titleTerms.push(token);
-			hasBareTitleText = true;
+			searchTerms.push(token);
+			hasBareSearchText = true;
 			continue;
 		}
 
 		if (keyValuePair.key === "title") {
 			normalizedTokens.push(token);
-			titleTerms.push(keyValuePair.value);
+			searchTerms.push(keyValuePair.value);
 			continue;
 		}
 
 		if (!passthroughChatSearchFilterKeys.has(keyValuePair.key)) {
-			titleTerms.push(token);
-			hasBareTitleText = true;
+			searchTerms.push(token);
+			hasBareSearchText = true;
 			continue;
 		}
 
@@ -150,18 +174,20 @@ export const normalizeChatSearchInput = (
 		normalizedTokens.push(normalizedFilter);
 	}
 
-	// Multiple title values must be merged into a single title filter because
+	// Multiple search values must be merged into a single search filter because
 	// the backend's query parser rejects the same key appearing more than once.
-	if (titleTerms.length > 1) {
-		hasBareTitleText = true;
+	if (searchTerms.length > 1) {
+		hasBareSearchText = true;
 	}
 
-	if (!hasBareTitleText) {
+	if (!hasBareSearchText) {
 		return normalizedTokens.join(" ");
 	}
 
+	// Free text defaults to the backend's full-text search filter, which
+	// matches chat titles, PR titles, and message bodies.
 	return [
 		...passthroughFilters,
-		`title:"${sanitizeChatSearchValue(titleTerms.join(" "))}"`,
+		`search:${toSearchPhrase(searchTerms.join(" "))}`,
 	].join(" ");
 };

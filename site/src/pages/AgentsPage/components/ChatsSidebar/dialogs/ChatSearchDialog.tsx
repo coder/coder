@@ -132,7 +132,8 @@ type ChatSearchDialogContentProps = Omit<
 };
 
 // Build a raw query string from structured filters + freeform text, then
-// normalize it through the existing parser that the backend expects.
+// normalize it through the existing parser that the backend expects. Freeform
+// text becomes the backend's FTS `search:` filter.
 const buildQuery = (
 	filters: readonly SearchFilter[],
 	freeText: string,
@@ -193,7 +194,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		SEARCH_DEBOUNCE_MS,
 	);
 	// When typing into an incomplete filter, only send the filter (not
-	// freeText as bare title search).
+	// freeText as bare full-text search).
 	// When freeText is cleared (e.g. after committing a filter), zero
 	// queryFreeText immediately instead of waiting for the debounce to
 	// flush. Otherwise the stale debouncedFreeText leaks into the query.
