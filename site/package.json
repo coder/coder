@@ -51,7 +51,7 @@
 		"@fontsource/ibm-plex-mono": "5.2.7",
 		"@fontsource/jetbrains-mono": "5.2.8",
 		"@fontsource/source-code-pro": "5.3.0",
-		"@lexical/react": "0.44.0",
+		"@lexical/react": "0.48.0",
 		"@lexical/utils": "0.48.0",
 		"@monaco-editor/react": "4.7.0",
 		"@mui/material": "5.18.0",
