@@ -494,6 +494,29 @@ var (
 		}.WithCachedASTValue()
 	}
 
+	// subjectChatdTokenOwner persists MCP OAuth2 token refreshes and
+	// refresh failures for one chat owner. User-level permissions keep
+	// the write scoped to that owner's rows.
+	subjectChatdTokenOwner = func(userID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeChatdTokenOwner,
+			FriendlyName: "Chatd Token Owner",
+			ID:           userID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "chatdtokenowner"},
+					DisplayName: "Chatd Token Owner",
+					Site:        []rbac.Permission{},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceUser.Type: {policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+					}),
+					ByOrgID: map[string]rbac.OrgPermissions{},
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
@@ -795,9 +818,10 @@ var (
 					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 					rbac.ResourceMCPServerConfig.Type:  {policy.ActionRead},
-					// UpdatePersonal covers persisting refreshed MCP OAuth2
-					// tokens and permanent refresh failures for chat owners.
-					rbac.ResourceUser.Type: {policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+					// Site-wide UpdatePersonal would let chatd write any
+					// user's personal data; token writes use the per-user
+					// AsChatdTokenOwner subject instead.
+					rbac.ResourceUser.Type: {policy.ActionReadPersonal},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -930,6 +954,12 @@ func AsAPIKeyRevoker(ctx context.Context, userID uuid.UUID) context.Context {
 // gateway API key owned by the specified user.
 func AsChatdKeyMinter(ctx context.Context, userID uuid.UUID) context.Context {
 	return As(ctx, subjectChatdKeyMinter(userID))
+}
+
+// AsChatdTokenOwner returns a context with an actor that persists MCP
+// OAuth2 token refresh results for the specified token owner only.
+func AsChatdTokenOwner(ctx context.Context, userID uuid.UUID) context.Context {
+	return As(ctx, subjectChatdTokenOwner(userID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions

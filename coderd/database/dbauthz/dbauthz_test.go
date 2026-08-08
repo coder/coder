@@ -7613,11 +7613,12 @@ func TestAsChatd(t *testing.T) {
 		require.Error(t, err, "deployment config update should not be allowed")
 
 		// Pin the complete ResourceUser action set: read_personal (user
-		// chat custom prompts) and update_personal (MCP OAuth2 token
-		// refresh persistence) only, so a future broad grant fails here.
+		// chat custom prompts) only. Token refresh persistence uses the
+		// per-user AsChatdTokenOwner subject, so a future site-wide
+		// personal-write grant fails here.
 		for _, action := range rbac.ResourceUser.AvailableActions() {
 			err := auth.Authorize(ctx, actor, action, rbac.ResourceUser)
-			if action == policy.ActionReadPersonal || action == policy.ActionUpdatePersonal {
+			if action == policy.ActionReadPersonal {
 				require.NoError(t, err, "user %s should be allowed", action)
 			} else {
 				require.Error(t, err, "user %s should be denied", action)
