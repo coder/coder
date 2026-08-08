@@ -6914,8 +6914,8 @@ func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database
 }
 
 func (q *querier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
-	// The params carry only the token id, so resolve the owner from
-	// the row itself to authorize the personal update.
+	// The update parameters omit the owner, so load the token before
+	// authorizing the personal update.
 	fetch := func(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
 		return q.db.GetMCPServerUserTokenByID(ctx, arg.ID)
 	}
@@ -7611,8 +7611,8 @@ func (q *querier) UpdateMCPServerConfigACLByID(ctx context.Context, arg database
 }
 
 func (q *querier) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
-	// The params carry only the token id, so resolve the owner from
-	// the row itself to authorize the personal update.
+	// The update parameters omit the owner, so load the token before
+	// authorizing the personal update.
 	fetch := func(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
 		return q.db.GetMCPServerUserTokenByID(ctx, arg.ID)
 	}
