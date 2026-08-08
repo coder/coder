@@ -911,12 +911,52 @@ type StartProcessRequest struct {
 	WorkDir    string            `json:"workdir,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Background bool              `json:"background,omitempty"`
+	// IdempotencyKey makes the start idempotent: a repeated key with
+	// matching inputs attaches to the process it already started,
+	// and a mismatch is refused.
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
 // StartProcessResponse is returned when a process is started.
 type StartProcessResponse struct {
-	ID      string `json:"id"`
-	Started bool   `json:"started"`
+	ID             string `json:"id"`
+	Started        bool   `json:"started"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	// Attached reports that ID names a process an earlier start
+	// created, so this request spawned nothing. Agents that predate
+	// idempotent starts omit it, along with the two fields around it.
+	Attached bool `json:"attached,omitempty"`
+	// StartedAt is when the process originally started, in unix
+	// seconds, so a replay waits out only the budget that remains.
+	StartedAt int64 `json:"started_at,omitempty"`
+}
+
+type ProcessConflictCode string
+
+const (
+	// ProcessConflictInputMismatch reports a key already used to
+	// start a process with different parameters. Retrying cannot
+	// resolve it.
+	ProcessConflictInputMismatch ProcessConflictCode = "input_mismatch"
+
+	// ProcessConflictStartPending reports that the start holding the
+	// key had not published its process before the wait gave up. A
+	// retry may still attach to it.
+	ProcessConflictStartPending ProcessConflictCode = "start_pending"
+)
+
+// ProcessConflictError is the body of a start request rejected
+// because its idempotency key belongs to another start.
+type ProcessConflictError struct {
+	Code ProcessConflictCode `json:"code"`
+	codersdk.Response
+}
+
+func (e *ProcessConflictError) Error() string {
+	if e.Detail == "" {
+		return e.Message
+	}
+	return fmt.Sprintf("%s: %s", e.Message, e.Detail)
 }
 
 // ListProcessesResponse contains information about tracked
@@ -1273,11 +1313,35 @@ func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (
 		return StartProcessResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusConflict {
+		return StartProcessResponse{}, readProcessConflictError(res)
+	}
 	if res.StatusCode != http.StatusOK {
 		return StartProcessResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp StartProcessResponse
 	return resp, decodeAgentJSON(res, &resp)
+}
+
+func readProcessConflictError(res *http.Response) error {
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return xerrors.Errorf("read response body: %w", err)
+	}
+	// Restore the body so the fallback can read it too.
+	res.Body = io.NopCloser(bytes.NewReader(body))
+
+	var conflict ProcessConflictError
+	if err := json.Unmarshal(body, &conflict); err != nil || conflict.Message == "" {
+		return codersdk.ReadBodyAsError(res)
+	}
+	if conflict.Code == "" {
+		// Treat an unrecognized conflict as permanent: reporting an
+		// unresolved start as permanent costs an error result, while
+		// the reverse risks running the command twice.
+		conflict.Code = ProcessConflictInputMismatch
+	}
+	return &conflict
 }
 
 // ListProcesses returns information about tracked processes on the agent.

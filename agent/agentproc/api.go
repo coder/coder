@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agentrunonce"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -87,8 +88,30 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		chatID = chatContext.ID.String()
 	}
 
-	proc, err := api.manager.start(req, chatID)
+	proc, attached, err := api.manager.start(ctx, req, chatID)
 	if err != nil {
+		if errors.Is(err, agentrunonce.ErrInputMismatch) {
+			httpapi.Write(ctx, rw, http.StatusConflict, workspacesdk.ProcessConflictError{
+				Code: workspacesdk.ProcessConflictInputMismatch,
+				Response: codersdk.Response{
+					Message: "Idempotency key was already used to start a process with different parameters.",
+					Detail:  err.Error(),
+				},
+			})
+			return
+		}
+		if errors.Is(err, agentrunonce.ErrPublicationPending) {
+			// The concurrent start may still publish a process under
+			// this key; 409 keeps the dispatch recoverable.
+			httpapi.Write(ctx, rw, http.StatusConflict, workspacesdk.ProcessConflictError{
+				Code: workspacesdk.ProcessConflictStartPending,
+				Response: codersdk.Response{
+					Message: "Timed out waiting for the concurrent start that holds this idempotency key.",
+					Detail:  err.Error(),
+				},
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
 			Detail:  err.Error(),
@@ -99,7 +122,9 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	// Notify git watchers after the process finishes so that
 	// file changes made by the command are visible in the scan.
 	// If a workdir is provided, track it as a path as well.
-	if api.pathStore != nil {
+	// An attached process already has a watcher from the request
+	// that started it.
+	if api.pathStore != nil && !attached {
 		if chatContext, ok := agentchat.FromContext(ctx); ok {
 			allIDs := append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...)
 			go func() {
@@ -114,8 +139,11 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.StartProcessResponse{
-		ID:      proc.id,
-		Started: true,
+		ID:             proc.id,
+		Started:        !attached,
+		IdempotencyKey: req.IdempotencyKey,
+		Attached:       attached,
+		StartedAt:      proc.info().StartedAt,
 	})
 }
 

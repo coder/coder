@@ -533,6 +533,205 @@ func TestStartProcess(t *testing.T) {
 	})
 }
 
+// requireConflictCode keeps conflict assertions off the error text.
+func requireConflictCode(t *testing.T, w *httptest.ResponseRecorder, want workspacesdk.ProcessConflictCode) {
+	t.Helper()
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var conflict workspacesdk.ProcessConflictError
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&conflict))
+	require.Equal(t, want, conflict.Code)
+	require.NotEmpty(t, conflict.Message)
+}
+
+func TestStartProcessIdempotencyKey(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SameKeyAttaches", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		req := workspacesdk.StartProcessRequest{
+			Command:        "echo hello",
+			IdempotencyKey: "key-1",
+		}
+
+		w := postStart(t, handler, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var first workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&first))
+		require.True(t, first.Started)
+		require.False(t, first.Attached)
+		require.Equal(t, "key-1", first.IdempotencyKey)
+		require.NotZero(t, first.StartedAt)
+
+		w2 := postStart(t, handler, req)
+		require.Equal(t, http.StatusOK, w2.Code)
+		var second workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w2.Body).Decode(&second))
+		require.Equal(t, first.ID, second.ID)
+		require.False(t, second.Started)
+		require.True(t, second.Attached)
+		require.Equal(t, "key-1", second.IdempotencyKey)
+		require.Equal(t, first.StartedAt, second.StartedAt)
+	})
+
+	t.Run("SameKeyDifferentCommandConflicts", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:        "echo hello",
+			IdempotencyKey: "key-1",
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+
+		w2 := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:        "echo goodbye",
+			IdempotencyKey: "key-1",
+		})
+		requireConflictCode(t, w2, workspacesdk.ProcessConflictInputMismatch)
+	})
+
+	t.Run("SameKeyWaiterTimeoutConflicts", func(t *testing.T) {
+		t.Parallel()
+
+		release := make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseOnce)
+		firstStalled := make(chan struct{})
+		firstStalledOnce := sync.OnceFunc(func() { close(firstStalled) })
+		// Block the owning start after it reserves the token;
+		// updateEnv runs only for spawning starts, so it also
+		// signals that the reservation is held.
+		handler := newTestAPIWithUpdateEnv(t, func(current []string) ([]string, error) {
+			firstStalledOnce()
+			<-release
+			return current, nil
+		})
+		req := workspacesdk.StartProcessRequest{
+			Command:        "echo hello",
+			IdempotencyKey: "key-wait",
+		}
+
+		firstDone := make(chan *httptest.ResponseRecorder, 1)
+		go func() {
+			body, err := json.Marshal(req)
+			assert.NoError(t, err)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, "/start", bytes.NewReader(body))
+			handler.ServeHTTP(w, r)
+			firstDone <- w
+		}()
+		select {
+		case <-firstStalled:
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("first start never reserved the key")
+		}
+
+		// The waiter's request context expires while the owner is
+		// blocked; the recoverable 409 is required, not a 500.
+		body, err := json.Marshal(req)
+		require.NoError(t, err)
+		waitCtx, cancelWait := context.WithCancel(context.Background())
+		cancelWait()
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(waitCtx, http.MethodPost, "/start", bytes.NewReader(body))
+		handler.ServeHTTP(w, r)
+		requireConflictCode(t, w, workspacesdk.ProcessConflictStartPending)
+
+		releaseOnce()
+		select {
+		case w := <-firstDone:
+			require.Equal(t, http.StatusOK, w.Code)
+		case <-time.After(testutil.WaitLong):
+			t.Fatal("first start request did not return")
+		}
+	})
+
+	t.Run("SameKeyDifferentBackgroundConflicts", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:        "echo hello",
+			IdempotencyKey: "key-1",
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+
+		w2 := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:        "echo hello",
+			Background:     true,
+			IdempotencyKey: "key-1",
+		})
+		requireConflictCode(t, w2, workspacesdk.ProcessConflictInputMismatch)
+	})
+
+	t.Run("SameKeyDifferentEnvConflicts", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:        "echo hello",
+			Env:            map[string]string{"FOO": "bar"},
+			IdempotencyKey: "key-1",
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+
+		w2 := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:        "echo hello",
+			Env:            map[string]string{"FOO": "baz"},
+			IdempotencyKey: "key-1",
+		})
+		requireConflictCode(t, w2, workspacesdk.ProcessConflictInputMismatch)
+	})
+
+	t.Run("SameKeyDifferentChatsStartIndependently", func(t *testing.T) {
+		t.Parallel()
+
+		// Reservations are scoped to the chat that supplied the key,
+		// so one chat reusing another's key value starts its own
+		// process instead of attaching or conflicting.
+		handler := newTestAPI(t)
+		req := workspacesdk.StartProcessRequest{
+			Command:        "echo hello",
+			IdempotencyKey: "key-1",
+		}
+		headerA := http.Header{}
+		headerA.Set(workspacesdk.CoderChatIDHeader, uuid.New().String())
+		headerB := http.Header{}
+		headerB.Set(workspacesdk.CoderChatIDHeader, uuid.New().String())
+
+		idA := startAndGetID(t, handler, req, headerA)
+		idB := startAndGetID(t, handler, req, headerB)
+		require.NotEqual(t, idA, idB)
+	})
+
+	t.Run("NoKeyAlwaysStartsNew", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		req := workspacesdk.StartProcessRequest{
+			Command: "echo hello",
+		}
+
+		w := postStart(t, handler, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var first workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&first))
+		require.True(t, first.Started)
+		require.False(t, first.Attached)
+		require.Empty(t, first.IdempotencyKey)
+
+		w2 := postStart(t, handler, req)
+		require.Equal(t, http.StatusOK, w2.Code)
+		var second workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w2.Body).Decode(&second))
+		require.True(t, second.Started)
+		require.NotEqual(t, first.ID, second.ID)
+	})
+}
+
 func TestListProcesses(t *testing.T) {
 	t.Parallel()
 
