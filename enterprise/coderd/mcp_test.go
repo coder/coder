@@ -113,17 +113,25 @@ func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 		method     string
 		pathSuffix string
 		body       any
+		wantStatus int
 	}{
 		{name: "Get", method: http.MethodGet},
 		{name: "Patch", method: http.MethodPatch, body: codersdk.UpdateMCPServerConfigRequest{DisplayName: ptr.Ref("cross-org")}},
 		{name: "Delete", method: http.MethodDelete},
 		{name: "OAuthConnect", method: http.MethodGet, pathSuffix: "/oauth2/connect"},
 		{name: "OAuthCallback", method: http.MethodGet, pathSuffix: "/oauth2/callback"},
-		{name: "OAuthDisconnect", method: http.MethodDelete, pathSuffix: "/oauth2/disconnect"},
+		// Disconnect returns 200 for every caller without a token,
+		// including nonexistent config IDs, so the response does not
+		// reveal whether the config exists.
+		{name: "OAuthDisconnect", method: http.MethodDelete, pathSuffix: "/oauth2/disconnect", wantStatus: http.StatusOK},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			requireMCPServerConfigRequestStatus(t, otherClient, test.method, config.ID, test.pathSuffix, test.body, http.StatusNotFound)
+			wantStatus := test.wantStatus
+			if wantStatus == 0 {
+				wantStatus = http.StatusNotFound
+			}
+			requireMCPServerConfigRequestStatus(t, otherClient, test.method, config.ID, test.pathSuffix, test.body, wantStatus)
 		})
 	}
 }

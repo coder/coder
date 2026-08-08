@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -681,6 +682,42 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, resp.TokenRevoked)
 		require.Empty(t, resp.TokenRevocationError)
+	})
+
+	t.Run("RemovedOrgMemberCanDisconnect", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
+		coderdtest.CreateFirstUser(t, adminClient)
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, secondOrg.ID)
+		config := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: secondOrg.ID,
+			AuthType:       "oauth2",
+			Enabled:        true,
+		})
+		seedToken(t, db, config.ID, member.ID)
+
+		//nolint:gocritic // Seeding test state requires system access.
+		systemCtx := dbauthz.AsSystemRestricted(ctx)
+		err := db.DeleteOrganizationMember(systemCtx, database.DeleteOrganizationMemberParams{
+			OrganizationID: secondOrg.ID,
+			UserID:         member.ID,
+		})
+		require.NoError(t, err)
+
+		// A token owner removed from the organization can no longer
+		// read the config, but must still be able to delete the
+		// stored token.
+		_, err = memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, config.ID)
+		require.NoError(t, err)
+		requireTokenDeleted(t, db, config.ID, member.ID)
 	})
 
 	t.Run("RevokesAtProvider", func(t *testing.T) {

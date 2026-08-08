@@ -1150,26 +1150,43 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	config := httpmw.MCPServerConfigParam(r)
+
+	configID, parsed := httpmw.ParseUUIDParam(rw, r, "mcpserverconfig")
+	if !parsed {
+		return
+	}
 
 	//nolint:gocritic // Users manage their own tokens.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	var token database.MCPServerUserToken
+	var (
+		config database.MCPServerConfig
+		token  database.MCPServerUserToken
+	)
 	// Serializable isolation keeps the revoked token aligned with the row deleted locally.
 	err := api.Database.InTx(func(tx database.Store) error {
 		dbToken, err := tx.GetMCPServerUserToken(systemCtx, database.GetMCPServerUserTokenParams{
-			MCPServerConfigID: config.ID,
+			MCPServerConfigID: configID,
 			UserID:            apiKey.UserID,
 		})
 		if err != nil {
 			return err
 		}
+		// Load the config only after the token is found so callers
+		// without a token cannot probe which config IDs exist. The
+		// system context keeps disconnect available to token owners
+		// who can no longer read the config, such as users removed
+		// from the organization.
+		dbConfig, err := tx.GetMCPServerConfigByID(systemCtx, configID)
+		if err != nil {
+			return err
+		}
 		if err := tx.DeleteMCPServerUserToken(systemCtx, database.DeleteMCPServerUserTokenParams{
-			MCPServerConfigID: config.ID,
+			MCPServerConfigID: configID,
 			UserID:            apiKey.UserID,
 		}); err != nil {
 			return err
 		}
+		config = dbConfig
 		token = dbToken
 		return nil
 	}, &database.TxOptions{Isolation: sql.LevelSerializable})
