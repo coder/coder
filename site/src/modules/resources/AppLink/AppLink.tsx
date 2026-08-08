@@ -21,8 +21,6 @@ import { useProxy } from "#/contexts/ProxyContext";
 import {
 	isAppBlockedByMissingWildcard,
 	isAppUrlValid,
-	isExternalApp,
-	needsSessionToken,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { docs } from "#/utils/docs";
@@ -132,8 +130,11 @@ export const AppLink: FC<AppLinkProps> = ({
 		);
 	}
 
-	if (isExternalApp(app) && needsSessionToken(app) && !link.hasToken) {
-		canClick = false;
+	// The session token for external apps is minted on click, so key generation
+	// no longer gates clickability. While a click is minting a token, show a
+	// spinner to reflect the in-flight request.
+	if (link.isLoading) {
+		icon = <Spinner loading />;
 	}
 
 	if (
