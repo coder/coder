@@ -1611,6 +1611,9 @@ type sqlcQuerier interface {
 	// Upsert a batch of (provider, model) rows from a JSON array. Each element
 	// must have provider, model, and the four price fields; null prices are
 	// written as SQL NULL.
+	// A conflicting row is only rewritten when a price differs, so updated_at
+	// records when a price last changed. Prices are nullable and a NULL on
+	// either side counts as a difference.
 	UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)
