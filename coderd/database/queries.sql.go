@@ -24805,12 +24805,18 @@ SELECT
             WHERE key = 'agents_chat_system_prompt'
                 AND value != ''
         )
-    ) :: boolean AS include_default_system_prompt
+    ) :: boolean AS include_default_system_prompt,
+    EXISTS (
+        SELECT 1
+        FROM site_configs
+        WHERE key = 'agents_chat_include_default_system_prompt'
+    ) :: boolean AS include_default_system_prompt_set
 `
 
 type GetChatSystemPromptConfigRow struct {
-	ChatSystemPrompt           string `db:"chat_system_prompt" json:"chat_system_prompt"`
-	IncludeDefaultSystemPrompt bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+	ChatSystemPrompt              string `db:"chat_system_prompt" json:"chat_system_prompt"`
+	IncludeDefaultSystemPrompt    bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+	IncludeDefaultSystemPromptSet bool   `db:"include_default_system_prompt_set" json:"include_default_system_prompt_set"`
 }
 
 // GetChatSystemPromptConfig returns both chat system prompt settings in a
@@ -24821,7 +24827,7 @@ type GetChatSystemPromptConfigRow struct {
 func (q *sqlQuerier) GetChatSystemPromptConfig(ctx context.Context) (GetChatSystemPromptConfigRow, error) {
 	row := q.db.QueryRowContext(ctx, getChatSystemPromptConfig)
 	var i GetChatSystemPromptConfigRow
-	err := row.Scan(&i.ChatSystemPrompt, &i.IncludeDefaultSystemPrompt)
+	err := row.Scan(&i.ChatSystemPrompt, &i.IncludeDefaultSystemPrompt, &i.IncludeDefaultSystemPromptSet)
 	return i, err
 }
 

@@ -19,6 +19,17 @@ const (
 	LockIDChatModelConfigWrites
 )
 
+// Per-setting advisory lock IDs for the chat instruction settings. These
+// derive from the exact site_configs key with GenLockID (FNV-1a 64) instead
+// of the sequential LockID* block above, so writers of different settings
+// never contend and the IDs cannot collide with any sequentially allocated
+// lock ID (different derivation space) or with another subsystem's
+// GenLockID output (the key strings are unique to these settings).
+var (
+	LockIDChatInstructionSystemPrompt = GenLockID("agents_chat_system_prompt")
+	LockIDChatInstructionPlanMode     = GenLockID("agents_chat_plan_mode_instructions")
+)
+
 // GenLockID generates a unique and consistent lock ID from a given string.
 func GenLockID(name string) int64 {
 	hash := fnv.New64()
