@@ -64,6 +64,7 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	config := httpmw.MCPServerConfigParam(r)
+	apiKey := httpmw.APIKey(r)
 	auditor := api.Auditor.Load()
 	aReq, commitAudit := audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
 		Audit:          *auditor,
@@ -118,15 +119,17 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 			groupACL[id] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
 		}
 		if err := tx.UpdateMCPServerConfigACLByID(ctx, database.UpdateMCPServerConfigACLByIDParams{
-			ID:       config.ID,
-			UserACL:  userACL,
-			GroupACL: groupACL,
+			ID:        config.ID,
+			UserACL:   userACL,
+			GroupACL:  groupACL,
+			UpdatedBy: apiKey.UserID,
 		}); err != nil {
 			return xerrors.Errorf("update MCP server config ACL: %w", err)
 		}
 		updated = current
 		updated.UserACL = userACL
 		updated.GroupACL = groupACL
+		updated.UpdatedBy = uuid.NullUUID{UUID: apiKey.UserID, Valid: true}
 		return nil
 	}, nil)
 	if err != nil {

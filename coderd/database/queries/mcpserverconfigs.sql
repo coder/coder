@@ -180,7 +180,9 @@ RETURNING
 UPDATE mcp_server_configs
 SET
     group_acl = @group_acl,
-    user_acl = @user_acl
+    user_acl = @user_acl,
+    updated_by = @updated_by::uuid,
+    updated_at = NOW()
 WHERE
     id = @id::uuid;
 
