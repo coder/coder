@@ -2,6 +2,7 @@
 	"id": "gcp-windows",
 	"display_name": "Google Compute Engine (Windows)",
 	"os": "windows",
+	"agents": [{ "name": "main", "default": true }],
 	"default_context": {},
 	"variables": [
 		{

@@ -66,6 +66,34 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, string(result.ModulesTF), `coder_agent.dev[0].id`)
 	})
 
+	t.Run("ModuleTargetsExplicitDefaultAgent", func(t *testing.T) {
+		t.Parallel()
+		// Explicitly naming the base's only agent is equivalent to
+		// leaving AgentName empty.
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+			Modules: []templatebuilder.ComposeModule{
+				{ID: "code-server", AgentName: "main"},
+			},
+		})
+		require.NoError(t, err)
+		require.Contains(t, string(result.ModulesTF), `coder_agent.main.id`)
+	})
+
+	t.Run("ModuleTargetsUnknownAgent", func(t *testing.T) {
+		t.Parallel()
+		_, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+			Modules: []templatebuilder.ComposeModule{
+				{ID: "code-server", AgentName: "nonexistent"},
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `unknown agent "nonexistent"`)
+	})
+
 	t.Run("AWSLinuxExtraFiles", func(t *testing.T) {
 		t.Parallel()
 		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
