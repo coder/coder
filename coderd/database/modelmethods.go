@@ -235,12 +235,6 @@ func (m MCPServerConfig) RBACObject() rbac.Object {
 		WithACLUserList(m.UserACL.RBACACL())
 }
 
-// MCP OAuth2 tokens are per-user credentials, so access is governed
-// by personal actions on the owning user, not by the config's RBAC.
-func (t MCPServerUserToken) RBACObject() rbac.Object {
-	return rbac.ResourceUserObject(t.UserID)
-}
-
 func (c Chat) IsSubChat() bool {
 	return c.RootChatID.Valid || c.ParentChatID.Valid
 }
@@ -667,9 +661,10 @@ func (u GetUsersRow) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
 }
 
-func (u GitSSHKey) RBACObject() rbac.Object        { return rbac.ResourceUserObject(u.UserID) }
-func (u ExternalAuthLink) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
-func (u UserLink) RBACObject() rbac.Object         { return rbac.ResourceUserObject(u.UserID) }
+func (u GitSSHKey) RBACObject() rbac.Object          { return rbac.ResourceUserObject(u.UserID) }
+func (u ExternalAuthLink) RBACObject() rbac.Object   { return rbac.ResourceUserObject(u.UserID) }
+func (u UserLink) RBACObject() rbac.Object           { return rbac.ResourceUserObject(u.UserID) }
+func (u MCPServerUserToken) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
 
 func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
 	return &oauth2.Token{
