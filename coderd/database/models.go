@@ -4717,6 +4717,8 @@ type AIBridgeInterception struct {
 	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
 	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
+	// Denormalized cache of the maximum aibridge_user_prompts.created_at recorded for this interception. NULL when the interception has no user prompts. Maintained monotonically on prompt insert and used to sort sessions by last activity without joining the prompts table.
+	LastPromptAt sql.NullTime `db:"last_prompt_at" json:"last_prompt_at"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge

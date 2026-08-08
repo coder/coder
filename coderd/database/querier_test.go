@@ -11586,6 +11586,73 @@ func TestAIBridgeInterceptionAgentFirewallColumns(t *testing.T) {
 	})
 }
 
+func TestAIBridgeInterceptionLastPromptAt(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	newInterception := func(t *testing.T, ctx context.Context) database.AIBridgeInterception {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		intc, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:             uuid.New(),
+			InitiatorID:    user.ID,
+			Metadata:       json.RawMessage("{}"),
+			CredentialKind: database.CredentialKindCentralized,
+		})
+		require.NoError(t, err)
+		// A fresh interception has no prompts yet.
+		require.False(t, intc.LastPromptAt.Valid)
+		return intc
+	}
+
+	insertPrompt := func(t *testing.T, ctx context.Context, interceptionID uuid.UUID, at time.Time) {
+		t.Helper()
+		_, err := db.InsertAIBridgeUserPrompt(ctx, database.InsertAIBridgeUserPromptParams{
+			ID:                 uuid.New(),
+			InterceptionID:     interceptionID,
+			ProviderResponseID: "resp",
+			Prompt:             "prompt",
+			Metadata:           json.RawMessage("{}"),
+			CreatedAt:          at,
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("InsertBumpsCache", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		intc := newInterception(t, ctx)
+		promptAt := dbtime.Now()
+		insertPrompt(t, ctx, intc.ID, promptAt)
+
+		got, err := db.GetAIBridgeInterceptionByID(ctx, intc.ID)
+		require.NoError(t, err)
+		require.True(t, got.LastPromptAt.Valid)
+		require.WithinDuration(t, promptAt, got.LastPromptAt.Time, time.Millisecond)
+	})
+
+	t.Run("MonotonicAcrossOutOfOrderPrompts", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		intc := newInterception(t, ctx)
+		latest := dbtime.Now()
+		earlier := latest.Add(-time.Hour)
+
+		// Record the latest prompt first, then an earlier one. GREATEST must keep
+		// the cache at the maximum, so an out-of-order (older) prompt never
+		// regresses last_prompt_at.
+		insertPrompt(t, ctx, intc.ID, latest)
+		insertPrompt(t, ctx, intc.ID, earlier)
+
+		got, err := db.GetAIBridgeInterceptionByID(ctx, intc.ID)
+		require.NoError(t, err)
+		require.True(t, got.LastPromptAt.Valid)
+		require.WithinDuration(t, latest, got.LastPromptAt.Time, time.Millisecond)
+	})
+}
+
 func TestDeleteExpiredAPIKeys(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)

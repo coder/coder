@@ -1606,7 +1606,8 @@ CREATE TABLE aibridge_interceptions (
     agent_firewall_session_id uuid,
     agent_firewall_sequence_number integer,
     error_type aibridge_interception_error_type,
-    error_message character varying(1024)
+    error_message character varying(1024),
+    last_prompt_at timestamp with time zone
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1634,6 +1635,8 @@ COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The 
 COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.';
 
 COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
+
+COMMENT ON COLUMN aibridge_interceptions.last_prompt_at IS 'Denormalized cache of the maximum aibridge_user_prompts.created_at recorded for this interception. NULL when the interception has no user prompts. Maintained monotonically on prompt insert and used to sort sessions by last activity without joining the prompts table.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,

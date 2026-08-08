@@ -1079,6 +1079,11 @@ type sqlcQuerier interface {
 	InsertAIBridgeModelThought(ctx context.Context, arg InsertAIBridgeModelThoughtParams) (AIBridgeModelThought, error)
 	InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error)
 	InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) (AIBridgeToolUsage, error)
+	// Inserts a user prompt and monotonically bumps the owning interception's
+	// denormalized last_prompt_at cache in a single atomic statement. The bump is a
+	// data-modifying CTE, which Postgres always runs to completion regardless of
+	// whether the primary query reads its output. GREATEST is NULL-safe, so retries
+	// or out-of-order records never regress the cached value.
 	InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) (AIBridgeUserPrompt, error)
 	InsertAIGatewayKey(ctx context.Context, arg InsertAIGatewayKeyParams) (InsertAIGatewayKeyRow, error)
 	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AIProvider, error)
