@@ -361,6 +361,44 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
 	})
 
+	t.Run("DeletedResourceMarked", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newAuditedMCPClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		config := createMCPServerConfig(t, client, firstUser.OrganizationID, "audit-is-deleted", true)
+		deletedID := uuid.New()
+
+		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Action:         codersdk.AuditActionWrite,
+			ResourceType:   codersdk.ResourceTypeMCPServerConfig,
+			ResourceID:     config.ID,
+		})
+		require.NoError(t, err)
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Action:         codersdk.AuditActionDelete,
+			ResourceType:   codersdk.ResourceTypeMCPServerConfig,
+			ResourceID:     deletedID,
+		})
+		require.NoError(t, err)
+
+		logs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{Limit: 25},
+		})
+		require.NoError(t, err)
+		byResourceID := make(map[uuid.UUID]codersdk.AuditLog, len(logs.AuditLogs))
+		for _, alog := range logs.AuditLogs {
+			byResourceID[alog.ResourceID] = alog
+		}
+		require.Contains(t, byResourceID, config.ID)
+		require.False(t, byResourceID[config.ID].IsDeleted)
+		require.Contains(t, byResourceID, deletedID)
+		require.True(t, byResourceID[deletedID].IsDeleted)
+	})
+
 	t.Run("WriteDeniedAudited", func(t *testing.T) {
 		t.Parallel()
 
