@@ -141,6 +141,14 @@ const ChatScrollContainer: FC<{
 				ref={setScrollContainer}
 				data-testid="scroll-container"
 				aria-busy={isFetchingMoreMessages || undefined}
+				// Scroll anchoring shifts the scroll offset when the node it
+				// anchored to is removed, and the timeline re-creates the
+				// messages of a turn once an older page supplies the prompt they
+				// belong to. The column-reverse layout already keeps the view
+				// stable while older content is prepended, so anchoring only
+				// contributes a jump. Safari implements no scroll anchoring, so
+				// disabling it also makes the three engines behave the same.
+				//
 				// `react-infinite-scroll-component` renders two wrapper divs
 				// between this scroller and the rendered messages. Force both
 				// out of the layout tree with `display: contents` so that
@@ -149,7 +157,7 @@ const ChatScrollContainer: FC<{
 				// `overflow: auto` baked in by the library), and (b) the
 				// column-reverse inverse layout places the library's
 				// load-more sentinel at the visual top of the content stack.
-				className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [&>[class$=outerdiv]]:contents [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [overflow-anchor:none] [&>[class$=outerdiv]]:contents [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div aria-hidden className="flex-1 basis-0" />
 				<InfiniteScroll
