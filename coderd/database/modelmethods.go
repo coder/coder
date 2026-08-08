@@ -661,9 +661,10 @@ func (u GetUsersRow) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
 }
 
-func (u GitSSHKey) RBACObject() rbac.Object        { return rbac.ResourceUserObject(u.UserID) }
-func (u ExternalAuthLink) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
-func (u UserLink) RBACObject() rbac.Object         { return rbac.ResourceUserObject(u.UserID) }
+func (u GitSSHKey) RBACObject() rbac.Object          { return rbac.ResourceUserObject(u.UserID) }
+func (u ExternalAuthLink) RBACObject() rbac.Object   { return rbac.ResourceUserObject(u.UserID) }
+func (u UserLink) RBACObject() rbac.Object           { return rbac.ResourceUserObject(u.UserID) }
+func (u MCPServerUserToken) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
 
 func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
 	return &oauth2.Token{
