@@ -91,7 +91,10 @@ Section "Coder CLI" SecInstall
 
 	${INSTALL_TYPE}
 
-	SetOverwrite ifnewer
+	# "ifnewer" compares mtimes, and Coder ships patch releases for older minor
+	# branches after newer minors, so a newer release can carry an older binary
+	# timestamp and get skipped while the registry writes below still succeed.
+	SetOverwrite on
 	SetOutPath "$INSTDIR"
 	File /r "bin"
 	File "${LICENSE_TXT}"
