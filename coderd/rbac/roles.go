@@ -476,6 +476,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
+			ResourceMCPServerConfig.Type:  {policy.ActionRead},
 			// Allow auditors to query AI Bridge interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
 			// Allow auditors to read boundary logs.
@@ -611,6 +612,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceGroupMember.Type:        {policy.ActionRead},
 							ResourceOrganization.Type:       {policy.ActionRead},
 							ResourceOrganizationMember.Type: {policy.ActionRead},
+							ResourceMCPServerConfig.Type:    {policy.ActionRead},
 						}),
 						Member: []Permission{},
 					},
@@ -1157,6 +1159,8 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
+		// TODO(mafredri): remove once CODAGT-712 adds per-config ACL evaluation.
+		ResourceMCPServerConfig.Type: {policy.ActionRead},
 	}
 
 	// In all modes of workspace sharing but `none`, members need to
@@ -1234,6 +1238,8 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
+		// TODO(mafredri): remove once CODAGT-712 adds per-config ACL evaluation.
+		ResourceMCPServerConfig.Type: {policy.ActionRead},
 	}
 
 	// When workspace sharing is enabled, service accounts need to see

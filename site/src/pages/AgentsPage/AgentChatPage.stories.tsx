@@ -18,7 +18,7 @@ import {
 	chatModelConfigs,
 	chatModelsKey,
 	chatPromptsKey,
-	mcpServersKey,
+	mcpServerConfigs,
 	toChatListParams,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
@@ -303,7 +303,7 @@ const buildQueries = (
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
-		{ key: mcpServersKey, data: [] },
+		{ key: mcpServerConfigs(chat.organization_id).queryKey, data: [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
 				action: "share",

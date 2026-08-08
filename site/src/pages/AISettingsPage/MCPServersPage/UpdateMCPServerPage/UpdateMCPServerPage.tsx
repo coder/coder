@@ -10,16 +10,25 @@ import {
 } from "#/api/queries/chats";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import {
+	getDefaultOrganizationId,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import UpdateMCPServerPageView from "./UpdateMCPServerPageView";
 
 const UpdateMCPServerPage: FC = () => {
 	const { permissions } = useAuthenticated();
+	const { organizations } = useDashboard();
+	const organization = getDefaultOrganizationId(organizations);
 	const { serverId } = useParams<{ serverId: string }>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const serversQuery = useQuery(mcpServerConfigs());
+	const serversQuery = useQuery({
+		...mcpServerConfigs(organization),
+		enabled: Boolean(organization),
+	});
 	const updateMutation = useMutation(updateMCPServerConfig(queryClient));
 	const deleteMutation = useMutation(deleteMCPServerConfig(queryClient));
 	const server = serversQuery.data?.find((item) => item.id === serverId);

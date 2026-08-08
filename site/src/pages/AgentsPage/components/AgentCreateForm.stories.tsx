@@ -124,6 +124,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 	},
 };
 
@@ -883,9 +884,12 @@ export const ForbiddenErrorWithRole: Story = {
 		).not.toBeInTheDocument();
 		// The generic ErrorAlert should surface the real backend message.
 		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
-		// The textbox should remain enabled since the user has the role.
+		// The textbox should remain enabled since the user has the
+		// role. Enablement waits for the MCP server list to resolve.
 		const textbox = canvas.getByRole("textbox");
-		await expect(textbox).not.toHaveAttribute("aria-disabled", "true");
+		await waitFor(() =>
+			expect(textbox).not.toHaveAttribute("aria-disabled", "true"),
+		);
 	},
 };
 
@@ -902,18 +906,32 @@ export const WithOrganizationPicker: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Verify the org picker rendered (component didn't crash).
+		const body = within(canvasElement.ownerDocument.body);
 		await waitFor(() => {
-			expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
+			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+			);
 		});
-		// Type into the chat input to trigger re-renders. If the
-		// permittedOrgs fallback is referentially unstable, this
-		// causes a render cascade that hits React's update limit.
+		const organizationSelector = await canvas.findByRole("button", {
+			name: `Organization: ${MockDefaultOrganization.display_name}`,
+		});
+		await userEvent.click(organizationSelector);
+		await userEvent.click(
+			await body.findByRole("option", { name: MockOrganization2.display_name }),
+		);
+		await waitFor(() => {
+			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+				MockOrganization2.id,
+			);
+		});
 		const input = canvas.getByTestId("chat-message-input");
 		await userEvent.click(input);
 		await userEvent.keyboard("hello world");
-		// The org picker should still be present after typing.
-		expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
 	},
 };
 
@@ -1102,5 +1120,34 @@ export const PermittedOrgsResolvesToSubset: Story = {
 			throw new Error("Expected onCreateChat to receive options");
 		}
 		expect(options.organizationId).toBe(MockOrganization2.id);
+	},
+};
+
+export const MCPServersLoadingDisablesSend: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("send while MCP servers load");
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+	},
+};
+
+export const MCPServersErrorShowsAlertAndDisablesSend: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockRejectedValue(
+			new Error("failed to load MCP servers"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const matches = await canvas.findAllByText(/failed to load mcp servers/i);
+		expect(matches.length).toBeGreaterThan(0);
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };

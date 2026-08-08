@@ -1228,6 +1228,59 @@ func (api *API) validateExplicitChatModelConfigAvailable(
 	return status, resp
 }
 
+func validateChatMCPServerIDs(
+	ctx context.Context,
+	db database.Store,
+	organizationID uuid.UUID,
+	ids []uuid.UUID,
+) (normalized []uuid.UUID, invalid []uuid.UUID, err error) {
+	unique := make([]uuid.UUID, 0, len(ids))
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 {
+		return unique, nil, nil
+	}
+
+	configs, err := db.GetMCPServerConfigsByOrganizationAndIDs(ctx, database.GetMCPServerConfigsByOrganizationAndIDsParams{
+		OrganizationID: organizationID,
+		IDs:            unique,
+	})
+	if err != nil {
+		return nil, nil, xerrors.Errorf("get MCP server configs for organization: %w", err)
+	}
+
+	enabled := make(map[uuid.UUID]struct{}, len(configs))
+	for _, config := range configs {
+		if config.Enabled {
+			enabled[config.ID] = struct{}{}
+		}
+	}
+	invalid = make([]uuid.UUID, 0, len(unique)-len(enabled))
+	for _, id := range unique {
+		if _, ok := enabled[id]; !ok {
+			invalid = append(invalid, id)
+		}
+	}
+	return unique, invalid, nil
+}
+
+func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
+	invalid := make([]string, 0, len(ids))
+	for _, id := range ids {
+		invalid = append(invalid, id.String())
+	}
+	return codersdk.Response{
+		Message: "One or more MCP server IDs are invalid or disabled.",
+		Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(invalid, ", ")),
+	}
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Create chat
@@ -1331,34 +1384,18 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate MCP server IDs exist.
-	if len(req.MCPServerIDs) > 0 {
-		//nolint:gocritic // Need to validate MCP server IDs exist.
-		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), req.MCPServerIDs)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate MCP server IDs.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if len(existingConfigs) != len(req.MCPServerIDs) {
-			found := make(map[uuid.UUID]struct{}, len(existingConfigs))
-			for _, c := range existingConfigs {
-				found[c.ID] = struct{}{}
-			}
-			var missing []string
-			for _, id := range req.MCPServerIDs {
-				if _, ok := found[id]; !ok {
-					missing = append(missing, id.String())
-				}
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "One or more MCP server IDs are invalid.",
-				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(missing, ", ")),
-			})
-			return
-		}
+	normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ctx, api.Database, req.OrganizationID, req.MCPServerIDs)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate MCP server IDs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	req.MCPServerIDs = normalizedMCPServerIDs
+	if len(invalidMCPServerIDs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, invalidChatMCPServerIDsResponse(invalidMCPServerIDs))
+		return
 	}
 
 	mcpServerIDs := req.MCPServerIDs
@@ -2740,10 +2777,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate MCP server IDs exist.
-	if req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0 {
-		//nolint:gocritic // Need to validate MCP server IDs exist.
-		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), *req.MCPServerIDs)
+	if req.MCPServerIDs != nil {
+		normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ctx, api.Database, chat.OrganizationID, *req.MCPServerIDs)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate MCP server IDs.",
@@ -2751,21 +2786,24 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if len(existingConfigs) != len(*req.MCPServerIDs) {
-			found := make(map[uuid.UUID]struct{}, len(existingConfigs))
-			for _, c := range existingConfigs {
-				found[c.ID] = struct{}{}
+		req.MCPServerIDs = &normalizedMCPServerIDs
+		// IDs already persisted on the chat are exempt: a server that
+		// is disabled or revoked after selection must not block sends.
+		// The generation path skips servers the chat can no longer use,
+		// and keeping the ID preserves the selection if the server is
+		// re-enabled.
+		persisted := make(map[uuid.UUID]struct{}, len(chat.MCPServerIDs))
+		for _, id := range chat.MCPServerIDs {
+			persisted[id] = struct{}{}
+		}
+		newlyInvalid := make([]uuid.UUID, 0, len(invalidMCPServerIDs))
+		for _, id := range invalidMCPServerIDs {
+			if _, ok := persisted[id]; !ok {
+				newlyInvalid = append(newlyInvalid, id)
 			}
-			var missing []string
-			for _, id := range *req.MCPServerIDs {
-				if _, ok := found[id]; !ok {
-					missing = append(missing, id.String())
-				}
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "One or more MCP server IDs are invalid.",
-				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(missing, ", ")),
-			})
+		}
+		if len(newlyInvalid) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, invalidChatMCPServerIDsResponse(newlyInvalid))
 			return
 		}
 	}

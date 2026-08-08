@@ -1,11 +1,14 @@
 # MCP Servers
 
-Administrators can register external MCP servers that provide additional tools
-for agent chat sessions. Configured servers are injected into or offered to
-users during chat depending on the availability policy.
+Organization admins can register external MCP servers that provide additional
+tools for agent chat sessions. Each organization has its own set of MCP
+servers, and chats only offer servers from the chat's organization. Configured
+servers are injected into or offered to users during chat depending on the
+availability policy.
 
 This is an admin-only feature accessible at **AI Settings** > **Coder Agents** > **MCP servers**
-(`/ai/settings/mcp-servers`).
+(`/ai/settings/mcp-servers`). The settings page currently manages the default
+organization's servers; other organizations are managed through the API.
 
 ## Add an MCP server
 
@@ -165,11 +168,16 @@ wins.
 
 ## Permissions
 
-| Action                        | Required role             |
-|-------------------------------|---------------------------|
-| Create, update, or delete     | Admin (deployment config) |
-| View enabled servers          | Any authenticated user    |
-| OAuth2 connect and disconnect | Any authenticated user    |
+| Action                        | Required role       |
+|-------------------------------|---------------------|
+| Create, update, or delete     | Organization admin  |
+| View enabled servers          | Organization member |
+| OAuth2 connect and disconnect | Organization member |
 
-Non-admin users only see enabled servers. Sensitive fields such as API keys
-and client secrets are redacted in API responses.
+Members only see enabled servers in their own organizations. Sensitive fields
+such as API keys and client secrets are redacted in API responses.
+
+The **MCP servers** settings page is part of deployment settings, so opening
+it in the dashboard also requires permission to edit deployment
+configuration. Organization admins without that permission manage servers
+through the API.

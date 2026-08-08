@@ -465,6 +465,11 @@ const (
 	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
 	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
 	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
+	ApiKeyScopeMcpServerConfig                     APIKeyScope = "mcp_server_config:*"
+	ApiKeyScopeMcpServerConfigCreate               APIKeyScope = "mcp_server_config:create"
+	ApiKeyScopeMcpServerConfigRead                 APIKeyScope = "mcp_server_config:read"
+	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
+	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -739,7 +744,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
-		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete:
 		return true
 	}
 	return false
@@ -983,6 +993,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
 		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete,
 	}
 }
 
@@ -5449,6 +5464,7 @@ type MCPServerConfig struct {
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
+	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
 }
 
 type MCPServerUserToken struct {

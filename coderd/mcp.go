@@ -148,19 +148,18 @@ func shouldRefreshOIDCToken(link database.UserLink) (bool, time.Time) {
 func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	organization := httpmw.OrganizationParam(r)
 
-	// Admin users can see all MCP server configs (including disabled
-	// ones) for management purposes. Non-admin users see only enabled
-	// configs, which is sufficient for using the chat feature.
-	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
+	// Organization admins can see disabled configs and management fields.
+	// Other members see enabled configs with management fields redacted.
+	isAdmin := api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID))
 
 	var configs []database.MCPServerConfig
 	var err error
 	if isAdmin {
-		configs, err = api.Database.GetMCPServerConfigs(ctx)
+		configs, err = api.Database.GetMCPServerConfigsByOrganization(ctx, organization.ID)
 	} else {
-		//nolint:gocritic // All authenticated users need to read enabled MCP server configs to use the chat feature.
-		configs, err = api.Database.GetEnabledMCPServerConfigs(dbauthz.AsSystemRestricted(ctx))
+		configs, err = api.Database.GetEnabledMCPServerConfigsByOrganization(ctx, organization.ID)
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -173,7 +172,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	// Look up the calling user's OAuth2 tokens so we can populate
 	// auth_connected per server. Attempt to refresh expired tokens
 	// so the status is accurate and the token is ready for use.
-	//nolint:gocritic // Need to check user tokens across all servers.
+	//nolint:gocritic // Token authorization is handled separately from config RBAC.
 	userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -223,7 +222,8 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+	organization := httpmw.OrganizationParam(r)
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -256,7 +256,18 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			// Auto-discovery flow: we need the config ID first to
 			// build the correct callback URL.  Insert the record
 			// with empty OAuth2 fields, perform discovery, then
-			// update.
+			// update. The flow also updates the row with discovered
+			// credentials and deletes it when discovery fails, so
+			// require those actions up front rather than inserting a
+			// row a create-only caller can neither finish nor remove.
+			if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) ||
+				!api.Authorize(r, policy.ActionDelete, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) {
+				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+					Message: "OAuth2 auto-discovery requires permission to update and delete MCP server configs.",
+					Detail:  "Provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url manually, or use credentials with broader MCP server config permissions.",
+				})
+				return
+			}
 			customHeadersJSON, err := marshalCustomHeaders(req.CustomHeaders)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -267,6 +278,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+				OrganizationID:          organization.ID,
 				DisplayName:             strings.TrimSpace(req.DisplayName),
 				Slug:                    strings.TrimSpace(req.Slug),
 				Description:             strings.TrimSpace(req.Description),
@@ -320,7 +332,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			// Now build the callback URL with the actual ID.
-			callbackURL := fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), inserted.ID)
+			callbackURL := api.AccessURL.String() + mcpServerOAuth2CallbackPath(inserted.ID)
 			httpClient := api.HTTPClient
 			if httpClient == nil {
 				httpClient = &http.Client{Timeout: 30 * time.Second}
@@ -444,6 +456,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		OrganizationID:          organization.ID,
 		DisplayName:             strings.TrimSpace(req.DisplayName),
 		Slug:                    strings.TrimSpace(req.Slug),
 		Description:             strings.TrimSpace(req.Description),
@@ -507,35 +520,11 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	config := httpmw.MCPServerConfigParam(r)
 
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
-	if !ok {
-		return
-	}
-
-	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
-
-	var config database.MCPServerConfig
-	var err error
-	if isAdmin {
-		config, err = api.Database.GetMCPServerConfigByID(ctx, mcpServerID)
-	} else {
-		//nolint:gocritic // All authenticated users can view enabled MCP server configs.
-		config, err = api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
-		if err == nil && !config.Enabled {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-	}
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
+	isAdmin := api.Authorize(r, policy.ActionUpdate, config)
+	if !isAdmin && !config.Enabled {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -549,24 +538,33 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	// Populate AuthConnected for the calling user. Attempt to
 	// refresh the token so the status is accurate.
 	if config.AuthType == "oauth2" {
-		//nolint:gocritic // Need to check user token for this server.
-		userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
-		if err != nil {
+		//nolint:gocritic // Token authorization is handled separately from config RBAC.
+		tok, err := api.Database.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: config.ID,
+			UserID:            apiKey.UserID,
+		})
+		if err == nil {
+			sdkConfig.AuthConnected = api.refreshMCPUserToken(ctx, config, tok)
+		} else if !errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get user tokens.",
+				Message: "Failed to get user token.",
 				Detail:  err.Error(),
 			})
 			return
 		}
-		for _, tok := range userTokens {
-			if tok.MCPServerConfigID == config.ID {
-				sdkConfig.AuthConnected = api.refreshMCPUserToken(ctx, config, tok)
-				break
-			}
-		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
+}
+
+// Preserve the param middleware's 404 concealment. Write denial is a 403.
+func (api *API) getMCPServerConfigForMutation(rw http.ResponseWriter, r *http.Request, action policy.Action) (database.MCPServerConfig, bool) {
+	config := httpmw.MCPServerConfigParam(r)
+	if !api.Authorize(r, action, config) {
+		httpapi.Forbidden(rw)
+		return database.MCPServerConfig{}, false
+	}
+	return config, true
 }
 
 // @Summary Update MCP server config
@@ -577,12 +575,7 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
+	existing, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionUpdate)
 	if !ok {
 		return
 	}
@@ -631,11 +624,6 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
-		existing, err := tx.GetMCPServerConfigByID(ctx, mcpServerID)
-		if err != nil {
-			return err
-		}
-
 		displayName := existing.DisplayName
 		if req.DisplayName != nil {
 			displayName = strings.TrimSpace(*req.DisplayName)
@@ -823,7 +811,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		updated, err = tx.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
+		updatedConfig, err := tx.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
 			DisplayName:             displayName,
 			Slug:                    slug,
 			Description:             description,
@@ -853,7 +841,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			UpdatedBy:               apiKey.UserID,
 			ID:                      existing.ID,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		updated = updatedConfig
+		return nil
 	}, nil)
 	if err != nil {
 		switch {
@@ -889,29 +881,12 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
+	config, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionDelete)
 	if !ok {
 		return
 	}
 
-	if _, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID); err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if err := api.Database.DeleteMCPServerConfigByID(ctx, mcpServerID); err != nil {
+	if err := api.Database.DeleteMCPServerConfigByID(ctx, config.ID); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete MCP server config.",
 			Detail:  err.Error(),
@@ -930,25 +905,7 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
-	if !ok {
-		return
-	}
-
-	//nolint:gocritic // Any authenticated user can initiate OAuth2 for an enabled MCP server.
-	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	config := httpmw.MCPServerConfigParam(r)
 
 	if !config.Enabled {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -975,7 +932,7 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	// The callback URL is on our server; after the exchange we store
 	// the token and close the popup.
 	state := uuid.New().String()
-	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID)
+	callbackPath := mcpServerOAuth2CallbackPath(config.ID)
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    state,
@@ -1030,18 +987,13 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-
-	//nolint:gocritic // Any authenticated user can complete OAuth2 for an enabled MCP server.
-	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
+	config, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
+		httpapi.InternalServerError(rw, err)
 		return
 	}
 
@@ -1094,7 +1046,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	// Clear the state cookie.
-	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID)
+	callbackPath := mcpServerOAuth2CallbackPath(config.ID)
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    "",
@@ -1165,7 +1117,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 
 	//nolint:gocritic // Users store their own tokens.
 	_, err = api.Database.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
-		MCPServerConfigID: mcpServerID,
+		MCPServerConfigID: config.ID,
 		UserID:            apiKey.UserID,
 		AccessToken:       token.AccessToken,
 		AccessTokenKeyID:  sql.NullString{},
@@ -1205,8 +1157,8 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
-	if !ok {
+	configID, parsed := httpmw.ParseUUIDParam(rw, r, "mcpserverconfig")
+	if !parsed {
 		return
 	}
 
@@ -1219,20 +1171,23 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	// Serializable isolation keeps the revoked token aligned with the row deleted locally.
 	err := api.Database.InTx(func(tx database.Store) error {
 		dbToken, err := tx.GetMCPServerUserToken(systemCtx, database.GetMCPServerUserTokenParams{
-			MCPServerConfigID: mcpServerID,
+			MCPServerConfigID: configID,
 			UserID:            apiKey.UserID,
 		})
 		if err != nil {
 			return err
 		}
 		// Load the config only after the token is found so callers
-		// without a token cannot probe which config IDs exist.
-		dbConfig, err := tx.GetMCPServerConfigByID(systemCtx, mcpServerID)
+		// without a token cannot probe which config IDs exist. The
+		// system context keeps disconnect available to token owners
+		// who can no longer read the config, such as users removed
+		// from the organization.
+		dbConfig, err := tx.GetMCPServerConfigByID(systemCtx, configID)
 		if err != nil {
 			return err
 		}
 		if err := tx.DeleteMCPServerUserToken(systemCtx, database.DeleteMCPServerUserTokenParams{
-			MCPServerConfigID: mcpServerID,
+			MCPServerConfigID: configID,
 			UserID:            apiKey.UserID,
 		}); err != nil {
 			return err
@@ -1413,8 +1368,18 @@ func (api *API) markMCPTokenRefreshFailure(
 	return false
 }
 
+// mcpServerOAuth2CallbackPath returns the OAuth2 callback path for a
+// config. This path is frozen: it is the redirect URI registered with
+// external authorization servers, so it must not change when other MCP
+// routes move. The route registration in coderd.go and the OAuth cookie
+// Path values must stay aligned with it.
+func mcpServerOAuth2CallbackPath(configID uuid.UUID) string {
+	return fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", configID)
+}
+
 // parseMCPServerConfigID extracts the MCP server config UUID from the
-// "mcpServer" path parameter.
+// "mcpServer" path parameter, which is part of the frozen callback
+// route shape.
 func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	mcpServerID, err := uuid.Parse(chi.URLParam(r, "mcpServer"))
 	if err != nil {
@@ -1432,11 +1397,12 @@ func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 // Admin-only fields (OAuth2 client ID, auth URLs, etc.) are included.
 func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerConfig {
 	return codersdk.MCPServerConfig{
-		ID:          config.ID,
-		DisplayName: config.DisplayName,
-		Slug:        config.Slug,
-		Description: config.Description,
-		IconURL:     config.IconURL,
+		ID:             config.ID,
+		OrganizationID: config.OrganizationID,
+		DisplayName:    config.DisplayName,
+		Slug:           config.Slug,
+		Description:    config.Description,
+		IconURL:        config.IconURL,
 
 		Transport: config.Transport,
 		URL:       config.Url,

@@ -1346,6 +1346,29 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserAIProviderKey)
 			})
 		})
+		r.Route("/mcp-servers/{mcpserverconfig}", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			// Disconnect skips the read-gated param middleware so
+			// token owners who can no longer read the config, such
+			// as users removed from the organization, can still
+			// delete their token and revoke the provider grant.
+			r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.ExtractMCPServerConfigParam(options.Database))
+				r.Get("/", api.getMCPServerConfig)
+				r.Patch("/", api.updateMCPServerConfig)
+				r.Delete("/", api.deleteMCPServerConfig)
+				r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
+			})
+		})
+		r.Route("/organizations/{organization}/mcp-servers", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.listMCPServerConfigs)
+			r.Post("/", api.createMCPServerConfig)
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1466,20 +1489,8 @@ func New(options *Options) *API {
 			r.Use(
 				apiKeyMiddleware,
 			)
-			// MCP server configuration endpoints.
-			r.Route("/servers", func(r chi.Router) {
-				r.Get("/", api.listMCPServerConfigs)
-				r.Post("/", api.createMCPServerConfig)
-				r.Route("/{mcpServer}", func(r chi.Router) {
-					r.Get("/", api.getMCPServerConfig)
-					r.Patch("/", api.updateMCPServerConfig)
-					r.Delete("/", api.deleteMCPServerConfig)
-					// OAuth2 user flow
-					r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
-					r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
-					r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
-				})
-			})
+			// This callback path is frozen because it is registered with OAuth2 providers.
+			r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
 			// MCP HTTP transport endpoint with mandatory authentication
 			r.Route("/http", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))

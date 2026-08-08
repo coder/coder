@@ -61,7 +61,7 @@ func (server *Server) prepareGeneration(
 	if len(chat.MCPServerIDs) > 0 {
 		g.Go(func() error {
 			var err error
-			mcpConfigs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
+			mcpConfigs, err = enabledMCPServerConfigsForChatOrg(ctx, server.db, chat.OrganizationID, chat.MCPServerIDs)
 			if err != nil {
 				logger.Warn(ctx, "failed to load MCP server configs", slog.Error(err))
 			}
@@ -808,4 +808,29 @@ func latestAssistantText(messages []database.ChatMessage) string {
 		return strings.TrimSpace(textFromParts(parts))
 	}
 	return ""
+}
+
+// Returns enabled requested configs visible to the chat organization. Filtering
+// here preserves the pre-org-scoping behavior of skipping disabled configs.
+func enabledMCPServerConfigsForChatOrg(
+	ctx context.Context,
+	db database.Store,
+	organizationID uuid.UUID,
+	ids []uuid.UUID,
+) ([]database.MCPServerConfig, error) {
+	configs, err := db.GetMCPServerConfigsByOrganizationAndIDs(ctx, database.GetMCPServerConfigsByOrganizationAndIDsParams{
+		OrganizationID: organizationID,
+		IDs:            ids,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get MCP server configs for organization: %w", err)
+	}
+
+	enabled := make([]database.MCPServerConfig, 0, len(configs))
+	for _, cfg := range configs {
+		if cfg.Enabled {
+			enabled = append(enabled, cfg)
+		}
+	}
+	return enabled, nil
 }

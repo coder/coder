@@ -692,6 +692,7 @@ func insertInternalChatModelConfigWithOptions(
 func insertInternalMCPServerConfig(
 	t *testing.T,
 	db database.Store,
+	organizationID uuid.UUID,
 	userID uuid.UUID,
 	slug string,
 	allowInPlanMode bool,
@@ -699,6 +700,7 @@ func insertInternalMCPServerConfig(
 	t.Helper()
 
 	return dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID:  organizationID,
 		DisplayName:     slug,
 		Slug:            slug,
 		Url:             "https://" + slug + ".example.com",
@@ -2378,28 +2380,30 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
-	user, _, _ := seedInternalChatDeps(t, db)
+	user, org, _ := seedInternalChatDeps(t, db)
 	approvedMCP := insertInternalMCPServerConfig(
-		t, db, user.ID, "approved-"+uuid.NewString(), true,
+		t, db, org.ID, user.ID, "approved-"+uuid.NewString(), true,
 	)
 	blockedMCP := insertInternalMCPServerConfig(
-		t, db, user.ID, "blocked-"+uuid.NewString(), false,
+		t, db, org.ID, user.ID, "blocked-"+uuid.NewString(), false,
 	)
 
 	// Build parent chats in memory rather than via server.CreateChat.
-	// resolveExploreToolSnapshot only reads ID, MCPServerIDs, PlanMode,
-	// ParentChatID, and Mode from its parent argument, so persisting
-	// the chats is unnecessary. Skipping CreateChat avoids waking the
-	// background acquireLoop, which would otherwise try to dial the
-	// fake MCP URLs and call OpenAI with the dbgen test API key. Those
-	// side effects were the root cause of the flake tracked in
-	// CODAGT-367.
+	// resolveExploreToolSnapshot only reads ID, OrganizationID,
+	// MCPServerIDs, PlanMode, ParentChatID, and Mode from its parent
+	// argument, so persisting the chats is unnecessary. Skipping
+	// CreateChat avoids waking the background acquireLoop, which would
+	// otherwise try to dial the fake MCP URLs and call OpenAI with the
+	// dbgen test API key. Those side effects were the root cause of the
+	// flake tracked in CODAGT-367.
 	askParent := database.Chat{
-		ID:           uuid.New(),
-		MCPServerIDs: []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
+		ID:             uuid.New(),
+		OrganizationID: org.ID,
+		MCPServerIDs:   []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
 	}
 	planParent := database.Chat{
-		ID: uuid.New(),
+		ID:             uuid.New(),
+		OrganizationID: org.ID,
 		PlanMode: database.NullChatPlanMode{
 			ChatPlanMode: database.ChatPlanModePlan,
 			Valid:        true,
@@ -2472,7 +2476,7 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsMCPSnapshot(t *testin
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-explore-snapshot",
 	)
 	mcpCfg := insertInternalMCPServerConfig(
-		t, db, user.ID, "snapshot-"+uuid.NewString(), false,
+		t, db, org.ID, user.ID, "snapshot-"+uuid.NewString(), false,
 	)
 
 	child, err := server.createChildSubagentChatWithOptions(
@@ -2504,10 +2508,10 @@ func TestSpawnAgent_ExploreSnapshotsTurnStateParentState(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
 	turnStartConfig := insertInternalMCPServerConfig(
-		t, db, user.ID, "turn-start-"+uuid.NewString(), false,
+		t, db, org.ID, user.ID, "turn-start-"+uuid.NewString(), false,
 	)
 	mutatedConfig := insertInternalMCPServerConfig(
-		t, db, user.ID, "mutated-"+uuid.NewString(), true,
+		t, db, org.ID, user.ID, "mutated-"+uuid.NewString(), true,
 	)
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
@@ -3409,19 +3413,21 @@ func TestCreateChildSubagentChat_InheritsMCPServerIDs(t *testing.T) {
 	// Insert two MCP server configs so we can verify both are
 	// inherited by the child chat.
 	mcpA := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "MCP A",
-		Slug:        "mcp-a",
-		Url:         "https://mcp-a.example.com",
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "MCP A",
+		Slug:           "mcp-a",
+		Url:            "https://mcp-a.example.com",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	mcpB := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "MCP B",
-		Slug:        "mcp-b",
-		Url:         "https://mcp-b.example.com",
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "MCP B",
+		Slug:           "mcp-b",
+		Url:            "https://mcp-b.example.com",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	parentMCPIDs := []uuid.UUID{mcpA.ID, mcpB.ID}

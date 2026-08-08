@@ -13,12 +13,15 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
+	MockDefaultOrganization,
 	MockNoPermissions,
+	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
 } from "#/testHelpers/entities";
@@ -62,6 +65,20 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 		updated_at: "2026-02-18T00:00:00.000Z",
 	},
 ];
+
+const defaultOrganizationMCPServer: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-default-organization",
+	display_name: "Default organization MCP",
+	slug: "default-organization-mcp",
+};
+
+const secondOrganizationMCPServer: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-second-organization",
+	display_name: "Second organization MCP",
+	slug: "second-organization-mcp",
+};
 
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const todayTimestamp = new Date().toISOString();
@@ -425,7 +442,74 @@ const mockChats = (chats: Chat[]) => {
 	spyOn(API.experimental, "getChats").mockResolvedValue(chats);
 };
 
-export const EmptyState: Story = {};
+export const EmptyState: Story = {
+	play: async () => {
+		await waitFor(() => {
+			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+			);
+		});
+	},
+};
+
+export const OrganizationScopedMCPServers: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrganizations({
+					object: { resource_type: "chat" },
+					action: "create",
+				}).queryKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
+			async (organization) =>
+				organization === MockDefaultOrganization.id
+					? [defaultOrganizationMCPServer]
+					: [secondOrganizationMCPServer],
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await waitFor(() => {
+			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+			);
+		});
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		expect(
+			(await body.findAllByText("Default organization MCP")).length,
+		).toBeGreaterThan(0);
+		await userEvent.keyboard("{Escape}");
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization: ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			body.getByRole("option", { name: MockOrganization2.display_name }),
+		);
+		await waitFor(() => {
+			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+				MockOrganization2.id,
+			);
+		});
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		expect(
+			(await body.findAllByText("Second organization MCP")).length,
+		).toBeGreaterThan(0);
+		expect(
+			body.queryByText("Default organization MCP"),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const WithChatList: Story = {
 	beforeEach: () => {

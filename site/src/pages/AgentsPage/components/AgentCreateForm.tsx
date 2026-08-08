@@ -2,6 +2,7 @@ import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
+import { mcpServerConfigs } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -34,6 +35,7 @@ import { CompactOrgSelector } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
+	migrateLegacyMCPSelection,
 	saveMCPSelection,
 } from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
@@ -139,8 +141,6 @@ interface AgentCreateFormProps {
 	isModelConfigsLoading: boolean;
 	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
 	isPersonalModelOverridesLoading?: boolean;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
@@ -165,8 +165,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelConfigsLoading,
 	rootPersonalModelOverride,
 	isPersonalModelOverridesLoading = false,
-	mcpServers,
-	onMCPAuthComplete,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -307,6 +305,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
 	const organizationId = selectedOrg?.id ?? "";
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(organizationId),
+		enabled: Boolean(organizationId),
+	});
+	const mcpServers = mcpServersQuery.data ?? [];
+	// Sending before the organization's MCP list resolves would
+	// silently drop its default-on server selection, so the composer
+	// waits for this query.
+	const isMCPSelectionUnresolved =
+		Boolean(organizationId) && !mcpServersQuery.isSuccess;
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -348,12 +356,21 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		if (userMCPServerIds !== null) {
 			return userMCPServerIds;
 		}
-		const saved = getSavedMCPSelection(mcpServers ?? []);
+		const saved = getSavedMCPSelection(
+			organizationId,
+			mcpServers,
+			selectedOrg?.is_default,
+		);
 		if (saved !== null) {
 			return saved;
 		}
-		return getDefaultMCPSelection(mcpServers ?? []);
+		return getDefaultMCPSelection(mcpServers);
 	})();
+	useEffect(() => {
+		if (selectedOrg?.is_default) {
+			migrateLegacyMCPSelection(organizationId, mcpServers);
+		}
+	}, [organizationId, mcpServers, selectedOrg?.is_default]);
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
@@ -362,6 +379,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		setSelectedWorkspaceId(value);
 		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+	};
+
+	const selectOrganization = (organization: TypesGen.Organization) => {
+		setUserMCPServerIds(null);
+		setSelectedOrg(organization);
 	};
 
 	const handleModelChange = (value: string) => {
@@ -488,13 +510,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	}
 
-	// Clean up workspace and attachment state after a programmatic
-	// org change from permission filtering. These calls have side
-	// effects (localStorage, blob URL revocation) that must not
-	// run during render.
 	const onOrgAdjusted = useEffectEvent(() => {
 		handleWorkspaceChange(null);
 		resetAttachments();
+		setUserMCPServerIds(null);
 	});
 	useEffect(() => {
 		if (orgWasAdjusted) {
@@ -542,6 +561,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
+					{mcpServersQuery.error != null && (
+						<ErrorAlert error={mcpServersQuery.error} />
+					)}
 					{showOrganizations && permittedOrgs.length > 1 && (
 						<CompactOrgSelector
 							value={selectedOrg}
@@ -554,8 +576,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								}
 								if (orgChanged) {
 									handleWorkspaceChange(null);
+									selectOrganization(newOrg);
 								}
-								setSelectedOrg(newOrg);
 							}}
 						/>
 					)}
@@ -567,6 +589,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							isCreating ||
 							isForbidden ||
 							isPersonalModelOverridesLoading ||
+							isMCPSelectionUnresolved ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
 						}
@@ -594,9 +617,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);
-							saveMCPSelection(ids);
+							saveMCPSelection(organizationId, ids);
 						}}
-						onMCPAuthComplete={onMCPAuthComplete}
+						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 						workspaceOptions={filteredWorkspaces}
 						selectedWorkspaceId={effectiveWorkspaceId}
 						onWorkspaceChange={handleWorkspaceChange}
@@ -622,9 +645,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				hideCancel={false}
 				confirmText="Continue"
 				onConfirm={() => {
+					if (!pendingOrgChange) {
+						return;
+					}
 					resetAttachments();
 					handleWorkspaceChange(null);
-					setSelectedOrg(pendingOrgChange);
+					selectOrganization(pendingOrgChange);
 					setPendingOrgChange(null);
 				}}
 				onClose={() => setPendingOrgChange(null)}

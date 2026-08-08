@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -46,11 +47,11 @@ func newMCPClient(t testing.TB) *codersdk.Client {
 
 // createMCPServerConfig is a helper that creates a minimal enabled
 // MCP server config with auth_type=none.
-func createMCPServerConfig(t testing.TB, client *codersdk.Client, slug string, enabled bool) codersdk.MCPServerConfig {
+func createMCPServerConfig(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, slug string, enabled bool) codersdk.MCPServerConfig {
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	config, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	config, err := client.CreateMCPServerConfig(ctx, organizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:   "Test Server " + slug,
 		Slug:          slug,
 		Description:   "A test MCP server.",
@@ -67,16 +68,36 @@ func createMCPServerConfig(t testing.TB, client *codersdk.Client, slug string, e
 	return config
 }
 
+func TestMCPServerConfigLegacyRoutesRemoved(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	config := createMCPServerConfig(t, client, firstUser.OrganizationID, "legacy-route-test", true)
+
+	for _, path := range []string{
+		"/api/experimental/mcp/servers",
+		"/api/experimental/mcp/servers/" + config.ID.String(),
+		"/api/experimental/mcp/servers/" + config.ID.String() + "/oauth2/connect",
+	} {
+		res, err := client.Request(ctx, http.MethodGet, path, nil)
+		require.NoError(t, err)
+		res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode, path)
+	}
+}
+
 func TestMCPServerConfigsCRUD(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newMCPClient(t)
-	_ = coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client)
 
 	// Create a config with all fields populated including OAuth2
 	// secrets so we can verify they are not leaked.
-	created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:        "My MCP Server",
 		Slug:               "my-mcp-server",
 		Description:        "Integration test server.",
@@ -96,6 +117,7 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, created.ID)
+	require.Equal(t, firstUser.OrganizationID, created.OrganizationID)
 	require.Equal(t, "My MCP Server", created.DisplayName)
 	require.Equal(t, "my-mcp-server", created.Slug)
 	require.Equal(t, "Integration test server.", created.Description)
@@ -112,7 +134,7 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.True(t, created.HasOAuth2Secret)
 
 	// Verify the config appears in the list and direct get responses.
-	configs, err := client.MCPServerConfigs(ctx)
+	configs, err := client.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.Equal(t, created.ID, configs[0].ID)
@@ -148,7 +170,7 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.Equal(t, "oauth2", updated.AuthType)
 
 	// Verify the update took effect through the list and direct get.
-	configs, err = client.MCPServerConfigs(ctx)
+	configs, err = client.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.Equal(t, "Renamed Server", configs[0].DisplayName)
@@ -166,7 +188,7 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify it's gone.
-	configs, err = client.MCPServerConfigs(ctx)
+	configs, err = client.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Empty(t, configs)
 }
@@ -180,16 +202,16 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 	// Admin creates two configs: one enabled, one disabled.
-	_ = createMCPServerConfig(t, adminClient, "enabled-server", true)
-	_ = createMCPServerConfig(t, adminClient, "disabled-server", false)
+	_ = createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "enabled-server", true)
+	_ = createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "disabled-server", false)
 
 	// Admin sees both.
-	adminConfigs, err := adminClient.MCPServerConfigs(ctx)
+	adminConfigs, err := adminClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, adminConfigs, 2)
 
 	// Regular user sees only the enabled one.
-	memberConfigs, err := memberClient.MCPServerConfigs(ctx)
+	memberConfigs, err := memberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, memberConfigs, 1)
 	require.Equal(t, "enabled-server", memberConfigs[0].Slug)
@@ -209,7 +231,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 	// Create a config with ALL secret fields populated.
-	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:         "Secrets Test",
 		Slug:                "secrets-test",
 		Transport:           "streamable_http",
@@ -258,7 +280,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 	require.True(t, created.HasCustomHeaders, "HasCustomHeaders should be true")
 
 	// Admin list endpoint.
-	adminConfigs, err := adminClient.MCPServerConfigs(ctx)
+	adminConfigs, err := adminClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.NotEmpty(t, adminConfigs)
 	for _, cfg := range adminConfigs {
@@ -271,7 +293,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 	assertNoSecrets(t, "admin get-by-id", adminSingle)
 
 	// Non-admin list endpoint.
-	memberConfigs, err := memberClient.MCPServerConfigs(ctx)
+	memberConfigs, err := memberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.NotEmpty(t, memberConfigs)
 	for _, cfg := range memberConfigs {
@@ -309,7 +331,7 @@ func TestMCPServerConfigsAuthConnected(t *testing.T) {
 	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 	// Create an oauth2 server config (enabled).
-	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:    "OAuth Server",
 		Slug:           "oauth-server",
 		Transport:      "streamable_http",
@@ -327,7 +349,7 @@ func TestMCPServerConfigsAuthConnected(t *testing.T) {
 
 	// Regular user lists configs — auth_connected should be false
 	// because no token has been stored.
-	memberConfigs, err := memberClient.MCPServerConfigs(ctx)
+	memberConfigs, err := memberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, memberConfigs, 1)
 	require.Equal(t, created.ID, memberConfigs[0].ID)
@@ -335,12 +357,12 @@ func TestMCPServerConfigsAuthConnected(t *testing.T) {
 
 	// Also create a non-oauth server. It should report
 	// auth_connected=true because no auth is needed.
-	_ = createMCPServerConfig(t, adminClient, "no-auth-server", true)
+	_ = createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "no-auth-server", true)
 
 	// And a user_oidc server. user_oidc never requires a per-user
 	// connect step, so auth_connected is always true regardless of
 	// whether the calling user has an OIDC link.
-	_, err = adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	_, err = adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:   "User OIDC Server",
 		Slug:          "user-oidc-server",
 		Transport:     "streamable_http",
@@ -353,7 +375,7 @@ func TestMCPServerConfigsAuthConnected(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	memberConfigs, err = memberClient.MCPServerConfigs(ctx)
+	memberConfigs, err = memberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, memberConfigs, 3)
 	for _, cfg := range memberConfigs {
@@ -371,12 +393,12 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newMCPClient(t)
-	_ = coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client)
 
 	// Start with an oauth2 config that has a client secret, then
 	// switch the auth_type to user_oidc and verify all auth-specific
 	// fields are cleared.
-	created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:         "Switch Server",
 		Slug:                "switch-server",
 		Transport:           "streamable_http",
@@ -422,7 +444,7 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 
-	_, err = client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	_, err = client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:         "Plaintext Revoke",
 		Slug:                "plaintext-revoke",
 		Transport:           "streamable_http",
@@ -478,9 +500,9 @@ func TestMCPServerConfigsUserOIDCDirect(t *testing.T) {
 	// while no auth-specific fields are persisted on the row.
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newMCPClient(t)
-	_ = coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client)
 
-	created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:   "User OIDC Direct",
 		Slug:          "user-oidc-direct",
 		Transport:     "streamable_http",
@@ -502,7 +524,7 @@ func TestMCPServerConfigsAvailability(t *testing.T) {
 	t.Parallel()
 
 	client := newMCPClient(t)
-	_ = coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client)
 
 	validValues := []string{"force_on", "default_on", "default_off"}
 	for _, av := range validValues {
@@ -510,7 +532,7 @@ func TestMCPServerConfigsAvailability(t *testing.T) {
 		t.Run(av, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
-			created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 				DisplayName:   "Server " + av,
 				Slug:          "server-" + av,
 				Transport:     "streamable_http",
@@ -529,7 +551,7 @@ func TestMCPServerConfigsAvailability(t *testing.T) {
 	t.Run("InvalidAvailability", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Bad Availability",
 			Slug:          "bad-avail",
 			Transport:     "streamable_http",
@@ -552,9 +574,9 @@ func TestMCPServerConfigsUniqueSlug(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newMCPClient(t)
-	_ = coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client)
 
-	_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:   "First",
 		Slug:          "test-server",
 		Transport:     "streamable_http",
@@ -568,7 +590,7 @@ func TestMCPServerConfigsUniqueSlug(t *testing.T) {
 	require.NoError(t, err)
 
 	// Attempt to create another config with the same slug.
-	_, err = client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	_, err = client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:   "Second",
 		Slug:          "test-server",
 		Transport:     "streamable_http",
@@ -600,7 +622,7 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:         "OAuth Disconnect " + slug,
 			Slug:                slug,
 			Transport:           "streamable_http",
@@ -660,43 +682,40 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		require.Empty(t, resp.TokenRevocationError)
 	})
 
-	t.Run("DoesNotRevealHiddenConfigs", func(t *testing.T) {
+	t.Run("RemovedOrgMemberCanDisconnect", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
-		adminClient, _ := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues:    mcpDeploymentValues(t),
 			ChatProviderAPIKeys: &providerKeys,
 		})
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		coderdtest.CreateFirstUser(t, adminClient)
 
-		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
-			DisplayName:    "OAuth Disconnect Hidden",
-			Slug:           "disc-hidden",
-			Transport:      "streamable_http",
-			URL:            "https://mcp.example.com/disc-hidden",
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, secondOrg.ID)
+		config := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: secondOrg.ID,
 			AuthType:       "oauth2",
-			OAuth2ClientID: "cid",
-			OAuth2AuthURL:  "https://auth.example.com/authorize",
-			OAuth2TokenURL: "https://auth.example.com/token",
-			Availability:   "default_on",
-			Enabled:        false,
-			ToolAllowList:  []string{},
-			ToolDenyList:   []string{},
+			Enabled:        true,
+		})
+		seedToken(t, db, config.ID, member.ID)
+
+		//nolint:gocritic // Seeding test state requires system access.
+		systemCtx := dbauthz.AsSystemRestricted(ctx)
+		err := db.DeleteOrganizationMember(systemCtx, database.DeleteOrganizationMemberParams{
+			OrganizationID: secondOrg.ID,
+			UserID:         member.ID,
 		})
 		require.NoError(t, err)
 
-		// Disconnecting a disabled config the member cannot see must be
-		// indistinguishable from disconnecting a nonexistent config ID.
-		hiddenResp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, created.ID)
+		// A token owner removed from the organization can no longer
+		// read the config, but must still be able to delete the
+		// stored token.
+		_, err = memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, config.ID)
 		require.NoError(t, err)
-		missingResp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, uuid.New())
-		require.NoError(t, err)
-		require.Equal(t, missingResp, hiddenResp)
-		require.False(t, hiddenResp.TokenRevoked)
-		require.Empty(t, hiddenResp.TokenRevocationError)
+		requireTokenDeleted(t, db, config.ID, member.ID)
 	})
 
 	t.Run("RevokesAtProvider", func(t *testing.T) {
@@ -757,7 +776,7 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:    "OAuth Disconnect Refresh Race",
 			Slug:           "disc-refresh-race",
 			Transport:      "streamable_http",
@@ -790,7 +809,7 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		}
 		result := make(chan configResult, 1)
 		go func() {
-			configs, listErr := memberClient.MCPServerConfigs(ctx)
+			configs, listErr := memberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 			result <- configResult{configs: configs, err: listErr}
 		}()
 
@@ -866,7 +885,7 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 		otherClient, other := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:    "OAuth Disconnect Isolation",
 			Slug:           "disc-isolation",
 			Transport:      "streamable_http",
@@ -896,7 +915,7 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 
 		requireAuthConnected := func(client *codersdk.Client, want bool) {
 			t.Helper()
-			configs, err := client.MCPServerConfigs(ctx)
+			configs, err := client.MCPServerConfigs(ctx, firstUser.OrganizationID)
 			require.NoError(t, err)
 			require.Len(t, configs, 1)
 			require.Equal(t, want, configs[0].AuthConnected)
@@ -974,11 +993,11 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// Create config with auth_type=oauth2 but no OAuth2 fields —
 		// the server should auto-discover them.
-		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Auto-Discovery Server",
 			Slug:          "auto-discovery",
 			Transport:     "streamable_http",
@@ -998,7 +1017,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, "read write", created.OAuth2Scopes)
 
 		// An explicit revocation URL wins over the discovered one.
-		overridden, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		overridden, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:         "Auto-Discovery Override",
 			Slug:                "auto-discovery-override",
 			Transport:           "streamable_http",
@@ -1018,6 +1037,53 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 	// resource metadata are available, the path-aware URL takes
 	// priority. Each points to a different auth server so we can
 	// distinguish which one was actually used.
+	t.Run("CreateOnlyScopeRejectedUpFront", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Discovery inserts, then updates and possibly deletes the
+		// row. A create-only caller must be rejected before the
+		// insert instead of leaving an orphaned row behind. MCP
+		// config scopes are not user-mintable, so seed the scoped
+		// key directly.
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: firstUser.UserID,
+			Scopes: database.APIKeyScopes{
+				"mcp_server_config:create",
+				"organization:read",
+			},
+		})
+		scopedClient := codersdk.New(client.URL)
+		scopedClient.SetSessionToken(token)
+
+		_, err := scopedClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:  "Create Only Discovery",
+			Slug:         "create-only-discovery",
+			Transport:    "streamable_http",
+			URL:          "http://127.0.0.1:1",
+			AuthType:     "oauth2",
+			Availability: "default_on",
+			Enabled:      true,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		//nolint:gocritic // Verifying persisted state requires system access.
+		_, err = db.GetMCPServerConfigByOrganizationAndSlug(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: firstUser.OrganizationID,
+			Slug:           "create-only-discovery",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
 	t.Run("PathAwareTakesPriority", func(t *testing.T) {
 		t.Parallel()
 
@@ -1109,9 +1175,9 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Priority Test",
 			Slug:          "priority-test",
 			Transport:     "streamable_http",
@@ -1185,9 +1251,9 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Root Fallback Server",
 			Slug:          "root-fallback",
 			Transport:     "streamable_http",
@@ -1263,9 +1329,9 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Path-Aware Auth",
 			Slug:          "path-aware-auth",
 			Transport:     "streamable_http",
@@ -1359,11 +1425,11 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// Create config with auth_type=oauth2 but no OAuth2 fields to
 		// trigger auto-discovery and dynamic client registration.
-		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Redirect URI Test",
 			Slug:          "redirect-uri-test",
 			Transport:     "streamable_http",
@@ -1425,10 +1491,10 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// Provide client_id but omit auth_url and token_url.
-		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:    "Partial Fields",
 			Slug:           "partial-oauth2",
 			Transport:      "streamable_http",
@@ -1461,9 +1527,9 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Will Fail",
 			Slug:          "discovery-fail",
 			Transport:     "streamable_http",
@@ -1486,10 +1552,10 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// Providing all three OAuth2 fields bypasses discovery entirely.
-		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:    "Manual Config",
 			Slug:           "manual-oauth2",
 			Transport:      "streamable_http",
@@ -1523,7 +1589,7 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		// Create an OAuth2 MCP server config.
-		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:    "PKCE Test",
 			Slug:           "pkce-test",
 			Transport:      "streamable_http",
@@ -1546,7 +1612,7 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		}
 
 		connectURL, err := memberClient.URL.Parse(
-			"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/connect",
+			"/api/experimental/mcp-servers/" + created.ID.String() + "/oauth2/connect",
 		)
 		require.NoError(t, err)
 
@@ -1572,16 +1638,30 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		require.NotEmpty(t, query.Get("code_challenge"),
 			"connect redirect must include a code_challenge")
 
-		// A verifier cookie must be set.
-		var verifierCookie *http.Cookie
+		// The callback path is frozen because it is registered as a
+		// redirect URI with external authorization servers.
+		frozenCallbackPath := "/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback"
+		redirectURI, err := url.Parse(query.Get("redirect_uri"))
+		require.NoError(t, err)
+		require.Equal(t, frozenCallbackPath, redirectURI.Path,
+			"outbound redirect_uri must use the frozen callback path")
+
+		var stateCookie, verifierCookie *http.Cookie
 		for _, c := range res.Cookies() {
-			if c.Name == "mcp_oauth2_verifier_"+created.ID.String() {
+			switch c.Name {
+			case "mcp_oauth2_state_" + created.ID.String():
+				stateCookie = c
+			case "mcp_oauth2_verifier_" + created.ID.String():
 				verifierCookie = c
-				break
 			}
 		}
+		require.NotNil(t, stateCookie, "response must set a state cookie")
+		require.Equal(t, frozenCallbackPath, stateCookie.Path,
+			"state cookie must be scoped to the frozen callback path")
 		require.NotNil(t, verifierCookie, "response must set a PKCE verifier cookie")
 		require.NotEmpty(t, verifierCookie.Value)
+		require.Equal(t, frozenCallbackPath, verifierCookie.Path,
+			"verifier cookie must be scoped to the frozen callback path")
 
 		// Verify the code_challenge matches SHA256(verifier).
 		h := sha256.Sum256([]byte(verifierCookie.Value))
@@ -1620,7 +1700,7 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:    "PKCE Callback Test",
 			Slug:           "pkce-callback",
 			Transport:      "streamable_http",
@@ -1690,6 +1770,8 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 			if c.Name == "mcp_oauth2_verifier_"+created.ID.String() {
 				require.Equal(t, -1, c.MaxAge,
 					"verifier cookie must be cleared after callback")
+				require.Equal(t, callbackURL.Path, c.Path,
+					"cleared verifier cookie must be scoped to the frozen callback path")
 			}
 		}
 	})
@@ -1717,7 +1799,7 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:    "No PKCE Callback",
 			Slug:           "no-pkce-callback",
 			Transport:      "streamable_http",
@@ -1783,8 +1865,8 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	_ = createChatModelConfigForMCP(t, expClient)
 
 	// Create enabled MCP server configs.
-	mcpConfigA := createMCPServerConfig(t, client, "chat-mcp-server-a", true)
-	mcpConfigB := createMCPServerConfig(t, client, "chat-mcp-server-b", true)
+	mcpConfigA := createMCPServerConfig(t, client, firstUser.OrganizationID, "chat-mcp-server-a", true)
+	mcpConfigB := createMCPServerConfig(t, client, firstUser.OrganizationID, "chat-mcp-server-b", true)
 
 	// Create a chat referencing the MCP servers.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1886,9 +1968,9 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 			t.Cleanup(mcpServer.Close)
 
 			client := newMCPClient(t)
-			_ = coderdtest.CreateFirstUser(t, client)
+			firstUser := coderdtest.CreateFirstUser(t, client)
 
-			created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 				DisplayName:   "Empty Auth Servers Fallback",
 				Slug:          "empty-as-fallback",
 				Transport:     "streamable_http",
@@ -1929,9 +2011,9 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 			t.Cleanup(mcpServer.Close)
 
 			client := newMCPClient(t)
-			_ = coderdtest.CreateFirstUser(t, client)
+			firstUser := coderdtest.CreateFirstUser(t, client)
 
-			_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 				DisplayName:   "Both Empty",
 				Slug:          "both-empty-as",
 				Transport:     "streamable_http",
@@ -2005,9 +2087,9 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Malformed JSON Fallback",
 			Slug:          "malformed-json",
 			Transport:     "streamable_http",
@@ -2088,9 +2170,9 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Missing Endpoints Fallback",
 			Slug:          "missing-endpoints",
 			Transport:     "streamable_http",
@@ -2164,9 +2246,9 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "OIDC Fallback",
 			Slug:          "oidc-fallback",
 			Transport:     "streamable_http",
@@ -2236,9 +2318,9 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Missing Client ID",
 			Slug:          "missing-client-id",
 			Transport:     "streamable_http",
@@ -2310,11 +2392,11 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 		t.Cleanup(mcpServer.Close)
 
 		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// URL has a trailing slash, matching the GitHub Copilot URL
 		// pattern: https://api.githubcopilot.com/mcp/
-		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Trailing Slash",
 			Slug:          "trailing-slash",
 			Transport:     "streamable_http",
@@ -2352,7 +2434,7 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 	}))
 	t.Cleanup(tokenSrv.Close)
 
-	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:    "Revoked Server",
 		Slug:           "revoked-server",
 		Transport:      "streamable_http",
@@ -2384,7 +2466,7 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 
 	// First list: the refresh fails permanently, so the server is
 	// reported as not connected and the failure is persisted.
-	configs, err := memberClient.MCPServerConfigs(ctx)
+	configs, err := memberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.False(t, configs[0].AuthConnected)
@@ -2406,7 +2488,7 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 
 	// Second list: the cached failure short-circuits, so the provider
 	// is not called again.
-	configs, err = memberClient.MCPServerConfigs(ctx)
+	configs, err = memberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.False(t, configs[0].AuthConnected)
@@ -2447,7 +2529,7 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	configs, err = memberClient.MCPServerConfigs(ctx)
+	configs, err = memberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.True(t, configs[0].AuthConnected)
@@ -2472,7 +2554,7 @@ func TestMCPServerConfigsTransientRefreshFailure(t *testing.T) {
 	}))
 	t.Cleanup(tokenSrv.Close)
 
-	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:    "Flaky Server",
 		Slug:           "flaky-server",
 		Transport:      "streamable_http",
@@ -2499,7 +2581,7 @@ func TestMCPServerConfigsTransientRefreshFailure(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	configs, err := memberClient.MCPServerConfigs(ctx)
+	configs, err := memberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.False(t, configs[0].AuthConnected)

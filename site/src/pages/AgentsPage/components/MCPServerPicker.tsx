@@ -91,17 +91,25 @@ export const getDefaultMCPSelection = (
 	return ids;
 };
 
+const legacyMCPSelectionStorageKey = "agents.selected-mcp-server-ids";
+
 /** localStorage key for persisting the user's MCP server selection. */
-export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
+export const mcpSelectionStorageKey = (organizationId: string) =>
+	`${legacyMCPSelectionStorageKey}.${organizationId}`;
 
 /**
  * Read the persisted MCP selection from localStorage, filtered to only
  * include IDs that still exist in the current server list.
  * Returns `null` when nothing is stored (caller should fall back to defaults).
  */ export const getSavedMCPSelection = (
+	organizationId: string,
 	servers: readonly TypesGen.MCPServerConfig[],
+	readLegacy = false,
 ): string[] | null => {
-	const raw = localStorage.getItem(mcpSelectionStorageKey);
+	let raw = localStorage.getItem(mcpSelectionStorageKey(organizationId));
+	if (raw === null && readLegacy) {
+		raw = localStorage.getItem(legacyMCPSelectionStorageKey);
+	}
 	if (raw === null) {
 		return null;
 	}
@@ -141,10 +149,33 @@ export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
 	}
 };
 
-/**
- * Persist the current MCP selection to localStorage.
- */ export const saveMCPSelection = (ids: readonly string[]): void => {
-	localStorage.setItem(mcpSelectionStorageKey, JSON.stringify(ids));
+export const saveMCPSelection = (
+	organizationId: string,
+	ids: readonly string[],
+): void => {
+	localStorage.setItem(
+		mcpSelectionStorageKey(organizationId),
+		JSON.stringify(ids),
+	);
+};
+
+export const migrateLegacyMCPSelection = (
+	organizationId: string,
+	servers: readonly TypesGen.MCPServerConfig[],
+): void => {
+	const storageKey = mcpSelectionStorageKey(organizationId);
+	if (
+		localStorage.getItem(storageKey) !== null ||
+		localStorage.getItem(legacyMCPSelectionStorageKey) === null
+	) {
+		return;
+	}
+	const selection = getSavedMCPSelection(organizationId, servers, true);
+	if (selection === null) {
+		return;
+	}
+	saveMCPSelection(organizationId, selection);
+	localStorage.removeItem(legacyMCPSelectionStorageKey);
 };
 
 // ── Overlapping icon stack for the trigger ─────────────────────
@@ -254,7 +285,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 
 	const handleConnect = (server: TypesGen.MCPServerConfig) => {
 		setConnectingServerId(server.id);
-		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
+		const connectUrl = `/api/experimental/mcp-servers/${encodeURIComponent(server.id)}/oauth2/connect`;
 		popupRef.current = window.open(
 			connectUrl,
 			"_blank",
