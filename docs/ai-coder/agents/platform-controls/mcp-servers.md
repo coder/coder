@@ -176,3 +176,8 @@ wins.
 
 Members only see enabled servers in their own organizations. Sensitive fields
 such as API keys and client secrets are redacted in API responses.
+
+The **MCP servers** settings page is part of deployment settings, so opening
+it in the dashboard also requires permission to edit deployment
+configuration. Organization admins without that permission manage servers
+through the API.
