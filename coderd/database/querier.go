@@ -1247,10 +1247,6 @@ type sqlcQuerier interface {
 	// Returns paginated sessions with aggregated metadata, token counts, and
 	// the most recent user prompt. A "session" is a logical grouping of
 	// interceptions that share the same session_id (set by the client).
-	//
-	// Pagination-first strategy: identify the page of sessions cheaply via a
-	// single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
-	// first-interception metadata) only for the ~page-size result set.
 	// The last interception in a session has no next row, so next_seq uses
 	// the largest sequence_number instead of NULL. The lookup stays a plain
 	// range, so the (session_id, sequence_number) index answers it alone.
