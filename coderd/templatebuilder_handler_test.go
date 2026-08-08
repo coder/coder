@@ -44,6 +44,14 @@ func TestTemplateBuilderBases(t *testing.T) {
 
 		specs := []baseSpec{
 			{
+				// Quickstart exposes no builder variables today: its base.json
+				// declares none. Locking that here flags drift if it changes,
+				// e.g. if it later exposes a container_image selector.
+				id:           "quickstart",
+				expectedOS:   "linux",
+				hasVariables: false,
+			},
+			{
 				id:           "docker",
 				expectedOS:   "linux",
 				hasVariables: true,
@@ -107,10 +115,35 @@ func TestTemplateBuilderBases(t *testing.T) {
 
 		resp, err := client.TemplateBuilderBases(ctx)
 		require.NoError(t, err)
+		require.NotEmpty(t, resp.Bases)
 
-		for i := 1; i < len(resp.Bases); i++ {
-			require.LessOrEqual(t, resp.Bases[i-1].Name, resp.Bases[i].Name,
-				"bases should be sorted by name")
+		// The Coder Quickstart base is grouped immediately before the Docker
+		// base; every other base is ordered alphabetically by name.
+		quickstartIdx, dockerIdx := -1, -1
+		for i, b := range resp.Bases {
+			switch b.ID {
+			case "quickstart":
+				quickstartIdx = i
+			case "docker":
+				dockerIdx = i
+			}
+		}
+		require.NotEqual(t, -1, quickstartIdx, "quickstart base should be present")
+		require.NotEqual(t, -1, dockerIdx, "docker base should be present")
+		require.Equal(t, dockerIdx-1, quickstartIdx,
+			"quickstart base should be immediately before the docker base")
+
+		// The remaining bases (excluding quickstart) are sorted by name.
+		var names []string
+		for _, b := range resp.Bases {
+			if b.ID == "quickstart" {
+				continue
+			}
+			names = append(names, b.Name)
+		}
+		for i := 1; i < len(names); i++ {
+			require.LessOrEqual(t, names[i-1], names[i],
+				"non-quickstart bases should be sorted by name")
 		}
 	})
 
@@ -174,6 +207,39 @@ func TestTemplateBuilderModules(t *testing.T) {
 					"module %q should be compatible with linux when filtered by docker base", m.ID)
 			}
 		}
+	})
+
+	t.Run("BaseExcludesIncludedModules", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// The quickstart base bundles the git-clone module, so the module
+		// list for that base must omit git-clone to avoid a collision. The
+		// docker base does not bundle it, so it stays available there.
+		quickstartResp, err := client.TemplateBuilderModules(ctx, "quickstart")
+		require.NoError(t, err)
+		require.NotEmpty(t, quickstartResp.Modules,
+			"quickstart should still offer modules other than the ones it bundles")
+		for _, m := range quickstartResp.Modules {
+			require.NotEqual(t, "git-clone", m.ID,
+				"git-clone should be excluded for the quickstart base")
+		}
+
+		dockerResp, err := client.TemplateBuilderModules(ctx, "docker")
+		require.NoError(t, err)
+		var dockerHasGitClone bool
+		for _, m := range dockerResp.Modules {
+			if m.ID == "git-clone" {
+				dockerHasGitClone = true
+				break
+			}
+		}
+		require.True(t, dockerHasGitClone,
+			"git-clone should remain available for bases that do not bundle it")
 	})
 
 	t.Run("ComputedVariablesExcluded", func(t *testing.T) {

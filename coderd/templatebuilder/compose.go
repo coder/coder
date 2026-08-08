@@ -79,7 +79,8 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	}
 
 	baseOS := BaseTemplateOS(req.BaseTemplateID)
-	if err := validateModules(req.Modules, catalog, baseOS); err != nil {
+	baseModules := BaseIncludedModules(req.BaseTemplateID)
+	if err := validateModules(req.Modules, catalog, baseOS, baseModules); err != nil {
 		return nil, err
 	}
 
@@ -199,10 +200,22 @@ func loadCatalogMap() (map[string]ModuleManifest, error) {
 }
 
 // validateModules checks that all requested modules exist, are
-// OS-compatible, have no duplicates, and have no conflicts.
-func validateModules(requested []ComposeModule, catalog map[string]ModuleManifest, baseOS BaseOS) error {
-	seen := make(map[string]bool, len(requested))
+// OS-compatible, have no duplicates, do not collide with a module the base
+// already includes (see BaseManifest.IncludedModules), and have no conflicts.
+func validateModules(requested []ComposeModule, catalog map[string]ModuleManifest, baseOS BaseOS, baseModules []string) error {
+	// Seed the seen-set with the modules the base already declares so the
+	// base and wizard-selected modules occupy a disjoint namespace.
+	seen := make(map[string]bool, len(requested)+len(baseModules))
+	baseIncluded := make(map[string]bool, len(baseModules))
+	for _, id := range baseModules {
+		seen[id] = true
+		baseIncluded[id] = true
+	}
+
 	for _, cm := range requested {
+		if baseIncluded[cm.ID] {
+			return xerrors.Errorf("module %q is already included by this base template", cm.ID)
+		}
 		if seen[cm.ID] {
 			return xerrors.Errorf("duplicate module %q", cm.ID)
 		}
@@ -217,7 +230,11 @@ func validateModules(requested []ComposeModule, catalog map[string]ModuleManifes
 		}
 	}
 
-	// Check conflicts bidirectionally so that order does not matter.
+	// Reject a requested module whose ConflictsWith names an already-seen
+	// module. Every requested module is in `seen` by now, so order does not
+	// matter, and base-included modules seed `seen` too. A base-included
+	// module's own ConflictsWith list is not consulted, which is safe because
+	// base modules are curated.
 	for _, cm := range requested {
 		manifest := catalog[cm.ID]
 		for _, conflict := range manifest.ConflictsWith {

@@ -136,3 +136,79 @@ func ExtractAgentResourceName(hcl []byte) (string, error) {
 			len(matches), names)
 	}
 }
+
+// moduleBlockPattern matches a `module "<name>"` block declaration anchored to
+// the start of a line in HCL.
+var moduleBlockPattern = regexp.MustCompile(`(?m)^[ \t]*module[ \t]+"([^"]+)"`)
+
+// ExtractModuleNames returns the labels of every module block declared in
+// rendered HCL, in declaration order. Matching is anchored to the start of a
+// line so commented-out references or string literals are ignored. The input
+// is expected to be rendered output from our own curated base templates, not
+// arbitrary user HCL.
+func ExtractModuleNames(hcl []byte) []string {
+	matches := moduleBlockPattern.FindAllSubmatch(hcl, -1)
+	names := make([]string, 0, len(matches))
+	for _, m := range matches {
+		names = append(names, string(m[1]))
+	}
+	return names
+}
+
+// coderParameterOpenPattern matches the opening of a `data "coder_parameter"
+// "<name>"` block and captures the parameter name.
+var coderParameterOpenPattern = regexp.MustCompile(`data\s+"coder_parameter"\s+"([^"]+)"\s*\{`)
+
+// coderParameterOptionValuePattern matches the `value = "<v>"` assignment inside
+// an `option { ... }` block. Option blocks in our curated bases contain no
+// nested braces, so [^{}] keeps each match within a single option.
+var coderParameterOptionValuePattern = regexp.MustCompile(`(?s)option\s*\{[^{}]*?\bvalue\s*=\s*"([^"]+)"`)
+
+// ExtractParameterOptionValues returns the value of every option block declared
+// inside the `data "coder_parameter" "<paramName>"` block in rendered HCL, in
+// declaration order. It scopes to that one parameter by scanning from its
+// opening brace to the matching close, so option values from other parameters
+// are not included. Returns nil if the parameter is absent. The input is
+// expected to be rendered output from our own curated base templates, not
+// arbitrary user HCL.
+func ExtractParameterOptionValues(hcl []byte, paramName string) []string {
+	start := -1
+	for _, m := range coderParameterOpenPattern.FindAllSubmatchIndex(hcl, -1) {
+		// m[2]:m[3] bounds the captured name; m[1] is just past the opening brace.
+		if string(hcl[m[2]:m[3]]) == paramName {
+			start = m[1] - 1 // index of the opening '{'
+			break
+		}
+	}
+	if start == -1 {
+		return nil
+	}
+
+	// Walk from the parameter's opening brace to its matching close, tracking
+	// nesting depth, so we only read option values that belong to it.
+	depth := 0
+	end := -1
+scan:
+	for i := start; i < len(hcl); i++ {
+		switch hcl[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				end = i
+				break scan
+			}
+		}
+	}
+	if end == -1 {
+		return nil
+	}
+
+	matches := coderParameterOptionValuePattern.FindAllSubmatch(hcl[start:end+1], -1)
+	values := make([]string, 0, len(matches))
+	for _, m := range matches {
+		values = append(values, string(m[1]))
+	}
+	return values
+}

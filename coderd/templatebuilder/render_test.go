@@ -344,6 +344,7 @@ func TestBaseTemplateSnapshot(t *testing.T) {
 		{exampleID: "digitalocean-linux"},
 		{exampleID: "gcp-linux"},
 		{exampleID: "gcp-windows"},
+		{exampleID: "quickstart"},
 		{exampleID: "scratch"},
 	}
 
