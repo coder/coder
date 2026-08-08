@@ -1640,6 +1640,25 @@ func TestMCPServerUserTokens(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
 	})
 
+	t.Run("GetMCPServerUserTokenByID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		_, tok := insertConfigAndToken(t, crypt, ciphers)
+
+		got, err := crypt.GetMCPServerUserTokenByID(ctx, tok.ID)
+		require.NoError(t, err)
+		require.Equal(t, accessToken, got.AccessToken)
+		require.Equal(t, refreshToken, got.RefreshToken)
+		require.Equal(t, ciphers[0].HexDigest(), got.AccessTokenKeyID.String)
+		require.Equal(t, ciphers[0].HexDigest(), got.RefreshTokenKeyID.String)
+
+		// Raw values must be encrypted.
+		rawTok, err := db.GetMCPServerUserTokenByID(ctx, tok.ID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, accessToken)
+		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
+	})
+
 	t.Run("GetMCPServerUserTokensByUserID", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)

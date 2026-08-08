@@ -235,6 +235,12 @@ func (m MCPServerConfig) RBACObject() rbac.Object {
 		WithACLUserList(m.UserACL.RBACACL())
 }
 
+// MCP OAuth2 tokens are per-user credentials, so access is governed
+// by personal actions on the owning user, not by the config's RBAC.
+func (t MCPServerUserToken) RBACObject() rbac.Object {
+	return rbac.ResourceUserObject(t.UserID)
+}
+
 func (c Chat) IsSubChat() bool {
 	return c.RootChatID.Valid || c.ParentChatID.Valid
 }

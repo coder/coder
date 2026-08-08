@@ -204,6 +204,14 @@ WHERE
     mcp_server_config_id = @mcp_server_config_id::uuid
     AND user_id = @user_id::uuid;
 
+-- name: GetMCPServerUserTokenByID :one
+SELECT
+    *
+FROM
+    mcp_server_user_tokens
+WHERE
+    id = @id::uuid;
+
 -- name: GetMCPServerUserTokensByUserID :many
 SELECT
     *

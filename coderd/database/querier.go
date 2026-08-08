@@ -651,6 +651,7 @@ type sqlcQuerier interface {
 	GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg GetMCPServerConfigByOrganizationAndSlugParams) (MCPServerConfig, error)
 	GetMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
 	GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (MCPServerUserToken, error)
+	GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (MCPServerUserToken, error)
 	GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]MCPServerUserToken, error)
 	// Must be called from within a transaction. The row lock is released
 	// when the transaction ends.
