@@ -1,0 +1,194 @@
+name: audit-docs-paths
+
+# Scheduled audit for docs-URL drift.
+#
+# site/scripts/audit-docs-paths.mjs cross-references every docs("...")
+# call, every hardcoded coder.com/docs/... URL, and every ](/docs/...)
+# Markdown link in the TS/TSX of BOTH coder/coder (site/src) and
+# coder/coder.com (src) against the source side of every /docs/* rule in
+# coder/coder.com/redirects.json. Anything that matches a redirect source
+# is stale: the reference points at a path that now redirects elsewhere
+# and should be updated to the redirect's destination.
+#
+# This runs the audit on a weekly cron (and on demand) so drift is caught
+# automatically instead of only when someone remembers to run the script.
+# The suggestion to schedule it came from the audit script's original PR,
+# coder/coder#25740.
+#
+# Why this job is gated (vars.AUDIT_DOCS_PATHS_ENABLED)
+# ----------------------------------------------------
+# The audit needs coder/coder.com, which is a PRIVATE repo. The default
+# GITHUB_TOKEN cannot read another repo, so the coder.com checkout below
+# uses the cdrci machine-user token (secrets.CDRCI_GITHUB_TOKEN), the
+# same org CI credential already used for cross-repo checkouts in
+# release.yaml. The job
+# stays dormant behind a repository variable so it can merge without
+# running until an operator has validated it once.
+#
+# To enable
+#   1. secrets.CDRCI_GITHUB_TOKEN (the cdrci CI bot, a coder.com
+#      collaborator) reads coder/coder.com. Issue writes on this repo are
+#      covered by the default GITHUB_TOKEN below, not by this token.
+#   2. Set the repository variable AUDIT_DOCS_PATHS_ENABLED to 'true'.
+#   3. Trigger once from the Actions UI (workflow_dispatch) to confirm an
+#      end-to-end run before relying on the schedule.
+#
+# What it does with findings
+#   * Always uploads the dated report as a build artifact and writes it to
+#     the run summary, so a report exists even when the audit is clean.
+#   * On findings, opens (or updates) a single deduplicated tracked issue
+#     with the report and fails the run so the check goes red.
+#   * On a clean run, closes the tracked issue if one is open.
+
+on:
+  schedule:
+    # Weekly, Monday 09:00 UTC - same cadence as the weekly-docs link check.
+    - cron: "0 9 * * 1"
+  workflow_dispatch: # manual, for testing and on-demand audits
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-docs-paths
+  cancel-in-progress: false
+
+jobs:
+  audit-docs-paths:
+    # Dormant until an operator flips the variable. See the header comment.
+    if: vars.AUDIT_DOCS_PATHS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout
+      issues: write # open/update/close the tracked issue via GITHUB_TOKEN
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      # coder/coder at the workspace root so the local composite actions
+      # under ./.github/actions/* resolve normally.
+      - name: Checkout coder/coder
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # coder/coder.com beside it, read with the cdrci org CI token
+      # (the default GITHUB_TOKEN can't read another private repo). The
+      # audit's report path detection keys off the ".../coder/site/" and
+      # ".../coder.com/src/" path segments, which the absolute --roots
+      # below preserve.
+      - name: Checkout coder/coder.com
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ${{ github.repository_owner }}/coder.com
+          path: coder.com
+          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          persist-credentials: false
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node"
+
+      - name: Run docs-paths audit
+        id: audit
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+
+          # Absolute --roots are required: the audit classifies findings by
+          # matching the "/coder/site/" and "/coder.com/src/" segments in
+          # each file's absolute path. Relative roots would leave every
+          # finding unclassified.
+          node site/scripts/audit-docs-paths.mjs \
+            --redirects="${WORKSPACE}/coder.com/redirects.json" \
+            --roots="${WORKSPACE}/site/src,${WORKSPACE}/coder.com/src" \
+            --out="${WORKSPACE}/audit-report.md" \
+            2>&1 | tee "${WORKSPACE}/audit-output.txt"
+
+          count=$(grep -oP 'Total findings: \K\d+' "${WORKSPACE}/audit-output.txt" || echo "0")
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+          echo "Total findings: ${count}"
+
+          {
+            echo "# audit-docs-paths"
+            echo
+            echo "Findings: **${count}**"
+            echo
+            cat "${WORKSPACE}/audit-report.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: audit-docs-paths-report
+          path: ${{ github.workspace }}/audit-report.md
+          if-no-files-found: warn
+
+      - name: Open, update, or close tracked issue
+        if: always() && steps.audit.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          COUNT: ${{ steps.audit.outputs.count }}
+          REPORT: ${{ github.workspace }}/audit-report.md
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TITLE="Docs URL drift detected by audit-docs-paths"
+          MARKER="<!-- audit-docs-paths-tracked-issue -->"
+
+          # Find an existing open tracked issue by exact title.
+          existing=$(gh issue list --repo "$REPO" --state open \
+            --search "${TITLE} in:title" \
+            --json number,title \
+            --jq "map(select(.title == \"${TITLE}\")) | (.[0].number // empty)")
+
+          if [ "${COUNT:-0}" -gt 0 ]; then
+            body_file="$(mktemp)"
+            {
+              echo "${MARKER}"
+              echo
+              echo "The scheduled \`audit-docs-paths\` workflow found **${COUNT}** stale docs path reference(s) that resolve to a redirect source in \`coder/coder.com/redirects.json\`. Each should be updated to the redirect's destination."
+              echo
+              echo "- Latest run: ${RUN_URL}"
+              echo "- Full report: the \`audit-docs-paths-report\` artifact on that run."
+              echo
+              echo "<details><summary>Report</summary>"
+              echo
+              # Cap the embedded report to stay under GitHub's ~65k issue
+              # body limit; the full report is always in the artifact.
+              head -c 55000 "${REPORT}"
+              echo
+              echo "</details>"
+            } > "${body_file}"
+
+            if [ -n "${existing}" ]; then
+              gh issue edit "${existing}" --repo "${REPO}" --body-file "${body_file}"
+              echo "Updated tracked issue #${existing}."
+            else
+              gh issue create --repo "${REPO}" --title "${TITLE}" --body-file "${body_file}"
+              echo "Created tracked issue."
+            fi
+          else
+            if [ -n "${existing}" ]; then
+              gh issue comment "${existing}" --repo "${REPO}" \
+                --body "Audit is clean as of [this run](${RUN_URL}). Closing."
+              gh issue close "${existing}" --repo "${REPO}"
+              echo "Closed tracked issue #${existing} (audit clean)."
+            else
+              echo "Audit clean and no tracked issue open; nothing to do."
+            fi
+          fi
+
+      - name: Fail the run when findings exist
+        if: steps.audit.outputs.count != '' && steps.audit.outputs.count != '0'
+        env:
+          COUNT: ${{ steps.audit.outputs.count }}
+        run: |
+          echo "::error::audit-docs-paths found ${COUNT} stale docs path reference(s). See the tracked issue and the audit-docs-paths-report artifact."
+          exit 1
