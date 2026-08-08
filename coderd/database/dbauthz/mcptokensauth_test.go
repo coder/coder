@@ -85,6 +85,45 @@ func TestMCPServerUserTokensAuth(t *testing.T) {
 		},
 	}
 
+	t.Run("ChatdSubjects", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := dbgen.MCPServerConfig(t, store, database.MCPServerConfig{
+			OrganizationID: org.ID,
+		})
+		token, err := store.UpsertMCPServerUserToken(context.Background(), database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            owner.ID,
+			AccessToken:       "chatd-access-token",
+			TokenType:         "bearer",
+		})
+		require.NoError(t, err)
+
+		markFailure := func(ctx context.Context) error {
+			_, err := db.MarkMCPServerUserTokenRefreshFailure(ctx, database.MarkMCPServerUserTokenRefreshFailureParams{
+				ID:                        token.ID,
+				UpdatedAt:                 token.UpdatedAt,
+				OauthRefreshFailureReason: "test",
+			})
+			return err
+		}
+
+		// The daemon-wide chatd subject may read tokens but must not
+		// hold personal-write access anywhere.
+		chatdCtx := dbauthz.AsChatd(context.Background())
+		_, err = db.GetMCPServerUserToken(chatdCtx, database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            owner.ID,
+		})
+		requireAuthorized(t, err)
+		requireNotAuthorized(t, markFailure(chatdCtx))
+
+		// The per-user token-owner subject writes only its own
+		// owner's rows.
+		requireNotAuthorized(t, markFailure(dbauthz.AsChatdTokenOwner(context.Background(), stranger.ID)))
+		require.NoError(t, markFailure(dbauthz.AsChatdTokenOwner(context.Background(), owner.ID)))
+	})
+
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
