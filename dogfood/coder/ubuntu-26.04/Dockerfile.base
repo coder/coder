@@ -214,6 +214,9 @@ COPY --chmod=0644 <<'EOF' /etc/mise/conf.d/00-coder-trust.toml
 trusted_config_paths = [
   "/home/coder/coder",
   "/etc/mise",
+  # Mux worktrees carry the repo's mise.toml; untrusted configs make
+  # mise shims hang on an interactive trust prompt in fresh worktrees.
+  "/home/coder/.mux/src",
 ]
 EOF
 
