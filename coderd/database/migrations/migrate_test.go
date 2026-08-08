@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -1669,7 +1670,10 @@ func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
 	for {
 		version, more, err := next()
 		require.NoError(t, err)
-		if !more || version == priorMigrationVersion {
+		if !more {
+			t.Fatalf("migration %d not found", priorMigrationVersion)
+		}
+		if version == priorMigrationVersion {
 			break
 		}
 	}
@@ -2738,4 +2742,265 @@ func TestMigration000562OAuth2PublicClientTokensBackfill(t *testing.T) {
 	`).Scan(&isNullable)
 	require.NoError(t, err)
 	require.Equal(t, "YES", isNullable, "app_secret_id should be nullable after the migration")
+}
+
+// setupMigration000565Apps steps to the migration just before 000565 and seeds
+// one oauth2_provider_apps row per token_endpoint_auth_method shape that 000566
+// repairs or preserves. 000565's NULL client_type case is seeded in its own
+// test, since it is about the column this helper always populates. Returns the
+// app IDs keyed by the shape they were seeded with.
+func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[string]uuid.UUID) {
+	t.Helper()
+
+	const priorMigrationVersion = 564
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", priorMigrationVersion)
+		}
+		if version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	// "legacy" is the row the known bug produced: the client asked for "none",
+	// which RFC 7591 section 2 defines as public, but client_type was hardcoded
+	// confidential and a secret was issued anyway.
+	ids := map[string]uuid.UUID{
+		"legacy":            uuid.New(), // confidential + none  -> auth method must be repaired
+		"nullMethod":        uuid.New(), // confidential + NULL  -> auth method must be repaired
+		"publicMismatched":  uuid.New(), // public + client_secret_basic -> auth method must be repaired
+		"confidentialBasic": uuid.New(), // already consistent  -> must be left alone
+		"confidentialPost":  uuid.New(), // already consistent, and post must not be flattened to basic
+		"publicNone":        uuid.New(), // already consistent  -> must be left alone
+		"confidentialEmpty": uuid.New(), // confidential + ''        -> repaired only by the widened predicate
+		"confidentialJunk":  uuid.New(), // confidential + unknown   -> repaired only by the widened predicate
+		"publicNull":        uuid.New(), // public + NULL            -> the second UPDATE's IS NULL arm
+	}
+
+	seed := func(id uuid.UUID, name, clientType string, authMethod *string) {
+		t.Helper()
+		_, err := sqlDB.ExecContext(ctx, `
+			INSERT INTO oauth2_provider_apps
+				(id, created_at, updated_at, name, icon, callback_url, client_type, token_endpoint_auth_method)
+			VALUES ($1, $2, $2, $3, '', 'http://localhost/callback', $4, $5)
+		`, id, now, name, clientType, authMethod)
+		require.NoError(t, err)
+	}
+	seed(ids["legacy"], "test-565-legacy", "confidential", ptr.Ref("none"))
+	seed(ids["nullMethod"], "test-565-null", "confidential", nil)
+	seed(ids["publicMismatched"], "test-565-public-mismatch", "public", ptr.Ref("client_secret_basic"))
+	seed(ids["confidentialBasic"], "test-565-basic", "confidential", ptr.Ref("client_secret_basic"))
+	seed(ids["confidentialPost"], "test-565-post", "confidential", ptr.Ref("client_secret_post"))
+	seed(ids["publicNone"], "test-565-public", "public", ptr.Ref("none"))
+	// Neither of these is producible by today's write path: ApplyDefaults maps
+	// "" to client_secret_basic and Valid() rejects unknown methods. They stand
+	// in for history the squashed log cannot rule out, and both would satisfy
+	// the eventual cross-column constraint while remaining unusable.
+	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", ptr.Ref(""))
+	seed(ids["confidentialJunk"], "test-565-junk", "confidential", ptr.Ref("client_secret_jwt"))
+	seed(ids["publicNull"], "test-565-public-null", "public", nil)
+
+	return sqlDB, ctx, ids
+}
+
+// TestMigration000565OAuth2ClientTypeConstraint covers the constraint migration:
+// a NULL client_type is backfilled, the column becomes NOT NULL, and the CHECK
+// rejects any value other than the two canonical ones.
+func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, ctx, _ := setupMigration000565Apps(t)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	// A NULL client_type must survive the migration as 'confidential', the
+	// fail-closed direction, rather than blocking SET NOT NULL.
+	nullTypeID := uuid.New()
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO oauth2_provider_apps
+			(id, created_at, updated_at, name, icon, callback_url, client_type)
+		VALUES ($1, $2, $2, 'test-565-nulltype', '', 'http://localhost/callback', NULL)
+	`, nullTypeID, now)
+	require.NoError(t, err)
+
+	migrationSQL, err := os.ReadFile("000565_oauth2_client_type_constraint.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
+	require.NoError(t, err)
+
+	var backfilled string
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT client_type FROM oauth2_provider_apps WHERE id = $1`, nullTypeID,
+	).Scan(&backfilled)
+	require.NoError(t, err)
+	require.Equal(t, "confidential", backfilled,
+		"a NULL client_type must read as confidential, the direction that keeps requiring a secret")
+
+	var isNullable string
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT is_nullable FROM information_schema.columns
+		WHERE table_name = 'oauth2_provider_apps' AND column_name = 'client_type'
+	`).Scan(&isNullable)
+	require.NoError(t, err)
+	require.Equal(t, "NO", isNullable, "client_type should be NOT NULL after the migration")
+
+	// Prove the CHECK rejects rather than trusting that it exists.
+	for _, badValue := range []string{"Public", "PUBLIC", "public ", "bogus", ""} {
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO oauth2_provider_apps
+				(id, created_at, updated_at, name, icon, callback_url, client_type)
+			VALUES ($1, $2, $2, $3, '', 'http://localhost/callback', $4)
+		`, uuid.New(), now, "test-565-bad-"+badValue, badValue)
+		require.Error(t, err, "client_type %q must be rejected by the CHECK constraint", badValue)
+		require.True(t, database.IsCheckViolation(err, database.CheckOauth2ProviderAppsClientTypeCheck),
+			"client_type %q must fail the check constraint specifically", badValue)
+	}
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO oauth2_provider_apps
+			(id, created_at, updated_at, name, icon, callback_url, client_type)
+		VALUES ($1, $2, $2, 'test-565-null-after', '', 'http://localhost/callback', NULL)
+	`, uuid.New(), now)
+	require.ErrorContains(t, err, "not-null")
+
+	// Both canonical values must still be insertable.
+	for _, goodValue := range []string{"confidential", "public"} {
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO oauth2_provider_apps
+				(id, created_at, updated_at, name, icon, callback_url, client_type)
+			VALUES ($1, $2, $2, $3, '', 'http://localhost/callback', $4)
+		`, uuid.New(), now, "test-565-good-"+goodValue, goodValue)
+		require.NoError(t, err, "client_type %q must remain valid", goodValue)
+	}
+}
+
+// TestMigration000566OAuth2AuthMethodBackfill covers the repair the backfill
+// exists for, which the shared fixture does not reach: it seeds no
+// token_endpoint_auth_method at all, so the '= none' branch, the one that fixes
+// the actual bug, matches zero rows in CI.
+//
+// token_endpoint_auth_method is the client's own RFC 7591 declaration;
+// client_type is the derived value the token endpoint enforces on. Where they
+// contradict, the declaration is aligned to what is enforced, never the reverse:
+// deriving enforcement from the declaration would reclassify a confidential
+// client holding a real secret as public and stop requiring that secret.
+func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, ctx, ids := setupMigration000565Apps(t)
+
+	// 000566 runs after 000565, so apply both in order.
+	for _, name := range []string{
+		"000565_oauth2_client_type_constraint.up.sql",
+		"000566_oauth2_auth_method_backfill.up.sql",
+	} {
+		migrationSQL, err := os.ReadFile(name)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
+		require.NoError(t, err, "applying %s", name)
+	}
+
+	tests := []struct {
+		key        string
+		wantMethod string
+		reason     string
+	}{
+		{
+			key:        "legacy",
+			wantMethod: "client_secret_basic",
+			reason:     "a confidential client declaring \"none\" is the bug this migration repairs",
+		},
+		{
+			key:        "nullMethod",
+			wantMethod: "client_secret_basic",
+			reason:     "a confidential client with no declaration gets the RFC 7591 default",
+		},
+		{
+			key:        "publicMismatched",
+			wantMethod: "none",
+			reason:     "a public client cannot declare a secret-based method",
+		},
+		{
+			key:        "confidentialBasic",
+			wantMethod: "client_secret_basic",
+			reason:     "already consistent, must be left alone",
+		},
+		{
+			key:        "confidentialPost",
+			wantMethod: "client_secret_post",
+			reason:     "client_secret_post is consistent with confidential and must not be flattened to basic",
+		},
+		{
+			key:        "publicNone",
+			wantMethod: "none",
+			reason:     "already consistent, must be left alone",
+		},
+		{
+			key:        "confidentialEmpty",
+			wantMethod: "client_secret_basic",
+			reason:     "an empty declaration is not a valid confidential method and must be repaired, not just the known 'none' case",
+		},
+		{
+			key:        "confidentialJunk",
+			wantMethod: "client_secret_basic",
+			reason:     "an unrecognized declaration must be repaired too, so the migration is idempotent against history it cannot inspect",
+		},
+		{
+			key:        "publicNull",
+			wantMethod: "none",
+			reason:     "exercises the second UPDATE's IS NULL arm, which no other seeded row reaches",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			t.Parallel()
+
+			// A parallel subtest's own context, not the parent's. The parent's
+			// deadline starts when it is created, but a parallel subtest does
+			// not run until a -parallel slot frees, so it can spend most of the
+			// budget queued behind other tests in the package and then fail with
+			// "context deadline exceeded" on a sub-20ms read. That failure names
+			// no code and gets worse as the package grows.
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			var gotMethod, gotClientType string
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT token_endpoint_auth_method, client_type
+				FROM oauth2_provider_apps WHERE id = $1
+			`, ids[tt.key]).Scan(&gotMethod, &gotClientType)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantMethod, gotMethod, tt.reason)
+		})
+	}
+
+	// The invariant the migration establishes, stated directly: no row may
+	// declare "none" while being enforced as confidential, or vice versa.
+	// IS DISTINCT FROM, not <>: with <> a NULL declaration makes the comparison
+	// NULL and WHERE drops the row, so an unrepaired NULL would count as
+	// consistent. The same trap awaits the permanent cross-column CHECK.
+	var contradictions int
+	err := sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FROM oauth2_provider_apps
+		WHERE (token_endpoint_auth_method = 'none') IS DISTINCT FROM (client_type = 'public')
+	`).Scan(&contradictions)
+	require.NoError(t, err)
+	require.Zero(t, contradictions,
+		"after the backfill no row may declare an auth method that contradicts its enforced client type")
+
+	var stillConfidential string
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT client_type FROM oauth2_provider_apps WHERE id = $1`, ids["legacy"],
+	).Scan(&stillConfidential)
+	require.NoError(t, err)
+	require.Equal(t, "confidential", stillConfidential,
+		"the backfill aligns the declaration to what is enforced, so the enforced value must be unchanged")
 }
