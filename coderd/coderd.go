@@ -1347,15 +1347,19 @@ func New(options *Options) *API {
 			})
 		})
 		r.Route("/mcp-servers/{mcpserverconfig}", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.ExtractMCPServerConfigParam(options.Database),
-			)
-			r.Get("/", api.getMCPServerConfig)
-			r.Patch("/", api.updateMCPServerConfig)
-			r.Delete("/", api.deleteMCPServerConfig)
-			r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
+			r.Use(apiKeyMiddleware)
+			// Disconnect skips the read-gated param middleware so
+			// token owners who can no longer read the config, such
+			// as users removed from the organization, can still
+			// delete their token and revoke the provider grant.
 			r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.ExtractMCPServerConfigParam(options.Database))
+				r.Get("/", api.getMCPServerConfig)
+				r.Patch("/", api.updateMCPServerConfig)
+				r.Delete("/", api.deleteMCPServerConfig)
+				r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
+			})
 		})
 		r.Route("/organizations/{organization}/mcp-servers", func(r chi.Router) {
 			r.Use(
