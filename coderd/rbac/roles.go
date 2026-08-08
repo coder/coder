@@ -1159,8 +1159,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
-		// TODO(mafredri): Remove once CODAGT-712 replaces this grant with
-		// per-config ACL evaluation.
+		// TODO(mafredri): remove once CODAGT-712 adds per-config ACL evaluation.
 		ResourceMCPServerConfig.Type: {policy.ActionRead},
 	}
 
@@ -1239,8 +1238,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
-		// TODO(mafredri): Remove once CODAGT-712 replaces this grant with
-		// per-config ACL evaluation.
+		// TODO(mafredri): remove once CODAGT-712 adds per-config ACL evaluation.
 		ResourceMCPServerConfig.Type: {policy.ActionRead},
 	}
 
