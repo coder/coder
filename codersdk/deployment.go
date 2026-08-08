@@ -732,6 +732,9 @@ type DeploymentValues struct {
 	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	ProxyHeaderPassUserID                   serpent.Bool                         `json:"proxy_header_pass_user_id,omitempty" typescript:",notnull"`
+	ProxyHeaderPassUsername                 serpent.Bool                         `json:"proxy_header_pass_username,omitempty" typescript:",notnull"`
+	ProxyHeaderPassUserEmail                serpent.Bool                         `json:"proxy_header_pass_user_email,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
@@ -3761,6 +3764,33 @@ communicating directly.`,
 
 			Value: &c.DisableChatSharing,
 			YAML:  "disableChatSharing",
+		},
+		{
+			Name:        "Pass User ID Header to Workspace Apps",
+			Description: "Include the X-Coder-User-Id header containing the visitor's user ID when proxying requests to workspace apps.",
+			Flag:        "proxy-header-pass-user-id",
+			Env:         "CODER_PROXY_HEADER_PASS_USER_ID",
+			Value:       &c.ProxyHeaderPassUserID,
+			YAML:        "proxyHeaderPassUserID",
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "Pass Username Header to Workspace Apps",
+			Description: "Include the X-Coder-Username header containing the visitor's username when proxying requests to workspace apps.",
+			Flag:        "proxy-header-pass-username",
+			Env:         "CODER_PROXY_HEADER_PASS_USERNAME",
+			Value:       &c.ProxyHeaderPassUsername,
+			YAML:        "proxyHeaderPassUsername",
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "Pass User Email Header to Workspace Apps",
+			Description: "Include the X-Coder-User-Email header containing the visitor's email address when proxying requests to workspace apps.",
+			Flag:        "proxy-header-pass-user-email",
+			Env:         "CODER_PROXY_HEADER_PASS_USER_EMAIL",
+			Value:       &c.ProxyHeaderPassUserEmail,
+			YAML:        "proxyHeaderPassUserEmail",
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Session Duration",

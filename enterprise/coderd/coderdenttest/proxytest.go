@@ -29,12 +29,15 @@ type ProxyOptions struct {
 	Name        string
 	Experiments codersdk.Experiments
 
-	TLSCertificates []tls.Certificate
-	AppHostname     string
-	DisablePathApps bool
-	DerpDisabled    bool
-	DerpOnly        bool
-	BlockDirect     bool
+	TLSCertificates          []tls.Certificate
+	AppHostname              string
+	DisablePathApps          bool
+	ProxyHeaderPassUserID    bool
+	ProxyHeaderPassUsername  bool
+	ProxyHeaderPassUserEmail bool
+	DerpDisabled             bool
+	DerpOnly                 bool
+	BlockDirect              bool
 
 	// ProxyURL is optional
 	ProxyURL *url.URL
@@ -151,18 +154,21 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 		Logger: logger,
 		// It's important to ensure each test has its own isolated transport to avoid interfering with other tests
 		// especially in shutdown.
-		HTTPClient:        &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone()},
-		Experiments:       options.Experiments,
-		DashboardURL:      coderdAPI.AccessURL,
-		AccessURL:         accessURL,
-		AppHostname:       options.AppHostname,
-		AppHostnameRegex:  appHostnameRegex,
-		RealIPConfig:      coderdAPI.RealIPConfig,
-		Tracing:           coderdAPI.TracerProvider,
-		APIRateLimit:      coderdAPI.APIRateLimit,
-		CookieConfig:      coderdAPI.DeploymentValues.HTTPCookies,
-		ProxySessionToken: token,
-		DisablePathApps:   options.DisablePathApps,
+		HTTPClient:               &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone()},
+		Experiments:              options.Experiments,
+		DashboardURL:             coderdAPI.AccessURL,
+		AccessURL:                accessURL,
+		AppHostname:              options.AppHostname,
+		AppHostnameRegex:         appHostnameRegex,
+		RealIPConfig:             coderdAPI.RealIPConfig,
+		Tracing:                  coderdAPI.TracerProvider,
+		APIRateLimit:             coderdAPI.APIRateLimit,
+		CookieConfig:             coderdAPI.DeploymentValues.HTTPCookies,
+		ProxySessionToken:        token,
+		DisablePathApps:          options.DisablePathApps,
+		ProxyHeaderPassUserID:    options.ProxyHeaderPassUserID,
+		ProxyHeaderPassUsername:  options.ProxyHeaderPassUsername,
+		ProxyHeaderPassUserEmail: options.ProxyHeaderPassUserEmail,
 		// We need a new registry to not conflict with the coderd internal
 		// proxy metrics.
 		PrometheusRegistry:     prometheus.NewRegistry(),

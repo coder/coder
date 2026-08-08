@@ -57,6 +57,9 @@ type DeploymentOptions struct {
 	DisableSubdomainApps                 bool
 	DangerousAllowPathAppSharing         bool
 	DangerousAllowPathAppSiteOwnerAccess bool
+	ProxyHeaderPassUserID                bool
+	ProxyHeaderPassUsername              bool
+	ProxyHeaderPassUserEmail             bool
 	ServeHTTPS                           bool
 
 	StatsCollectorOptions workspaceapps.StatsCollectorOptions

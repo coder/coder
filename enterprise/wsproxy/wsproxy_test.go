@@ -873,6 +873,9 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 		deploymentValues.DisablePathApps = serpent.Bool(opts.DisablePathApps)
 		deploymentValues.Dangerous.AllowPathAppSharing = serpent.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
+		deploymentValues.ProxyHeaderPassUserID = serpent.Bool(opts.ProxyHeaderPassUserID)
+		deploymentValues.ProxyHeaderPassUsername = serpent.Bool(opts.ProxyHeaderPassUsername)
+		deploymentValues.ProxyHeaderPassUserEmail = serpent.Bool(opts.ProxyHeaderPassUserEmail)
 		deploymentValues.Experiments = []string{
 			"*",
 		}
@@ -931,10 +934,13 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			opts.AppHost = ""
 		}
 		proxyAPI := coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
-			Name:            "best-proxy",
-			AppHostname:     opts.AppHost,
-			DisablePathApps: opts.DisablePathApps,
-			FlushStats:      proxyStatsCollectorFlushCh,
+			Name:                     "best-proxy",
+			AppHostname:              opts.AppHost,
+			DisablePathApps:          opts.DisablePathApps,
+			ProxyHeaderPassUserID:    opts.ProxyHeaderPassUserID,
+			ProxyHeaderPassUsername:  opts.ProxyHeaderPassUsername,
+			ProxyHeaderPassUserEmail: opts.ProxyHeaderPassUserEmail,
+			FlushStats:               proxyStatsCollectorFlushCh,
 		})
 
 		return &apptest.Deployment{
@@ -960,6 +966,9 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 		deploymentValues.DisablePathApps = serpent.Bool(opts.DisablePathApps)
 		deploymentValues.Dangerous.AllowPathAppSharing = serpent.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
+		deploymentValues.ProxyHeaderPassUserID = serpent.Bool(opts.ProxyHeaderPassUserID)
+		deploymentValues.ProxyHeaderPassUsername = serpent.Bool(opts.ProxyHeaderPassUsername)
+		deploymentValues.ProxyHeaderPassUserEmail = serpent.Bool(opts.ProxyHeaderPassUserEmail)
 		deploymentValues.Experiments = []string{
 			"*",
 		}

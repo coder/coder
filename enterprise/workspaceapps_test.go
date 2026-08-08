@@ -22,6 +22,9 @@ func TestWorkspaceApps(t *testing.T) {
 		deploymentValues.DisablePathApps = serpent.Bool(opts.DisablePathApps)
 		deploymentValues.Dangerous.AllowPathAppSharing = serpent.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
+		deploymentValues.ProxyHeaderPassUserID = serpent.Bool(opts.ProxyHeaderPassUserID)
+		deploymentValues.ProxyHeaderPassUsername = serpent.Bool(opts.ProxyHeaderPassUsername)
+		deploymentValues.ProxyHeaderPassUserEmail = serpent.Bool(opts.ProxyHeaderPassUserEmail)
 		deploymentValues.Experiments = []string{
 			"*",
 		}
