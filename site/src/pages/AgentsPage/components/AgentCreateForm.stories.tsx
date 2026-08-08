@@ -571,7 +571,7 @@ export const WithWorkspaces: Story = {
 			body.getByText("Attach workspace").closest("button")!,
 		);
 		// Wait for the workspace combobox dropdown to appear so
-		// Chromatic captures it.
+		// the snapshot captures it.
 		await body.findByPlaceholderText("Search workspaces...");
 	},
 };
