@@ -618,6 +618,9 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 build/.bin/develop: go.mod go.sum $(wildcard scripts/develop/*.go)
 	CGO_ENABLED=0 go build -o $@ ./scripts/develop
 
+build/.bin/develop-local-cluster: go.mod go.sum $(wildcard scripts/develop-local-cluster/*.go)
+	CGO_ENABLED=0 go build -o $@ ./scripts/develop-local-cluster
+
 BOLD := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)
 RED := $(shell tput setaf 1 2>/dev/null)
