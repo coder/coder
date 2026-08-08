@@ -2782,8 +2782,23 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		req.MCPServerIDs = &normalizedMCPServerIDs
-		if len(invalidMCPServerIDs) > 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, invalidChatMCPServerIDsResponse(invalidMCPServerIDs))
+		// IDs already persisted on the chat are exempt: a server that
+		// is disabled or revoked after selection must not block sends.
+		// The generation path skips servers the chat can no longer use,
+		// and keeping the ID preserves the selection if the server is
+		// re-enabled.
+		persisted := make(map[uuid.UUID]struct{}, len(chat.MCPServerIDs))
+		for _, id := range chat.MCPServerIDs {
+			persisted[id] = struct{}{}
+		}
+		newlyInvalid := make([]uuid.UUID, 0, len(invalidMCPServerIDs))
+		for _, id := range invalidMCPServerIDs {
+			if _, ok := persisted[id]; !ok {
+				newlyInvalid = append(newlyInvalid, id)
+			}
+		}
+		if len(newlyInvalid) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, invalidChatMCPServerIDsResponse(newlyInvalid))
 			return
 		}
 	}
