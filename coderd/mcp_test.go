@@ -505,6 +505,15 @@ func TestMCPServerConfigACL(t *testing.T) {
 	_, err = nonMemberClient.MCPServerConfigByID(ctx, config.ID)
 	require.NoError(t, err)
 
+	// The sparse user-only update must merge with the existing ACL, not
+	// clobber the earlier group grant.
+	aclResponse, err = adminClient.MCPServerConfigACL(ctx, config.ID)
+	require.NoError(t, err)
+	require.Len(t, aclResponse.Groups, 1)
+	require.Equal(t, group.ID, aclResponse.Groups[0].ID)
+	require.Len(t, aclResponse.Users, 1)
+	require.Equal(t, nonMember.ID, aclResponse.Users[0].ID)
+
 	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
 	err = adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
@@ -515,6 +524,17 @@ func TestMCPServerConfigACL(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	require.Contains(t, sdkErr.Error(), otherGroup.ID.String())
+
+	foreignUser := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: foreignUser.ID})
+	err = adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			foreignUser.ID.String(): codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Error(), foreignUser.ID.String())
 }
 
 // TestMCPServerConfigsSecretsNeverLeaked is a load-bearing test that
