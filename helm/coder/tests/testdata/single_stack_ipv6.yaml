@@ -1,0 +1,4 @@
+coder:
+  image:
+    tag: latest
+  singleStackIPv6: true

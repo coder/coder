@@ -232,6 +232,13 @@ coder:
   # This is an Enterprise feature. Contact sales@coder.com.
   replicaCount: 1
 
+  # coder.singleStackIPv6
+  # This is currently used only to populate CODER_DERP_SERVER_RELAY_URL.
+  # CODER_DERP_SERVER_RELAY_URL is populated with a http:// address which
+  # requires square brackets when used in an IPv6 only deployment.
+  # ref: https://github.com/coder/coder/issues/27266
+  singleStackIPv6: false
+
   # coder.workspaceProxy -- Whether or not this deployment of Coder is a Coder
   # Workspace Proxy. Workspace Proxies reduce the latency between the user and
   # their workspace for web connections (workspace apps and web terminal) and

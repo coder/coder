@@ -93,7 +93,7 @@ env:
     fieldRef:
       fieldPath: status.podIP
 - name: CODER_DERP_SERVER_RELAY_URL
-  value: "http://$(KUBE_POD_IP):8080"
+  value: {{ if .Values.coder.singleStackIPv6 }}"http://[$(KUBE_POD_IP)]:8080"{{ else }}"http://$(KUBE_POD_IP):8080"{{ end }}
 - name: CODER_CLUSTER_HOST
   valueFrom:
     fieldRef:
