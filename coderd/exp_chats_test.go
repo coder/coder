@@ -488,6 +488,80 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, "Invalid IDs: "+disabledCfg.ID.String(), sdkErr.Detail)
 	})
 
+	t.Run("MCPServerIDsPersistedDisabledStillSendable", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		cfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a server that is disabled later",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{cfg.ID},
+		})
+		require.NoError(t, err)
+
+		_, err = client.Client.UpdateMCPServerConfig(ctx, cfg.ID, codersdk.UpdateMCPServerConfigRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		// The frontend resubmits the persisted selection on every
+		// send, so a server disabled after selection must not block
+		// the send.
+		_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "still sendable after the server was disabled",
+				},
+			},
+			MCPServerIDs: &[]uuid.UUID{cfg.ID},
+		})
+		require.NoError(t, err)
+
+		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{cfg.ID}, storedChat.MCPServerIDs)
+
+		secondCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+		_, err = client.Client.UpdateMCPServerConfig(ctx, secondCfg.ID, codersdk.UpdateMCPServerConfigRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "adding another disabled server is rejected",
+				},
+			},
+			MCPServerIDs: &[]uuid.UUID{cfg.ID, secondCfg.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid IDs: "+secondCfg.ID.String(), sdkErr.Detail)
+	})
+
 	t.Run("MCPServerIDsThirdOrgRejected", func(t *testing.T) {
 		t.Parallel()
 
