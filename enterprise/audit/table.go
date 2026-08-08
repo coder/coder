@@ -247,7 +247,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
 	},
 	&database.APIKey{}: {
-		"id":               ActionIgnore,
+		"id":               ActionTrack, // The ID is the public token prefix; not a secret.
 		"hashed_secret":    ActionIgnore,
 		"user_id":          ActionTrack,
 		"last_used":        ActionTrack,

@@ -94,12 +94,12 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.AuditableGroup:
 		return typed.Group.Name
 	case database.APIKey:
-		if typed.TokenName != "nil" {
+		if typed.TokenName != "nil" && typed.TokenName != "" {
 			return typed.TokenName
 		}
-		// API Keys without names are used for auth
-		// and don't have a target
-		return ""
+		// Unnamed API keys (e.g. session keys) fall back to the key ID (the
+		// public token prefix) so audit rows identify which key was affected.
+		return typed.ID
 	case database.License:
 		return strconv.Itoa(int(typed.ID))
 	case database.WorkspaceProxy:
