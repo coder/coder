@@ -33,6 +33,7 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
+import { ChatTimelineRailContainer } from "./components/ChatConversation/ChatTimelineRail";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import type { useChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
@@ -906,6 +907,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							hasMoreMessages={hasMoreMessages}
 							onFetchMoreMessages={onFetchMoreMessages}
 							messageCount={messageCount}
+							overlay={
+								<ChatTimelineRailContainer
+									scrollContainerRef={scrollContainerRef}
+									store={store}
+								/>
+							}
 						>
 							<div className="px-4" data-chat-scroll-content>
 								<ChatPageTimeline

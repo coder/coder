@@ -1067,7 +1067,13 @@ const StickyUserMessage = memo<{
 
 		return (
 			<>
-				<div ref={setSentinelRef} className="h-0" data-user-sentinel />
+				<div
+					ref={setSentinelRef}
+					className="h-0"
+					data-user-sentinel
+					data-timeline-anchor-id={messageId}
+					data-timeline-anchor-role="user"
+				/>
 				<div
 					ref={containerRef}
 					className={cn(
@@ -1357,32 +1363,42 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						// last in a consecutive assistant chain. Flags are
 						// precomputed in a single reverse pass above.
 						const isLastInChain = lastInChainFlags[msgIdx];
+						const hasErrorTool = parsed.tools.some((t) => t.isError);
 						return (
-							<ChatMessageItem
+							<div
 								key={message.id}
-								message={message}
-								parsed={parsed}
-								onImplementPlan={onImplementPlan}
-								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-								isChatCompleted={isChatCompleted}
-								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-								askUserQuestionResponseTextByToolId={
-									historicalAskUserQuestionResponseTextByToolId
-								}
-								hasUserResponseAfterAskQuestion={
-									hasUserResponseAfterAskQuestion
-								}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-								hideActions={!isLastInChain}
-								hasActiveStream={Boolean(hasActiveStream)}
-								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
-								isLastMessage={msgIdx === displayMessages.length - 1}
-								mcpServers={mcpServers}
-								subagentTitles={subagentTitles}
-								subagentVariants={subagentVariants}
-								showDesktopPreviews={showDesktopPreviews}
-							/>
+								data-timeline-anchor-id={message.id}
+								data-timeline-anchor-role="assistant"
+								data-timeline-anchor-error={hasErrorTool ? "true" : undefined}
+							>
+								<ChatMessageItem
+									key={message.id}
+									message={message}
+									parsed={parsed}
+									onImplementPlan={onImplementPlan}
+									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+									isChatCompleted={isChatCompleted}
+									latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+									askUserQuestionResponseTextByToolId={
+										historicalAskUserQuestionResponseTextByToolId
+									}
+									hasUserResponseAfterAskQuestion={
+										hasUserResponseAfterAskQuestion
+									}
+									urlTransform={urlTransform}
+									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									hideActions={!isLastInChain}
+									hasActiveStream={Boolean(hasActiveStream)}
+									isAwaitingFirstStreamChunk={Boolean(
+										isAwaitingFirstStreamChunk,
+									)}
+									isLastMessage={msgIdx === displayMessages.length - 1}
+									mcpServers={mcpServers}
+									subagentTitles={subagentTitles}
+									subagentVariants={subagentVariants}
+									showDesktopPreviews={showDesktopPreviews}
+								/>
+							</div>
 						);
 					})}
 				</div>
