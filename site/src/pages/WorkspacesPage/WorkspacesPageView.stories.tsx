@@ -172,6 +172,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 		checkedWorkspaces: [],
 		templates: mockTemplates,
 		templatesFetchStatus: "success",
+		templateBuilderEnabled: true,
 		canCreateWorkspace: true,
 		count: 13,
 		page: 1,

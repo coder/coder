@@ -10,6 +10,7 @@ interface WorkspacesEmptyProps {
 	isUsingFilter: boolean;
 	templates?: Template[];
 	canCreateTemplate: boolean;
+	templateBuilderEnabled: boolean;
 	canCreateWorkspace: boolean;
 }
 
@@ -17,6 +18,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,
 	templates,
 	canCreateTemplate,
+	templateBuilderEnabled,
 	canCreateWorkspace,
 }) => {
 	const getLink = useLinks();
@@ -54,7 +56,13 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 				description={`${defaultMessage} To create a workspace, you first need to create a template.`}
 				cta={
 					<Button asChild>
-						<Link to="/templates">Go to templates</Link>
+						<Link
+							to={
+								templateBuilderEnabled ? "/templates/new/builder" : "/templates"
+							}
+						>
+							Create a template
+						</Link>
 					</Button>
 				}
 				className="pb-0"
