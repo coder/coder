@@ -620,14 +620,19 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
-		// Lock and re-fetch the row so omitted fields come from the latest
-		// version and grant invalidation serializes with in-flight OAuth
-		// callbacks verifying the same config.
+		// Re-fetch under a row lock so the merge base and the audit
+		// baseline are the row this update actually replaces, and so
+		// grant invalidation serializes with in-flight OAuth callbacks
+		// verifying the same config. The middleware snapshot may be
+		// stale by now, and merging onto it would silently revert a
+		// concurrent update without recording the reverted fields in
+		// the audit diff.
 		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, existing.ID)
 		if err != nil {
 			return err
 		}
 		existing = current
+		aReq.Old = current
 
 		touchesUserOIDC := existing.AuthType == "user_oidc" ||
 			(req.AuthType != nil && *req.AuthType == "user_oidc")
