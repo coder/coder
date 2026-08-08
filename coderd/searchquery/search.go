@@ -254,10 +254,16 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 
 	parser := httpapi.NewQueryParamParser()
 	filter.WorkspaceIds = parser.UUIDs(values, []uuid.UUID{}, "id")
-	filter.OwnerUsername = parser.String(values, "", "owner")
-	filter.TemplateName = parser.String(values, "", "template")
+	filter.OwnerUsernames = parser.Strings(values, []string{}, "owner")
+	filter.TemplateNames = parser.Strings(values, []string{}, "template")
 	filter.Name = parser.String(values, "", "name")
-	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
+	// Workspace status is not a real database enum, so parse and validate each
+	// value against database.WorkspaceStatus and store the raw strings.
+	statuses := httpapi.ParseCustomList(parser, values, []database.WorkspaceStatus{}, "status", httpapi.ParseEnum[database.WorkspaceStatus])
+	filter.Statuses = make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		filter.Statuses = append(filter.Statuses, string(status))
+	}
 	filter.HasAgentStatuses = parser.Strings(values, []string{}, "has-agent")
 	filter.Dormant = parser.Boolean(values, false, "dormant")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")

@@ -38,16 +38,16 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "Owner/Name",
 			Query: "Foo/Bar",
 			Expected: database.GetWorkspacesParams{
-				OwnerUsername: "foo",
-				Name:          "bar",
+				OwnerUsernames: []string{"foo"},
+				Name:           "bar",
 			},
 		},
 		{
 			Name:  "Owner/NameWithSpaces",
 			Query: "     Foo/Bar     ",
 			Expected: database.GetWorkspacesParams{
-				OwnerUsername: "foo",
-				Name:          "bar",
+				OwnerUsernames: []string{"foo"},
+				Name:           "bar",
 			},
 		},
 		{
@@ -61,35 +61,35 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "Name+Param",
 			Query: "workspace-name TEMPLATE:docker",
 			Expected: database.GetWorkspacesParams{
-				Name:         "workspace-name",
-				TemplateName: "docker",
+				Name:          "workspace-name",
+				TemplateNames: []string{"docker"},
 			},
 		},
 		{
 			Name:  "OnlyParams",
 			Query: "name:workspace-name template:docker OWNER:Alice",
 			Expected: database.GetWorkspacesParams{
-				Name:          "workspace-name",
-				TemplateName:  "docker",
-				OwnerUsername: "alice",
+				Name:           "workspace-name",
+				TemplateNames:  []string{"docker"},
+				OwnerUsernames: []string{"alice"},
 			},
 		},
 		{
 			Name:  "QuotedParam",
 			Query: `name:workspace-name template:"docker template" owner:alice`,
 			Expected: database.GetWorkspacesParams{
-				Name:          "workspace-name",
-				TemplateName:  "docker template",
-				OwnerUsername: "alice",
+				Name:           "workspace-name",
+				TemplateNames:  []string{"docker template"},
+				OwnerUsernames: []string{"alice"},
 			},
 		},
 		{
 			Name:  "QuotedKey",
 			Query: `"name":baz "template":foo "owner":bar`,
 			Expected: database.GetWorkspacesParams{
-				Name:          "baz",
-				TemplateName:  "foo",
-				OwnerUsername: "bar",
+				Name:           "baz",
+				TemplateNames:  []string{"foo"},
+				OwnerUsernames: []string{"bar"},
 			},
 		},
 		{
@@ -118,9 +118,56 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "QuotedOwner/Name",
 			Query: `"foo"/"bar"`,
 			Expected: database.GetWorkspacesParams{
-				Name:          "bar",
-				OwnerUsername: "foo",
+				Name:           "bar",
+				OwnerUsernames: []string{"foo"},
 			},
+		},
+		{
+			Name:  "MultipleOwners",
+			Query: "owner:alice owner:bob",
+			Expected: database.GetWorkspacesParams{
+				OwnerUsernames: []string{"alice", "bob"},
+			},
+		},
+		{
+			Name:  "MultipleOwnersCSV",
+			Query: "owner:alice,bob",
+			Expected: database.GetWorkspacesParams{
+				OwnerUsernames: []string{"alice", "bob"},
+			},
+		},
+		{
+			Name:  "MultipleTemplates",
+			Query: "template:docker template:kubernetes",
+			Expected: database.GetWorkspacesParams{
+				TemplateNames: []string{"docker", "kubernetes"},
+			},
+		},
+		{
+			Name:  "SingleStatus",
+			Query: "status:running",
+			Expected: database.GetWorkspacesParams{
+				Statuses: []string{"running"},
+			},
+		},
+		{
+			Name:  "MultipleStatuses",
+			Query: "status:running status:stopped",
+			Expected: database.GetWorkspacesParams{
+				Statuses: []string{"running", "stopped"},
+			},
+		},
+		{
+			Name:  "MultipleStatusesCSV",
+			Query: "status:running,stopped",
+			Expected: database.GetWorkspacesParams{
+				Statuses: []string{"running", "stopped"},
+			},
+		},
+		{
+			Name:                  "InvalidStatus",
+			Query:                 "status:not-a-status",
+			ExpectedErrorContains: "not a valid value",
 		},
 		{
 			Name:  "Outdated",
@@ -540,6 +587,18 @@ func TestSearchWorkspace(t *testing.T) {
 				if len(c.Expected.HasAgentStatuses) == len(values.HasAgentStatuses) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasAgentStatuses = values.HasAgentStatuses
+				}
+				if len(c.Expected.Statuses) == len(values.Statuses) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.Statuses = values.Statuses
+				}
+				if len(c.Expected.OwnerUsernames) == len(values.OwnerUsernames) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.OwnerUsernames = values.OwnerUsernames
+				}
+				if len(c.Expected.TemplateNames) == len(values.TemplateNames) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.TemplateNames = values.TemplateNames
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
