@@ -251,6 +251,7 @@ jobs:
           make gen/mark-fresh
           make -j \
             build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
+            build/coder_"$version"_linux_riscv64.tar.gz \
             build/coder_"$version"_{darwin,windows}_{amd64,arm64}.zip \
             build/coder_"$version"_windows_amd64_installer.exe \
             build/coder_helm_"$version".tgz \
@@ -531,6 +532,7 @@ jobs:
           binaries["coder-linux-amd64"]="coder-slim_${version}_linux_amd64"
           binaries["coder-linux-arm64"]="coder-slim_${version}_linux_arm64"
           binaries["coder-linux-armv7"]="coder-slim_${version}_linux_armv7"
+          binaries["coder-linux-riscv64"]="coder-slim_${version}_linux_riscv64"
           binaries["coder-windows-amd64.exe"]="coder-slim_${version}_windows_amd64.exe"
           binaries["coder-windows-arm64.exe"]="coder-slim_${version}_windows_arm64.exe"
 

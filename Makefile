@@ -256,12 +256,12 @@ GIT_FLAGS = GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 # All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
 OS_ARCHES := \
-	linux_amd64 linux_arm64 linux_armv7 \
+	linux_amd64 linux_arm64 linux_armv7 linux_riscv64 \
 	darwin_amd64 darwin_arm64 \
 	windows_amd64.exe windows_arm64.exe
 
 # Archive formats and their corresponding ${OS}_${ARCH} combos.
-ARCHIVE_TAR_GZ := linux_amd64 linux_arm64 linux_armv7
+ARCHIVE_TAR_GZ := linux_amd64 linux_arm64 linux_armv7 linux_riscv64
 ARCHIVE_ZIP    := \
 	darwin_amd64 darwin_arm64 \
 	windows_amd64 windows_arm64
