@@ -4335,6 +4335,21 @@ func (mr *MockStoreMockRecorder) GetMCPServerUserToken(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserToken", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserToken), ctx, arg)
 }
 
+// GetMCPServerUserTokenByID mocks base method.
+func (m *MockStore) GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (database.MCPServerUserToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMCPServerUserTokenByID", ctx, id)
+	ret0, _ := ret[0].(database.MCPServerUserToken)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMCPServerUserTokenByID indicates an expected call of GetMCPServerUserTokenByID.
+func (mr *MockStoreMockRecorder) GetMCPServerUserTokenByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserTokenByID", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserTokenByID), ctx, id)
+}
+
 // GetMCPServerUserTokensByUserID mocks base method.
 func (m *MockStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
 	m.ctrl.T.Helper()

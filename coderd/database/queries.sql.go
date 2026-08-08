@@ -17376,6 +17376,35 @@ func (q *sqlQuerier) GetMCPServerUserToken(ctx context.Context, arg GetMCPServer
 	return i, err
 }
 
+const getMCPServerUserTokenByID = `-- name: GetMCPServerUserTokenByID :one
+SELECT
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
+FROM
+    mcp_server_user_tokens
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (MCPServerUserToken, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerUserTokenByID, id)
+	var i MCPServerUserToken
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.UserID,
+		&i.AccessToken,
+		&i.AccessTokenKeyID,
+		&i.RefreshToken,
+		&i.RefreshTokenKeyID,
+		&i.TokenType,
+		&i.Expiry,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OauthRefreshFailureReason,
+	)
+	return i, err
+}
+
 const getMCPServerUserTokensByUserID = `-- name: GetMCPServerUserTokensByUserID :many
 SELECT
     id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
