@@ -1,7 +1,6 @@
 import {
 	ArrowLeftIcon,
 	ChevronRightIcon,
-	EllipsisVerticalIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
@@ -13,20 +12,10 @@ import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../utils/pullRequest";
-import {
-	ChatActionsMenuItems,
-	chatHasMenuActions,
-} from "./ChatActionsMenuItems";
+import { ChatMoreActions, chatHasMenuActions } from "./ChatMoreActions";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
@@ -202,38 +191,24 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				{!isEmbedded &&
 					chatTitle &&
 					chatHasMenuActions({ isArchived, isChildChat }) && (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									size="icon"
-									variant="subtle"
-									className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
-									aria-label="Open agent actions"
-								>
-									<EllipsisVerticalIcon className="size-4" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent
-								align="start"
-								className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
-							>
-								<ChatActionsMenuItems
-									isArchived={isArchived}
-									isPinned={isPinned}
-									isChildChat={isChildChat}
-									hasWorkspace={hasWorkspace}
-									isArchiving={isArchiving}
-									onPinAgent={onPinAgent}
-									onUnpinAgent={onUnpinAgent}
-									onArchiveAgent={onArchiveAgent}
-									onUnarchiveAgent={onUnarchiveAgent}
-									onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
-									onOpenRenameDialog={onOpenRenameDialog}
-									Item={DropdownMenuItem}
-									Separator={DropdownMenuSeparator}
-								/>
-							</DropdownMenuContent>
-						</DropdownMenu>
+						<ChatMoreActions
+							isArchived={isArchived}
+							isPinned={isPinned}
+							isChildChat={isChildChat}
+							hasWorkspace={hasWorkspace}
+							isArchiving={isArchiving}
+							onPinAgent={onPinAgent}
+							onUnpinAgent={onUnpinAgent}
+							onArchiveAgent={onArchiveAgent}
+							onUnarchiveAgent={onUnarchiveAgent}
+							onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
+							onOpenRenameDialog={onOpenRenameDialog}
+							triggerLabel="Open agent actions"
+							triggerClassName="size-7 shrink-0"
+							triggerIconClassName="size-4"
+							align="start"
+							contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top"
+						/>
 					)}
 			</div>
 			{/* PR link. On mobile: icon + number; on desktop: icon + title.

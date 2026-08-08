@@ -2,14 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
-import {
-	expect,
-	fireEvent,
-	fn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -2059,23 +2052,6 @@ export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 		// asserts the timestamp is present and visible in the resting state.
 		const childRow = canvas.getByTestId("agents-tree-node-child-archived");
 		expect(within(childRow).getByText("1w")).toBeVisible();
-
-		// Positive control: right-clicking the root row opens a context menu,
-		// proving the context menu mechanism works in this story.
-		fireEvent.contextMenu(canvas.getByTestId("agents-tree-node-root-archived"));
-		await waitFor(() => {
-			expect(within(document.body).getByRole("menu")).toBeInTheDocument();
-		});
-		await userEvent.keyboard("{Escape}");
-		await waitFor(() => {
-			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
-		});
-
-		// Right-clicking the archived child row must not open a context menu.
-		fireEvent.contextMenu(
-			canvas.getByTestId("agents-tree-node-child-archived"),
-		);
-		expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
 	},
 };
 
@@ -2170,7 +2146,7 @@ export const PinnedChatsSection: Story = {
 	},
 };
 
-export const PinUnpinContextMenu: Story = {
+export const PinUnpinFromRowMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2204,7 +2180,7 @@ export const PinUnpinContextMenu: Story = {
 	},
 };
 
-export const UnpinContextMenu: Story = {
+export const UnpinFromRowMenu: Story = {
 	args: {
 		chats: [
 			buildChat({

@@ -7,11 +7,7 @@
  */
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";
-import {
-	menuContentClass,
-	menuItemClass,
-	menuSeparatorClass,
-} from "../DropdownMenu/menuClasses";
+import { menuContentClass, menuItemClass } from "../DropdownMenu/menuClasses";
 
 export const ContextMenu = ContextMenuPrimitive.Root;
 
@@ -50,17 +46,6 @@ export const ContextMenuItem: React.FC<ContextMenuItemProps> = ({
 	return (
 		<ContextMenuPrimitive.Item
 			className={cn(menuItemClass, inset && "pl-8", className)}
-			{...props}
-		/>
-	);
-};
-
-export const ContextMenuSeparator: React.FC<
-	React.ComponentPropsWithRef<typeof ContextMenuPrimitive.Separator>
-> = ({ className, ...props }) => {
-	return (
-		<ContextMenuPrimitive.Separator
-			className={cn([menuSeparatorClass], className)}
 			{...props}
 		/>
 	);
