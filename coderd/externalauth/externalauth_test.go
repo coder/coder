@@ -35,10 +35,61 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// TestConfigGitMemoizesProvider verifies that Config.Git returns the
+// same provider on every call, so the provider's ETag cache survives
+// across calls and later polls send conditional requests.
+func TestConfigGitMemoizesProvider(t *testing.T) {
+	t.Parallel()
+
+	const etag = `"config-git-memo-etag"`
+	var conditionalRequests atomic.Int64
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if inm := r.Header.Get("If-None-Match"); inm != "" {
+			conditionalRequests.Add(1)
+			assert.Equal(t, etag, inm)
+			w.Header().Set("ETag", etag)
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("ETag", etag)
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer srv.Close()
+
+	cfg := &externalauth.Config{
+		Type:       string(codersdk.EnhancedExternalAuthProviderGitHub),
+		APIBaseURL: srv.URL + "/api/v3",
+	}
+
+	gp1, err := cfg.Git(srv.Client())
+	require.NoError(t, err)
+	require.NotNil(t, gp1)
+
+	branch := gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"}
+
+	// Cold poll: populates the provider's ETag cache.
+	_, err = gp1.ResolveBranchPullRequest(t.Context(), "test-token", branch)
+	require.NoError(t, err)
+
+	// Re-resolve the provider, as the worker does on every poll.
+	gp2, err := cfg.Git(srv.Client())
+	require.NoError(t, err)
+	require.NotNil(t, gp2)
+	require.Same(t, gp1, gp2, "Git must return the same provider instance so its ETag cache survives across calls")
+
+	_, err = gp2.ResolveBranchPullRequest(t.Context(), "test-token", branch)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(1), conditionalRequests.Load(), "second poll should have revalidated with If-None-Match using the cache from the first poll")
+}
 
 func TestRefreshToken(t *testing.T) {
 	t.Parallel()

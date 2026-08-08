@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -152,18 +153,37 @@ type Config struct {
 
 	// RefreshGroup deduplicates concurrent requests.
 	RefreshGroup SingleflightGroup
+
+	// gitProviderMu protects the below.
+	gitProviderMu sync.Mutex
+	gitProvider   gitprovider.Provider
 }
 
 // Git returns a Provider for this config if the provider type is a
 // supported git hosting provider. Returns (nil, nil) for non-git
 // providers (e.g. Slack, JFrog). Returns a non-nil error if provider
 // construction fails.
+//
+// The provider is built on the first call and cached for the
+// lifetime of the Config. The first call's client is captured and
+// later calls ignore their client argument. A construction error
+// is cached the same way and returned on every later call.
 func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
 		return nil, nil //nolint:nilnil // nil provider means non-git type, not an error
 	}
-	return gitprovider.New(norm, c.APIBaseURL, client)
+	c.gitProviderMu.Lock()
+	defer c.gitProviderMu.Unlock()
+	if c.gitProvider != nil {
+		return c.gitProvider, nil
+	}
+	p, err := gitprovider.New(norm, c.APIBaseURL, client)
+	if err != nil {
+		return nil, err
+	}
+	c.gitProvider = p
+	return c.gitProvider, nil
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.

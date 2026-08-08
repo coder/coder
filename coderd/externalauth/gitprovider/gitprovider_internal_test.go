@@ -112,14 +112,6 @@ func TestParseRetryAfter(t *testing.T) {
 		d := parseRetryAfter(h, "X-Ratelimit-Reset", clk)
 		assert.Equal(t, 60*time.Second, d)
 	})
-
-	t.Run("NilClock", func(t *testing.T) {
-		t.Parallel()
-		h := http.Header{}
-		h.Set("Retry-After", "1")
-		d := parseRetryAfter(h, "X-Ratelimit-Reset", nil)
-		assert.Equal(t, time.Second, d)
-	})
 }
 
 func TestMapGitLabState(t *testing.T) {

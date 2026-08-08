@@ -413,11 +413,9 @@ func (g *githubProvider) decodeJSON(
 	// against the primary REST rate limit.
 	cacheKey := responseCacheKey(requestURL, token)
 	var cachedBody []byte
-	if g.cache != nil {
-		if etag, body, ok := g.cache.load(cacheKey); ok {
-			req.Header.Set("If-None-Match", etag)
-			cachedBody = body
-		}
+	if etag, body, ok := g.cache.load(cacheKey); ok {
+		req.Header.Set("If-None-Match", etag)
+		cachedBody = body
 	}
 
 	resp, err := g.httpClient.Do(req)
@@ -427,7 +425,7 @@ func (g *githubProvider) decodeJSON(
 	defer resp.Body.Close()
 
 	// Nothing changed since the cached response: reuse the stored body.
-	if resp.StatusCode == http.StatusNotModified && cachedBody != nil {
+	if resp.StatusCode == http.StatusNotModified {
 		if err := json.Unmarshal(cachedBody, dest); err != nil {
 			return xerrors.Errorf("decode cached github response: %w", err)
 		}
@@ -458,9 +456,7 @@ func (g *githubProvider) decodeJSON(
 	}
 
 	// Cache the validator so the next poll can be made conditional.
-	if g.cache != nil {
-		g.cache.store(cacheKey, resp.Header.Get("ETag"), body)
-	}
+	g.cache.store(cacheKey, resp.Header.Get("ETag"), body)
 
 	if err := json.Unmarshal(body, dest); err != nil {
 		return xerrors.Errorf("decode github response: %w", err)
