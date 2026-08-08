@@ -76,6 +76,23 @@ func makeTool(name string) mcpserver.ServerTool {
 	}
 }
 
+// zeroArgTool returns a ServerTool whose advertised input schema omits
+// "properties" entirely, mirroring MCP servers that describe a
+// zero-argument tool as {"type":"object"}. The client decodes the
+// missing key as a nil parameter map.
+func zeroArgTool(name string) mcpserver.ServerTool {
+	return mcpserver.ServerTool{
+		Tool: mcp.Tool{
+			Name:           name,
+			Description:    "A tool with no arguments",
+			RawInputSchema: json.RawMessage(`{"type":"object"}`),
+		},
+		Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return mcp.NewToolResultText("ok"), nil
+		},
+	}
+}
+
 // makeConfig builds a database.MCPServerConfig suitable for tests.
 func makeConfig(slug, url string) database.MCPServerConfig {
 	return database.MCPServerConfig{
@@ -600,6 +617,60 @@ func TestConnectAll_NilRequiredBecomesEmptySlice(t *testing.T) {
 	bs, err := json.Marshal(info.Required)
 	require.NoError(t, err)
 	assert.Equal(t, "[]", string(bs))
+}
+
+// TestConnectAll_NilParametersBecomesEmptyObject verifies that a
+// zero-argument tool whose inputSchema omits "properties" produces a
+// non-nil parameter map. A nil map serializes to JSON null, which
+// OpenAI rejects with "None is not of type 'object'".
+func TestConnectAll_NilParametersBecomesEmptyObject(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, zeroArgTool("no_args"))
+	cfg := makeConfig("srv", ts.URL)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+	// Parameters must be a non-nil empty map, not nil.
+	require.NotNil(t, info.Parameters, "Parameters should never be nil")
+
+	// Verify it serializes to {} not null.
+	bs, err := json.Marshal(info.Parameters)
+	require.NoError(t, err)
+	assert.Equal(t, "{}", string(bs))
+}
+
+// TestConnectAll_NilParametersBecomesEmptyObject_ModelIntent verifies
+// that the same coercion applies to the nested schema built when
+// model_intent wrapping is enabled, so the inner "properties" is {}
+// rather than null.
+func TestConnectAll_NilParametersBecomesEmptyObject_ModelIntent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, zeroArgTool("no_args"))
+	cfg := makeConfig("intent-srv", ts.URL)
+	cfg.ModelIntent = true
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+	propsObj, ok := info.Parameters["properties"].(map[string]any)
+	require.True(t, ok, "schema should nest the original schema under properties")
+
+	innerProps, ok := propsObj["properties"]
+	require.True(t, ok, "nested schema should have a properties field")
+	require.NotNil(t, innerProps, "nested properties should never be nil")
+
+	bs, err := json.Marshal(innerProps)
+	require.NoError(t, err)
+	assert.Equal(t, "{}", string(bs))
 }
 
 // TestConnectAll_APIKeyAuth verifies that api_key auth sends the

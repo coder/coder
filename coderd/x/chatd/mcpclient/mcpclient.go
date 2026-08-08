@@ -583,11 +583,19 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 		required = []string{}
 	}
 
+	// Ensure Parameters is never nil so that "properties" serializes to
+	// {} instead of null. OpenAI rejects null for the JSON Schema
+	// "properties" field on zero-argument tools.
+	parameters := t.parameters
+	if parameters == nil {
+		parameters = map[string]any{}
+	}
+
 	if !t.modelIntent {
 		return fantasy.ToolInfo{
 			Name:        t.prefixedName,
 			Description: t.description,
-			Parameters:  t.parameters,
+			Parameters:  parameters,
 			Required:    required,
 			Parallel:    true,
 		}
@@ -610,7 +618,7 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 		},
 		"properties": map[string]any{
 			"type":       "object",
-			"properties": t.parameters,
+			"properties": parameters,
 			"required":   required,
 		},
 	}

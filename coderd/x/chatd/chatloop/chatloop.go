@@ -1468,9 +1468,16 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 			continue
 		}
 
+		// Coerce a nil parameter map to an explicit empty object so
+		// that "properties" never serializes to null, which OpenAI
+		// rejects for zero-argument tools.
+		properties := info.Parameters
+		if properties == nil {
+			properties = map[string]any{}
+		}
 		inputSchema := map[string]any{
 			"type":       "object",
-			"properties": info.Parameters,
+			"properties": properties,
 		}
 		// Only include "required" when non-empty so that a nil slice
 		// never serializes to null, which OpenAI rejects.
