@@ -878,6 +878,40 @@ type sqlcQuerier interface {
 	// the events that happened on and between the two dates. Both dates are
 	// inclusive.
 	GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg GetTotalUsageDCManagedAgentsV1Params) (int64, error)
+	// Gets the total Coder Agent runtime in milliseconds between two timestamps.
+	// The start bound is inclusive and the end bound is exclusive.
+	//
+	// Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
+	// rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
+	// one row per hourly bucket deployment-wide (see
+	// enterprise/coderd/usage/generator.go), served by the unique partial index
+	// idx_usage_events_agent_runtime, and created_at is always the bucket start.
+	// (GetTotalUsageDCManagedAgentsV1 keeps the rollup's day-granularity bounds,
+	// including counting a boundary day shared by two license terms against
+	// both.)
+	//
+	// The result is bucket-granular rather than exact. A bucket is charged to
+	// the period containing its start, so a bucket straddling a bound counts
+	// entirely against the period its start falls in. A bucket also holds the
+	// runtime of chat steps whose rows landed in that hour rather than the
+	// runtime that elapsed in it, so its contents are not bounded by the hour;
+	// no choice of bounds makes this sum exact. Reading chat_messages
+	// (GetTotalChatMessageRuntimeMsInRange) would make the bounds exact at the
+	// timestamp level, but it would tie entitlements to chat retention and
+	// diverge from the usage events the billing pipeline receives. This also
+	// sums locally recorded runtime regardless of publish outcome; rows the
+	// usage collector rejected are still counted (see
+	// enterprise/coderd/usage/generator.go).
+	//
+	// SUM is only correct because there is at most one row per bucket, which
+	// the unique index enforces regardless of id: a second hb_agent_runtime_v1
+	// row for a bucket that already has one either re-uses the deterministic id
+	// (a no-op via InsertUsageEvent's ON CONFLICT (id) DO NOTHING) or raises a
+	// unique violation instead of double counting. This also depends on
+	// usage_events rows being retained; if a retention policy ever lands, this
+	// must move to the usage_events_daily rollup and accept day-granularity
+	// bounds.
+	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)
@@ -1168,8 +1202,14 @@ type sqlcQuerier interface {
 	InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error
 	InsertTemplateVersionVariable(ctx context.Context, arg InsertTemplateVersionVariableParams) (TemplateVersionVariable, error)
 	InsertTemplateVersionWorkspaceTag(ctx context.Context, arg InsertTemplateVersionWorkspaceTagParams) (TemplateVersionWorkspaceTag, error)
-	// Duplicate events are ignored intentionally to allow for multiple replicas to
-	// publish heartbeat events.
+	// Duplicate events are ignored intentionally to allow for multiple replicas
+	// to publish heartbeat events. The (id) arbiter scopes that tolerance to
+	// exact re-inserts of the same event: for hb_agent_runtime_v1, a duplicate
+	// bucket under a different id conflicts on idx_usage_events_agent_runtime,
+	// which is not the arbiter, so it raises instead of being silently dropped.
+	// Concurrent same-id inserts can trip that index too; generateBucket in
+	// enterprise/coderd/usage/generator.go owns the description of that race
+	// and resolves it.
 	InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
 	// InsertUserGroupsByID adds a user to all provided groups, if they exist.

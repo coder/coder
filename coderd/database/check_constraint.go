@@ -54,6 +54,7 @@ const (
 	CheckTelemetryLockEventTypeConstraint                    CheckConstraint = "telemetry_lock_event_type_constraint"                      // telemetry_locks
 	CheckValidationMonotonicOrder                            CheckConstraint = "validation_monotonic_order"                                // template_version_parameters
 	CheckUsageEventTypeCheck                                 CheckConstraint = "usage_event_type_check"                                    // usage_events
+	CheckUsageEventsAgentRuntimeHourAligned                  CheckConstraint = "usage_events_agent_runtime_hour_aligned"                   // usage_events
 	CheckUserAIBudgetOverridesSpendLimitMicrosCheck          CheckConstraint = "user_ai_budget_overrides_spend_limit_micros_check"         // user_ai_budget_overrides
 	CheckUserAIProviderKeysAPIKeyCheck                       CheckConstraint = "user_ai_provider_keys_api_key_check"                       // user_ai_provider_keys
 	CheckUserSecretsEnabledRequiresTarget                    CheckConstraint = "user_secrets_enabled_requires_target"                      // user_secrets

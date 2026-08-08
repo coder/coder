@@ -2,6 +2,7 @@ package usage
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"sync"
 	"time"
@@ -48,8 +49,11 @@ const (
 // Cron jobs, which sample live state when they fire, the Generator derives
 // events from data already persisted in the database, so it can
 // deterministically backfill hours missed while the deployment was down,
-// zero-filling idle hours. Deterministic event IDs plus the database's
-// ON CONFLICT (id) DO NOTHING make concurrent replicas safe without locking.
+// zero-filling idle hours. Deterministic event IDs make concurrent replicas
+// safe without locking: a re-insert of a committed bucket is a no-op via the
+// insert's ON CONFLICT (id) arbiter, and two replicas racing an uncommitted
+// bucket surface a unique violation that generateBucket recognizes as the
+// other replica winning.
 //
 // Events are generated unconditionally in enterprise builds; the
 // publish_usage_data license flag only gates publishing to Tallyman.
@@ -157,7 +161,7 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 	// A row marks its bucket complete regardless of publish outcome, so a
 	// bucket whose event Tallyman permanently rejected is never
 	// regenerated (re-inserting under the deterministic ID is a no-op via
-	// ON CONFLICT (id) DO NOTHING).
+	// the insert's ON CONFLICT (id) arbiter).
 	//
 	// The runtime is not lost locally: the row still holds it, and the
 	// event can be re-queued for publishing with
@@ -235,6 +239,30 @@ func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error 
 	// time) so daily rollups attribute backfilled hours to the correct day.
 	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
 	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
+	if database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
+		// This comment is the owning description of the bucket-index race;
+		// the query and migration comments point here. The insert's ON
+		// CONFLICT (id) arbiter only sees committed rows, so two replicas
+		// inserting this bucket's deterministic id concurrently can trip
+		// the bucket unique index instead of the arbiter. If the bucket's
+		// row landed under the same id, the other replica won the race and
+		// the bucket is complete. Otherwise a non-generator writer holds
+		// the bucket under a different id, which is exactly what the
+		// unique index exists to surface.
+		exists, existsErr := g.db.UsageEventExistsByID(ctx, stableID)
+		switch {
+		case existsErr != nil:
+			// Neither state is established: the bucket may be complete
+			// under our id or held by a foreign writer. Carry both errors
+			// so the log does not accuse a non-generator writer when the
+			// exists check simply failed.
+			return xerrors.Errorf("check bucket owner after unique violation: %w", errors.Join(err, existsErr))
+		case exists:
+			return nil
+		default:
+			return xerrors.Errorf("bucket already recorded under a different id: %w", err)
+		}
+	}
 	if err != nil {
 		return xerrors.Errorf("insert usage event: %w", err)
 	}
