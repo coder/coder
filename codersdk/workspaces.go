@@ -383,19 +383,14 @@ type PostWorkspaceUsageRequest struct {
 
 type UsageAppName string
 
+// Well-known usage app names. The workspace usage API accepts any app
+// name; unrecognized names are normalized at ingestion.
 const (
 	UsageAppNameVscode          UsageAppName = "vscode"
 	UsageAppNameJetbrains       UsageAppName = "jetbrains"
 	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
 	UsageAppNameSSH             UsageAppName = "ssh"
 )
-
-var AllowedAppNames = []UsageAppName{
-	UsageAppNameVscode,
-	UsageAppNameJetbrains,
-	UsageAppNameReconnectingPty,
-	UsageAppNameSSH,
-}
 
 // PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.
 func (c *Client) PostWorkspaceUsageWithBody(ctx context.Context, id uuid.UUID, req PostWorkspaceUsageRequest) error {

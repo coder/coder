@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/idemetadata"
 )
 
 const (
@@ -37,9 +38,10 @@ type DBBatcher struct {
 	mu sync.Mutex
 	// TODO: make this a buffered chan instead?
 	buf *database.InsertWorkspaceAgentStatsParams
-	// NOTE: we batch this separately as it's a jsonb field and
+	// NOTE: we batch these separately as they're jsonb fields and
 	// pq.Array + unnest doesn't play nicely with this.
 	connectionsByProto []map[string]int64
+	sessionCounts      []map[string]int64
 	batchSize          int
 
 	// tickCh is used to periodically flush the buffer.
@@ -140,6 +142,17 @@ func (b *DBBatcher) Add(
 	st *agentproto.Stats,
 	usage bool,
 ) {
+	// Normalize outside the lock; Add serializes every stats report.
+	sessionCounts := normalizedSessionCounts(st)
+	if len(sessionCounts) > idemetadata.MaxSessionCountEntries {
+		b.log.Warn(context.Background(), "agent reported too many distinct session types, overflow aggregated under unknown",
+			slog.F("agent_id", agentID),
+			slog.F("reported", len(sessionCounts)),
+			slog.F("max", idemetadata.MaxSessionCountEntries),
+		)
+	}
+	sessionCounts = capSessionCounts(sessionCounts)
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -152,19 +165,17 @@ func (b *DBBatcher) Add(
 	b.buf.TemplateID = append(b.buf.TemplateID, templateID)
 	b.buf.WorkspaceID = append(b.buf.WorkspaceID, workspaceID)
 
-	// Store the connections by proto separately as it's a jsonb field. We marshal on flush.
-	// b.buf.ConnectionsByProto = append(b.buf.ConnectionsByProto, st.ConnectionsByProto)
+	// Store the connections by proto and session counts separately as
+	// they're jsonb fields. We marshal on flush.
 	b.connectionsByProto = append(b.connectionsByProto, st.ConnectionsByProto)
+	// Elements must be non-nil maps; JSON null fails the batch insert.
+	b.sessionCounts = append(b.sessionCounts, sessionCounts)
 
 	b.buf.ConnectionCount = append(b.buf.ConnectionCount, st.ConnectionCount)
 	b.buf.RxPackets = append(b.buf.RxPackets, st.RxPackets)
 	b.buf.RxBytes = append(b.buf.RxBytes, st.RxBytes)
 	b.buf.TxPackets = append(b.buf.TxPackets, st.TxPackets)
 	b.buf.TxBytes = append(b.buf.TxBytes, st.TxBytes)
-	b.buf.SessionCountVSCode = append(b.buf.SessionCountVSCode, st.SessionCountVscode)
-	b.buf.SessionCountJetBrains = append(b.buf.SessionCountJetBrains, st.SessionCountJetbrains)
-	b.buf.SessionCountReconnectingPTY = append(b.buf.SessionCountReconnectingPTY, st.SessionCountReconnectingPty)
-	b.buf.SessionCountSSH = append(b.buf.SessionCountSSH, st.SessionCountSsh)
 	b.buf.ConnectionMedianLatencyMS = append(b.buf.ConnectionMedianLatencyMS, st.ConnectionMedianLatencyMs)
 	b.buf.Usage = append(b.buf.Usage, usage)
 
@@ -245,6 +256,16 @@ func (b *DBBatcher) flush(ctx context.Context, forced bool, reason string) {
 		b.buf.ConnectionsByProto = payload
 	}
 
+	// Marshal session counts; the JSONB array is zipped with the ID array
+	// by position on insert.
+	sessionCountsPayload, err := json.Marshal(b.sessionCounts)
+	if err != nil {
+		b.log.Error(ctx, "unable to marshal agent session counts, dropping data", slog.Error(err))
+		b.buf.SessionCounts = json.RawMessage(`[]`)
+	} else {
+		b.buf.SessionCounts = sessionCountsPayload
+	}
+
 	// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
 	err = b.store.InsertWorkspaceAgentStats(ctx, *b.buf)
 	elapsed := time.Since(start)
@@ -263,27 +284,25 @@ func (b *DBBatcher) flush(ctx context.Context, forced bool, reason string) {
 // initBuf resets the buffer. b MUST be locked.
 func (b *DBBatcher) initBuf(size int) {
 	b.buf = &database.InsertWorkspaceAgentStatsParams{
-		ID:                          make([]uuid.UUID, 0, b.batchSize),
-		CreatedAt:                   make([]time.Time, 0, b.batchSize),
-		UserID:                      make([]uuid.UUID, 0, b.batchSize),
-		WorkspaceID:                 make([]uuid.UUID, 0, b.batchSize),
-		TemplateID:                  make([]uuid.UUID, 0, b.batchSize),
-		AgentID:                     make([]uuid.UUID, 0, b.batchSize),
-		ConnectionsByProto:          json.RawMessage("[]"),
-		ConnectionCount:             make([]int64, 0, b.batchSize),
-		RxPackets:                   make([]int64, 0, b.batchSize),
-		RxBytes:                     make([]int64, 0, b.batchSize),
-		TxPackets:                   make([]int64, 0, b.batchSize),
-		TxBytes:                     make([]int64, 0, b.batchSize),
-		SessionCountVSCode:          make([]int64, 0, b.batchSize),
-		SessionCountJetBrains:       make([]int64, 0, b.batchSize),
-		SessionCountReconnectingPTY: make([]int64, 0, b.batchSize),
-		SessionCountSSH:             make([]int64, 0, b.batchSize),
-		ConnectionMedianLatencyMS:   make([]float64, 0, b.batchSize),
-		Usage:                       make([]bool, 0, b.batchSize),
+		ID:                        make([]uuid.UUID, 0, b.batchSize),
+		CreatedAt:                 make([]time.Time, 0, b.batchSize),
+		UserID:                    make([]uuid.UUID, 0, b.batchSize),
+		WorkspaceID:               make([]uuid.UUID, 0, b.batchSize),
+		TemplateID:                make([]uuid.UUID, 0, b.batchSize),
+		AgentID:                   make([]uuid.UUID, 0, b.batchSize),
+		ConnectionsByProto:        json.RawMessage("[]"),
+		ConnectionCount:           make([]int64, 0, b.batchSize),
+		RxPackets:                 make([]int64, 0, b.batchSize),
+		RxBytes:                   make([]int64, 0, b.batchSize),
+		TxPackets:                 make([]int64, 0, b.batchSize),
+		TxBytes:                   make([]int64, 0, b.batchSize),
+		SessionCounts:             json.RawMessage("[]"),
+		ConnectionMedianLatencyMS: make([]float64, 0, b.batchSize),
+		Usage:                     make([]bool, 0, b.batchSize),
 	}
 
 	b.connectionsByProto = make([]map[string]int64, 0, size)
+	b.sessionCounts = make([]map[string]int64, 0, size)
 }
 
 func (b *DBBatcher) resetBuf() {
@@ -299,11 +318,9 @@ func (b *DBBatcher) resetBuf() {
 	b.buf.RxBytes = b.buf.RxBytes[:0]
 	b.buf.TxPackets = b.buf.TxPackets[:0]
 	b.buf.TxBytes = b.buf.TxBytes[:0]
-	b.buf.SessionCountVSCode = b.buf.SessionCountVSCode[:0]
-	b.buf.SessionCountJetBrains = b.buf.SessionCountJetBrains[:0]
-	b.buf.SessionCountReconnectingPTY = b.buf.SessionCountReconnectingPTY[:0]
-	b.buf.SessionCountSSH = b.buf.SessionCountSSH[:0]
+	b.buf.SessionCounts = json.RawMessage(`[]`)
 	b.buf.ConnectionMedianLatencyMS = b.buf.ConnectionMedianLatencyMS[:0]
 	b.buf.Usage = b.buf.Usage[:0]
 	b.connectionsByProto = b.connectionsByProto[:0]
+	b.sessionCounts = b.sessionCounts[:0]
 }

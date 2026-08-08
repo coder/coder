@@ -1673,54 +1673,57 @@ func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig databa
 	return v
 }
 
-func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
+// WorkspaceAgentStat inserts a workspace agent stat row. An optional map
+// seeds the workspace_agent_session_counts child table.
+func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat, sessionCounts ...map[string]int64) database.WorkspaceAgentStat {
 	if orig.ConnectionsByProto == nil {
 		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
 	}
 	jsonProto := []byte(fmt.Sprintf("[%s]", orig.ConnectionsByProto))
 
-	params := database.InsertWorkspaceAgentStatsParams{
-		ID:                          []uuid.UUID{takeFirst(orig.ID, uuid.New())},
-		CreatedAt:                   []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
-		UserID:                      []uuid.UUID{takeFirst(orig.UserID, uuid.New())},
-		TemplateID:                  []uuid.UUID{takeFirst(orig.TemplateID, uuid.New())},
-		WorkspaceID:                 []uuid.UUID{takeFirst(orig.WorkspaceID, uuid.New())},
-		AgentID:                     []uuid.UUID{takeFirst(orig.AgentID, uuid.New())},
-		ConnectionsByProto:          jsonProto,
-		ConnectionCount:             []int64{takeFirst(orig.ConnectionCount, 0)},
-		RxPackets:                   []int64{takeFirst(orig.RxPackets, 0)},
-		RxBytes:                     []int64{takeFirst(orig.RxBytes, 0)},
-		TxPackets:                   []int64{takeFirst(orig.TxPackets, 0)},
-		TxBytes:                     []int64{takeFirst(orig.TxBytes, 0)},
-		SessionCountVSCode:          []int64{takeFirst(orig.SessionCountVSCode, 0)},
-		SessionCountJetBrains:       []int64{takeFirst(orig.SessionCountJetBrains, 0)},
-		SessionCountReconnectingPTY: []int64{takeFirst(orig.SessionCountReconnectingPTY, 0)},
-		SessionCountSSH:             []int64{takeFirst(orig.SessionCountSSH, 0)},
-		ConnectionMedianLatencyMS:   []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
-		Usage:                       []bool{takeFirst(orig.Usage, false)},
+	counts := takeFirstMap(sessionCounts...)
+	if counts == nil {
+		// The JSONB element must be an object, not null.
+		counts = map[string]int64{}
 	}
-	err := db.InsertWorkspaceAgentStats(genCtx, params)
+	jsonSessionCounts, err := json.Marshal([]map[string]int64{counts})
+	require.NoError(t, err, "marshal session counts")
+
+	params := database.InsertWorkspaceAgentStatsParams{
+		ID:                        []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		CreatedAt:                 []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
+		UserID:                    []uuid.UUID{takeFirst(orig.UserID, uuid.New())},
+		TemplateID:                []uuid.UUID{takeFirst(orig.TemplateID, uuid.New())},
+		WorkspaceID:               []uuid.UUID{takeFirst(orig.WorkspaceID, uuid.New())},
+		AgentID:                   []uuid.UUID{takeFirst(orig.AgentID, uuid.New())},
+		ConnectionsByProto:        jsonProto,
+		ConnectionCount:           []int64{takeFirst(orig.ConnectionCount, 0)},
+		RxPackets:                 []int64{takeFirst(orig.RxPackets, 0)},
+		RxBytes:                   []int64{takeFirst(orig.RxBytes, 0)},
+		TxPackets:                 []int64{takeFirst(orig.TxPackets, 0)},
+		TxBytes:                   []int64{takeFirst(orig.TxBytes, 0)},
+		SessionCounts:             jsonSessionCounts,
+		ConnectionMedianLatencyMS: []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
+		Usage:                     []bool{takeFirst(orig.Usage, false)},
+	}
+	err = db.InsertWorkspaceAgentStats(genCtx, params)
 	require.NoError(t, err, "insert workspace agent stat")
 
 	return database.WorkspaceAgentStat{
-		ID:                          params.ID[0],
-		CreatedAt:                   params.CreatedAt[0],
-		UserID:                      params.UserID[0],
-		AgentID:                     params.AgentID[0],
-		WorkspaceID:                 params.WorkspaceID[0],
-		TemplateID:                  params.TemplateID[0],
-		ConnectionsByProto:          orig.ConnectionsByProto,
-		ConnectionCount:             params.ConnectionCount[0],
-		RxPackets:                   params.RxPackets[0],
-		RxBytes:                     params.RxBytes[0],
-		TxPackets:                   params.TxPackets[0],
-		TxBytes:                     params.TxBytes[0],
-		ConnectionMedianLatencyMS:   params.ConnectionMedianLatencyMS[0],
-		SessionCountVSCode:          params.SessionCountVSCode[0],
-		SessionCountJetBrains:       params.SessionCountJetBrains[0],
-		SessionCountReconnectingPTY: params.SessionCountReconnectingPTY[0],
-		SessionCountSSH:             params.SessionCountSSH[0],
-		Usage:                       params.Usage[0],
+		ID:                        params.ID[0],
+		CreatedAt:                 params.CreatedAt[0],
+		UserID:                    params.UserID[0],
+		AgentID:                   params.AgentID[0],
+		WorkspaceID:               params.WorkspaceID[0],
+		TemplateID:                params.TemplateID[0],
+		ConnectionsByProto:        orig.ConnectionsByProto,
+		ConnectionCount:           params.ConnectionCount[0],
+		RxPackets:                 params.RxPackets[0],
+		RxBytes:                   params.RxBytes[0],
+		TxPackets:                 params.TxPackets[0],
+		TxBytes:                   params.TxBytes[0],
+		ConnectionMedianLatencyMS: params.ConnectionMedianLatencyMS[0],
+		Usage:                     params.Usage[0],
 	}
 }
 
