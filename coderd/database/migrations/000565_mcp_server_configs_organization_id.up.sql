@@ -63,14 +63,24 @@ SELECT
     config.oauth2_revocation_url,
     config.oauth2_scopes,
     config.api_key_header,
-    config.api_key_value,
-    config.api_key_value_key_id,
-    config.custom_headers,
-    config.custom_headers_key_id,
+    -- Never copy admin-entered credentials into other organizations:
+    -- the new organization's admins gain update access to the copy and
+    -- could repoint its URL while reusing the inherited secret.
+    '',
+    NULL,
+    '{}',
+    NULL,
     config.tool_allow_list,
     config.tool_deny_list,
     config.availability,
-    CASE WHEN config.auth_type = 'oauth2' THEN false ELSE config.enabled END,
+    -- Copies that lost required credentials start disabled so each
+    -- organization's admin re-enters them deliberately.
+    CASE
+        WHEN config.auth_type IN ('oauth2', 'api_key', 'custom_headers')
+            OR config.custom_headers NOT IN ('', '{}')
+            THEN false
+        ELSE config.enabled
+    END,
     config.model_intent,
     config.allow_in_plan_mode,
     config.forward_coder_headers,

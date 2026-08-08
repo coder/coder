@@ -1039,6 +1039,53 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 	// resource metadata are available, the path-aware URL takes
 	// priority. Each points to a different auth server so we can
 	// distinguish which one was actually used.
+	t.Run("CreateOnlyScopeRejectedUpFront", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Discovery inserts, then updates and possibly deletes the
+		// row. A create-only caller must be rejected before the
+		// insert instead of leaving an orphaned row behind. MCP
+		// config scopes are not user-mintable, so seed the scoped
+		// key directly.
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: firstUser.UserID,
+			Scopes: database.APIKeyScopes{
+				"mcp_server_config:create",
+				"organization:read",
+			},
+		})
+		scopedClient := codersdk.New(client.URL)
+		scopedClient.SetSessionToken(token)
+
+		_, err := scopedClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:  "Create Only Discovery",
+			Slug:         "create-only-discovery",
+			Transport:    "streamable_http",
+			URL:          "http://127.0.0.1:1",
+			AuthType:     "oauth2",
+			Availability: "default_on",
+			Enabled:      true,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		//nolint:gocritic // Verifying persisted state requires system access.
+		_, err = db.GetMCPServerConfigByOrganizationAndSlug(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: firstUser.OrganizationID,
+			Slug:           "create-only-discovery",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
 	t.Run("PathAwareTakesPriority", func(t *testing.T) {
 		t.Parallel()
 

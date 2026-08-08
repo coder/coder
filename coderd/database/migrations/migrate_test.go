@@ -3232,13 +3232,15 @@ func TestMigration000565MCPServerConfigsOrganizationID(t *testing.T) {
 			require.Equal(t, config.authType, authType)
 			copiedIDs[orgID][config.id] = copiedID
 
+			// Copies never inherit admin-entered credentials, and
+			// copies of credentialed configs start disabled.
+			require.Empty(t, apiKeyValue)
+			require.False(t, apiKeyValueKeyID.Valid)
+			require.Equal(t, "{}", customHeaders)
+			require.False(t, customHeadersKeyID.Valid)
 			switch config.authType {
-			case "api_key":
-				require.Equal(t, config.apiKeyValue, apiKeyValue)
-				require.Equal(t, config.apiKeyValueKeyID, apiKeyValueKeyID)
-			case "custom_headers":
-				require.Equal(t, config.customHeaders, customHeaders)
-				require.Equal(t, config.customHeadersKeyID, customHeadersKeyID)
+			case "none":
+				require.True(t, enabled)
 			case "oauth2":
 				require.Empty(t, oauth2ClientID)
 				require.Empty(t, oauth2ClientSecret)
@@ -3247,6 +3249,8 @@ func TestMigration000565MCPServerConfigsOrganizationID(t *testing.T) {
 				require.Equal(t, config.oauth2TokenURL, oauth2TokenURL)
 				require.Equal(t, config.oauth2RevocationURL, oauth2RevocationURL)
 				require.Equal(t, config.oauth2Scopes, oauth2Scopes)
+				require.False(t, enabled)
+			default:
 				require.False(t, enabled)
 			}
 		}
