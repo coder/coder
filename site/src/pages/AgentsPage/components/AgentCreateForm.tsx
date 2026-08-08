@@ -338,6 +338,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		enabled: Boolean(organizationId),
 	});
 	const mcpServers = mcpServersQuery.data ?? [];
+	// Sending before the organization's MCP list resolves would
+	// silently drop its default-on server selection, so the composer
+	// waits for this query.
+	const isMCPSelectionUnresolved =
+		Boolean(organizationId) && !mcpServersQuery.isSuccess;
 	// Adopt a permitted fallback so later refetches cannot switch the form to a
 	// re-permitted default. The permission guard also avoids a render loop.
 	if (
@@ -583,6 +588,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
+					{mcpServersQuery.error != null && (
+						<ErrorAlert error={mcpServersQuery.error} />
+					)}
 					{/* The pre-settlement list is the unfiltered dashboard fallback;
 					    selecting from it could destroy existing workspace state. */}
 					{showOrganizations &&
@@ -618,6 +626,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							!organizationAdopted ||
 							workspaceValidationPending ||
 							isPersonalModelOverridesLoading ||
+							isMCPSelectionUnresolved ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
 						}

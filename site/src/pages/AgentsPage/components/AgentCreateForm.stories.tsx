@@ -895,9 +895,12 @@ export const ForbiddenErrorWithRole: Story = {
 		).not.toBeInTheDocument();
 		// The generic ErrorAlert should surface the real backend message.
 		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
-		// The textbox should remain enabled since the user has the role.
+		// The textbox should remain enabled since the user has the
+		// role. Enablement waits for the MCP server list to resolve.
 		const textbox = canvas.getByRole("textbox");
-		await expect(textbox).not.toHaveAttribute("aria-disabled", "true");
+		await waitFor(() =>
+			expect(textbox).not.toHaveAttribute("aria-disabled", "true"),
+		);
 	},
 };
 
@@ -1639,5 +1642,34 @@ export const MemberScopedPermissionsShowOrgPicker: Story = {
 				name: `Organization: ${MockOrganization2.display_name}`,
 			}),
 		).toBeInTheDocument();
+	},
+};
+
+export const MCPServersLoadingDisablesSend: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("send while MCP servers load");
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+	},
+};
+
+export const MCPServersErrorShowsAlertAndDisablesSend: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockRejectedValue(
+			new Error("failed to load MCP servers"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const matches = await canvas.findAllByText(/failed to load mcp servers/i);
+		expect(matches.length).toBeGreaterThan(0);
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
