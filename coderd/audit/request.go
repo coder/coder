@@ -154,6 +154,12 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// for display; collisions affect the display label and search
 		// filter but not the primary resource identifier.
 		return typed.ID.String()[:8]
+	case database.MCPServerConfig:
+		if typed.DisplayName != "" {
+			return typed.DisplayName
+		}
+		// The full ID equals resource_id, so the label is exactly filterable.
+		return typed.ID.String()
 	case database.UserSecret:
 		return typed.Name
 	case database.UserSkill:
@@ -239,6 +245,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.Chat:
 		return typed.ID
+	case database.MCPServerConfig:
+		return typed.ID
 	case database.UserSecret:
 		return typed.ID
 	case database.UserSkill:
@@ -314,6 +322,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserAIBudgetOverride
 	case database.Chat:
 		return database.ResourceTypeChat
+	case database.MCPServerConfig:
+		return database.ResourceTypeMCPServerConfig
 	case database.UserSecret:
 		return database.ResourceTypeUserSecret
 	case database.UserSkill:
@@ -401,6 +411,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.Chat:
 		// Chats always have a non-null organization_id (since
 		// migration 000467).
+		return true
+	case database.MCPServerConfig:
+		// MCP server configs always carry a non-null organization_id.
 		return true
 	case database.UserSecret:
 		// User secrets are global to the user across organizations.

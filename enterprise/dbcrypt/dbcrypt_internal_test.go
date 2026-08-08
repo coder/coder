@@ -973,6 +973,17 @@ func TestMCPServerConfigs(t *testing.T) {
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
+	t.Run("GetMCPServerConfigByIDForUpdate", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		got, err := crypt.GetMCPServerConfigByIDForUpdate(ctx, cfg.ID)
+		require.NoError(t, err)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+	})
+
 	t.Run("GetMCPServerConfigByOrganizationAndSlug", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)

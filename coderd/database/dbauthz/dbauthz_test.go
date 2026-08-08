@@ -1631,6 +1631,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
 		check.Args(config.ID).Asserts(config, policy.ActionRead).Returns(config)
 	}))
+	s.Run("GetMCPServerConfigByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
+		dbm.EXPECT().GetMCPServerConfigByIDForUpdate(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		check.Args(config.ID).Asserts(config, policy.ActionRead).Returns(config)
+	}))
 	s.Run("GetMCPServerConfigByOrganizationAndSlug", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.GetMCPServerConfigByOrganizationAndSlugParams{
 			OrganizationID: uuid.New(),
