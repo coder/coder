@@ -158,8 +158,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		if typed.DisplayName != "" {
 			return typed.DisplayName
 		}
-		// Configs without a display name fall back to the full ID, which
-		// equals resource_id, so the shown value is exactly filterable.
+		// The full ID equals resource_id, so the label is exactly filterable.
 		return typed.ID.String()
 	case database.UserSecret:
 		return typed.Name
@@ -414,8 +413,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// migration 000467).
 		return true
 	case database.MCPServerConfig:
-		// MCP server configs are org-scoped; every row carries a
-		// non-null organization_id.
+		// MCP server configs always carry a non-null organization_id.
 		return true
 	case database.UserSecret:
 		// User secrets are global to the user across organizations.
