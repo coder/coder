@@ -115,7 +115,8 @@ RBAC_GO_FILES := \
 
 DBDUMP_INPUTS := \
 	$(wildcard coderd/database/migrations/*.go) \
-	$(wildcard coderd/database/migrations/*.sql)
+	$(wildcard coderd/database/migrations/*.sql) \
+	$(wildcard coderd/database/migrations/[0-9]*-[0-9]*/*.sql)
 
 # Exclude generated RBAC files to avoid cycles with typegen outputs. The
 # output rules still order generated RBAC prerequisites where needed.
@@ -248,7 +249,7 @@ GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -nam
 # All the shell files in the repo, excluding ignored files.
 SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
 
-MIGRATION_FILES := $(shell find ./coderd/database/migrations/ -maxdepth 1 $(FIND_EXCLUSIONS) -type f -name '*.sql')
+MIGRATION_FILES := $(shell find ./coderd/database/migrations/ -maxdepth 2 -not -path '*/testdata/*' $(FIND_EXCLUSIONS) -type f -name '*.sql')
 FIXTURE_FILES := $(shell find ./coderd/database/migrations/testdata/fixtures/ $(FIND_EXCLUSIONS) -type f -name '*.sql')
 
 # Ensure we don't use the user's git configs which might cause side-effects

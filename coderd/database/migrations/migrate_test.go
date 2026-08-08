@@ -1546,30 +1546,64 @@ func TestMigration000504AIProvidersBackfillEnumInSingleTxn(t *testing.T) {
 	require.Equal(t, "openai-compat", typ)
 }
 
+// TestMigrateFromArchivedVersion upgrades a database whose current version lives
+// in an archive directory, the path taken by every deployment older than the
+// newest archived range.
+func TestMigrateFromArchivedVersion(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	const archivedVersion = 150
+
+	archived, err := filepath.Glob(fmt.Sprintf("[0-9]*-[0-9]*/%06d_*.up.sql", archivedVersion))
+	require.NoError(t, err)
+	require.Lenf(t, archived, 1,
+		"version %06d is not archived, so this test no longer covers reading an archived version", archivedVersion)
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		require.Truef(t, more, "migration %06d not found", archivedVersion)
+		if version == archivedVersion {
+			break
+		}
+	}
+
+	require.NoError(t, migrations.Up(sqlDB))
+	require.NoError(t, migrations.EnsureClean(sqlDB))
+}
+
 // applyMigrationsInTxn executes the up SQL for every migration whose version is
 // in [from, to] inside a single transaction, mirroring pgTxnDriver. The whole
 // batch commits or rolls back together.
 func applyMigrationsInTxn(ctx context.Context, t *testing.T, sqlDB *sql.DB, from, to int) {
 	t.Helper()
 
-	entries, err := os.ReadDir(".")
+	paths, err := filepath.Glob("*.up.sql")
 	require.NoError(t, err)
+	archived, err := filepath.Glob("[0-9]*-[0-9]*/*.up.sql")
+	require.NoError(t, err)
+	paths = append(paths, archived...)
 
 	var files []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".up.sql") {
-			continue
-		}
+	for _, path := range paths {
 		var version int
-		if _, err := fmt.Sscanf(name, "%06d_", &version); err != nil {
+		if _, err := fmt.Sscanf(filepath.Base(path), "%06d_", &version); err != nil {
 			continue
 		}
 		if version >= from && version <= to {
-			files = append(files, name)
+			files = append(files, path)
 		}
 	}
-	slices.Sort(files)
+	slices.SortFunc(files, func(a, b string) int {
+		return strings.Compare(filepath.Base(a), filepath.Base(b))
+	})
 
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	require.NoError(t, err)
