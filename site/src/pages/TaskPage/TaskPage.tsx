@@ -899,5 +899,10 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 };
 
 function selectAgent(workspace: Workspace) {
-	return getWorkspaceAgents(workspace).at(0);
+	// Select the primary (root) agent, the one without a `parent_id`. Sub-agents,
+	// such as those created by devcontainers, are skipped so agent ordering does
+	// not determine which agent the task uses.
+	return getWorkspaceAgents(workspace).find(
+		(agent) => agent.parent_id === null,
+	);
 }
