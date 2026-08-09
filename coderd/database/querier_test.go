@@ -10761,13 +10761,9 @@ func TestUsageEventsTrigger(t *testing.T) {
 		requireDaily(`{"runtime_ms": 1500}`, `{"runtime_ms": 250}`)
 
 		// Re-inserting a bucket under its deterministic id must not
-		// double-count it. The daily rollup sums runtime_ms, so idempotency
-		// rests on the aggregate trigger being AFTER INSERT: Postgres does
-		// not fire it for rows suppressed by the insert's ON CONFLICT (id)
-		// arbiter. Backfill re-runs and replicas re-inserting committed
-		// buckets take this path; replicas racing an uncommitted bucket
-		// instead surface a unique violation that the generator resolves
-		// (see enterprise/coderd/usage/generator.go).
+		// double-count it: the daily rollup's AFTER INSERT trigger does not
+		// fire for rows suppressed by the insert's ON CONFLICT (id)
+		// arbiter.
 		insert("hb_agent_runtime_v1:2025-01-01_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 1000}`, day1)
 		requireDaily(`{"runtime_ms": 1500}`, `{"runtime_ms": 250}`)
 

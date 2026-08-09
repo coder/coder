@@ -29332,34 +29332,14 @@ type GetTotalUsageHBAgentRuntimeV1Params struct {
 //
 // Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
 // rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
-// one row per hourly bucket deployment-wide (see
-// enterprise/coderd/usage/generator.go), served by the unique partial index
-// idx_usage_events_agent_runtime, and created_at is always the bucket start.
-// (GetTotalUsageDCManagedAgentsV1 keeps the rollup's day-granularity bounds,
-// including counting a boundary day shared by two license terms against
-// both.)
-//
-// The result is bucket-granular rather than exact. A bucket is charged to
-// the period containing its start, so a bucket straddling a bound counts
-// entirely against the period its start falls in. A bucket also holds the
-// runtime of chat steps whose rows landed in that hour rather than the
-// runtime that elapsed in it, so its contents are not bounded by the hour;
-// no choice of bounds makes this sum exact. Reading chat_messages
-// (GetTotalChatMessageRuntimeMsInRange) would make the bounds exact at the
-// timestamp level, but it would tie entitlements to chat retention and
-// diverge from the usage events the billing pipeline receives. This also
-// sums locally recorded runtime regardless of publish outcome; rows the
-// usage collector rejected are still counted (see
-// enterprise/coderd/usage/generator.go).
-//
-// SUM is only correct because there is at most one row per bucket, which
-// the unique index enforces regardless of id: a second hb_agent_runtime_v1
-// row for a bucket that already has one either re-uses the deterministic id
-// (a no-op via InsertUsageEvent's ON CONFLICT (id) DO NOTHING) or raises a
-// unique violation instead of double counting. This also depends on
-// usage_events rows being retained; if a retention policy ever lands, this
-// must move to the usage_events_daily rollup and accept day-granularity
-// bounds.
+// one row per hourly bucket deployment-wide, with created_at at the bucket
+// start, enforced by the unique partial index
+// idx_usage_events_agent_runtime (which also keeps SUM from counting a
+// bucket twice and serves this query). The result is bucket-granular: a
+// bucket counts entirely against the period containing its start. See
+// enterprise/coderd/usage/generator.go for what a bucket holds. If a
+// usage_events retention policy ever lands, this must move to the daily
+// rollup and accept day-granularity bounds.
 func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getTotalUsageHBAgentRuntimeV1, arg.StartTime, arg.EndTime)
 	var total_runtime_ms int64
@@ -29392,12 +29372,10 @@ type InsertUsageEventParams struct {
 
 // Duplicate events are ignored intentionally to allow for multiple replicas
 // to publish heartbeat events. The (id) arbiter scopes that tolerance to
-// exact re-inserts of the same event: for hb_agent_runtime_v1, a duplicate
-// bucket under a different id conflicts on idx_usage_events_agent_runtime,
-// which is not the arbiter, so it raises instead of being silently dropped.
-// Concurrent same-id inserts can trip that index too; generateBucket in
-// enterprise/coderd/usage/generator.go owns the description of that race
-// and resolves it.
+// exact re-inserts of the same event: a duplicate hb_agent_runtime_v1
+// bucket under a different id raises on idx_usage_events_agent_runtime
+// instead, which generateBucket in enterprise/coderd/usage/generator.go
+// handles.
 func (q *sqlQuerier) InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error {
 	_, err := q.db.ExecContext(ctx, insertUsageEvent,
 		arg.ID,

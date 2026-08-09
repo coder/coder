@@ -17,47 +17,35 @@ const (
 	LicenseManagedAgentLimitExceededWarningText = "You have built more workspaces with managed agents than your license allows."
 	LicenseAIGovernance90PercentWarningText     = "You have used %d%% of your AI Governance add-on seats."
 	LicenseAIGovernanceOverLimitWarningText     = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
-	// LicenseAgentRuntimeHoursSoftLimitWarningText is emitted while usage is
-	// at or above the advisory soft limit but still within the runtime hour
-	// allocation. All placeholders are whole hours: the runtime used so far
-	// in the license term, the allocation, then the soft limit.
+	// LicenseAgentRuntimeHoursSoftLimitWarningText is emitted while runtime
+	// usage is at or above the advisory soft limit but within the
+	// allocation. Placeholders are whole hours: used, allocation, soft
+	// limit.
 	//
-	// The two runtime hours texts must differ before their first placeholder:
-	// the dashboard's LicenseBanner (isMutedWarning) renders warnings
-	// matching this text's pre-placeholder prefix in the muted variant and
-	// without a sales link, so the allocation-reached text must not match
-	// it. Neither runtime text may begin with the prefix of
-	// LicenseAIGovernance90PercentWarningText (also muted) or
-	// LicenseAIGovernanceOverLimitWarningText (isAIGovernanceWarning matches
-	// either AI Governance prefix to suppress the banner's client-side
-	// over-limit fallback). See TestLicenseAgentRuntimeHoursWarningTexts.
+	// The dashboard's LicenseBanner matches this text's pre-placeholder
+	// prefix to render it muted and without a sales link, so the license
+	// warning texts must stay pairwise distinct before their first
+	// placeholder. See TestLicenseAgentRuntimeHoursWarningTexts.
 	LicenseAgentRuntimeHoursSoftLimitWarningText = "Your deployment is approaching its Coder Agent runtime hours allocation: %d of the %d hours included in the current license term are used, at or above the advisory soft limit of %d hours."
 	// LicenseAgentRuntimeHoursAllocationReachedWarningText is emitted once
-	// the deployment reaches its runtime hour allocation. Both placeholders
-	// are whole hours: the runtime used so far in the license term, then the
-	// allocation.
+	// the deployment reaches its runtime hour allocation. Placeholders are
+	// whole hours: used, allocation.
 	LicenseAgentRuntimeHoursAllocationReachedWarningText = "Your deployment has used %d of the %d Coder Agent runtime hours included in the current license term."
 	// LicenseManagedAgentUsageUnavailableErrorText is emitted when the
-	// managed agent usage query fails while computing entitlements. The
-	// cause is logged server-side; this stable text is served on
-	// the unauthenticated entitlements payload instead of the raw error. It
-	// travels in the entitlements Errors channel, hence the ErrorText name,
-	// so the alertable coderd_license_errors gauge keeps counting
-	// measurement failures; the dashboard recognizes the exact text and
-	// renders it as a muted diagnostic rather than a license error. This
-	// comment is the owning description of that channel split; the other
-	// sites involved point back here.
+	// managed agent usage query fails while computing entitlements; the
+	// cause is logged server-side. It travels in the entitlements Errors
+	// channel so the alertable coderd_license_errors gauge counts
+	// measurement failures, but the dashboard recognizes the exact text and
+	// renders it as a muted diagnostic rather than a license error.
 	LicenseManagedAgentUsageUnavailableErrorText = "Unable to determine managed agent usage. The reported count is unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details."
 	// LicenseAgentRuntimeUsageUnavailableErrorText is the Coder Agent
 	// runtime hours sibling of LicenseManagedAgentUsageUnavailableErrorText.
 	LicenseAgentRuntimeUsageUnavailableErrorText = "Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details."
 	// LicenseAgentRuntimeHoursClaimsIgnoredWarningText is emitted when a
-	// license carries Coder Agent runtime hour claims that cannot be used;
-	// decodeAgentRuntimeHours in enterprise/coderd/license owns which claims
-	// are dropped and why dropping beats invalidating the license. The
-	// coderd logs name the license and the dropped claims. The dashboard
-	// recognizes the exact text and renders it as a muted diagnostic without
-	// a sales link.
+	// license carries unusable Coder Agent runtime hour claims (see
+	// decodeAgentRuntimeHours in enterprise/coderd/license); the logs name
+	// the license and the dropped claims. The dashboard renders the exact
+	// text as a muted diagnostic without a sales link.
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText = "A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued."
 )
 

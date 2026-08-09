@@ -159,24 +159,12 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 		return xerrors.Errorf("list existing agent runtime events: %w", err)
 	}
 	// A row marks its bucket complete regardless of publish outcome, so a
-	// bucket whose event Tallyman permanently rejected is never
-	// regenerated (re-inserting under the deterministic ID is a no-op via
-	// the insert's ON CONFLICT (id) arbiter).
-	//
-	// The runtime is not lost locally: the row still holds it, and the
-	// event can be re-queued for publishing with
-	//
-	//	UPDATE usage_events
-	//	SET published_at = NULL, publish_started_at = NULL, failure_message = NULL
-	//	WHERE id = 'hb_agent_runtime_v1:<bucket start, e.g. 2026-07-15_14:00:00>';
-	//
-	// That re-arm only has an effect while the bucket is inside the
-	// publisher's 30-day cutoff: SelectUsageEventsForPublishing also
-	// filters created_at > now - INTERVAL '30 days', and created_at is the
-	// bucket start, so past that the UPDATE reports success but the row is
-	// never picked up again. The release gate (Tallyman must accept this
-	// event type before coderd ships it) is what keeps permanent
-	// rejections exceptional.
+	// bucket whose event Tallyman permanently rejected is never regenerated
+	// (re-inserting under the deterministic ID is a no-op via the insert's
+	// ON CONFLICT (id) arbiter). The runtime is not lost locally: the row
+	// keeps it, and clearing the row's publish columns re-queues it while
+	// the bucket is within SelectUsageEventsForPublishing's 30-day
+	// created_at cutoff.
 	existing := make(map[time.Time]struct{}, len(existingTimes))
 	for _, ts := range existingTimes {
 		// created_at is always the exact bucket start for this event type;
@@ -240,22 +228,18 @@ func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error 
 	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
 	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
 	if database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
-		// This comment is the owning description of the bucket-index race;
-		// the query and migration comments point here. The insert's ON
-		// CONFLICT (id) arbiter only sees committed rows, so two replicas
-		// inserting this bucket's deterministic id concurrently can trip
-		// the bucket unique index instead of the arbiter. If the bucket's
-		// row landed under the same id, the other replica won the race and
-		// the bucket is complete. Otherwise a non-generator writer holds
-		// the bucket under a different id, which is exactly what the
-		// unique index exists to surface.
+		// The insert's ON CONFLICT (id) arbiter only sees committed rows,
+		// so two replicas inserting this bucket's deterministic id
+		// concurrently can trip the bucket unique index instead of the
+		// arbiter. If the bucket's row landed under the same id, the other
+		// replica won the race; otherwise a non-generator writer holds the
+		// bucket under a different id, which is exactly what the unique
+		// index exists to surface.
 		exists, existsErr := g.db.UsageEventExistsByID(ctx, stableID)
 		switch {
 		case existsErr != nil:
-			// Neither state is established: the bucket may be complete
-			// under our id or held by a foreign writer. Carry both errors
-			// so the log does not accuse a non-generator writer when the
-			// exists check simply failed.
+			// Carry both errors so the log does not accuse a foreign
+			// writer when the exists check merely failed.
 			return xerrors.Errorf("check bucket owner after unique violation: %w", errors.Join(err, existsErr))
 		case exists:
 			return nil

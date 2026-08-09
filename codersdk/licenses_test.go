@@ -11,8 +11,7 @@ import (
 
 // TestLicenseAgentRuntimeHoursWarningTexts pins the warning-text prefix
 // couplings consumed by the dashboard's LicenseBanner
-// (site/src/modules/dashboard/LicenseBanner); the
-// LicenseAgentRuntimeHoursSoftLimitWarningText doc owns the classifier story.
+// (site/src/modules/dashboard/LicenseBanner).
 func TestLicenseAgentRuntimeHoursWarningTexts(t *testing.T) {
 	t.Parallel()
 

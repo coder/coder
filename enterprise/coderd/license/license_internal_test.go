@@ -186,9 +186,7 @@ func TestAgentRuntimeMsToHoursDivisor(t *testing.T) {
 	assert.EqualValues(t, math.MaxInt64/3_600_000, agentRuntimeMsToHours(math.MaxInt64))
 }
 
-// TestUsageMeasurementAborted pins the abort classification both layers of
-// the usage-failure policy share: measureUsage's abort decision and the
-// measurement closures' log suppression.
+// TestUsageMeasurementAborted pins measureUsage's abort classification.
 func TestUsageMeasurementAborted(t *testing.T) {
 	t.Parallel()
 

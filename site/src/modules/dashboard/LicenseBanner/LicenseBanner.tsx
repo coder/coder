@@ -31,9 +31,8 @@ const isAIGovernanceWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceOverLimitWarningPrefix);
 
 // Substitutes the given values into the template's %d placeholders in order.
-// No other fmt verb, width, or flag is implemented, so future templates must
-// not use them. Also used by the stories, so what they pin is what
-// production renders.
+// No other fmt verb, width, or flag is implemented. Exported for the
+// stories, so what they pin is what production renders.
 export const formatLicenseMessage = (
 	template: string,
 	...values: number[]
@@ -44,12 +43,9 @@ export const formatLicenseMessage = (
 	);
 
 // Diagnostics about the license or the usage measurement rather than about
-// usage itself. They point the operator at the coderd logs or at Coder
-// support, so they render muted, without the exceedance heading, and without
-// a sales link. The "unavailable" pair arrives via entitlements.errors but
-// must not render as license errors; the
-// LicenseManagedAgentUsageUnavailableErrorText doc in codersdk owns the
-// explanation of that channel split.
+// usage itself. They render muted, without the exceedance heading or a sales
+// link. The "unavailable" pair arrives via entitlements.errors but must not
+// render as license errors; see LicenseManagedAgentUsageUnavailableErrorText.
 const diagnosticMessages: readonly string[] = [
 	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseAgentRuntimeUsageUnavailableErrorText,
@@ -59,10 +55,9 @@ const diagnosticMessages: readonly string[] = [
 const isDiagnosticMessage = (message: string): boolean =>
 	diagnosticMessages.includes(message);
 
-// Advisory warnings render in the muted variant: nothing is wrong yet, so
-// they must be visually distinct from warnings that demand action, such as
-// reaching the runtime hours allocation. Diagnostics are muted for the same
-// reason, whichever channel they arrive on.
+// Advisories and diagnostics render in the muted variant: nothing is wrong
+// yet, so they must be visually distinct from warnings that demand action,
+// such as reaching the runtime hours allocation.
 const isMutedWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
 	message.startsWith(agentRuntimeSoftLimitWarningPrefix) ||
@@ -159,10 +154,9 @@ const messageLink = (message: string): LicenseBannerLink | undefined => {
 			showExternalIcon: false,
 		};
 	}
-	// Diagnostics tell the operator to check the logs or contact support; a
-	// sales link would contradict them. The advisory soft-limit warning
-	// fires inside the purchased allocation with nothing owed, so it gets no
-	// sales call-to-action either.
+	// Diagnostics point the operator at the logs or support, and the
+	// soft-limit advisory fires inside the purchased allocation, so neither
+	// gets a sales link.
 	if (
 		isDiagnosticMessage(message) ||
 		message.startsWith(agentRuntimeSoftLimitWarningPrefix)

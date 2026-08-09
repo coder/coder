@@ -20637,7 +20637,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "actual": {
-                    "description": "Actual is the usage measured against Limit, when known. Most features\nreport a point-in-time count sampled when entitlements were computed,\nsuch as active users. Features with a UsagePeriod accumulate usage\nover that period in a feature-specific unit: FeatureManagedAgentLimit\ncounts workspace builds using managed agents, and\nFeatureAgentRuntimeHours counts whole hours of Coder Agent runtime,\nfloored from the recorded milliseconds and sharing its unit with\nLimit, SoftLimit and HardLimit.",
+                    "description": "Actual is the usage measured against Limit, when known: a\npoint-in-time count for most features, or usage accumulated over\nUsagePeriod for features that set one. Its unit matches Limit's;\nFeatureAgentRuntimeHours reports whole hours floored from the\nrecorded milliseconds.",
                     "type": "integer"
                 },
                 "enabled": {

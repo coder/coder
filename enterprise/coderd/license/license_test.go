@@ -1459,14 +1459,12 @@ func TestLicenseEntitlements(t *testing.T) {
 		}).Valid(time.Now())
 	}
 
-	// agentRuntimeHoursLicense builds an enterprise license carrying the agent
-	// runtime hour claims. A nil softLimit omits the soft limit claim, which
-	// a license is allowed to do; any non-nil value is minted verbatim,
-	// matching LicenseOptions.AgentRuntimeHours, so tests can construct
-	// explicit zero or nonsensical soft limits. For a positive allocation the
-	// helper also carries a hard limit as a convenience; it picks a value
-	// above the allocation because decodeAgentRuntimeHours ignores a lower
-	// one.
+	// agentRuntimeHoursLicense builds an enterprise license carrying the
+	// agent runtime hour claims. A nil softLimit omits the claim; any
+	// non-nil value is minted verbatim so tests can construct zero or
+	// nonsensical soft limits. A positive allocation also carries a hard
+	// limit above the allocation (decodeAgentRuntimeHours ignores a lower
+	// one).
 	agentRuntimeHoursLicense := func(allocation int64, softLimit *int64) *coderdenttest.LicenseOptions {
 		var hard *int64
 		if allocation > 0 {
@@ -3162,7 +3160,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 }
 
 // TestAgentRuntimeHoursClaimTolerance pins decodeAgentRuntimeHours's
-// tolerate-and-warn contract; that function's doc owns the rationale.
+// tolerate-and-warn contract; see that function's doc for the rationale.
 func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 	t.Parallel()
 

@@ -187,10 +187,8 @@ const (
 
 type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
 
-// AgentRuntimeMsFn returns the total Coder Agent runtime, in milliseconds
-// (the unit the hb_agent_runtime_v1 usage events record), recorded between
-// from (inclusive) and to (exclusive); agentRuntimeMsToHours owns the unit
-// conversion and its rationale.
+// AgentRuntimeMsFn returns the total Coder Agent runtime in milliseconds
+// recorded between from (inclusive) and to (exclusive).
 type AgentRuntimeMsFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
 
 type WorkspaceCapableUserCountFn func(ctx context.Context) (int64, error)
@@ -530,11 +528,8 @@ func LicensesEntitlements(
 				continue
 			}
 
-			// Agent runtime hours are encoded as up to three claims and are
-			// decoded together after this loop, see decodeAgentRuntimeHours
-			// (which also handles the feature name itself appearing as a
-			// claim, and owns the tolerate-and-warn policy for unusable
-			// claims).
+			// Agent runtime hour claims are decoded together after this
+			// loop; see decodeAgentRuntimeHours.
 			if featureName == codersdk.FeatureAgentRuntimeHours ||
 				isAgentRuntimeHoursClaim(featureName) {
 				continue
@@ -599,8 +594,6 @@ func LicensesEntitlements(
 			}
 		}
 
-		// The loop above skips Agent runtime hours because the
-		// three claims that encode them decode into a single feature.
 		runtimeFeature, granted, ignoredClaims := decodeAgentRuntimeHours(claims.Features, entitlement, codersdk.UsagePeriod{
 			IssuedAt: claims.IssuedAt.Time,
 			Start:    usagePeriodStart,
@@ -744,10 +737,9 @@ func LicensesEntitlements(
 		}
 		if ok {
 			agentLimit.Actual = &managedAgentCount
-			// Write the patched feature back directly: the feature
-			// contest is already settled, and routing this through
-			// AddFeature would silently drop the write if
-			// Feature.Compare ever stopped preferring a non-nil Actual.
+			// Written back directly: the feature contest is already
+			// settled, so AddFeature's Compare must not get a chance to
+			// drop the write.
 			entitlements.Features[codersdk.FeatureManagedAgentLimit] = agentLimit
 
 			// Only issue warnings if the feature is enabled.
@@ -759,12 +751,9 @@ func LicensesEntitlements(
 	}
 
 	// Usage is measured even for a zero allocation, which reports the
-	// feature disabled: see decodeAgentRuntimeHours. The reported usage can
-	// trail real usage and does not always catch up; the sources of
-	// staleness and loss are documented on
-	// enterprise/coderd/usage.AgentRuntimeInterval,
-	// AgentRuntimeEligibilityLag, AgentRuntimeWindow, and
-	// enterprise/coderd.Options.EntitlementsUpdateInterval.
+	// feature disabled: see decodeAgentRuntimeHours. Reported usage can
+	// trail real usage; the sources of staleness and loss are documented
+	// on the enterprise/coderd/usage.AgentRuntime* constants.
 	runtimeHours := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
 	if entitlements.HasLicense && runtimeHours.UsagePeriod != nil {
 		runtimeMs, ok, err := measureUsage(ctx, &entitlements,
@@ -916,37 +905,23 @@ func LicensesEntitlements(
 	return entitlements, nil
 }
 
-// usageMeasurementAborted decides whether a usage-measurement failure aborts
-// the whole entitlements computation in measureUsage. A failure aborts only
-// when the computation's own context is dead: the caller went away or coderd
-// is shutting down, so nothing should be published or logged for it.
-//
-// The abort must not key on the error looking like a cancel: Postgres raises
-// SQLSTATE 57014 (query_canceled) for statement_timeout kills as well as
-// client cancels, and aborting on those would fail every entitlements
-// refresh, and coderd startup, on a deployment whose statement_timeout is
-// shorter than a usage query. Any failure with a live context degrades into
-// the stable "usage unavailable" diagnostic instead.
+// usageMeasurementAborted reports whether a usage-measurement failure should
+// abort the whole entitlements computation: only when the computation's own
+// context is dead. It must not key on the error looking like a cancel:
+// Postgres raises SQLSTATE 57014 (query_canceled) for statement_timeout
+// kills as well as client cancels, and aborting on those would fail every
+// entitlements refresh on a deployment whose statement_timeout is shorter
+// than a usage query.
 func usageMeasurementAborted(ctx context.Context, err error) bool {
 	return err != nil && ctx.Err() != nil
 }
 
-// measureUsage runs one usage-measurement closure over the feature's usage
-// period and owns the whole failure policy (classification, logging, and
-// publication), keeping the managed-agent and runtime-hours paths from
-// drifting apart:
-//
-//   - A nil closure is a wiring bug (production always provides both), so it
-//     fails the whole LicensesEntitlements call rather than degrading into an
-//     operator-facing message for a state only a Coder developer can create.
-//   - A failure while the computation is being canceled also fails the whole
-//     call, without logging: see usageMeasurementAborted.
-//   - Any other failure logs the cause and appends the stable unavailableText
-//     (this string is served publicly). See the
-//     LicenseManagedAgentUsageUnavailableErrorText doc in codersdk for why
-//     it lands in entitlements.Errors yet renders as a muted diagnostic.
-//
-// It returns the measured value and true only on success.
+// measureUsage runs one usage query over the feature's usage period and owns
+// the shared failure policy: a nil fn is a wiring bug and fails the whole
+// LicensesEntitlements call; a failure with a dead context fails the call
+// without logging (see usageMeasurementAborted); any other failure logs the
+// cause and publishes the stable unavailableText instead. It returns the
+// measured value and true only on success.
 func measureUsage(
 	ctx context.Context,
 	entitlements *codersdk.Entitlements,
@@ -1021,13 +996,9 @@ const (
 	VersionClaim          = "version"
 )
 
-// Agent runtime hour license claims. These are the canonical claim names
-// minted by github.com/coder/license. All three claims map to the single
-// codersdk.FeatureAgentRuntimeHours feature and are decoded together, see
-// decodeAgentRuntimeHours (which owns the tolerate-and-warn policy for
-// claims that do not fit together).
-//
-// The unit for all three claims is hours.
+// Agent runtime hour license claims, minted by github.com/coder/license.
+// All three are in hours and decode together into the single
+// codersdk.FeatureAgentRuntimeHours feature; see decodeAgentRuntimeHours.
 const (
 	// ClaimAgentRuntimeHoursAllocation is the purchased runtime-hour
 	// allocation for the license term. It becomes the feature's Limit. A
@@ -1060,9 +1031,8 @@ var (
 
 type Features map[codersdk.FeatureName]int64
 
-// isAgentRuntimeHoursClaim reports whether the claim name is one of the three
-// claims that encode the codersdk.FeatureAgentRuntimeHours feature. These
-// claims are decoded together, see decodeAgentRuntimeHours.
+// isAgentRuntimeHoursClaim reports whether name is one of the three claims
+// decoded by decodeAgentRuntimeHours.
 func isAgentRuntimeHoursClaim(name codersdk.FeatureName) bool {
 	switch name {
 	case ClaimAgentRuntimeHoursAllocation,
@@ -1074,16 +1044,12 @@ func isAgentRuntimeHoursClaim(name codersdk.FeatureName) bool {
 	}
 }
 
-// agentRuntimeMsToHours converts milliseconds of Coder Agent runtime to whole
-// hours, the unit shared by the agent_runtime_hours_* license claims and
-// therefore by the feature's Limit, SoftLimit, HardLimit and Actual. Flooring
-// keeps the rendered value and the warnings in agreement: a discarded
-// sub-hour remainder can never be the difference between tripping and not
-// tripping a whole-hour threshold.
-//
-// Negative input is not producible by the production query, which coalesces
-// NULL to 0, but AgentRuntimeMsFn is a caller-supplied seam, so it is
-// clamped anyway.
+// agentRuntimeMsToHours floors milliseconds of Coder Agent runtime to whole
+// hours, the unit shared by the agent_runtime_hours_* claims and the
+// feature's limits. Flooring keeps the rendered value and the whole-hour
+// warning thresholds in agreement. Negative input (not producible by the
+// production query, but AgentRuntimeMsFn is a caller-supplied seam) clamps
+// to 0.
 func agentRuntimeMsToHours(ms int64) int64 {
 	if ms <= 0 {
 		return 0
@@ -1091,29 +1057,22 @@ func agentRuntimeMsToHours(ms int64) int64 {
 	return ms / int64(time.Hour/time.Millisecond)
 }
 
-// decodeAgentRuntimeHours builds the codersdk.FeatureAgentRuntimeHours feature
-// from the claims that encode it. It reports granted=false when the license
-// carries no usable allocation claim, in which case the license does not
-// grant the feature. The per-claim validity rules live on the Claim*
-// constants above.
+// decodeAgentRuntimeHours builds the codersdk.FeatureAgentRuntimeHours
+// feature from its claims. granted is false when there is no usable
+// allocation claim; per-claim validity rules live on the Claim* constants
+// above.
 //
-// Nonsensical claim combinations never invalidate the license: rejecting a
+// Unusable claims are dropped, never license-invalidating: rejecting a
 // signed license over a cosmetic threshold claim would drop the deployment
-// to unlicensed and take every paid feature with it. Dropping a claim must
-// not be silent either, or an incorrectly issued license (say, a soft limit
-// minted above the allocation) would look healthy and never fire the
-// warning the customer was sold; ignoredClaims names every dropped claim so
-// the caller can warn and log. The feature name minted as a claim is never
-// valid, but it is the shape every other metered feature uses and therefore
-// the most plausible issuer mistake, so it gets the same signal.
+// to unlicensed. ignoredClaims names each dropped claim (including the
+// feature name itself minted as a claim, the most plausible issuer mistake)
+// so the caller can warn and log instead of letting an incorrectly issued
+// license look healthy.
 //
-// A zero allocation grants the feature without an hour budget: it reports
-// Enabled false (which hides the feature in the dashboard), never fires the
-// hour-threshold warnings, and drops both limit claims since there is no
-// budget to measure them against. Actual is still measured and published so
-// direct readers of the entitlements API can see the runtime being consumed.
-// CODAGT-856 will make a zero allocation force a concurrency-limited mode;
-// that mode does not exist yet.
+// A zero allocation grants the feature disabled and drops both threshold
+// claims, but Actual is still measured and published. CODAGT-856 will make a
+// zero allocation force a concurrency-limited mode; that mode does not exist
+// yet.
 func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (feature codersdk.Feature, granted bool, ignoredClaims []string) {
 	if _, ok := features[codersdk.FeatureAgentRuntimeHours]; ok {
 		ignoredClaims = append(ignoredClaims, string(codersdk.FeatureAgentRuntimeHours))

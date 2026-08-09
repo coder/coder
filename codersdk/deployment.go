@@ -390,14 +390,11 @@ type Feature struct {
 	// features whose license carries it. See SoftLimit for the set of
 	// features that use these thresholds.
 	HardLimit *int64 `json:"hard_limit,omitempty"`
-	// Actual is the usage measured against Limit, when known. Most features
-	// report a point-in-time count sampled when entitlements were computed,
-	// such as active users. Features with a UsagePeriod accumulate usage
-	// over that period in a feature-specific unit: FeatureManagedAgentLimit
-	// counts workspace builds using managed agents, and
-	// FeatureAgentRuntimeHours counts whole hours of Coder Agent runtime,
-	// floored from the recorded milliseconds and sharing its unit with
-	// Limit, SoftLimit and HardLimit.
+	// Actual is the usage measured against Limit, when known: a
+	// point-in-time count for most features, or usage accumulated over
+	// UsagePeriod for features that set one. Its unit matches Limit's;
+	// FeatureAgentRuntimeHours reports whole hours floored from the
+	// recorded milliseconds.
 	Actual *int64 `json:"actual,omitempty"`
 
 	// Below is only for features that use usage periods.

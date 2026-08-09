@@ -1,19 +1,12 @@
--- The usage generator writes hb_agent_runtime_v1 rows with two invariants
--- nothing enforced: created_at is always the UTC hourly bucket start, and
--- there is exactly one row per bucket. Only uniqueness matters to the
--- entitlements read path (GetTotalUsageHBAgentRuntimeV1): it is what keeps
--- SUM from counting a bucket twice, and the SUM would add a misaligned
--- timestamp just fine. The alignment CHECK instead protects the attribution
--- model, which charges a bucket to the usage period containing its start: a
--- rule that is only meaningful while bucket starts are where the generator
--- says they are.
+-- The usage generator writes hb_agent_runtime_v1 rows with created_at at
+-- the UTC hourly bucket start and exactly one row per bucket. Uniqueness
+-- keeps GetTotalUsageHBAgentRuntimeV1's SUM from counting a bucket twice;
+-- the alignment CHECK protects the attribution model, which charges a
+-- bucket to the usage period containing its start.
 --
--- Both statements below validate existing rows, so a pre-existing violator
--- aborts this migration and the upgrade. That is deliberate: every supported
--- writer has always produced aligned, single-row-per-bucket data, so a
--- violator is anomalous (a manual insert or an external tool), and failing
--- loudly is preferable to silently deleting or rewriting usage rows in a
--- migration.
+-- Both statements validate existing rows. Every supported writer has always
+-- produced conforming data, so a pre-existing violator is anomalous and
+-- failing the migration loudly beats silently rewriting usage rows.
 ALTER TABLE usage_events
   ADD CONSTRAINT usage_events_agent_runtime_hour_aligned
   CHECK (
@@ -21,14 +14,12 @@ ALTER TABLE usage_events
     OR date_trunc('hour', (created_at AT TIME ZONE 'UTC')) = (created_at AT TIME ZONE 'UTC')
   );
 
--- Replace the non-unique partial index with a unique one of the same shape:
--- same columns and predicate, so reads are served identically. Inserts keep
--- their (id) arbiter, so re-inserting a bucket under its deterministic id
--- stays a silent no-op, while a duplicate bucket row under a different id
--- (which only a non-generator writer can produce) raises a unique violation
--- instead of being counted twice. Concurrent same-id inserts can surface
--- that violation too; generateBucket in enterprise/coderd/usage/generator.go
--- owns the description of that race and resolves it.
+-- Replace the non-unique partial index with a unique one of the same shape,
+-- so reads are served identically. Inserts keep their (id) arbiter:
+-- re-inserting a bucket under its deterministic id stays a silent no-op,
+-- while a duplicate bucket row under a different id raises instead of being
+-- counted twice (generateBucket in enterprise/coderd/usage/generator.go
+-- handles the violation).
 DROP INDEX idx_usage_events_agent_runtime;
 CREATE UNIQUE INDEX idx_usage_events_agent_runtime
   ON usage_events (event_type, created_at)
