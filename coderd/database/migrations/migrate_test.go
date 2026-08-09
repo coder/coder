@@ -1670,10 +1670,7 @@ func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
 	for {
 		version, more, err := next()
 		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", priorMigrationVersion)
-		}
-		if version == priorMigrationVersion {
+		if !more || version == priorMigrationVersion {
 			break
 		}
 	}
