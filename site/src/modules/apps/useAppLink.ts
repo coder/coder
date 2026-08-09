@@ -22,7 +22,9 @@ type UseAppLinkParams = {
 };
 
 type AppLink = {
-	href: string;
+	// Token-backed external apps intentionally expose no href: their URL is only
+	// complete once a session token is minted on click.
+	href: string | undefined;
 	onClick: (e: React.MouseEvent) => void;
 	label: string;
 	isLoading: boolean;
@@ -41,10 +43,6 @@ export const useAppLink = (
 	// audits) a session key for an app the user may never open.
 	const requiresSessionToken = isExternalApp(app) && needsSessionToken(app);
 
-	const generateKeyMutation = useMutation({
-		mutationFn: () => API.getApiKey(),
-	});
-
 	const buildHref = (token: string): string =>
 		getAppHref(app, {
 			agent,
@@ -53,11 +51,6 @@ export const useAppLink = (
 			path: proxy.preferredPathAppURL,
 			host: proxy.preferredWildcardHostname,
 		});
-
-	// For apps that require a session token this href intentionally omits the
-	// token; the `onClick` handler mints one and navigates to the final URL.
-	// Callers still render it as an anchor for apps that don't need a token.
-	const href = buildHref("");
 
 	// Custom-protocol (non-HTTP) external apps can silently fail when the target
 	// application isn't installed. The browser blurs when it hands control to
@@ -101,6 +94,28 @@ export const useAppLink = (
 		);
 	};
 
+	// The success/error handlers live on the mutation (not on the `mutate` call)
+	// so they still run when the triggering element unmounts before the request
+	// settles, e.g. a dropdown menu item that closes on select. Callbacks passed
+	// to `mutate` are dropped once the observer unmounts, which would otherwise
+	// swallow both the navigation and the failure toast.
+	const generateKeyMutation = useMutation({
+		mutationFn: () => API.getApiKey(),
+		onSuccess: ({ key }) => {
+			notifyOnOpenExternalAppFailed();
+			location.href = buildHref(key);
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, `Failed to open "${label}".`));
+		},
+	});
+
+	// Token-backed apps expose no navigable href: the token is minted on click
+	// and the final URL is built then. Exposing a tokenless href would let
+	// middle-click or "Open link" launch the custom protocol with an empty
+	// token, so we omit it entirely. Non-token apps still render as anchors.
+	const href = requiresSessionToken ? undefined : buildHref("");
+
 	const onClick = (e: React.MouseEvent) => {
 		// Apps that embed a session token mint it on click instead of on mount.
 		// These are always custom-protocol (non-HTTP) external apps, so we build
@@ -111,15 +126,7 @@ export const useAppLink = (
 			if (generateKeyMutation.isPending) {
 				return;
 			}
-			generateKeyMutation.mutate(undefined, {
-				onSuccess: ({ key }) => {
-					notifyOnOpenExternalAppFailed();
-					location.href = buildHref(key);
-				},
-				onError: (error) => {
-					toast.error(getErrorMessage(error, `Failed to open "${label}".`));
-				},
-			});
+			generateKeyMutation.mutate();
 			return;
 		}
 
@@ -143,7 +150,9 @@ export const useAppLink = (
 		switch (app.open_in) {
 			case "slim-window": {
 				e.preventDefault();
-				openAppInNewWindow(href);
+				if (href) {
+					openAppInNewWindow(href);
+				}
 				return;
 			}
 		}

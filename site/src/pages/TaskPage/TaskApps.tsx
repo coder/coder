@@ -208,7 +208,7 @@ const TaskAppTab: FC<TaskAppTabProps> = ({
 	});
 
 	return (
-		<TaskTab active={active} to={link.href} onClick={onClick}>
+		<TaskTab active={active} to={link.href ?? ""} onClick={onClick}>
 			{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
 			{link.label}
 			{app.health === "unhealthy" && (

@@ -270,6 +270,20 @@ export const WithTooltip: Story = {
 // clicks the link.
 export const ExternalAppDefersSessionToken: Story = {
 	decorators: [withToaster],
+	// Install the spy before the component renders. `play` runs after render and
+	// its effects, so a regression back to eager (on-mount) minting would fetch a
+	// key before a spy installed in `play` exists, and the later
+	// `not.toHaveBeenCalled()` assertion would still pass.
+	beforeEach: () => {
+		// Never resolve: we only assert whether/when the request fires, and
+		// leaving it pending avoids the subsequent protocol-handler navigation.
+		const getApiKey = spyOn(API, "getApiKey").mockImplementation(
+			() => new Promise(() => {}),
+		);
+		return () => {
+			getApiKey.mockRestore();
+		};
+	},
 	args: {
 		workspace: MockWorkspace,
 		app: {
@@ -280,22 +294,19 @@ export const ExternalAppDefersSessionToken: Story = {
 		agent: MockWorkspaceAgent,
 	},
 	play: async ({ canvasElement, step }) => {
-		// Never resolve: we only assert whether/when the request fires, and
-		// leaving it pending avoids the subsequent protocol-handler navigation.
-		const getApiKey = spyOn(API, "getApiKey").mockImplementation(
-			() => new Promise(() => {}),
-		);
 		const canvas = within(canvasElement);
-		const link = await canvas.findByRole("link");
+		// Token-backed apps expose no href and render as a button (the token is
+		// minted on click), so query by role "button".
+		const trigger = await canvas.findByRole("button");
 		const user = userEvent.setup();
 
 		await step("no API key is minted on render", async () => {
-			expect(getApiKey).not.toHaveBeenCalled();
+			expect(API.getApiKey).not.toHaveBeenCalled();
 		});
 
 		await step("clicking mints the API key on demand", async () => {
-			await user.click(link);
-			await waitFor(() => expect(getApiKey).toHaveBeenCalledTimes(1));
+			await user.click(trigger);
+			await waitFor(() => expect(API.getApiKey).toHaveBeenCalledTimes(1));
 		});
 	},
 };
@@ -304,6 +315,15 @@ export const ExternalAppDefersSessionToken: Story = {
 // even on click, so we don't create session keys for apps that don't need one.
 export const ExternalAppWithoutSessionTokenNeverMints: Story = {
 	decorators: [withToaster],
+	// Install the spy before render so an on-mount mint would be observed.
+	beforeEach: () => {
+		const getApiKey = spyOn(API, "getApiKey").mockResolvedValue({
+			key: "test-key",
+		});
+		return () => {
+			getApiKey.mockRestore();
+		};
+	},
 	args: {
 		workspace: MockWorkspace,
 		app: {
@@ -315,9 +335,6 @@ export const ExternalAppWithoutSessionTokenNeverMints: Story = {
 		agent: MockWorkspaceAgent,
 	},
 	play: async ({ canvasElement, step }) => {
-		const getApiKey = spyOn(API, "getApiKey").mockResolvedValue({
-			key: "test-key",
-		});
 		// The app opens in a slim window, so stub window.open to keep the click
 		// from navigating the test frame.
 		spyOn(window, "open").mockReturnValue(null);
@@ -326,9 +343,9 @@ export const ExternalAppWithoutSessionTokenNeverMints: Story = {
 		const user = userEvent.setup();
 
 		await step("no API key is minted on render or click", async () => {
-			expect(getApiKey).not.toHaveBeenCalled();
+			expect(API.getApiKey).not.toHaveBeenCalled();
 			await user.click(link);
-			expect(getApiKey).not.toHaveBeenCalled();
+			expect(API.getApiKey).not.toHaveBeenCalled();
 		});
 	},
 };
