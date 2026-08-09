@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 	"time"
@@ -3422,9 +3423,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			features := license.Features{
 				codersdk.FeatureUserLimit: 100,
 			}
-			for name, value := range tc.features {
-				features[name] = value
-			}
+			maps.Copy(features, tc.features)
 			lic := database.License{
 				ID:         1,
 				UploadedAt: time.Now(),

@@ -291,11 +291,10 @@ export const AIGovernanceOverLimitGracePeriod: Story = {
 	},
 };
 
-// The muted and prominent variants only reach the DOM as the banner's
-// background class, so the stories assert it directly: without this, every
-// story would keep passing with the muted/prominent classifier disabled.
-const mutedVariantClass = "bg-surface-secondary";
-const prominentVariantClass = "bg-surface-orange";
+// Without the data-variant assertions, every story would keep passing with
+// the muted/prominent classifier disabled.
+const mutedVariant = "warning";
+const prominentVariant = "warningProminent";
 
 export const AgentRuntimeHoursSoftLimit: Story = {
 	render: () =>
@@ -317,7 +316,7 @@ export const AgentRuntimeHoursSoftLimit: Story = {
 		);
 		// The advisory soft-limit warning renders in the muted variant,
 		// unlike the allocation-reached warning below.
-		await expect(banner).toHaveClass(mutedVariantClass);
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		// The operator is inside their allocation with nothing owed, so no
 		// sales call-to-action is rendered.
 		await expect(
@@ -343,7 +342,7 @@ export const AgentRuntimeHoursAllocationReached: Story = {
 		await expect(banner).toHaveTextContent(
 			"Your deployment has used 100 of the 100 Coder Agent runtime hours included in the current license term.",
 		);
-		await expect(banner).toHaveClass(prominentVariantClass);
+		await expect(banner).toHaveAttribute("data-variant", prominentVariant);
 		await expect(
 			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
 		).toHaveAttribute("href", "mailto:sales@coder.com");
@@ -365,7 +364,7 @@ export const AgentRuntimeUsageUnavailable: Story = {
 		await expect(banner).toHaveTextContent(
 			LicenseAgentRuntimeUsageUnavailableErrorText,
 		);
-		await expect(banner).toHaveClass(mutedVariantClass);
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		await expect(
 			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
 		).not.toBeInTheDocument();
@@ -383,7 +382,7 @@ export const ManagedAgentUsageUnavailable: Story = {
 		await expect(banner).toHaveTextContent(
 			LicenseManagedAgentUsageUnavailableErrorText,
 		);
-		await expect(banner).toHaveClass(mutedVariantClass);
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		await expect(
 			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
 		).not.toBeInTheDocument();
@@ -401,7 +400,7 @@ export const AgentRuntimeHoursClaimsIgnored: Story = {
 		await expect(banner).toHaveTextContent(
 			LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 		);
-		await expect(banner).toHaveClass(mutedVariantClass);
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		await expect(
 			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
 		).not.toBeInTheDocument();
@@ -421,7 +420,7 @@ export const UsageDiagnosticsOnlyHeading: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByRole("status");
-		await expect(banner).toHaveClass(mutedVariantClass);
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		await expect(canvas.getByText("License notices")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText("Your license limits have been exceeded"),

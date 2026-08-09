@@ -10803,7 +10803,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 			EventData: []byte(`{"runtime_ms": 100}`),
 			CreatedAt: day1.Add(30 * time.Minute),
 		})
-		require.ErrorContains(t, err, "usage_events_agent_runtime_hour_aligned")
+		require.ErrorContains(t, err, string(database.CheckUsageEventsAgentRuntimeHourAligned))
 		rows = getDailyRows(ctx, sqlDB)
 		require.Len(t, rows, 3)
 		require.JSONEq(t, `{"runtime_ms": 1500}`, string(rows[0].UsageData))

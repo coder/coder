@@ -120,9 +120,8 @@ func Entitlements(
 				StartDate: startTime,
 				EndDate:   endTime,
 			})
-			// measureUsage reports a stable message, so log the cause
-			// here, unless the whole computation is aborting anyway; see
-			// usageMeasurementAborted for the shared policy.
+			// measureUsage publishes a stable text, so the cause is only
+			// logged here.
 			if err != nil && !usageMeasurementAborted(ctx, err) {
 				logger.Error(ctx, "get managed agent usage for entitlements", slog.Error(err))
 			}
@@ -141,9 +140,8 @@ func Entitlements(
 				StartTime: startTime,
 				EndTime:   endTime,
 			})
-			// measureUsage reports a stable message, so log the cause
-			// here, unless the whole computation is aborting anyway; see
-			// usageMeasurementAborted for the shared policy.
+			// measureUsage publishes a stable text, so the cause is only
+			// logged here.
 			if err != nil && !usageMeasurementAborted(ctx, err) {
 				logger.Error(ctx, "get agent runtime usage for entitlements", slog.Error(err))
 			}
@@ -158,10 +156,8 @@ func Entitlements(
 }
 
 type FeatureArguments struct {
-	// Logger receives server-side diagnostics for conditions whose
-	// operator-facing message is a stable text, such as ignored license
-	// claims. The zero value is a no-op logger, which tests exercising
-	// unrelated features rely on.
+	// Logger receives the causes behind operator-facing diagnostics whose
+	// published message is a stable text. The zero value discards them.
 	Logger                slog.Logger
 	ActiveUserCount       int64
 	ActiveAISeatCount     int64
@@ -172,10 +168,8 @@ type FeatureArguments struct {
 	// state of the world, but a count between two points in time determined by
 	// the licenses.
 	ManagedAgentCountFn ManagedAgentCountFn
-	// AgentRuntimeMsFn reports the Coder Agent runtime consumed between two
-	// points in time determined by the licenses, see the AgentRuntimeMsFn
-	// type. Like the managed agent count, this is not a count of the current
-	// state of the world.
+	// AgentRuntimeMsFn is queried with two points in time determined by the
+	// licenses, like the managed agent count above.
 	AgentRuntimeMsFn AgentRuntimeMsFn
 	// UserCountingMode selects the count that FeatureUserLimit candidates
 	// from AI Governance addon licenses are evaluated against. Under
@@ -634,10 +628,8 @@ func LicensesEntitlements(
 			entitlements.AddFeature(codersdk.FeatureAgentRuntimeHours, runtimeFeature)
 		}
 		if len(ignoredClaims) > 0 {
-			// A dropped claim means the license does not say what its
-			// issuer thought it says; surface that without invalidating
-			// the license. The published warning is a stable text, so the
-			// license and claim detail support needs goes to the log.
+			// The published warning is a stable text, so the details a
+			// support case needs go to the log.
 			featureArguments.Logger.Warn(ctx, "ignored unusable Coder Agent runtime hour claims in license",
 				slog.F("license_id", license.UUID),
 				slog.F("ignored_claims", ignoredClaims),
@@ -784,15 +776,10 @@ func LicensesEntitlements(
 		}
 	}
 
-	// Agent runtime hour usage and warnings are measured against the usage
-	// period of the license that won FeatureAgentRuntimeHours above. The
-	// feature is absent unless a license carries the allocation claim, so
-	// unlicensed and non-runtime-hour deployments never reach this block.
-	// Usage is measured and published even for a zero allocation, which
-	// reports the feature disabled: see decodeAgentRuntimeHours.
-	//
-	// The reported usage can trail real usage and does not always catch
-	// up; the sources of staleness and loss are documented on
+	// Usage is measured even for a zero allocation, which reports the
+	// feature disabled: see decodeAgentRuntimeHours. The reported usage can
+	// trail real usage and does not always catch up; the sources of
+	// staleness and loss are documented on
 	// enterprise/coderd/usage.AgentRuntimeInterval,
 	// AgentRuntimeEligibilityLag, AgentRuntimeWindow, and
 	// enterprise/coderd.Options.EntitlementsUpdateInterval.
@@ -1001,11 +988,9 @@ func measureUsage(
 	return value, true, nil
 }
 
-// appendAgentRuntimeHoursWarning appends at most one warning for the Coder
-// Agent runtime hours feature: reaching the allocation supersedes the
-// advisory soft limit, so the banner never stacks both messages. The soft
-// limit is optional; a license may carry an allocation alone. A zero
-// allocation never warns.
+// appendAgentRuntimeHoursWarning appends at most one warning: reaching the
+// allocation supersedes the advisory soft limit, so the dashboard banner
+// never stacks both messages.
 func appendAgentRuntimeHoursWarning(warnings []string, actualHours int64, allocation int64, softLimit *int64) []string {
 	if allocation <= 0 {
 		return warnings
@@ -1130,17 +1115,14 @@ func agentRuntimeMsToHours(ms int64) int64 {
 // constants above.
 //
 // Nonsensical claim combinations never invalidate the license: rejecting a
-// signed license for a cosmetic threshold claim would drop the deployment to
-// unlicensed and take every paid feature with it, so, matching how the
-// feature loop skips nonsensical claims elsewhere, they are ignored instead.
-// Ignoring a claim must not be silent, or an incorrectly issued license
-// (say, a soft limit minted above the allocation) would produce a deployment
-// that looks healthy and never fires the warning the customer was sold.
-// ignoredClaims names every dropped claim so the caller can warn and log.
-// That includes the feature name itself minted as a claim: it is never valid
-// here (the allocation must come from the dedicated claim), but it is the
-// shape every other metered feature uses and therefore the most plausible
-// issuer mistake, so it must not be dropped without a signal either.
+// signed license over a cosmetic threshold claim would drop the deployment
+// to unlicensed and take every paid feature with it. Dropping a claim must
+// not be silent either, or an incorrectly issued license (say, a soft limit
+// minted above the allocation) would look healthy and never fire the
+// warning the customer was sold; ignoredClaims names every dropped claim so
+// the caller can warn and log. The feature name minted as a claim is never
+// valid, but it is the shape every other metered feature uses and therefore
+// the most plausible issuer mistake, so it gets the same signal.
 //
 // A zero allocation grants the feature without an hour budget: it reports
 // Enabled false (which hides the feature in the dashboard), never fires the
@@ -1159,8 +1141,6 @@ func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement
 	hard, hardOk := features[ClaimAgentRuntimeHoursLimitHard]
 
 	if !allocOk || allocation < 0 {
-		// Without a usable allocation the feature is not granted, so any
-		// present runtime-hour claim is being dropped.
 		if allocOk && allocation < 0 {
 			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursAllocation)
 		}
