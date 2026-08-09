@@ -116,36 +116,19 @@ func Entitlements(
 			// usage.
 			//
 			// nolint:gocritic // Reading usage events requires the usage publisher subject.
-			count, err := db.GetTotalUsageDCManagedAgentsV1(dbauthz.AsUsagePublisher(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
+			return db.GetTotalUsageDCManagedAgentsV1(dbauthz.AsUsagePublisher(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
 				StartDate: startTime,
 				EndDate:   endTime,
 			})
-			// measureUsage publishes a stable text, so the cause is only
-			// logged here.
-			if err != nil && !usageMeasurementAborted(ctx, err) {
-				logger.Error(ctx, "get managed agent usage for entitlements", slog.Error(err))
-			}
-			return count, err
 		},
 		AgentRuntimeMsFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
-			// Unlike the managed agent count above, this reads the raw
-			// usage_events rows with the usage period bounds, so no rollup
-			// is needed: hb_agent_runtime_v1 is one row per hour
-			// deployment-wide and has a dedicated partial index. The result
-			// is still bucket-granular rather than exact; see the query doc
-			// for what the bounds do and do not promise.
+			// Bounds and bucket semantics are documented on the query.
 			//
 			// nolint:gocritic // Reading usage events requires the usage publisher subject.
-			runtimeMs, err := db.GetTotalUsageHBAgentRuntimeV1(dbauthz.AsUsagePublisher(ctx), database.GetTotalUsageHBAgentRuntimeV1Params{
+			return db.GetTotalUsageHBAgentRuntimeV1(dbauthz.AsUsagePublisher(ctx), database.GetTotalUsageHBAgentRuntimeV1Params{
 				StartTime: startTime,
 				EndTime:   endTime,
 			})
-			// measureUsage publishes a stable text, so the cause is only
-			// logged here.
-			if err != nil && !usageMeasurementAborted(ctx, err) {
-				logger.Error(ctx, "get agent runtime usage for entitlements", slog.Error(err))
-			}
-			return runtimeMs, err
 		},
 	})
 	if err != nil {
@@ -204,11 +187,10 @@ const (
 
 type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
 
-// AgentRuntimeMsFn returns the total Coder Agent runtime, in milliseconds,
-// recorded between from (inclusive) and to (exclusive). The result is in
-// milliseconds because that is the unit the hb_agent_runtime_v1 usage events
-// record; LicensesEntitlements converts it to whole hours, the unit of the
-// agent_runtime_hours_* license claims.
+// AgentRuntimeMsFn returns the total Coder Agent runtime, in milliseconds
+// (the unit the hb_agent_runtime_v1 usage events record), recorded between
+// from (inclusive) and to (exclusive); agentRuntimeMsToHours owns the unit
+// conversion and its rationale.
 type AgentRuntimeMsFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
 
 type WorkspaceCapableUserCountFn func(ctx context.Context) (int64, error)
@@ -755,7 +737,7 @@ func LicensesEntitlements(
 		// Calculate the amount of agents between the usage period start and
 		// end.
 		managedAgentCount, ok, err := measureUsage(ctx, &entitlements,
-			featureArguments.ManagedAgentCountFn, *agentLimit.UsagePeriod,
+			featureArguments.Logger, featureArguments.ManagedAgentCountFn, *agentLimit.UsagePeriod,
 			"managed agent count", codersdk.LicenseManagedAgentUsageUnavailableErrorText)
 		if err != nil {
 			return entitlements, err
@@ -786,7 +768,7 @@ func LicensesEntitlements(
 	runtimeHours := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
 	if entitlements.HasLicense && runtimeHours.UsagePeriod != nil {
 		runtimeMs, ok, err := measureUsage(ctx, &entitlements,
-			featureArguments.AgentRuntimeMsFn, *runtimeHours.UsagePeriod,
+			featureArguments.Logger, featureArguments.AgentRuntimeMsFn, *runtimeHours.UsagePeriod,
 			"agent runtime", codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
 		if err != nil {
 			return entitlements, err
@@ -934,12 +916,10 @@ func LicensesEntitlements(
 	return entitlements, nil
 }
 
-// usageMeasurementAborted is the single classification for usage-measurement
-// failures, shared by measureUsage (which decides whether to abort the whole
-// entitlements computation) and the measurement closures in Entitlements
-// (which decide whether to log the cause). A failure aborts only when the
-// computation's own context is dead: the caller went away or coderd is
-// shutting down, so nothing should be published or logged for it.
+// usageMeasurementAborted decides whether a usage-measurement failure aborts
+// the whole entitlements computation in measureUsage. A failure aborts only
+// when the computation's own context is dead: the caller went away or coderd
+// is shutting down, so nothing should be published or logged for it.
 //
 // The abort must not key on the error looking like a cancel: Postgres raises
 // SQLSTATE 57014 (query_canceled) for statement_timeout kills as well as
@@ -952,16 +932,17 @@ func usageMeasurementAborted(ctx context.Context, err error) bool {
 }
 
 // measureUsage runs one usage-measurement closure over the feature's usage
-// period and applies the shared error policy, keeping the managed-agent and
-// runtime-hours paths from drifting apart:
+// period and owns the whole failure policy (classification, logging, and
+// publication), keeping the managed-agent and runtime-hours paths from
+// drifting apart:
 //
 //   - A nil closure is a wiring bug (production always provides both), so it
 //     fails the whole LicensesEntitlements call rather than degrading into an
 //     operator-facing message for a state only a Coder developer can create.
 //   - A failure while the computation is being canceled also fails the whole
-//     call: see usageMeasurementAborted.
-//   - Any other failure appends the stable unavailableText (the cause is
-//     logged by the closure; this string is served publicly). See the
+//     call, without logging: see usageMeasurementAborted.
+//   - Any other failure logs the cause and appends the stable unavailableText
+//     (this string is served publicly). See the
 //     LicenseManagedAgentUsageUnavailableErrorText doc in codersdk for why
 //     it lands in entitlements.Errors yet renders as a muted diagnostic.
 //
@@ -969,6 +950,7 @@ func usageMeasurementAborted(ctx context.Context, err error) bool {
 func measureUsage(
 	ctx context.Context,
 	entitlements *codersdk.Entitlements,
+	logger slog.Logger,
 	fn func(ctx context.Context, from time.Time, to time.Time) (int64, error),
 	usagePeriod codersdk.UsagePeriod,
 	what string,
@@ -982,6 +964,7 @@ func measureUsage(
 	case usageMeasurementAborted(ctx, err):
 		return 0, false, xerrors.Errorf("get %s: %w", what, err)
 	case err != nil:
+		logger.Error(ctx, fmt.Sprintf("get %s for entitlements", what), slog.Error(err))
 		entitlements.Errors = append(entitlements.Errors, unavailableText)
 		return 0, false, nil
 	}

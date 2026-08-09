@@ -244,6 +244,11 @@ const renderLicenseBannerWithAIGovernance = ({
 		},
 	});
 
+// Without the data-variant assertions, every story would keep passing with
+// the muted/prominent classifier disabled.
+const mutedVariant = "warning";
+const prominentVariant = "warningProminent";
+
 export const AIGovernanceNearLimit: Story = {
 	render: () =>
 		renderLicenseBannerWithAIGovernance({
@@ -253,9 +258,13 @@ export const AIGovernanceNearLimit: Story = {
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("status")).toHaveTextContent(
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveTextContent(
 			"You have used 95% of your AI Governance add-on seats.",
 		);
+		// Pins the AI Governance near-limit branch of isMutedWarning,
+		// independently of the runtime soft-limit branch below.
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		await expect(
 			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
 		).toHaveAttribute("href", "mailto:sales@coder.com");
@@ -290,11 +299,6 @@ export const AIGovernanceOverLimitGracePeriod: Story = {
 		);
 	},
 };
-
-// Without the data-variant assertions, every story would keep passing with
-// the muted/prominent classifier disabled.
-const mutedVariant = "warning";
-const prominentVariant = "warningProminent";
 
 export const AgentRuntimeHoursSoftLimit: Story = {
 	render: () =>

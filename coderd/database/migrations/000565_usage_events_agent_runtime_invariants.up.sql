@@ -1,12 +1,12 @@
 -- The usage generator writes hb_agent_runtime_v1 rows with two invariants
 -- nothing enforced: created_at is always the UTC hourly bucket start, and
--- there is exactly one row per bucket. The entitlements read path
--- (GetTotalUsageHBAgentRuntimeV1) depends on them differently: uniqueness is
--- what keeps SUM from counting a bucket twice, while hour alignment protects
--- the attribution model, which charges a bucket to the usage period
--- containing its start. That rule is only meaningful if bucket starts are
--- where the generator says they are; the SUM itself would add a misaligned
--- timestamp just fine.
+-- there is exactly one row per bucket. Only uniqueness matters to the
+-- entitlements read path (GetTotalUsageHBAgentRuntimeV1): it is what keeps
+-- SUM from counting a bucket twice, and the SUM would add a misaligned
+-- timestamp just fine. The alignment CHECK instead protects the attribution
+-- model, which charges a bucket to the usage period containing its start: a
+-- rule that is only meaningful while bucket starts are where the generator
+-- says they are.
 --
 -- Both statements below validate existing rows, so a pre-existing violator
 -- aborts this migration and the upgrade. That is deliberate: every supported

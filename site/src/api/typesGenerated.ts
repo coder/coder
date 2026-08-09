@@ -5941,15 +5941,12 @@ export const LicenseAgentRuntimeHoursAllocationReachedWarningText =
 // From codersdk/licenses.go
 /**
  * LicenseAgentRuntimeHoursClaimsIgnoredWarningText is emitted when a
- * license carries Coder Agent runtime hour claims that cannot be used,
- * including claims that do not fit together (for example a soft limit
- * at or above the allocation, or a threshold without an allocation) and
- * the feature name itself minted as a claim. The unusable claims are
- * ignored rather than invalidating the signed license, so without this
- * warning an incorrectly issued license would be undetectable from the
- * deployment. The coderd logs name the license and the dropped claims.
- * The dashboard recognizes the exact text and renders it as a muted
- * diagnostic without a sales link.
+ * license carries Coder Agent runtime hour claims that cannot be used;
+ * decodeAgentRuntimeHours in enterprise/coderd/license owns which claims
+ * are dropped and why dropping beats invalidating the license. The
+ * coderd logs name the license and the dropped claims. The dashboard
+ * recognizes the exact text and renders it as a muted diagnostic without
+ * a sales link.
  */
 export const LicenseAgentRuntimeHoursClaimsIgnoredWarningText =
 	"A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued.";
@@ -5962,13 +5959,14 @@ export const LicenseAgentRuntimeHoursClaimsIgnoredWarningText =
  * in the license term, the allocation, then the soft limit.
  *
  * The two runtime hours texts must differ before their first placeholder:
- * the dashboard's LicenseBanner classifies warnings by the literal prefix
- * preceding the first placeholder, rendering the advisory soft-limit text
- * in the muted variant and the allocation-reached text prominently.
- * Neither text may begin with the prefix of
- * LicenseAIGovernance90PercentWarningText or
- * LicenseAIGovernanceOverLimitWarningText for the same reason. See
- * TestLicenseAgentRuntimeHoursWarningTexts.
+ * the dashboard's LicenseBanner (isMutedWarning) renders warnings
+ * matching this text's pre-placeholder prefix in the muted variant and
+ * without a sales link, so the allocation-reached text must not match
+ * it. Neither runtime text may begin with the prefix of
+ * LicenseAIGovernance90PercentWarningText (also muted) or
+ * LicenseAIGovernanceOverLimitWarningText (isAIGovernanceWarning matches
+ * either AI Governance prefix to suppress the banner's client-side
+ * over-limit fallback). See TestLicenseAgentRuntimeHoursWarningTexts.
  */
 export const LicenseAgentRuntimeHoursSoftLimitWarningText =
 	"Your deployment is approaching its Coder Agent runtime hours allocation: %d of the %d hours included in the current license term are used, at or above the advisory soft limit of %d hours.";
@@ -5992,7 +5990,7 @@ export const LicenseManagedAgentLimitExceededWarningText =
 /**
  * LicenseManagedAgentUsageUnavailableErrorText is emitted when the
  * managed agent usage query fails while computing entitlements. The
- * cause is logged by the query closure; this stable text is served on
+ * cause is logged server-side; this stable text is served on
  * the unauthenticated entitlements payload instead of the raw error. It
  * travels in the entitlements Errors channel, hence the ErrorText name,
  * so the alertable coderd_license_errors gauge keeps counting

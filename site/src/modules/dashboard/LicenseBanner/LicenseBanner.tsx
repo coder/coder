@@ -30,9 +30,10 @@ const isAIGovernanceWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
 	message.startsWith(aiGovernanceOverLimitWarningPrefix);
 
-// Renders a license message template the way the backend's fmt.Sprintf call
-// sites do, substituting each %d placeholder in order. Also used by the
-// stories, so what they pin is what production renders.
+// Substitutes the given values into the template's %d placeholders in order.
+// No other fmt verb, width, or flag is implemented, so future templates must
+// not use them. Also used by the stories, so what they pin is what
+// production renders.
 export const formatLicenseMessage = (
 	template: string,
 	...values: number[]

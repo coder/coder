@@ -38,6 +38,42 @@ import (
 // licensing experiment, so it is never asked to authorize anything.
 var testAuthorizer = rbac.NewCachingAuthorizer(prometheus.NewRegistry())
 
+// premiumRuntimeHoursFixture returns a mock store primed with a Premium
+// license carrying runtime hour claims (allocation 100, soft limit 80, hard
+// limit 120) plus the store expectations every entitlements refresh consumes
+// before usage is measured. Callers add expectations for the usage queries
+// under test.
+func premiumRuntimeHoursFixture(t *testing.T) (*dbmock.MockStore, *coderdenttest.LicenseOptions) {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	mDB := dbmock.NewMockStore(ctrl)
+
+	licenseOpts := (&coderdenttest.LicenseOptions{
+		FeatureSet: codersdk.FeatureSetPremium,
+		IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
+		NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
+		GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
+		ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
+		// The addon marks AI Bridge as explicitly entitled, suppressing
+		// the unrelated "AI Governance add-on is required to use AI
+		// Gateway" warning that Premium would otherwise produce.
+	}).UserLimit(100).AIGovernanceAddon(100).AgentRuntimeHours(100, ptr.Ref[int64](80), ptr.Ref[int64](120))
+
+	lic := database.License{
+		ID:  1,
+		JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
+		Exp: licenseOpts.ExpiresAt,
+	}
+
+	mDB.EXPECT().GetUnexpiredLicenses(gomock.Any()).Return([]database.License{lic}, nil)
+	mDB.EXPECT().GetActiveUserCount(gomock.Any(), false).Return(int64(1), nil)
+	mDB.EXPECT().GetActiveAISeatCount(gomock.Any()).Return(int64(0), nil)
+	mDB.EXPECT().GetTemplatesWithFilter(gomock.Any(), gomock.Any()).Return([]database.Template{}, nil)
+
+	return mDB, licenseOpts
+}
+
 func TestEntitlements(t *testing.T) {
 	t.Parallel()
 	all := make(map[codersdk.FeatureName]bool)
@@ -933,35 +969,8 @@ func TestEntitlements(t *testing.T) {
 
 		// Use a mock database so the production closure that reads
 		// usage_events can be observed directly.
-		ctrl := gomock.NewController(t)
-		mDB := dbmock.NewMockStore(ctrl)
+		mDB, licenseOpts := premiumRuntimeHoursFixture(t)
 
-		licenseOpts := (&coderdenttest.LicenseOptions{
-			FeatureSet: codersdk.FeatureSetPremium,
-			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
-			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
-			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
-			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
-			// The addon marks AI Bridge as explicitly entitled, suppressing
-			// the unrelated "AI Governance add-on is required to use AI
-			// Gateway" warning that Premium would otherwise produce.
-		}).UserLimit(100).AIGovernanceAddon(100).AgentRuntimeHours(100, ptr.Ref[int64](80), ptr.Ref[int64](120))
-
-		lic := database.License{
-			ID:  1,
-			JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
-			Exp: licenseOpts.ExpiresAt,
-		}
-
-		mDB.EXPECT().
-			GetUnexpiredLicenses(gomock.Any()).
-			Return([]database.License{lic}, nil)
-		mDB.EXPECT().
-			GetActiveUserCount(gomock.Any(), false).
-			Return(int64(1), nil)
-		mDB.EXPECT().
-			GetActiveAISeatCount(gomock.Any()).
-			Return(int64(0), nil)
 		// The Premium feature set grants a default managed agent limit, so
 		// that usage is queried too. It is not what this test is about.
 		mDB.EXPECT().
@@ -982,9 +991,6 @@ func TestEntitlements(t *testing.T) {
 			})).
 			// 90h30m of runtime floors to 90 hours.
 			Return((90*time.Hour + 30*time.Minute).Milliseconds(), nil)
-		mDB.EXPECT().
-			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
-			Return([]database.Template{}, nil)
 
 		entitlements, err := license.Entitlements(context.Background(), testutil.Logger(t), mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
 		require.NoError(t, err)
@@ -1010,38 +1016,17 @@ func TestEntitlements(t *testing.T) {
 		t.Parallel()
 
 		// Drive the real Entitlements closures with a mock database so
-		// their error branches are exercised: the cause must land in the
-		// coderd log, which the stable payload texts point at, and must not
-		// land on the unauthenticated entitlements payload.
-		ctrl := gomock.NewController(t)
-		mDB := dbmock.NewMockStore(ctrl)
+		// measureUsage's failure path is exercised end to end: the cause
+		// must land in the coderd log, which the stable payload texts point
+		// at, and must not land on the unauthenticated entitlements payload.
+		mDB, _ := premiumRuntimeHoursFixture(t)
 
-		licenseOpts := (&coderdenttest.LicenseOptions{
-			FeatureSet: codersdk.FeatureSetPremium,
-			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
-			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
-			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
-			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
-		}).UserLimit(100).AIGovernanceAddon(100).AgentRuntimeHours(100, ptr.Ref[int64](80), ptr.Ref[int64](120))
-
-		lic := database.License{
-			ID:  1,
-			JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
-			Exp: licenseOpts.ExpiresAt,
-		}
-
-		mDB.EXPECT().GetUnexpiredLicenses(gomock.Any()).Return([]database.License{lic}, nil)
-		mDB.EXPECT().GetActiveUserCount(gomock.Any(), false).Return(int64(1), nil)
-		mDB.EXPECT().GetActiveAISeatCount(gomock.Any()).Return(int64(0), nil)
 		mDB.EXPECT().
 			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
 			Return(int64(0), xerrors.New("kaboom managed"))
 		mDB.EXPECT().
 			GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
 			Return(int64(0), xerrors.New("kaboom runtime"))
-		mDB.EXPECT().
-			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
-			Return([]database.Template{}, nil)
 
 		// The error-level logs are the behavior under test, so the default
 		// failing test logger cannot be used.
@@ -1062,9 +1047,9 @@ func TestEntitlements(t *testing.T) {
 		}
 
 		logs := logBuf.String()
-		require.Contains(t, logs, "get managed agent usage for entitlements")
+		require.Contains(t, logs, "get managed agent count for entitlements")
 		require.Contains(t, logs, "kaboom managed")
-		require.Contains(t, logs, "get agent runtime usage for entitlements")
+		require.Contains(t, logs, "get agent runtime for entitlements")
 		require.Contains(t, logs, "kaboom runtime")
 	})
 
@@ -1074,35 +1059,14 @@ func TestEntitlements(t *testing.T) {
 		// A query failing while the refresh's own context is canceled,
 		// e.g. during shutdown, aborts the whole entitlements refresh and
 		// must not log a false query-failure alarm at error level.
-		ctrl := gomock.NewController(t)
-		mDB := dbmock.NewMockStore(ctrl)
+		mDB, _ := premiumRuntimeHoursFixture(t)
 
-		licenseOpts := (&coderdenttest.LicenseOptions{
-			FeatureSet: codersdk.FeatureSetPremium,
-			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
-			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
-			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
-			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
-		}).UserLimit(100).AIGovernanceAddon(100).AgentRuntimeHours(100, ptr.Ref[int64](80), ptr.Ref[int64](120))
-
-		lic := database.License{
-			ID:  1,
-			JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
-			Exp: licenseOpts.ExpiresAt,
-		}
-
-		mDB.EXPECT().GetUnexpiredLicenses(gomock.Any()).Return([]database.License{lic}, nil)
-		mDB.EXPECT().GetActiveUserCount(gomock.Any(), false).Return(int64(1), nil)
-		mDB.EXPECT().GetActiveAISeatCount(gomock.Any()).Return(int64(0), nil)
 		mDB.EXPECT().
 			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
 			Return(int64(0), nil)
 		mDB.EXPECT().
 			GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
 			Return(int64(0), context.Canceled)
-		mDB.EXPECT().
-			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
-			Return([]database.Template{}, nil)
 
 		var logBuf bytes.Buffer
 		logger := testutil.Logger(t).AppendSinks(sloghuman.Sink(&logBuf))
@@ -1111,42 +1075,20 @@ func TestEntitlements(t *testing.T) {
 		cancel()
 		_, err := license.Entitlements(ctx, logger, mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
 		require.ErrorContains(t, err, "get agent runtime")
-		require.NotContains(t, logBuf.String(), "get agent runtime usage for entitlements")
+		require.NotContains(t, logBuf.String(), "get agent runtime for entitlements")
 	})
 
 	t.Run("ManagedAgentQueryCancelDoesNotLogError", func(t *testing.T) {
 		t.Parallel()
 
-		// The managed agent sibling of UsageQueryCancelDoesNotLogError:
-		// its closure carries the same suppression guard, and the managed
-		// agent usage is measured first, so the runtime query is never
-		// reached.
-		ctrl := gomock.NewController(t)
-		mDB := dbmock.NewMockStore(ctrl)
+		// The managed agent sibling of UsageQueryCancelDoesNotLogError.
+		// The managed agent usage is measured first and its abort ends the
+		// refresh, so the runtime query is never reached.
+		mDB, _ := premiumRuntimeHoursFixture(t)
 
-		licenseOpts := (&coderdenttest.LicenseOptions{
-			FeatureSet: codersdk.FeatureSetPremium,
-			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
-			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
-			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
-			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
-		}).UserLimit(100)
-
-		lic := database.License{
-			ID:  1,
-			JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
-			Exp: licenseOpts.ExpiresAt,
-		}
-
-		mDB.EXPECT().GetUnexpiredLicenses(gomock.Any()).Return([]database.License{lic}, nil)
-		mDB.EXPECT().GetActiveUserCount(gomock.Any(), false).Return(int64(1), nil)
-		mDB.EXPECT().GetActiveAISeatCount(gomock.Any()).Return(int64(0), nil)
 		mDB.EXPECT().
 			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
 			Return(int64(0), context.Canceled)
-		mDB.EXPECT().
-			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
-			Return([]database.Template{}, nil)
 
 		var logBuf bytes.Buffer
 		logger := testutil.Logger(t).AppendSinks(sloghuman.Sink(&logBuf))
@@ -1155,7 +1097,7 @@ func TestEntitlements(t *testing.T) {
 		cancel()
 		_, err := license.Entitlements(ctx, logger, mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
 		require.ErrorContains(t, err, "get managed agent count")
-		require.NotContains(t, logBuf.String(), "get managed agent usage for entitlements")
+		require.NotContains(t, logBuf.String(), "get managed agent count for entitlements")
 	})
 
 	t.Run("AIGovernanceSeatWarnings", func(t *testing.T) {
@@ -3219,12 +3161,8 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 	})
 }
 
-// TestAgentRuntimeHoursClaimTolerance ensures nonsensical combinations of
-// the agent runtime hour claims never invalidate the license: the whole
-// license staying valid matters more than a cosmetic threshold claim, so
-// unusable claims are ignored by decodeAgentRuntimeHours instead of being
-// rejected at parse time. Rejecting them would drop the deployment to
-// unlicensed and take every paid feature with it.
+// TestAgentRuntimeHoursClaimTolerance pins decodeAgentRuntimeHours's
+// tolerate-and-warn contract; that function's doc owns the rationale.
 func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 	t.Parallel()
 
@@ -3486,6 +3424,56 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			require.Equal(t, tc.expectFeature.HardLimit, feature.HardLimit)
 		})
 	}
+
+	t.Run("WarningDeduplicatedAcrossLicenses", func(t *testing.T) {
+		t.Parallel()
+
+		// Two licenses with unusable claims must publish the stable warning
+		// once, or the banner would stack identical texts, while the log
+		// names each affected license so the operator can tell which ones
+		// need re-issuing.
+		newLicense := func(id int32) database.License {
+			return database.License{
+				ID:         id,
+				UploadedAt: time.Now(),
+				Exp:        time.Now().Add(time.Hour),
+				UUID:       uuid.New(),
+				JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureUserLimit: 100,
+						// A threshold without an allocation is unusable.
+						license.ClaimAgentRuntimeHoursLimitSoft: 80,
+					},
+				}),
+			}
+		}
+		licenses := []database.License{newLicense(1), newLicense(2)}
+
+		var logBuf bytes.Buffer
+		entitlements, err := license.LicensesEntitlements(
+			context.Background(), time.Now(), licenses,
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{
+				Logger: slog.Make(sloghuman.Sink(&logBuf)),
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 0, nil
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		warningCount := 0
+		for _, warning := range entitlements.Warnings {
+			if warning == codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText {
+				warningCount++
+			}
+		}
+		require.Equal(t, 1, warningCount, "the claims-ignored warning must appear exactly once")
+
+		logs := logBuf.String()
+		for _, lic := range licenses {
+			require.Contains(t, logs, lic.UUID.String())
+		}
+	})
 }
 
 func TestAIGovernanceAddon(t *testing.T) {
