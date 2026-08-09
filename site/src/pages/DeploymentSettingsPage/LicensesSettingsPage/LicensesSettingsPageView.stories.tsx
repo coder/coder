@@ -27,6 +27,10 @@ const meta: Meta<typeof LicensesSettingsPageView> = {
 			enabled: false,
 			entitlement: "not_entitled",
 		} satisfies Feature,
+		agentRuntimeHoursFeature: {
+			enabled: false,
+			entitlement: "not_entitled",
+		} satisfies Feature,
 	},
 };
 
@@ -69,5 +73,33 @@ export const ActiveAIGovernanceAddOnUsage: Story = {
 		).toBeInTheDocument();
 		await expect(canvas.getByText("512")).toBeInTheDocument();
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+	},
+};
+
+/** The Total agent hours panel renders full width, directly above Agent Workspace Builds. */
+export const TotalAgentHoursUsage: Story = {
+	args: {
+		agentRuntimeHoursFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 2000,
+			soft_limit: 1700,
+			actual: 435,
+		} satisfies Feature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const agentHoursHeading = canvas.getByRole("heading", {
+			name: "Total agent hours",
+		});
+		await expect(canvas.getByText("435")).toBeInTheDocument();
+		await expect(canvas.getByText("2,000")).toBeInTheDocument();
+		const managedAgentsSection = canvas.getByText(
+			"Agent Workspace Builds Disabled",
+		);
+		await expect(
+			agentHoursHeading.compareDocumentPosition(managedAgentsSection) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 	},
 };
