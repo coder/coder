@@ -19066,6 +19066,10 @@ const docTemplate = `{
                     "description": "ActivityBumpMillis allows optionally specifying the activity bump\nduration for all workspaces created from this template. Defaults to 1h\nbut can be set to 0 to disable activity bumping.",
                     "type": "integer"
                 },
+                "agents_allowed": {
+                    "description": "AgentsAllowed controls whether Coder Agents can create workspaces using\nthis template. Defaults to true.",
+                    "type": "boolean"
+                },
                 "allow_user_autostart": {
                     "description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled when using\nan enterprise license.",
                     "type": "boolean"
@@ -24612,6 +24616,9 @@ const docTemplate = `{
                 "activity_bump_ms": {
                     "type": "integer"
                 },
+                "agents_allowed": {
+                    "type": "boolean"
+                },
                 "allow_user_autostart": {
                     "description": "AllowUserAutostart and AllowUserAutostop are enterprise-only. Their\nvalues are only used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "boolean"
@@ -25999,6 +26006,10 @@ const docTemplate = `{
                 "activity_bump_ms": {
                     "description": "ActivityBumpMillis allows optionally specifying the activity bump\nduration for all workspaces created from this template. Defaults to 1h\nbut can be set to 0 to disable activity bumping.",
                     "type": "integer"
+                },
+                "agents_allowed": {
+                    "description": "AgentsAllowed controls whether Coder Agents can create workspaces using\nthis template. If omitted, the current value is preserved.",
+                    "type": "boolean"
                 },
                 "allow_user_autostart": {
                     "type": "boolean"

@@ -5910,6 +5910,7 @@ type Template struct {
 	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache            bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
+	AgentsAllowed                 bool            `db:"agents_allowed" json:"agents_allowed"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -5962,6 +5963,8 @@ type TemplateTable struct {
 	DisableModuleCache      bool         `db:"disable_module_cache" json:"disable_module_cache"`
 	// How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.
 	TimeTilAutostopNotify int64 `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
+	// Whether Coder Agents can create workspaces using this template.
+	AgentsAllowed bool `db:"agents_allowed" json:"agents_allowed"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.

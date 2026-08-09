@@ -52,6 +52,7 @@ export const validationSchema = Yup.object({
 		MAX_DESCRIPTION_MESSAGE,
 	),
 	allow_user_cancel_workspace_jobs: Yup.boolean(),
+	agents_allowed: Yup.boolean(),
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
 	disable_module_cache: Yup.boolean(),
@@ -92,6 +93,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			icon: template.icon,
 			allow_user_cancel_workspace_jobs:
 				template.allow_user_cancel_workspace_jobs,
+			agents_allowed: template.agents_allowed,
 			update_workspace_last_used_at: false,
 			update_workspace_dormant_at: false,
 			require_active_version: template.require_active_version,
@@ -201,6 +203,23 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 				description="Regulate actions allowed on workspaces created from this template."
 			>
 				<FormFields className="gap-12">
+					<div className="flex items-start">
+						<Checkbox
+							id="agents_allowed"
+							name="agents_allowed"
+							disabled={isSubmitting}
+							checked={form.values.agents_allowed}
+							onCheckedChange={(checked) => {
+								form.setFieldValue("agents_allowed", checked === true);
+							}}
+						/>
+						<Label htmlFor="agents_allowed">
+							<StackLabel>
+								Allow Coder Agents to create workspaces using this template
+							</StackLabel>
+						</Label>
+					</div>
+
 					<div className="flex items-start">
 						<Checkbox
 							id="allow_user_cancel_workspace_jobs"

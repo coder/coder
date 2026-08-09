@@ -347,6 +347,7 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
+		AgentsAllowed:    parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
 		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
 		AuthorUsername:   parser.String(values, "", "author"),
 		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),

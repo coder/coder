@@ -15,6 +15,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { docs } from "#/utils/docs";
@@ -23,6 +24,7 @@ import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 
 const IdpOrgSyncPage: FC = () => {
+	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
@@ -83,6 +85,7 @@ const IdpOrgSyncPage: FC = () => {
 					message="IdP Organization Sync"
 					description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/users/idp-sync")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (
 				<IdpOrgSyncPageView

@@ -99,6 +99,55 @@ func TestBuffer_CloseEpisodeIdempotent(t *testing.T) {
 	require.NoError(t, buffer.CloseEpisode(key))
 }
 
+func TestBuffer_ModelInvokedAt(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+	defer buffer.Close()
+
+	key := testEpisodeKey()
+	require.Zero(t, buffer.ModelInvokedAt(key), "unknown episode has no invocation stamp")
+	require.ErrorIs(t, buffer.StartModelInvocation(key), messagepartbuffer.ErrEpisodeNotFound)
+
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.Zero(t, buffer.ModelInvokedAt(key), "episode without a provider stream has no invocation stamp")
+	// Attempt setup happens before the provider stream opens and is
+	// not billable.
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.StartModelInvocation(key))
+	invokedAt := buffer.ModelInvokedAt(key)
+	require.Equal(t, clock.Now(), invokedAt)
+
+	// A repeat call re-stamps the start so only the most recent
+	// invocation is billed.
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.StartModelInvocation(key))
+	require.Equal(t, clock.Now(), buffer.ModelInvokedAt(key))
+
+	// Closing must not move the recorded stamp, and a closed episode
+	// no longer accepts an invocation start.
+	invokedAt = buffer.ModelInvokedAt(key)
+	clock.Advance(1500 * time.Millisecond)
+	require.NoError(t, buffer.CloseEpisode(key))
+	require.ErrorIs(t, buffer.StartModelInvocation(key), messagepartbuffer.ErrEpisodeClosed)
+	require.Equal(t, invokedAt, buffer.ModelInvokedAt(key))
+
+	// Episodes that never open a provider stream, such as local tool
+	// execution batches, report no invocation stamp.
+	toolBatch := testEpisodeKey()
+	require.NoError(t, buffer.CreateEpisode(toolBatch))
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.CloseEpisode(toolBatch))
+	require.Zero(t, buffer.ModelInvokedAt(toolBatch))
+
+	// Episodes created implicitly by CloseEpisode never started a
+	// generation attempt, so they report no invocation stamp.
+	implicit := testEpisodeKey()
+	require.NoError(t, buffer.CloseEpisode(implicit))
+	require.Zero(t, buffer.ModelInvokedAt(implicit))
+}
+
 func TestBuffer_SubscribeExistingReplaysThenStreamsLiveParts(t *testing.T) {
 	t.Parallel()
 
