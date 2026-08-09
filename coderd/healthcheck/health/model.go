@@ -45,6 +45,8 @@ const (
 	CodeProvisionerDaemonAPIMajorVersionDeprecated Code = `EPD03`
 
 	CodeInterfaceSmallMTU = `EIF01`
+
+	CodeUsagePublishingFailing Code = `EUP01`
 )
 
 // Default docs URL

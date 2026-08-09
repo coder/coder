@@ -26,6 +26,19 @@ import (
 // role sets and it runs on a context with no deadline of its own.
 const workspaceCapableUserCountTimeout = 60 * time.Second
 
+const (
+	// UsagePublishingFailureThreshold is how long usage event publishing must
+	// be failing before a warning is generated. An unpublished event older
+	// than this threshold, or a permanent rejection within this threshold,
+	// marks publishing as failing.
+	UsagePublishingFailureThreshold = 24 * time.Hour
+	// usagePublishingWindow matches the publisher's 30-day selection window
+	// in SelectUsageEventsForPublishing. Events older than this are never
+	// published, so they must not be considered stuck or a warning would get
+	// permanently stuck too.
+	usagePublishingWindow = 30 * 24 * time.Hour
+)
+
 // Entitlements processes licenses to return whether features are enabled or not.
 // TODO(@deansheather): This function and the related LicensesEntitlements
 // function should be refactored into smaller functions that:
@@ -120,6 +133,15 @@ func Entitlements(
 				EndDate:   endTime,
 			})
 		},
+		UsagePublishStatusFn: func(ctx context.Context, licenseStart time.Time) (database.GetUsagePublishStatusRow, error) {
+			// nolint:gocritic // Reading the usage publish status is a system function.
+			return db.GetUsagePublishStatus(dbauthz.AsSystemRestricted(ctx), database.GetUsagePublishStatusParams{
+				LicenseStart:  licenseStart,
+				WindowStart:   now.Add(-usagePublishingWindow),
+				StuckCutoff:   now.Add(-UsagePublishingFailureThreshold),
+				RejectedAfter: now.Add(-UsagePublishingFailureThreshold),
+			})
+		},
 	})
 	if err != nil {
 		return entitlements, err
@@ -154,6 +176,11 @@ type FeatureArguments struct {
 	// leaving it nil when the workspace-capable mode would invoke it is a
 	// dev error.
 	WorkspaceCapableUserCountFn WorkspaceCapableUserCountFn
+	// UsagePublishStatusFn fetches the usage event publishing status from the
+	// database. It is only called when a currently-valid license enables
+	// usage publishing. licenseStart is the earliest nbf among such licenses;
+	// events created before it are ignored.
+	UsagePublishStatusFn UsagePublishStatusFn
 }
 
 // UserCountingMode selects how license seats are counted for
@@ -170,6 +197,8 @@ const (
 )
 
 type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
+
+type UsagePublishStatusFn func(ctx context.Context, licenseStart time.Time) (database.GetUsagePublishStatusRow, error)
 
 type WorkspaceCapableUserCountFn func(ctx context.Context) (int64, error)
 
@@ -342,6 +371,15 @@ func LicensesEntitlements(
 	// processed.
 	var userLimitCandidates []userLimitCandidate
 
+	// Track whether any currently-valid license enables usage publishing and
+	// the earliest nbf among such licenses. The criteria mirror the usage
+	// publisher's getBestLicenseJWT so the reported status never disagrees
+	// with actual publisher behavior.
+	var (
+		usagePublishingEnabled      bool
+		usagePublishingLicenseStart time.Time
+	)
+
 	// Default all entitlements to be disabled.
 	entitlements := codersdk.Entitlements{
 		Features: map[codersdk.FeatureName]codersdk.Feature{
@@ -416,6 +454,16 @@ func LicensesEntitlements(
 
 		// Any valid license should toggle this boolean
 		entitlements.HasLicense = true
+
+		// Usage publishing requires a Salesforce account type, as other
+		// account types do not have a trusted Salesforce opportunity ID
+		// encoded in the license.
+		if claims.AccountType == AccountTypeSalesforce && claims.PublishUsageData {
+			usagePublishingEnabled = true
+			if usagePublishingLicenseStart.IsZero() || usagePeriodStart.Before(usagePublishingLicenseStart) {
+				usagePublishingLicenseStart = usagePeriodStart
+			}
+		}
 
 		// If any license requires telemetry, the deployment should require telemetry.
 		entitlements.RequireTelemetry = entitlements.RequireTelemetry || claims.RequireTelemetry
@@ -724,6 +772,48 @@ func LicensesEntitlements(
 			if agentLimit.Enabled && agentLimit.Limit != nil && managedAgentCount >= *agentLimit.Limit {
 				entitlements.Warnings = append(entitlements.Warnings,
 					codersdk.LicenseManagedAgentLimitExceededWarningText)
+			}
+		}
+	}
+
+	// Usage publishing failure detection. Deployments without a license that
+	// enables usage publishing (e.g. air-gapped deployments) never query the
+	// database and never generate a warning; the status object remains
+	// present with PublishingEnabled set to false and null timestamps.
+	entitlements.UsagePublishing = codersdk.UsagePublishingStatus{
+		PublishingEnabled: usagePublishingEnabled,
+	}
+	if usagePublishingEnabled && featureArguments.UsagePublishStatusFn != nil {
+		status, err := featureArguments.UsagePublishStatusFn(ctx, usagePublishingLicenseStart)
+		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+			// If the context is canceled, we want to bail the entire
+			// LicensesEntitlements call.
+			return entitlements, xerrors.Errorf("get usage publish status: %w", err)
+		}
+		if err != nil {
+			entitlements.Errors = append(entitlements.Errors, fmt.Sprintf("Error getting usage publish status: %s", err.Error()))
+			// no return
+		} else {
+			// The query encodes NULL results as the zero timestamp.
+			if !status.LastPublishedAt.IsZero() {
+				lastPublishedAt := status.LastPublishedAt
+				entitlements.UsagePublishing.LastPublishedAt = &lastPublishedAt
+			}
+			// Publishing is failing if any unpublished event is older than
+			// the failure threshold or any event was permanently rejected
+			// within the threshold. FailingSince is the earliest time
+			// associated with the failure.
+			var failingSince time.Time
+			if !status.OldestStuckCreatedAt.IsZero() {
+				failingSince = status.OldestStuckCreatedAt
+			}
+			if !status.EarliestRecentRejectionAt.IsZero() && (failingSince.IsZero() || status.EarliestRecentRejectionAt.Before(failingSince)) {
+				failingSince = status.EarliestRecentRejectionAt
+			}
+			if !failingSince.IsZero() {
+				entitlements.UsagePublishing.FailingSince = &failingSince
+				entitlements.Warnings = append(entitlements.Warnings,
+					codersdk.LicenseUsagePublishingFailingWarningText)
 			}
 		}
 	}

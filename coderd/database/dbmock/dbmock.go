@@ -5835,6 +5835,21 @@ func (mr *MockStoreMockRecorder) GetUnexpiredLicenses(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnexpiredLicenses", reflect.TypeOf((*MockStore)(nil).GetUnexpiredLicenses), ctx)
 }
 
+// GetUsagePublishStatus mocks base method.
+func (m *MockStore) GetUsagePublishStatus(ctx context.Context, arg database.GetUsagePublishStatusParams) (database.GetUsagePublishStatusRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUsagePublishStatus", ctx, arg)
+	ret0, _ := ret[0].(database.GetUsagePublishStatusRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUsagePublishStatus indicates an expected call of GetUsagePublishStatus.
+func (mr *MockStoreMockRecorder) GetUsagePublishStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsagePublishStatus", reflect.TypeOf((*MockStore)(nil).GetUsagePublishStatus), ctx, arg)
+}
+
 // GetUserAIBudgetOverride mocks base method.
 func (m *MockStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	m.ctrl.T.Helper()

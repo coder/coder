@@ -7511,6 +7511,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "refreshed_at": "2019-08-24T14:15:22Z",
   "require_telemetry": true,
   "trial": true,
+  "usage_publishing": {
+    "failing_since": "2019-08-24T14:15:22Z",
+    "last_published_at": "2019-08-24T14:15:22Z",
+    "publishing_enabled": true
+  },
   "warnings": [
     "string"
   ]
@@ -7519,16 +7524,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                | Type                                 | Required | Restrictions | Description |
-|---------------------|--------------------------------------|----------|--------------|-------------|
-| `errors`            | array of string                      | false    |              |             |
-| `features`          | object                               | false    |              |             |
-| » `[any property]`  | [codersdk.Feature](#codersdkfeature) | false    |              |             |
-| `has_license`       | boolean                              | false    |              |             |
-| `refreshed_at`      | string                               | false    |              |             |
-| `require_telemetry` | boolean                              | false    |              |             |
-| `trial`             | boolean                              | false    |              |             |
-| `warnings`          | array of string                      | false    |              |             |
+| Name                | Type                                                             | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `errors`            | array of string                                                  | false    |              |             |
+| `features`          | object                                                           | false    |              |             |
+| » `[any property]`  | [codersdk.Feature](#codersdkfeature)                             | false    |              |             |
+| `has_license`       | boolean                                                          | false    |              |             |
+| `refreshed_at`      | string                                                           | false    |              |             |
+| `require_telemetry` | boolean                                                          | false    |              |             |
+| `trial`             | boolean                                                          | false    |              |             |
+| `usage_publishing`  | [codersdk.UsagePublishingStatus](#codersdkusagepublishingstatus) | false    |              |             |
+| `warnings`          | array of string                                                  | false    |              |             |
 
 ## codersdk.Experiment
 
@@ -14453,6 +14459,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `issued_at` | string | false    |              |             |
 | `start`     | string | false    |              |             |
 
+## codersdk.UsagePublishingStatus
+
+```json
+{
+  "failing_since": "2019-08-24T14:15:22Z",
+  "last_published_at": "2019-08-24T14:15:22Z",
+  "publishing_enabled": true
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                          |
+|----------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `failing_since`      | string  | false    |              | Failing since is set when usage event publishing is considered failing. It is the earliest known time associated with the current failure: the creation time of the oldest unpublished event past the failure threshold, or the time of the earliest recent permanent rejection, whichever is older. |
+| `last_published_at`  | string  | false    |              | Last published at is the time of the latest successful publish of a usage event. It is null if no event has ever been published successfully.                                                                                                                                                        |
+| `publishing_enabled` | boolean | false    |              | Publishing enabled is true if a currently-valid license enables usage event publishing.                                                                                                                                                                                                              |
+
 ## codersdk.UsageStatsConfig
 
 ```json
@@ -17464,9 +17488,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                               |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
+| Value(s)                                                                                                                                                                                        |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EUP01`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
 
 ## health.Message
 
@@ -18022,9 +18046,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                             |
-|--------------------------------------------------------------------------------------|
-| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `Websocket`, `WorkspaceProxy` |
+| Value(s)                                                                                                |
+|---------------------------------------------------------------------------------------------------------|
+| `AccessURL`, `DERP`, `Database`, `ProvisionerDaemons`, `UsagePublishing`, `Websocket`, `WorkspaceProxy` |
 
 ## healthsdk.HealthSettings
 
@@ -18356,6 +18380,21 @@ Zero means unspecified. There might be a limit, but the client need not try to r
   },
   "severity": "ok",
   "time": "2019-08-24T14:15:22Z",
+  "usage_publishing": {
+    "dismissed": true,
+    "error": "string",
+    "failing_since": "2019-08-24T14:15:22Z",
+    "healthy": true,
+    "last_published_at": "2019-08-24T14:15:22Z",
+    "publishing_enabled": true,
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
   "websocket": {
     "body": "string",
     "code": 0,
@@ -18428,6 +18467,7 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `provisioner_daemons` | [healthsdk.ProvisionerDaemonsReport](#healthsdkprovisionerdaemonsreport) | false    |              |                                                                                     |
 | `severity`            | [health.Severity](#healthseverity)                                       | false    |              | Severity indicates the status of Coder health.                                      |
 | `time`                | string                                                                   | false    |              | Time is the time the report was generated at.                                       |
+| `usage_publishing`    | [healthsdk.UsagePublishingReport](#healthsdkusagepublishingreport)       | false    |              |                                                                                     |
 | `websocket`           | [healthsdk.WebsocketReport](#healthsdkwebsocketreport)                   | false    |              |                                                                                     |
 | `workspace_proxy`     | [healthsdk.WorkspaceProxyReport](#healthsdkworkspaceproxyreport)         | false    |              |                                                                                     |
 
@@ -18598,6 +18638,45 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | Name                     | Type                                                        | Required | Restrictions | Description |
 |--------------------------|-------------------------------------------------------------|----------|--------------|-------------|
 | `dismissed_healthchecks` | array of [healthsdk.HealthSection](#healthsdkhealthsection) | false    |              |             |
+
+## healthsdk.UsagePublishingReport
+
+```json
+{
+  "dismissed": true,
+  "error": "string",
+  "failing_since": "2019-08-24T14:15:22Z",
+  "healthy": true,
+  "last_published_at": "2019-08-24T14:15:22Z",
+  "publishing_enabled": true,
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                 | Type                                      | Required | Restrictions | Description                                                                                                                                   |
+|----------------------|-------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `dismissed`          | boolean                                   | false    |              |                                                                                                                                               |
+| `error`              | string                                    | false    |              |                                                                                                                                               |
+| `failing_since`      | string                                    | false    |              | Failing since is set when usage event publishing is considered failing.                                                                       |
+| `healthy`            | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.                                                   |
+| `last_published_at`  | string                                    | false    |              | Last published at is the time of the latest successful publish of a usage event. It is null if no event has ever been published successfully. |
+| `publishing_enabled` | boolean                                   | false    |              | Publishing enabled is true if a currently-valid license enables usage event publishing.                                                       |
+| `severity`           | [health.Severity](#healthseverity)        | false    |              |                                                                                                                                               |
+| `warnings`           | array of [health.Message](#healthmessage) | false    |              |                                                                                                                                               |
+
+#### Enumerated Values
+
+| Property   | Value(s)                 |
+|------------|--------------------------|
+| `severity` | `error`, `ok`, `warning` |
 
 ## healthsdk.WebsocketReport
 

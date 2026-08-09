@@ -527,6 +527,26 @@ type Entitlements struct {
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
 	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
+	UsagePublishing  UsagePublishingStatus   `json:"usage_publishing"`
+}
+
+// UsagePublishingStatus describes the status of usage event publishing to
+// Coder's servers. It is always present on Entitlements. Deployments without
+// a valid license that enables usage publishing (e.g. air-gapped deployments)
+// have PublishingEnabled set to false and both timestamps set to null.
+type UsagePublishingStatus struct {
+	// PublishingEnabled is true if a currently-valid license enables usage
+	// event publishing.
+	PublishingEnabled bool `json:"publishing_enabled"`
+	// LastPublishedAt is the time of the latest successful publish of a usage
+	// event. It is null if no event has ever been published successfully.
+	LastPublishedAt *time.Time `json:"last_published_at,omitempty" format:"date-time"`
+	// FailingSince is set when usage event publishing is considered failing.
+	// It is the earliest known time associated with the current failure:
+	// the creation time of the oldest unpublished event past the failure
+	// threshold, or the time of the earliest recent permanent rejection,
+	// whichever is older.
+	FailingSince *time.Time `json:"failing_since,omitempty" format:"date-time"`
 }
 
 // AddFeature will add the feature to the entitlements iff it expands

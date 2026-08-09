@@ -20340,6 +20340,9 @@ const docTemplate = `{
                 "trial": {
                     "type": "boolean"
                 },
+                "usage_publishing": {
+                    "$ref": "#/definitions/codersdk.UsagePublishingStatus"
+                },
                 "warnings": {
                     "type": "array",
                     "items": {
@@ -26457,6 +26460,25 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UsagePublishingStatus": {
+            "type": "object",
+            "properties": {
+                "failing_since": {
+                    "description": "FailingSince is set when usage event publishing is considered failing.\nIt is the earliest known time associated with the current failure:\nthe creation time of the oldest unpublished event past the failure\nthreshold, or the time of the earliest recent permanent rejection,\nwhichever is older.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "last_published_at": {
+                    "description": "LastPublishedAt is the time of the latest successful publish of a usage\nevent. It is null if no event has ever been published successfully.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "publishing_enabled": {
+                    "description": "PublishingEnabled is true if a currently-valid license enables usage\nevent publishing.",
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UsageStatsConfig": {
             "type": "object",
             "properties": {
@@ -28621,7 +28643,8 @@ const docTemplate = `{
                 "EDERP03",
                 "EPD01",
                 "EPD02",
-                "EPD03"
+                "EPD03",
+                "EUP01"
             ],
             "x-enum-varnames": [
                 "CodeUnknown",
@@ -28642,7 +28665,8 @@ const docTemplate = `{
                 "CodeDERPNoNodes",
                 "CodeProvisionerDaemonsNoProvisionerDaemons",
                 "CodeProvisionerDaemonVersionMismatch",
-                "CodeProvisionerDaemonAPIMajorVersionDeprecated"
+                "CodeProvisionerDaemonAPIMajorVersionDeprecated",
+                "CodeUsagePublishingFailing"
             ]
         },
         "health.Message": {
@@ -28926,7 +28950,8 @@ const docTemplate = `{
                 "Websocket",
                 "Database",
                 "WorkspaceProxy",
-                "ProvisionerDaemons"
+                "ProvisionerDaemons",
+                "UsagePublishing"
             ],
             "x-enum-varnames": [
                 "HealthSectionDERP",
@@ -28934,7 +28959,8 @@ const docTemplate = `{
                 "HealthSectionWebsocket",
                 "HealthSectionDatabase",
                 "HealthSectionWorkspaceProxy",
-                "HealthSectionProvisionerDaemons"
+                "HealthSectionProvisionerDaemons",
+                "HealthSectionUsagePublishing"
             ]
         },
         "healthsdk.HealthSettings": {
@@ -28988,6 +29014,9 @@ const docTemplate = `{
                     "description": "Time is the time the report was generated at.",
                     "type": "string",
                     "format": "date-time"
+                },
+                "usage_publishing": {
+                    "$ref": "#/definitions/healthsdk.UsagePublishingReport"
                 },
                 "websocket": {
                     "$ref": "#/definitions/healthsdk.WebsocketReport"
@@ -29067,6 +29096,53 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/healthsdk.HealthSection"
+                    }
+                }
+            }
+        },
+        "healthsdk.UsagePublishingReport": {
+            "type": "object",
+            "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "failing_since": {
+                    "description": "FailingSince is set when usage event publishing is considered failing.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "healthy": {
+                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
+                    "type": "boolean"
+                },
+                "last_published_at": {
+                    "description": "LastPublishedAt is the time of the latest successful publish of a usage\nevent. It is null if no event has ever been published successfully.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "publishing_enabled": {
+                    "description": "PublishingEnabled is true if a currently-valid license enables usage\nevent publishing.",
+                    "type": "boolean"
+                },
+                "severity": {
+                    "enum": [
+                        "ok",
+                        "warning",
+                        "error"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/health.Severity"
+                        }
+                    ]
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }

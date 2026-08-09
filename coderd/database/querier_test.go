@@ -11005,6 +11005,196 @@ func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
 	require.ElementsMatch(t, []time.Time{since, since.Add(time.Hour)}, normalized)
 }
 
+func TestGetUsagePublishStatus(t *testing.T) {
+	t.Parallel()
+
+	// All times are fixed relative to now so the test never depends on the
+	// wall clock.
+	var (
+		now           = time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+		threshold     = 24 * time.Hour
+		licenseStart  = now.Add(-90 * 24 * time.Hour)
+		windowStart   = now.Add(-30 * 24 * time.Hour)
+		stuckCutoff   = now.Add(-threshold)
+		rejectedAfter = now.Add(-threshold)
+	)
+
+	params := database.GetUsagePublishStatusParams{
+		LicenseStart:  licenseStart,
+		WindowStart:   windowStart,
+		StuckCutoff:   stuckCutoff,
+		RejectedAfter: rejectedAfter,
+	}
+
+	type seedEvent struct {
+		id        string
+		createdAt time.Time
+		// publishedAt zero means never published.
+		publishedAt time.Time
+		// failureMessage combined with publishedAt determines the state:
+		// publishedAt set + no failureMessage = success,
+		// no publishedAt + failureMessage = temporary failure,
+		// publishedAt set + failureMessage = permanent rejection.
+		failureMessage string
+	}
+
+	seed := func(ctx context.Context, t *testing.T, db database.Store, events []seedEvent) {
+		t.Helper()
+		for _, ev := range events {
+			err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+				ID:        ev.id,
+				EventType: "dc_managed_agents_v1",
+				EventData: []byte(`{"count": 1}`),
+				CreatedAt: ev.createdAt,
+			})
+			require.NoError(t, err)
+			if !ev.publishedAt.IsZero() || ev.failureMessage != "" {
+				err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+					Now:             ev.publishedAt,
+					IDs:             []string{ev.id},
+					FailureMessages: []string{ev.failureMessage},
+					SetPublishedAts: []bool{!ev.publishedAt.IsZero()},
+				})
+				require.NoError(t, err)
+			}
+		}
+	}
+
+	for _, tc := range []struct {
+		name   string
+		events []seedEvent
+		// licenseStartOverride overrides params.LicenseStart when non-zero.
+		licenseStartOverride time.Time
+		want                 database.GetUsagePublishStatusRow
+	}{
+		{
+			name:   "Empty",
+			events: nil,
+			want:   database.GetUsagePublishStatusRow{},
+		},
+		{
+			name: "AllPublished",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-48 * time.Hour), publishedAt: now.Add(-47 * time.Hour)},
+				{id: "2", createdAt: now.Add(-2 * time.Hour), publishedAt: now.Add(-1 * time.Hour)},
+			},
+			want: database.GetUsagePublishStatusRow{
+				LastPublishedAt: now.Add(-1 * time.Hour),
+			},
+		},
+		{
+			name: "UnpublishedYoungerThanThreshold",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-1 * time.Hour)},
+			},
+			want: database.GetUsagePublishStatusRow{},
+		},
+		{
+			name: "UnpublishedOlderThanThreshold",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-48 * time.Hour)},
+				{id: "2", createdAt: now.Add(-30 * time.Hour)},
+			},
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckCreatedAt: now.Add(-48 * time.Hour),
+			},
+		},
+		{
+			name: "TemporaryFailureOlderThanThreshold",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-48 * time.Hour), failureMessage: "temporary failure"},
+			},
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckCreatedAt: now.Add(-48 * time.Hour),
+			},
+		},
+		{
+			name: "UnpublishedBeforeLicenseStart",
+			events: []seedEvent{
+				// Stuck and within the 30 day window, but created before the
+				// license start, so it must be ignored.
+				{id: "1", createdAt: now.Add(-48 * time.Hour)},
+			},
+			licenseStartOverride: now.Add(-24 * time.Hour),
+			want:                 database.GetUsagePublishStatusRow{},
+		},
+		{
+			name: "UnpublishedOlderThanWindow",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-31 * 24 * time.Hour)},
+			},
+			want: database.GetUsagePublishStatusRow{},
+		},
+		{
+			name: "RecentPermanentRejection",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-3 * time.Hour), publishedAt: now.Add(-2 * time.Hour), failureMessage: "permanently rejected"},
+			},
+			want: database.GetUsagePublishStatusRow{
+				EarliestRecentRejectionAt: now.Add(-2 * time.Hour),
+			},
+		},
+		{
+			name: "OldPermanentRejection",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-72 * time.Hour), publishedAt: now.Add(-48 * time.Hour), failureMessage: "permanently rejected"},
+			},
+			want: database.GetUsagePublishStatusRow{},
+		},
+		{
+			name: "PermanentRejectionIsNotSuccessfulPublish",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-3 * time.Hour), publishedAt: now.Add(-2 * time.Hour), failureMessage: "permanently rejected"},
+				{id: "2", createdAt: now.Add(-10 * time.Hour), publishedAt: now.Add(-9 * time.Hour)},
+			},
+			want: database.GetUsagePublishStatusRow{
+				LastPublishedAt:           now.Add(-9 * time.Hour),
+				EarliestRecentRejectionAt: now.Add(-2 * time.Hour),
+			},
+		},
+		{
+			name: "Mixed",
+			events: []seedEvent{
+				// Successful publish.
+				{id: "1", createdAt: now.Add(-50 * time.Hour), publishedAt: now.Add(-49 * time.Hour)},
+				// Stuck events.
+				{id: "2", createdAt: now.Add(-40 * time.Hour)},
+				{id: "3", createdAt: now.Add(-30 * time.Hour), failureMessage: "temporary failure"},
+				// Recent permanent rejections.
+				{id: "4", createdAt: now.Add(-5 * time.Hour), publishedAt: now.Add(-4 * time.Hour), failureMessage: "permanently rejected"},
+				{id: "5", createdAt: now.Add(-3 * time.Hour), publishedAt: now.Add(-2 * time.Hour), failureMessage: "permanently rejected"},
+				// Fresh unpublished event, not stuck yet.
+				{id: "6", createdAt: now.Add(-1 * time.Hour)},
+			},
+			want: database.GetUsagePublishStatusRow{
+				LastPublishedAt:           now.Add(-49 * time.Hour),
+				OldestStuckCreatedAt:      now.Add(-40 * time.Hour),
+				EarliestRecentRejectionAt: now.Add(-4 * time.Hour),
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, _ := dbtestutil.NewDB(t)
+			seed(ctx, t, db, tc.events)
+
+			callParams := params
+			if !tc.licenseStartOverride.IsZero() {
+				callParams.LicenseStart = tc.licenseStartOverride
+			}
+
+			//nolint:gocritic // Unit test.
+			row, err := db.GetUsagePublishStatus(dbauthz.AsSystemRestricted(ctx), callParams)
+			require.NoError(t, err)
+			require.WithinDuration(t, tc.want.LastPublishedAt, row.LastPublishedAt, time.Second)
+			require.WithinDuration(t, tc.want.OldestStuckCreatedAt, row.OldestStuckCreatedAt, time.Second)
+			require.WithinDuration(t, tc.want.EarliestRecentRejectionAt, row.EarliestRecentRejectionAt, time.Second)
+		})
+	}
+}
+
 func TestListTasks(t *testing.T) {
 	t.Parallel()
 

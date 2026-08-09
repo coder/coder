@@ -4938,6 +4938,13 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 	return q.db.GetUnexpiredLicenses(ctx)
 }
 
+func (q *querier) GetUsagePublishStatus(ctx context.Context, arg database.GetUsagePublishStatusParams) (database.GetUsagePublishStatusRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return database.GetUsagePublishStatusRow{}, err
+	}
+	return q.db.GetUsagePublishStatus(ctx, arg)
+}
+
 func (q *querier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID)); err != nil {
 		return database.UserAIBudgetOverride{}, err

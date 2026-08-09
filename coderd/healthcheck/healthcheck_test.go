@@ -21,6 +21,7 @@ type testChecker struct {
 	DatabaseReport           healthsdk.DatabaseReport
 	WorkspaceProxyReport     healthsdk.WorkspaceProxyReport
 	ProvisionerDaemonsReport healthsdk.ProvisionerDaemonsReport
+	UsagePublishingReport    healthsdk.UsagePublishingReport
 }
 
 func (c *testChecker) DERP(context.Context, *derphealth.ReportOptions) healthsdk.DERPHealthReport {
@@ -45,6 +46,10 @@ func (c *testChecker) WorkspaceProxy(context.Context, *healthcheck.WorkspaceProx
 
 func (c *testChecker) ProvisionerDaemons(context.Context, *healthcheck.ProvisionerDaemonsReportDeps) healthsdk.ProvisionerDaemonsReport {
 	return c.ProvisionerDaemonsReport
+}
+
+func (c *testChecker) UsagePublishing(context.Context, *healthcheck.UsagePublishingReportOptions) healthsdk.UsagePublishingReport {
+	return c.UsagePublishingReport
 }
 
 // healthyChecker returns a testChecker where all reports are healthy
@@ -73,6 +78,10 @@ func healthyChecker() *testChecker {
 			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
 		},
 		ProvisionerDaemonsReport: healthsdk.ProvisionerDaemonsReport{
+			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
+		},
+		UsagePublishingReport: healthsdk.UsagePublishingReport{
+			Healthy:    true,
 			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
 		},
 	}
@@ -218,6 +227,23 @@ func TestHealthcheck(t *testing.T) {
 			severity: health.SeverityWarning,
 		},
 		{
+			name: "UsagePublishingWarn",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.UsagePublishingReport = healthsdk.UsagePublishingReport{
+					Healthy: true,
+					BaseReport: healthsdk.BaseReport{
+						Severity: health.SeverityWarning,
+						Warnings: []health.Message{{Message: "foobar", Code: "EFOOBAR"}},
+					},
+					PublishingEnabled: true,
+				}
+				return c
+			}(),
+			healthy:  true,
+			severity: health.SeverityWarning,
+		},
+		{
 			name:    "AllFail",
 			healthy: false,
 			checker: &testChecker{
@@ -268,6 +294,9 @@ func TestHealthcheck(t *testing.T) {
 			assert.Equal(t, c.checker.WebsocketReport.Severity, report.Websocket.Severity)
 			assert.Equal(t, c.checker.DatabaseReport.Healthy, report.Database.Healthy)
 			assert.Equal(t, c.checker.DatabaseReport.Severity, report.Database.Severity)
+			assert.Equal(t, c.checker.UsagePublishingReport.Healthy, report.UsagePublishing.Healthy)
+			assert.Equal(t, c.checker.UsagePublishingReport.Severity, report.UsagePublishing.Severity)
+			assert.Equal(t, c.checker.UsagePublishingReport.Warnings, report.UsagePublishing.Warnings)
 			assert.NotZero(t, report.Time)
 			assert.NotZero(t, report.CoderVersion)
 		})

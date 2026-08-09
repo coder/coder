@@ -28439,6 +28439,74 @@ func (q *sqlQuerier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg Get
 	return total_count, err
 }
 
+const getUsagePublishStatus = `-- name: GetUsagePublishStatus :one
+SELECT
+    -- The latest successful publish. Rows with a failure_message and a
+    -- published_at are permanent rejections, not successes.
+    COALESCE((
+        SELECT MAX(published_at)
+        FROM usage_events
+        WHERE published_at IS NOT NULL
+            AND failure_message IS NULL
+    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
+    -- The creation time of the oldest event that should have been published
+    -- by now but wasn't.
+    COALESCE((
+        SELECT MIN(created_at)
+        FROM usage_events
+        WHERE published_at IS NULL
+            AND created_at > $1::timestamptz
+            AND created_at > $2::timestamptz
+            AND created_at < $3::timestamptz
+    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_created_at,
+    -- The earliest recent permanent rejection.
+    COALESCE((
+        SELECT MIN(published_at)
+        FROM usage_events
+        WHERE published_at IS NOT NULL
+            AND failure_message IS NOT NULL
+            AND published_at > $4::timestamptz
+    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS earliest_recent_rejection_at
+`
+
+type GetUsagePublishStatusParams struct {
+	LicenseStart  time.Time `db:"license_start" json:"license_start"`
+	WindowStart   time.Time `db:"window_start" json:"window_start"`
+	StuckCutoff   time.Time `db:"stuck_cutoff" json:"stuck_cutoff"`
+	RejectedAfter time.Time `db:"rejected_after" json:"rejected_after"`
+}
+
+type GetUsagePublishStatusRow struct {
+	LastPublishedAt           time.Time `db:"last_published_at" json:"last_published_at"`
+	OldestStuckCreatedAt      time.Time `db:"oldest_stuck_created_at" json:"oldest_stuck_created_at"`
+	EarliestRecentRejectionAt time.Time `db:"earliest_recent_rejection_at" json:"earliest_recent_rejection_at"`
+}
+
+// Returns the status of usage event publishing so callers can detect publish
+// failures. NULL results are encoded as the zero timestamp because sqlc
+// cannot reliably infer the nullability of aggregate expressions. All cutoff
+// parameters are computed by the caller so tests can control time:
+//   - license_start: the nbf of the earliest currently-valid license with
+//     usage publishing enabled. Events created before this are ignored.
+//   - window_start: the start of the publisher's selection window (now minus
+//     30 days, matching SelectUsageEventsForPublishing). Events older than
+//     this are never published, so they must not trigger a failure forever.
+//   - stuck_cutoff: now minus the failure threshold. Unpublished events
+//     created before this are considered stuck.
+//   - rejected_after: now minus the failure threshold. Permanent rejections
+//     that happened after this are considered recent failures.
+func (q *sqlQuerier) GetUsagePublishStatus(ctx context.Context, arg GetUsagePublishStatusParams) (GetUsagePublishStatusRow, error) {
+	row := q.db.QueryRowContext(ctx, getUsagePublishStatus,
+		arg.LicenseStart,
+		arg.WindowStart,
+		arg.StuckCutoff,
+		arg.RejectedAfter,
+	)
+	var i GetUsagePublishStatusRow
+	err := row.Scan(&i.LastPublishedAt, &i.OldestStuckCreatedAt, &i.EarliestRecentRejectionAt)
+	return i, err
+}
+
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
 INSERT INTO
     usage_events (

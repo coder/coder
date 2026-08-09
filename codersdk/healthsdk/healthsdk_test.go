@@ -37,6 +37,9 @@ func TestSummarize(t *testing.T) {
 			WorkspaceProxy: healthsdk.WorkspaceProxyReport{
 				BaseReport: unhealthy,
 			},
+			UsagePublishing: healthsdk.UsagePublishingReport{
+				BaseReport: unhealthy,
+			},
 		}
 		expected := []string{
 			"Access URL: Error: test error",
@@ -56,6 +59,9 @@ func TestSummarize(t *testing.T) {
 			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 			"Workspace Proxies: Error: test error",
 			"Workspace Proxies: Warn: TEST: testing",
+			"See: https://coder.com/docs/admin/monitoring/health-check#test",
+			"Usage Publishing: Error: test error",
+			"Usage Publishing: Warn: TEST: testing",
 			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 		}
 		actual := hr.Summarize("")

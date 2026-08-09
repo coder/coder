@@ -814,6 +814,9 @@ func New(options *Options) *API {
 					StaleInterval:          provisionerdserver.StaleInterval,
 					// TimeNow set to default, see healthcheck/provisioner.go
 				},
+				UsagePublishing: healthcheck.UsagePublishingReportOptions{
+					Entitlements: options.Entitlements,
+				},
 				Progress: progress,
 			})
 		}

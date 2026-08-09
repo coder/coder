@@ -173,3 +173,12 @@ func (l *Set) HasLicense() bool {
 	defer l.entitlementsMu.RUnlock()
 	return l.entitlements.HasLicense
 }
+
+// UsagePublishing returns the usage publishing status from the most recent
+// entitlements refresh. Note that the timestamp pointers are shared with the
+// stored entitlements and must not be mutated.
+func (l *Set) UsagePublishing() codersdk.UsagePublishingStatus {
+	l.entitlementsMu.RLock()
+	defer l.entitlementsMu.RUnlock()
+	return l.entitlements.UsagePublishing
+}

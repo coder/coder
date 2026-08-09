@@ -879,6 +879,20 @@ type sqlcQuerier interface {
 	// inclusive.
 	GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg GetTotalUsageDCManagedAgentsV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
+	// Returns the status of usage event publishing so callers can detect publish
+	// failures. NULL results are encoded as the zero timestamp because sqlc
+	// cannot reliably infer the nullability of aggregate expressions. All cutoff
+	// parameters are computed by the caller so tests can control time:
+	//   - license_start: the nbf of the earliest currently-valid license with
+	//     usage publishing enabled. Events created before this are ignored.
+	//   - window_start: the start of the publisher's selection window (now minus
+	//     30 days, matching SelectUsageEventsForPublishing). Events older than
+	//     this are never published, so they must not trigger a failure forever.
+	//   - stuck_cutoff: now minus the failure threshold. Unpublished events
+	//     created before this are considered stuck.
+	//   - rejected_after: now minus the failure threshold. Permanent rejections
+	//     that happened after this are considered recent failures.
+	GetUsagePublishStatus(ctx context.Context, arg GetUsagePublishStatusParams) (GetUsagePublishStatusRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)
 	// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use

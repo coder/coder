@@ -34,6 +34,7 @@ const (
 	HealthSectionDatabase           HealthSection = "Database"
 	HealthSectionWorkspaceProxy     HealthSection = "WorkspaceProxy"
 	HealthSectionProvisionerDaemons HealthSection = "ProvisionerDaemons"
+	HealthSectionUsagePublishing    HealthSection = "UsagePublishing"
 )
 
 var HealthSections = []HealthSection{
@@ -43,6 +44,7 @@ var HealthSections = []HealthSection{
 	HealthSectionDatabase,
 	HealthSectionWorkspaceProxy,
 	HealthSectionProvisionerDaemons,
+	HealthSectionUsagePublishing,
 }
 
 type HealthSettings struct {
@@ -111,6 +113,7 @@ type HealthcheckReport struct {
 	Database           DatabaseReport           `json:"database"`
 	WorkspaceProxy     WorkspaceProxyReport     `json:"workspace_proxy"`
 	ProvisionerDaemons ProvisionerDaemonsReport `json:"provisioner_daemons"`
+	UsagePublishing    UsagePublishingReport    `json:"usage_publishing"`
 
 	// The Coder version of the server that the report was generated on.
 	CoderVersion string `json:"coder_version"`
@@ -125,6 +128,7 @@ func (r *HealthcheckReport) Summarize(docsURL string) []string {
 	msgs = append(msgs, r.ProvisionerDaemons.Summarize("Provisioner Daemons:", docsURL)...)
 	msgs = append(msgs, r.Websocket.Summarize("Websocket:", docsURL)...)
 	msgs = append(msgs, r.WorkspaceProxy.Summarize("Workspace Proxies:", docsURL)...)
+	msgs = append(msgs, r.UsagePublishing.Summarize("Usage Publishing:", docsURL)...)
 	return msgs
 }
 
@@ -257,6 +261,24 @@ type WebsocketReport struct {
 	BaseReport
 	Body string `json:"body"`
 	Code int    `json:"code"`
+}
+
+// UsagePublishingReport shows the status of usage event publishing to
+// Coder's servers. Deployments without a license that enables usage
+// publishing (e.g. air-gapped deployments) always report as healthy with
+// PublishingEnabled set to false.
+type UsagePublishingReport struct {
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy bool `json:"healthy"`
+	BaseReport
+	// PublishingEnabled is true if a currently-valid license enables usage
+	// event publishing.
+	PublishingEnabled bool `json:"publishing_enabled"`
+	// LastPublishedAt is the time of the latest successful publish of a usage
+	// event. It is null if no event has ever been published successfully.
+	LastPublishedAt *time.Time `json:"last_published_at,omitempty" format:"date-time"`
+	// FailingSince is set when usage event publishing is considered failing.
+	FailingSince *time.Time `json:"failing_since,omitempty" format:"date-time"`
 }
 
 // WorkspaceProxyReport includes health details of each connected workspace proxy.

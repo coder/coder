@@ -80,8 +80,29 @@ func TestEntitlements(t *testing.T) {
 		require.False(t, res.HasLicense)
 		require.Empty(t, res.Warnings)
 
+		// The usage publishing status must always be present, and disabled
+		// without a license.
+		require.False(t, res.UsagePublishing.PublishingEnabled)
+		require.Nil(t, res.UsagePublishing.LastPublishedAt)
+		require.Nil(t, res.UsagePublishing.FailingSince)
+
 		// Ensure the entitlements are the same reference
 		require.Equal(t, fmt.Sprintf("%p", api.Entitlements), fmt.Sprintf("%p", api.AGPL.Entitlements))
+	})
+	t.Run("UsagePublishingEnabled", func(t *testing.T) {
+		t.Parallel()
+		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			DontAddLicense: true,
+		})
+		coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
+			PublishUsageData: true,
+		})
+		res, err := adminClient.Entitlements(context.Background()) //nolint:gocritic // we need the admin client to fetch entitlements
+		require.NoError(t, err)
+		require.True(t, res.HasLicense)
+		require.True(t, res.UsagePublishing.PublishingEnabled)
+		require.Nil(t, res.UsagePublishing.LastPublishedAt)
+		require.Nil(t, res.UsagePublishing.FailingSince)
 	})
 	t.Run("FullLicense", func(t *testing.T) {
 		t.Parallel()

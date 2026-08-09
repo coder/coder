@@ -2718,6 +2718,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	require_telemetry: false,
 	trial: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: { publishing_enabled: false },
 };
 
 const _MockEntitlementsWithWarnings: TypesGen.Entitlements = {
@@ -2727,6 +2728,7 @@ const _MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 	trial: false,
 	require_telemetry: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: { publishing_enabled: false },
 	features: withDefaultFeatures({
 		user_limit: {
 			enabled: true,
@@ -2752,6 +2754,7 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
 	require_telemetry: false,
 	trial: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: { publishing_enabled: false },
 	features: withDefaultFeatures({
 		audit_log: {
 			enabled: true,
@@ -2767,6 +2770,7 @@ export const MockEntitlementsWithConnectionLog: TypesGen.Entitlements = {
 	require_telemetry: false,
 	trial: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: { publishing_enabled: false },
 	features: withDefaultFeatures({
 		connection_log: {
 			enabled: true,
@@ -2782,6 +2786,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 	require_telemetry: false,
 	trial: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: { publishing_enabled: false },
 	features: withDefaultFeatures({
 		advanced_template_scheduling: {
 			enabled: true,
@@ -2797,6 +2802,7 @@ const _MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
 	require_telemetry: false,
 	trial: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: { publishing_enabled: false },
 	features: withDefaultFeatures({
 		user_limit: {
 			enabled: true,
@@ -4666,6 +4672,13 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 		],
 	},
 	coder_version: MockBuildInfo.version,
+	usage_publishing: {
+		healthy: true,
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
+		publishing_enabled: false,
+	},
 };
 
 export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsResponse =
@@ -4824,6 +4837,20 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 				],
 			},
 		],
+	},
+	usage_publishing: {
+		healthy: true,
+		severity: "warning",
+		warnings: [
+			{
+				message:
+					"usage events have failed to publish to Coder's servers since 2023-10-11 12:00:00 UTC",
+				code: "EUP01",
+			},
+		],
+		dismissed: false,
+		publishing_enabled: true,
+		failing_since: "2023-10-11T12:00:00.000000000Z",
 	},
 };
 

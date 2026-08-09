@@ -135,6 +135,8 @@ func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Requ
 			hc.Websocket.Dismissed = true
 		case healthsdk.HealthSectionWorkspaceProxy:
 			hc.WorkspaceProxy.Dismissed = true
+		case healthsdk.HealthSectionUsagePublishing:
+			hc.UsagePublishing.Dismissed = true
 		}
 	}
 

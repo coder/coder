@@ -17,6 +17,10 @@ const (
 	LicenseManagedAgentLimitExceededWarningText = "You have built more workspaces with managed agents than your license allows."
 	LicenseAIGovernance90PercentWarningText     = "You have used %d%% of your AI Governance add-on seats."
 	LicenseAIGovernanceOverLimitWarningText     = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
+	// LicenseUsagePublishingFailingWarningText is appended to entitlements
+	// warnings when usage event publishing has been failing for longer than
+	// the failure threshold. The string is static so clients can match on it.
+	LicenseUsagePublishingFailingWarningText = "Coder has been unable to publish usage data to Coder's servers for more than 24 hours. Please check the deployment's connectivity and contact support if the issue persists."
 )
 
 type AddLicenseRequest struct {

@@ -4934,6 +4934,7 @@ export interface Entitlements {
 	readonly trial: boolean;
 	readonly require_telemetry: boolean;
 	readonly refreshed_at: string;
+	readonly usage_publishing: UsagePublishingStatus;
 }
 
 // From codersdk/client.go
@@ -5476,6 +5477,7 @@ export type HealthCode =
 	| "EWP04"
 	| "EWP01"
 	| "EUNKNOWN"
+	| "EUP01"
 	| "EWS01"
 	| "EWS02"
 	| "EWS03";
@@ -5506,6 +5508,7 @@ export const HealthCodes: HealthCode[] = [
 	"EWP04",
 	"EWP01",
 	"EUNKNOWN",
+	"EUP01",
 	"EWS01",
 	"EWS02",
 	"EWS03",
@@ -5526,6 +5529,7 @@ export type HealthSection =
 	| "DERP"
 	| "Database"
 	| "ProvisionerDaemons"
+	| "UsagePublishing"
 	| "Websocket"
 	| "WorkspaceProxy";
 
@@ -5534,6 +5538,7 @@ export const HealthSections: HealthSection[] = [
 	"DERP",
 	"Database",
 	"ProvisionerDaemons",
+	"UsagePublishing",
 	"Websocket",
 	"WorkspaceProxy",
 ];
@@ -5597,6 +5602,7 @@ export interface HealthcheckReport {
 	readonly database: DatabaseReport;
 	readonly workspace_proxy: WorkspaceProxyReport;
 	readonly provisioner_daemons: ProvisionerDaemonsReport;
+	readonly usage_publishing: UsagePublishingReport;
 	/**
 	 * The Coder version of the server that the report was generated on.
 	 */
@@ -5732,6 +5738,15 @@ export const LicenseManagedAgentLimitExceededWarningText =
 // From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
 	"License requires telemetry but telemetry is disabled";
+
+// From codersdk/licenses.go
+/**
+ * LicenseUsagePublishingFailingWarningText is appended to entitlements
+ * warnings when usage event publishing has been failing for longer than
+ * the failure threshold. The string is static so clients can match on it.
+ */
+export const LicenseUsagePublishingFailingWarningText =
+	"Coder has been unable to publish usage data to Coder's servers for more than 24 hours. Please check the deployment's connectivity and contact support if the issue persists.";
 
 // From codersdk/deployment.go
 export interface LinkConfig {
@@ -10071,6 +10086,62 @@ export interface UsagePeriod {
 	readonly issued_at: string;
 	readonly start: string;
 	readonly end: string;
+}
+
+// From healthsdk/healthsdk.go
+/**
+ * UsagePublishingReport shows the status of usage event publishing to
+ * Coder's servers. Deployments without a license that enables usage
+ * publishing (e.g. air-gapped deployments) always report as healthy with
+ * PublishingEnabled set to false.
+ */
+export interface UsagePublishingReport extends BaseReport {
+	/**
+	 * Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	 */
+	readonly healthy: boolean;
+	/**
+	 * PublishingEnabled is true if a currently-valid license enables usage
+	 * event publishing.
+	 */
+	readonly publishing_enabled: boolean;
+	/**
+	 * LastPublishedAt is the time of the latest successful publish of a usage
+	 * event. It is null if no event has ever been published successfully.
+	 */
+	readonly last_published_at?: string;
+	/**
+	 * FailingSince is set when usage event publishing is considered failing.
+	 */
+	readonly failing_since?: string;
+}
+
+// From codersdk/deployment.go
+/**
+ * UsagePublishingStatus describes the status of usage event publishing to
+ * Coder's servers. It is always present on Entitlements. Deployments without
+ * a valid license that enables usage publishing (e.g. air-gapped deployments)
+ * have PublishingEnabled set to false and both timestamps set to null.
+ */
+export interface UsagePublishingStatus {
+	/**
+	 * PublishingEnabled is true if a currently-valid license enables usage
+	 * event publishing.
+	 */
+	readonly publishing_enabled: boolean;
+	/**
+	 * LastPublishedAt is the time of the latest successful publish of a usage
+	 * event. It is null if no event has ever been published successfully.
+	 */
+	readonly last_published_at?: string;
+	/**
+	 * FailingSince is set when usage event publishing is considered failing.
+	 * It is the earliest known time associated with the current failure:
+	 * the creation time of the oldest unpublished event past the failure
+	 * threshold, or the time of the earliest recent permanent rejection,
+	 * whichever is older.
+	 */
+	readonly failing_since?: string;
 }
 
 // From codersdk/deployment.go

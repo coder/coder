@@ -16,6 +16,25 @@ validation. This means licenses work in
 [air-gapped and offline deployments](../../install/airgap.md) without any
 additional configuration.
 
+## Usage publishing and air-gapped deployments
+
+Some licenses include a `publish_usage_data` claim. When it is `true`, your
+deployment periodically publishes usage events (such as managed agent counts)
+to Coder's servers, and Coder warns administrators if publishing fails for an
+extended period.
+
+When the claim is `false` or absent, which is the case for licenses issued for
+[air-gapped deployments](../../install/airgap.md):
+
+- No usage data is published and no outbound connection to Coder's servers is
+  attempted.
+- No usage-reporting warnings are ever shown.
+- Local usage tracking and license enforcement remain fully functional.
+
+If your deployment is air-gapped and shows usage publishing warnings,
+[contact support](https://coder.com/contact) to request a license with usage
+publishing turned off.
+
 ## Adding your license key
 
 There are two ways to add a license to a Coder deployment:

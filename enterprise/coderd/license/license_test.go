@@ -2885,6 +2885,238 @@ func TestAIGovernanceAddon(t *testing.T) {
 	})
 }
 
+func TestUsagePublishingStatus(t *testing.T) {
+	t.Parallel()
+
+	empty := map[codersdk.FeatureName]bool{}
+
+	// Seeds a usage event in the given state. A zero publishedAt means the
+	// event has not been published. A publishedAt with a failureMessage is a
+	// permanent rejection.
+	seedEvent := func(ctx context.Context, t *testing.T, db database.Store, id string, createdAt, publishedAt time.Time, failureMessage string) {
+		t.Helper()
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        id,
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 1}`),
+			CreatedAt: createdAt,
+		})
+		require.NoError(t, err)
+		if !publishedAt.IsZero() || failureMessage != "" {
+			err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+				Now:             publishedAt,
+				IDs:             []string{id},
+				FailureMessages: []string{failureMessage},
+				SetPublishedAts: []bool{!publishedAt.IsZero()},
+			})
+			require.NoError(t, err)
+		}
+	}
+
+	insertPublishingLicense := func(ctx context.Context, t *testing.T, db database.Store, opts coderdenttest.LicenseOptions) {
+		t.Helper()
+		opts.PublishUsageData = true
+		if opts.NotBefore.IsZero() {
+			// The default nbf of "1 minute ago" would cause seeded events
+			// older than that to be ignored as pre-license events.
+			opts.NotBefore = time.Now().Add(-90 * 24 * time.Hour)
+		}
+		_, err := db.InsertLicense(ctx, database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, opts),
+			Exp: dbtime.Now().Add(time.Hour),
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("Healthy", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-2*time.Hour), now.Add(-time.Hour), "")
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.True(t, entitlements.UsagePublishing.PublishingEnabled)
+		require.NotNil(t, entitlements.UsagePublishing.LastPublishedAt)
+		require.WithinDuration(t, now.Add(-time.Hour), *entitlements.UsagePublishing.LastPublishedAt, time.Second)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
+	t.Run("FailingStuckEventsThenRecovers", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.True(t, entitlements.UsagePublishing.PublishingEnabled)
+		require.Nil(t, entitlements.UsagePublishing.LastPublishedAt)
+		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
+		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
+
+		// Simulate the outage recovering: the event gets published and the
+		// next entitlements refresh clears the warning.
+		err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+			Now:             now,
+			IDs:             []string{"1"},
+			FailureMessages: []string{""},
+			SetPublishedAts: []bool{true},
+		})
+		require.NoError(t, err)
+
+		entitlements, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+		require.NotNil(t, entitlements.UsagePublishing.LastPublishedAt)
+	})
+
+	t.Run("FailingPermanentRejection", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-2*time.Hour), now.Add(-time.Hour), "permanently rejected")
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.True(t, entitlements.UsagePublishing.PublishingEnabled)
+		// Permanent rejections don't count as successful publishes.
+		require.Nil(t, entitlements.UsagePublishing.LastPublishedAt)
+		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
+		require.WithinDuration(t, now.Add(-time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
+	})
+
+	t.Run("AirGappedClaimFalseNeverWarns", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		_, err := db.InsertLicense(ctx, database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				PublishUsageData: false,
+			}),
+			Exp: dbtime.Now().Add(time.Hour),
+		})
+		require.NoError(t, err)
+		// Even with events that would otherwise be considered stuck.
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.False(t, entitlements.UsagePublishing.PublishingEnabled)
+		require.Nil(t, entitlements.UsagePublishing.LastPublishedAt)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
+	t.Run("NoLicenseNeverWarns", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.False(t, entitlements.UsagePublishing.PublishingEnabled)
+		require.Nil(t, entitlements.UsagePublishing.LastPublishedAt)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
+	t.Run("NonSalesforceAccountDisabled", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		_, err := db.InsertLicense(ctx, database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				AccountType:      "developer",
+				PublishUsageData: true,
+			}),
+			Exp: dbtime.Now().Add(time.Hour),
+		})
+		require.NoError(t, err)
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.False(t, entitlements.UsagePublishing.PublishingEnabled)
+	})
+
+	t.Run("EventsBeforeLicenseStartIgnored", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		now := time.Now()
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{
+			NotBefore: now.Add(-time.Hour),
+			GraceAt:   now.Add(time.Hour),
+			ExpiresAt: now.Add(time.Hour),
+		})
+		// Stuck event from before the license term started.
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.True(t, entitlements.UsagePublishing.PublishingEnabled)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
+	t.Run("EventsOlderThanPublishWindowIgnored", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		now := time.Now()
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{
+			NotBefore: now.Add(-90 * 24 * time.Hour),
+			GraceAt:   now.Add(time.Hour),
+			ExpiresAt: now.Add(time.Hour),
+		})
+		// The publisher never publishes events older than 30 days, so they
+		// must not trigger a permanently-stuck warning.
+		seedEvent(ctx, t, db, "1", now.Add(-31*24*time.Hour), time.Time{}, "")
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.True(t, entitlements.UsagePublishing.PublishingEnabled)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
+	t.Run("LastPublishedAtIgnoresRejections", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+		now := time.Now()
+		// A successful publish followed by an old permanent rejection
+		// (outside the failure threshold, so no warning).
+		seedEvent(ctx, t, db, "1", now.Add(-73*time.Hour), now.Add(-72*time.Hour), "")
+		seedEvent(ctx, t, db, "2", now.Add(-49*time.Hour), now.Add(-48*time.Hour), "permanently rejected")
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.True(t, entitlements.UsagePublishing.PublishingEnabled)
+		require.NotNil(t, entitlements.UsagePublishing.LastPublishedAt)
+		require.WithinDuration(t, now.Add(-72*time.Hour), *entitlements.UsagePublishing.LastPublishedAt, time.Second)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+}
+
 func assertNoErrors(t *testing.T, entitlements codersdk.Entitlements) {
 	t.Helper()
 	assert.Empty(t, entitlements.Errors, "no errors")

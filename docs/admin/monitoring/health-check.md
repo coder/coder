@@ -351,6 +351,24 @@ version of Coder.
 > [!NOTE]
 > This may be a transient issue if you are currently in the process of updating your deployment.
 
+## Usage Publishing
+
+Deployments with a license that enables usage publishing periodically publish
+usage events to Coder's servers. This check is always healthy for deployments
+without such a license (for example,
+[air-gapped deployments](../../install/airgap.md); see
+[usage publishing and air-gapped deployments](../licensing/index.md#usage-publishing-and-air-gapped-deployments)).
+
+### EUP01
+
+#### Usage Events Failing to Publish
+
+**Problem:** Coder has been unable to publish usage data to Coder's servers
+for an extended period.
+
+**Solution:** Ensure the deployment can reach `tallyman-prod.coder.com` over
+HTTPS. Contact support if the issue persists.
+
 ### EUNKNOWN
 
 #### Unknown Error

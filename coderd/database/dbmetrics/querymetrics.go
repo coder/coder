@@ -3121,6 +3121,14 @@ func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUsagePublishStatus(ctx context.Context, arg database.GetUsagePublishStatusParams) (database.GetUsagePublishStatusRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUsagePublishStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUsagePublishStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUsagePublishStatus").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAIBudgetOverride(ctx, userID)

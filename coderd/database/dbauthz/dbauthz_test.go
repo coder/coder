@@ -6510,6 +6510,11 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		db.EXPECT().GetTotalChatMessageRuntimeMsInRange(gomock.Any(), params).Return(int64(0), nil)
 		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
 	}))
+
+	s.Run("GetUsagePublishStatus", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().GetUsagePublishStatus(gomock.Any(), gomock.Any()).Return(database.GetUsagePublishStatusRow{}, nil)
+		check.Args(database.GetUsagePublishStatusParams{}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
+	}))
 }
 
 // Ensures that the prebuilds actor may never insert an api key.

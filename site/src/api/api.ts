@@ -1849,6 +1849,7 @@ class ApiMethods {
 					trial: false,
 					warnings: [],
 					refreshed_at: "",
+					usage_publishing: { publishing_enabled: false },
 				};
 			}
 			throw ex;

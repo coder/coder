@@ -16,6 +16,9 @@ air-gapped with Kubernetes or Docker.
 | License validation        | License keys are validated locally using cryptographic signatures. No outbound connection to Coder is required                                                                                                                                                     | No changes needed. See [offline license validation](../admin/licensing/index.md#offline-license-validation)                                                                                                                                                                                          |
 | AI Governance Usage Count | By default, deployments with the [AI Governance Add On](../ai-coder/ai-governance.md) report usage data                                                                                                                                                            | [Contact us](https://coder.com/contact) to request a license with usage reporting off.                                                                                                                                                                                                               |
 
+For details on how licenses control usage publishing, see
+[usage publishing and air-gapped deployments](../admin/licensing/index.md#usage-publishing-and-air-gapped-deployments).
+
 ## Air-gapped container images
 
 The following instructions walk you through how to build a custom Coder server
