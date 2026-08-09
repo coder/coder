@@ -58,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/idemetadata"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -127,23 +128,14 @@ type Options struct {
 }
 
 type Client interface {
-	ConnectRPC29(ctx context.Context) (
-		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC211(ctx context.Context) (
+		proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
 	)
-	// ConnectRPC29WithRole is like ConnectRPC29 but sends an explicit
+	// ConnectRPC211WithRole is like ConnectRPC211 but sends an explicit
 	// role query parameter to the server. The workspace agent should
 	// use role "agent" to enable connection monitoring.
-	ConnectRPC29WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
-	)
-	ConnectRPC210(ctx context.Context) (
-		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
-	)
-	// ConnectRPC210WithRole is like ConnectRPC210 but sends an explicit
-	// role query parameter to the server. The workspace agent should
-	// use role "agent" to enable connection monitoring.
-	ConnectRPC210WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC211WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -426,17 +418,15 @@ func (a *agent) init() {
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
 		ReportConnection: func(id uuid.UUID, magicType agentssh.MagicSessionType, ip string) func(code int, reason string) {
 			var connectionType proto.Connection_Type
-			switch magicType {
-			case agentssh.MagicSessionTypeSSH:
+			// The enum cannot hold arbitrary types, so map by family.
+			switch idemetadata.Family(string(magicType)) {
+			case idemetadata.AppNameSSH:
 				connectionType = proto.Connection_SSH
-			case agentssh.MagicSessionTypeVSCode:
+			case idemetadata.AppNameVSCode:
 				connectionType = proto.Connection_VSCODE
-			case agentssh.MagicSessionTypeJetBrains:
+			case idemetadata.AppNameJetBrains:
 				connectionType = proto.Connection_JETBRAINS
-			case agentssh.MagicSessionTypeUnknown:
-				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			default:
-				a.logger.Error(a.hardCtx, "unhandled magic session type when reporting connection", slog.F("magic_type", magicType))
 				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			}
 
@@ -1176,7 +1166,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC210WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC211WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -2162,13 +2152,12 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		stats.TxPackets += int64(counts.TxPackets)
 	}
 
-	// The count of active sessions.
-	sshStats := a.sshServer.ConnStats()
-	stats.SessionCountSsh = sshStats.Sessions
-	stats.SessionCountVscode = sshStats.VSCode
-	stats.SessionCountJetbrains = sshStats.JetBrains
-
-	stats.SessionCountReconnectingPty = a.reconnectingPTYServer.ConnCount()
+	// Active sessions per app; the deprecated fields stay zero. A client may
+	// label an ssh session "reconnecting_pty", so add, don't overwrite.
+	stats.SessionCounts = a.sshServer.SessionCounts()
+	if count := a.reconnectingPTYServer.ConnCount(); count > 0 {
+		stats.SessionCounts[idemetadata.AppNameReconnectingPTY] += count
+	}
 
 	// Compute the median connection latency!
 	a.logger.Debug(ctx, "starting peer latency measurement for stats")

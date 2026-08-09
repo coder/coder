@@ -349,13 +349,26 @@ func (c *Client) ConnectRPC210(ctx context.Context) (
 	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
-// ConnectRPC210WithRole is like ConnectRPC210 but sends an explicit role
+// ConnectRPC211 returns a dRPC client to the Agent API v2.11. It is useful
+// when you want to report per-app session counts via the session_counts
+// map on Stats.
+func (c *Client) ConnectRPC211(ctx context.Context) (
+	proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 11), "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC211WithRole is like ConnectRPC211 but sends an explicit role
 // query parameter to the server. Use "agent" for workspace agents to
 // enable connection monitoring.
-func (c *Client) ConnectRPC210WithRole(ctx context.Context, role string) (
-	proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
+func (c *Client) ConnectRPC211WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 10), role)
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 11), role)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -566,45 +579,6 @@ func WithFixedToken(token string) SessionTokenSetup {
 	return func(_ *codersdk.Client) RefreshableSessionTokenProvider {
 		return FixedSessionTokenProvider{FixedSessionTokenProvider: codersdk.FixedSessionTokenProvider{SessionToken: token}}
 	}
-}
-
-// Stats records the Agent's network connection statistics for use in
-// user-facing metrics and debugging.
-type Stats struct {
-	// ConnectionsByProto is a count of connections by protocol.
-	ConnectionsByProto map[string]int64 `json:"connections_by_proto"`
-	// ConnectionCount is the number of connections received by an agent.
-	ConnectionCount int64 `json:"connection_count"`
-	// ConnectionMedianLatencyMS is the median latency of all connections in milliseconds.
-	ConnectionMedianLatencyMS float64 `json:"connection_median_latency_ms"`
-	// RxPackets is the number of received packets.
-	RxPackets int64 `json:"rx_packets"`
-	// RxBytes is the number of received bytes.
-	RxBytes int64 `json:"rx_bytes"`
-	// TxPackets is the number of transmitted bytes.
-	TxPackets int64 `json:"tx_packets"`
-	// TxBytes is the number of transmitted bytes.
-	TxBytes int64 `json:"tx_bytes"`
-
-	// SessionCountVSCode is the number of connections received by an agent
-	// that are from our VS Code extension.
-	SessionCountVSCode int64 `json:"session_count_vscode"`
-	// SessionCountJetBrains is the number of connections received by an agent
-	// that are from our JetBrains extension.
-	SessionCountJetBrains int64 `json:"session_count_jetbrains"`
-	// SessionCountReconnectingPTY is the number of connections received by an agent
-	// that are from the reconnecting web terminal.
-	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
-	// SessionCountSSH is the number of connections received by an agent
-	// that are normal, non-tagged SSH sessions.
-	SessionCountSSH int64 `json:"session_count_ssh"`
-
-	// Metrics collected by the agent
-	Metrics []AgentMetric `json:"metrics"`
-}
-
-func (s Stats) SessionCount() int64 {
-	return s.SessionCountVSCode + s.SessionCountJetBrains + s.SessionCountReconnectingPTY + s.SessionCountSSH
 }
 
 type AgentMetricType string

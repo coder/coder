@@ -81,9 +81,13 @@ import (
 //     deployments remain interoperable. Real persistence,
 //     KindMCPServer provider, and chatd hydration land in
 //     CODAGT-569.
+//
+// API v2.11:
+//   - Added the session_counts map field to Stats on the Agent API,
+//     deprecating the fixed session_count_* fields.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 10
+	CurrentMinor = 11
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

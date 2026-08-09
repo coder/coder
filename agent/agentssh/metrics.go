@@ -1,9 +1,9 @@
 package agentssh
 
 import (
-	"strings"
-
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/coder/coder/v2/coderd/idemetadata"
 )
 
 type sshServerMetrics struct {
@@ -47,6 +47,7 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 			Subsystem: "sessions",
 			Name:      "total",
 		},
+		// magic_type is the app family, see magicTypeMetricLabel.
 		[]string{"magic_type", "pty"},
 	)
 	registerer.MustRegister(sessionsTotal)
@@ -72,14 +73,6 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 }
 
 func magicTypeMetricLabel(magicType MagicSessionType) string {
-	switch magicType {
-	case MagicSessionTypeVSCode:
-	case MagicSessionTypeJetBrains:
-	case MagicSessionTypeSSH:
-	case MagicSessionTypeUnknown:
-	default:
-		magicType = MagicSessionTypeUnknown
-	}
-	// Always be case insensitive
-	return strings.ToLower(string(magicType))
+	// Family, not raw type, so cardinality stays bounded.
+	return idemetadata.Family(string(magicType))
 }

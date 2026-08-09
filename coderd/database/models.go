@@ -6506,25 +6506,31 @@ type WorkspaceAgentScriptTiming struct {
 	Status    WorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
 }
 
+// Per-app session counts for each workspace agent stats row; rows are removed with their parent.
+type WorkspaceAgentSessionCount struct {
+	WorkspaceAgentStatsID uuid.UUID `db:"workspace_agent_stats_id" json:"workspace_agent_stats_id"`
+	// Copied from the parent stats row so time-windowed queries can prune this table without joining.
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// App name as reported by the client, canonicalized at ingestion (lowercased, hyphens folded to underscores). Stored ungrouped; families are applied at read time.
+	AppName string `db:"app_name" json:"app_name"`
+	Count   int64  `db:"count" json:"count"`
+}
+
 type WorkspaceAgentStat struct {
-	ID                          uuid.UUID       `db:"id" json:"id"`
-	CreatedAt                   time.Time       `db:"created_at" json:"created_at"`
-	UserID                      uuid.UUID       `db:"user_id" json:"user_id"`
-	AgentID                     uuid.UUID       `db:"agent_id" json:"agent_id"`
-	WorkspaceID                 uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID                  uuid.UUID       `db:"template_id" json:"template_id"`
-	ConnectionsByProto          json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
-	ConnectionCount             int64           `db:"connection_count" json:"connection_count"`
-	RxPackets                   int64           `db:"rx_packets" json:"rx_packets"`
-	RxBytes                     int64           `db:"rx_bytes" json:"rx_bytes"`
-	TxPackets                   int64           `db:"tx_packets" json:"tx_packets"`
-	TxBytes                     int64           `db:"tx_bytes" json:"tx_bytes"`
-	ConnectionMedianLatencyMS   float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
-	SessionCountVSCode          int64           `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
-	Usage                       bool            `db:"usage" json:"usage"`
+	ID                        uuid.UUID       `db:"id" json:"id"`
+	CreatedAt                 time.Time       `db:"created_at" json:"created_at"`
+	UserID                    uuid.UUID       `db:"user_id" json:"user_id"`
+	AgentID                   uuid.UUID       `db:"agent_id" json:"agent_id"`
+	WorkspaceID               uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID                uuid.UUID       `db:"template_id" json:"template_id"`
+	ConnectionsByProto        json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount           int64           `db:"connection_count" json:"connection_count"`
+	RxPackets                 int64           `db:"rx_packets" json:"rx_packets"`
+	RxBytes                   int64           `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets                 int64           `db:"tx_packets" json:"tx_packets"`
+	TxBytes                   int64           `db:"tx_bytes" json:"tx_bytes"`
+	ConnectionMedianLatencyMS float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	Usage                     bool            `db:"usage" json:"usage"`
 }
 
 type WorkspaceAgentVolumeResourceMonitor struct {

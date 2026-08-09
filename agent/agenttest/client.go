@@ -158,8 +158,8 @@ func (c *Client) ConnectRPC29WithRole(ctx context.Context, _ string) (
 	return c.ConnectRPC29(ctx)
 }
 
-func (c *Client) ConnectRPC210(ctx context.Context) (
-	agentproto.DRPCAgentClient210, proto.DRPCTailnetClient28, error,
+func (c *Client) ConnectRPC211(ctx context.Context) (
+	agentproto.DRPCAgentClient211, proto.DRPCTailnetClient28, error,
 ) {
 	aAPI, tAPI, err := c.ConnectRPC29(ctx)
 	if err != nil {
@@ -169,17 +169,17 @@ func (c *Client) ConnectRPC210(ctx context.Context) (
 	// the generated DRPCAgentClient interface, including
 	// PushContextState, so the assertion always succeeds for
 	// the fixture's own connections.
-	client, ok := aAPI.(agentproto.DRPCAgentClient210)
+	client, ok := aAPI.(agentproto.DRPCAgentClient211)
 	if !ok {
-		return nil, nil, xerrors.Errorf("agenttest: connection does not implement DRPCAgentClient210; got %T", aAPI)
+		return nil, nil, xerrors.Errorf("agenttest: connection does not implement DRPCAgentClient211; got %T", aAPI)
 	}
 	return client, tAPI, nil
 }
 
-func (c *Client) ConnectRPC210WithRole(ctx context.Context, _ string) (
-	agentproto.DRPCAgentClient210, proto.DRPCTailnetClient28, error,
+func (c *Client) ConnectRPC211WithRole(ctx context.Context, _ string) (
+	agentproto.DRPCAgentClient211, proto.DRPCTailnetClient28, error,
 ) {
-	return c.ConnectRPC210(ctx)
+	return c.ConnectRPC211(ctx)
 }
 
 func (c *Client) ConnectRPC29(ctx context.Context) (
