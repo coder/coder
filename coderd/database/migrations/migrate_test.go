@@ -2871,7 +2871,6 @@ func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 	`, uuid.New(), now)
 	require.ErrorContains(t, err, "not-null")
 
-	// Both canonical values must still be insertable.
 	for _, goodValue := range []string{"confidential", "public"} {
 		_, err = sqlDB.ExecContext(ctx, `
 			INSERT INTO oauth2_provider_apps
@@ -2883,15 +2882,9 @@ func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 }
 
 // TestMigration000566OAuth2AuthMethodBackfill covers the repair the backfill
-// exists for, which the shared fixture does not reach: it seeds no
-// token_endpoint_auth_method at all, so the '= none' branch, the one that fixes
-// the actual bug, matches zero rows in CI.
-//
-// token_endpoint_auth_method is the client's own RFC 7591 declaration;
-// client_type is the derived value the token endpoint enforces on. Where they
-// contradict, the declaration is aligned to what is enforced, never the reverse:
-// deriving enforcement from the declaration would reclassify a confidential
-// client holding a real secret as public and stop requiring that secret.
+// exists for, which the testdata/fixtures run does not reach: its only
+// oauth2_provider_apps row seeds no token_endpoint_auth_method at all, so the
+// '= none' branch, the one that fixes the actual bug, matches zero rows in CI.
 func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 	t.Parallel()
 
@@ -2982,8 +2975,6 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 		})
 	}
 
-	// The invariant the migration establishes, stated directly: no row may
-	// declare "none" while being enforced as confidential, or vice versa.
 	// IS DISTINCT FROM, not <>: with <> a NULL declaration makes the comparison
 	// NULL and WHERE drops the row, so an unrepaired NULL would count as
 	// consistent. The same trap awaits the permanent cross-column CHECK.
