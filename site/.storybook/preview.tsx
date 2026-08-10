@@ -7,7 +7,7 @@ import {
 	StyledEngineProvider,
 } from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
-import type { Decorator, Parameters } from "@storybook/react-vite";
+import type { Decorator, Parameters, Preview } from "@storybook/react-vite";
 import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
@@ -131,3 +131,7 @@ const withTheme: Decorator = (Story, context) => {
 };
 
 export const decorators: Decorator[] = [withRouter, withQuery, withTheme];
+
+export const preview: Preview = {
+	initialGlobals: { matrix: {} },
+};
