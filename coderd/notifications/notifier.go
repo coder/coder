@@ -26,6 +26,19 @@ const (
 	notificationsDefaultAppName = "Coder"
 )
 
+// controlFlowLabels are notification label keys whose values are machine-set
+// enums used in Go template control flow (e.g. {{if eq .Labels.limit_source
+// "user_override"}}) rather than rendered as text. They must not be
+// Markdown-escaped, or the escaping (for example turning "user_override" into
+// "user\_override") would break the comparison and silently drop conditional
+// content. Every key here must be assigned from a code or DB enum and must never
+// carry user input.
+var controlFlowLabels = []string{
+	// coderd/aibridgedserver sets this from the codersdk.AIBudgetLimitSource
+	// enum ("user_override" or "group").
+	"limit_source",
+}
+
 type decorateHelpersError struct {
 	inner error
 }
@@ -257,7 +270,11 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	// passed to the dispatcher unmodified so that non-Markdown consumers (the
 	// webhook JSON, the SMTP greeting, and the plaintext email part) receive
 	// verbatim values rather than escaped ones.
-	sanitized := render.SanitizedPayload(payload)
+	//
+	// controlFlowLabels are excluded from escaping: they hold machine-set enum
+	// values used in Go template control flow, not rendered as text, so escaping
+	// them would break the comparison.
+	sanitized := render.SanitizedPayload(payload, controlFlowLabels...)
 
 	var title, body string
 	if title, err = render.GoTemplate(msg.TitleTemplate, sanitized, helpers); err != nil {

@@ -64,13 +64,28 @@ func SanitizeMarkdown(s string) string {
 // template's `| html`, not by Markdown escaping), and the plaintext email part
 // is not Markdown. Escaping those in place left literal backslashes in every one
 // of them.
-func SanitizedPayload(p types.MessagePayload) types.MessagePayload {
+//
+// Label keys listed in skipLabels are left verbatim. These are machine-set enum
+// values used in Go template control flow (e.g. {{if eq .Labels.x "y"}}) rather
+// than rendered as text; escaping them (for example turning "user_override" into
+// "user\_override") would break the comparison. Every skipped key must be
+// assigned from a code or DB enum and must never carry user input.
+func SanitizedPayload(p types.MessagePayload, skipLabels ...string) types.MessagePayload {
+	skip := make(map[string]struct{}, len(skipLabels))
+	for _, k := range skipLabels {
+		skip[k] = struct{}{}
+	}
+
 	sanitized := p
 	sanitized.UserName = SanitizeMarkdown(p.UserName)
 	if p.Labels != nil {
 		// Copy the map so the caller's payload keeps its raw label values.
 		sanitized.Labels = make(map[string]string, len(p.Labels))
 		for k, v := range p.Labels {
+			if _, ok := skip[k]; ok {
+				sanitized.Labels[k] = v
+				continue
+			}
 			sanitized.Labels[k] = SanitizeMarkdown(v)
 		}
 	}
