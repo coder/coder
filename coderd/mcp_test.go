@@ -220,6 +220,26 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, memberConfigs, 1)
 	require.Equal(t, "enabled-server", memberConfigs[0].Slug)
+
+	// Auditors need the full management view of the MCP configs their
+	// audit logs reference.
+	for name, roles := range map[string][]rbac.RoleIdentifier{
+		"SiteAuditor": {rbac.RoleAuditor()},
+		"OrgAuditor":  {rbac.ScopedRoleOrgAuditor(firstUser.OrganizationID)},
+	} {
+		auditorClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, roles...)
+		auditorConfigs, err := auditorClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
+		require.NoError(t, err, name)
+		require.Len(t, auditorConfigs, 2, name)
+		for _, config := range auditorConfigs {
+			require.NotEmpty(t, config.URL, "%s: %s", name, config.Slug)
+			if !config.Enabled {
+				fetched, err := auditorClient.MCPServerConfigByID(ctx, config.ID)
+				require.NoError(t, err, name)
+				require.NotEmpty(t, fetched.URL, name)
+			}
+		}
+	}
 }
 
 // TestMCPServerConfigsSecretsNeverLeaked is a load-bearing test that

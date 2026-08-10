@@ -153,13 +153,16 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
 
-	// Organization admins can see disabled configs and management fields.
+	// Full view: disabled configs included, management fields unredacted.
+	// Auditors get it to inspect audit-logged resources; their MCP config
+	// read grant cannot select it because members hold the same read.
 	// Other members see enabled configs with management fields redacted.
-	isAdmin := api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID))
+	hasFullView := api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) ||
+		api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.InOrg(organization.ID))
 
 	var configs []database.MCPServerConfig
 	var err error
-	if isAdmin {
+	if hasFullView {
 		configs, err = api.Database.GetMCPServerConfigsByOrganization(ctx, organization.ID)
 	} else {
 		configs, err = api.Database.GetEnabledMCPServerConfigsByOrganization(ctx, organization.ID)
@@ -203,7 +206,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	resp := make([]codersdk.MCPServerConfig, 0, len(configs))
 	for _, config := range configs {
 		var sdkConfig codersdk.MCPServerConfig
-		if isAdmin {
+		if hasFullView {
 			sdkConfig = convertMCPServerConfig(config)
 		} else {
 			sdkConfig = convertMCPServerConfigRedacted(config)
@@ -531,14 +534,16 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	config := httpmw.MCPServerConfigParam(r)
 
-	isAdmin := api.Authorize(r, policy.ActionUpdate, config)
-	if !isAdmin && !config.Enabled {
+	// Same full-view rule as listMCPServerConfigs: admins and auditors.
+	hasFullView := api.Authorize(r, policy.ActionUpdate, config) ||
+		api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.InOrg(config.OrganizationID))
+	if !hasFullView && !config.Enabled {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
 	var sdkConfig codersdk.MCPServerConfig
-	if isAdmin {
+	if hasFullView {
 		sdkConfig = convertMCPServerConfig(config)
 	} else {
 		sdkConfig = convertMCPServerConfigRedacted(config)
