@@ -481,6 +481,46 @@ func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
 	return s.Store.UpdateChatModelConfig(ctx, arg)
 }
 
+// vanishInTxChatModelConfigStore makes a model-config read return
+// sql.ErrNoRows only inside a transaction, so a handler's pre-transaction
+// read succeeds while its locked re-read observes the row as already gone.
+type vanishInTxChatModelConfigStore struct {
+	database.Store
+
+	inTx                        bool
+	vanishInTxChatModelConfig   *atomic.Bool
+	vanishInTxChatModelConfigID uuid.UUID
+}
+
+func newVanishInTxChatModelConfigStore(store database.Store) *vanishInTxChatModelConfigStore {
+	return &vanishInTxChatModelConfigStore{
+		Store:                     store,
+		vanishInTxChatModelConfig: &atomic.Bool{},
+	}
+}
+
+func (s *vanishInTxChatModelConfigStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&vanishInTxChatModelConfigStore{
+			Store:                       tx,
+			inTx:                        true,
+			vanishInTxChatModelConfig:   s.vanishInTxChatModelConfig,
+			vanishInTxChatModelConfigID: s.vanishInTxChatModelConfigID,
+		})
+	}, txOpts)
+}
+
+func (s *vanishInTxChatModelConfigStore) GetChatModelConfigByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (database.ChatModelConfig, error) {
+	if s.inTx && id == s.vanishInTxChatModelConfigID &&
+		s.vanishInTxChatModelConfig.CompareAndSwap(true, false) {
+		return database.ChatModelConfig{}, sql.ErrNoRows
+	}
+	return s.Store.GetChatModelConfigByID(ctx, id)
+}
+
 func insertAssistantMessage(
 	t *testing.T,
 	db database.Store,
@@ -5215,6 +5255,34 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.Equal(t, "Context limit must be greater than zero.", sdkErr.Message)
 	})
 
+	// The handler re-reads the target inside the write transaction. A row
+	// that disappears between the pre-read and the locked read is a miss,
+	// not a silent no-op update.
+	t.Run("NotFoundWhenTargetRowDisappearsBeforeUpdate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newVanishInTxChatModelConfigStore(rawDB)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		store.vanishInTxChatModelConfigID = modelConfig.ID
+		store.vanishInTxChatModelConfig.Store(true)
+
+		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "vanished before update",
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
 	t.Run("InvalidModelConfigID", func(t *testing.T) {
 		t.Parallel()
 
@@ -5322,6 +5390,33 @@ func TestDeleteChatModelConfig(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		err := client.DeleteChatModelConfig(ctx, uuid.New())
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	// Deleting a row that disappears between the pre-read and the locked
+	// re-read reports a miss. DeleteChatModelConfigByID is an unguarded
+	// UPDATE, so without the locked read the request would report success
+	// for a row it did not delete.
+	t.Run("NotFoundWhenTargetRowDisappearsInTx", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newVanishInTxChatModelConfigStore(rawDB)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		store.vanishInTxChatModelConfigID = modelConfig.ID
+		store.vanishInTxChatModelConfig.Store(true)
+
+		err := client.DeleteChatModelConfig(ctx, modelConfig.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
