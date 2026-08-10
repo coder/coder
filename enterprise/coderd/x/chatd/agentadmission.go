@@ -61,7 +61,7 @@ func (a *admission) Admit(ctx context.Context, store database.Store, chat databa
 	if err := store.AcquireLock(ctx, database.LockIDChatCapacityAdmission); err != nil {
 		return false, err
 	}
-	counts, err := store.CountChatCapacityByPool(ctx, database.CountChatCapacityByPoolParams{
+	counts, err := store.CountChatCapacityActiveByPool(ctx, database.CountChatCapacityActiveByPoolParams{
 		ExcludeChatID: chat.ID,
 		StaleSeconds:  a.staleSeconds,
 	})

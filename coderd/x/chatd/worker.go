@@ -28,12 +28,6 @@ type chatWorker struct {
 	unsubscribe func()
 	wakeCh      chan struct{}
 	wg          sync.WaitGroup
-
-	// capacityQueue tracks chats this replica refused, keyed by first
-	// refusal. It drives capacity_change events and wait metrics; API
-	// reads derive queued state from the database.
-	capacityMu    sync.Mutex
-	capacityQueue map[uuid.UUID]time.Time
 }
 
 // newChatWorker constructs a chat worker. The worker is idle until Start is
@@ -47,9 +41,8 @@ func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) 
 		return nil, err
 	}
 	return &chatWorker{
-		server:        server,
-		opts:          withDefaults,
-		capacityQueue: map[uuid.UUID]time.Time{},
+		server: server,
+		opts:   withDefaults,
 	}, nil
 }
 
@@ -202,58 +195,40 @@ func (w *chatWorker) acquisitionLoop(
 }
 
 func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manager *runnerManager) {
-	// Capacity-refused chats remain candidates, so each batch must exclude
-	// prior attempts or a full pool would hide all later candidates.
-	excludeIDs := []uuid.UUID{}
-	// One refusal marks the pool full for the rest of the pass. The key is
-	// parent_chat_id presence: false for roots, true for subagents.
+	rows, err := w.opts.Store.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
+		StaleSeconds: w.opts.HeartbeatStaleSeconds,
+		LimitCount:   w.opts.AcquisitionBatchSize * 2,
+	})
+	if err != nil {
+		if ctx.Err() == nil {
+			w.opts.Logger.Warn(ctx, "chatworker acquisition query failed", slogError(err))
+		}
+		return
+	}
+
+	acquired := int32(0)
 	refusedPools := map[bool]bool{}
-	seen := map[uuid.UUID]struct{}{}
-	for {
-		rows, err := w.opts.Store.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
-			StaleSeconds: w.opts.HeartbeatStaleSeconds,
-			LimitCount:   w.opts.AcquisitionBatchSize,
-			ExcludeIds:   excludeIDs,
-		})
+	for _, row := range rows {
+		if acquired >= w.opts.AcquisitionBatchSize {
+			return
+		}
+		if row.Status == database.ChatStatusRunning && refusedPools[row.ParentChatID.Valid] {
+			continue
+		}
+		candidateAcquired, err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)
+		if errors.Is(err, errCapacityRefused) {
+			refusedPools[row.ParentChatID.Valid] = true
+			continue
+		}
 		if err != nil {
-			if ctx.Err() == nil {
-				w.opts.Logger.Warn(ctx, "chatworker acquisition query failed", slogError(err))
+			if ctx.Err() != nil {
+				return
 			}
-			return
+			w.opts.Logger.Warn(ctx, "chatworker acquisition candidate failed", slogError(err))
+			continue
 		}
-		progressed := false
-		for _, row := range rows {
-			excludeIDs = append(excludeIDs, row.ID)
-			seen[row.ID] = struct{}{}
-			if row.Status == database.ChatStatusRunning && refusedPools[row.ParentChatID.Valid] {
-				if w.enterCapacityQueue(ctx, row.ID) {
-					progressed = true
-				}
-				continue
-			}
-			progressed = true
-			err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)
-			if errors.Is(err, errCapacityRefused) {
-				refusedPools[row.ParentChatID.Valid] = true
-				w.enterCapacityQueue(ctx, row.ID)
-				continue
-			}
-			if err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-				w.opts.Logger.Warn(ctx, "chatworker acquisition candidate failed", slogError(err))
-			}
-		}
-		if len(rows) < int(w.opts.AcquisitionBatchSize) {
-			w.pruneCapacityQueue(seen)
-			return
-		}
-		// An all-skipped batch proves every pool with candidates full, so
-		// stop paging and reconcile the queue against one listing query.
-		if !progressed {
-			w.reconcileCapacityQueue(ctx, refusedPools)
-			return
+		if candidateAcquired {
+			acquired++
 		}
 	}
 }
@@ -268,7 +243,7 @@ func (w *chatWorker) acquireCandidateSafely(
 	workerID uuid.UUID,
 	manager *runnerManager,
 	chatID uuid.UUID,
-) (err error) {
+) (acquired bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = xerrors.Errorf("chatworker acquisition panic: %v", recovered)
@@ -282,10 +257,9 @@ func (w *chatWorker) acquireCandidate(
 	workerID uuid.UUID,
 	manager *runnerManager,
 	chatID uuid.UUID,
-) error {
+) (bool, error) {
 	runnerID := uuid.New()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	queueableAtAcquire := false
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, chatID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -294,10 +268,6 @@ func (w *chatWorker) acquireCandidate(
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
-		// Interrupting chats may have shown the queued banner while still
-		// running, so their acquisition must publish the clear too.
-		queueableAtAcquire = chat.Status == database.ChatStatusRunning ||
-			chat.Status == database.ChatStatusInterrupting
 		queueCount, err := store.CountChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("count queue: %w", err)
@@ -318,7 +288,7 @@ func (w *chatWorker) acquireCandidate(
 				return errSkipAcquire
 			}
 		}
-		admitted, err := w.opts.AgentCapacityLimiter.Admit(ctx, store, chat)
+		admitted, err := w.opts.AgentAdmission.Admit(ctx, store, chat)
 		if err != nil {
 			return xerrors.Errorf("agent admission: %w", err)
 		}
@@ -331,47 +301,21 @@ func (w *chatWorker) acquireCandidate(
 		return err
 	})
 	if errors.Is(err, errCapacityRefused) {
-		return errCapacityRefused
+		return false, errCapacityRefused
 	}
 	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {
-		// The chat is owned elsewhere or stopped being runnable, so it left
-		// the capacity queue without a local admission.
-		w.dropCapacityQueue(chatID)
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
-	}
-	firstRefusedAt, wasQueued := w.dropCapacityQueue(chatID)
-	if wasQueued && w.opts.CapacityMetrics != nil {
-		w.opts.CapacityMetrics.waitSeconds.Observe(max(0, w.opts.Clock.Since(firstRefusedAt).Seconds()))
-	}
-	// Another replica may have published this chat's queued event, and the
-	// cap can change between refusal and admission (license updates), so the
-	// clear is gated only on limiter presence, never on dynamic state.
-	if wasQueued || (queueableAtAcquire && w.capacityEventsEnabled()) {
-		w.publishCapacityChange(ctx, chatID, false)
+		return false, err
 	}
 	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID}); err != nil {
 		if errAbandon := w.abandonAcquiredChat(ctx, workerID, runnerID, chatID); errAbandon != nil {
-			return errors.Join(err, errAbandon)
+			return false, errors.Join(err, errAbandon)
 		}
-		return err
+		return false, err
 	}
-	return nil
-}
-
-// Capacity refusals leave no database trace, so clients need a dedicated
-// event carrying the derived queued state.
-func (w *chatWorker) publishCapacityChange(ctx context.Context, chatID uuid.UUID, queued bool) {
-	chat, err := w.opts.Store.GetChatByID(ctx, chatID)
-	if err != nil {
-		if ctx.Err() == nil {
-			w.opts.Logger.Warn(ctx, "chatworker load chat for capacity event failed", slogError(err))
-		}
-		return
-	}
-	w.server.publishChatCapacityChange(chat, queued)
+	return true, nil
 }
 
 func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID, runnerID uuid.UUID, chatID uuid.UUID) error {

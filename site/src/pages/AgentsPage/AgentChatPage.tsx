@@ -43,6 +43,7 @@ import {
 	interruptChat,
 	invalidateChatEntity,
 	mcpServerConfigs,
+	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
@@ -934,7 +935,7 @@ const AgentChatPage: FC = () => {
 	};
 
 	const chatQuery = useQuery({
-		...chat(agentId ?? ""),
+		...openChat(agentId ?? ""),
 		enabled: Boolean(agentId),
 		// Poll while the binding is unresolved: repair happens on chat reads
 		// and watch events cannot be relied on for retries because an idle

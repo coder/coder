@@ -223,11 +223,10 @@ token volume. Consider:
 
 ### Plan for concurrency limits
 
-Community licenses run up to five agents at once. Additional agents queue and
-start automatically when capacity frees. Premium licenses with remaining
-Agent Hours remove the concurrency limit. See
-[Concurrent agents](./platform-controls/index.md#concurrent-agents) for
-details.
+Community licenses run up to 5 agents at once.
+Additional agents queue and start automatically when capacity frees.
+Premium licenses with remaining Agent Hours remove the concurrency limit.
+Refer to [Concurrent agents](./platform-controls/index.md#concurrent-agents) for details.
 
 ### Pilot with a small group
 

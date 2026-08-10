@@ -7048,55 +7048,67 @@ func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUps
 	return err
 }
 
-const countChatCapacityByPool = `-- name: CountChatCapacityByPool :one
+const countChatCapacityActiveByPool = `-- name: CountChatCapacityActiveByPool :one
 SELECT
-    COUNT(*) FILTER (WHERE fresh AND owned AND counted AND is_root)::bigint AS active_root_count,
-    COUNT(*) FILTER (WHERE fresh AND owned AND counted AND NOT is_root)::bigint AS active_subagent_count,
-    COUNT(*) FILTER (WHERE NOT fresh AND running AND is_root)::bigint AS unowned_root_count,
-    COUNT(*) FILTER (WHERE NOT fresh AND running AND NOT is_root)::bigint AS unowned_subagent_count
-FROM (
-    SELECT
-        c.parent_chat_id IS NULL AS is_root,
-        c.status = 'running'::chat_status AS running,
-        c.worker_id IS NOT NULL AND c.runner_id IS NOT NULL AS owned,
-        c.id != $1::uuid AS counted,
-        EXISTS (
-            SELECT 1
-            FROM chat_heartbeats hb
-            WHERE hb.chat_id = c.id
-              AND hb.runner_id = c.runner_id
-              AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $2::int)
-        ) AS fresh
-    FROM chats c
-    WHERE c.status IN ('running'::chat_status, 'interrupting'::chat_status)
-      AND c.archived = false
-) pools
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS active_subagent_count
+FROM chat_heartbeats hb
+JOIN chats c
+  ON c.id = hb.chat_id
+ AND c.runner_id = hb.runner_id
+WHERE c.worker_id IS NOT NULL
+  AND c.id != $1::uuid
+  AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $2::int)
 `
 
-type CountChatCapacityByPoolParams struct {
+type CountChatCapacityActiveByPoolParams struct {
 	ExcludeChatID uuid.UUID `db:"exclude_chat_id" json:"exclude_chat_id"`
 	StaleSeconds  int32     `db:"stale_seconds" json:"stale_seconds"`
 }
 
-type CountChatCapacityByPoolRow struct {
-	ActiveRootCount      int64 `db:"active_root_count" json:"active_root_count"`
-	ActiveSubagentCount  int64 `db:"active_subagent_count" json:"active_subagent_count"`
-	UnownedRootCount     int64 `db:"unowned_root_count" json:"unowned_root_count"`
-	UnownedSubagentCount int64 `db:"unowned_subagent_count" json:"unowned_subagent_count"`
+type CountChatCapacityActiveByPoolRow struct {
+	ActiveRootCount     int64 `db:"active_root_count" json:"active_root_count"`
+	ActiveSubagentCount int64 `db:"active_subagent_count" json:"active_subagent_count"`
 }
 
-// Counts fresh-owner active slots and unowned running chats by pool.
-// @exclude_chat_id removes the candidate from active counts so re-admission
-// does not require an extra slot.
-func (q *sqlQuerier) CountChatCapacityByPool(ctx context.Context, arg CountChatCapacityByPoolParams) (CountChatCapacityByPoolRow, error) {
-	row := q.db.QueryRowContext(ctx, countChatCapacityByPool, arg.ExcludeChatID, arg.StaleSeconds)
-	var i CountChatCapacityByPoolRow
-	err := row.Scan(
-		&i.ActiveRootCount,
-		&i.ActiveSubagentCount,
-		&i.UnownedRootCount,
-		&i.UnownedSubagentCount,
-	)
+// @exclude_chat_id removes the candidate so re-admission does not require an
+// extra slot.
+func (q *sqlQuerier) CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error) {
+	row := q.db.QueryRowContext(ctx, countChatCapacityActiveByPool, arg.ExcludeChatID, arg.StaleSeconds)
+	var i CountChatCapacityActiveByPoolRow
+	err := row.Scan(&i.ActiveRootCount, &i.ActiveSubagentCount)
+	return i, err
+}
+
+const countChatCapacityQueuedByPool = `-- name: CountChatCapacityQueuedByPool :one
+SELECT
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
+FROM chats c
+WHERE c.status = 'running'::chat_status
+  AND c.archived = false
+  AND (
+      c.worker_id IS NULL
+      OR c.runner_id IS NULL
+      OR NOT EXISTS (
+          SELECT 1
+          FROM chat_heartbeats hb
+          WHERE hb.chat_id = c.id
+            AND hb.runner_id = c.runner_id
+            AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+      )
+  )
+`
+
+type CountChatCapacityQueuedByPoolRow struct {
+	QueuedRootCount     int64 `db:"queued_root_count" json:"queued_root_count"`
+	QueuedSubagentCount int64 `db:"queued_subagent_count" json:"queued_subagent_count"`
+}
+
+func (q *sqlQuerier) CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error) {
+	row := q.db.QueryRowContext(ctx, countChatCapacityQueuedByPool, staleSeconds)
+	var i CountChatCapacityQueuedByPoolRow
+	err := row.Scan(&i.QueuedRootCount, &i.QueuedSubagentCount)
 	return i, err
 }
 
@@ -8560,34 +8572,38 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 }
 
 const getChatQueuedForCapacity = `-- name: GetChatQueuedForCapacity :one
+WITH active AS (
+    SELECT
+        COUNT(*) FILTER (WHERE a.parent_chat_id IS NULL)::bigint AS root_count,
+        COUNT(*) FILTER (WHERE a.parent_chat_id IS NOT NULL)::bigint AS subagent_count
+    FROM chat_heartbeats hb
+    JOIN chats a
+      ON a.id = hb.chat_id
+     AND a.runner_id = hb.runner_id
+    WHERE a.worker_id IS NOT NULL
+      AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+)
 SELECT (
     c.status = 'running'::chat_status
     AND c.archived = false
-    AND NOT EXISTS (
-        SELECT 1
-        FROM chat_heartbeats hb
-        WHERE hb.chat_id = c.id
-          AND hb.runner_id = c.runner_id
-          AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
-    )
     AND (
-        SELECT COUNT(*)
-        FROM chats a
-        WHERE a.status IN ('running'::chat_status, 'interrupting'::chat_status)
-          AND a.archived = false
-          AND a.worker_id IS NOT NULL
-          AND a.runner_id IS NOT NULL
-          AND (a.parent_chat_id IS NULL) = (c.parent_chat_id IS NULL)
-          AND EXISTS (
-              SELECT 1
-              FROM chat_heartbeats ahb
-              WHERE ahb.chat_id = a.id
-                AND ahb.runner_id = a.runner_id
-                AND ahb.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
-          )
-    ) >= CASE WHEN c.parent_chat_id IS NULL THEN $2::bigint ELSE $3::bigint END
+        c.worker_id IS NULL
+        OR c.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1
+            FROM chat_heartbeats hb
+            WHERE hb.chat_id = c.id
+              AND hb.runner_id = c.runner_id
+              AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+        )
+    )
+    AND CASE
+        WHEN c.parent_chat_id IS NULL THEN active.root_count >= $2::bigint
+        ELSE active.subagent_count >= $3::bigint
+    END
 )::boolean AS queued_for_capacity
 FROM chats c
+CROSS JOIN active
 WHERE c.id = $4::uuid
 `
 
@@ -8598,9 +8614,7 @@ type GetChatQueuedForCapacityParams struct {
 	ChatID           uuid.UUID `db:"chat_id" json:"chat_id"`
 }
 
-// A chat waits for capacity only when it is running, unarchived, has no
-// fresh matching runner heartbeat, and its pool is full. Pool fullness
-// distinguishes capacity waits from ordinary worker pickup delay.
+// Pool fullness distinguishes capacity waits from ordinary worker pickup delay.
 func (q *sqlQuerier) GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, getChatQueuedForCapacity,
 		arg.StaleSeconds,
@@ -8893,7 +8907,6 @@ WHERE
               AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
         )
     )
-    AND NOT (chats_expanded.id = ANY(COALESCE($2::uuid[], '{}'::uuid[])))
 ORDER BY
     (chats_expanded.status = 'interrupting'::chat_status) DESC,
     (chats_expanded.status = 'requires_action'::chat_status) DESC,
@@ -8903,13 +8916,12 @@ ORDER BY
     ) ASC,
     (chats_expanded.parent_chat_id IS NULL) DESC,
     chats_expanded.id ASC
-LIMIT $3::int
+LIMIT $2::int
 `
 
 type GetChatWorkerAcquisitionCandidatesParams struct {
-	StaleSeconds int32       `db:"stale_seconds" json:"stale_seconds"`
-	ExcludeIds   []uuid.UUID `db:"exclude_ids" json:"exclude_ids"`
-	LimitCount   int32       `db:"limit_count" json:"limit_count"`
+	StaleSeconds int32 `db:"stale_seconds" json:"stale_seconds"`
+	LimitCount   int32 `db:"limit_count" json:"limit_count"`
 }
 
 type GetChatWorkerAcquisitionCandidatesRow struct {
@@ -8974,11 +8986,10 @@ type GetChatWorkerAcquisitionCandidatesRow struct {
 // runner_id IS NULL while worker_id is set. Stale ownership is no
 // heartbeat row for (chat_id, runner_id), or one older than
 // @stale_seconds by database time. Interrupting and requires_action
-// bypass admission. Interleaved per-pool FIFO ordering by updated_at
-// prevents one full pool starving the other; @exclude_ids skips prior
-// attempts within a pass.
+// bypass admission. Other candidates interleave root and subagent FIFO
+// queues ordered by updated_at.
 func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.StaleSeconds, pq.Array(arg.ExcludeIds), arg.LimitCount)
+	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.StaleSeconds, arg.LimitCount)
 	if err != nil {
 		return nil, err
 	}
@@ -10657,53 +10668,6 @@ func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFil
 	var rejected_new_files int32
 	err := row.Scan(&rejected_new_files)
 	return rejected_new_files, err
-}
-
-const listChatCapacityWaiting = `-- name: ListChatCapacityWaiting :many
-SELECT
-    c.id,
-    (c.parent_chat_id IS NOT NULL)::boolean AS subagent
-FROM chats c
-WHERE c.status = 'running'::chat_status
-  AND c.archived = false
-  AND NOT EXISTS (
-      SELECT 1
-      FROM chat_heartbeats hb
-      WHERE hb.chat_id = c.id
-        AND hb.runner_id = c.runner_id
-        AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
-  )
-`
-
-type ListChatCapacityWaitingRow struct {
-	ID       uuid.UUID `db:"id" json:"id"`
-	Subagent bool      `db:"subagent" json:"subagent"`
-}
-
-// Returns every chat able to wait for capacity: running, unarchived, with
-// no live owner heartbeat. Workers reconcile their local capacity queues
-// against it without paging all acquisition candidates.
-func (q *sqlQuerier) ListChatCapacityWaiting(ctx context.Context, staleSeconds int32) ([]ListChatCapacityWaitingRow, error) {
-	rows, err := q.db.QueryContext(ctx, listChatCapacityWaiting, staleSeconds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListChatCapacityWaitingRow
-	for rows.Next() {
-		var i ListChatCapacityWaitingRow
-		if err := rows.Scan(&i.ID, &i.Subagent); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many

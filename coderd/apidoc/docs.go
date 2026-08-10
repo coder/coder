@@ -17519,7 +17519,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
                 "queued_for_capacity": {
-                    "description": "QueuedForCapacity reports that the chat is waiting for a concurrent\nagent slot. It is derived, not stored: single-chat reads and\ncapacity_change watch events carry it, list responses leave it false.",
+                    "description": "QueuedForCapacity reports that the chat is waiting for a concurrent\nagent slot. Single-chat reads derive it; list responses leave it false.",
                     "type": "boolean"
                 },
                 "root_chat_id": {
@@ -18715,7 +18715,6 @@ const docTemplate = `{
                 "created",
                 "deleted",
                 "diff_status_change",
-                "capacity_change",
                 "action_required",
                 "context_dirty"
             ],
@@ -18727,7 +18726,6 @@ const docTemplate = `{
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
                 "ChatWatchEventKindDiffStatusChange",
-                "ChatWatchEventKindCapacityChange",
                 "ChatWatchEventKindActionRequired",
                 "ChatWatchEventKindContextDirty"
             ]

@@ -193,8 +193,9 @@ type chatWorkerOptions struct {
 	Auditor               *atomic.Pointer[audit.Auditor]
 	AutoArchiveRecords    prometheus.Counter
 
-	AgentCapacityLimiter AgentCapacityLimiter
-	CapacityMetrics      *capacityMetrics
+	AgentAdmission  AgentAdmission
+	CapacityPolicy  AgentCapacityPolicy
+	CapacityMetrics *capacityMetrics
 
 	AcquisitionInterval        time.Duration
 	CapacityMetricsInterval    time.Duration
@@ -228,8 +229,11 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	if o.Clock == nil {
 		o.Clock = quartz.NewReal()
 	}
-	if o.AgentCapacityLimiter == nil {
-		o.AgentCapacityLimiter = noopAgentCapacityLimiter{}
+	if o.AgentAdmission == nil {
+		o.AgentAdmission = noopAgentCapacityLimiter{}
+	}
+	if o.CapacityPolicy == nil {
+		o.CapacityPolicy = noopAgentCapacityLimiter{}
 	}
 	if o.AcquisitionInterval <= 0 {
 		o.AcquisitionInterval = defaultAcquisitionInterval
@@ -239,11 +243,6 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.AcquisitionBatchSize <= 0 {
 		o.AcquisitionBatchSize = defaultAcquisitionBatchSize
-	}
-	// A batch size of one can end the pass on the tie-break-favored pool
-	// before the other pool's head is examined.
-	if o.AcquisitionBatchSize < 2 {
-		o.AcquisitionBatchSize = 2
 	}
 	if o.ArchiveInterval <= 0 {
 		o.ArchiveInterval = defaultArchiveInterval

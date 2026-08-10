@@ -271,9 +271,6 @@ coderd_build_info{version="",revision=""} 0
 # HELP coderd_chat_auto_archive_records_archived_total Total number of chats archived by the auto-archive job (counting both roots and cascaded children).
 # TYPE coderd_chat_auto_archive_records_archived_total counter
 coderd_chat_auto_archive_records_archived_total 0
-# HELP coderd_chatd_agent_capacity_wait_seconds Time chats spent waiting for a concurrent-agent capacity slot, measured from this replica's first observed refusal to admission.
-# TYPE coderd_chatd_agent_capacity_wait_seconds histogram
-coderd_chatd_agent_capacity_wait_seconds 0
 # HELP coderd_chatd_agents_active Deployment-wide number of chats holding a concurrent-agent capacity slot. Every replica reports the same database-derived value; aggregate with max, not sum.
 # TYPE coderd_chatd_agents_active gauge
 coderd_chatd_agents_active{pool=""} 0

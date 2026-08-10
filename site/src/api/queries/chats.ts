@@ -480,28 +480,6 @@ const compareUpdatedAtInstants = (a: string, b: string): number => {
 type MergeWatchedChatOptions = {
 	readonly eventKind: TypesGen.ChatWatchEventKind;
 	readonly activeChatId?: string;
-	// updated_at of the newest capacity_change event seen for this chat.
-	// Captured once per event and never mutated during the cache merges,
-	// so every cache layer orders the event against the same revision.
-	readonly capacityRevision?: string;
-};
-
-/**
- * Records a capacity_change event's updated_at as the chat's capacity
- * revision, keeping the newest value on out-of-order delivery. Call after
- * every cache merge for the event has completed.
- */
-export const advanceCapacityRevision = (
-	revisions: Map<string, string>,
-	chat: TypesGen.Chat,
-) => {
-	const prior = revisions.get(chat.id);
-	if (
-		prior === undefined ||
-		compareUpdatedAtInstants(prior, chat.updated_at) <= 0
-	) {
-		revisions.set(chat.id, chat.updated_at);
-	}
 };
 
 // Shallow-compare two ChatDiffStatus objects by their meaningful
@@ -538,7 +516,7 @@ const diffStatusEqual = (
 export const mergeWatchedChatSummary = (
 	cachedChat: TypesGen.Chat,
 	watchedChat: TypesGen.Chat,
-	{ eventKind, activeChatId, capacityRevision }: MergeWatchedChatOptions,
+	{ eventKind, activeChatId }: MergeWatchedChatOptions,
 ): TypesGen.Chat => {
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
@@ -546,7 +524,6 @@ export const mergeWatchedChatSummary = (
 	const isChatSummaryEvent = eventKind === "chat_summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const isContextDirtyEvent = eventKind === "context_dirty";
-	const isCapacityEvent = eventKind === "capacity_change";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
 		watchedChat.updated_at,
@@ -571,18 +548,10 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
-	// Capacity events order against the chat's capacity revision, not the
-	// general updated_at guard: a status event can advance the cache past a
-	// still-undelivered clear, which must still apply. With no revision yet,
-	// clears always apply while queued snapshots keep the updated_at guard.
-	const applyCapacityEvent =
-		isCapacityEvent &&
-		(capacityRevision !== undefined
-			? compareUpdatedAtInstants(capacityRevision, watchedChat.updated_at) <= 0
-			: !watchedChat.queued_for_capacity || isFreshEnough);
-	const nextQueuedForCapacity = applyCapacityEvent
-		? (watchedChat.queued_for_capacity ?? false)
-		: (cachedChat.queued_for_capacity ?? false);
+	const nextQueuedForCapacity =
+		isStatusEvent && nextStatus !== "running"
+			? false
+			: (cachedChat.queued_for_capacity ?? false);
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
@@ -680,7 +649,7 @@ export const mergeWatchedChatIntoCaches = (
 	});
 
 	updateChildInParentCache(queryClient, mergeCachedChat, watchedChat.id);
-	const entity = queryClient.setQueryData<TypesGen.Chat | undefined>(
+	queryClient.setQueryData<TypesGen.Chat | undefined>(
 		chatEntityKey(watchedChat.id),
 		(cachedChat) => {
 			if (!cachedChat) {
@@ -689,16 +658,6 @@ export const mergeWatchedChatIntoCaches = (
 			return mergeCachedChat(cachedChat);
 		},
 	);
-
-	// Delivery reordering can make the ordering guards reject a legitimate
-	// capacity event. Invalidate mismatches so the current or next
-	// single-chat read derives the authoritative queued state.
-	if (options.eventKind === "capacity_change") {
-		const eventQueued = watchedChat.queued_for_capacity ?? false;
-		if (entity && (entity.queued_for_capacity ?? false) !== eventQueued) {
-			void invalidateChatEntity(queryClient, watchedChat.id);
-		}
-	}
 };
 
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
@@ -1195,6 +1154,18 @@ export const chat = (chatId: string) => ({
 	queryKey: chatEntityKey(chatId),
 	queryFn: () => API.experimental.getChat(chatId),
 });
+
+export const getOpenChatPollInterval = (
+	data: TypesGen.Chat | undefined,
+): number | false =>
+	data?.status === "running" && !data.archived ? 5_000 : false;
+
+export const openChat = (chatId: string) =>
+	queryOptions({
+		...chat(chatId),
+		refetchInterval: ({ state }) => getOpenChatPollInterval(state.data),
+		refetchIntervalInBackground: false,
+	});
 
 export const chatACLKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "acl"] as const;

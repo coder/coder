@@ -189,14 +189,14 @@ type Server struct {
 	configCacheUnsubscribe         func()
 	providerCacheUnsubscribe       func()
 
-	usageTracker         *workspacestats.UsageTracker
-	clock                quartz.Clock
-	metrics              *chatloop.Metrics
-	chatWorker           *chatWorker
-	messagePartBuffer    *messagepartbuffer.Buffer
-	streamSyncPoller     *streamSyncPoller
-	recordingSem         chan struct{}
-	agentCapacityLimiter AgentCapacityLimiter
+	usageTracker        *workspacestats.UsageTracker
+	clock               quartz.Clock
+	metrics             *chatloop.Metrics
+	chatWorker          *chatWorker
+	messagePartBuffer   *messagepartbuffer.Buffer
+	streamSyncPoller    *streamSyncPoller
+	recordingSem        chan struct{}
+	agentCapacityPolicy AgentCapacityPolicy
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
@@ -3194,7 +3194,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 			}
 		}
 	}
-	p.agentCapacityLimiter = agentCapacityLimiter
+	p.agentCapacityPolicy = agentCapacityLimiter
 	chatWorker, err := newChatWorker(p, chatWorkerOptions{
 		WorkerID:              workerID,
 		Store:                 cfg.Database,
@@ -3202,7 +3202,8 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		Logger:                cfg.Logger.Named("chatworker"),
 		Clock:                 clk,
 		MessagePartBuffer:     p.messagePartBuffer,
-		AgentCapacityLimiter:  agentCapacityLimiter,
+		AgentAdmission:        agentCapacityLimiter,
+		CapacityPolicy:        agentCapacityLimiter,
 		CapacityMetrics:       agentCapacityMetrics,
 		AcquisitionInterval:   pendingChatAcquireInterval,
 		AcquisitionBatchSize:  maxChatsPerAcquire,
@@ -3324,23 +3325,11 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 	})
 }
 
-// publishChatCapacityChange broadcasts the derived queued-for-capacity state.
-// Queued state has no database column, so the event payload carries the value
-// the worker observed at refusal or admission.
-func (p *Server) publishChatCapacityChange(chat database.Chat, queued bool) {
-	sdkChat := chatWatchEventSDKChat(chat, nil)
-	sdkChat.QueuedForCapacity = queued
-	p.publishChatWatchEvent(chat, codersdk.ChatWatchEvent{
-		Kind: codersdk.ChatWatchEventKindCapacityChange,
-		Chat: sdkChat,
-	})
-}
-
 // ChatQueuedForCapacity derives whether the chat is waiting for a
 // concurrent-agent capacity slot. It reports false when the deployment is
 // currently uncapped.
 func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) (bool, error) {
-	limits, capped := p.agentCapacityLimiter.Limits()
+	limits, capped := p.agentCapacityPolicy.Limits()
 	if !capped {
 		return false, nil
 	}

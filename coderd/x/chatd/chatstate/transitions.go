@@ -388,12 +388,12 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	// Idle / empty-queue error: insert directly into history, clear
 	// last_error, leave queue alone.
 	case StateW, StateE0:
-		return tx.sendMessageDirect(from, chat, input)
+		return tx.sendMessageDirect(chat, input)
 
 	// Error-with-queue: append to tail, promote previous head into
 	// history, clear last_error.
 	case StateE1:
-		return tx.sendMessageE1(from, chat, input)
+		return tx.sendMessageE1(chat, input)
 
 	// Running with no queue.
 	case StateR0:
@@ -424,19 +424,7 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	return SendMessageResult{}, newTransitionError(TransitionSendMessage, from, "unhandled state in SendMessage")
 }
 
-// resumeOwnership returns the ownership to carry into a transition that
-// re-enters running. Idle-state resumes clear ownership so worker
-// acquisition re-admits the chat under the capacity cap; an owner
-// retained during the runner's abandon gap would otherwise resume
-// generation without admission. Runnable-state resumes keep their owner.
-func resumeOwnership(from ExecutionState, chat database.Chat) (workerID, runnerID uuid.NullUUID) {
-	if from.IsRunnable() {
-		return chat.WorkerID, chat.RunnerID
-	}
-	return uuid.NullUUID{}, uuid.NullUUID{}
-}
-
-func (tx *Tx) sendMessageDirect(from ExecutionState, chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
+func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by new user message", false)
 	if err != nil {
 		return SendMessageResult{}, err
@@ -445,12 +433,11 @@ func (tx *Tx) sendMessageDirect(from ExecutionState, chat database.Chat, input S
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert direct user message: %w", err)
 	}
-	workerID, runnerID := resumeOwnership(from, chat)
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
-		WorkerID:                 workerID,
-		RunnerID:                 runnerID,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
 		LastError:                pqtype.NullRawMessage{},
 		RequiresActionDeadlineAt: sql.NullTime{},
 	}); err != nil {
@@ -461,7 +448,7 @@ func (tx *Tx) sendMessageDirect(from ExecutionState, chat database.Chat, input S
 	}, nil
 }
 
-func (tx *Tx) sendMessageE1(from ExecutionState, chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
+func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
 	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
@@ -485,12 +472,11 @@ func (tx *Tx) sendMessageE1(from ExecutionState, chat database.Chat, input SendM
 	}); err != nil {
 		return SendMessageResult{}, xerrors.Errorf("delete promoted queued head: %w", err)
 	}
-	workerID, runnerID := resumeOwnership(from, chat)
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
-		WorkerID:                 workerID,
-		RunnerID:                 runnerID,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
 		LastError:                pqtype.NullRawMessage{},
 		RequiresActionDeadlineAt: sql.NullTime{},
 	}); err != nil {
@@ -668,12 +654,11 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		return EditMessageResult{}, err
 	}
 
-	workerID, runnerID := resumeOwnership(from, chat)
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
-		WorkerID:                 workerID,
-		RunnerID:                 runnerID,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
 		LastError:                pqtype.NullRawMessage{},
 		RequiresActionDeadlineAt: sql.NullTime{},
 	}); err != nil {
@@ -859,12 +844,11 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	}); err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("delete promoted queued: %w", err)
 	}
-	workerID, runnerID := resumeOwnership(from, chat)
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
-		WorkerID:                 workerID,
-		RunnerID:                 runnerID,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
 		LastError:                pqtype.NullRawMessage{},
 		RequiresActionDeadlineAt: sql.NullTime{},
 	}); err != nil {

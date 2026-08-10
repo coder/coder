@@ -2313,9 +2313,8 @@ WHERE chat_id = @chat_id::uuid
 -- runner_id IS NULL while worker_id is set. Stale ownership is no
 -- heartbeat row for (chat_id, runner_id), or one older than
 -- @stale_seconds by database time. Interrupting and requires_action
--- bypass admission. Interleaved per-pool FIFO ordering by updated_at
--- prevents one full pool starving the other; @exclude_ids skips prior
--- attempts within a pass.
+-- bypass admission. Other candidates interleave root and subagent FIFO
+-- queues ordered by updated_at.
 SELECT
     chats_expanded.*,
     chat_heartbeats.heartbeat_at AS current_heartbeat_at,
@@ -2344,7 +2343,6 @@ WHERE
               AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
         )
     )
-    AND NOT (chats_expanded.id = ANY(COALESCE(@exclude_ids::uuid[], '{}'::uuid[])))
 ORDER BY
     (chats_expanded.status = 'interrupting'::chat_status) DESC,
     (chats_expanded.status = 'requires_action'::chat_status) DESC,
@@ -2812,81 +2810,71 @@ LEFT JOIN to_archive t ON t.id = a.id
 -- buildDigestData in dbpurge.go for the tradeoff rationale.
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
 
--- name: CountChatCapacityByPool :one
--- Counts fresh-owner active slots and unowned running chats by pool.
--- @exclude_chat_id removes the candidate from active counts so re-admission
--- does not require an extra slot.
+-- name: CountChatCapacityActiveByPool :one
+-- @exclude_chat_id removes the candidate so re-admission does not require an
+-- extra slot.
 SELECT
-    COUNT(*) FILTER (WHERE fresh AND owned AND counted AND is_root)::bigint AS active_root_count,
-    COUNT(*) FILTER (WHERE fresh AND owned AND counted AND NOT is_root)::bigint AS active_subagent_count,
-    COUNT(*) FILTER (WHERE NOT fresh AND running AND is_root)::bigint AS unowned_root_count,
-    COUNT(*) FILTER (WHERE NOT fresh AND running AND NOT is_root)::bigint AS unowned_subagent_count
-FROM (
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS active_subagent_count
+FROM chat_heartbeats hb
+JOIN chats c
+  ON c.id = hb.chat_id
+ AND c.runner_id = hb.runner_id
+WHERE c.worker_id IS NOT NULL
+  AND c.id != @exclude_chat_id::uuid
+  AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int);
+
+-- name: CountChatCapacityQueuedByPool :one
+SELECT
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
+FROM chats c
+WHERE c.status = 'running'::chat_status
+  AND c.archived = false
+  AND (
+      c.worker_id IS NULL
+      OR c.runner_id IS NULL
+      OR NOT EXISTS (
+          SELECT 1
+          FROM chat_heartbeats hb
+          WHERE hb.chat_id = c.id
+            AND hb.runner_id = c.runner_id
+            AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+      )
+  );
+
+-- name: GetChatQueuedForCapacity :one
+-- Pool fullness distinguishes capacity waits from ordinary worker pickup delay.
+WITH active AS (
     SELECT
-        c.parent_chat_id IS NULL AS is_root,
-        c.status = 'running'::chat_status AS running,
-        c.worker_id IS NOT NULL AND c.runner_id IS NOT NULL AS owned,
-        c.id != @exclude_chat_id::uuid AS counted,
-        EXISTS (
+        COUNT(*) FILTER (WHERE a.parent_chat_id IS NULL)::bigint AS root_count,
+        COUNT(*) FILTER (WHERE a.parent_chat_id IS NOT NULL)::bigint AS subagent_count
+    FROM chat_heartbeats hb
+    JOIN chats a
+      ON a.id = hb.chat_id
+     AND a.runner_id = hb.runner_id
+    WHERE a.worker_id IS NOT NULL
+      AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+)
+SELECT (
+    c.status = 'running'::chat_status
+    AND c.archived = false
+    AND (
+        c.worker_id IS NULL
+        OR c.runner_id IS NULL
+        OR NOT EXISTS (
             SELECT 1
             FROM chat_heartbeats hb
             WHERE hb.chat_id = c.id
               AND hb.runner_id = c.runner_id
               AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-        ) AS fresh
-    FROM chats c
-    WHERE c.status IN ('running'::chat_status, 'interrupting'::chat_status)
-      AND c.archived = false
-) pools;
-
--- name: ListChatCapacityWaiting :many
--- Returns every chat able to wait for capacity: running, unarchived, with
--- no live owner heartbeat. Workers reconcile their local capacity queues
--- against it without paging all acquisition candidates.
-SELECT
-    c.id,
-    (c.parent_chat_id IS NOT NULL)::boolean AS subagent
-FROM chats c
-WHERE c.status = 'running'::chat_status
-  AND c.archived = false
-  AND NOT EXISTS (
-      SELECT 1
-      FROM chat_heartbeats hb
-      WHERE hb.chat_id = c.id
-        AND hb.runner_id = c.runner_id
-        AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-  );
-
--- name: GetChatQueuedForCapacity :one
--- A chat waits for capacity only when it is running, unarchived, has no
--- fresh matching runner heartbeat, and its pool is full. Pool fullness
--- distinguishes capacity waits from ordinary worker pickup delay.
-SELECT (
-    c.status = 'running'::chat_status
-    AND c.archived = false
-    AND NOT EXISTS (
-        SELECT 1
-        FROM chat_heartbeats hb
-        WHERE hb.chat_id = c.id
-          AND hb.runner_id = c.runner_id
-          AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+        )
     )
-    AND (
-        SELECT COUNT(*)
-        FROM chats a
-        WHERE a.status IN ('running'::chat_status, 'interrupting'::chat_status)
-          AND a.archived = false
-          AND a.worker_id IS NOT NULL
-          AND a.runner_id IS NOT NULL
-          AND (a.parent_chat_id IS NULL) = (c.parent_chat_id IS NULL)
-          AND EXISTS (
-              SELECT 1
-              FROM chat_heartbeats ahb
-              WHERE ahb.chat_id = a.id
-                AND ahb.runner_id = a.runner_id
-                AND ahb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-          )
-    ) >= CASE WHEN c.parent_chat_id IS NULL THEN @root_capacity::bigint ELSE @subagent_capacity::bigint END
+    AND CASE
+        WHEN c.parent_chat_id IS NULL THEN active.root_count >= @root_capacity::bigint
+        ELSE active.subagent_count >= @subagent_capacity::bigint
+    END
 )::boolean AS queued_for_capacity
 FROM chats c
+CROSS JOIN active
 WHERE c.id = @chat_id::uuid;

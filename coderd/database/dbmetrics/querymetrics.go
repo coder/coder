@@ -321,11 +321,19 @@ func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.Coun
 	return r0, r1
 }
 
-func (m queryMetricsStore) CountChatCapacityByPool(ctx context.Context, arg database.CountChatCapacityByPoolParams) (database.CountChatCapacityByPoolRow, error) {
+func (m queryMetricsStore) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.CountChatCapacityByPool(ctx, arg)
-	m.queryLatencies.WithLabelValues("CountChatCapacityByPool").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityByPool").Inc()
+	r0, r1 := m.s.CountChatCapacityActiveByPool(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountChatCapacityActiveByPool").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityActiveByPool").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (database.CountChatCapacityQueuedByPoolRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountChatCapacityQueuedByPool(ctx, staleSeconds)
+	m.queryLatencies.WithLabelValues("CountChatCapacityQueuedByPool").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityQueuedByPool").Inc()
 	return r0, r1
 }
 
@@ -4766,14 +4774,6 @@ func (m queryMetricsStore) ListBoundaryLogsBySessionID(ctx context.Context, arg 
 	r0, r1 := m.s.ListBoundaryLogsBySessionID(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListBoundaryLogsBySessionID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListBoundaryLogsBySessionID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) ListChatCapacityWaiting(ctx context.Context, staleSeconds int32) ([]database.ListChatCapacityWaitingRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.ListChatCapacityWaiting(ctx, staleSeconds)
-	m.queryLatencies.WithLabelValues("ListChatCapacityWaiting").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatCapacityWaiting").Inc()
 	return r0, r1
 }
 

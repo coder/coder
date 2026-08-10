@@ -114,23 +114,20 @@ none, if the template does not define any).
 
 ### Concurrent agents
 
-Community licenses support up to five concurrently active agents. There is no
-limit on how long those agents can run or how many tasks they complete over
-time; they simply queue when more than five agents are active. This enables
-individuals and small teams to experiment with Coder Agents at no cost.
+Community licenses support up to 5 concurrently active agents.
+Coder doesn't limit how long those agents can run or how many tasks they complete over time.
+Additional agents queue until an agent session becomes available.
+With concurrent agents, individuals and small teams can experiment with Coder Agents at no cost.
 
-Queued agents show a banner in the chat and start automatically when capacity
-frees. Subtasks delegated by an agent do not count toward the limit; they run
-in a separate pool of ten concurrent subtasks.
+Queued agents show a banner in the chat and start automatically when capacity frees.
+Subtasks delegated by an agent don't count toward this limit.
+Those subtasks run in a separate pool of up to 10 concurrent subtasks.
 
-Premium deployments can purchase Agent Hours with their Premium license. Agent
-Hours are shared across the deployment, allowing any number of agents to run
-concurrently while consuming from a shared pool of purchased working hours.
-This usage-based model is designed for enterprise workloads, where large
-development teams, background automation, and API-triggered tasks can create
-highly variable bursts of agent activity without being constrained by a
-concurrency limit. When the purchased hours are exhausted, agents queue under
-the concurrency limit until more hours are added.
+Premium deployments can purchase Agent Hours with their Premium license.
+Agent Hours are shared across the deployment, so any number of agents can run concurrently while consuming a shared pool of purchased working hours.
+This usage-based model supports enterprise workloads with variable bursts of agent activity.
+Large development teams, background automation, and API-triggered tasks can run without a concurrency limit while hours remain.
+When purchased hours are exhausted, agents queue under the concurrency limit until more hours are added.
 
 ### Spend management
 

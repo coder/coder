@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sync"
 
@@ -168,35 +167,9 @@ func (r *runner) processState(state runnerStateUpdate) {
 	if r.hasAcceptedState && r.activeTaskSet {
 		r.cancelActiveTask()
 	}
-	_, capped := r.opts.AgentCapacityLimiter.Limits()
-	if capped && occupiesCapacitySlot(r.latestState) && !occupiesCapacitySlot(state) {
-		// Wake all workers when a slot opens rather than waiting for the
-		// acquisition ticker.
-		r.publishCapacityRelease(state)
-	}
 
 	r.spawnForState(state)
 	r.acceptState(state)
-}
-
-// The zero value is not capacity-counted, so callers need no
-// hasAcceptedState guard.
-func occupiesCapacitySlot(state runnerStateUpdate) bool {
-	return !state.Archived &&
-		(state.Status == database.ChatStatusRunning || state.Status == database.ChatStatusInterrupting)
-}
-
-func (r *runner) publishCapacityRelease(state runnerStateUpdate) {
-	payload, err := json.Marshal(coderdpubsub.ChatStateOwnershipMessage{
-		ChatID:          r.rec.key.ChatID,
-		SnapshotVersion: state.SnapshotVersion,
-	})
-	if err != nil {
-		return
-	}
-	if err := r.opts.Pubsub.Publish(coderdpubsub.ChatStateOwnershipChannel, payload); err != nil {
-		r.opts.Logger.Warn(r.ctx, "chatworker publish capacity release nudge failed", slogError(err))
-	}
 }
 
 func (r *runner) acceptState(state runnerStateUpdate) {

@@ -143,8 +143,7 @@ type Chat struct {
 	// Nil when the chat has no pinned context yet.
 	Context *ChatContext `json:"context,omitempty"`
 	// QueuedForCapacity reports that the chat is waiting for a concurrent
-	// agent slot. It is derived, not stored: single-chat reads and
-	// capacity_change watch events carry it, list responses leave it false.
+	// agent slot. Single-chat reads derive it; list responses leave it false.
 	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
 	Warnings          []string       `json:"warnings,omitempty"`
 	ClientType        ChatClientType `json:"client_type"`
@@ -1856,10 +1855,7 @@ const (
 	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
 	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
 	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
-	// ChatWatchEventKindCapacityChange signals a capacity-queue change;
-	// QueuedForCapacity carries the current state.
-	ChatWatchEventKindCapacityChange ChatWatchEventKind = "capacity_change"
-	ChatWatchEventKindActionRequired ChatWatchEventKind = "action_required"
+	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context changed: it drifted from the agent's latest
 	// pushed snapshot, or hydration first populated it (a first-turn

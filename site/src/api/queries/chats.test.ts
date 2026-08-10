@@ -12,7 +12,6 @@ import { createDeferred } from "#/testHelpers/deferred";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
-	advanceCapacityRevision,
 	applyChatArchiveStateToCaches,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
@@ -45,6 +44,7 @@ import {
 	deleteChatQueuedMessage,
 	editChatMessage,
 	getChatListQueryString,
+	getOpenChatPollInterval,
 	infiniteChats,
 	interruptChat,
 	invalidateChatACL,
@@ -59,6 +59,7 @@ import {
 	invalidateChatsByWorkspace,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
+	openChat,
 	patchChatEntity,
 	patchChatMessages,
 	pinChat,
@@ -2467,145 +2468,7 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
-	it("applies queued_for_capacity from a capacity event with an unchanged updated_at", () => {
-		const cachedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity: false,
-		});
-
-		const watchedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity: true,
-		});
-
-		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "capacity_change",
-			}).queued_for_capacity,
-		).toBe(true);
-	});
-
-	it("clears queued_for_capacity only from a capacity event", () => {
-		const cachedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity: true,
-		});
-		const watchedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity: false,
-		});
-
-		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "capacity_change",
-			}).queued_for_capacity,
-		).toBe(false);
-	});
-
-	it("rejects a stale queued capacity event after a newer clear", () => {
-		// Acquisition bumps updated_at, so a delayed queued snapshot from
-		// a refusing replica is strictly older than the applied clear.
-		const cachedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:01:00.000Z",
-			queued_for_capacity: false,
-		});
-		const watchedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity: true,
-		});
-
-		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "capacity_change",
-			}).queued_for_capacity,
-		).toBe(false);
-	});
-
-	it("applies a capacity clear delayed past a newer status event", () => {
-		const cachedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:03:00.000Z",
-			queued_for_capacity: true,
-		});
-		const watchedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:02:00.000Z",
-			queued_for_capacity: false,
-		});
-
-		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "capacity_change",
-				capacityRevision: "2025-01-01T00:01:00.000Z",
-			}).queued_for_capacity,
-		).toBe(false);
-	});
-
-	it("applies a capacity clear with no prior revision despite a newer cache", () => {
-		const cachedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:03:00.000Z",
-			queued_for_capacity: true,
-		});
-		const watchedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:02:00.000Z",
-			queued_for_capacity: false,
-		});
-
-		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "capacity_change",
-			}).queued_for_capacity,
-		).toBe(false);
-	});
-
-	it("rejects a queued capacity event older than the capacity revision", () => {
-		const cachedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:00:00.000Z",
-			queued_for_capacity: false,
-		});
-		const watchedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:00:30.000Z",
-			queued_for_capacity: true,
-		});
-
-		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "capacity_change",
-				capacityRevision: "2025-01-01T00:01:00.000Z",
-			}).queued_for_capacity,
-		).toBe(false);
-	});
-
-	it("applies a queued capacity event at or above the capacity revision", () => {
-		const cachedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:02:00.000Z",
-			queued_for_capacity: false,
-		});
-		const watchedChat = makeChat("chat-1", {
-			updated_at: "2025-01-01T00:01:00.000Z",
-			queued_for_capacity: true,
-		});
-
-		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "capacity_change",
-				capacityRevision: "2025-01-01T00:01:00.000Z",
-			}).queued_for_capacity,
-		).toBe(true);
-	});
-
-	it("keeps the capacity revision monotonic on out-of-order events", () => {
-		const revisions = new Map<string, string>();
-		advanceCapacityRevision(
-			revisions,
-			makeChat("chat-1", { updated_at: "2025-01-01T00:02:00.000Z" }),
-		);
-		advanceCapacityRevision(
-			revisions,
-			makeChat("chat-1", { updated_at: "2025-01-01T00:01:00.000Z" }),
-		);
-		expect(revisions.get("chat-1")).toBe("2025-01-01T00:02:00.000Z");
-	});
-
-	it("ignores queued_for_capacity carried by non-capacity events", () => {
+	it("preserves queued_for_capacity while the chat remains running", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
 			updated_at: "2025-01-01T00:00:00.000Z",
@@ -2622,6 +2485,24 @@ describe("mergeWatchedChatSummary", () => {
 				eventKind: "status_change",
 			}).queued_for_capacity,
 		).toBe(true);
+	});
+
+	it("clears queued_for_capacity when the chat stops running", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:00:00.000Z",
+			queued_for_capacity: true,
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "waiting",
+			updated_at: "2025-01-01T00:01:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).queued_for_capacity,
+		).toBe(false);
 	});
 
 	it("leaves context untouched for non-context events", () => {
@@ -3194,87 +3075,6 @@ describe("mergeWatchedChatIntoCaches", () => {
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 	});
-
-	it("invalidates the entity when a rejected capacity event is not reflected", () => {
-		// A message send can advance updated_at after the queued snapshot
-		// was loaded, so the no-revision guard rejects the queued event.
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const cachedChat = makeChat(chatId, {
-			updated_at: "2025-01-01T00:02:00.000Z",
-			queued_for_capacity: false,
-		});
-		const queuedEvent = makeChat(chatId, {
-			updated_at: "2025-01-01T00:01:00.000Z",
-			queued_for_capacity: true,
-		});
-		queryClient.setQueryData(chatEntityKey(chatId), cachedChat);
-
-		mergeWatchedChatIntoCaches(queryClient, queuedEvent, {
-			eventKind: "capacity_change",
-		});
-
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
-				?.queued_for_capacity,
-		).toBe(false);
-		expect(
-			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
-		).toBe(true);
-	});
-
-	it("invalidates the entity when a rejected capacity clear is not reflected", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const cachedChat = makeChat(chatId, {
-			updated_at: "2025-01-01T00:02:00.000Z",
-			queued_for_capacity: true,
-		});
-		const clearEvent = makeChat(chatId, {
-			updated_at: "2025-01-01T00:01:00.000Z",
-			queued_for_capacity: false,
-		});
-		queryClient.setQueryData(chatEntityKey(chatId), cachedChat);
-
-		mergeWatchedChatIntoCaches(queryClient, clearEvent, {
-			eventKind: "capacity_change",
-			capacityRevision: "2025-01-01T00:01:30.000Z",
-		});
-
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
-				?.queued_for_capacity,
-		).toBe(true);
-		expect(
-			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
-		).toBe(true);
-	});
-
-	it("does not invalidate the entity when a capacity event applies", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const cachedChat = makeChat(chatId, {
-			updated_at: "2025-01-01T00:01:00.000Z",
-			queued_for_capacity: false,
-		});
-		const queuedEvent = makeChat(chatId, {
-			updated_at: "2025-01-01T00:01:00.000Z",
-			queued_for_capacity: true,
-		});
-		queryClient.setQueryData(chatEntityKey(chatId), cachedChat);
-
-		mergeWatchedChatIntoCaches(queryClient, queuedEvent, {
-			eventKind: "capacity_change",
-		});
-
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
-				?.queued_for_capacity,
-		).toBe(true);
-		expect(
-			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
-		).toBe(false);
-	});
 });
 
 describe("removeChildFromParentInCache", () => {
@@ -3561,11 +3361,8 @@ describe("semantic cache operations: prefix invalidations", () => {
 	});
 
 	describe(shouldInvalidateChatsByWorkspace.name, () => {
-		// created/deleted have their own watch branches; title, summary,
-		// diff, capacity, and context events do not move updated_at ordering.
 		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {
 			action_required: true,
-			capacity_change: false,
 			chat_summary_change: false,
 			context_dirty: false,
 			created: false,
@@ -3643,14 +3440,8 @@ describe("semantic cache operations: prefix invalidations", () => {
 	});
 
 	describe(shouldInvalidateChatSearches.name, () => {
-		// Search results render title, status, diff status, and the
-		// action-required badge. Summary, context, and capacity events are
-		// excluded: stale last_turn_summary subtitles are accepted until
-		// reconciliation lands. The created and deleted kinds are handled
-		// by their own watch branches before the merge path runs.
 		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {
 			action_required: true,
-			capacity_change: false,
 			chat_summary_change: false,
 			context_dirty: false,
 			created: false,
@@ -3664,6 +3455,36 @@ describe("semantic cache operations: prefix invalidations", () => {
 		it.each(ChatWatchEventKinds)("%s", (kind) => {
 			expect(shouldInvalidateChatSearches(kind)).toBe(expectedByKind[kind]);
 		});
+	});
+});
+
+describe("openChat", () => {
+	it("does not poll in the background", () => {
+		expect(openChat("chat-1").refetchIntervalInBackground).toBe(false);
+	});
+
+	it("polls while the open chat is running", () => {
+		expect(
+			getOpenChatPollInterval(makeChat("chat-1", { status: "running" })),
+		).toBe(5_000);
+	});
+
+	it("stops polling after the chat leaves running", () => {
+		expect(
+			getOpenChatPollInterval(makeChat("chat-1", { status: "waiting" })),
+		).toBe(false);
+	});
+
+	it("does not poll archived chats", () => {
+		expect(
+			getOpenChatPollInterval(
+				makeChat("chat-1", { status: "running", archived: true }),
+			),
+		).toBe(false);
+	});
+
+	it("does not poll before the chat loads", () => {
+		expect(getOpenChatPollInterval(undefined)).toBe(false);
 	});
 });
 

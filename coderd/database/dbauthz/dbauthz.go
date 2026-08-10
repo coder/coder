@@ -1964,11 +1964,18 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
 }
 
-func (q *querier) CountChatCapacityByPool(ctx context.Context, arg database.CountChatCapacityByPoolParams) (database.CountChatCapacityByPoolRow, error) {
+func (q *querier) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return database.CountChatCapacityByPoolRow{}, err
+		return database.CountChatCapacityActiveByPoolRow{}, err
 	}
-	return q.db.CountChatCapacityByPool(ctx, arg)
+	return q.db.CountChatCapacityActiveByPool(ctx, arg)
+}
+
+func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (database.CountChatCapacityQueuedByPoolRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return database.CountChatCapacityQueuedByPoolRow{}, err
+	}
+	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
 }
 
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
@@ -6823,13 +6830,6 @@ func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.
 		return nil, err
 	}
 	return q.db.ListBoundaryLogsBySessionID(ctx, arg)
-}
-
-func (q *querier) ListChatCapacityWaiting(ctx context.Context, staleSeconds int32) ([]database.ListChatCapacityWaitingRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.ListChatCapacityWaiting(ctx, staleSeconds)
 }
 
 func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatContextResource, error) {
