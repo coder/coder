@@ -54,7 +54,12 @@
 							},
 							"@pierre/diffs": {
 								"message": "Parse diffs through parseDiffString so every rendered file carries a content-derived cache key (pierrecomputer/pierre#1052).",
-								"importNames": ["parsePatchFiles"]
+								"importNames": [
+									"parsePatchFiles",
+									"processPatch",
+									"processFile",
+									"parseDiffFromFile"
+								]
 							},
 							"@mui/material/Alert": "Use components/Alert/Alert instead.",
 							"@mui/material/AlertTitle": "Use components/Alert/Alert instead.",

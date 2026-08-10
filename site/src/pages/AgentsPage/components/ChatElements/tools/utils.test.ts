@@ -27,6 +27,7 @@ import {
 	parseServerEditDiffText,
 	parseServerEditResults,
 	sanitizeExecuteModelIntent,
+	stripNoNewline,
 	stripSvnIndexHeaders,
 	summarizeParsedCommands,
 } from "./utils";
@@ -875,7 +876,7 @@ describe("buildEditDiff", () => {
 		expect(hasContext).toBe(true);
 	});
 
-	it("keys diffs by patch content, not by file name", () => {
+	it("keys diffs by patch content, not by file name alone", () => {
 		const first = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
 		const sameAgain = buildEditDiff("file.ts", [
 			{ search: "old", replace: "new" },
@@ -886,6 +887,20 @@ describe("buildEditDiff", () => {
 		expect(first?.cacheKey).toMatch(/^content-/);
 		expect(first?.cacheKey).toBe(sameAgain?.cacheKey);
 		expect(first?.cacheKey).not.toBe(different?.cacheKey);
+	});
+
+	it("restamps the cache key when stripNoNewline clears the flags", () => {
+		const diff = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
+		expect(diff).not.toBeNull();
+		// Force the no-EOF-newline flags so the strip path runs.
+		for (const hunk of diff!.hunks) {
+			hunk.noEOFCRDeletions = true;
+			hunk.noEOFCRAdditions = true;
+		}
+
+		const stripped = stripNoNewline(diff!);
+
+		expect(stripped.cacheKey).not.toBe(diff!.cacheKey);
 	});
 });
 

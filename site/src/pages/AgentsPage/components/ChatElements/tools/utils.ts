@@ -356,8 +356,6 @@ export function stripNoNewline(fileDiff: FileDiffMetadata): FileDiffMetadata {
 			noEOFCRAdditions: false,
 		})),
 	};
-	// The clone changes the render inputs, so the stripped diff must not
-	// share the unstripped highlight entry.
 	stampCacheKey(stripped);
 	return stripped;
 }
@@ -471,7 +469,7 @@ export const getFileContentForViewer = (
  */
 const parseSingleFileDiff = (raw: string): FileDiffMetadata | null => {
 	if (!raw) return null;
-	return parseDiffString(stripSvnIndexHeaders(raw))[0] ?? null;
+	return parseDiffString(stripSvnIndexHeaders(raw), false)[0] ?? null;
 };
 
 /**

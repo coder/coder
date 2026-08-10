@@ -32,27 +32,30 @@ export function dedupeFilesByName(
 }
 
 /**
- * Parses a unified or git diff string into per-file metadata, collapsing
- * repeated post-image paths; empty input yields []. Each file is keyed by a
- * hash of its own render inputs, so unchanged files keep hitting the
- * worker-pool highlight cache across re-parses while changed files miss it.
+ * Parses a unified or git diff string into per-file metadata; empty input
+ * yields []. Each file is keyed by a hash of its own render inputs, so
+ * unchanged files keep hitting the worker-pool highlight cache across
+ * re-parses while changed files miss it. With `dedupe` (default), repeated
+ * post-image paths collapse to their first occurrence; pass false for
+ * single-file synthetic diffs where repeats are expected, not malformed.
  */
 export function parseDiffString(
 	diffString: string | undefined | null,
+	dedupe = true,
 ): FileDiffMetadata[] {
 	if (!diffString) return [];
 	const files = parsePatchFiles(diffString).flatMap((p) => p.files);
 	for (const file of files) {
 		stampCacheKey(file);
 	}
-	return dedupeFilesByName(files);
+	return dedupe ? dedupeFilesByName(files) : files;
 }
 
 /**
  * Stamps `file.cacheKey` with a hash of the inputs the worker reads when
- * building the highlighted AST. The library requires any post-parse mutation
- * of a keyed FileDiffMetadata to restamp the key, so callers that clone or
- * edit a parsed file must call this again on the result.
+ * building the highlighted AST. The worker pool caches highlighted ASTs by
+ * cacheKey alone, so callers that clone or edit a parsed file must restamp
+ * the result or it renders against the unmutated cached AST.
  */
 export function stampCacheKey(file: FileDiffMetadata): void {
 	file.cacheKey = getContentCacheKey(serializeRenderInputs(file));

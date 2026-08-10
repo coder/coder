@@ -467,7 +467,7 @@ const reparseFirstBody = [
 const reparseSecondBody = [
 	"--- a/src/hot.ts",
 	"+++ b/src/hot.ts",
-	"@@ -1,2 +1,6 @@",
+	"@@ -1,2 +1,5 @@",
 	" export const keep = true;",
 	"-const v = 1;",
 	"+const v = 3;",
@@ -511,8 +511,8 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 		const expectRendered = (text: string) =>
 			waitFor(
 				() => {
-					// Checked inside the wait so a crash's error box fails the
-					// story immediately instead of after the line assertion.
+					// Checked inside the wait so a crash surfaces as the
+					// error-box assertion instead of a text-timeout.
 					expectNoErrorBox();
 					expect(shadowText().includes(text)).toBe(true);
 				},

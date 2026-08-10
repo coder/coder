@@ -105,8 +105,8 @@ describe("parseDiffString", () => {
 	});
 
 	it("keys identical bodies under different names distinctly", () => {
-		// Unified (non-git) bodies carry no prevName, so the file name is
-		// the only differing render input between the two.
+		// Both sides name the same file, so prevName is unset and the file
+		// name is the only differing render input between the two.
 		const tsBody = [
 			"--- a.ts",
 			"+++ a.ts",
@@ -122,6 +122,30 @@ describe("parseDiffString", () => {
 		// The deletion-side language comes from the file name, so a .ts
 		// body must not reuse a .py highlight entry.
 		expect(ts[0].cacheKey).not.toBe(py[0].cacheKey);
+	});
+
+	it("keys renamed diffs by their source path", () => {
+		const renameBody = (prev: string) =>
+			[
+				`diff --git a/${prev} b/src/new.ts`,
+				"similarity index 95%",
+				`rename from ${prev}`,
+				"rename to src/new.ts",
+				`--- a/${prev}`,
+				"+++ b/src/new.ts",
+				"@@ -1,1 +1,1 @@",
+				"-const x = 1;",
+				"+const x = 2;",
+			].join("\n");
+
+		const fromOld = parseDiffString(renameBody("old.ts"));
+		const fromOther = parseDiffString(renameBody("other.ts"));
+
+		// Same post-image name and hunks; only the rename source differs.
+		expect(fromOld[0].name).toBe(fromOther[0].name);
+		expect(fromOld[0].prevName).toBe("old.ts");
+		expect(fromOther[0].prevName).toBe("other.ts");
+		expect(fromOld[0].cacheKey).not.toBe(fromOther[0].cacheKey);
 	});
 
 	it("keeps an unchanged file's key stable when a sibling changes", () => {
