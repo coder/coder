@@ -1,114 +1,228 @@
 import { describe, expect, it } from "vitest";
-import { normalizeChatSearchInput } from "./searchQuery";
+import { buildChatSearchQuery, extractTypedFilters } from "./searchQuery";
 
-describe("normalizeChatSearchInput", () => {
-	it("returns undefined for empty input", () => {
-		expect(normalizeChatSearchInput("")).toBeUndefined();
-		expect(normalizeChatSearchInput("   ")).toBeUndefined();
+const knownKeys = new Set(["archived", "diff_url", "has_unread", "pr_status"]);
+
+describe("buildChatSearchQuery", () => {
+	it("returns no query for empty input", () => {
+		expect(buildChatSearchQuery([], "")).toEqual({
+			query: undefined,
+			hasSearchText: false,
+		});
+		expect(buildChatSearchQuery([], "   ")).toEqual({
+			query: undefined,
+			hasSearchText: false,
+		});
 	});
 
-	it("normalizes key:value filters", () => {
-		expect(normalizeChatSearchInput("has_unread:true")).toBe("has_unread:true");
-		expect(normalizeChatSearchInput('title:"chat title" archived:true')).toBe(
-			'title:"chat title" archived:true',
-		);
-		expect(normalizeChatSearchInput("pr_status:open,merged")).toBe(
-			"pr_status:open,merged",
-		);
+	it("wraps free text in one FTS token", () => {
+		expect(buildChatSearchQuery([], "Fix")).toEqual({
+			query: 'search:"Fix"',
+			hasSearchText: true,
+		});
+		expect(buildChatSearchQuery([], "fix auth middleware")).toEqual({
+			query: 'search:"fix auth middleware"',
+			hasSearchText: true,
+		});
+		expect(buildChatSearchQuery([], "fix:lint")).toEqual({
+			query: 'search:"fix:lint"',
+			hasSearchText: true,
+		});
+		expect(buildChatSearchQuery([], "http://example.com")).toEqual({
+			query: 'search:"http://example.com"',
+			hasSearchText: true,
+		});
+	});
+
+	it("combines structured filters with free text", () => {
 		expect(
-			normalizeChatSearchInput(
-				'diff_url:"https://github.com/coder/coder/pull/25391"',
+			buildChatSearchQuery([{ key: "has_unread", value: "true" }], "fix auth"),
+		).toEqual({
+			query: 'has_unread:true search:"fix auth"',
+			hasSearchText: true,
+		});
+	});
+
+	it("normalizes structured filter values", () => {
+		expect(
+			buildChatSearchQuery([{ key: "pr_status", value: "open merged" }], ""),
+		).toEqual({
+			query: 'pr_status:"open merged"',
+			hasSearchText: false,
+		});
+		expect(
+			buildChatSearchQuery(
+				[
+					{
+						key: "diff_url",
+						value: "github.com/coder/coder/pull/26016",
+					},
+				],
+				"",
 			),
-		).toBe('diff_url:"https://github.com/coder/coder/pull/25391"');
+		).toEqual({
+			query: 'diff_url:"https://github.com/coder/coder/pull/26016"',
+			hasSearchText: false,
+		});
+	});
+
+	it("does not emit punctuation-only free text", () => {
+		for (const input of ['"', "???", "___", ":-)", "!!!"]) {
+			expect(buildChatSearchQuery([], input)).toEqual({
+				query: undefined,
+				hasSearchText: false,
+			});
+		}
+
 		expect(
-			normalizeChatSearchInput(
-				"diff_url:https://github.com/coder/coder/pull/26016",
+			buildChatSearchQuery([{ key: "has_unread", value: "true" }], "???"),
+		).toEqual({
+			query: "has_unread:true",
+			hasSearchText: false,
+		});
+	});
+
+	it("emits Unicode letters as searchable text", () => {
+		expect(buildChatSearchQuery([], "日本語")).toEqual({
+			query: 'search:"日本語"',
+			hasSearchText: true,
+		});
+	});
+
+	it("skips filters whose sanitized value is empty", () => {
+		for (const value of ['"', '""']) {
+			expect(buildChatSearchQuery([{ key: "pr_status", value }], "")).toEqual({
+				query: undefined,
+				hasSearchText: false,
+			});
+		}
+	});
+
+	it("strips embedded quotes and trims before wrapping", () => {
+		expect(buildChatSearchQuery([], '  Fix "auth" middleware  ')).toEqual({
+			query: 'search:"Fix auth middleware"',
+			hasSearchText: true,
+		});
+	});
+
+	it("preserves websearch operators for backend FTS parsing", () => {
+		expect(buildChatSearchQuery([], '"fix race" OR deadlock -timeout')).toEqual(
+			{
+				query: 'search:"fix race OR deadlock -timeout"',
+				hasSearchText: true,
+			},
+		);
+	});
+
+	it("never parses free text as structured filters", () => {
+		for (const text of ["title:auth", "search:fix", "pr:12", "foo:bar"]) {
+			expect(buildChatSearchQuery([], text)).toEqual({
+				query: `search:"${text}"`,
+				hasSearchText: true,
+			});
+		}
+	});
+});
+
+describe("extractTypedFilters", () => {
+	it("extracts leading, middle, and trailing filters", () => {
+		expect(
+			extractTypedFilters("has_unread:true fix", knownKeys, new Set()),
+		).toEqual({
+			filters: [{ key: "has_unread", value: "true" }],
+			remainingText: "fix",
+			consumed: true,
+		});
+		expect(
+			extractTypedFilters("fix has_unread:true auth", knownKeys, new Set()),
+		).toEqual({
+			filters: [{ key: "has_unread", value: "true" }],
+			remainingText: "fix auth",
+			consumed: true,
+		});
+		expect(
+			extractTypedFilters("fix has_unread:true", knownKeys, new Set()),
+		).toEqual({
+			filters: [{ key: "has_unread", value: "true" }],
+			remainingText: "fix ",
+			consumed: true,
+		});
+	});
+
+	it("extracts complete quoted multi-word values", () => {
+		expect(
+			extractTypedFilters('pr_status:"open merged"', knownKeys, new Set()),
+		).toEqual({
+			filters: [{ key: "pr_status", value: "open merged" }],
+			remainingText: "",
+			consumed: true,
+		});
+	});
+
+	it("does not consume an unbalanced quoted value", () => {
+		expect(
+			extractTypedFilters('pr_status:"open', knownKeys, new Set()),
+		).toEqual({
+			filters: [],
+			remainingText: 'pr_status:"open',
+			consumed: false,
+		});
+	});
+
+	it("consumes active duplicate keys without adding another filter", () => {
+		expect(
+			extractTypedFilters(
+				"has_unread:false",
+				knownKeys,
+				new Set(["has_unread"]),
 			),
-		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
-		expect(
-			normalizeChatSearchInput("diff_url:github.com/coder/coder/pull/26016"),
-		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
-		expect(
-			normalizeChatSearchInput('diff_url:"github.com/coder/coder/pull/26016"'),
-		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
+		).toEqual({
+			filters: [],
+			remainingText: "",
+			consumed: true,
+		});
 	});
 
-	it("re-quotes passthrough values containing spaces so the result round-trips", () => {
-		const normalized = normalizeChatSearchInput('pr_status:"open merged"');
-		expect(normalized).toBe('pr_status:"open merged"');
-		expect(normalizeChatSearchInput(normalized ?? "")).toBe(
-			'pr_status:"open merged"',
-		);
-	});
-
-	it("converts bare search text into a quoted FTS search filter", () => {
-		expect(normalizeChatSearchInput("Fix")).toBe('search:"Fix"');
-		expect(normalizeChatSearchInput("fix auth middleware")).toBe(
-			'search:"fix auth middleware"',
-		);
-		expect(normalizeChatSearchInput("hello world")).toBe(
-			'search:"hello world"',
-		);
-		expect(normalizeChatSearchInput("fix:lint")).toBe('search:"fix:lint"');
-	});
-
-	it("combines key:value filters with an FTS search fallback for bare text", () => {
-		expect(normalizeChatSearchInput("has_unread:true fix auth")).toBe(
-			'has_unread:true search:"fix auth"',
-		);
-		expect(normalizeChatSearchInput("archived:true fix:lint")).toBe(
-			'archived:true search:"fix:lint"',
-		);
-		expect(normalizeChatSearchInput("fix has_unread:true auth")).toBe(
-			'has_unread:true search:"fix auth"',
-		);
+	it("drops duplicate keys from the same input", () => {
 		expect(
-			normalizeChatSearchInput(
-				"diff_url:https://github.com/coder/coder/pull/26016 fix",
+			extractTypedFilters(
+				"has_unread:true has_unread:false",
+				knownKeys,
+				new Set(),
 			),
-		).toBe('diff_url:"https://github.com/coder/coder/pull/26016" search:"fix"');
+		).toEqual({
+			filters: [{ key: "has_unread", value: "true" }],
+			remainingText: "",
+			consumed: true,
+		});
+	});
+
+	it("leaves unknown and incomplete filter-like text unchanged", () => {
+		for (const text of [
+			"foo:bar",
+			"title:",
+			"title:auth",
+			"search:fix",
+			"pr:12",
+			"has_unread:",
+			"http://example.com",
+			"fix:lint",
+		]) {
+			expect(extractTypedFilters(text, knownKeys, new Set())).toEqual({
+				filters: [],
+				remainingText: text,
+				consumed: false,
+			});
+		}
+	});
+
+	it("normalizes recognized key casing", () => {
 		expect(
-			normalizeChatSearchInput('archived:true title:"chat title" fix'),
-		).toBe('archived:true search:"chat title fix"');
-	});
-
-	it("combines duplicate title filters into one search filter", () => {
-		expect(normalizeChatSearchInput("title:Fix title:Race")).toBe(
-			'search:"Fix Race"',
-		);
-		expect(
-			normalizeChatSearchInput('has_unread:true title:"chat title" title:Race'),
-		).toBe('has_unread:true search:"chat title Race"');
-	});
-
-	it("preserves quoted websearch phrases in bare text", () => {
-		// A leading/trailing quote pair is passed through so websearch_to_tsquery
-		// can interpret it as a quoted phrase.
-		expect(normalizeChatSearchInput('"fix race condition"')).toBe(
-			'search:"fix race condition"',
-		);
-		expect(normalizeChatSearchInput('Fix "auth" middleware')).toBe(
-			'search:Fix "auth" middleware',
-		);
-	});
-
-	it("preserves websearch operators alongside a quoted phrase", () => {
-		expect(normalizeChatSearchInput('"fix race" OR deadlock -timeout')).toBe(
-			'search:"fix race" OR deadlock -timeout',
-		);
-	});
-
-	it("strips stray quotes from bare text before wrapping", () => {
-		// Unbalanced quotes would break the backend's query parser, which has no
-		// escape handling for embedded quotes.
-		expect(normalizeChatSearchInput("it's a \"test")).toBe(
-			'search:"it\'s a test"',
-		);
-	});
-
-	it("treats a trailing-colon filter as bare search text", () => {
-		// `title:` is not a well-formed key:value pair, so it is wrapped as an
-		// FTS phrase.
-		expect(normalizeChatSearchInput("title:")).toBe('search:"title:"');
+			extractTypedFilters("Has_Unread:true", knownKeys, new Set()),
+		).toEqual({
+			filters: [{ key: "has_unread", value: "true" }],
+			remainingText: "",
+			consumed: true,
+		});
 	});
 });

@@ -15,6 +15,7 @@ type ChatSearchResultsProps = {
 	readonly recentChats: readonly Chat[];
 	readonly error: unknown;
 	readonly hasQuery: boolean;
+	readonly hasSearchText: boolean;
 	readonly location: Location;
 	readonly listboxId: string;
 	readonly selectedChatIndex: number | undefined;
@@ -39,6 +40,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	recentChats,
 	error,
 	hasQuery,
+	hasSearchText,
 	location,
 	listboxId,
 	selectedChatIndex,
@@ -101,6 +103,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 				<ScrollArea {...SCROLL_AREA_PROPS}>
 					<ChatSearchResultsList
 						chats={chats}
+						hasSearchText={hasSearchText}
 						location={location}
 						listboxId={listboxId}
 						selectedChatIndex={selectedChatIndex}
@@ -174,6 +177,7 @@ const DefaultView: FC<DefaultViewProps> = ({
 
 type ChatSearchResultsListProps = {
 	readonly chats: readonly Chat[] | undefined;
+	readonly hasSearchText: boolean;
 	readonly location: Location;
 	readonly listboxId: string;
 	readonly selectedChatIndex: number | undefined;
@@ -183,6 +187,7 @@ type ChatSearchResultsListProps = {
 
 const ChatSearchResultsList: FC<ChatSearchResultsListProps> = ({
 	chats,
+	hasSearchText,
 	location,
 	listboxId,
 	selectedChatIndex,
@@ -197,8 +202,14 @@ const ChatSearchResultsList: FC<ChatSearchResultsListProps> = ({
 		return (
 			<div className="flex h-[300px] items-center justify-center px-6 text-center">
 				<p className="text-sm text-content-secondary">
-					No matching chats. Message content is indexed periodically, so very
-					recent messages may not be searchable yet.
+					No matching chats.
+					{hasSearchText && (
+						<>
+							{" "}
+							Message content is indexed periodically, so very recent messages
+							may not be searchable yet.
+						</>
+					)}
 				</p>
 			</div>
 		);

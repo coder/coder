@@ -5,13 +5,7 @@ import {
 	LinkIcon,
 } from "lucide-react";
 import type { FC, RefObject } from "react";
-import {
-	type KeyboardEventHandler,
-	useId,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type KeyboardEventHandler, useId, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
 import { chatSearch } from "#/api/queries/chats";
@@ -21,7 +15,7 @@ import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { ChatSearchInput, type SearchFilter } from "./ChatSearchInput";
 import { ChatSearchResults } from "./ChatSearchResults";
-import { normalizeChatSearchInput } from "./searchQuery";
+import { buildChatSearchQuery, extractTypedFilters } from "./searchQuery";
 
 // Filter definitions. Filters with a defaultValue are inserted as complete
 // pills (e.g. has_unread:true). Filters without one are inserted as
@@ -55,10 +49,7 @@ const FILTER_DEFINITIONS: readonly FilterDefinition[] = [
 	{ key: "diff_url", label: "Diff URL", icon: LinkIcon, defaultValue: null },
 ];
 
-// Set of recognized filter keys for detecting typed filter patterns
-// (e.g. "has_unread:true" typed directly into the input). Derived from
-// FILTER_DEFINITIONS; the backend equivalent lives in searchQuery.ts as
-// passthroughChatSearchFilterKeys.
+// Typed filter detection uses the same keys as the filter dropdown.
 const KNOWN_FILTER_KEYS = new Set(FILTER_DEFINITIONS.map((def) => def.key));
 
 type ChatSearchDialogProps = {
@@ -131,29 +122,9 @@ type ChatSearchDialogContentProps = Omit<
 	readonly inputRef: RefObject<HTMLInputElement | null>;
 };
 
-// Build a raw query string from structured filters + freeform text, then
-// normalize it through the existing parser that the backend expects. Freeform
-// text becomes the backend's FTS `search:` filter.
-const buildQuery = (
-	filters: readonly SearchFilter[],
-	freeText: string,
-): string | undefined => {
-	const parts: string[] = [];
-	for (const f of filters) {
-		if (f.value !== null && f.value !== "") {
-			// Strip internal quotes before wrapping so the resulting
-			// key:"value" token stays well-formed for the backend.
-			const stripped = f.value.replaceAll('"', "");
-			const v = stripped.includes(" ") ? `"${stripped}"` : stripped;
-			parts.push(`${f.key}:${v}`);
-		}
-	}
-	if (freeText.trim()) {
-		parts.push(freeText.trim());
-	}
-	const raw = parts.join(" ");
-	return normalizeChatSearchInput(raw);
-};
+// Structured filters and free text are already separate UI state, so query
+// construction can write the backend wire format without parsing it again.
+const buildQuery = buildChatSearchQuery;
 
 const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	open,
@@ -177,30 +148,22 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	>(undefined);
 	const listboxId = useId();
 
-	// Build the full filter list for query building. When an incomplete filter
-	// has text, include it so debounced search can run against partial values.
-	const effectiveFilters = useMemo(
-		() =>
+	// Debounce filters and free text as one snapshot. This prevents a committed
+	// incomplete-filter value from briefly reappearing as full-text search.
+	const queryInput = {
+		filters:
 			incompleteFilterKey && freeText.trim()
 				? [...filters, { key: incompleteFilterKey, value: freeText.trim() }]
 				: filters,
-		[filters, incompleteFilterKey, freeText],
+		freeText: incompleteFilterKey ? "" : freeText,
+	};
+	const hasActiveSearch =
+		queryInput.filters.length > 0 || queryInput.freeText.trim() !== "";
+	const debouncedQueryInput = useDebouncedValue(queryInput, SEARCH_DEBOUNCE_MS);
+	const { query: normalizedQuery, hasSearchText } = buildQuery(
+		debouncedQueryInput.filters,
+		debouncedQueryInput.freeText,
 	);
-	const hasActiveSearch = effectiveFilters.length > 0 || freeText.trim() !== "";
-
-	const debouncedFreeText = useDebouncedValue(freeText, SEARCH_DEBOUNCE_MS);
-	const debouncedFilters = useDebouncedValue(
-		effectiveFilters,
-		SEARCH_DEBOUNCE_MS,
-	);
-	// When typing into an incomplete filter, only send the filter (not
-	// freeText as bare full-text search).
-	// When freeText is cleared (e.g. after committing a filter), zero
-	// queryFreeText immediately instead of waiting for the debounce to
-	// flush. Otherwise the stale debouncedFreeText leaks into the query.
-	const queryFreeText =
-		incompleteFilterKey || !freeText.trim() ? "" : debouncedFreeText;
-	const normalizedQuery = buildQuery(debouncedFilters, queryFreeText);
 	const hasQuery = hasActiveSearch && normalizedQuery !== undefined;
 
 	const searchQuery = useQuery({
@@ -315,33 +278,19 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			!incompleteFilterKey &&
 			freeText.trim()
 		) {
-			const activeKeys = new Set(filters.map((f) => f.key));
-			const tokens = freeText.trim().split(/\s+/);
-			const newFilters: SearchFilter[] = [];
-			const remaining: string[] = [];
-
-			for (const token of tokens) {
-				const colonIndex = token.indexOf(":");
-				if (colonIndex > 0 && colonIndex < token.length - 1) {
-					const key = token.slice(0, colonIndex);
-					const val = token.slice(colonIndex + 1);
-					if (KNOWN_FILTER_KEYS.has(key)) {
-						// Drop duplicate filter keys silently instead of
-						// letting them fall through to freeform text.
-						if (!activeKeys.has(key)) {
-							newFilters.push({ key, value: val });
-							activeKeys.add(key);
-						}
-						continue;
-					}
-				}
-				remaining.push(token);
-			}
-
-			if (newFilters.length > 0) {
+			const extracted = extractTypedFilters(
+				freeText,
+				KNOWN_FILTER_KEYS,
+				new Set(filters.map((filter) => filter.key)),
+			);
+			if (extracted.consumed) {
 				event.preventDefault();
-				setFilters((prev) => [...prev, ...newFilters]);
-				setFreeText(remaining.join(" "));
+				setFilters((previous) => [...previous, ...extracted.filters]);
+				setFreeText(
+					event.key === " "
+						? extracted.remainingText
+						: extracted.remainingText.trimEnd(),
+				);
 				return;
 			}
 		}
@@ -431,6 +380,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 				recentChats={recentChats}
 				error={searchQuery.error}
 				hasQuery={hasQuery}
+				hasSearchText={hasSearchText}
 				location={location}
 				listboxId={listboxId}
 				selectedChatIndex={safeSelectedChatIndex}
