@@ -210,16 +210,14 @@ export const Filter: FC<FilterProps> = ({
 				</>
 			) : (
 				<>
-					{presets.length > 0 && (
-						<PresetMenu
-							value={filter.query}
-							onSelect={(query) => filter.update(query)}
-							presets={presets}
-							learnMoreLink={learnMoreLink}
-							learnMoreLabel2={learnMoreLabel2}
-							learnMoreLink2={learnMoreLink2}
-						/>
-					)}
+					<PresetMenu
+						value={filter.query}
+						onSelect={(query) => filter.update(query)}
+						presets={presets}
+						learnMoreLink={learnMoreLink}
+						learnMoreLabel2={learnMoreLabel2}
+						learnMoreLink2={learnMoreLink2}
+					/>
 					<div className="flex flex-col gap-2 w-full">
 						<SearchField
 							ref={textboxInputRef}
