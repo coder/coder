@@ -1,6 +1,7 @@
 package render_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -142,4 +143,115 @@ func TestInnerTextFromMarkdown(t *testing.T) {
 			require.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestHTMLFromMarkdownSafe(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		contains []string
+		absent   []string
+	}{
+		{
+			name:     "explicit https link preserved",
+			input:    "[Coder](https://coder.com)",
+			contains: []string{`<a href="https://coder.com">Coder</a>`},
+		},
+		{
+			name:     "explicit http link preserved",
+			input:    "[Link](http://example.com)",
+			contains: []string{`<a href="http://example.com">Link</a>`},
+		},
+		{
+			name:   "javascript URI blocked by Safelink",
+			input:  "[Click](javascript:alert(1))",
+			absent: []string{"javascript:", "<a href"},
+		},
+		{
+			name:   "data URI blocked by Safelink",
+			input:  "[Click](data:text/html,<script>alert(1)</script>)",
+			absent: []string{"data:", "<a href"},
+		},
+		{
+			name:     "bare URL NOT auto-linked",
+			input:    "Visit https://evil.example for details",
+			absent:   []string{"<a href"},
+			contains: []string{"https://evil.example"},
+		},
+		{
+			name:     "bold and emphasis still work",
+			input:    "**bold** and *italic*",
+			contains: []string{"<strong>bold</strong>", "<em>italic</em>"},
+		},
+		{
+			name:   "raw HTML stripped",
+			input:  `<script>alert(1)</script>`,
+			absent: []string{"<script>"},
+		},
+		{
+			name:     "escaped markdown renders as literal text",
+			input:    `\[not a link\]\(https://evil.example\)`,
+			absent:   []string{"<a href"},
+			contains: []string{"[not a link]"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := render.HTMLFromMarkdownSafe(tt.input)
+			for _, s := range tt.contains {
+				if !strings.Contains(result, s) {
+					t.Errorf("output %q should contain %q", result, s)
+				}
+			}
+			for _, s := range tt.absent {
+				if strings.Contains(result, s) {
+					t.Errorf("output %q should NOT contain %q", result, s)
+				}
+			}
+		})
+	}
+}
+
+func TestHTMLFromMarkdownSafelink(t *testing.T) {
+	t.Parallel()
+
+	// Safelink is scoped to HTMLFromMarkdownSafe. HTMLFromMarkdown renders
+	// admin-authored deployment text and keeps its pre-existing behavior, so
+	// it does not block or rewrite link schemes.
+	t.Run("HTMLFromMarkdownSafe blocks javascript URI", func(t *testing.T) {
+		t.Parallel()
+		result := render.HTMLFromMarkdownSafe("[Click](javascript:alert(1))")
+		if strings.Contains(result, "javascript:") {
+			t.Error("HTMLFromMarkdownSafe should block javascript: URIs via Safelink")
+		}
+	})
+
+	t.Run("HTMLFromMarkdown does not rewrite custom-scheme links", func(t *testing.T) {
+		t.Parallel()
+		// Admin-authored deployment text may legitimately use custom schemes.
+		result := render.HTMLFromMarkdown("[Open the app](slack://channel)")
+		if !strings.Contains(result, `href="slack://channel"`) {
+			t.Errorf("HTMLFromMarkdown should render custom-scheme links, got %q", result)
+		}
+	})
+
+	t.Run("HTMLFromMarkdown allows autolinks", func(t *testing.T) {
+		t.Parallel()
+		result := render.HTMLFromMarkdown("Visit https://coder.com for details")
+		if !strings.Contains(result, "<a href") {
+			t.Error("HTMLFromMarkdown should auto-link bare URLs")
+		}
+	})
+
+	t.Run("HTMLFromMarkdownSafe disables autolinks", func(t *testing.T) {
+		t.Parallel()
+		result := render.HTMLFromMarkdownSafe("Visit https://coder.com for details")
+		if strings.Contains(result, "<a href") {
+			t.Error("HTMLFromMarkdownSafe should NOT auto-link bare URLs")
+		}
+	})
 }
