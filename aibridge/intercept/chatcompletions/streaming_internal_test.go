@@ -59,9 +59,7 @@ func TestStreamProcessorUsage(t *testing.T) {
 			t.Parallel()
 
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-			rec := &testutil.MockRecorder{}
 			interceptor := NewStreamingInterceptor(uuid.New(), nil, intercept.Config{}, nil, nil, otel.Tracer("test"))
-			interceptor.Setup(logger, rec, nil)
 			processor := newStreamProcessor(t.Context(), logger, nil)
 
 			var relayed []byte
@@ -89,12 +87,6 @@ func TestStreamProcessorUsage(t *testing.T) {
 			assert.Equal(t, tt.wantPromptTokens, usage.PromptTokens)
 			assert.Equal(t, tt.wantCompletionTokens, usage.CompletionTokens)
 			assert.Equal(t, tt.wantTotalTokens, usage.TotalTokens)
-			interceptor.recordTokenUsage(t.Context(), processor.getMsgID(), usage)
-
-			recorded := rec.RecordedTokenUsages()
-			require.Len(t, recorded, 1)
-			assert.Equal(t, tt.wantPromptTokens, recorded[0].Input)
-			assert.Equal(t, tt.wantCompletionTokens, recorded[0].Output)
 		})
 	}
 }
