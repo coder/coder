@@ -94,30 +94,39 @@ describe("parseDiffString", () => {
 		expect(parseDiffString("")).toEqual([]);
 	});
 
-	it("derives a content-specific cache key when no prefix is supplied", () => {
+	it("keys each file by its own parsed content", () => {
 		const files = parseDiffString(uniqueFilesDiff);
 
 		expect(files).toHaveLength(2);
-		// Keys are content-derived instead of bare file names, so a
-		// later diff body for the same path cannot reuse this AST.
+		// A later diff body for the same path must not reuse this AST.
 		for (const file of files) {
-			expect(file.cacheKey).toMatch(/^content-/);
+			expect(file.cacheKey).toMatch(/^content-[0-9a-f]+-[0-9a-f]+$/);
 		}
 		expect(files[0].cacheKey).not.toBe(files[1].cacheKey);
 	});
 
-	it("keeps an explicit prefix when one is supplied", () => {
-		const files = parseDiffString(uniqueFilesDiff, "chat-1-123");
+	it("keeps an unchanged file's key stable when a sibling changes", () => {
+		const changed = uniqueFilesDiff.replace("const b = 2", "const b = 3");
 
-		expect(files[0].cacheKey).toMatch(/^chat-1-123-/);
+		const before = parseDiffString(uniqueFilesDiff);
+		const after = parseDiffString(changed);
+
+		expect(before[0].cacheKey).toBe(after[0].cacheKey);
+		expect(before[1].cacheKey).not.toBe(after[1].cacheKey);
 	});
 
-	it("gives different bodies different keys", () => {
-		const first = parseDiffString(uniqueFilesDiff);
-		const second = parseDiffString(
-			uniqueFilesDiff.replace("const a = 2", "const a = 3"),
-		);
+	it("gives the same path different keys for different bodies", () => {
+		const first = parseDiffString(duplicateFileDiff);
+		// Dedupe keeps the first section; parse the second body alone to
+		// compare keys for one path with two bodies.
+		const secondBody = duplicateFileDiff
+			.split("diff --git")
+			.slice(2)
+			.map((s) => `diff --git${s}`)
+			.join("");
+		const second = parseDiffString(secondBody);
 
+		expect(first[0].name).toBe(second[0].name);
 		expect(first[0].cacheKey).not.toBe(second[0].cacheKey);
 	});
 });

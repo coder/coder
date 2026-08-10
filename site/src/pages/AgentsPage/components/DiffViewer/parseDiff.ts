@@ -31,17 +31,27 @@ export function dedupeFilesByName(
 	return unique;
 }
 
+/**
+ * Parses a unified or git diff string into per-file metadata, collapsing
+ * repeated post-image paths. Each file is keyed by a hash of its own parsed
+ * content (name, hunks, and line arrays) so unchanged files keep hitting the
+ * worker-pool highlight cache across re-parses while changed files miss it.
+ */
 export function parseDiffString(
 	diffString: string | undefined | null,
-	cacheKeyPrefix?: string,
 ): FileDiffMetadata[] {
 	if (!diffString) return [];
-	const prefix = cacheKeyPrefix ?? getContentCacheKeyPrefix(diffString);
-	try {
-		const files = parsePatchFiles(diffString, prefix).flatMap((p) => p.files);
-		return dedupeFilesByName(files);
-	} catch (e) {
-		console.error("Failed to parse diff:", e);
-		return [];
+	const files = parsePatchFiles(diffString).flatMap((p) => p.files);
+	for (const file of files) {
+		file.cacheKey = getContentCacheKeyPrefix(
+			`${file.name}\n${serializeHunks(file)}`,
+		);
 	}
+	return dedupeFilesByName(files);
 }
+
+// The parsed hunks plus the file-level line arrays: everything the renderer
+// walks when building the highlighted AST, so equal serializations are equal
+// render inputs.
+const serializeHunks = (file: FileDiffMetadata): string =>
+	JSON.stringify([file.hunks, file.additionLines, file.deletionLines]);

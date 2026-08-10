@@ -1,8 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
-import { parsePatchFiles } from "@pierre/diffs";
 import * as Diff from "diff";
 import * as Yup from "yup";
-import { getContentCacheKeyPrefix } from "../../DiffViewer/diffCacheKey";
+import { parseDiffString } from "../../DiffViewer/parseDiff";
 import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
 export type ToolStatus = "completed" | "error" | "running";
@@ -465,15 +464,10 @@ export const getFileContentForViewer = (
  * null when the input is empty or the parser produces no files.
  * Shared between the write_file diff builder, the synthetic
  * edit_files diff builder, and the server-supplied diff parser.
- * The cache key prefix is derived from the patch text so repeated
- * edits of the same path never share a worker-pool highlight entry.
  */
 const parseSingleFileDiff = (raw: string): FileDiffMetadata | null => {
 	if (!raw) return null;
-	const stripped = stripSvnIndexHeaders(raw);
-	const parsed = parsePatchFiles(stripped, getContentCacheKeyPrefix(stripped));
-	if (!parsed.length || !parsed[0].files.length) return null;
-	return parsed[0].files[0];
+	return parseDiffString(stripSvnIndexHeaders(raw))[0] ?? null;
 };
 
 /**
