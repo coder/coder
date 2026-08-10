@@ -92,6 +92,12 @@ func TestEntitlements(t *testing.T) {
 		// Enable all features
 		features := make(license.Features)
 		for _, feature := range codersdk.FeatureNames {
+			if feature == codersdk.FeatureAgentRuntimeHours {
+				// The feature name is not a valid license claim; the
+				// feature is encoded as its allocation claim.
+				features[license.ClaimAgentRuntimeHoursAllocation] = 1
+				continue
+			}
 			features[feature] = 1
 		}
 		features[codersdk.FeatureUserLimit] = 100
