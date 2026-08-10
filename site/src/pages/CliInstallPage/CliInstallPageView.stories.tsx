@@ -14,4 +14,10 @@ type Story = StoryObj<typeof CliInstallPageView>;
 
 const Example: Story = {};
 
+export const LongOrigin: Story = {
+	args: {
+		origin: "https://coder.a-very-long-subdomain.example-company-name.com",
+	},
+};
+
 export { Example as CliInstallPage };

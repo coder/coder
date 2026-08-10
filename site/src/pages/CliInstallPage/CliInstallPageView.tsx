@@ -12,7 +12,7 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 	return (
 		<div
 			className={cn(
-				"mx-auto h-screen w-[480px]",
+				"mx-auto h-screen w-[600px] max-w-full px-4",
 				"flex flex-1 flex-col items-center justify-center",
 			)}
 		>
@@ -27,6 +27,7 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 				className="max-w-full"
 				code={`curl -fsSL ${origin}/install.sh | sh`}
 				secret={false}
+				wrap={false}
 			/>
 
 			<div className="pt-4">

@@ -19,6 +19,8 @@ interface CodeExampleProps {
 	redactReplacement?: string;
 	/** Show a button to reveal the redacted parts of the code */
 	showRevealButton?: boolean;
+	/** Wrap long code onto multiple lines. When false, the code scrolls horizontally instead. */
+	wrap?: boolean;
 	className?: string;
 }
 
@@ -32,6 +34,7 @@ export const CodeExample: FC<CodeExampleProps> = ({
 	redactPattern,
 	redactReplacement = "********",
 	showRevealButton,
+	wrap = true,
 }) => {
 	const [showFullValue, setShowFullValue] = useState(false);
 
@@ -62,7 +65,8 @@ export const CodeExample: FC<CodeExampleProps> = ({
 		>
 			<code
 				className={cn([
-					"px-2 py-0 flex-grow break-all",
+					"px-2 py-0 flex-grow min-w-0",
+					wrap ? "break-all" : "block overflow-x-auto whitespace-nowrap",
 					secret && "[-webkit-text-security:disc]", // also supported by firefox
 				])}
 			>
