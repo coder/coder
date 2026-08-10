@@ -375,6 +375,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_ID="+metadata.GetWorkspaceId(),
 		"CODER_WORKSPACE_OWNER_ID="+metadata.GetWorkspaceOwnerId(),
 		"CODER_WORKSPACE_OWNER_SESSION_TOKEN="+metadata.GetWorkspaceOwnerSessionToken(),
+		"CODER_WORKSPACE_AI_AGENT_SESSION_TOKEN="+metadata.GetWorkspaceAiAgentSessionToken(),
 		"CODER_WORKSPACE_TEMPLATE_ID="+metadata.GetTemplateId(),
 		"CODER_WORKSPACE_TEMPLATE_NAME="+metadata.GetTemplateName(),
 		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
