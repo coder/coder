@@ -494,7 +494,11 @@ SELECT
 					'error', workspace_agent_metadata.error,
 					'timeout', workspace_agent_metadata.timeout,
 					'interval', workspace_agent_metadata.interval,
-					'collected_at', workspace_agent_metadata.collected_at,
+					-- Rendered explicitly as UTC RFC3339: jsonb renders
+					-- timestamptz in the session TimeZone, and the year-1
+					-- default of collected_at renders named zones with
+					-- LMT second-offsets (even BC), which Go rejects.
+					'collected_at', to_char(workspace_agent_metadata.collected_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
 					'display_order', workspace_agent_metadata.display_order
 				))
 			FROM
