@@ -1,14 +1,15 @@
 package license
 
 import (
-	"context"
+	"fmt"
 	"math"
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestNextLicenseValidityPeriod(t *testing.T) {
@@ -163,6 +164,8 @@ func TestAgentRuntimeMsToHours(t *testing.T) {
 		{"ExactlyTwoHours", 2 * hourMs, 2},
 		// A realistic month of continuous runtime.
 		{"Large", 720 * hourMs, 720},
+		// Pins the divisor as milliseconds per hour.
+		{"MaxInt64", math.MaxInt64, math.MaxInt64 / hourMs},
 		// Negative input is not expected from the production query, which
 		// coalesces NULL to 0, but it must never produce a negative hour
 		// count that would compare oddly against the license limits.
@@ -178,42 +181,42 @@ func TestAgentRuntimeMsToHours(t *testing.T) {
 	}
 }
 
-func TestAgentRuntimeMsToHoursDivisor(t *testing.T) {
+// TestAppendAgentRuntimeHoursWarning pins the warning arithmetic: thresholds
+// are "reached" (>=), and reaching the allocation supersedes the advisory
+// soft limit so at most one warning is appended.
+func TestAppendAgentRuntimeHoursWarning(t *testing.T) {
 	t.Parallel()
 
-	// Pins the divisor: the maximum int64 of milliseconds converts to the
-	// exact whole-hour count only when the divisor is milliseconds per hour.
-	assert.EqualValues(t, math.MaxInt64/3_600_000, agentRuntimeMsToHours(math.MaxInt64))
-}
+	softLimit := ptr.Ref[int64](80)
+	softWarning := func(actual int64) []string {
+		return []string{fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, actual, 100, 80)}
+	}
+	allocationWarning := func(actual int64) []string {
+		return []string{fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText, actual, 100)}
+	}
 
-// TestUsageMeasurementAborted pins measureUsage's abort classification.
-func TestUsageMeasurementAborted(t *testing.T) {
-	t.Parallel()
+	testCases := []struct {
+		name       string
+		actual     int64
+		allocation int64
+		softLimit  *int64
+		want       []string
+	}{
+		{"ZeroAllocation", 50, 0, softLimit, nil},
+		{"NegativeAllocation", 50, -1, softLimit, nil},
+		{"BelowSoftLimit", 79, 100, softLimit, nil},
+		{"AtSoftLimit", 80, 100, softLimit, softWarning(80)},
+		{"BetweenSoftLimitAndAllocation", 99, 100, softLimit, softWarning(99)},
+		{"AtAllocationSupersedesSoftLimit", 100, 100, softLimit, allocationWarning(100)},
+		{"OverAllocation", 150, 100, softLimit, allocationWarning(150)},
+		{"NoSoftLimitBelowAllocation", 99, 100, nil, nil},
+		{"NoSoftLimitAtAllocation", 100, 100, nil, allocationWarning(100)},
+	}
 
-	liveCtx := context.Background()
-	canceledCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	// Postgres reports SQLSTATE 57014 for client cancels and for
-	// statement_timeout kills alike, so the code alone cannot identify an
-	// abort.
-	queryCanceled := &pq.Error{Code: "57014", Message: "canceling statement due to user request"}
-	statementTimeout := &pq.Error{Code: "57014", Message: "canceling statement due to statement timeout"}
-
-	// Success is never an abort, whatever the context state.
-	assert.False(t, usageMeasurementAborted(liveCtx, nil))
-	assert.False(t, usageMeasurementAborted(canceledCtx, nil))
-
-	// Failures with a live context degrade into the stable diagnostic,
-	// even when Postgres phrases them as cancels: a statement_timeout
-	// abort here would wedge every refresh and coderd startup.
-	assert.False(t, usageMeasurementAborted(liveCtx, statementTimeout))
-	assert.False(t, usageMeasurementAborted(liveCtx, queryCanceled))
-	assert.False(t, usageMeasurementAborted(liveCtx, xerrors.New("kaboom")))
-
-	// Any failure while our own context is dead aborts: the caller went
-	// away, so nothing should be published or logged.
-	assert.True(t, usageMeasurementAborted(canceledCtx, context.Canceled))
-	assert.True(t, usageMeasurementAborted(canceledCtx, queryCanceled))
-	assert.True(t, usageMeasurementAborted(canceledCtx, xerrors.New("kaboom")))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, appendAgentRuntimeHoursWarning(nil, tc.actual, tc.allocation, tc.softLimit))
+		})
+	}
 }

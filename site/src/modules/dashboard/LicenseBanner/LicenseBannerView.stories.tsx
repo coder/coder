@@ -357,22 +357,24 @@ export const AgentRuntimeHoursAllocationReached: Story = {
 // properties the set drives: the muted variant and the suppressed sales
 // link. The "unavailable" pair arrives on the errors channel; see the
 // LicenseManagedAgentUsageUnavailableErrorText doc for why.
+const playMutedDiagnostic =
+	(message: string): Story["play"] =>
+	async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveTextContent(message);
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
+		await expect(
+			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
+		).not.toBeInTheDocument();
+	};
+
 export const AgentRuntimeUsageUnavailable: Story = {
 	render: () =>
 		renderLicenseBanner({
 			errors: [LicenseAgentRuntimeUsageUnavailableErrorText],
 		}),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByRole("status");
-		await expect(banner).toHaveTextContent(
-			LicenseAgentRuntimeUsageUnavailableErrorText,
-		);
-		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
-		await expect(
-			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
-		).not.toBeInTheDocument();
-	},
+	play: playMutedDiagnostic(LicenseAgentRuntimeUsageUnavailableErrorText),
 };
 
 export const ManagedAgentUsageUnavailable: Story = {
@@ -380,17 +382,7 @@ export const ManagedAgentUsageUnavailable: Story = {
 		renderLicenseBanner({
 			errors: [LicenseManagedAgentUsageUnavailableErrorText],
 		}),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByRole("status");
-		await expect(banner).toHaveTextContent(
-			LicenseManagedAgentUsageUnavailableErrorText,
-		);
-		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
-		await expect(
-			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
-		).not.toBeInTheDocument();
-	},
+	play: playMutedDiagnostic(LicenseManagedAgentUsageUnavailableErrorText),
 };
 
 export const AgentRuntimeHoursClaimsIgnored: Story = {
@@ -398,17 +390,7 @@ export const AgentRuntimeHoursClaimsIgnored: Story = {
 		renderLicenseBanner({
 			warnings: [LicenseAgentRuntimeHoursClaimsIgnoredWarningText],
 		}),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByRole("status");
-		await expect(banner).toHaveTextContent(
-			LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
-		);
-		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
-		await expect(
-			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
-		).not.toBeInTheDocument();
-	},
+	play: playMutedDiagnostic(LicenseAgentRuntimeHoursClaimsIgnoredWarningText),
 };
 
 // An all-diagnostic banner (e.g. one database blip failing both usage

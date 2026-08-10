@@ -189,7 +189,7 @@ type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time)
 
 // AgentRuntimeMsFn returns the total Coder Agent runtime in milliseconds
 // recorded between from (inclusive) and to (exclusive).
-type AgentRuntimeMsFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
+type AgentRuntimeMsFn = ManagedAgentCountFn
 
 type WorkspaceCapableUserCountFn func(ctx context.Context) (int64, error)
 
@@ -905,23 +905,12 @@ func LicensesEntitlements(
 	return entitlements, nil
 }
 
-// usageMeasurementAborted reports whether a usage-measurement failure should
-// abort the whole entitlements computation: only when the computation's own
-// context is dead. It must not key on the error looking like a cancel:
-// Postgres raises SQLSTATE 57014 (query_canceled) for statement_timeout
-// kills as well as client cancels, and aborting on those would fail every
-// entitlements refresh on a deployment whose statement_timeout is shorter
-// than a usage query.
-func usageMeasurementAborted(ctx context.Context, err error) bool {
-	return err != nil && ctx.Err() != nil
-}
-
 // measureUsage runs one usage query over the feature's usage period and owns
 // the shared failure policy: a nil fn is a wiring bug and fails the whole
 // LicensesEntitlements call; a failure with a dead context fails the call
-// without logging (see usageMeasurementAborted); any other failure logs the
-// cause and publishes the stable unavailableText instead. It returns the
-// measured value and true only on success.
+// without logging; any other failure logs the cause and publishes the stable
+// unavailableText instead. It returns the measured value and true only on
+// success.
 func measureUsage(
 	ctx context.Context,
 	entitlements *codersdk.Entitlements,
@@ -936,7 +925,13 @@ func measureUsage(
 	}
 	value, err := fn(ctx, usagePeriod.Start, usagePeriod.End)
 	switch {
-	case usageMeasurementAborted(ctx, err):
+	case err != nil && ctx.Err() != nil:
+		// The computation's own context is dead, so abort the whole call
+		// without logging. Do not classify by error shape instead: Postgres
+		// raises SQLSTATE 57014 (query_canceled) for statement_timeout kills
+		// as well as client cancels, and aborting on those would fail every
+		// entitlements refresh on a deployment whose statement_timeout is
+		// shorter than a usage query.
 		return 0, false, xerrors.Errorf("get %s: %w", what, err)
 	case err != nil:
 		logger.Error(ctx, fmt.Sprintf("get %s for entitlements", what), slog.Error(err))

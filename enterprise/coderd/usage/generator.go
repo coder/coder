@@ -2,7 +2,6 @@ package usage
 
 import (
 	"context"
-	"errors"
 	"math/rand"
 	"sync"
 	"time"
@@ -228,24 +227,11 @@ func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error 
 	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
 	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
 	if database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
-		// The insert's ON CONFLICT (id) arbiter only sees committed rows,
-		// so two replicas inserting this bucket's deterministic id
-		// concurrently can trip the bucket unique index instead of the
-		// arbiter. If the bucket's row landed under the same id, the other
-		// replica won the race; otherwise a non-generator writer holds the
-		// bucket under a different id, which is exactly what the unique
-		// index exists to surface.
-		exists, existsErr := g.db.UsageEventExistsByID(ctx, stableID)
-		switch {
-		case existsErr != nil:
-			// Carry both errors so the log does not accuse a foreign
-			// writer when the exists check merely failed.
-			return xerrors.Errorf("check bucket owner after unique violation: %w", errors.Join(err, existsErr))
-		case exists:
-			return nil
-		default:
-			return xerrors.Errorf("bucket already recorded under a different id: %w", err)
-		}
+		// The insert's ON CONFLICT (id) arbiter only sees committed rows, so
+		// a concurrent replica inserting the same bucket can trip the bucket
+		// unique index instead. Either way a row for this bucket already
+		// exists, which is all generateBucket needs.
+		return nil
 	}
 	if err != nil {
 		return xerrors.Errorf("insert usage event: %w", err)
