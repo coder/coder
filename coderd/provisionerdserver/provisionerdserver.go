@@ -28,6 +28,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -634,6 +635,29 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
+		// AI agent identity lifecycle (see AI_AGENT_SECURITY_ARCHITECTURE.md,
+		// Vertical 1 step 8). Opted-in start builds fail closed: a broken
+		// identity mint fails the build. Opt-out and stop/delete paths must
+		// never fail the build; revocation is best-effort with logging.
+		var aiAgentSessionToken string
+		switch workspaceBuild.Transition {
+		case database.WorkspaceTransitionStart:
+			if aiAgentOptedIn(workspaceBuildParameters) {
+				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace)
+				if err != nil {
+					return nil, failJob(fmt.Sprintf("regenerate AI agent session token: %s", err))
+				}
+			} else if err := s.revokeAIAgentSessionTokens(ctx, workspace); err != nil {
+				s.Logger.Error(ctx, "failed to revoke AI agent session token on opt-out build",
+					slog.Error(err), slog.F("workspace_id", workspace.ID))
+			}
+		case database.WorkspaceTransitionStop, database.WorkspaceTransitionDelete:
+			if err := s.revokeAIAgentSessionTokens(ctx, workspace); err != nil {
+				s.Logger.Error(ctx, "failed to revoke AI agent session token",
+					slog.Error(err), slog.F("workspace_id", workspace.ID))
+			}
+		}
+
 		task, err := s.Database.GetTaskByWorkspaceID(ctx, workspaceBuild.WorkspaceID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get task by workspace id: %w", err)
@@ -762,6 +786,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TemplateVersionId:             templateVersion.ID.String(),
 					TemplateVersion:               templateVersion.Name,
 					WorkspaceOwnerSessionToken:    sessionToken,
+					WorkspaceAiAgentSessionToken:  aiAgentSessionToken,
 					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
 					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
@@ -3155,6 +3180,135 @@ func (s *server) regenerateSessionToken(ctx context.Context, user database.User,
 	}
 
 	return sessionToken, nil
+}
+
+// AIAgentOptInParameterName is the workspace build parameter that opts a
+// workspace into receiving a scoped AI agent identity session token. This is
+// a PoC convention; a first-class terraform-provider-coder surface (e.g.
+// data.coder_ai_agent.me.session_token) is the planned replacement. See
+// AI_AGENT_SECURITY_ARCHITECTURE.md.
+const AIAgentOptInParameterName = "coder_ai_agent"
+
+func aiAgentOptedIn(parameters []database.WorkspaceBuildParameter) bool {
+	for _, parameter := range parameters {
+		if parameter.Name == AIAgentOptInParameterName {
+			return parameter.Value == "true"
+		}
+	}
+	return false
+}
+
+// regenerateAIAgentSessionToken creates or reuses the workspace's AI agent
+// identity and mints a fresh workspace-pinned API key for it. The identity
+// user is reused across rebuilds (enforced by the ai_agents unique origin
+// index); keys are rotated on every opted-in start build.
+func (s *server) regenerateAIAgentSessionToken(ctx context.Context, workspace database.Workspace) (string, error) {
+	agent, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginWorkspace,
+		OriginID:   workspace.ID,
+	})
+	switch {
+	case err == nil:
+		// The identity must still belong to the current workspace owner.
+		// Ownership transfer (e.g. a future claim flow) invalidates the old
+		// sponsorship: revoke and recreate under the new owner.
+		if agent.OwnerUserID != workspace.OwnerID {
+			if err := s.revokeAIAgentIdentity(ctx, agent); err != nil {
+				return "", xerrors.Errorf("revoke AI agent identity after ownership change: %w", err)
+			}
+			agent, err = s.createWorkspaceAIAgent(ctx, workspace)
+			if err != nil {
+				return "", err
+			}
+		}
+	case errors.Is(err, sql.ErrNoRows):
+		agent, err = s.createWorkspaceAIAgent(ctx, workspace)
+		if err != nil {
+			return "", err
+		}
+	default:
+		return "", xerrors.Errorf("get AI agent by origin: %w", err)
+	}
+
+	// Rotate: MintKey does not replace keys by name, so drop the stale one
+	// first (mirrors deleteSessionTokenForUserAndWorkspace for owner tokens).
+	profile := aiagentidentity.WorkspaceAgentIdentityProfile(workspace.ID)
+	if err := s.deleteAIAgentSessionToken(ctx, agent, profile.TokenName); err != nil {
+		return "", xerrors.Errorf("delete stale AI agent session token: %w", err)
+	}
+	_, token, err := aiagentidentity.MintKey(ctx, s.Database, agent.UserID, profile)
+	if err != nil {
+		return "", xerrors.Errorf("mint AI agent session token: %w", err)
+	}
+	return token, nil
+}
+
+func (s *server) createWorkspaceAIAgent(ctx context.Context, workspace database.Workspace) (database.AIAgent, error) {
+	_, agent, err := aiagentidentity.Create(ctx, s.Database, aiagentidentity.CreateParams{
+		OwnerID:        workspace.OwnerID,
+		OrganizationID: workspace.OrganizationID,
+		OriginType:     database.AIAgentOriginWorkspace,
+		OriginID:       workspace.ID,
+	})
+	if err != nil {
+		return database.AIAgent{}, xerrors.Errorf("create workspace AI agent identity: %w", err)
+	}
+	return agent, nil
+}
+
+func (s *server) deleteAIAgentSessionToken(ctx context.Context, agent database.AIAgent, tokenName string) error {
+	//nolint:gocritic // Deleting an internal AI agent key requires system access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	key, err := s.Database.GetAPIKeyByName(systemCtx, database.GetAPIKeyByNameParams{
+		UserID:    agent.UserID,
+		TokenName: tokenName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("get AI agent API key by name: %w", err)
+	}
+	if err := s.Database.DeleteAPIKeyByID(systemCtx, key.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("delete AI agent API key: %w", err)
+	}
+	return nil
+}
+
+// revokeAIAgentSessionTokens is the stop/delete-transition counterpart of
+// regenerateAIAgentSessionToken. It is best-effort against a missing
+// identity: workspaces that never opted in have nothing to revoke.
+func (s *server) revokeAIAgentSessionTokens(ctx context.Context, workspace database.Workspace) error {
+	agent, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginWorkspace,
+		OriginID:   workspace.ID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("get AI agent by origin: %w", err)
+	}
+	profile := aiagentidentity.WorkspaceAgentIdentityProfile(workspace.ID)
+	return s.deleteAIAgentSessionToken(ctx, agent, profile.TokenName)
+}
+
+// revokeAIAgentIdentity revokes the identity's keys and marks it deleted.
+// Used when the workspace is deleted or its ownership changes.
+func (s *server) revokeAIAgentIdentity(ctx context.Context, agent database.AIAgent) error {
+	profile := aiagentidentity.WorkspaceAgentIdentityProfile(agent.OriginID)
+	if err := s.deleteAIAgentSessionToken(ctx, agent, profile.TokenName); err != nil {
+		return err
+	}
+	//nolint:gocritic // Marking an internal AI agent deleted requires system access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	if _, err := s.Database.UpdateAIAgentDeleted(systemCtx, database.UpdateAIAgentDeletedParams{
+		UserID:  agent.UserID,
+		Deleted: true,
+	}); err != nil {
+		return xerrors.Errorf("mark AI agent deleted: %w", err)
+	}
+	return nil
 }
 
 func deleteSessionToken(ctx context.Context, db database.Store, workspace database.Workspace) error {
