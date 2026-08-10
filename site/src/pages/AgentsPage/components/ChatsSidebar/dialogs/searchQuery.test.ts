@@ -47,7 +47,7 @@ describe("buildChatSearchQuery", () => {
 		expect(
 			buildChatSearchQuery([{ key: "pr_status", value: "open merged" }], ""),
 		).toEqual({
-			query: 'pr_status:"open merged"',
+			query: "pr_status:open,merged",
 			hasSearchText: false,
 		});
 		expect(
@@ -105,7 +105,7 @@ describe("buildChatSearchQuery", () => {
 		});
 	});
 
-	it("preserves websearch operators for backend FTS parsing", () => {
+	it("preserves OR and negation while flattening quoted phrases", () => {
 		expect(buildChatSearchQuery([], '"fix race" OR deadlock -timeout')).toEqual(
 			{
 				query: 'search:"fix race OR deadlock -timeout"',
@@ -126,23 +126,19 @@ describe("buildChatSearchQuery", () => {
 
 describe("extractTypedFilters", () => {
 	it("extracts leading, middle, and trailing filters", () => {
-		expect(
-			extractTypedFilters("has_unread:true fix", knownKeys, new Set()),
-		).toEqual({
+		expect(extractTypedFilters("has_unread:true fix", knownKeys, [])).toEqual({
 			filters: [{ key: "has_unread", value: "true" }],
 			remainingText: "fix",
 			consumed: true,
 		});
 		expect(
-			extractTypedFilters("fix has_unread:true auth", knownKeys, new Set()),
+			extractTypedFilters("fix has_unread:true auth", knownKeys, []),
 		).toEqual({
 			filters: [{ key: "has_unread", value: "true" }],
 			remainingText: "fix auth",
 			consumed: true,
 		});
-		expect(
-			extractTypedFilters("fix has_unread:true", knownKeys, new Set()),
-		).toEqual({
+		expect(extractTypedFilters("fix has_unread:true", knownKeys, [])).toEqual({
 			filters: [{ key: "has_unread", value: "true" }],
 			remainingText: "fix ",
 			consumed: true,
@@ -151,7 +147,7 @@ describe("extractTypedFilters", () => {
 
 	it("extracts complete quoted multi-word values", () => {
 		expect(
-			extractTypedFilters('pr_status:"open merged"', knownKeys, new Set()),
+			extractTypedFilters('pr_status:"open merged"', knownKeys, []),
 		).toEqual({
 			filters: [{ key: "pr_status", value: "open merged" }],
 			remainingText: "",
@@ -160,22 +156,30 @@ describe("extractTypedFilters", () => {
 	});
 
 	it("does not consume an unbalanced quoted value", () => {
-		expect(
-			extractTypedFilters('pr_status:"open', knownKeys, new Set()),
-		).toEqual({
+		expect(extractTypedFilters('pr_status:"open', knownKeys, [])).toEqual({
 			filters: [],
 			remainingText: 'pr_status:"open',
 			consumed: false,
 		});
 	});
 
-	it("consumes active duplicate keys without adding another filter", () => {
+	it("returns active key replacements", () => {
 		expect(
-			extractTypedFilters(
-				"has_unread:false",
-				knownKeys,
-				new Set(["has_unread"]),
-			),
+			extractTypedFilters("has_unread:false", knownKeys, [
+				{ key: "has_unread", value: "true" },
+			]),
+		).toEqual({
+			filters: [{ key: "has_unread", value: "false" }],
+			remainingText: "",
+			consumed: true,
+		});
+	});
+
+	it("can consume an unchanged active value without returning a replacement", () => {
+		expect(
+			extractTypedFilters("has_unread:true", knownKeys, [
+				{ key: "has_unread", value: "true" },
+			]),
 		).toEqual({
 			filters: [],
 			remainingText: "",
@@ -183,21 +187,17 @@ describe("extractTypedFilters", () => {
 		});
 	});
 
-	it("drops duplicate keys from the same input", () => {
+	it("uses the last value for duplicate keys in the same input", () => {
 		expect(
-			extractTypedFilters(
-				"has_unread:true has_unread:false",
-				knownKeys,
-				new Set(),
-			),
+			extractTypedFilters("has_unread:true has_unread:false", knownKeys, []),
 		).toEqual({
-			filters: [{ key: "has_unread", value: "true" }],
+			filters: [{ key: "has_unread", value: "false" }],
 			remainingText: "",
 			consumed: true,
 		});
 	});
 
-	it("leaves unknown and incomplete filter-like text unchanged", () => {
+	it("leaves unknown, incomplete, and empty filter-like text unchanged", () => {
 		for (const text of [
 			"foo:bar",
 			"title:",
@@ -205,10 +205,11 @@ describe("extractTypedFilters", () => {
 			"search:fix",
 			"pr:12",
 			"has_unread:",
+			'pr_status:""',
 			"http://example.com",
 			"fix:lint",
 		]) {
-			expect(extractTypedFilters(text, knownKeys, new Set())).toEqual({
+			expect(extractTypedFilters(text, knownKeys, [])).toEqual({
 				filters: [],
 				remainingText: text,
 				consumed: false,
@@ -216,10 +217,27 @@ describe("extractTypedFilters", () => {
 		}
 	});
 
-	it("normalizes recognized key casing", () => {
+	it("keeps everything after the first colon in diff URLs", () => {
 		expect(
-			extractTypedFilters("Has_Unread:true", knownKeys, new Set()),
+			extractTypedFilters(
+				"diff_url:https://github.com/coder/coder/pull/1",
+				knownKeys,
+				[],
+			),
 		).toEqual({
+			filters: [
+				{
+					key: "diff_url",
+					value: "https://github.com/coder/coder/pull/1",
+				},
+			],
+			remainingText: "",
+			consumed: true,
+		});
+	});
+
+	it("normalizes recognized key casing", () => {
+		expect(extractTypedFilters("Has_Unread:true", knownKeys, [])).toEqual({
 			filters: [{ key: "has_unread", value: "true" }],
 			remainingText: "",
 			consumed: true,

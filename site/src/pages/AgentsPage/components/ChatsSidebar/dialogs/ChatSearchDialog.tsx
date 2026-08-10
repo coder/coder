@@ -15,7 +15,11 @@ import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { ChatSearchInput, type SearchFilter } from "./ChatSearchInput";
 import { ChatSearchResults } from "./ChatSearchResults";
-import { buildChatSearchQuery, extractTypedFilters } from "./searchQuery";
+import {
+	buildChatSearchQuery,
+	extractTypedFilters,
+	sanitizeChatSearchValue,
+} from "./searchQuery";
 
 // Filter definitions. Filters with a defaultValue are inserted as complete
 // pills (e.g. has_unread:true). Filters without one are inserted as
@@ -49,7 +53,6 @@ const FILTER_DEFINITIONS: readonly FilterDefinition[] = [
 	{ key: "diff_url", label: "Diff URL", icon: LinkIcon, defaultValue: null },
 ];
 
-// Typed filter detection uses the same keys as the filter dropdown.
 const KNOWN_FILTER_KEYS = new Set(FILTER_DEFINITIONS.map((def) => def.key));
 
 type ChatSearchDialogProps = {
@@ -122,10 +125,6 @@ type ChatSearchDialogContentProps = Omit<
 	readonly inputRef: RefObject<HTMLInputElement | null>;
 };
 
-// Structured filters and free text are already separate UI state, so query
-// construction can write the backend wire format without parsing it again.
-const buildQuery = buildChatSearchQuery;
-
 const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	open,
 	onOpenChange,
@@ -148,22 +147,27 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	>(undefined);
 	const listboxId = useId();
 
-	// Debounce filters and free text as one snapshot. This prevents a committed
-	// incomplete-filter value from briefly reappearing as full-text search.
-	const queryInput = {
-		filters:
-			incompleteFilterKey && freeText.trim()
-				? [...filters, { key: incompleteFilterKey, value: freeText.trim() }]
-				: filters,
-		freeText: incompleteFilterKey ? "" : freeText,
-	};
+	// Prevents a committed incomplete-filter value from briefly reappearing as
+	// full-text search.
+	const queryFilters =
+		incompleteFilterKey && freeText.trim()
+			? [...filters, { key: incompleteFilterKey, value: freeText.trim() }]
+			: filters;
+	const queryFreeText = incompleteFilterKey ? "" : freeText;
+	const currentQuery = buildChatSearchQuery(queryFilters, queryFreeText);
 	const hasActiveSearch =
-		queryInput.filters.length > 0 || queryInput.freeText.trim() !== "";
-	const debouncedQueryInput = useDebouncedValue(queryInput, SEARCH_DEBOUNCE_MS);
-	const { query: normalizedQuery, hasSearchText } = buildQuery(
-		debouncedQueryInput.filters,
-		debouncedQueryInput.freeText,
+		queryFilters.length > 0 || queryFreeText.trim() !== "";
+	const querySnapshot = currentQuery.query
+		? `${currentQuery.hasSearchText ? "1" : "0"}${currentQuery.query}`
+		: "";
+	const debouncedQuerySnapshot = useDebouncedValue(
+		querySnapshot,
+		SEARCH_DEBOUNCE_MS,
 	);
+	const normalizedQuery = debouncedQuerySnapshot
+		? debouncedQuerySnapshot.slice(1)
+		: undefined;
+	const hasSearchText = debouncedQuerySnapshot.startsWith("1");
 	const hasQuery = hasActiveSearch && normalizedQuery !== undefined;
 
 	const searchQuery = useQuery({
@@ -205,10 +209,11 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		!showResultsLoading;
 
 	const commitIncompleteFilter = () => {
-		if (incompleteFilterKey && freeText.trim()) {
-			setFilters((prev) => [
-				...prev,
-				{ key: incompleteFilterKey, value: freeText.trim() },
+		const value = freeText.trim();
+		if (incompleteFilterKey && sanitizeChatSearchValue(value).trim() !== "") {
+			setFilters((previous) => [
+				...previous.filter((filter) => filter.key !== incompleteFilterKey),
+				{ key: incompleteFilterKey, value },
 			]);
 			setFreeText("");
 			setIncompleteFilterKey(null);
@@ -276,19 +281,34 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		if (
 			(event.key === " " || event.key === "Enter") &&
 			!incompleteFilterKey &&
-			freeText.trim()
+			freeText.trim() &&
+			event.currentTarget.selectionStart === freeText.length &&
+			event.currentTarget.selectionEnd === freeText.length
 		) {
 			const extracted = extractTypedFilters(
 				freeText,
 				KNOWN_FILTER_KEYS,
-				new Set(filters.map((filter) => filter.key)),
+				filters,
 			);
 			if (extracted.consumed) {
 				event.preventDefault();
-				setFilters((previous) => [...previous, ...extracted.filters]);
+				setFilters((previous) => {
+					const replacements = new Map(
+						extracted.filters.map((filter) => [filter.key, filter]),
+					);
+					const next = previous.map(
+						(filter) => replacements.get(filter.key) ?? filter,
+					);
+					for (const filter of extracted.filters) {
+						if (!previous.some((existing) => existing.key === filter.key)) {
+							next.push(filter);
+						}
+					}
+					return next;
+				});
 				setFreeText(
-					event.key === " "
-						? extracted.remainingText
+					event.key === " " && extracted.remainingText
+						? `${extracted.remainingText.trimEnd()} `
 						: extracted.remainingText.trimEnd(),
 				);
 				return;

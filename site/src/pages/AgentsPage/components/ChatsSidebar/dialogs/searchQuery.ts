@@ -2,7 +2,7 @@ import type { SearchFilter } from "./ChatSearchInput";
 
 // The backend toggles its quoted state on every `"` and has no escape handling.
 // Stripping embedded quotes keeps the wrapper token well-formed.
-const sanitizeChatSearchValue = (value: string): string => {
+export const sanitizeChatSearchValue = (value: string): string => {
 	return value.replaceAll('"', "");
 };
 
@@ -15,12 +15,18 @@ const addDefaultURLScheme = (value: string): string => {
 const formatChatSearchFilterToken = (key: string, value: string): string => {
 	const sanitizedValue = sanitizeChatSearchValue(value).trim();
 	const formattedValue =
-		key === "diff_url" ? addDefaultURLScheme(sanitizedValue) : sanitizedValue;
+		key === "diff_url"
+			? addDefaultURLScheme(sanitizedValue)
+			: key === "pr_status"
+				? sanitizedValue.replace(/\s+/g, ",")
+				: sanitizedValue;
 	return formattedValue.includes(":") || formattedValue.includes(" ")
 		? `${key}:"${formattedValue}"`
 		: `${key}:${formattedValue}`;
 };
 
+// Frontend-emitted query shapes must match TestSearchChatsFrontendEmitted in
+// coderd/searchquery/search_test.go.
 export const buildChatSearchQuery = (
 	filters: readonly SearchFilter[],
 	freeText: string,
@@ -39,11 +45,9 @@ export const buildChatSearchQuery = (
 	const text = sanitizeChatSearchValue(freeText).trim();
 	const hasSearchText = /[\p{L}\p{N}]/u.test(text);
 	if (hasSearchText) {
-		// Quotes make the complete search value one backend token. The backend
-		// strips them during tokenization, then websearch_to_tsquery interprets
-		// the text, so OR and -negation remain active. The backend matches the
-		// value against chat titles, PR titles, and message bodies, and against
-		// an exact PR number when the value is numeric.
+		// Quotes make the complete search value one backend token. OR and
+		// -negation remain live; quoted phrases are flattened to AND-of-words
+		// because the backend tokenizer cannot carry embedded quotes.
 		parts.push(`search:"${text}"`);
 	}
 
@@ -92,20 +96,28 @@ const stripSurroundingQuotes = (value: string): string => {
 		: value;
 };
 
+/**
+ * Extracts complete recognized filters from typed text. Unbalanced quoted
+ * tokens pass through unchanged. `consumed` reports whether any filter token
+ * was removed. It can be true while `filters` is empty when the typed value
+ * already matches the active pill. When the last token is consumed,
+ * `remainingText` keeps a trailing space so a suppressed Space keystroke still
+ * separates the next word.
+ */
 export const extractTypedFilters = (
 	text: string,
 	knownKeys: ReadonlySet<string>,
-	activeKeys: ReadonlySet<string>,
+	activeFilters: readonly SearchFilter[],
 ): {
 	filters: SearchFilter[];
 	remainingText: string;
 	consumed: boolean;
 } => {
 	const tokens = splitSearchInput(text.trim());
-	const normalizedActiveKeys = new Set(
-		[...activeKeys].map((key) => key.toLowerCase()),
+	const activeValues = new Map(
+		activeFilters.map((filter) => [filter.key.toLowerCase(), filter.value]),
 	);
-	const filters: SearchFilter[] = [];
+	const filtersByKey = new Map<string, SearchFilter>();
 	const remainingTokens: string[] = [];
 	const consumedTokenIndexes = new Set<number>();
 
@@ -127,13 +139,19 @@ export const extractTypedFilters = (
 			continue;
 		}
 
+		const value = stripSurroundingQuotes(
+			token.value.slice(colonIndex + 1),
+		).trim();
+		if (sanitizeChatSearchValue(value).trim() === "") {
+			remainingTokens.push(token.value);
+			continue;
+		}
+
 		consumedTokenIndexes.add(index);
-		if (!normalizedActiveKeys.has(key)) {
-			filters.push({
-				key,
-				value: stripSurroundingQuotes(token.value.slice(colonIndex + 1)),
-			});
-			normalizedActiveKeys.add(key);
+		if (activeValues.get(key) === value) {
+			filtersByKey.delete(key);
+		} else {
+			filtersByKey.set(key, { key, value });
 		}
 	}
 
@@ -142,7 +160,7 @@ export const extractTypedFilters = (
 		remainingTokens.length > 0 && consumedTokenIndexes.has(tokens.length - 1);
 
 	return {
-		filters,
+		filters: [...filtersByKey.values()],
 		remainingText: `${remainingTokens.join(" ")}${needsTrailingSeparator ? " " : ""}`,
 		consumed,
 	};

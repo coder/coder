@@ -1265,6 +1265,45 @@ func TestSearchTasks(t *testing.T) {
 	}
 }
 
+func TestSearchChatsFrontendEmitted(t *testing.T) {
+	t.Parallel()
+
+	// These query shapes must match the emitters in
+	// site/src/pages/AgentsPage/components/ChatsSidebar/dialogs/searchQuery.ts
+	// and site/src/api/queries/chats.ts. This follows the cross-language
+	// contract precedent in coderd/x/chatd/sanitize_test.go and
+	// site/src/utils/invisibleUnicode.test.ts.
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{name: "SearchSingleWord", query: `search:"fix"`},
+		{name: "SearchMultipleWords", query: `search:"fix auth"`},
+		{name: "SearchColon", query: `search:"fix:lint"`},
+		{name: "SearchURL", query: `search:"http://example.com"`},
+		{name: "SearchUnicode", query: `search:"日本語"`},
+		{name: "SearchOperators", query: `search:"fix race OR deadlock -timeout"`},
+		{name: "HasUnread", query: "has_unread:true"},
+		{name: "Archived", query: "archived:true"},
+		{name: "PRStatuses", query: "pr_status:open,merged"},
+		{name: "DiffURL", query: `diff_url:"https://github.com/coder/coder/pull/1"`},
+		{name: "FilterAndSearch", query: `has_unread:true search:"fix auth"`},
+		{name: "SidebarDefault", query: "archived:false"},
+		{
+			name:  "SidebarFiltered",
+			query: "archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			_, errs := searchquery.Chats(testCase.query)
+			require.Empty(t, errs)
+		})
+	}
+}
+
 func TestSearchChats(t *testing.T) {
 	t.Parallel()
 
