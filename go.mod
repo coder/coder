@@ -96,8 +96,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    region the request is actually signed for.
 // 6) go.mod replaces pointing anthropic-sdk-go and openai-go at the
 //    coder forks below.
-// See: https://github.com/coder/fantasy/commits/d37f1220646c
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260810104704-d37f1220646c
+// See: https://github.com/coder/fantasy/commits/bb10946892ef
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260810175832-bb10946892ef
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -116,7 +116,7 @@ replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykoppin
 // `coder/pinned` is the branch we track.
 //
 // To update, run: `go mod edit -replace github.com/openai/openai-go/v3=github.com/coder/openai-go/v3@coder/pinned; go mod tidy`
-replace github.com/openai/openai-go/v3 => github.com/coder/openai-go/v3 v3.0.0-20260810104509-c6da967b6fba
+replace github.com/openai/openai-go/v3 => github.com/coder/openai-go/v3 v3.0.0-20260810175933-92b5addb22d2
 
 require (
 	cdr.dev/slog/v3 v3.1.0
