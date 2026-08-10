@@ -1151,12 +1151,14 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", targetUser.Username), slog.Error(err))
 		}
 	}
-	// nolint:gocritic // Need notifier actor to enqueue notifications
-	if _, err := api.NotificationsEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), targetUser.ID, personalTemplateID,
-		labels, data, "api-put-user-status",
-		targetUser.ID,
-	); err != nil {
-		api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", targetUser.Username), slog.Error(err))
+	if targetUser.Kind != database.UserKindAIAgent {
+		// nolint:gocritic // Need notifier actor to enqueue notifications
+		if _, err := api.NotificationsEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), targetUser.ID, personalTemplateID,
+			labels, data, "api-put-user-status",
+			targetUser.ID,
+		); err != nil {
+			api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", targetUser.Username), slog.Error(err))
+		}
 	}
 	return nil
 }

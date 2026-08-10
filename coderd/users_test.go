@@ -701,6 +701,34 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 			{TemplateID: notifications.TemplateYourAccountActivated, UserID: member.ID},
 		}, member, "activated_account_name")
 	})
+
+	t.Run("AI agent target skips personal notification", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		agent, err := db.InsertAIAgentUser(dbauthz.AsSystemRestricted(ctx), database.InsertAIAgentUserParams{
+			ID:        uuid.New(),
+			Username:  "ai-test-" + uuid.NewString()[:8],
+			CreatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		notifyEnq.Clear()
+
+		_, err = adminClient.UpdateUserStatus(ctx, agent.ID.String(), codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		sent := notifyEnq.Sent()
+		require.Len(t, sent, 1)
+		require.Equal(t, notifications.TemplateUserAccountSuspended, sent[0].TemplateID)
+		require.Equal(t, firstUser.UserID, sent[0].UserID)
+		require.NotEqual(t, agent.ID, sent[0].UserID)
+	})
 }
 
 func TestNotifyDeletedUser(t *testing.T) {
