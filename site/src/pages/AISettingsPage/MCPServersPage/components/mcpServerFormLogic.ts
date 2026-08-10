@@ -3,14 +3,6 @@ import { isDeploymentIconPath } from "#/utils/externalImageSources";
 
 export const SECRET_PLACEHOLDER = "••••••••••••••••";
 
-// Mirrors the server-side rule: icons must be deployment-relative
-// paths so rendering them never contacts an external host.
-export const ICON_PATH_ERROR =
-	"Icon must be a path on this deployment, like /icon/aws.svg, or an emoji from the picker.";
-
-export const isValidIconURL = (value: string): boolean =>
-	isDeploymentIconPath(value.trim());
-
 export const TRANSPORT_OPTIONS = [
 	{ value: "streamable_http", label: "Streamable HTTP" },
 	{ value: "sse", label: "SSE" },
@@ -122,12 +114,16 @@ export const buildInitialMCPServerFormValues = (
 export const canSubmitMCPServerForm = (
 	values: MCPServerFormValues,
 	isDisabled: boolean,
-): boolean =>
-	!isDisabled &&
-	values.displayName.trim() !== "" &&
-	values.slug.trim() !== "" &&
-	values.url.trim() !== "" &&
-	isValidIconURL(values.iconURL);
+): boolean => {
+	const iconURL = values.iconURL.trim();
+	return (
+		!isDisabled &&
+		values.displayName.trim() !== "" &&
+		values.slug.trim() !== "" &&
+		values.url.trim() !== "" &&
+		(iconURL === "" || isDeploymentIconPath(iconURL))
+	);
+};
 
 export const buildCreateMCPServerConfigRequest = (
 	values: MCPServerFormValues,

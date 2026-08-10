@@ -7,7 +7,6 @@ import {
 describe("isExternalImageSource", () => {
 	// jsdom serves tests from http://localhost/.
 	it.each([
-		[undefined, false],
 		["", false],
 		["   ", false],
 		["/emojis/1f4bb.png", false],
@@ -33,7 +32,7 @@ describe("isExternalImageSource", () => {
 
 describe("isDeploymentIconPath", () => {
 	it.each([
-		["", true],
+		["", false],
 		["/emojis/1f4bb.png", true],
 		["/icon/aws.svg", true],
 		["/icon/aws.svg?v=2", true],

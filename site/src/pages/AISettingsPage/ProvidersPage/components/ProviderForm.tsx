@@ -151,13 +151,14 @@ const baseUrlPlaceholders: Partial<Record<AIProviderType, string>> = {
 	"openai-compat": "https://provider.example.com/v1",
 };
 
-// Mirrors the server-side rule (codersdk.IconURLValid): icons must be
-// deployment-relative paths so rendering the provider icon never
-// contacts an external host (Cure53 CDM-02-006).
+// Mirrors the server-side rule (codersdk.IconURLValid).
 const iconSchema = Yup.string().test(
 	"deployment-icon-path",
 	"Icon must be a path on this deployment, like /icon/openai.svg, or an emoji from the picker.",
-	(value) => isDeploymentIconPath((value ?? "").trim()),
+	(value) => {
+		const icon = (value ?? "").trim();
+		return icon === "" || isDeploymentIconPath(icon);
+	},
 );
 
 const makeOpenAiAnthropicSchema = (editing: boolean) =>

@@ -7,13 +7,9 @@ import {
 } from "#/utils/externalImageSources";
 
 /**
- * Renders images from chat markdown. Same-origin, data:, and blob:
- * sources render immediately. Externally hosted sources render a
- * consent placeholder instead, because fetching them would disclose
- * the viewer's IP address to the image host (Cure53 CDM-02-006);
- * chat content is attacker-influenceable via prompt injection and
- * chats can be shared with other users. Clicking the placeholder
- * loads the image for this render.
+ * Renders chat markdown images. External sources render a
+ * click-to-load placeholder so viewing a chat never discloses the
+ * viewer's IP to the image host (Cure53 CDM-02-006).
  */
 export const MarkdownImage = ({ src, alt }: { src?: string; alt?: string }) => {
 	const [consented, setConsented] = useState(false);
