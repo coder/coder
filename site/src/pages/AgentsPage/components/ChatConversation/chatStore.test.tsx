@@ -910,6 +910,192 @@ describe("useChatStore", () => {
 		]);
 	});
 
+	it("collapses a multi-page cache to one page after history_reset", async () => {
+		const chatID = "chat-history-reset-multipage";
+		const initialMessages = [
+			buildMessage(chatID, 1, "user", "old prompt"),
+			buildMessage(chatID, 2, "assistant", "old answer"),
+			buildMessage(chatID, 3, "user", "stale prompt"),
+		];
+		const replacementMessage = buildMessage(chatID, 1, "user", "new prompt");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [
+				{
+					messages: [initialMessages[2], initialMessages[1]],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [initialMessages[0]],
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined, 2],
+		});
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: initialMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: initialMessages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		act(() => {
+			mockSocket.emitDataBatch([
+				{ type: "history_reset", chat_id: chatID },
+				{ type: "message", chat_id: chatID, message: replacementMessage },
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1]);
+		});
+
+		const cached = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		expect(cached?.pages).toHaveLength(1);
+		expect(cached?.pageParams).toHaveLength(1);
+		expect(cached?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			1,
+		]);
+		expect(cached?.pages[0]?.has_more).toBe(false);
+	});
+
+	it("updates an older page in place for a WS durable message without duplicating it into page 0", async () => {
+		const chatID = "chat-fanout-older-page";
+		const initialMessages = [
+			buildMessage(chatID, 1, "user", "old prompt"),
+			buildMessage(chatID, 2, "assistant", "old answer"),
+			buildMessage(chatID, 3, "user", "newest prompt"),
+		];
+		const updatedMessage = buildMessage(chatID, 1, "user", "edited prompt");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [
+				{
+					messages: [initialMessages[2], initialMessages[1]],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [initialMessages[0]],
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined, 2],
+		});
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: initialMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: initialMessages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					messagesByID: useChatSelector(store, selectMessagesByID),
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: updatedMessage,
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.messagesByID.get(1)?.content).toEqual(
+				updatedMessage.content,
+			);
+		});
+
+		const cached = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		expect(cached?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			3, 2,
+		]);
+		expect(cached?.pages[1]?.messages.map((message) => message.id)).toEqual([
+			1,
+		]);
+		expect(cached?.pages[1]?.messages[0]?.content).toEqual(
+			updatedMessage.content,
+		);
+	});
+
 	it("clears stream state when a new durable message arrives", async () => {
 		immediateAnimationFrame();
 

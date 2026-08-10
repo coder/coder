@@ -313,6 +313,11 @@ const buildQueries = (
 	];
 };
 
+const withoutQuery = (
+	queries: ReturnType<typeof buildQueries>,
+	queryKey: readonly unknown[],
+) => queries.filter(({ key }) => hashKey(key) !== hashKey(queryKey));
+
 // ---------------------------------------------------------------------------
 // Every-tool showcase: a single completed assistant turn that exercises
 // every tool renderer registered in Tool.tsx, plus the SubagentRenderer
@@ -2247,6 +2252,84 @@ export const StreamedReasoning: Story = {
 // This made the stories render empty chats and fail interaction
 // tests in both local and CI environments.
 
+const mockNewestMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 30,
+	role: "assistant",
+	content: [{ type: "text", text: "Newest message" }],
+};
+
+const mockOlderRevision: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 20,
+	role: "assistant",
+	content: [{ type: "text", text: "Old revision" }],
+};
+
+const mockFreshRevision: TypesGen.ChatMessage = {
+	...mockOlderRevision,
+	content: [{ type: "text", text: "Fresh revision" }],
+};
+
+export const DurableUpdateFansOutToOlderPage: Story = {
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					{
+						id: CHAT_ID,
+						...baseChatFields,
+						title: "Fan-out chat",
+						status: "waiting",
+					},
+					{ messages: [], queued_messages: [], has_more: false },
+				),
+				chatMessagesKey(CHAT_ID),
+			),
+			{
+				key: chatMessagesKey(CHAT_ID),
+				data: {
+					pages: [
+						{
+							messages: [mockNewestMessage],
+							queued_messages: [],
+							has_more: true,
+						},
+						{
+							messages: [mockOlderRevision],
+							queued_messages: [],
+							has_more: false,
+						},
+					],
+					pageParams: [undefined, 30],
+				},
+			},
+		],
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						{
+							type: "message",
+							chat_id: CHAT_ID,
+							message: mockFreshRevision,
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Fresh revision")).toBeVisible();
+		await waitFor(() => {
+			expect(canvas.getAllByText("Fresh revision")).toHaveLength(1);
+		});
+		expect(canvas.queryByText("Old revision")).not.toBeInTheDocument();
+	},
+};
+
 /**
  * Live agent turn with streaming reasoning and a back-to-back flurry of
  * in-progress file tool calls. The persisted history establishes context
@@ -3077,11 +3160,6 @@ const mockServerError = {
 	...mockApiError({ message: "Internal server error." }),
 	status: 500,
 };
-
-const withoutQuery = (
-	queries: ReturnType<typeof buildQueries>,
-	queryKey: readonly unknown[],
-) => queries.filter(({ key }) => hashKey(key) !== hashKey(queryKey));
 
 export const DetailQueryError: Story = {
 	parameters: {
