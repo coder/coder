@@ -2065,17 +2065,15 @@ func TestListChats_Search(t *testing.T) {
 		require.NotContains(t, ids, noMatch.ID)
 	})
 
-	t.Run("NoSearchableWordsReturns400", func(t *testing.T) {
+	t.Run("NoSearchableWordsReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
 		ctx, client, _, _, _ := setup(t)
 
-		_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: `search:"!!!"`,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "search", sdkErr.Validations[0].Field)
-		require.Contains(t, sdkErr.Validations[0].Detail, "no searchable words")
+		require.NoError(t, err)
+		require.Empty(t, chats)
 	})
 
 	t.Run("ComposesWithRepoFilterAndArchivedDefault", func(t *testing.T) {

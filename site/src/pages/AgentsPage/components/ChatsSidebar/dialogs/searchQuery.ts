@@ -12,14 +12,25 @@ const addDefaultURLScheme = (value: string): string => {
 
 // The backend splits on unquoted whitespace and colons, so filter values that
 // contain either delimiter must be wrapped in quotes.
-const formatChatSearchFilterToken = (key: string, value: string): string => {
+const normalizeChatSearchFilterValue = (key: string, value: string): string => {
 	const sanitizedValue = sanitizeChatSearchValue(value).trim();
-	const formattedValue =
-		key === "diff_url"
-			? addDefaultURLScheme(sanitizedValue)
-			: key === "pr_status"
-				? sanitizedValue.replace(/\s+/g, ",")
-				: sanitizedValue;
+	if (sanitizedValue === "") {
+		return "";
+	}
+	if (key === "diff_url") {
+		return addDefaultURLScheme(sanitizedValue);
+	}
+	if (key === "pr_status") {
+		return sanitizedValue
+			.split(/[\s,]+/)
+			.filter(Boolean)
+			.join(",");
+	}
+	return sanitizedValue;
+};
+
+const formatChatSearchFilterToken = (key: string, value: string): string => {
+	const formattedValue = normalizeChatSearchFilterValue(key, value);
 	return formattedValue.includes(":") || formattedValue.includes(" ")
 		? `${key}:"${formattedValue}"`
 		: `${key}:${formattedValue}`;
@@ -36,7 +47,7 @@ export const buildChatSearchQuery = (
 	for (const filter of filters) {
 		if (
 			filter.value !== null &&
-			sanitizeChatSearchValue(filter.value).trim() !== ""
+			normalizeChatSearchFilterValue(filter.key, filter.value) !== ""
 		) {
 			parts.push(formatChatSearchFilterToken(filter.key, filter.value));
 		}

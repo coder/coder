@@ -50,6 +50,24 @@ describe("buildChatSearchQuery", () => {
 			query: "pr_status:open,merged",
 			hasSearchText: false,
 		});
+		for (const value of [
+			"open, merged",
+			"open merged",
+			"open,merged",
+			"  open  ,  merged  ",
+			",,open,,,   merged,,",
+		]) {
+			expect(buildChatSearchQuery([{ key: "pr_status", value }], "")).toEqual({
+				query: "pr_status:open,merged",
+				hasSearchText: false,
+			});
+		}
+		expect(
+			buildChatSearchQuery([{ key: "pr_status", value: ",,  ," }], ""),
+		).toEqual({
+			query: undefined,
+			hasSearchText: false,
+		});
 		expect(
 			buildChatSearchQuery(
 				[
@@ -90,11 +108,13 @@ describe("buildChatSearchQuery", () => {
 	});
 
 	it("skips filters whose sanitized value is empty", () => {
-		for (const value of ['"', '""']) {
-			expect(buildChatSearchQuery([{ key: "pr_status", value }], "")).toEqual({
-				query: undefined,
-				hasSearchText: false,
-			});
+		for (const key of ["pr_status", "diff_url"]) {
+			for (const value of ['"', '""']) {
+				expect(buildChatSearchQuery([{ key, value }], "")).toEqual({
+					query: undefined,
+					hasSearchText: false,
+				});
+			}
 		}
 	});
 

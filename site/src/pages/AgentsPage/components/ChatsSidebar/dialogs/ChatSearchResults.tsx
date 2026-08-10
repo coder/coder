@@ -1,6 +1,5 @@
 import { type FC, useEffect, useRef } from "react";
 import { Link, type Location } from "react-router";
-import { isApiValidationError } from "#/api/errors";
 import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -26,15 +25,6 @@ type ChatSearchResultsProps = {
 };
 
 const RECENT_CHATS_COUNT = 10;
-const NO_SEARCHABLE_WORDS_DETAIL = "Search query contains no searchable words.";
-
-const isNoSearchableWordsError = (error: unknown): boolean =>
-	isApiValidationError(error) &&
-	error.response.data.validations?.some(
-		(validation) =>
-			validation.field === "search" &&
-			validation.detail === NO_SEARCHABLE_WORDS_DETAIL,
-	) === true;
 
 // !block overrides Radix ScrollArea viewport's display:table so truncated text can shrink.
 const SCROLL_AREA_PROPS = {
@@ -58,8 +48,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	isRefreshing,
 	onDismiss,
 }) => {
-	const noSearchableWords = isNoSearchableWordsError(error);
-	if (error && !noSearchableWords) {
+	if (error) {
 		return (
 			<div className="min-h-[260px]">
 				<ErrorAlert
@@ -82,8 +71,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 		);
 	}
 
-	const resultChats = noSearchableWords ? [] : chats;
-	const resultCount = resultChats?.length ?? 0;
+	const resultCount = chats?.length ?? 0;
 	const resultSummary =
 		resultCount === CHAT_SEARCH_LIMIT ? (
 			<>
@@ -114,7 +102,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 				</p>
 				<ScrollArea {...SCROLL_AREA_PROPS}>
 					<ChatSearchResultsList
-						chats={resultChats}
+						chats={chats}
 						hasSearchText={hasSearchText}
 						location={location}
 						listboxId={listboxId}

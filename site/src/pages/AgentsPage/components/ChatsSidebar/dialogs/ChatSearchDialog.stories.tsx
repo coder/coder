@@ -5,7 +5,6 @@ import { API } from "#/api/api";
 import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { mockApiError } from "#/testHelpers/entities";
 import { ChatSearchDialog } from "./ChatSearchDialog";
 
 const mockDiffStatus: NonNullable<Chat["diff_status"]> = {
@@ -768,17 +767,7 @@ export const CommittedFilterDoesNotLeakStaleText: Story = {
 
 export const NoSearchableWordsShowsNoResults: Story = {
 	beforeEach: () => {
-		spyOn(API.experimental, "getChats").mockRejectedValue(
-			mockApiError({
-				message: "Invalid chat search query.",
-				validations: [
-					{
-						field: "search",
-						detail: "Search query contains no searchable words.",
-					},
-				],
-			}),
-		);
+		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 	},
 	play: async () => {
 		const body = within(document.body);

@@ -381,7 +381,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reject text that tokenizes to nothing; it would silently match no rows.
+	// A search with no lexemes has no possible matches.
 	if searchParams.Search != "" {
 		isEmpty, err := api.Database.ChatSearchQueryIsEmpty(ctx, searchParams.Search)
 		if err != nil {
@@ -392,13 +392,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if isEmpty {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid chat search query.",
-				Validations: []codersdk.ValidationError{{
-					Field:  "search",
-					Detail: "Search query contains no searchable words.",
-				}},
-			})
+			httpapi.Write(ctx, rw, http.StatusOK, []codersdk.Chat{})
 			return
 		}
 	}
