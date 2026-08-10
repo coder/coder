@@ -43,7 +43,7 @@ func (p *Server) ensureChatGatewayKeyID(ctx context.Context, chat database.Chat)
 	if !ok {
 		return p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	}
-	profile := aiagentidentity.ChatAgentProfile(chat.ID)
+	profile := aiagentidentity.ChatAgentProfile(actor.OriginID)
 	//nolint:gocritic // Managing internal AI agent keys requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	key, err := p.db.GetAPIKeyByName(systemCtx, database.GetAPIKeyByNameParams{

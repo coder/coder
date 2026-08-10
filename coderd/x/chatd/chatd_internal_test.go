@@ -199,6 +199,59 @@ func TestAppendRootChatToolsWrapsPlatformToolsWithAIAgentActor(t *testing.T) {
 	}
 }
 
+func TestChildChatUsesRootAIAgentIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	rootChatID := uuid.New()
+	childChat := database.Chat{
+		ID:         uuid.New(),
+		OwnerID:    uuid.New(),
+		RootChatID: uuid.NullUUID{UUID: rootChatID, Valid: true},
+	}
+	agent := database.AIAgent{
+		UserID:      uuid.New(),
+		OwnerUserID: childChat.OwnerID,
+		OriginType:  database.AIAgentOriginChat,
+		OriginID:    rootChatID,
+	}
+	db.EXPECT().GetAIAgentByOriginIncludingDeleted(
+		gomock.Any(),
+		database.GetAIAgentByOriginIncludingDeletedParams{
+			OriginType: database.AIAgentOriginChat,
+			OriginID:   rootChatID,
+		},
+	).Return(agent, nil).Times(2)
+
+	profile := aiagentidentity.ChatAgentProfile(rootChatID)
+	rootKey := database.APIKey{
+		ID:        uuid.NewString(),
+		UserID:    agent.UserID,
+		TokenName: profile.TokenName,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+	db.EXPECT().GetAPIKeyByName(gomock.Any(), database.GetAPIKeyByNameParams{
+		UserID:    agent.UserID,
+		TokenName: profile.TokenName,
+	}).Return(rootKey, nil)
+
+	server := &Server{
+		db:     db,
+		clock:  quartz.NewReal(),
+		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	}
+
+	actor, ok, err := server.chatAIAgentActor(t.Context(), childChat)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, rootChatID, actor.OriginID)
+
+	keyID, err := server.ensureChatGatewayKeyID(t.Context(), childChat)
+	require.NoError(t, err)
+	require.Equal(t, rootKey.ID, keyID)
+}
+
 func TestUpdateChatSummary(t *testing.T) {
 	t.Parallel()
 

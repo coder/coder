@@ -3866,6 +3866,13 @@ func (p *Server) loadPersonalSkillBody(
 	return parsed, nil
 }
 
+func chatAIAgentOriginID(chat database.Chat) uuid.UUID {
+	if chat.RootChatID.Valid {
+		return chat.RootChatID.UUID
+	}
+	return chat.ID
+}
+
 // chatAIAgentActor resolves the chat's AI agent identity for in-process
 // platform tool attribution. It returns ok=false only for chats that never had
 // an identity, which may fall back to owner execution. Revoked identities and
@@ -3873,9 +3880,10 @@ func (p *Server) loadPersonalSkillBody(
 func (p *Server) chatAIAgentActor(ctx context.Context, chat database.Chat) (aiagentidentity.AIAgentActor, bool, error) {
 	//nolint:gocritic // Resolving internal AI agent metadata requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	originID := chatAIAgentOriginID(chat)
 	agent, err := p.db.GetAIAgentByOriginIncludingDeleted(systemCtx, database.GetAIAgentByOriginIncludingDeletedParams{
 		OriginType: database.AIAgentOriginChat,
-		OriginID:   chat.ID,
+		OriginID:   originID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return aiagentidentity.AIAgentActor{}, false, nil
