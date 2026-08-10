@@ -425,6 +425,12 @@ export interface Metadata {
   taskPrompt: string;
   templateVersionId: string;
   templateVersionModulesFile: string;
+  /**
+   * workspace_ai_agent_session_token is a scoped API key for the workspace's
+   * AI agent identity. Populated only when the workspace opts in via the
+   * "coder_ai_agent" rich parameter; empty otherwise.
+   */
+  workspaceAiAgentSessionToken: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1384,6 +1390,9 @@ export const Metadata = {
     }
     if (message.templateVersionModulesFile !== "") {
       writer.uint32(202).string(message.templateVersionModulesFile);
+    }
+    if (message.workspaceAiAgentSessionToken !== "") {
+      writer.uint32(210).string(message.workspaceAiAgentSessionToken);
     }
     return writer;
   },

@@ -375,6 +375,10 @@ message Metadata {
   string task_prompt = 23;
   string template_version_id = 24;
   string template_version_modules_file = 25;
+  // workspace_ai_agent_session_token is a scoped API key for the workspace's
+  // AI agent identity. Populated only when the workspace opts in via the
+  // "coder_ai_agent" rich parameter; empty otherwise.
+  string workspace_ai_agent_session_token = 26;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
