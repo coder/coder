@@ -17,8 +17,6 @@ User alice has reached their monthly AI budget limit ($1000.00). Subsequent=
 
 Effective group: Engineering
 
-This limit is a per-user override.
-
 AI budget period: July 1, 2026 - August 1, 2026
 
 
@@ -55,8 +53,6 @@ argin: 8px 0 32px; line-height: 1.5;">
 limit ($1000.00). Subsequent requests will be blocked.</p>
 
 <p>Effective group: <strong>Engineering</strong></p>
-
-<p>This limit is a per-user override.</p>
 
 <p>AI budget period: July 1, 2026 - August 1, 2026</p>
       </div>
