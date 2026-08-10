@@ -26,8 +26,22 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
+func expectActiveChatOwner(db *dbmock.MockStore) {
+	db.EXPECT().
+		GetUserByID(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, id uuid.UUID) (database.User, error) {
+			return database.User{
+				ID:     id,
+				Kind:   database.UserKindHuman,
+				Status: database.UserStatusActive,
+			}, nil
+		}).
+		AnyTimes()
+}
+
 func newCreateWorkspaceMockStore(ctrl *gomock.Controller) *dbmock.MockStore {
 	db := dbmock.NewMockStore(ctrl)
+	expectActiveChatOwner(db)
 	db.EXPECT().
 		GetTemplateVersionByID(gomock.Any(), gomock.Any()).
 		Return(database.TemplateVersion{}, sql.ErrNoRows).
@@ -663,6 +677,7 @@ func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectActiveChatOwner(db)
 
 	ownerID := uuid.New()
 	orgID := uuid.New()
@@ -1191,6 +1206,7 @@ func TestCreateWorkspace_BlocksExternalTemplate(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectActiveChatOwner(db)
 
 	ownerID := uuid.New()
 	orgID := uuid.New()
