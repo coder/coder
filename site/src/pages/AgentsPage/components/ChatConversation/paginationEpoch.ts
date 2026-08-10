@@ -8,16 +8,12 @@ export type PaginationCacheWrite = { kind: string };
 
 export const applySupersededWrites = <TWrite extends PaginationCacheWrite>(
 	writes: readonly TWrite[],
-): TWrite[] => {
-	let lastReplacementIndex = -1;
-	for (let i = writes.length - 1; i >= 0; i--) {
-		if (writes[i]?.kind === "replace") {
-			lastReplacementIndex = i;
-			break;
-		}
-	}
+): readonly TWrite[] => {
+	const lastReplacementIndex = writes.findLastIndex(
+		(write) => write.kind === "replace",
+	);
 	return lastReplacementIndex === -1
-		? [...writes]
+		? writes
 		: writes.slice(lastReplacementIndex);
 };
 

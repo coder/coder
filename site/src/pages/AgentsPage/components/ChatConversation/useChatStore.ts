@@ -42,18 +42,6 @@ type ChatCacheWrite = PaginationCacheWrite & {
 	messages: readonly TypesGen.ChatMessage[];
 };
 
-const replayChatCacheWrite = (
-	queryClient: QueryClient,
-	chatID: string,
-	write: ChatCacheWrite,
-): void => {
-	if (write.kind === "replace") {
-		replaceChatMessagesHistory(queryClient, chatID, write.messages);
-		return;
-	}
-	upsertChatMessages(queryClient, chatID, write.messages);
-};
-
 // Applies the buffered writes returned when a pagination epoch closes.
 // Callers must run this synchronously in the fetchNextPage settle
 // continuation so the replay completes before React observes the stale
@@ -65,7 +53,11 @@ export const replayChatCacheWrites = (
 	writes: readonly ChatCacheWrite[],
 ): void => {
 	for (const write of writes) {
-		replayChatCacheWrite(queryClient, chatID, write);
+		if (write.kind === "replace") {
+			replaceChatMessagesHistory(queryClient, chatID, write.messages);
+		} else {
+			upsertChatMessages(queryClient, chatID, write.messages);
+		}
 	}
 };
 

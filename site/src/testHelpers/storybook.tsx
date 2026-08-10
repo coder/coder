@@ -1,4 +1,4 @@
-import type { StoryContext } from "@storybook/react-vite";
+import type { StoryContext, WebSocketEvent } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import { withDefaultFeatures } from "#/api/api";
@@ -74,27 +74,19 @@ export const withDashboardProvider = (
 type MessageEvent = Record<"data", string>;
 type CallbackFn = (ev?: MessageEvent) => void;
 
-type WebSocketEventEntry = {
-	event: string;
-	data?: string;
-	controlled?: boolean;
-};
-
-declare global {
-	interface Window {
-		deliverStoryWebSocketEvents?: () => void;
-	}
-}
+// The withWebSocket decorator registers the current story's delivery
+// function; play functions release controlled events through it.
+let deliverStoryControlledEvents: (() => void) | undefined;
 
 // Delivers events declared with `controlled: true` to every mocked
 // socket. Uncontrolled events still auto-deliver after mount, while
 // controlled events wait so a play function can land them at a
 // deterministic moment, e.g. while a deferred fetch is held.
 export const deliverWebSocketEvents = (): void => {
-	if (!window.deliverStoryWebSocketEvents) {
+	if (!deliverStoryControlledEvents) {
 		throw new Error("No withWebSocket decorator is installed for this story");
 	}
-	window.deliverStoryWebSocketEvents();
+	deliverStoryControlledEvents();
 };
 
 // parameters.webSocket accepts two formats:
@@ -133,8 +125,8 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 		#listeners = new Map<string, CallbackFn>();
 		#callEventsDelay: number | undefined;
 		#url: string;
-		#autoEvents: WebSocketEventEntry[] = [];
-		#controlledEvents: WebSocketEventEntry[] = [];
+		#autoEvents: WebSocketEvent[] = [];
+		#controlledEvents: WebSocketEvent[] = [];
 
 		constructor(url?: string) {
 			this.#url = url ?? "";
@@ -148,13 +140,8 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 				);
 				events = matchingKey ? routedEvents[matchingKey] : [];
 			}
-			for (const entry of events) {
-				if (entry.controlled) {
-					this.#controlledEvents.push(entry);
-				} else {
-					this.#autoEvents.push(entry);
-				}
-			}
+			this.#autoEvents = events.filter((entry) => !entry.controlled);
+			this.#controlledEvents = events.filter((entry) => entry.controlled);
 			sockets.push(this);
 		}
 
@@ -166,7 +153,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 				const callback = this.#listeners.get(entry.event);
 				if (callback) {
 					entry.event === "message"
-						? callback({ data: entry.data ?? "" })
+						? callback({ data: entry.data })
 						: callback();
 				}
 			}
@@ -187,7 +174,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 
 					if (callback) {
 						entry.event === "message"
-							? callback({ data: entry.data ?? "" })
+							? callback({ data: entry.data })
 							: callback();
 					}
 				}
@@ -199,7 +186,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 		close() {}
 	} as unknown as typeof WebSocket;
 
-	window.deliverStoryWebSocketEvents = () => {
+	deliverStoryControlledEvents = () => {
 		for (const socket of sockets) {
 			socket.deliverControlledEvents();
 		}

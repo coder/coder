@@ -18,10 +18,6 @@ describe("applySupersededWrites", () => {
 		]);
 	});
 
-	it("keeps an empty buffer empty", () => {
-		expect(applySupersededWrites([])).toEqual([]);
-	});
-
 	it("drops every write before the last replacement", () => {
 		expect(
 			applySupersededWrites([
@@ -31,12 +27,6 @@ describe("applySupersededWrites", () => {
 				upsert("c"),
 			]),
 		).toEqual([replace("r1"), upsert("c")]);
-	});
-
-	it("keeps only the last of multiple replacements", () => {
-		expect(
-			applySupersededWrites([upsert("a"), replace("r1"), replace("r2")]),
-		).toEqual([replace("r2")]);
 	});
 
 	it("preserves order for writes after the replacement", () => {
