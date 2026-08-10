@@ -224,7 +224,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 	titleCtx, stopTitleCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
 		defer stopTitleCtx()
-		apiKeyID, err := p.ensureSyntheticAPIKeyID(titleCtx, chat.OwnerID)
+		apiKeyID, err := p.ensureChatGatewayKeyID(titleCtx, chat)
 		if err != nil {
 			logger.Debug(titleCtx, "failed to ensure synthetic API key for automatic title generation", slog.Error(err))
 			return

@@ -597,6 +597,7 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 		BeforeID: 0,
 		LimitVal: manualTitleMessageWindowLimit,
 	}).Return(nil, nil)
+	db.EXPECT().GetAIAgentByOrigin(gomock.Any(), gomock.Any()).Return(database.AIAgent{}, sql.ErrNoRows).AnyTimes()
 	db.EXPECT().GetChatGatewayAPIKey(gomock.Any(), database.GetChatGatewayAPIKeyParams{
 		UserID:    chat.OwnerID,
 		TokenName: GatewayTokenName(chat.OwnerID),

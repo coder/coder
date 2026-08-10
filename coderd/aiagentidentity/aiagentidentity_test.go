@@ -72,6 +72,27 @@ func TestCreateAndMintKey(t *testing.T) {
 		},
 	})
 	require.ErrorContains(t, err, "forbidden")
+
+	// user:read is permitted (agents resolve their owner to act on the
+	// owner's behalf), but personal/PII reads and user mutations are not.
+	for _, forbidden := range []database.APIKeyScope{
+		database.ApiKeyScopeUserReadPersonal,
+		database.ApiKeyScopeUserUpdate,
+		database.ApiKeyScopeUserSecretRead,
+		database.ApiKeyScopeUserSkillRead,
+	} {
+		_, _, err = aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.Profile{
+			Scopes:    database.APIKeyScopes{forbidden},
+			AllowList: database.AllowList{rbac.AllowListAll()},
+		})
+		require.ErrorContains(t, err, "forbidden", "scope %q must be forbidden", forbidden)
+	}
+	okKey, _, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.Profile{
+		Scopes:    database.APIKeyScopes{database.ApiKeyScopeUserRead},
+		AllowList: database.AllowList{rbac.AllowListAll()},
+	})
+	require.NoError(t, err)
+	require.True(t, okKey.Scopes.Has(database.ApiKeyScopeUserRead))
 }
 
 func TestCreateRequiresOwnerOrganizationMembership(t *testing.T) {

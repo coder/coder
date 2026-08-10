@@ -80,7 +80,7 @@ func (server *Server) prepareGeneration(
 		return generationPrepared{}, err
 	}
 
-	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	apiKeyID, err := server.ensureChatGatewayKeyID(ctx, chat)
 	if err != nil {
 		return generationPrepared{}, xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
@@ -761,7 +761,7 @@ func (server *Server) deriveFinalTurnRunResult(
 
 	// resolvedProvider/resolvedModel describe the model the fallback handle was
 	// built from; they only feed the status-label fallback candidate's labels.
-	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	apiKeyID, err := server.ensureChatGatewayKeyID(ctx, chat)
 	if err != nil {
 		logger.Warn(ctx, "derive final turn status label: ensure synthetic API key", slog.Error(err))
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}

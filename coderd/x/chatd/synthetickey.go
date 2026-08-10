@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -18,6 +19,59 @@ const (
 	syntheticAPIKeyLifetime    = 30 * 24 * time.Hour
 	syntheticAPIKeyRenewMargin = 24 * time.Hour
 )
+
+// chatAgentKeyLifetime matches the aiagentidentity mint lifetime; extensions
+// renew in 24h increments. chatAgentKeyRenewMargin is how close to expiry a
+// key may get before an extension.
+const (
+	chatAgentKeyLifetime    = 24 * time.Hour
+	chatAgentKeyRenewMargin = 12 * time.Hour
+)
+
+// ensureChatGatewayKeyID returns the API key ID that attributes this chat's
+// AI Gateway traffic. Chats with an AI agent identity use the identity's
+// chat-scoped key, giving per-chat (not per-user) attribution and agent ->
+// owner lineage in interception records. The key is extended in place near
+// expiry because an in-flight generation may have already delegated the
+// current key ID to the gateway. Chats predating identities fall back to
+// the per-user synthetic key.
+func (p *Server) ensureChatGatewayKeyID(ctx context.Context, chat database.Chat) (string, error) {
+	actor, ok := p.chatAIAgentActor(ctx, chat)
+	if !ok {
+		return p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	}
+	profile := aiagentidentity.ChatAgentProfile(chat.ID)
+	//nolint:gocritic // Managing internal AI agent keys requires system access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	key, err := p.db.GetAPIKeyByName(systemCtx, database.GetAPIKeyByNameParams{
+		UserID:    actor.AgentUserID,
+		TokenName: profile.TokenName,
+	})
+	switch {
+	case err == nil && key.ExpiresAt.After(p.clock.Now().Add(chatAgentKeyRenewMargin)):
+		return key.ID, nil
+	case err == nil:
+		if err := p.db.UpdateAPIKeyByID(systemCtx, database.UpdateAPIKeyByIDParams{
+			ID:        key.ID,
+			LastUsed:  key.LastUsed,
+			ExpiresAt: p.clock.Now().Add(chatAgentKeyLifetime),
+			IPAddress: key.IPAddress,
+		}); err != nil {
+			return "", xerrors.Errorf("extend chat AI agent key: %w", err)
+		}
+		return key.ID, nil
+	case xerrors.Is(err, sql.ErrNoRows):
+		// The key was rotated or purged; mint a replacement under the
+		// same identity and token name.
+		newKey, _, err := aiagentidentity.MintKey(ctx, p.db, actor.AgentUserID, profile)
+		if err != nil {
+			return "", xerrors.Errorf("mint chat AI agent key: %w", err)
+		}
+		return newKey.ID, nil
+	default:
+		return "", xerrors.Errorf("get chat AI agent key: %w", err)
+	}
+}
 
 // GatewayTokenName returns the deterministic token name of the synthetic
 // gateway key for a user. The name is the lookup key: no mapping table exists,

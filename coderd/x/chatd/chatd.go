@@ -2513,7 +2513,7 @@ func (p *Server) generateManualTitleCandidate(
 	if err != nil {
 		return "", xerrors.Errorf("get pasted-text attachments for manual title: %w", err)
 	}
-	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	apiKeyID, err := p.ensureChatGatewayKeyID(ctx, chat)
 	if err != nil {
 		return "", xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
@@ -4894,7 +4894,7 @@ func (p *Server) generateAndStoreChatSummary(
 	// Derive the delegated API key from the chat owner so AI Gateway routing
 	// attributes summary generation to the correct account. This goroutine may
 	// outlive the launching turn, so it cannot rely on that turn's context.
-	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	apiKeyID, err := p.ensureChatGatewayKeyID(ctx, chat)
 	if err != nil {
 		logger.Debug(ctx, "failed to ensure synthetic API key for chat summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))

@@ -35,12 +35,17 @@ func ChatAgentProfile(chatID uuid.UUID) Profile {
 			database.ApiKeyScopeCoderWorkspacesaccess,
 			database.ApiKeyScopeChatRead,
 			database.ApiKeyScopeChatUpdate,
+			// The chat workspace tools read the owner's user record to
+			// create workspaces on their behalf. This is a read, and the
+			// owner's own roles still bound what is reachable.
+			database.ApiKeyScopeUserRead,
 		},
 		AllowList: database.AllowList{
 			{Type: rbac.ResourceChat.Type, ID: chatID.String()},
 			{Type: rbac.ResourceWorkspace.Type, ID: policy.WildcardSymbol},
 			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
 			{Type: rbac.ResourceOrganizationMember.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceUser.Type, ID: policy.WildcardSymbol},
 		},
 		TokenName: "ai-chat-" + chatID.String(),
 	}
@@ -90,8 +95,17 @@ func validateProfile(profile Profile) (Profile, error) {
 			continue
 		}
 		switch resource {
-		case rbac.ResourceApiKey.Type, rbac.ResourceUser.Type, rbac.ResourceUserSecret.Type, rbac.ResourceUserSkill.Type:
+		case rbac.ResourceApiKey.Type, rbac.ResourceUserSecret.Type, rbac.ResourceUserSkill.Type:
+			// AI agents must never manage credentials, read user secrets,
+			// or read user skills (no self-escalation, no secret exfil).
 			return Profile{}, xerrors.Errorf("AI agent scope %q is forbidden", scope)
+		case rbac.ResourceUser.Type:
+			// Agents may read non-personal user fields (needed to resolve
+			// their owner when acting on the owner's behalf) but never
+			// personal/PII data (read_personal) or user mutations.
+			if action != string(policy.ActionRead) {
+				return Profile{}, xerrors.Errorf("AI agent scope %q is forbidden", scope)
+			}
 		case rbac.ResourceTemplate.Type:
 			if action != string(policy.ActionRead) && action != string(policy.ActionUse) {
 				return Profile{}, xerrors.Errorf("AI agent scope %q is forbidden", scope)
