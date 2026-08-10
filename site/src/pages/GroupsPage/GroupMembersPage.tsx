@@ -101,7 +101,7 @@ const GroupMembersPage: FC = () => {
 		}),
 	);
 	const aiBudgetNote = [
-		"Estimated monthly AI spend for this user.",
+		"Approximate monthly AI spend for this user.",
 		// Spend resets at period_end, rendered in the viewer's local time.
 		aiSpend &&
 			`Resets ${dayjs(aiSpend.period_end).format("MMM D, YYYY h:mm A")}.`,
@@ -141,7 +141,7 @@ const GroupMembersPage: FC = () => {
 								<>
 									<TableHead>
 										<div className="flex items-center gap-1">
-											AI budget
+											AI spend
 											{membersSpendQuery.isError ? (
 												<StatusIconTooltip
 													kind="warning"
