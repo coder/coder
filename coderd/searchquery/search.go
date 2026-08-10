@@ -27,6 +27,7 @@ import (
 //   - resource_id: UUID
 //   - resource_target: string
 //   - username: string
+//   - on_behalf_of: string (username or user UUID)
 //   - email: string
 //   - date_from: string (date in format "2006-01-02")
 //   - date_to: string (date in format "2006-01-02")
@@ -50,18 +51,24 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 
 	const dateLayout = "2006-01-02"
 	parser := httpapi.NewQueryParamParser()
+	onBehalfOf := parser.String(values, "", "on_behalf_of")
 	filter := database.GetAuditLogsOffsetParams{
-		RequestID:      parser.UUID(values, uuid.Nil, "request_id"),
-		ResourceID:     parser.UUID(values, uuid.Nil, "resource_id"),
-		ResourceTarget: parser.String(values, "", "resource_target"),
-		Username:       parser.String(values, "", "username"),
-		Email:          parser.String(values, "", "email"),
-		DateFrom:       parser.Time(values, time.Time{}, "date_from", dateLayout),
-		DateTo:         parser.Time(values, time.Time{}, "date_to", dateLayout),
-		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
-		ResourceType:   string(httpapi.ParseCustom(parser, values, "", "resource_type", httpapi.ParseEnum[database.ResourceType])),
-		Action:         string(httpapi.ParseCustom(parser, values, "", "action", httpapi.ParseEnum[database.AuditAction])),
-		BuildReason:    string(httpapi.ParseCustom(parser, values, "", "build_reason", httpapi.ParseEnum[database.BuildReason])),
+		RequestID:          parser.UUID(values, uuid.Nil, "request_id"),
+		ResourceID:         parser.UUID(values, uuid.Nil, "resource_id"),
+		ResourceTarget:     parser.String(values, "", "resource_target"),
+		Username:           parser.String(values, "", "username"),
+		OnBehalfOfUsername: onBehalfOf,
+		Email:              parser.String(values, "", "email"),
+		DateFrom:           parser.Time(values, time.Time{}, "date_from", dateLayout),
+		DateTo:             parser.Time(values, time.Time{}, "date_to", dateLayout),
+		OrganizationID:     parseOrganization(ctx, db, parser, values, "organization"),
+		ResourceType:       string(httpapi.ParseCustom(parser, values, "", "resource_type", httpapi.ParseEnum[database.ResourceType])),
+		Action:             string(httpapi.ParseCustom(parser, values, "", "action", httpapi.ParseEnum[database.AuditAction])),
+		BuildReason:        string(httpapi.ParseCustom(parser, values, "", "build_reason", httpapi.ParseEnum[database.BuildReason])),
+	}
+	if onBehalfOfID, err := uuid.Parse(onBehalfOf); err == nil {
+		filter.OnBehalfOfUserID = onBehalfOfID
+		filter.OnBehalfOfUsername = ""
 	}
 	if !filter.DateTo.IsZero() {
 		filter.DateTo = filter.DateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
@@ -70,17 +77,19 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	// Prepare the count filter, which uses the same parameters as the GetAuditLogsOffsetParams.
 	// nolint:exhaustruct // UserID and CountCap are not obtained from the query parameters.
 	countFilter := database.CountAuditLogsParams{
-		RequestID:      filter.RequestID,
-		ResourceID:     filter.ResourceID,
-		ResourceTarget: filter.ResourceTarget,
-		Username:       filter.Username,
-		Email:          filter.Email,
-		DateFrom:       filter.DateFrom,
-		DateTo:         filter.DateTo,
-		OrganizationID: filter.OrganizationID,
-		ResourceType:   filter.ResourceType,
-		Action:         filter.Action,
-		BuildReason:    filter.BuildReason,
+		RequestID:          filter.RequestID,
+		ResourceID:         filter.ResourceID,
+		ResourceTarget:     filter.ResourceTarget,
+		Username:           filter.Username,
+		OnBehalfOfUserID:   filter.OnBehalfOfUserID,
+		OnBehalfOfUsername: filter.OnBehalfOfUsername,
+		Email:              filter.Email,
+		DateFrom:           filter.DateFrom,
+		DateTo:             filter.DateTo,
+		OrganizationID:     filter.OrganizationID,
+		ResourceType:       filter.ResourceType,
+		Action:             filter.Action,
+		BuildReason:        filter.BuildReason,
 	}
 
 	parser.ErrorExcessParams(values)

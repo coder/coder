@@ -16,11 +16,24 @@ SELECT sqlc.embed(audit_logs),
 	users.avatar_url AS user_avatar_url,
 	users.deleted AS user_deleted,
 	users.quiet_hours_schedule AS user_quiet_hours_schedule,
+	on_behalf_of_users.username AS on_behalf_of_user_username,
+	on_behalf_of_users.name AS on_behalf_of_user_name,
+	on_behalf_of_users.email AS on_behalf_of_user_email,
+	on_behalf_of_users.created_at AS on_behalf_of_user_created_at,
+	on_behalf_of_users.updated_at AS on_behalf_of_user_updated_at,
+	on_behalf_of_users.last_seen_at AS on_behalf_of_user_last_seen_at,
+	on_behalf_of_users.status AS on_behalf_of_user_status,
+	on_behalf_of_users.login_type AS on_behalf_of_user_login_type,
+	on_behalf_of_users.rbac_roles AS on_behalf_of_user_roles,
+	on_behalf_of_users.avatar_url AS on_behalf_of_user_avatar_url,
+	on_behalf_of_users.deleted AS on_behalf_of_user_deleted,
+	on_behalf_of_users.quiet_hours_schedule AS on_behalf_of_user_quiet_hours_schedule,
 	COALESCE(organizations.name, '') AS organization_name,
 	COALESCE(organizations.display_name, '') AS organization_display_name,
 	COALESCE(organizations.icon, '') AS organization_icon
 FROM audit_logs
 	LEFT JOIN users ON audit_logs.user_id = users.id
+	LEFT JOIN users AS on_behalf_of_users ON audit_logs.on_behalf_of_user_id = on_behalf_of_users.id
 	LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
 	-- First join on workspaces to get the initial workspace create
 	-- to workspace build 1 id. This is because the first create is
@@ -63,17 +76,36 @@ WHERE
 		WHEN @action::text != '' THEN action = @action::audit_action
 		ELSE true
 	END
-	-- Filter by user_id
+	-- Filter by user_id, including actions delegated by that user.
 	AND CASE
-		WHEN @user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = @user_id
+		WHEN @user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = @user_id OR on_behalf_of_user_id = @user_id
 		ELSE true
 	END
-	-- Filter by username
+	-- Filter by username, including actions delegated by that user.
 	AND CASE
-		WHEN @username::text != '' THEN user_id = (
+		WHEN @username::text != '' THEN
+			user_id = (
+				SELECT id
+				FROM users
+				WHERE lower(username) = lower(@username)
+					AND deleted = false
+			) OR on_behalf_of_user_id = (
+				SELECT id
+				FROM users
+				WHERE lower(username) = lower(@username)
+					AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by the human user an action was performed on behalf of.
+	AND CASE
+		WHEN @on_behalf_of_user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			on_behalf_of_user_id = @on_behalf_of_user_id
+		WHEN @on_behalf_of_username::text != '' THEN on_behalf_of_user_id = (
 			SELECT id
 			FROM users
-			WHERE lower(username) = lower(@username)
+			WHERE lower(username) = lower(@on_behalf_of_username)
 				AND deleted = false
 		)
 		ELSE true
@@ -197,17 +229,36 @@ SELECT COUNT(*) FROM (
 			WHEN @action::text != '' THEN action = @action::audit_action
 			ELSE true
 		END
-		-- Filter by user_id
+		-- Filter by user_id, including actions delegated by that user.
 		AND CASE
-			WHEN @user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = @user_id
+			WHEN @user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				user_id = @user_id OR on_behalf_of_user_id = @user_id
 			ELSE true
 		END
-		-- Filter by username
+		-- Filter by username, including actions delegated by that user.
 		AND CASE
-			WHEN @username::text != '' THEN user_id = (
+			WHEN @username::text != '' THEN
+				user_id = (
+					SELECT id
+					FROM users
+					WHERE lower(username) = lower(@username)
+						AND deleted = false
+				) OR on_behalf_of_user_id = (
+					SELECT id
+					FROM users
+					WHERE lower(username) = lower(@username)
+						AND deleted = false
+				)
+			ELSE true
+		END
+		-- Filter by the human user an action was performed on behalf of.
+		AND CASE
+			WHEN @on_behalf_of_user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				on_behalf_of_user_id = @on_behalf_of_user_id
+			WHEN @on_behalf_of_username::text != '' THEN on_behalf_of_user_id = (
 				SELECT id
 				FROM users
-				WHERE lower(username) = lower(@username)
+				WHERE lower(username) = lower(@on_behalf_of_username)
 					AND deleted = false
 			)
 			ELSE true

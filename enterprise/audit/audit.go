@@ -13,7 +13,8 @@ import (
 )
 
 type BackendDetails struct {
-	Actor *Actor
+	Actor      *Actor
+	OnBehalfOf *Actor
 }
 
 type Actor struct {
@@ -63,16 +64,36 @@ func (a *auditor) Export(ctx context.Context, alog database.AuditLog) error {
 		return err
 	}
 
+	var onBehalfOf *Actor
+	if alog.OnBehalfOfUserID.Valid {
+		// Delegated audit details must remain available even when the caller
+		// cannot read the human owner directly.
+		owner, ownerErr := a.db.GetUserByID(dbauthz.AsSystemRestricted(ctx), alog.OnBehalfOfUserID.UUID) //nolint:gocritic
+		if ownerErr != nil && !xerrors.Is(ownerErr, sql.ErrNoRows) {
+			return ownerErr
+		}
+		if ownerErr == nil {
+			onBehalfOf = &Actor{
+				ID:       owner.ID,
+				Email:    owner.Email,
+				Username: owner.Username,
+			}
+		}
+	}
+
 	for _, backend := range a.backends {
 		if decision&backend.Decision() != backend.Decision() {
 			continue
 		}
 
-		err = backend.Export(ctx, alog, BackendDetails{Actor: &Actor{
-			ID:       actor.ID,
-			Email:    actor.Email,
-			Username: actor.Username,
-		}})
+		err = backend.Export(ctx, alog, BackendDetails{
+			Actor: &Actor{
+				ID:       actor.ID,
+				Email:    actor.Email,
+				Username: actor.Username,
+			},
+			OnBehalfOf: onBehalfOf,
+		})
 		if err != nil {
 			// naively return the first error. should probably make this smarter
 			// by returning multiple errors.

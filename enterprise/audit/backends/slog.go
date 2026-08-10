@@ -69,6 +69,9 @@ func (b *auditSlogBackend) Export(ctx context.Context, alog database.AuditLog, d
 	if details.Actor != nil {
 		extraFields = append(extraFields, slog.F("actor", details.Actor))
 	}
+	if details.OnBehalfOf != nil {
+		extraFields = append(extraFields, slog.F("on_behalf_of", details.OnBehalfOf))
+	}
 
 	return b.exporter.ExportStruct(ctx, alog, "audit_log", extraFields...)
 }

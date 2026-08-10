@@ -4374,44 +4374,63 @@ SELECT COUNT(*) FROM (
 			WHEN $5::text != '' THEN action = $5::audit_action
 			ELSE true
 		END
-		-- Filter by user_id
+		-- Filter by user_id, including actions delegated by that user.
 		AND CASE
-			WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
+			WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				user_id = $6 OR on_behalf_of_user_id = $6
 			ELSE true
 		END
-		-- Filter by username
+		-- Filter by username, including actions delegated by that user.
 		AND CASE
-			WHEN $7::text != '' THEN user_id = (
+			WHEN $7::text != '' THEN
+				user_id = (
+					SELECT id
+					FROM users
+					WHERE lower(username) = lower($7)
+						AND deleted = false
+				) OR on_behalf_of_user_id = (
+					SELECT id
+					FROM users
+					WHERE lower(username) = lower($7)
+						AND deleted = false
+				)
+			ELSE true
+		END
+		-- Filter by the human user an action was performed on behalf of.
+		AND CASE
+			WHEN $8::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				on_behalf_of_user_id = $8
+			WHEN $9::text != '' THEN on_behalf_of_user_id = (
 				SELECT id
 				FROM users
-				WHERE lower(username) = lower($7)
+				WHERE lower(username) = lower($9)
 					AND deleted = false
 			)
 			ELSE true
 		END
 		-- Filter by user_email
 		AND CASE
-			WHEN $8::text != '' THEN users.email = $8
+			WHEN $10::text != '' THEN users.email = $10
 			ELSE true
 		END
 		-- Filter by date_from
 		AND CASE
-			WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
+			WHEN $11::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $11
 			ELSE true
 		END
 		-- Filter by date_to
 		AND CASE
-			WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
+			WHEN $12::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $12
 			ELSE true
 		END
 		-- Filter by build_reason
 		AND CASE
-			WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
+			WHEN $13::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $13
 			ELSE true
 		END
 		-- Filter request_id
 		AND CASE
-			WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
+			WHEN $14::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $14
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
@@ -4425,24 +4444,26 @@ SELECT COUNT(*) FROM (
 	-- here if disabling the capping on a large table permanently.
 	-- This way the PG planner can plan parallel execution for
 	-- potential large wins.
-	LIMIT NULLIF($13::int, 0) + 1
+	LIMIT NULLIF($15::int, 0) + 1
 ) AS limited_count
 `
 
 type CountAuditLogsParams struct {
-	ResourceType   string    `db:"resource_type" json:"resource_type"`
-	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	ResourceTarget string    `db:"resource_target" json:"resource_target"`
-	Action         string    `db:"action" json:"action"`
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
-	Username       string    `db:"username" json:"username"`
-	Email          string    `db:"email" json:"email"`
-	DateFrom       time.Time `db:"date_from" json:"date_from"`
-	DateTo         time.Time `db:"date_to" json:"date_to"`
-	BuildReason    string    `db:"build_reason" json:"build_reason"`
-	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
-	CountCap       int32     `db:"count_cap" json:"count_cap"`
+	ResourceType       string    `db:"resource_type" json:"resource_type"`
+	ResourceID         uuid.UUID `db:"resource_id" json:"resource_id"`
+	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
+	ResourceTarget     string    `db:"resource_target" json:"resource_target"`
+	Action             string    `db:"action" json:"action"`
+	UserID             uuid.UUID `db:"user_id" json:"user_id"`
+	Username           string    `db:"username" json:"username"`
+	OnBehalfOfUserID   uuid.UUID `db:"on_behalf_of_user_id" json:"on_behalf_of_user_id"`
+	OnBehalfOfUsername string    `db:"on_behalf_of_username" json:"on_behalf_of_username"`
+	Email              string    `db:"email" json:"email"`
+	DateFrom           time.Time `db:"date_from" json:"date_from"`
+	DateTo             time.Time `db:"date_to" json:"date_to"`
+	BuildReason        string    `db:"build_reason" json:"build_reason"`
+	RequestID          uuid.UUID `db:"request_id" json:"request_id"`
+	CountCap           int32     `db:"count_cap" json:"count_cap"`
 }
 
 func (q *sqlQuerier) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error) {
@@ -4454,6 +4475,8 @@ func (q *sqlQuerier) CountAuditLogs(ctx context.Context, arg CountAuditLogsParam
 		arg.Action,
 		arg.UserID,
 		arg.Username,
+		arg.OnBehalfOfUserID,
+		arg.OnBehalfOfUsername,
 		arg.Email,
 		arg.DateFrom,
 		arg.DateTo,
@@ -4540,11 +4563,24 @@ SELECT audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organizati
 	users.avatar_url AS user_avatar_url,
 	users.deleted AS user_deleted,
 	users.quiet_hours_schedule AS user_quiet_hours_schedule,
+	on_behalf_of_users.username AS on_behalf_of_user_username,
+	on_behalf_of_users.name AS on_behalf_of_user_name,
+	on_behalf_of_users.email AS on_behalf_of_user_email,
+	on_behalf_of_users.created_at AS on_behalf_of_user_created_at,
+	on_behalf_of_users.updated_at AS on_behalf_of_user_updated_at,
+	on_behalf_of_users.last_seen_at AS on_behalf_of_user_last_seen_at,
+	on_behalf_of_users.status AS on_behalf_of_user_status,
+	on_behalf_of_users.login_type AS on_behalf_of_user_login_type,
+	on_behalf_of_users.rbac_roles AS on_behalf_of_user_roles,
+	on_behalf_of_users.avatar_url AS on_behalf_of_user_avatar_url,
+	on_behalf_of_users.deleted AS on_behalf_of_user_deleted,
+	on_behalf_of_users.quiet_hours_schedule AS on_behalf_of_user_quiet_hours_schedule,
 	COALESCE(organizations.name, '') AS organization_name,
 	COALESCE(organizations.display_name, '') AS organization_display_name,
 	COALESCE(organizations.icon, '') AS organization_icon
 FROM audit_logs
 	LEFT JOIN users ON audit_logs.user_id = users.id
+	LEFT JOIN users AS on_behalf_of_users ON audit_logs.on_behalf_of_user_id = on_behalf_of_users.id
 	LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
 	-- First join on workspaces to get the initial workspace create
 	-- to workspace build 1 id. This is because the first create is
@@ -4587,44 +4623,63 @@ WHERE
 		WHEN $5::text != '' THEN action = $5::audit_action
 		ELSE true
 	END
-	-- Filter by user_id
+	-- Filter by user_id, including actions delegated by that user.
 	AND CASE
-		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
+		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $6 OR on_behalf_of_user_id = $6
 		ELSE true
 	END
-	-- Filter by username
+	-- Filter by username, including actions delegated by that user.
 	AND CASE
-		WHEN $7::text != '' THEN user_id = (
+		WHEN $7::text != '' THEN
+			user_id = (
+				SELECT id
+				FROM users
+				WHERE lower(username) = lower($7)
+					AND deleted = false
+			) OR on_behalf_of_user_id = (
+				SELECT id
+				FROM users
+				WHERE lower(username) = lower($7)
+					AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by the human user an action was performed on behalf of.
+	AND CASE
+		WHEN $8::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			on_behalf_of_user_id = $8
+		WHEN $9::text != '' THEN on_behalf_of_user_id = (
 			SELECT id
 			FROM users
-			WHERE lower(username) = lower($7)
+			WHERE lower(username) = lower($9)
 				AND deleted = false
 		)
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN $8::text != '' THEN users.email = $8
+		WHEN $10::text != '' THEN users.email = $10
 		ELSE true
 	END
 	-- Filter by date_from
 	AND CASE
-		WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
+		WHEN $11::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $11
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-		WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
+		WHEN $12::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $12
 		ELSE true
 	END
 	-- Filter by build_reason
 	AND CASE
-		WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
+		WHEN $13::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $13
 		ELSE true
 	END
 	-- Filter request_id
 	AND CASE
-		WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
+		WHEN $14::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $14
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
@@ -4633,43 +4688,57 @@ ORDER BY "time" DESC
 LIMIT -- a limit of 0 means "no limit". The audit log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($14::int, 0), 100) OFFSET $13
+	COALESCE(NULLIF($16::int, 0), 100) OFFSET $15
 `
 
 type GetAuditLogsOffsetParams struct {
-	ResourceType   string    `db:"resource_type" json:"resource_type"`
-	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	ResourceTarget string    `db:"resource_target" json:"resource_target"`
-	Action         string    `db:"action" json:"action"`
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
-	Username       string    `db:"username" json:"username"`
-	Email          string    `db:"email" json:"email"`
-	DateFrom       time.Time `db:"date_from" json:"date_from"`
-	DateTo         time.Time `db:"date_to" json:"date_to"`
-	BuildReason    string    `db:"build_reason" json:"build_reason"`
-	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
-	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+	ResourceType       string    `db:"resource_type" json:"resource_type"`
+	ResourceID         uuid.UUID `db:"resource_id" json:"resource_id"`
+	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
+	ResourceTarget     string    `db:"resource_target" json:"resource_target"`
+	Action             string    `db:"action" json:"action"`
+	UserID             uuid.UUID `db:"user_id" json:"user_id"`
+	Username           string    `db:"username" json:"username"`
+	OnBehalfOfUserID   uuid.UUID `db:"on_behalf_of_user_id" json:"on_behalf_of_user_id"`
+	OnBehalfOfUsername string    `db:"on_behalf_of_username" json:"on_behalf_of_username"`
+	Email              string    `db:"email" json:"email"`
+	DateFrom           time.Time `db:"date_from" json:"date_from"`
+	DateTo             time.Time `db:"date_to" json:"date_to"`
+	BuildReason        string    `db:"build_reason" json:"build_reason"`
+	RequestID          uuid.UUID `db:"request_id" json:"request_id"`
+	OffsetOpt          int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt           int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetAuditLogsOffsetRow struct {
-	AuditLog                AuditLog       `db:"audit_log" json:"audit_log"`
-	UserUsername            sql.NullString `db:"user_username" json:"user_username"`
-	UserName                sql.NullString `db:"user_name" json:"user_name"`
-	UserEmail               sql.NullString `db:"user_email" json:"user_email"`
-	UserCreatedAt           sql.NullTime   `db:"user_created_at" json:"user_created_at"`
-	UserUpdatedAt           sql.NullTime   `db:"user_updated_at" json:"user_updated_at"`
-	UserLastSeenAt          sql.NullTime   `db:"user_last_seen_at" json:"user_last_seen_at"`
-	UserStatus              NullUserStatus `db:"user_status" json:"user_status"`
-	UserLoginType           NullLoginType  `db:"user_login_type" json:"user_login_type"`
-	UserRoles               pq.StringArray `db:"user_roles" json:"user_roles"`
-	UserAvatarUrl           sql.NullString `db:"user_avatar_url" json:"user_avatar_url"`
-	UserDeleted             sql.NullBool   `db:"user_deleted" json:"user_deleted"`
-	UserQuietHoursSchedule  sql.NullString `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
-	OrganizationName        string         `db:"organization_name" json:"organization_name"`
-	OrganizationDisplayName string         `db:"organization_display_name" json:"organization_display_name"`
-	OrganizationIcon        string         `db:"organization_icon" json:"organization_icon"`
+	AuditLog                         AuditLog       `db:"audit_log" json:"audit_log"`
+	UserUsername                     sql.NullString `db:"user_username" json:"user_username"`
+	UserName                         sql.NullString `db:"user_name" json:"user_name"`
+	UserEmail                        sql.NullString `db:"user_email" json:"user_email"`
+	UserCreatedAt                    sql.NullTime   `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt                    sql.NullTime   `db:"user_updated_at" json:"user_updated_at"`
+	UserLastSeenAt                   sql.NullTime   `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserStatus                       NullUserStatus `db:"user_status" json:"user_status"`
+	UserLoginType                    NullLoginType  `db:"user_login_type" json:"user_login_type"`
+	UserRoles                        pq.StringArray `db:"user_roles" json:"user_roles"`
+	UserAvatarUrl                    sql.NullString `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted                      sql.NullBool   `db:"user_deleted" json:"user_deleted"`
+	UserQuietHoursSchedule           sql.NullString `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	OnBehalfOfUserUsername           sql.NullString `db:"on_behalf_of_user_username" json:"on_behalf_of_user_username"`
+	OnBehalfOfUserName               sql.NullString `db:"on_behalf_of_user_name" json:"on_behalf_of_user_name"`
+	OnBehalfOfUserEmail              sql.NullString `db:"on_behalf_of_user_email" json:"on_behalf_of_user_email"`
+	OnBehalfOfUserCreatedAt          sql.NullTime   `db:"on_behalf_of_user_created_at" json:"on_behalf_of_user_created_at"`
+	OnBehalfOfUserUpdatedAt          sql.NullTime   `db:"on_behalf_of_user_updated_at" json:"on_behalf_of_user_updated_at"`
+	OnBehalfOfUserLastSeenAt         sql.NullTime   `db:"on_behalf_of_user_last_seen_at" json:"on_behalf_of_user_last_seen_at"`
+	OnBehalfOfUserStatus             NullUserStatus `db:"on_behalf_of_user_status" json:"on_behalf_of_user_status"`
+	OnBehalfOfUserLoginType          NullLoginType  `db:"on_behalf_of_user_login_type" json:"on_behalf_of_user_login_type"`
+	OnBehalfOfUserRoles              pq.StringArray `db:"on_behalf_of_user_roles" json:"on_behalf_of_user_roles"`
+	OnBehalfOfUserAvatarUrl          sql.NullString `db:"on_behalf_of_user_avatar_url" json:"on_behalf_of_user_avatar_url"`
+	OnBehalfOfUserDeleted            sql.NullBool   `db:"on_behalf_of_user_deleted" json:"on_behalf_of_user_deleted"`
+	OnBehalfOfUserQuietHoursSchedule sql.NullString `db:"on_behalf_of_user_quiet_hours_schedule" json:"on_behalf_of_user_quiet_hours_schedule"`
+	OrganizationName                 string         `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName          string         `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon                 string         `db:"organization_icon" json:"organization_icon"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -4683,6 +4752,8 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Action,
 		arg.UserID,
 		arg.Username,
+		arg.OnBehalfOfUserID,
+		arg.OnBehalfOfUsername,
 		arg.Email,
 		arg.DateFrom,
 		arg.DateTo,
@@ -4727,6 +4798,18 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.UserAvatarUrl,
 			&i.UserDeleted,
 			&i.UserQuietHoursSchedule,
+			&i.OnBehalfOfUserUsername,
+			&i.OnBehalfOfUserName,
+			&i.OnBehalfOfUserEmail,
+			&i.OnBehalfOfUserCreatedAt,
+			&i.OnBehalfOfUserUpdatedAt,
+			&i.OnBehalfOfUserLastSeenAt,
+			&i.OnBehalfOfUserStatus,
+			&i.OnBehalfOfUserLoginType,
+			&i.OnBehalfOfUserRoles,
+			&i.OnBehalfOfUserAvatarUrl,
+			&i.OnBehalfOfUserDeleted,
+			&i.OnBehalfOfUserQuietHoursSchedule,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,

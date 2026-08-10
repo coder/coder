@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -523,17 +524,22 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		}
 
 		ip := database.ParseIP(p.Request.RemoteAddr)
+		onBehalfOfUserID := uuid.NullUUID{}
+		if actor, ok := aiagentidentity.ActorFromContext(p.Request.Context()); ok {
+			onBehalfOfUserID = uuid.NullUUID{UUID: actor.OwnerUserID, Valid: true}
+		}
 		auditLog := database.AuditLog{
-			ID:             uuid.New(),
-			Time:           dbtime.Now(),
-			UserID:         userID,
-			Ip:             ip,
-			UserAgent:      sql.NullString{String: p.Request.UserAgent(), Valid: true},
-			ResourceType:   either(req.Old, req.New, ResourceType[T], req.params.Action),
-			ResourceID:     either(req.Old, req.New, ResourceID[T], req.params.Action),
-			ResourceTarget: either(req.Old, req.New, ResourceTarget[T], req.params.Action),
-			Action:         action,
-			Diff:           diffRaw,
+			ID:               uuid.New(),
+			Time:             dbtime.Now(),
+			UserID:           userID,
+			OnBehalfOfUserID: onBehalfOfUserID,
+			Ip:               ip,
+			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
+			ResourceType:     either(req.Old, req.New, ResourceType[T], req.params.Action),
+			ResourceID:       either(req.Old, req.New, ResourceID[T], req.params.Action),
+			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T], req.params.Action),
+			Action:           action,
+			Diff:             diffRaw,
 			// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),

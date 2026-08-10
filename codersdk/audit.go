@@ -228,7 +228,8 @@ type AuditLog struct {
 
 	Organization *MinimalOrganization `json:"organization,omitempty"`
 
-	User *User `json:"user"`
+	User       *User `json:"user"`
+	OnBehalfOf *User `json:"on_behalf_of,omitempty"`
 }
 
 type AuditLogsRequest struct {

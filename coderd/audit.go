@@ -71,6 +71,18 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		countFilter.Username = ""
 	}
 
+	if filter.OnBehalfOfUsername == "me" {
+		principalID, err := uuid.Parse(httpmw.UserAuthorization(ctx).ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, xerrors.Errorf("parse audit principal ID: %w", err))
+			return
+		}
+		filter.OnBehalfOfUserID = principalID
+		filter.OnBehalfOfUsername = ""
+		countFilter.OnBehalfOfUserID = principalID
+		countFilter.OnBehalfOfUsername = ""
+	}
+
 	countFilter.CountCap = auditLogCountCap
 	count, err := api.Database.CountAuditLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
@@ -231,6 +243,26 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		user = &sdkUser
 	}
 
+	var onBehalfOf *codersdk.User
+	if dblog.AuditLog.OnBehalfOfUserID.Valid && dblog.OnBehalfOfUserUsername.Valid {
+		sdkUser := db2sdk.User(database.User{
+			ID:                 dblog.AuditLog.OnBehalfOfUserID.UUID,
+			Email:              dblog.OnBehalfOfUserEmail.String,
+			Username:           dblog.OnBehalfOfUserUsername.String,
+			CreatedAt:          dblog.OnBehalfOfUserCreatedAt.Time,
+			UpdatedAt:          dblog.OnBehalfOfUserUpdatedAt.Time,
+			Status:             dblog.OnBehalfOfUserStatus.UserStatus,
+			RBACRoles:          dblog.OnBehalfOfUserRoles,
+			LoginType:          dblog.OnBehalfOfUserLoginType.LoginType,
+			AvatarURL:          dblog.OnBehalfOfUserAvatarUrl.String,
+			Deleted:            dblog.OnBehalfOfUserDeleted.Bool,
+			LastSeenAt:         dblog.OnBehalfOfUserLastSeenAt.Time,
+			QuietHoursSchedule: dblog.OnBehalfOfUserQuietHoursSchedule.String,
+			Name:               dblog.OnBehalfOfUserName.String,
+		}, []uuid.UUID{})
+		onBehalfOf = &sdkUser
+	}
+
 	var (
 		additionalFieldsBytes = []byte(dblog.AuditLog.AdditionalFields)
 		additionalFields      audit.AdditionalFields
@@ -276,6 +308,7 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		StatusCode:       dblog.AuditLog.StatusCode,
 		AdditionalFields: dblog.AuditLog.AdditionalFields,
 		User:             user,
+		OnBehalfOf:       onBehalfOf,
 		Description:      auditLogDescription(dblog),
 		ResourceLink:     resourceLink,
 		IsDeleted:        isDeleted,

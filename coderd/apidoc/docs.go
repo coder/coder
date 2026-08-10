@@ -16930,6 +16930,9 @@ const docTemplate = `{
                 "is_deleted": {
                     "type": "boolean"
                 },
+                "on_behalf_of": {
+                    "$ref": "#/definitions/codersdk.User"
+                },
                 "organization": {
                     "$ref": "#/definitions/codersdk.MinimalOrganization"
                 },

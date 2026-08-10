@@ -1622,6 +1622,7 @@ export interface AuditLog {
 	readonly organization_id: string;
 	readonly organization?: MinimalOrganization;
 	readonly user: User | null;
+	readonly on_behalf_of?: User;
 }
 
 // From codersdk/audit.go
