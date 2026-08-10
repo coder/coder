@@ -1,0 +1,30 @@
+Streaming response with cumulative usage on every JSON chunk and an injected tool call.
+
+-- request --
+{
+  "model": "gpt-4.1",
+  "messages": [
+    {
+      "role": "user",
+      "content": "list my coder workspaces"
+    }
+  ]
+}
+
+-- streaming --
+data: {"id":"chatcmpl-cumulative-tool","object":"chat.completion.chunk","created":1754479216,"model":"gpt-4.1","choices":[{"index":0,"delta":{"content":"Calling"}}],"usage":{"prompt_tokens":6000,"completion_tokens":10,"total_tokens":6010}}
+
+data: {"id":"chatcmpl-cumulative-tool","object":"chat.completion.chunk","created":1754479216,"model":"gpt-4.1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-cumulative","type":"function","function":{"name":"bmcp_coder_coder_list_workspaces","arguments":"{}"}}]}}],"usage":{"prompt_tokens":6000,"completion_tokens":20,"total_tokens":6020}}
+
+data: {"id":"chatcmpl-cumulative-tool","object":"chat.completion.chunk","created":1754479216,"model":"gpt-4.1","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030}}
+
+data: [DONE]
+
+-- streaming/tool-call --
+data: {"id":"chatcmpl-cumulative-final","object":"chat.completion.chunk","created":1754479217,"model":"gpt-4.1","choices":[{"index":0,"delta":{"content":"Done"}}],"usage":{"prompt_tokens":6000,"completion_tokens":10,"total_tokens":6010}}
+
+data: {"id":"chatcmpl-cumulative-final","object":"chat.completion.chunk","created":1754479217,"model":"gpt-4.1","choices":[{"index":0,"delta":{"content":"."}}],"usage":{"prompt_tokens":6000,"completion_tokens":20,"total_tokens":6020}}
+
+data: {"id":"chatcmpl-cumulative-final","object":"chat.completion.chunk","created":1754479217,"model":"gpt-4.1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030}}
+
+data: [DONE]
