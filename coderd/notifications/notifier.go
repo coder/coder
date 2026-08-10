@@ -250,20 +250,11 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, decorateHelpersError{err}
 	}
 
-	// Render the title and body from a sanitized copy so that user-controlled
-	// values (display names from OIDC claims, label values) cannot inject
-	// Markdown into the contexts that are subsequently Markdown-rendered: the
-	// SMTP HTML email and the react-markdown inbox. The original payload is
-	// passed to the dispatcher unmodified so that non-Markdown consumers (the
-	// webhook JSON, the SMTP greeting, and the plaintext email part) receive
-	// verbatim values rather than escaped ones.
-	sanitized := render.SanitizedPayload(payload)
-
 	var title, body string
-	if title, err = render.GoTemplate(msg.TitleTemplate, sanitized, helpers); err != nil {
+	if title, err = render.GoTemplate(msg.TitleTemplate, payload, helpers); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	if body, err = render.GoTemplate(msg.BodyTemplate, sanitized, helpers); err != nil {
+	if body, err = render.GoTemplate(msg.BodyTemplate, payload, helpers); err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
