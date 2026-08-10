@@ -944,6 +944,12 @@ func measureUsage(
 // appendAgentRuntimeHoursWarning appends at most one warning: reaching the
 // allocation supersedes the advisory soft limit, so the dashboard banner
 // never stacks both messages.
+//
+// These warnings reach admins only. The member-facing dashboard banner
+// (site/src/modules/dashboard/AgentRuntimeBanner) re-derives its ladder
+// client-side from the feature's serialized thresholds, including this
+// function's non-positive-allocation short-circuit, so keep the two in
+// sync.
 func appendAgentRuntimeHoursWarning(warnings []string, actualHours int64, allocation int64, softLimit *int64) []string {
 	if allocation <= 0 {
 		return warnings
