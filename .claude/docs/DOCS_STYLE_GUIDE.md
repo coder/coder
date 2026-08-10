@@ -168,6 +168,37 @@ superseded by the canonical content guidelines.
 
 ## Code Examples
 
+### Configuration examples: prefer environment variables
+
+When showing how to configure `coder server` in admin or setup
+documentation, lead with the environment variable form. Production Coder
+deployments are typically run as a system service, container, or Helm
+chart, all of which set configuration through environment variables (for
+example, Helm `values.yaml` for Kubernetes or `/etc/coder.d/coder.env` for
+a system service). Showing the CLI flag form first forces operators to
+mentally translate every example.
+
+Show the equivalent CLI flag only when the example is invoking
+`coder server` directly (for local development or one-off runs), or as a
+supporting note. Point readers at the
+[configuration reference](../../docs/admin/setup/configuration-reference.md)
+for the full mapping between environment variables, flags, and YAML keys.
+
+````markdown
+```sh
+# Preferred for admin/setup docs:
+CODER_UPDATE_CHECK=false
+```
+````
+
+CLI flag form, reserved for ad-hoc invocations:
+
+````markdown
+```sh
+coder server --update-check=false
+```
+````
+
 ### Command Examples
 
 ````markdown

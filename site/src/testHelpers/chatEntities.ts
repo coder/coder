@@ -20,6 +20,7 @@ export const MockChat: Chat = {
 	title: "Agent",
 	status: "waiting",
 	last_turn_summary: null,
+	summary: null,
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 	archived: false,

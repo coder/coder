@@ -417,6 +417,27 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name: "SharedWithGroupInOrgMixedCase",
+			// The parser lowercases the whole query, so a group whose stored
+			// name contains uppercase letters must still resolve. See
+			// GetGroupByOrgAndName, which matches the name case-insensitively.
+			Query: "shared_with_group:wibble/SupportShare",
+			Setup: func(t *testing.T, db database.Store) {
+				org := dbgen.Organization(t, db, database.Organization{
+					ID:   uuid.MustParse("b5f9d1f4-6d0e-4f6a-9a4a-7b2c3d4e5f60"),
+					Name: "wibble",
+				})
+				dbgen.Group(t, db, database.Group{
+					ID:             uuid.MustParse("1a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d"),
+					Name:           "SupportShare",
+					OrganizationID: org.ID,
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithGroupID: uuid.MustParse("1a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d"),
+			},
+		},
+		{
 			Name:  "SharedWithGroupID",
 			Query: "shared_with_group:a7d1ba00-53c7-4aa6-92ea-83157dd57480",
 			Setup: func(t *testing.T, db database.Store) {
@@ -959,6 +980,20 @@ func TestSearchTemplates(t *testing.T) {
 					Bool:  false,
 					Valid: false,
 				},
+			},
+		},
+		{
+			Name:  "AgentsAllowedTrue",
+			Query: "agents-allowed:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				AgentsAllowed: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "AgentsAllowedFalse",
+			Query: "agents-allowed:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				AgentsAllowed: sql.NullBool{Bool: false, Valid: true},
 			},
 		},
 		{

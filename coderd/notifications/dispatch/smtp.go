@@ -66,7 +66,7 @@ func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTm
 		return nil, xerrors.Errorf("render subject: %w", err)
 	}
 
-	htmlBody := markdown.HTMLFromMarkdown(bodyTmpl)
+	htmlBody := markdown.HTMLFromMarkdownSafe(bodyTmpl)
 	plainBody, err := markdown.PlaintextFromMarkdown(bodyTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render plaintext body: %w", err)

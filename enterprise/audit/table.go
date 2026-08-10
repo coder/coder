@@ -131,6 +131,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"cors_behavior":                     ActionTrack,
 		"disable_module_cache":              ActionTrack,
 		"time_til_autostop_notify":          ActionTrack,
+		"agents_allowed":                    ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -278,6 +279,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.PrebuildsSettings{}: {
 		"id":                    ActionIgnore,
 		"reconciliation_paused": ActionTrack,
+	},
+	&database.OAuth2ProviderSettings{}: {
+		"id":                                  ActionIgnore,
+		"dynamic_client_registration_enabled": ActionTrack,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
@@ -461,6 +466,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"archived":                    ActionTrack,
 		"last_error":                  ActionIgnore, // Internal.
 		"last_turn_summary":           ActionIgnore, // Internal cached display text.
+		"summary":                     ActionIgnore, // Internal cached display text, generated asynchronously.
+		"summary_generated_at":        ActionIgnore, // Internal freshness marker for the cached summary.
 		"mode":                        ActionTrack,
 		"mcp_server_ids":              ActionTrack,
 		"labels":                      ActionTrack,
@@ -483,6 +490,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"generation_attempt":          ActionIgnore, // Internal retry counter.
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
+		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,
@@ -500,6 +508,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"description": ActionTrack,
 		"env_name":    ActionTrack,
 		"file_path":   ActionTrack,
+		"enabled":     ActionTrack,
 
 		"value": ActionSecret,
 

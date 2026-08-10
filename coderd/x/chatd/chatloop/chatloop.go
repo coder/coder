@@ -73,10 +73,10 @@ type PersistedStep struct {
 	Content      []fantasy.Content
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
-	// Runtime is the wall-clock duration of this step,
-	// covering LLM streaming, tool execution, and retries.
-	// Zero indicates the duration was not measured (e.g.
-	// interrupted steps).
+	// Runtime is the wall-clock duration of the model invocation
+	// that produced this step's content, measured from just before
+	// the provider stream is opened until the stream is fully
+	// consumed.
 	Runtime time.Duration
 	// PendingDynamicToolCalls lists tool calls that target
 	// dynamic tools. When non-empty the chatloop exits with
@@ -219,6 +219,11 @@ type GenerateAssistantOptions struct {
 	ProviderOptions      fantasy.ProviderOptions
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	// OnModelStreamStart runs immediately before the provider stream is
+	// opened, at the instant PersistedStep.Runtime starts measuring. It
+	// lets callers record the billable window's start out of band, so an
+	// interrupted attempt bills the same window a completed step reports.
+	OnModelStreamStart func()
 	Logger             slog.Logger
 	Metrics            *Metrics
 }
@@ -274,9 +279,18 @@ type GenerateCompactionOptions struct {
 	ContextLimit         int64
 	ContextLimitFallback int64
 	SummaryPrompt        string
+	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata
+
+	// Force skips the threshold gate (including the threshold=100
+	// disable and the zero-usage early return). Set for manual,
+	// user-requested compactions.
+	Force bool
+	// Source labels what triggered the compaction. Defaults to
+	// CompactionSourceAutomatic when empty.
+	Source CompactionSource
 
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
@@ -296,6 +310,13 @@ type GenerateCompactionOptions struct {
 	ProviderOptions fantasy.ProviderOptions
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+
+	// Clock measures the summary call duration. Required.
+	Clock quartz.Clock
+
+	// OnModelStreamStart runs immediately before the summary model call,
+	// at the instant CompactionResult.Runtime starts measuring.
+	OnModelStreamStart func()
 }
 
 // ProviderTool pairs a provider-native tool definition with an
@@ -391,6 +412,9 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	}
 
 	stepStart := opts.Clock.Now()
+	if opts.OnModelStreamStart != nil {
+		opts.OnModelStreamStart()
+	}
 	stepCtx := chatdebug.ReuseStep(ctx)
 	attempt, streamErr := guardedStream(
 		stepCtx,
@@ -431,10 +455,12 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,
 	)
-	// A content-filter finish with no content means the provider's
-	// safety classifiers blocked the whole response (e.g. Anthropic
-	// stop_reason "refusal").
-	if len(result.content) == 0 && result.finishReason == fantasy.FinishReasonContentFilter {
+	// A content-filter finish without user-visible output means the
+	// provider's safety classifiers blocked the whole response (e.g.
+	// Anthropic stop_reason "refusal"). The refusal can arrive after
+	// reasoning has already streamed, so reasoning alone must not
+	// count as output.
+	if result.finishReason == fantasy.FinishReasonContentFilter && !hasUserVisibleContent(result.content) {
 		return AssistantOutcome{}, contentFilterError(errorProvider, result.providerMetadata)
 	}
 	step := PersistedStep{
@@ -469,6 +495,20 @@ func wrapProviderStreamError(provider string, err error) error {
 		}
 	}
 	return xerrors.Errorf("stream response: %w", chaterror.WithClassification(err, classified))
+}
+
+// hasUserVisibleContent reports whether any content part carries output the
+// user can see. Reasoning parts do not count: they stream transiently and are
+// not a substitute for a response.
+func hasUserVisibleContent(content []fantasy.Content) bool {
+	for _, part := range content {
+		switch part.(type) {
+		case fantasy.ReasoningContent, *fantasy.ReasoningContent:
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {

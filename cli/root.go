@@ -109,6 +109,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.logout(),
 		r.netcheck(),
 		r.notifications(),
+		r.oauth2Provider(),
 		r.organizations(),
 		r.portForward(),
 		r.publickey(),

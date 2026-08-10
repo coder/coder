@@ -1,22 +1,17 @@
 import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import {
 	Badges,
 	EnterpriseBadge,
 	PremiumBadge,
 } from "#/components/Badges/Badges";
-import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { deploymentGroupHasParent } from "#/utils/deployOptions";
 import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
@@ -48,31 +43,23 @@ export const ObservabilitySettingsPageView: FC<
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Badges>
-					<Tooltip>
-						{featureAuditLogEnabled && !isPremium ? (
-							<EnterpriseBadge />
-						) : (
-							<TooltipTrigger asChild>
-								<span>
-									<PremiumBadge />
-								</span>
-							</TooltipTrigger>
-						)}
-
-						<TooltipContent
-							sideOffset={-28}
-							collisionPadding={16}
-							className="p-0"
+				{featureAuditLogEnabled || isPremium ? (
+					<Badges>{isPremium ? <PremiumBadge /> : <EnterpriseBadge />}</Badges>
+				) : (
+					<Alert severity="info" actions={<PremiumBadge />}>
+						Audit logging lets auditors monitor user operations across your
+						deployment. It requires a Premium license.{" "}
+						<a
+							href={docs("/admin/security/audit-logs")}
+							target="_blank"
+							rel="noreferrer"
+							className="text-content-link font-medium"
 						>
-							<PopoverPaywall
-								message="Observability"
-								description="With a Premium license, you can monitor your application with logs and metrics."
-								documentationLink={docs("/admin/monitoring")}
-							/>
-						</TooltipContent>
-					</Tooltip>
-				</Badges>
+							Read the Audit Logs documentation
+						</a>
+						.
+					</Alert>
+				)}
 			</div>
 
 			<div>

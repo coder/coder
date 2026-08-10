@@ -46,6 +46,7 @@ import {
 	filterSkillsByQuery,
 	isPersonalSkillTriggerToken,
 } from "../../utils/personalSkills";
+import type { ChatSlashCommand } from "../../utils/slashCommands";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
@@ -59,6 +60,7 @@ import {
 	type PasteCommandEvent,
 } from "./pasteHelpers";
 import {
+	createCommandMenuItem,
 	createSkillMenuItem,
 	type SkillMenuItem,
 	type SkillMetadata,
@@ -520,6 +522,12 @@ interface ChatMessageInputProps
 	 * detail is still loading (or when no chat exists yet).
 	 */
 	workspaceSkills?: readonly SkillMetadata[];
+	/**
+	 * Built-in commands offered by the "/" trigger menu ahead of
+	 * skills. Selection inserts the command text; the parent
+	 * composer intercepts it at submit time.
+	 */
+	slashCommands?: readonly ChatSlashCommand[];
 	"aria-label"?: string;
 }
 
@@ -588,6 +596,7 @@ const ChatMessageInput = ({
 	hasWorkspace,
 	personalSkillsOverride,
 	workspaceSkills,
+	slashCommands,
 	"aria-label": ariaLabel,
 	ref,
 	...props
@@ -631,6 +640,24 @@ const ChatMessageInput = ({
 	// personal triggers qualified (a qualified alias always resolves) and
 	// treat the workspace list as still loading.
 	const workspaceSkillsKnown = !hasWorkspace || workspaceSkills !== undefined;
+	// A personal or workspace skill with the same name takes
+	// precedence over a built-in command: the composer's submit
+	// intercept defers to the skill, so the menu must not advertise a
+	// dead command entry. Until both skill lists resolve, a collision
+	// cannot be ruled out, so no built-in commands are offered
+	// (matching the submit intercept, which also stands down while
+	// skills are unknown).
+	const skillsResolved =
+		(hasPersonalSkillsOverride || skillsQuery.isSuccess) &&
+		workspaceSkillsKnown;
+	const availableSlashCommands = skillsResolved
+		? (slashCommands ?? []).filter(
+				(command) =>
+					!personalSkills.some((skill) => skill.name === command.name) &&
+					!loadedWorkspaceSkills.some((skill) => skill.name === command.name),
+			)
+		: [];
+	const hasSlashCommands = availableSlashCommands.length > 0;
 	// A stale empty cache with a refetch in flight must not dismiss the menu.
 	const isResolvedEmptyPersonalSkills = hasPersonalSkillsOverride
 		? personalSkills.length === 0
@@ -642,13 +669,18 @@ const ChatMessageInput = ({
 	// never reopen it.
 	const isResolvedEmptyWorkspaceSkills =
 		workspaceSkillsKnown && loadedWorkspaceSkills.length === 0;
-	// When both skills lists resolve empty, "/" is plain text. When only
-	// the filtered result is empty, keep the menu open for the no-match
-	// message.
+	// Without built-in commands, "/" is plain text when both skills
+	// lists resolve empty. When only the filtered result is empty,
+	// keep the menu open for the no-match message.
 	const skillsMenuOpen =
 		hasSkillsTrigger &&
-		!(isResolvedEmptyPersonalSkills && isResolvedEmptyWorkspaceSkills);
+		(hasSlashCommands ||
+			!(isResolvedEmptyPersonalSkills && isResolvedEmptyWorkspaceSkills));
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
+	const commandMenuItems: readonly SkillMenuItem[] = filterSkillsByQuery(
+		availableSlashCommands.map(createCommandMenuItem),
+		skillsSearchQuery,
+	);
 	const workspaceSkillNames = new Set(
 		loadedWorkspaceSkills.map((skill) => skill.name),
 	);
@@ -668,7 +700,9 @@ const ChatMessageInput = ({
 		),
 		skillsSearchQuery,
 	);
+	// Commands come first so partitioned menu groups match selection order.
 	const allFilteredSkills: readonly SkillMenuItem[] = [
+		...commandMenuItems,
 		...personalSkillItems,
 		...workspaceSkillItems,
 	];
@@ -957,6 +991,7 @@ const ChatMessageInput = ({
 					open={skillsMenuOpen}
 					anchorRect={skillsTrigger?.anchorRect ?? null}
 					query={skillsSearchQuery}
+					commands={commandMenuItems}
 					personalSkills={personalSkillItems}
 					workspaceSkills={workspaceSkillItems}
 					workspaceSkillsEnabled={Boolean(hasWorkspace)}

@@ -1,40 +1,65 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
-import type { GroupAICostControl, GroupWithAICostControl } from "#/api/api";
-import { MockGroup } from "#/testHelpers/entities";
-import { GroupsPageView } from "./GroupsPageView";
+import { MockGroup, MockPermissions } from "#/testHelpers/entities";
+import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
 
 const meta: Meta<typeof GroupsPageView> = {
 	title: "pages/OrganizationGroupsPage",
 	component: GroupsPageView,
+	args: {
+		permissions: MockPermissions,
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof GroupsPageView>;
 
-const aiGroup = (
-	id: string,
-	name: string,
-	ai_cost_control?: GroupAICostControl,
-): GroupWithAICostControl => ({
+const mockGroupWithSpend: GroupWithSpend = {
 	...MockGroup,
+	spend: undefined,
+};
+
+const aiGroup = (id: string, name: string): GroupWithSpend => ({
+	...mockGroupWithSpend,
 	id,
 	name,
 	display_name: name,
-	ai_cost_control,
 });
 
 export const NotEnabled: Story = {
 	args: {
-		groups: [MockGroup],
+		groups: [{ ...mockGroupWithSpend }],
 		canCreateGroup: true,
 		groupsEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const NotEnabledWithoutLicenseAccess: Story = {
+	args: {
+		...NotEnabled.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Learn about Premium" }),
+		).not.toBeInTheDocument();
 	},
 };
 
 export const WithGroups: Story = {
 	args: {
-		groups: [MockGroup],
+		groups: [{ ...mockGroupWithSpend }],
 		canCreateGroup: true,
 		groupsEnabled: true,
 	},
@@ -46,35 +71,70 @@ export const WithAIBudgets: Story = {
 		groupsEnabled: true,
 		showAIBudget: true,
 		groups: [
-			aiGroup("ai-unlimited", "Unlimited", {
-				current_spend_micros: 25_492_000_000,
-				spend_limit_micros: null,
-			}),
-			aiGroup("ai-under", "Under budget", {
-				current_spend_micros: 10_000_000,
-				spend_limit_micros: 50_000_000,
-			}),
-			aiGroup("ai-warning", "Near limit", {
-				current_spend_micros: 46_000_000,
-				spend_limit_micros: 50_000_000,
-			}),
-			aiGroup("ai-at-limit", "At limit", {
-				current_spend_micros: 50_000_000,
-				spend_limit_micros: 50_000_000,
-			}),
-			aiGroup("ai-over", "Over budget", {
-				current_spend_micros: 75_000_000,
-				spend_limit_micros: 50_000_000,
-			}),
-			aiGroup("ai-zero-budget", "Zero budget", {
-				current_spend_micros: 5_000_000,
-				spend_limit_micros: 0,
-			}),
-			aiGroup("ai-zero-both", "Zero spend and budget", {
-				current_spend_micros: 0,
-				spend_limit_micros: 0,
-			}),
-			// No cost control exercises the missing-spend "-" fallback.
+			{
+				...aiGroup("ai-unlimited", "Unlimited"),
+				spend: {
+					group_id: "ai-unlimited",
+					current_spend_micros: 25_492_000_000,
+					spend_limit_micros: null,
+					total_spend_limit_micros: null,
+				},
+			},
+			{
+				...aiGroup("ai-under", "Under budget"),
+				spend: {
+					group_id: "ai-under",
+					current_spend_micros: 10_000_000,
+					spend_limit_micros: 25_000_000,
+					total_spend_limit_micros: 50_000_000,
+				},
+			},
+			{
+				...aiGroup("ai-warning", "Near limit"),
+				spend: {
+					group_id: "ai-warning",
+					current_spend_micros: 46_000_000,
+					spend_limit_micros: 25_000_000,
+					total_spend_limit_micros: 50_000_000,
+				},
+			},
+			{
+				...aiGroup("ai-at-limit", "At limit"),
+				spend: {
+					group_id: "ai-at-limit",
+					current_spend_micros: 50_000_000,
+					spend_limit_micros: 25_000_000,
+					total_spend_limit_micros: 50_000_000,
+				},
+			},
+			{
+				...aiGroup("ai-over", "Over budget"),
+				spend: {
+					group_id: "ai-over",
+					current_spend_micros: 75_000_000,
+					spend_limit_micros: 25_000_000,
+					total_spend_limit_micros: 50_000_000,
+				},
+			},
+			{
+				...aiGroup("ai-zero-budget", "Zero budget"),
+				spend: {
+					group_id: "ai-zero-budget",
+					current_spend_micros: 5_000_000,
+					spend_limit_micros: 0,
+					total_spend_limit_micros: 0,
+				},
+			},
+			{
+				...aiGroup("ai-zero-both", "Zero spend and budget"),
+				spend: {
+					group_id: "ai-zero-both",
+					current_spend_micros: 0,
+					spend_limit_micros: 0,
+					total_spend_limit_micros: 0,
+				},
+			},
+			// No spend exercises the missing-spend em-dash fallback.
 			aiGroup("ai-no-data", "No data"),
 		],
 	},
@@ -97,7 +157,7 @@ export const WithAIBudgets: Story = {
 		).toHaveTextContent("$5 / $0 USD");
 		await expect(
 			await canvas.findByTestId("group-ai-no-data"),
-		).toHaveTextContent("-");
+		).toHaveTextContent("\u2014");
 	},
 };
 
@@ -111,7 +171,43 @@ export const WithAIBudgetsLoading: Story = {
 	},
 };
 
-// Cost control unset for a group: the cell falls back to "-".
+// Spend still loading: every AI budget cell falls back to an em dash.
+export const WithAIBudgetsSpendLoading: Story = {
+	args: {
+		groups: [aiGroup("ai-loading", "Spend loading")],
+		canCreateGroup: true,
+		groupsEnabled: true,
+		showAIBudget: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByTestId("group-ai-loading"),
+		).toHaveTextContent("\u2014");
+	},
+};
+
+// The spend fetch failed: the column header shows a warning and cells an em dash.
+export const WithAIBudgetsSpendError: Story = {
+	args: {
+		groups: [aiGroup("ai-errored", "Spend errored")],
+		spendError: true,
+		canCreateGroup: true,
+		groupsEnabled: true,
+		showAIBudget: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByTestId("group-ai-errored"),
+		).toHaveTextContent("\u2014");
+		await expect(
+			canvas.getByRole("button", { name: "More info" }),
+		).toBeInTheDocument();
+	},
+};
+
+// Cost control unset for a group: the cell falls back to an em dash.
 export const WithAIBudgetsSpendUnavailable: Story = {
 	args: {
 		groups: [aiGroup("ai-unavailable", "Spend unavailable")],
@@ -123,7 +219,7 @@ export const WithAIBudgetsSpendUnavailable: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			await canvas.findByTestId("group-ai-unavailable"),
-		).toHaveTextContent("-");
+		).toHaveTextContent("\u2014");
 	},
 };
 
@@ -143,7 +239,7 @@ export const WithoutAIBudgetColumn: Story = {
 
 export const WithDisplayGroup: Story = {
 	args: {
-		groups: [{ ...MockGroup, name: "front-end" }],
+		groups: [{ ...mockGroupWithSpend, name: "front-end" }],
 		canCreateGroup: true,
 		groupsEnabled: true,
 	},

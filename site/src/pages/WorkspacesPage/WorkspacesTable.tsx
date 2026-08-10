@@ -1,5 +1,6 @@
 import {
 	BanIcon,
+	CircleAlertIcon,
 	CloudIcon,
 	EllipsisVerticalIcon,
 	ExternalLinkIcon,
@@ -38,7 +39,7 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
@@ -67,6 +68,7 @@ import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import {
 	getTerminalHref,
 	getVSCodeHref,
+	isAppUrlValid,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
@@ -94,6 +96,7 @@ interface WorkspacesTableProps {
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
+	canCreateWorkspace: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 	chatsByWorkspace?: Record<string, string>;
@@ -106,6 +109,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onCheckChange,
 	templates,
 	canCreateTemplate,
+	canCreateWorkspace,
 	onActionSuccess,
 	onActionError,
 	chatsByWorkspace,
@@ -168,6 +172,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								templates={templates}
 								isUsingFilter={isUsingFilter}
 								canCreateTemplate={canCreateTemplate}
+								canCreateWorkspace={canCreateWorkspace}
 							/>
 						</TableCell>
 					</TableRow>
@@ -510,7 +515,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<CloudIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -523,7 +528,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<PlayIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -536,7 +541,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<CloudIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -549,7 +554,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<PlayIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -804,6 +809,27 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 		workspace,
 		agent,
 	});
+
+	// A malformed external app URL can't be opened. Render a non-navigating
+	// icon with an explanatory tooltip instead of a broken link.
+	if (!isAppUrlValid(app)) {
+		return (
+			<BaseIconLink
+				key={app.id}
+				label={`${link.label} has an invalid URL`}
+				onClick={() => {}}
+			>
+				{app.icon ? (
+					<ExternalImage src={app.icon} />
+				) : (
+					<CircleAlertIcon
+						aria-hidden="true"
+						className="size-icon-sm text-content-warning"
+					/>
+				)}
+			</BaseIconLink>
+		);
+	}
 
 	return (
 		<BaseIconLink

@@ -199,6 +199,8 @@ viewing the page, locate the web UI URL in Coder logs in your terminal. It looks
 like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. It's one of the first
 lines of output, so you might have to scroll up to find it.
 
+This section includes some of the quicker ways to install Coder. For more detailed options, visit the [Install](../install/index.md) page.
+
 ## Step 3: Initial setup
 
 1. Create your admin account:

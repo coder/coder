@@ -25,7 +25,7 @@ import {
 	SectionLabel,
 	StatusIcon,
 } from "./Content";
-import { DismissWarningButton } from "./DismissWarningButton";
+import { MuteWarningsButton } from "./MuteWarningsButton";
 
 type BooleanKeys<T> = {
 	[K in keyof T]: T[K] extends boolean | null ? K : never;
@@ -148,7 +148,7 @@ const DERPPage: FC = () => {
 					<HealthyDot severity={derp.severity as HealthSeverity} />
 					DERP
 				</HeaderTitle>
-				<DismissWarningButton healthcheck="DERP" />
+				<MuteWarningsButton healthcheck="DERP" />
 			</Header>
 
 			<Main>
@@ -159,6 +159,7 @@ const DERPPage: FC = () => {
 							key={warning.code}
 							severity="warning"
 							prominent
+							dismissible
 						>
 							{warning.message}
 						</Alert>

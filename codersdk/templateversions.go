@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -113,7 +112,7 @@ func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVer
 		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var version TemplateVersion
-	return version, json.NewDecoder(res.Body).Decode(&version)
+	return version, ReadBodyAsJSON(res, &version)
 }
 
 // CancelTemplateVersion marks a template version job as canceled.
@@ -140,12 +139,12 @@ func (c *Client) TemplateVersionRichParameters(ctx context.Context, version uuid
 		return nil, ReadBodyAsError(res)
 	}
 	var params []TemplateVersionParameter
-	return params, json.NewDecoder(res.Body).Decode(&params)
+	return params, ReadBodyAsJSON(res, &params)
 }
 
 // TemplateVersionExternalAuth returns authentication providers for the requested template version.
-func (c *Client) TemplateVersionExternalAuth(ctx context.Context, version uuid.UUID) ([]TemplateVersionExternalAuth, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/external-auth", version), nil)
+func (c *Client) TemplateVersionExternalAuth(ctx context.Context, version uuid.UUID, opts ...RequestOption) ([]TemplateVersionExternalAuth, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/external-auth", version), nil, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +153,7 @@ func (c *Client) TemplateVersionExternalAuth(ctx context.Context, version uuid.U
 		return nil, ReadBodyAsError(res)
 	}
 	var extAuth []TemplateVersionExternalAuth
-	return extAuth, json.NewDecoder(res.Body).Decode(&extAuth)
+	return extAuth, ReadBodyAsJSON(res, &extAuth)
 }
 
 // TemplateVersionResources returns resources a template version declares.
@@ -168,7 +167,7 @@ func (c *Client) TemplateVersionResources(ctx context.Context, version uuid.UUID
 		return nil, ReadBodyAsError(res)
 	}
 	var resources []WorkspaceResource
-	return resources, json.NewDecoder(res.Body).Decode(&resources)
+	return resources, ReadBodyAsJSON(res, &resources)
 }
 
 // TemplateVersionVariables returns resources a template version variables.
@@ -182,7 +181,7 @@ func (c *Client) TemplateVersionVariables(ctx context.Context, version uuid.UUID
 		return nil, ReadBodyAsError(res)
 	}
 	var variables []TemplateVersionVariable
-	return variables, json.NewDecoder(res.Body).Decode(&variables)
+	return variables, ReadBodyAsJSON(res, &variables)
 }
 
 // TemplateVersionLogsAfter streams logs for a template version that occurred after a specific log ID.
@@ -211,7 +210,7 @@ func (c *Client) CreateTemplateVersionDryRun(ctx context.Context, version uuid.U
 	}
 
 	var job ProvisionerJob
-	return job, json.NewDecoder(res.Body).Decode(&job)
+	return job, ReadBodyAsJSON(res, &job)
 }
 
 // TemplateVersionDryRun returns the current state of a template version dry-run
@@ -227,7 +226,7 @@ func (c *Client) TemplateVersionDryRun(ctx context.Context, version, job uuid.UU
 	}
 
 	var j ProvisionerJob
-	return j, json.NewDecoder(res.Body).Decode(&j)
+	return j, ReadBodyAsJSON(res, &j)
 }
 
 // TemplateVersionDryRunMatchedProvisioners returns the matched provisioners for a
@@ -243,7 +242,7 @@ func (c *Client) TemplateVersionDryRunMatchedProvisioners(ctx context.Context, v
 	}
 
 	var matched MatchedProvisioners
-	return matched, json.NewDecoder(res.Body).Decode(&matched)
+	return matched, ReadBodyAsJSON(res, &matched)
 }
 
 // TemplateVersionDryRunResources returns the resources of a finished template
@@ -259,7 +258,7 @@ func (c *Client) TemplateVersionDryRunResources(ctx context.Context, version, jo
 	}
 
 	var resources []WorkspaceResource
-	return resources, json.NewDecoder(res.Body).Decode(&resources)
+	return resources, ReadBodyAsJSON(res, &resources)
 }
 
 // TemplateVersionDryRunLogsAfter streams logs for a template version dry-run
@@ -298,7 +297,7 @@ func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.
 		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var version TemplateVersion
-	return version, json.NewDecoder(res.Body).Decode(&version)
+	return version, ReadBodyAsJSON(res, &version)
 }
 
 func (c *Client) UpdateTemplateVersion(ctx context.Context, versionID uuid.UUID, req PatchTemplateVersionRequest) (TemplateVersion, error) {
@@ -311,5 +310,5 @@ func (c *Client) UpdateTemplateVersion(ctx context.Context, versionID uuid.UUID,
 		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var version TemplateVersion
-	return version, json.NewDecoder(res.Body).Decode(&version)
+	return version, ReadBodyAsJSON(res, &version)
 }

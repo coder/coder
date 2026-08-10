@@ -9,7 +9,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { getSeverity, type UsageSeverity } from "#/utils/budget";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
@@ -34,26 +33,25 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	supportLinks,
 	onSignOut,
 }) => {
-	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
-	const aibridgeVisible =
-		Boolean(useFeatureVisibility().aibridge) &&
-		experiments.includes("ai-gateway-cost-control");
+	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
 	const { data, isError } = useQuery({
 		...meAISpend(),
 		enabled: aibridgeVisible,
 	});
 
-	// A null limit is unlimited and still shown.
+	// A null budget is unlimited and still shown.
 	const hasValidSpend =
 		data !== undefined &&
 		data.current_spend_micros >= 0 &&
-		(data.spend_limit_micros === null || data.spend_limit_micros >= 0);
+		(data.effective_budget === null ||
+			data.effective_budget.spend_limit_micros >= 0);
 	const spend =
 		aibridgeVisible && !isError && hasValidSpend
 			? {
 					currentSpend: data.current_spend_micros,
-					spendLimit: data.spend_limit_micros,
+					spendLimit: data.effective_budget?.spend_limit_micros ?? null,
+					periodStart: data.period_start,
+					periodEnd: data.period_end,
 				}
 			: null;
 	const severity =

@@ -137,6 +137,12 @@ describe("TemplateSchedulePage", () => {
 		await waitForWithCutoff(() =>
 			expect(API.updateTemplateMeta).toBeCalledTimes(1),
 		);
+
+		const updateCall = vi.mocked(API.updateTemplateMeta).mock.calls.at(0);
+		if (!updateCall) {
+			throw new Error("expected template metadata update");
+		}
+		expect(updateCall[1]).not.toHaveProperty("agents_allowed");
 	}, 15_000);
 
 	test("default is converted to and from hours", async () => {

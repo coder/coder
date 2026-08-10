@@ -114,10 +114,29 @@ func PlaintextFromMarkdown(markdown string) (string, error) {
 }
 
 func HTMLFromMarkdown(markdown string) string {
-	p := parser.NewWithExtensions(parser.CommonExtensions | parser.HardLineBreak) // Added HardLineBreak.
+	return renderHTMLFromMarkdown(markdown, parser.CommonExtensions|parser.HardLineBreak, html.CommonFlags|html.SkipHTML)
+}
+
+// HTMLFromMarkdownSafe renders Markdown to HTML with additional security
+// hardening for content that may include user-controlled values (e.g.
+// notification emails): autolinks are disabled so that only explicit Markdown
+// link syntax produces <a> tags, and Safelink drops links whose scheme is not
+// http/https/ftp/mailto.
+//
+// The hardening is scoped to this function. HTMLFromMarkdown renders
+// admin-authored deployment text (OIDCConfig.SignupsDisabledText) and keeps the
+// standard flags so links with custom schemes (e.g. slack://) still render.
+func HTMLFromMarkdownSafe(markdown string) string {
+	extensions := parser.CommonExtensions | parser.HardLineBreak
+	extensions &^= parser.Autolink
+	return renderHTMLFromMarkdown(markdown, extensions, html.CommonFlags|html.SkipHTML|html.Safelink)
+}
+
+func renderHTMLFromMarkdown(markdown string, extensions parser.Extensions, flags html.Flags) string {
+	p := parser.NewWithExtensions(extensions)
 	doc := p.Parse([]byte(markdown))
 	renderer := html.NewRenderer(html.RendererOptions{
-		Flags: html.CommonFlags | html.SkipHTML,
+		Flags: flags,
 	})
 	return string(bytes.TrimSpace(gomarkdown.Render(doc, renderer)))
 }

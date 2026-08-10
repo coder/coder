@@ -20,8 +20,7 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import {
 	isAppBlockedByMissingWildcard,
-	isExternalApp,
-	needsSessionToken,
+	isAppUrlValid,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { docs } from "#/utils/docs";
@@ -114,8 +113,28 @@ export const AppLink: FC<AppLinkProps> = ({
 		);
 	}
 
-	if (isExternalApp(app) && needsSessionToken(app) && !link.hasToken) {
+	if (!isAppUrlValid(app)) {
 		canClick = false;
+		icon = (
+			<CircleAlertIcon
+				aria-hidden="true"
+				className="size-icon-sm text-content-warning"
+			/>
+		);
+		primaryTooltip = (
+			<>
+				This app has an invalid URL and can't be opened. Ask your template
+				administrator to fix the app's <code>url</code> in the template's{" "}
+				<code>coder_app</code> configuration.
+			</>
+		);
+	}
+
+	// The session token for external apps is minted on click, so key generation
+	// no longer gates clickability. While a click is minting a token, show a
+	// spinner to reflect the in-flight request.
+	if (link.isLoading) {
+		icon = <Spinner loading />;
 	}
 
 	if (
@@ -138,32 +157,44 @@ export const AppLink: FC<AppLinkProps> = ({
 				shareIcon: null,
 			};
 
-	const button = grouped ? (
-		<DropdownMenuItem asChild>
-			<a
-				href={canClick ? link.href : undefined}
-				onClick={link.onClick}
-				target={app.open_in === "tab" ? "_blank" : undefined}
-				rel={app.open_in === "tab" ? "noreferrer" : undefined}
-			>
-				{icon}
-				{link.label}
-				{ShareIcon && <ShareIcon />}
-			</a>
-		</DropdownMenuItem>
+	// Token-minting external apps expose no navigable href (see useAppLink): the
+	// URL is only complete after the on-click mint. Render them as a button so
+	// they stay interactive. A bare anchor without href is styled and treated as
+	// disabled by AgentButton, and middle-clicking one would otherwise launch
+	// the custom protocol with an empty token.
+	const opensViaClick = link.href === undefined;
+
+	const content = (
+		<>
+			{icon}
+			{link.label}
+			{ShareIcon && <ShareIcon />}
+		</>
+	);
+
+	const trigger = opensViaClick ? (
+		<button
+			type="button"
+			onClick={link.onClick}
+			disabled={!canClick || link.isLoading}
+		>
+			{content}
+		</button>
 	) : (
-		<AgentButton asChild>
-			<a
-				href={canClick ? link.href : undefined}
-				onClick={link.onClick}
-				target={app.open_in === "tab" ? "_blank" : undefined}
-				rel={app.open_in === "tab" ? "noreferrer" : undefined}
-			>
-				{icon}
-				{link.label}
-				{ShareIcon && <ShareIcon />}
-			</a>
-		</AgentButton>
+		<a
+			href={canClick ? link.href : undefined}
+			onClick={link.onClick}
+			target={app.open_in === "tab" ? "_blank" : undefined}
+			rel={app.open_in === "tab" ? "noreferrer" : undefined}
+		>
+			{content}
+		</a>
+	);
+
+	const button = grouped ? (
+		<DropdownMenuItem asChild>{trigger}</DropdownMenuItem>
+	) : (
+		<AgentButton asChild>{trigger}</AgentButton>
 	);
 
 	if (primaryTooltip || app.tooltip) {

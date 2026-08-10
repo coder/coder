@@ -364,7 +364,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
-// @Success 200 {object} codersdk.Workspace
+// @Success 201 {object} codersdk.Workspace
 // @Router /api/v2/organizations/{organization}/members/{user}/workspaces [post]
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -425,7 +425,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 // @Tags Workspaces
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
-// @Success 200 {object} codersdk.Workspace
+// @Success 201 {object} codersdk.Workspace
 // @Router /api/v2/users/{user}/workspaces [post]
 func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -873,8 +873,8 @@ func createWorkspace(
 // at build time uses the owner's external auth links, so the owner is the
 // subject of the check even when another user initiates the build.
 func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateVersion database.TemplateVersion, ownerID uuid.UUID) error {
-	//nolint:gocritic // System access is required to validate the workspace owner's external auth links because admins and API clients may create workspaces for other users.
-	providers, err := api.templateVersionExternalAuthForUser(dbauthz.AsSystemRestricted(ctx), templateVersion, ownerID)
+	//nolint:gocritic // Reads/refreshes the external auth links. Necessary when admins create workspaces for other users.
+	providers, err := api.templateVersionExternalAuthForUser(dbauthz.AsExternalAuthCoordinator(ctx), templateVersion, ownerID)
 	if err != nil {
 		return err
 	}

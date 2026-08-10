@@ -1717,6 +1717,392 @@ func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
 	}
 }
 
+func TestMigration000555LegacyNoneLoginToPassword(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 554
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more || version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	legacyNoneID := uuid.New()
+	serviceAccountID := uuid.New()
+	systemID := uuid.New()
+	passwordID := uuid.New()
+
+	// A legacy machine user: login_type 'none', not a service account, not a
+	// system user. This is the only row the migration should convert.
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type, is_service_account, is_system)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		legacyNoneID, "legacy-none", "legacy-none@test.com", []byte{}, now, now, "active", pq.StringArray{}, "none", false, false)
+	require.NoError(t, err)
+
+	// A service account must keep login_type 'none' (a CHECK constraint requires
+	// service accounts to use 'none' and an empty email).
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type, is_service_account, is_system)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		serviceAccountID, "service-account", "", []byte{}, now, now, "active", pq.StringArray{}, "none", true, false)
+	require.NoError(t, err)
+
+	// A system user must be left untouched.
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type, is_service_account, is_system)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		systemID, "system-user", "system@test.com", []byte{}, now, now, "active", pq.StringArray{}, "none", false, true)
+	require.NoError(t, err)
+
+	// An existing password user must be left untouched.
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type, is_service_account, is_system)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		passwordID, "password-user", "password@test.com", []byte("hashed"), now, now, "active", pq.StringArray{}, "password", false, false)
+	require.NoError(t, err)
+
+	migrationSQL, err := os.ReadFile("000555_legacy_none_login_to_password.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
+	require.NoError(t, err)
+
+	getUser := func(t *testing.T, id uuid.UUID) (loginType, email string) {
+		t.Helper()
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT login_type::text, email FROM users WHERE id = $1`, id).Scan(&loginType, &email)
+		require.NoError(t, err)
+		return loginType, email
+	}
+
+	// The legacy machine user is converted to password auth with its email
+	// preserved.
+	gotLoginType, gotEmail := getUser(t, legacyNoneID)
+	require.Equal(t, "password", gotLoginType)
+	require.Equal(t, "legacy-none@test.com", gotEmail)
+
+	// Service accounts, system users, and existing password users are unchanged.
+	gotLoginType, _ = getUser(t, serviceAccountID)
+	require.Equal(t, "none", gotLoginType)
+	gotLoginType, _ = getUser(t, systemID)
+	require.Equal(t, "none", gotLoginType)
+	gotLoginType, _ = getUser(t, passwordID)
+	require.Equal(t, "password", gotLoginType)
+}
+
+// TestMigration000558AuditOAuth2ProviderSettingsEnumInSingleTxn reproduces
+// the production upgrade path, where every pending migration in a deploy
+// runs inside a single transaction (see pgTxnDriver). 000558 adds
+// 'oauth2_provider_settings' to the resource_type enum via ALTER TYPE ...
+// ADD VALUE. Postgres forbids using an enum value added by ADD VALUE within
+// the same transaction that added it, so this confirms the audit write path
+// (a separate transaction, exactly like commitAudit() performs it for a real
+// PUT to the DCR settings endpoint) can use the new value immediately after
+// the migration transaction commits, and that pre-existing audit data from
+// before the upgrade survives untouched.
+func TestMigration000558AuditOAuth2ProviderSettingsEnumInSingleTxn(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Apply everything through 557 and commit, simulating a deployment
+	// that was already running the previous release, with real
+	// pre-existing audit data, before the upgrade that adds 558.
+	applyMigrationsInTxn(ctx, t, sqlDB, 1, 557)
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	preUpgradeLogID := uuid.New()
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO audit_logs (
+			id, time, user_id, organization_id, resource_type, resource_id,
+			resource_target, action, diff, status_code, additional_fields,
+			request_id, resource_icon
+		) VALUES (
+			$1, $2, $3, $4, 'oauth2_provider_app', $5, 'pre-upgrade-app',
+			'write', '{}', 200, '{}', $6, ''
+		)`,
+		preUpgradeLogID, now, uuid.New(), uuid.New(), uuid.New(), uuid.New(),
+	)
+	require.NoError(t, err)
+
+	// Apply 558 in the same single transaction production uses for the
+	// whole pending batch.
+	applyMigrationsInTxn(ctx, t, sqlDB, 558, 558)
+
+	// Pre-existing audit data survives the upgrade untouched.
+	var resourceTarget string
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT resource_target FROM audit_logs WHERE id = $1`, preUpgradeLogID,
+	).Scan(&resourceTarget)
+	require.NoError(t, err)
+	require.Equal(t, "pre-upgrade-app", resourceTarget)
+
+	// The new enum value is usable immediately after the migration
+	// transaction commits, in a separate transaction, exactly like a real
+	// PUT to the DCR settings endpoint would write it.
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO audit_logs (
+			id, time, user_id, organization_id, resource_type, resource_id,
+			resource_target, action, diff, status_code, additional_fields,
+			request_id, resource_icon
+		) VALUES (
+			$1, $2, $3, $4, 'oauth2_provider_settings', $5, '', 'write',
+			'{}', 200, '{}', $6, ''
+		)`,
+		uuid.New(), now, uuid.New(), uuid.New(), uuid.New(), uuid.New(),
+	)
+	require.NoError(t, err)
+}
+
+//nolint:tparallel,paralleltest // Subtests share one database and exercise sequential migration state.
+func TestMigration000563TemplateAgentsAllowedBackfill(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, ctx, orgID, userID, templateIDs := setupMigration000563Templates(t)
+	upSQL, err := os.ReadFile("000563_template_agents_allowed.up.sql")
+	require.NoError(t, err)
+	downSQL, err := os.ReadFile("000563_template_agents_allowed.down.sql")
+	require.NoError(t, err)
+
+	staleID := uuid.New()
+	tests := []struct {
+		name                      string
+		value                     string
+		present                   bool
+		checkPostMigrationDefault bool
+		want                      map[uuid.UUID]bool
+	}{
+		{
+			name:                      "valid nonempty list",
+			value:                     fmt.Sprintf(`[%q]`, templateIDs[0]),
+			present:                   true,
+			checkPostMigrationDefault: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "stale template ID",
+			value:   fmt.Sprintf(`[%q,%q]`, templateIDs[0], staleID),
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name: "missing",
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: true,
+			},
+		},
+		{
+			name:    "empty string",
+			value:   "",
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: true,
+			},
+		},
+		{
+			name:    "JSON null",
+			value:   "null",
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: true,
+			},
+		},
+		{
+			name:    "invalid JSON",
+			value:   "{",
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "JSON object",
+			value:   `{}`,
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "JSON scalar",
+			value:   `"value"`,
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "invalid UUID element",
+			value:   `["not-a-uuid"]`,
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "null element",
+			value:   `[null]`,
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "mixed valid and invalid elements",
+			value:   fmt.Sprintf(`[%q,"not-a-uuid"]`, templateIDs[0]),
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: false,
+				templateIDs[1]: false,
+			},
+		},
+		{
+			name:    "empty array",
+			value:   "[]",
+			present: true,
+			want: map[uuid.UUID]bool{
+				templateIDs[0]: true,
+				templateIDs[1]: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := sqlDB.ExecContext(ctx, `DELETE FROM site_configs WHERE key = 'agents_template_allowlist'`)
+			require.NoError(t, err)
+			if tt.present {
+				_, err = sqlDB.ExecContext(ctx, `INSERT INTO site_configs (key, value) VALUES ('agents_template_allowlist', $1)`, tt.value)
+				require.NoError(t, err)
+			}
+
+			_, err = sqlDB.ExecContext(ctx, string(upSQL))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := sqlDB.ExecContext(ctx, string(downSQL))
+				require.NoError(t, err)
+			})
+
+			rows, err := sqlDB.QueryContext(ctx, `SELECT id, agents_allowed FROM templates`)
+			require.NoError(t, err)
+			got := make(map[uuid.UUID]bool, len(templateIDs))
+			for rows.Next() {
+				var id uuid.UUID
+				var agentsAllowed bool
+				require.NoError(t, rows.Scan(&id, &agentsAllowed))
+				got[id] = agentsAllowed
+			}
+			require.NoError(t, rows.Close())
+			require.NoError(t, rows.Err())
+			require.Equal(t, tt.want, got)
+
+			var stored string
+			err = sqlDB.QueryRowContext(ctx, `SELECT value FROM site_configs WHERE key = 'agents_template_allowlist'`).Scan(&stored)
+			if tt.present {
+				require.NoError(t, err)
+				require.Equal(t, tt.value, stored)
+			} else {
+				require.ErrorIs(t, err, sql.ErrNoRows)
+			}
+
+			if tt.checkPostMigrationDefault {
+				newTemplateID := uuid.New()
+				_, err = sqlDB.ExecContext(ctx, `
+					INSERT INTO templates (id, organization_id, name, created_at, updated_at, provisioner, active_version_id, created_by)
+					VALUES ($1, $2, $3, NOW(), NOW(), 'terraform', $4, $5)
+				`, newTemplateID, orgID, "post-migration-template", uuid.New(), userID)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					_, err := sqlDB.ExecContext(ctx, `DELETE FROM templates WHERE id = $1`, newTemplateID)
+					require.NoError(t, err)
+				})
+
+				var agentsAllowed bool
+				err = sqlDB.QueryRowContext(ctx, `SELECT agents_allowed FROM template_with_names WHERE id = $1`, newTemplateID).Scan(&agentsAllowed)
+				require.NoError(t, err)
+				require.True(t, agentsAllowed)
+			}
+		})
+	}
+}
+
+func setupMigration000563Templates(t *testing.T) (
+	sqlDB *sql.DB,
+	ctx context.Context,
+	orgID uuid.UUID,
+	userID uuid.UUID,
+	templateIDs []uuid.UUID,
+) {
+	t.Helper()
+
+	const migrationVersion = 562
+
+	sqlDB = testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx = testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	orgID = uuid.New()
+	userID = uuid.New()
+	templateIDs = []uuid.UUID{uuid.New(), uuid.New()}
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles)
+		VALUES ($1, $2, $3, $4, $5, $5, '{}')
+	`, orgID, "agents-allowed-org", "Agents Allowed Org", "Migration test", now)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $5, 'active', '{}', 'password')
+	`, userID, "agents-allowed-user", "agents-allowed@example.com", []byte{}, now)
+	require.NoError(t, err)
+	for i, templateID := range templateIDs {
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO templates (id, organization_id, name, created_at, updated_at, provisioner, active_version_id, created_by)
+			VALUES ($1, $2, $3, $4, $4, 'terraform', $5, $6)
+		`, templateID, orgID, fmt.Sprintf("agents-allowed-template-%d", i), now, uuid.New(), userID)
+		require.NoError(t, err)
+	}
+
+	return sqlDB, ctx, orgID, userID, templateIDs
+}
+
 func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	t.Parallel()
 
@@ -2167,4 +2553,189 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	require.Equal(t, []int64{eligibleText.ID}, matched,
 		"search must exclude deleted, model-only, and tool-role rows (%d %d %d)",
 		toolMsg.ID, modelOnly.ID, deletedMsg.ID)
+}
+
+func TestMigration000556UserSecretsEnabled(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 556
+
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before the one that adds the enabled
+	// column.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	userID := uuid.New()
+	envSecretID := uuid.New()
+	fileSecretID := uuid.New()
+	bothEmptySecretID := uuid.New()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userID, "user-secrets-enabled", "user-secrets-enabled@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password"},
+		},
+		// env-only secret: should remain enabled after migration.
+		{
+			`INSERT INTO user_secrets (id, user_id, name, description, value, env_name, file_path, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{envSecretID, userID, "env-secret", "", "v1", "ENV_SECRET", "", now, now},
+		},
+		// file-only secret: should remain enabled after migration.
+		{
+			`INSERT INTO user_secrets (id, user_id, name, description, value, env_name, file_path, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{fileSecretID, userID, "file-secret", "", "v2", "", "/tmp/file-secret", now, now},
+		},
+		// Both env_name and file_path empty: silently skipped today by
+		// the agent manifest layer. Should be flipped to enabled=false
+		// by the migration so the behavior is preserved exactly under
+		// the new "always inject when enabled" rule.
+		{
+			`INSERT INTO user_secrets (id, user_id, name, description, value, env_name, file_path, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{bothEmptySecretID, userID, "both-empty", "", "v3", "", "", now, now},
+		},
+	}
+
+	for i, f := range fixtures {
+		_, err := tx.ExecContext(ctx, f.query, f.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+	require.NoError(t, tx.Commit())
+
+	// Run the migration.
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	getEnabled := func(t *testing.T, id uuid.UUID) bool {
+		t.Helper()
+		var enabled bool
+		err := sqlDB.QueryRowContext(ctx,
+			"SELECT enabled FROM user_secrets WHERE id = $1", id,
+		).Scan(&enabled)
+		require.NoError(t, err)
+		return enabled
+	}
+
+	require.True(t, getEnabled(t, envSecretID),
+		"env-only secret should remain enabled")
+	require.True(t, getEnabled(t, fileSecretID),
+		"file-only secret should remain enabled")
+	require.False(t, getEnabled(t, bothEmptySecretID),
+		"secret with both targets empty should be flipped to disabled "+
+			"to preserve the previous implicit-skip behavior")
+}
+
+// TestMigration000562OAuth2PublicClientTokensBackfill seeds a pre-migration
+// oauth2_provider_app_tokens row (the only shape that could exist before this
+// migration, since app_secret_id was NOT NULL) and asserts that the new app_id
+// column is backfilled from the existing app_secret_id -> app_id join, and
+// that app_secret_id becomes nullable afterward.
+func TestMigration000562OAuth2PublicClientTokensBackfill(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 561
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more || version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	userID := uuid.New()
+	appID := uuid.New()
+	secretID := uuid.New()
+	tokenID := uuid.New()
+	const apiKeyID = "test562apikeyid"
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, 'test-user-562', 'test-562@example.com', ''::bytea, $2, $2, 'active', '{}', 'password')
+	`, userID, now)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list)
+		VALUES ($1, ''::bytea, $2, $3, $3, $3, $3, 'oauth2_provider_app', '{}', '{*}')
+	`, apiKeyID, userID, now)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url)
+		VALUES ($1, $2, $2, 'test-app-562', '', 'http://localhost/callback')
+	`, appID, now)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO oauth2_provider_app_secrets (id, created_at, hashed_secret, display_secret, app_id, secret_prefix)
+		VALUES ($1, $2, ''::bytea, '****1234', $3, 'prefix562'::bytea)
+	`, secretID, now, appID)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, user_id)
+		VALUES ($1, $2, $3, 'prefix562'::bytea, ''::bytea, $4, $5, $6)
+	`, tokenID, now, now.Add(time.Hour), secretID, apiKeyID, userID)
+	require.NoError(t, err)
+
+	require.NoError(t, tx.Commit())
+
+	migrationSQL, err := os.ReadFile("000562_oauth2_public_client_tokens.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
+	require.NoError(t, err)
+
+	var backfilledAppID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT app_id FROM oauth2_provider_app_tokens WHERE id = $1`, tokenID,
+	).Scan(&backfilledAppID)
+	require.NoError(t, err)
+	require.Equal(t, appID, backfilledAppID, "app_id should be backfilled from app_secret_id's existing join")
+
+	var isNullable string
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT is_nullable FROM information_schema.columns
+		WHERE table_name = 'oauth2_provider_app_tokens' AND column_name = 'app_secret_id'
+	`).Scan(&isNullable)
+	require.NoError(t, err)
+	require.Equal(t, "YES", isNullable, "app_secret_id should be nullable after the migration")
 }

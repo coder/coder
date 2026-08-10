@@ -88,7 +88,7 @@ data "coder_workspace_owner" "me" {}
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "codercom/enterprise-base:ubuntu"
+  image = "codercom/example-base:ubuntu"
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   entrypoint = ["sh", "-c", coder_agent.main.init_script]
   env        = [
@@ -146,7 +146,7 @@ data "coder_workspace_owner" "me" {}
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "codercom/enterprise-base:ubuntu"
+  image = "codercom/example-base:ubuntu"
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   entrypoint = ["sh", "-c", coder_agent.main.init_script]
   env        = [
