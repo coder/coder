@@ -1,6 +1,7 @@
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
+import { v4 as uuidv4 } from "uuid";
 import { deploymentConfig } from "#/api/queries/deployment";
 import {
 	createTemplateFromBuilder,
@@ -11,7 +12,6 @@ import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
-import { generateSessionId } from "#/utils/random";
 import { TemplateBuilderPageView } from "./TemplateBuilderPageView";
 import type {
 	SelectedBaseMeta,
@@ -30,7 +30,7 @@ const TemplateBuilderPage: FC = () => {
 
 	// Stable session ID for the lifetime of this page mount, shared
 	// across wizard_entry and compose_completion telemetry events.
-	const sessionId = useMemo(() => generateSessionId(), []);
+	const sessionId = useMemo(() => uuidv4(), []);
 
 	const builderDisabled = data?.config?.template_builder?.disabled ?? false;
 	const wizardReady =
