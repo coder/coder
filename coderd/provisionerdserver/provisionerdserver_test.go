@@ -34,6 +34,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -2102,10 +2103,11 @@ func TestCompleteJob(t *testing.T) {
 		t.Log("saturdayMidnightSydney", saturdayMidnightSydney)
 
 		cases := []struct {
-			name         string
-			now          time.Time
-			workspaceTTL time.Duration
-			transition   database.WorkspaceTransition
+			name             string
+			now              time.Time
+			workspaceTTL     time.Duration
+			transition       database.WorkspaceTransition
+			aiAgentInitiator bool
 
 			// These fields are only used when testing max deadline.
 			userQuietHoursSchedule      string
@@ -2120,6 +2122,16 @@ func TestCompleteJob(t *testing.T) {
 				templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
 				workspaceTTL:                0,
 				transition:                  database.WorkspaceTransitionStart,
+				expectedDeadline:            time.Time{},
+				expectedMaxDeadline:         time.Time{},
+			},
+			{
+				name:                        "AIAgentInitiator",
+				now:                         now,
+				templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+				workspaceTTL:                0,
+				transition:                  database.WorkspaceTransitionStart,
+				aiAgentInitiator:            true,
 				expectedDeadline:            time.Time{},
 				expectedMaxDeadline:         time.Time{},
 			},
@@ -2210,6 +2222,21 @@ func TestCompleteJob(t *testing.T) {
 				user := dbgen.User(t, db, database.User{
 					QuietHoursSchedule: c.userQuietHoursSchedule,
 				})
+				initiatorID := user.ID
+				if c.aiAgentInitiator {
+					dbgen.OrganizationMember(t, db, database.OrganizationMember{
+						OrganizationID: pd.OrganizationID,
+						UserID:         user.ID,
+					})
+					agentUser, _, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+						OwnerID:        user.ID,
+						OrganizationID: pd.OrganizationID,
+						OriginType:     database.AIAgentOriginChat,
+						OriginID:       uuid.New(),
+					})
+					require.NoError(t, err)
+					initiatorID = agentUser.ID
+				}
 				template := dbgen.Template(t, db, database.Template{
 					CreatedBy:      user.ID,
 					Name:           "template",
@@ -2254,7 +2281,7 @@ func TestCompleteJob(t *testing.T) {
 				buildID := uuid.New()
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 					FileID:      file.ID,
-					InitiatorID: user.ID,
+					InitiatorID: initiatorID,
 					Type:        database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 						WorkspaceBuildID: buildID,
@@ -2265,7 +2292,7 @@ func TestCompleteJob(t *testing.T) {
 					ID:                buildID,
 					JobID:             job.ID,
 					WorkspaceID:       workspaceTable.ID,
-					InitiatorID:       user.ID,
+					InitiatorID:       initiatorID,
 					TemplateVersionID: version.ID,
 					Transition:        c.transition,
 					Reason:            database.BuildReasonInitiator,
@@ -2348,8 +2375,15 @@ func TestCompleteJob(t *testing.T) {
 				}
 
 				require.Len(t, auditor.AuditLogs(), 1)
+				auditLog := auditor.AuditLogs()[0]
+				require.Equal(t, initiatorID, auditLog.UserID)
+				if c.aiAgentInitiator {
+					require.Equal(t, uuid.NullUUID{UUID: user.ID, Valid: true}, auditLog.OnBehalfOfUserID)
+				} else {
+					require.False(t, auditLog.OnBehalfOfUserID.Valid)
+				}
 				var additionalFields audit.AdditionalFields
-				err = json.Unmarshal(auditor.AuditLogs()[0].AdditionalFields, &additionalFields)
+				err = json.Unmarshal(auditLog.AdditionalFields, &additionalFields)
 				require.NoError(t, err)
 				require.Equal(t, workspace.ID, additionalFields.WorkspaceID)
 			})

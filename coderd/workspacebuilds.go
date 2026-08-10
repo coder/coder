@@ -444,16 +444,17 @@ func (api *API) postWorkspaceBuildsInternal(
 			auditor := api.Auditor.Load()
 			bag := audit.BaggageFromContext(ctx)
 			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceTable]{
-				Audit:          *auditor,
-				Old:            workspace.WorkspaceTable(),
-				New:            updatedWorkspace,
-				Log:            api.Logger,
-				UserID:         apiKey.UserID,
-				OrganizationID: workspace.OrganizationID,
-				RequestID:      workspace.ID,
-				IP:             bag.IP,
-				Action:         database.AuditActionWrite,
-				Status:         http.StatusOK,
+				Audit:            *auditor,
+				Old:              workspace.WorkspaceTable(),
+				New:              updatedWorkspace,
+				Log:              api.Logger,
+				UserID:           apiKey.UserID,
+				OnBehalfOfUserID: audit.ResolveOnBehalfOf(ctx, tx, apiKey.UserID),
+				OrganizationID:   workspace.OrganizationID,
+				RequestID:        workspace.ID,
+				IP:               bag.IP,
+				Action:           database.AuditActionWrite,
+				Status:           http.StatusOK,
 			})
 		}
 

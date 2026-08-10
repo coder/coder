@@ -62,14 +62,15 @@ type BackgroundAuditParams[T Auditable] struct {
 	Audit Auditor
 	Log   slog.Logger
 
-	UserID         uuid.UUID
-	RequestID      uuid.UUID
-	Time           time.Time
-	Status         int
-	Action         database.AuditAction
-	OrganizationID uuid.UUID
-	IP             string
-	UserAgent      string
+	UserID           uuid.UUID
+	OnBehalfOfUserID uuid.UUID
+	RequestID        uuid.UUID
+	Time             time.Time
+	Status           int
+	Action           database.AuditAction
+	OrganizationID   uuid.UUID
+	IP               string
+	UserAgent        string
 	// todo: this should automatically marshal an interface{} instead of accepting a raw message.
 	AdditionalFields json.RawMessage
 
@@ -557,6 +558,16 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 	}
 }
 
+// ResolveOnBehalfOf returns the owner of an AI agent user. Lookup failures and
+// non-agent users return uuid.Nil so attribution never blocks background work.
+func ResolveOnBehalfOf(ctx context.Context, db database.Store, userID uuid.UUID) uuid.UUID {
+	identity, err := aiagentidentity.Resolve(ctx, db, userID)
+	if err != nil {
+		return uuid.Nil
+	}
+	return identity.Actor.OwnerUserID
+}
+
 // BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
 func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
@@ -581,17 +592,18 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 	}
 
 	auditLog := database.AuditLog{
-		ID:             uuid.New(),
-		Time:           p.Time,
-		UserID:         p.UserID,
-		OrganizationID: requireOrgID[T](ctx, p.OrganizationID, p.Log),
-		Ip:             ip,
-		UserAgent:      sql.NullString{Valid: p.UserAgent != "", String: p.UserAgent},
-		ResourceType:   either(p.Old, p.New, ResourceType[T], p.Action),
-		ResourceID:     either(p.Old, p.New, ResourceID[T], p.Action),
-		ResourceTarget: either(p.Old, p.New, ResourceTarget[T], p.Action),
-		Action:         p.Action,
-		Diff:           diffRaw,
+		ID:               uuid.New(),
+		Time:             p.Time,
+		UserID:           p.UserID,
+		OnBehalfOfUserID: uuid.NullUUID{UUID: p.OnBehalfOfUserID, Valid: p.OnBehalfOfUserID != uuid.Nil},
+		OrganizationID:   requireOrgID[T](ctx, p.OrganizationID, p.Log),
+		Ip:               ip,
+		UserAgent:        sql.NullString{Valid: p.UserAgent != "", String: p.UserAgent},
+		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),
+		ResourceID:       either(p.Old, p.New, ResourceID[T], p.Action),
+		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T], p.Action),
+		Action:           p.Action,
+		Diff:             diffRaw,
 		// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
 		StatusCode:       int32(p.Status),
 		RequestID:        p.RequestID,
