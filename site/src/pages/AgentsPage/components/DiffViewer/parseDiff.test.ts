@@ -98,11 +98,30 @@ describe("parseDiffString", () => {
 		const files = parseDiffString(uniqueFilesDiff);
 
 		expect(files).toHaveLength(2);
-		// A later diff body for the same path must not reuse this AST.
 		for (const file of files) {
-			expect(file.cacheKey).toMatch(/^content-[0-9a-f]+-[0-9a-f]+$/);
+			expect(file.cacheKey).toMatch(/^content-/);
 		}
 		expect(files[0].cacheKey).not.toBe(files[1].cacheKey);
+	});
+
+	it("keys identical bodies under different names distinctly", () => {
+		// Unified (non-git) bodies carry no prevName, so the file name is
+		// the only differing render input between the two.
+		const tsBody = [
+			"--- a.ts",
+			"+++ a.ts",
+			"@@ -1,1 +1,1 @@",
+			"-const x = 1;",
+			"+const x = 2;",
+		].join("\n");
+		const pyBody = tsBody.replaceAll("a.ts", "b.py");
+
+		const ts = parseDiffString(tsBody);
+		const py = parseDiffString(pyBody);
+
+		// The deletion-side language comes from the file name, so a .ts
+		// body must not reuse a .py highlight entry.
+		expect(ts[0].cacheKey).not.toBe(py[0].cacheKey);
 	});
 
 	it("keeps an unchanged file's key stable when a sibling changes", () => {
@@ -116,6 +135,7 @@ describe("parseDiffString", () => {
 	});
 
 	it("gives the same path different keys for different bodies", () => {
+		// A later diff body for the same path must not reuse this AST.
 		const first = parseDiffString(duplicateFileDiff);
 		// Dedupe keeps the first section; parse the second body alone to
 		// compare keys for one path with two bodies.

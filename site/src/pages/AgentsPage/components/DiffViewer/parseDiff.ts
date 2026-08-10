@@ -1,6 +1,6 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
-import { getContentCacheKeyPrefix } from "./diffCacheKey";
+import { getContentCacheKey } from "./diffCacheKey";
 
 // A single diff body can list the same post-image path more than once: the
 // server may concatenate several `git diff` outputs, or one patch may carry
@@ -33,8 +33,8 @@ export function dedupeFilesByName(
 
 /**
  * Parses a unified or git diff string into per-file metadata, collapsing
- * repeated post-image paths. Each file is keyed by a hash of its own parsed
- * content (name, hunks, and line arrays) so unchanged files keep hitting the
+ * repeated post-image paths; empty input yields []. Each file is keyed by a
+ * hash of its own render inputs, so unchanged files keep hitting the
  * worker-pool highlight cache across re-parses while changed files miss it.
  */
 export function parseDiffString(
@@ -43,15 +43,29 @@ export function parseDiffString(
 	if (!diffString) return [];
 	const files = parsePatchFiles(diffString).flatMap((p) => p.files);
 	for (const file of files) {
-		file.cacheKey = getContentCacheKeyPrefix(
-			`${file.name}\n${serializeHunks(file)}`,
-		);
+		stampCacheKey(file);
 	}
 	return dedupeFilesByName(files);
 }
 
-// The parsed hunks plus the file-level line arrays: everything the renderer
-// walks when building the highlighted AST, so equal serializations are equal
-// render inputs.
-const serializeHunks = (file: FileDiffMetadata): string =>
-	JSON.stringify([file.hunks, file.additionLines, file.deletionLines]);
+/**
+ * Stamps `file.cacheKey` with a hash of the inputs the worker reads when
+ * building the highlighted AST. The library requires any post-parse mutation
+ * of a keyed FileDiffMetadata to restamp the key, so callers that clone or
+ * edit a parsed file must call this again on the result.
+ */
+export function stampCacheKey(file: FileDiffMetadata): void {
+	file.cacheKey = getContentCacheKey(serializeRenderInputs(file));
+}
+
+// Everything the renderer walks when building the highlighted AST: equal
+// serializations are equal render inputs.
+const serializeRenderInputs = (file: FileDiffMetadata): string =>
+	JSON.stringify([
+		file.name,
+		file.prevName,
+		file.lang,
+		file.hunks,
+		file.additionLines,
+		file.deletionLines,
+	]);

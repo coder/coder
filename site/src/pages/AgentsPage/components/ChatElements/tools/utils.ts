@@ -1,7 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import * as Diff from "diff";
 import * as Yup from "yup";
-import { parseDiffString } from "../../DiffViewer/parseDiff";
+import { parseDiffString, stampCacheKey } from "../../DiffViewer/parseDiff";
 import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
 export type ToolStatus = "completed" | "error" | "running";
@@ -348,7 +348,7 @@ export function stripNoNewline(fileDiff: FileDiffMetadata): FileDiffMetadata {
 		(h) => h.noEOFCRDeletions || h.noEOFCRAdditions,
 	);
 	if (!needsStrip) return fileDiff;
-	return {
+	const stripped = {
 		...fileDiff,
 		hunks: fileDiff.hunks.map((h) => ({
 			...h,
@@ -356,6 +356,10 @@ export function stripNoNewline(fileDiff: FileDiffMetadata): FileDiffMetadata {
 			noEOFCRAdditions: false,
 		})),
 	};
+	// The clone changes the render inputs, so the stripped diff must not
+	// share the unstripped highlight entry.
+	stampCacheKey(stripped);
+	return stripped;
 }
 
 export function getFileViewerOptions(isDark: boolean) {

@@ -451,12 +451,11 @@ export const LargeDiff: Story = {
 	},
 };
 
-// Two successive diff bodies for the same path. In production, before
-// content-derived keys, the second render could hit the worker-pool AST
-// cached for the first body and throw "deletionLine and additionLine are
-// null". The storybook worker timing cannot reproduce that collision
-// window, so this story smoke-tests the re-render path instead: the second
-// body renders and no error box appears.
+// In production, before content-derived keys, the second render could hit
+// the worker-pool AST cached for the first body and throw "deletionLine and
+// additionLine are null". The storybook worker timing cannot reproduce that
+// collision window, so this story smoke-tests the re-render path instead:
+// the second body renders and no error box appears.
 const reparseFirstBody = [
 	"--- a/src/hot.ts",
 	"+++ b/src/hot.ts",
@@ -510,9 +509,17 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 				.map((host) => host.shadowRoot?.textContent ?? "")
 				.join("\n");
 		const expectRendered = (text: string) =>
-			waitFor(() => expect(shadowText().includes(text)).toBe(true), {
-				timeout: 5000,
-			});
+			waitFor(
+				() => {
+					// Checked inside the wait so a crash's error box fails the
+					// story immediately instead of after the line assertion.
+					expectNoErrorBox();
+					expect(shadowText().includes(text)).toBe(true);
+				},
+				{
+					timeout: 5000,
+				},
+			);
 		const expectNoErrorBox = () =>
 			expect(
 				Array.from(canvasElement.querySelectorAll("diffs-container")).some(
@@ -521,11 +528,9 @@ export const ReparseSamePathAfterEdit: StoryObj = {
 			).toBe(false);
 
 		await expectRendered("const v = 2");
-		expectNoErrorBox();
 
 		await userEvent.click(canvas.getByRole("button", { name: "next body" }));
 
 		await expectRendered("const v = 3");
-		expectNoErrorBox();
 	},
 };

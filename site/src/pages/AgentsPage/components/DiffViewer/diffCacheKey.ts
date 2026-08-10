@@ -4,7 +4,7 @@
  * different diff bodies for the same path land on distinct keys, stable
  * across re-renders and remounts.
  */
-export const getContentCacheKeyPrefix = (text: string): string => {
+export const getContentCacheKey = (text: string): string => {
 	// FNV-1a plus the text length. The key only needs to separate different
 	// diff bodies while an older AST is cached, so a 32-bit checksum is
 	// plenty; crypto.subtle is async and cannot run in the render path.
