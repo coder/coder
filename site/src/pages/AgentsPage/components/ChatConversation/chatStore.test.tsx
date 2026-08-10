@@ -33,13 +33,19 @@ const readInfiniteChats = (
 };
 
 import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import {
+	QueryClient,
+	QueryClientProvider,
+	useInfiniteQuery,
+} from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
+	fetchChatMessagesPageWithReplay,
 	selectChatStatus,
 	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
@@ -53,7 +59,6 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./chatStore";
-import { chatPaginationEpochs, replayChatCacheWrites } from "./useChatStore";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
@@ -1097,14 +1102,11 @@ describe("useChatStore", () => {
 		);
 	});
 
-	it("replays a buffered durable write after a pagination settle clobbers it", async () => {
+	it("restores a durable write clobbered by a real pagination settle", async () => {
 		const chatID = "chat-epoch-race";
-		// Two pages: page 0 is newest, page 1 holds the older message the
-		// durable update targets.
-		const olderMessage = buildMessage(chatID, 1, "user", "older page row");
-		const newerMessage = buildMessage(chatID, 3, "user", "newest prompt");
+		const newestMessage = buildMessage(chatID, 3, "user", "newest prompt");
 		const middleMessage = buildMessage(chatID, 2, "assistant", "middle");
-		const initialMessages = [olderMessage, middleMessage, newerMessage];
+		const olderMessage = buildMessage(chatID, 1, "user", "older page row");
 		const updatedOlder = buildMessage(
 			chatID,
 			1,
@@ -1113,6 +1115,8 @@ describe("useChatStore", () => {
 		);
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
+
+		const deferred = createDeferred<TypesGen.ChatMessagesResponse>();
 
 		const queryClient = new QueryClient({
 			defaultOptions: {
@@ -1124,42 +1128,63 @@ describe("useChatStore", () => {
 				},
 			},
 		});
-		const snapshotPages = {
+		// page 0 is newest; the oldest loaded page keeps has_more true so
+		// fetchNextPage has a next page to fetch.
+		queryClient.setQueryData(chatMessagesKey(chatID), {
 			pages: [
 				{
-					messages: [newerMessage, middleMessage],
+					messages: [newestMessage, middleMessage],
 					queued_messages: [],
 					has_more: true,
 				},
 				{
 					messages: [olderMessage],
 					queued_messages: [],
-					has_more: false,
+					has_more: true,
 				},
 			],
 			pageParams: [undefined, 2],
-		};
-		queryClient.setQueryData(chatMessagesKey(chatID), snapshotPages);
+		});
 		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
 		const { result } = renderHook(
 			() => {
+				const messagesQuery = useInfiniteQuery({
+					queryKey: chatMessagesKey(chatID),
+					initialPageParam: undefined as number | undefined,
+					// The deferred promise holds the page fetch so the settle
+					// cannot race ahead of the mid-flight durable write.
+					queryFn: () => deferred.promise,
+					getNextPageParam: (lastPage: TypesGen.ChatMessagesResponse) =>
+						lastPage.has_more && lastPage.messages.length > 0
+							? lastPage.messages[lastPage.messages.length - 1].id
+							: undefined,
+				});
+				const pages = messagesQuery.data?.pages ?? [];
+				const flattened = pages
+					.flatMap((page) => page.messages)
+					.sort((a, b) => a.id - b.id);
 				const { store, upsertCacheMessages } = useChatStore({
 					chatID,
-					chatMessages: initialMessages,
+					chatMessages: flattened,
 					chatRecord: buildChat(chatID),
 					chatMessagesData: {
-						messages: initialMessages,
+						messages: flattened,
 						queued_messages: [],
-						has_more: false,
+						has_more: pages.at(-1)?.has_more ?? false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
-				return { upsertCacheMessages, store };
+				return {
+					upsertCacheMessages,
+					store,
+					fetchNextPage: messagesQuery.fetchNextPage,
+					isFetchingNextPage: messagesQuery.isFetchingNextPage,
+				};
 			},
 			{ wrapper },
 		);
@@ -1170,11 +1195,20 @@ describe("useChatStore", () => {
 			]);
 		});
 
-		// Pagination starts, opening an epoch.
-		const generation = chatPaginationEpochs.open(chatID);
+		// Pagination starts through the production wrapper. The deferred
+		// queryFn holds the fetch, so the settle cannot race ahead.
+		act(() => {
+			fetchChatMessagesPageWithReplay(
+				queryClient,
+				chatID,
+				result.current.fetchNextPage,
+			);
+		});
+		await waitFor(() => {
+			expect(result.current.isFetchingNextPage).toBe(true);
+		});
 
-		// A durable update lands mid-flight: written to the cache immediately
-		// and buffered on the epoch.
+		// A durable update for a message in the older page lands mid-flight.
 		act(() => {
 			result.current.upsertCacheMessages([updatedOlder]);
 		});
@@ -1185,38 +1219,171 @@ describe("useChatStore", () => {
 			updatedOlder.content,
 		);
 
-		// The fetch settles with the pre-fetch snapshot plus the fetched
-		// older page, clobbering the mid-flight write.
-		const fetchedOlderPage = {
-			messages: [buildMessage(chatID, 0, "user", "fetched older row")],
-			queued_messages: [],
-			has_more: false,
-		};
-		queryClient.setQueryData(chatMessagesKey(chatID), {
-			pages: [...snapshotPages.pages, fetchedOlderPage],
-			pageParams: [...snapshotPages.pageParams, 1],
+		// Resolve the held fetch with an even-older page. The real settle
+		// writes snapshot + new page, clobbering the mid-flight write.
+		act(() => {
+			deferred.resolve({
+				messages: [buildMessage(chatID, 0, "user", "fetched older row")],
+				queued_messages: [],
+				has_more: false,
+			});
 		});
+		await waitFor(() => {
+			expect(result.current.isFetchingNextPage).toBe(false);
+		});
+
+		// The replay restored the durable update in the older page, and the
+		// fetched older page survived.
 		const settled = queryClient.getQueryData<{
 			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
 		}>(chatMessagesKey(chatID));
+		expect(settled?.pages).toHaveLength(3);
 		expect(settled?.pages[1]?.messages[0]?.content).toEqual(
-			olderMessage.content,
-		);
-
-		// Closing the epoch replays the buffered write against the settled
-		// cache, restoring the durable update.
-		const writes = chatPaginationEpochs.close(chatID, generation);
-		expect(writes).toBeDefined();
-		replayChatCacheWrites(queryClient, chatID, writes ?? []);
-
-		const replayed = queryClient.getQueryData<{
-			pages: TypesGen.ChatMessagesResponse[];
-		}>(chatMessagesKey(chatID));
-		expect(replayed?.pages[1]?.messages[0]?.content).toEqual(
 			updatedOlder.content,
 		);
-		// The fetched older page survives the replay.
-		expect(replayed?.pages[2]?.messages[0]?.id).toBe(0);
+		expect(settled?.pages[2]?.messages[0]?.id).toBe(0);
+	});
+
+	it("re-applies a history replacement that a pagination settle clobbers", async () => {
+		const chatID = "chat-epoch-history-reset";
+		const initialMessages = [
+			buildMessage(chatID, 1, "user", "old prompt"),
+			buildMessage(chatID, 2, "assistant", "old answer"),
+			buildMessage(chatID, 3, "user", "stale prompt"),
+		];
+		const replacementMessage = buildMessage(chatID, 1, "user", "new prompt");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const deferred = createDeferred<TypesGen.ChatMessagesResponse>();
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [
+				{
+					messages: [initialMessages[2], initialMessages[1]],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [initialMessages[0]],
+					queued_messages: [],
+					has_more: true,
+				},
+			],
+			pageParams: [undefined, 2],
+		});
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const messagesQuery = useInfiniteQuery({
+					queryKey: chatMessagesKey(chatID),
+					initialPageParam: undefined as number | undefined,
+					queryFn: () => deferred.promise,
+					getNextPageParam: (lastPage: TypesGen.ChatMessagesResponse) =>
+						lastPage.has_more && lastPage.messages.length > 0
+							? lastPage.messages[lastPage.messages.length - 1].id
+							: undefined,
+				});
+				const pages = messagesQuery.data?.pages ?? [];
+				const flattened = pages
+					.flatMap((page) => page.messages)
+					.sort((a, b) => a.id - b.id);
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: flattened,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: flattened,
+						queued_messages: [],
+						has_more: pages.at(-1)?.has_more ?? false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					store,
+					fetchNextPage: messagesQuery.fetchNextPage,
+					isFetchingNextPage: messagesQuery.isFetchingNextPage,
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.store.getSnapshot().orderedMessageIDs).toEqual([
+				1, 2, 3,
+			]);
+		});
+
+		act(() => {
+			fetchChatMessagesPageWithReplay(
+				queryClient,
+				chatID,
+				result.current.fetchNextPage,
+			);
+		});
+		await waitFor(() => {
+			expect(result.current.isFetchingNextPage).toBe(true);
+		});
+
+		// A history reset lands mid-flight and collapses the cache to one
+		// page immediately.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{ type: "history_reset", chat_id: chatID },
+				{ type: "message", chat_id: chatID, message: replacementMessage },
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+		await waitFor(() => {
+			const cached = queryClient.getQueryData<{
+				pages: TypesGen.ChatMessagesResponse[];
+			}>(chatMessagesKey(chatID));
+			expect(cached?.pages).toHaveLength(1);
+		});
+
+		// The settle restores the pre-fetch snapshot plus the fetched page,
+		// clobbering the replacement. The replay re-applies the recorded
+		// history replacement afterwards.
+		act(() => {
+			deferred.resolve({
+				messages: [buildMessage(chatID, 0, "user", "fetched older row")],
+				queued_messages: [],
+				has_more: false,
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.isFetchingNextPage).toBe(false);
+		});
+
+		const settled = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		expect(settled?.pages).toHaveLength(1);
+		expect(settled?.pageParams).toHaveLength(1);
+		expect(settled?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			1,
+		]);
+		expect(settled?.pages[0]?.messages[0]?.content).toEqual(
+			replacementMessage.content,
+		);
+		expect(settled?.pages[0]?.has_more).toBe(false);
 	});
 
 	it("clears stream state when a new durable message arrives", async () => {

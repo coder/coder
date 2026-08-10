@@ -1,21 +1,12 @@
-// fetchNextPage snapshots state.data.pages when the fetch starts and
-// settles with snapshot + new page, discarding every setQueryData made
-// in between. While a per-chat pagination epoch is open, cache writes
-// are applied immediately and recorded in the epoch buffer; when the
-// epoch closes, the buffered writes replay in order against the settled
-// cache. A replacement supersedes every buffered write before it.
-export type PaginationCacheWrite = { kind: string };
-
-export const applySupersededWrites = <TWrite extends PaginationCacheWrite>(
-	writes: readonly TWrite[],
-): readonly TWrite[] => {
-	const lastReplacementIndex = writes.findLastIndex(
-		(write) => write.kind === "replace",
-	);
-	return lastReplacementIndex === -1
-		? writes
-		: writes.slice(lastReplacementIndex);
-};
+// fetchNextPage in @tanstack/query-core 5.82.0 (upstream
+// TanStack/query#3579) snapshots state.data.pages when the fetch
+// starts and settles with snapshot + new page, discarding every
+// setQueryData made in between. While a per-chat pagination epoch is
+// open, cache writes are applied immediately and recorded in the
+// epoch buffer; when the epoch closes, the buffered writes replay in
+// order against the settled cache. Background refetches instead use
+// the cancel convention (cancelChatListRefetches); a pagination fetch
+// is user-requested, so it must settle rather than be cancelled.
 
 type PaginationEpochState<TWrite> = {
 	refCount: number;
@@ -23,13 +14,10 @@ type PaginationEpochState<TWrite> = {
 	buffer: TWrite[];
 };
 
-// Keyed by chat ID so concurrent chats never share an epoch. Refcounted
-// because a cancelled fetchNextPage still settles: only the call that
-// closes the epoch replays. The generation token makes a stale close a
-// no-op if it ever lands after the epoch was replaced.
-export const createPaginationEpochManager = <
-	TWrite extends PaginationCacheWrite,
->() => {
+// Refcounted because a cancelled fetchNextPage still settles: only
+// the close that drains the refcount replays. The generation token
+// makes a stale close a no-op.
+export const createPaginationEpochManager = <TWrite>() => {
 	const epochs = new Map<string, PaginationEpochState<TWrite>>();
 	let generationCounter = 0;
 	return {
@@ -43,6 +31,7 @@ export const createPaginationEpochManager = <
 			epochs.set(chatID, { refCount: 1, generation, buffer: [] });
 			return generation;
 		},
+		// No-op when no epoch is open for the chat.
 		record: (chatID: string, write: TWrite): void => {
 			epochs.get(chatID)?.buffer.push(write);
 		},
@@ -59,7 +48,7 @@ export const createPaginationEpochManager = <
 				return undefined;
 			}
 			epochs.delete(chatID);
-			return applySupersededWrites(epoch.buffer);
+			return epoch.buffer;
 		},
 	};
 };

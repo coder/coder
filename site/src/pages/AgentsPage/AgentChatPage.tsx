@@ -90,14 +90,11 @@ import {
 import {
 	type ChatStore,
 	type ChatStoreState,
+	fetchChatMessagesPageWithReplay,
 	selectChatStatus,
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
-import {
-	chatPaginationEpochs,
-	replayChatCacheWrites,
-} from "./components/ChatConversation/useChatStore";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
@@ -1229,22 +1226,14 @@ const AgentChatPage: FC = () => {
 		aiGatewayDisabled,
 	});
 	const fetchOlderMessages = () => {
-		const chatID = agentId;
-		if (!chatID) {
+		if (!agentId) {
 			return;
 		}
-		const generation = chatPaginationEpochs.open(chatID);
-		// Re-entrant fetchNextPage cancels the in-flight fetch. Both calls
-		// settle, and only the one that closes the epoch replays the buffered
-		// writes. The replay must run synchronously here: React notifications
-		// are scheduled with setTimeout(0), so no render observes the stale
-		// snapshot before the microtask queue drains.
-		void chatMessagesQuery.fetchNextPage().finally(() => {
-			const writes = chatPaginationEpochs.close(chatID, generation);
-			if (writes) {
-				replayChatCacheWrites(queryClient, chatID, writes);
-			}
-		});
+		fetchChatMessagesPageWithReplay(
+			queryClient,
+			agentId,
+			chatMessagesQuery.fetchNextPage,
+		);
 	};
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;

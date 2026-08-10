@@ -1,55 +1,21 @@
 import { describe, expect, it } from "vitest";
-import {
-	applySupersededWrites,
-	createPaginationEpochManager,
-	type PaginationCacheWrite,
-} from "./paginationEpoch";
+import { createPaginationEpochManager } from "./paginationEpoch";
 
-type TestWrite = PaginationCacheWrite & { id: string };
+type TestWrite = { kind: string; id: string };
 
 const upsert = (id: string): TestWrite => ({ kind: "upsert", id });
 const replace = (id: string): TestWrite => ({ kind: "replace", id });
 
-describe("applySupersededWrites", () => {
-	it("returns all writes when there is no replacement", () => {
-		expect(applySupersededWrites([upsert("a"), upsert("b")])).toEqual([
-			upsert("a"),
-			upsert("b"),
-		]);
-	});
-
-	it("drops every write before the last replacement", () => {
-		expect(
-			applySupersededWrites([
-				upsert("a"),
-				upsert("b"),
-				replace("r1"),
-				upsert("c"),
-			]),
-		).toEqual([replace("r1"), upsert("c")]);
-	});
-
-	it("preserves order for writes after the replacement", () => {
-		expect(
-			applySupersededWrites([
-				replace("r1"),
-				upsert("a"),
-				upsert("b"),
-				replace("r2"),
-				upsert("c"),
-			]),
-		).toEqual([replace("r2"), upsert("c")]);
-	});
-});
-
 describe("createPaginationEpochManager", () => {
-	it("buffers writes while open and replays them on close", () => {
+	it("buffers writes while open and replays them in order on close", () => {
 		const manager = createPaginationEpochManager<TestWrite>();
 		const generation = manager.open("chat-1");
 		manager.record("chat-1", upsert("a"));
+		manager.record("chat-1", replace("r"));
 		manager.record("chat-1", upsert("b"));
 		expect(manager.close("chat-1", generation)).toEqual([
 			upsert("a"),
+			replace("r"),
 			upsert("b"),
 		]);
 	});
@@ -72,19 +38,10 @@ describe("createPaginationEpochManager", () => {
 		expect(manager.close("chat-1", second)).toEqual([upsert("a"), upsert("b")]);
 	});
 
-	it("applies supersession when replaying", () => {
-		const manager = createPaginationEpochManager<TestWrite>();
-		const generation = manager.open("chat-1");
-		manager.record("chat-1", upsert("a"));
-		manager.record("chat-1", replace("r"));
-		manager.record("chat-1", upsert("b"));
-		expect(manager.close("chat-1", generation)).toEqual([
-			replace("r"),
-			upsert("b"),
-		]);
-	});
-
-	it("treats a close with a stale generation as a no-op", () => {
+	// Defensive guard: deletion only happens at refcount zero, so no caller
+	// can observe a replaced epoch. This pins an input callers cannot
+	// produce, so a later change to the invariants fails loudly.
+	it("treats a close with an unrecognized generation as a no-op", () => {
 		const manager = createPaginationEpochManager<TestWrite>();
 		const generation = manager.open("chat-1");
 		expect(manager.close("chat-1", generation + 1)).toBeUndefined();

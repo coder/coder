@@ -787,4 +787,4 @@ export const useChatSelector = <T>(
 	return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 };
 
-export { useChatStore } from "./useChatStore";
+export { fetchChatMessagesPageWithReplay, useChatStore } from "./useChatStore";
