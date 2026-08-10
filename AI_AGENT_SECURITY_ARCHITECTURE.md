@@ -325,7 +325,21 @@ In `ValidateAPIKey` / subject construction path:
 Steps 1 to 6 are the foundation and independently mergeable; 7 to 9 are
 per-surface and parallelizable after 4.
 
-### Non-goals (PoC)
+### Known follow-ups (found in conformance review)
+
+- **AI Gateway budget principal.** `aibridgedserver.IsAuthorized` returns a
+  single `OwnerId` that the gateway uses for BOTH interception attribution
+  (must stay the agent, per Invariant 3) and AI budget enforcement (must be
+  the human owner, so agent spend counts against and is bounded by the
+  sponsor). Today it returns the agent user for both, so agent Gateway
+  traffic bypasses the owner's budget/override/group limits and accrues
+  spend to the credential-poor agent. Fixing this correctly requires
+  splitting the two concepts (e.g. add a distinct budget/governance
+  principal field to the aibridge authorization response and its proto),
+  rather than overloading one ID. Deferred as a deliberate design decision;
+  candidate for the auditing/governance vertical.
+
+## Non-goals (PoC)
 
 - Org/deployment-level policy ceilings ("no agent may ever X").
 - Configurable scope profiles (UI or API).
