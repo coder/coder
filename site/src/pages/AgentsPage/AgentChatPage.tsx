@@ -811,6 +811,7 @@ type _UncoveredAgentFields = Omit<
 	| "display_apps"
 	| "log_sources"
 	| "scripts"
+	| "metadata"
 	| "startup_script_behavior"
 >;
 // If this errors, a new field was added to WorkspaceAgent.
