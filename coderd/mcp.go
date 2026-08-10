@@ -321,10 +321,12 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 			// Now build the callback URL with the actual ID.
 			callbackURL := fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), inserted.ID)
-			httpClient := api.HTTPClient
-			if httpClient == nil {
-				httpClient = &http.Client{Timeout: 30 * time.Second}
-			}
+			// Discovery targets are attacker-influenced (the MCP
+			// server URL and any endpoints or redirects it
+			// advertises), so all discovery traffic goes through an
+			// SSRF-guarded client that refuses private/internal
+			// destinations (CDM-02-002).
+			httpClient := newMCPDiscoveryHTTPClient(api.HTTPClient, api.MCPOAuth2DiscoveryAllowedIPRanges)
 			result, err := discoverAndRegisterMCPOAuth2(ctx, httpClient, strings.TrimSpace(req.URL), callbackURL)
 			if err != nil {
 				// Clean up: delete the partially created config.
