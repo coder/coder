@@ -6019,6 +6019,7 @@ type TemplateVersion struct {
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
+	CreatedByEmail        string          `db:"created_by_email" json:"created_by_email"`
 }
 
 type TemplateVersionParameter struct {
@@ -6287,6 +6288,7 @@ type VisibleUser struct {
 	Username  string    `db:"username" json:"username"`
 	Name      string    `db:"name" json:"name"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
+	Email     string    `db:"email" json:"email"`
 }
 
 type WebpushSubscription struct {
