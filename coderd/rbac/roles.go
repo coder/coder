@@ -476,7 +476,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
-			ResourceMCPServerConfig.Type:  {policy.ActionRead},
 			// Allow auditors to query AI Bridge interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
 			// Allow auditors to read boundary logs.
@@ -612,7 +611,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceGroupMember.Type:        {policy.ActionRead},
 							ResourceOrganization.Type:       {policy.ActionRead},
 							ResourceOrganizationMember.Type: {policy.ActionRead},
-							ResourceMCPServerConfig.Type:    {policy.ActionRead},
 						}),
 						Member: []Permission{},
 					},

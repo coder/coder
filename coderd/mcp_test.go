@@ -641,6 +641,18 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 	require.Len(t, memberConfigs, 1)
 	require.Equal(t, "enabled-server", memberConfigs[0].Slug)
 
+	// An ACL-restricted config separates the auditors' management view
+	// from per-server access: it must stay in their full listing while
+	// row-level reads stay closed so audit rights cannot select or
+	// connect to servers the ACL withholds.
+	restricted := createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "restricted-server", true)
+	err = adminClient.UpdateMCPServerConfigACL(ctx, restricted.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+
 	// Auditors need the full management view of the MCP configs their
 	// audit logs reference.
 	for name, roles := range map[string][]rbac.RoleIdentifier{
@@ -650,7 +662,7 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 		auditorClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, roles...)
 		auditorConfigs, err := auditorClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 		require.NoError(t, err, name)
-		require.Len(t, auditorConfigs, 2, name)
+		require.Len(t, auditorConfigs, 3, name)
 		for _, config := range auditorConfigs {
 			require.NotEmpty(t, config.URL, "%s: %s", name, config.Slug)
 			if !config.Enabled {
@@ -659,6 +671,11 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 				require.NotEmpty(t, fetched.URL, name)
 			}
 		}
+
+		_, err = auditorClient.MCPServerConfigByID(ctx, restricted.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr, name)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(), name)
 	}
 }
 

@@ -163,8 +163,11 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 
 	// Full view: disabled configs included, management fields unredacted.
-	// Auditors get it to inspect audit-logged resources; their MCP config
-	// read grant cannot select it because members hold the same read.
+	// Auditors get it to inspect audit-logged resources. Row-level read
+	// follows the per-server ACL, so the full view fetches with system
+	// access after this authorization; auditors hold no blanket config
+	// read, keeping ACL-restricted servers unselectable and
+	// unconnectable for them.
 	// Other members see enabled configs granted by their ACL, redacted.
 	// The update leg also requires config read so a custom role granting
 	// update without read cannot lift the read filtering below.
@@ -175,7 +178,8 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	var configs []database.MCPServerConfig
 	var err error
 	if hasFullView {
-		configs, err = api.Database.GetMCPServerConfigsByOrganization(ctx, organization.ID)
+		//nolint:gocritic // The update-or-audit gate above owns this authorization.
+		configs, err = api.Database.GetMCPServerConfigsByOrganization(dbauthz.AsSystemRestricted(ctx), organization.ID)
 	} else {
 		prepared, prepareErr := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceMCPServerConfig.Type)
 		if prepareErr != nil {

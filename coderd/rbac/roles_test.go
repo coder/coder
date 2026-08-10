@@ -831,8 +831,8 @@ func TestRolePermissions(t *testing.T) {
 				orgID.String(): {policy.ActionRead},
 			}),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgAuditor, auditor, orgMemberMe, agentsAccessUser, orgWorkspaceAccessUser, orgUserAdmin, orgTemplateAdmin},
-				false: {setOtherOrg, memberMe, templateAdmin, userAdmin},
+				true:  {owner, orgAdmin, orgAuditor, orgMemberMe, agentsAccessUser, orgWorkspaceAccessUser, orgUserAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, memberMe, templateAdmin, userAdmin, auditor},
 			},
 		},
 		{
