@@ -31,7 +31,50 @@ import {
 	createChatStore,
 	isActiveChatStatus,
 } from "./chatStore";
+import {
+	createPaginationEpochManager,
+	type PaginationCacheWrite,
+} from "./paginationEpoch";
 import type { RetryState } from "./types";
+
+type ChatCacheWrite = PaginationCacheWrite & {
+	kind: "upsert" | "replace";
+	messages: readonly TypesGen.ChatMessage[];
+};
+
+const replayChatCacheWrite = (
+	queryClient: QueryClient,
+	chatID: string,
+	write: ChatCacheWrite,
+): void => {
+	if (write.kind === "replace") {
+		replaceChatMessagesHistory(queryClient, chatID, write.messages);
+		return;
+	}
+	upsertChatMessages(queryClient, chatID, write.messages);
+};
+
+// Applies the buffered writes returned when a pagination epoch closes.
+// Callers must run this synchronously in the fetchNextPage settle
+// continuation so the replay completes before React observes the stale
+// snapshot. The notifyManager scheduler is setTimeout(0), a macrotask,
+// and microtasks (this replay) drain before it fires.
+export const replayChatCacheWrites = (
+	queryClient: QueryClient,
+	chatID: string,
+	writes: readonly ChatCacheWrite[],
+): void => {
+	for (const write of writes) {
+		replayChatCacheWrite(queryClient, chatID, write);
+	}
+};
+
+// Per-chat epochs survive component unmounts. A fetch started before
+// unmount still settles the stale snapshot after the component is gone,
+// and the fetch wrapper's finally replay is the only path that heals the
+// departed chat's cache.
+export const chatPaginationEpochs =
+	createPaginationEpochManager<ChatCacheWrite>();
 
 // Prevents REST re-hydration from replaying a stale queue over the store.
 const writeQueuedMessagesToCache = (
@@ -199,6 +242,15 @@ export const useChatStore = (
 				return;
 			}
 			upsertChatMessages(queryClient, chatID, messages);
+			// While a pagination epoch is open, the settle write
+			// restores the pre-fetch snapshot, so the immediate write
+			// above must also be buffered for replay. The prompt and
+			// search invalidations run once here and are not repeated
+			// on replay.
+			chatPaginationEpochs.record(chatID, {
+				kind: "upsert",
+				messages,
+			});
 			// Refresh the dedicated prompt-history cache when a user message arrives.
 			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
 			if (hasNewUserPrompt) {
@@ -215,6 +267,10 @@ export const useChatStore = (
 				return;
 			}
 			replaceChatMessagesHistory(queryClient, chatID, messages);
+			chatPaginationEpochs.record(chatID, {
+				kind: "replace",
+				messages,
+			});
 			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],

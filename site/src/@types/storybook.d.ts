@@ -12,8 +12,8 @@ import type { ReactRouterAddonStoryParameters } from "storybook-addon-remix-reac
 
 declare module "@storybook/react-vite" {
 	type WebSocketEvent =
-		| { event: "message"; data: string }
-		| { event: "open" | "error" | "close" };
+		| { event: "message"; data: string; controlled?: boolean }
+		| { event: "open" | "error" | "close"; controlled?: boolean };
 	interface Parameters {
 		features?: FeatureName[];
 		experiments?: Experiments;

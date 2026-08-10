@@ -74,6 +74,29 @@ export const withDashboardProvider = (
 type MessageEvent = Record<"data", string>;
 type CallbackFn = (ev?: MessageEvent) => void;
 
+type WebSocketEventEntry = {
+	event: string;
+	data?: string;
+	controlled?: boolean;
+};
+
+declare global {
+	interface Window {
+		deliverStoryWebSocketEvents?: () => void;
+	}
+}
+
+// Delivers events declared with `controlled: true` to every mocked
+// socket. Uncontrolled events still auto-deliver after mount, while
+// controlled events wait so a play function can land them at a
+// deterministic moment, e.g. while a deferred fetch is held.
+export const deliverWebSocketEvents = (): void => {
+	if (!window.deliverStoryWebSocketEvents) {
+		throw new Error("No withWebSocket decorator is installed for this story");
+	}
+	window.deliverStoryWebSocketEvents();
+};
+
 // parameters.webSocket accepts two formats:
 //
 //   Array — events are delivered to every socket (backward-compatible):
@@ -85,6 +108,10 @@ type CallbackFn = (ev?: MessageEvent) => void;
 //       "/api/experimental/chats/": [{ event: "message", data: "..." }],
 //       "/api/experimental/workspaceagents/": [{ event: "message", data: "..." }],
 //     }
+//
+// An event entry can set `controlled: true` to opt out of the automatic
+// delivery. Play functions release those events via
+// deliverWebSocketEvents().
 export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 	const param = parameters.webSocket;
 
@@ -96,6 +123,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 	const isRouted = !Array.isArray(param);
 	const broadcastEvents = isRouted ? [] : param;
 	const routedEvents = isRouted ? param : {};
+	const sockets: { deliverControlledEvents: () => void }[] = [];
 
 	window.WebSocket = class WebSocket {
 		public readyState = 1;
@@ -105,17 +133,14 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 		#listeners = new Map<string, CallbackFn>();
 		#callEventsDelay: number | undefined;
 		#url: string;
+		#autoEvents: WebSocketEventEntry[] = [];
+		#controlledEvents: WebSocketEventEntry[] = [];
 
 		constructor(url?: string) {
 			this.#url = url ?? "";
-		}
-
-		send() {}
-
-		addEventListener(type: string, callback: CallbackFn) {
-			this.#listeners.set(type, callback);
-
-			// Determine which events this socket should receive.
+			// Determine which events this socket should receive. Splitting
+			// here, instead of per addEventListener call, keeps controlled
+			// events buffered exactly once per socket.
 			let events = broadcastEvents;
 			if (isRouted) {
 				const matchingKey = Object.keys(routedEvents).find((key) =>
@@ -123,20 +148,46 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 				);
 				events = matchingKey ? routedEvents[matchingKey] : [];
 			}
+			for (const entry of events) {
+				if (entry.controlled) {
+					this.#controlledEvents.push(entry);
+				} else {
+					this.#autoEvents.push(entry);
+				}
+			}
+			sockets.push(this);
+		}
 
-			if (events.length === 0) {
+		send() {}
+
+		deliverControlledEvents = () => {
+			const events = this.#controlledEvents.splice(0);
+			for (const entry of events) {
+				const callback = this.#listeners.get(entry.event);
+				if (callback) {
+					entry.event === "message"
+						? callback({ data: entry.data ?? "" })
+						: callback();
+				}
+			}
+		};
+
+		addEventListener(type: string, callback: CallbackFn) {
+			this.#listeners.set(type, callback);
+
+			if (this.#autoEvents.length === 0) {
 				return;
 			}
 
 			// Runs when the last event listener is added
 			clearTimeout(this.#callEventsDelay);
 			this.#callEventsDelay = window.setTimeout(() => {
-				for (const entry of events) {
+				for (const entry of this.#autoEvents) {
 					const callback = this.#listeners.get(entry.event);
 
 					if (callback) {
 						entry.event === "message"
-							? callback({ data: entry.data })
+							? callback({ data: entry.data ?? "" })
 							: callback();
 					}
 				}
@@ -147,6 +198,12 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 
 		close() {}
 	} as unknown as typeof WebSocket;
+
+	window.deliverStoryWebSocketEvents = () => {
+		for (const socket of sockets) {
+			socket.deliverControlledEvents();
+		}
+	};
 
 	return <Story />;
 };
