@@ -46,7 +46,7 @@ export const WithAIBudget: Story = {
 	},
 };
 
-export const AIBudgetUnset: Story = {
+export const AIBudgetUncapped: Story = {
 	args: {
 		showAISettings: true,
 		initialBudgetDollars: null,
