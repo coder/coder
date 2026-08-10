@@ -759,6 +759,18 @@ func TestMCPServerConfigACL(t *testing.T) {
 	require.Len(t, aclResponse.Users, 1)
 	require.Equal(t, nonMember.ID, aclResponse.Users[0].ID)
 
+	// Conflicting roles under two spellings of one principal are
+	// ambiguous and must be rejected rather than resolved by map order.
+	err = adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			nonMember.ID.String():               codersdk.MCPServerConfigRoleRead,
+			"urn:uuid:" + nonMember.ID.String(): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Error(), "duplicate entries for ID "+nonMember.ID.String())
+
 	// Noncanonical UUID spellings pass validation, so grants and
 	// deletions must canonicalize to hit the same ACL keys RBAC reads.
 	err = adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{

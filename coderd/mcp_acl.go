@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -94,6 +95,10 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 	}
 	validations := acl.Validate(ctx, api.Database, MCPServerConfigACLUpdateValidator(req))
 	validations = append(validations, api.validateMCPServerConfigACLOrganization(ctx, config.OrganizationID, req)...)
+	userRoles, dupErrs := canonicalMCPServerConfigACLRoles("user_roles", req.UserRoles)
+	validations = append(validations, dupErrs...)
+	groupRoles, dupErrs := canonicalMCPServerConfigACLRoles("group_roles", req.GroupRoles)
+	validations = append(validations, dupErrs...)
 	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update MCP server config ACL.",
@@ -111,12 +116,8 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 		aReq.Old = current
 		userACL := maps.Clone(current.UserACL)
 		groupACL := maps.Clone(current.GroupACL)
-		if err := applyMCPServerConfigACLRoles(userACL, req.UserRoles); err != nil {
-			return err
-		}
-		if err := applyMCPServerConfigACLRoles(groupACL, req.GroupRoles); err != nil {
-			return err
-		}
+		applyMCPServerConfigACLRoles(userACL, userRoles)
+		applyMCPServerConfigACLRoles(groupACL, groupRoles)
 		if err := tx.UpdateMCPServerConfigACLByID(ctx, database.UpdateMCPServerConfigACLByIDParams{
 			ID:        config.ID,
 			UserACL:   userACL,
@@ -202,23 +203,40 @@ func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWr
 	return result, true
 }
 
-// applyMCPServerConfigACLRoles applies validated role updates to the
-// cloned ACL, canonicalizing keys so noncanonical UUID spellings hit
-// the same keys RBAC reads.
-func applyMCPServerConfigACLRoles(entries database.ChatACL, roles map[string]codersdk.MCPServerConfigRole) error {
+// canonicalMCPServerConfigACLRoles rekeys the request map by canonical
+// uuid.String() values so noncanonical spellings hit the same keys RBAC
+// reads, and rejects requests where two spellings collapse to one
+// principal because map order would decide which role wins. Unparsable
+// keys are skipped; acl.Validate already reports them.
+func canonicalMCPServerConfigACLRoles(field string, roles map[string]codersdk.MCPServerConfigRole) (map[string]codersdk.MCPServerConfigRole, []codersdk.ValidationError) {
+	canonical := make(map[string]codersdk.MCPServerConfigRole, len(roles))
+	var validErrs []codersdk.ValidationError
 	for rawID, role := range roles {
 		parsed, err := uuid.Parse(rawID)
 		if err != nil {
-			return xerrors.Errorf("parse validated ACL ID %q: %w", rawID, err)
+			continue
 		}
 		id := parsed.String()
+		if _, ok := canonical[id]; ok {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field:  field,
+				Detail: fmt.Sprintf("duplicate entries for ID %s", id),
+			})
+			continue
+		}
+		canonical[id] = role
+	}
+	return canonical, validErrs
+}
+
+func applyMCPServerConfigACLRoles(entries database.ChatACL, roles map[string]codersdk.MCPServerConfigRole) {
+	for id, role := range roles {
 		if role == codersdk.MCPServerConfigRoleDeleted {
 			delete(entries, id)
 			continue
 		}
 		entries[id] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
 	}
-	return nil
 }
 
 func parseMCPServerConfigACLIDs(entries database.ChatACL) []uuid.UUID {
