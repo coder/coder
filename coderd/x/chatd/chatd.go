@@ -25,6 +25,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1122,6 +1123,11 @@ type CreateOptions struct {
 	MCPServerIDs            []uuid.UUID
 	Labels                  database.StringMap
 	DynamicTools            json.RawMessage
+	// CreateAIAgentIdentity mints an AI agent identity (user with
+	// kind='ai_agent' owned by OwnerID) and a chat-scoped API key
+	// atomically with the chat. See AI_AGENT_SECURITY_ARCHITECTURE.md,
+	// Vertical 1.
+	CreateAIAgentIdentity bool
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1317,7 +1323,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
 	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort))
 
-	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
+	createInput := chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
 		OwnerID:           opts.OwnerID,
 		WorkspaceID:       opts.WorkspaceID,
@@ -1340,9 +1346,47 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		},
 		ClientType:      opts.ClientType,
 		InitialMessages: initialMessages,
-	})
-	if err != nil {
-		return database.Chat{}, err
+	}
+
+	var result chatstate.CreateChatResult
+	if opts.CreateAIAgentIdentity {
+		// The chat, its AI agent identity, and the identity's scoped API
+		// key commit or roll back together. Chatstate notifications are
+		// buffered by the outer PublishBuffer so subscribers never observe
+		// a chat whose identity failed to create.
+		buffer := chatstate.NewPublishBuffer(p.pubsub)
+		defer buffer.Discard()
+		err = p.db.InTx(func(tx database.Store) error {
+			var err error
+			result, err = chatstate.CreateChatWithID(ctx, tx, buffer, chatID, createInput)
+			if err != nil {
+				return err
+			}
+			_, agent, err := aiagentidentity.Create(ctx, tx, aiagentidentity.CreateParams{
+				OwnerID:        opts.OwnerID,
+				OrganizationID: opts.OrganizationID,
+				OriginType:     database.AIAgentOriginChat,
+				OriginID:       chatID,
+			})
+			if err != nil {
+				return xerrors.Errorf("create chat AI agent identity: %w", err)
+			}
+			if _, _, err := aiagentidentity.MintKey(ctx, tx, agent.UserID, aiagentidentity.ChatAgentProfile(chatID)); err != nil {
+				return xerrors.Errorf("mint chat AI agent key: %w", err)
+			}
+			return nil
+		}, nil)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		if err := buffer.Flush(); err != nil {
+			p.logger.Warn(ctx, "flush chat creation notifications", slog.Error(err))
+		}
+	} else {
+		result, err = chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, createInput)
+		if err != nil {
+			return database.Chat{}, err
+		}
 	}
 	chat := result.Chat
 	if !chat.RootChatID.Valid && !chat.ParentChatID.Valid {

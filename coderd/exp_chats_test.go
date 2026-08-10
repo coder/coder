@@ -28,6 +28,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	agplaibridge "github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -350,6 +351,55 @@ func TestPostChats(t *testing.T) {
 			ResourceTarget: chat.ID.String()[:8],
 			UserID:         member.ID,
 		}))
+	})
+
+	t.Run("AIAgentIdentity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID, Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello from ai agent identity test",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Chat creation mints an AI agent identity attributed to the chat
+		// owner, plus exactly one chat-scoped API key.
+		//nolint:gocritic // Verifying internal identity state requires system access.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		agent, err := db.GetAIAgentByOrigin(sysCtx, database.GetAIAgentByOriginParams{
+			OriginType: database.AIAgentOriginChat,
+			OriginID:   chat.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, member.ID, agent.OwnerUserID)
+		require.False(t, agent.Deleted)
+
+		agentUser, err := db.GetUserByID(sysCtx, agent.UserID)
+		require.NoError(t, err)
+		require.Equal(t, database.UserKindAIAgent, agentUser.Kind)
+		require.Equal(t, database.LoginTypeNone, agentUser.LoginType)
+
+		keys, err := db.GetAPIKeysByUserID(sysCtx, database.GetAPIKeysByUserIDParams{
+			UserID:    agent.UserID,
+			LoginType: database.LoginTypeToken,
+		})
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		expectedProfile := aiagentidentity.ChatAgentProfile(chat.ID)
+		require.Equal(t, expectedProfile.TokenName, keys[0].TokenName)
+		require.ElementsMatch(t, expectedProfile.Scopes, keys[0].Scopes)
+		require.ElementsMatch(t, expectedProfile.AllowList, keys[0].AllowList)
 	})
 
 	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {

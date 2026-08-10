@@ -1460,6 +1460,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		DynamicTools:            dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
 		ParentChatID: uuid.NullUUID{},
+		// Every user-created chat gets an AI agent identity for
+		// attribution and reduced-permission execution. See
+		// AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 1.
+		CreateAIAgentIdentity: true,
 	})
 	if err != nil {
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
