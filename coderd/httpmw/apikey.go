@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -51,9 +52,10 @@ type ValidateAPIKeyConfig struct {
 
 // ValidateAPIKeyResult is the outcome of successful validation.
 type ValidateAPIKeyResult struct {
-	Key        database.APIKey
-	Subject    rbac.Subject
-	UserStatus database.UserStatus
+	Key          database.APIKey
+	Subject      rbac.Subject
+	UserStatus   database.UserStatus
+	AIAgentActor *aiagentidentity.AIAgentActor
 }
 
 // ValidateAPIKeyError represents a validation failure with enough
@@ -472,8 +474,63 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		}
 	}
 
-	// Fetch user roles.
-	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
+	// The key user determines whether authorization is direct or delegated.
+	// Authentication runs before a request actor exists, so this lookup uses the
+	// restricted system subject.
+	user, err := cfg.DB.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID) //nolint:gocritic
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, invalidAIAgentError("API key user does not exist.")
+		}
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusInternalServerError,
+			Response: codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("Internal error fetching API key user. %s", err.Error()),
+			},
+			Hard: true,
+		}
+	}
+
+	var (
+		actor      rbac.Subject
+		userStatus database.UserStatus
+		agentActor *aiagentidentity.AIAgentActor
+	)
+	if user.Kind == database.UserKindAIAgent {
+		identity, resolveErr := aiagentidentity.Resolve(ctx, cfg.DB, user.ID)
+		if resolveErr != nil {
+			if errors.Is(resolveErr, aiagentidentity.ErrNotAIAgent) ||
+				errors.Is(resolveErr, aiagentidentity.ErrAIAgentDeleted) ||
+				errors.Is(resolveErr, sql.ErrNoRows) {
+				return nil, invalidAIAgentError("AI agent identity is invalid or has been revoked.")
+			}
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusInternalServerError,
+				Response: codersdk.Response{
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("Internal error resolving AI agent identity. %s", resolveErr.Error()),
+				},
+				Hard: true,
+			}
+		}
+		if identity.AgentUser.Deleted || identity.AgentUser.Status != database.UserStatusActive {
+			return nil, invalidAIAgentError("AI agent user is not active.")
+		}
+		if identity.OwnerUser.Kind != database.UserKindHuman || identity.OwnerUser.Deleted || identity.OwnerUser.Status != database.UserStatusActive {
+			return nil, invalidAIAgentError("AI agent owner is not active.")
+		}
+
+		actor, userStatus, err = UserRBACSubject(ctx, cfg.DB, identity.OwnerUser.ID, key.ScopeSet())
+		if err == nil {
+			actor.Type = rbac.SubjectTypeAIAgent
+			actor.FriendlyName = identity.AgentUser.Username
+			resolvedActor := identity.Actor
+			agentActor = &resolvedActor
+		}
+	} else {
+		actor, userStatus, err = UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
+	}
 	if err != nil {
 		return nil, &ValidateAPIKeyError{
 			Code: http.StatusInternalServerError,
@@ -486,10 +543,21 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	}
 
 	return &ValidateAPIKeyResult{
-		Key:        *key,
-		Subject:    actor,
-		UserStatus: userStatus,
+		Key:          *key,
+		Subject:      actor,
+		UserStatus:   userStatus,
+		AIAgentActor: agentActor,
 	}, nil
+}
+
+func invalidAIAgentError(detail string) *ValidateAPIKeyError {
+	return &ValidateAPIKeyError{
+		Code: http.StatusUnauthorized,
+		Response: codersdk.Response{
+			Message: SignedOutErrorMessage,
+			Detail:  detail,
+		},
+	}
 }
 
 func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
@@ -616,6 +684,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	var key *database.APIKey
 	var actor rbac.Subject
 	var userStatus database.UserStatus
+	var aiAgentActor *aiagentidentity.AIAgentActor
 	var skipValidation bool
 
 	if cfg.SessionTokenFunc == nil {
@@ -632,6 +701,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			key = &pc.Result.Key
 			actor = pc.Result.Subject
 			userStatus = pc.Result.UserStatus
+			aiAgentActor = pc.Result.AIAgentActor
 			skipValidation = true
 		}
 	}
@@ -654,6 +724,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		key = &result.Key
 		actor = result.Subject
 		userStatus = result.UserStatus
+		aiAgentActor = result.AIAgentActor
 	}
 
 	// --- Route-specific logic (always runs) ---
@@ -694,6 +765,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 	if cfg.PostAuthAdditionalHeadersFunc != nil {
 		cfg.PostAuthAdditionalHeadersFunc(actor, rw.Header())
+	}
+	if aiAgentActor != nil {
+		*r = *r.WithContext(aiagentidentity.WithActor(r.Context(), *aiAgentActor))
 	}
 
 	return key, &actor, true
