@@ -137,7 +137,8 @@ INSERT INTO oauth2_provider_app_codes (
     code_challenge,
     code_challenge_method,
     state_hash,
-    redirect_uri
+    redirect_uri,
+    scope
 ) VALUES(
     $1,
     $2,
@@ -150,11 +151,17 @@ INSERT INTO oauth2_provider_app_codes (
     $9,
     $10,
     $11,
-    $12
+    $12,
+    $13
 ) RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppCodeByID :exec
 DELETE FROM oauth2_provider_app_codes WHERE id = $1;
+
+-- name: DeleteOAuth2ProviderAppCodeByIDReturningID :one
+-- Returns sql.ErrNoRows when the code was already redeemed, which lets a
+-- caller enforce single use by racing this delete instead of reading first.
+DELETE FROM oauth2_provider_app_codes WHERE id = $1 RETURNING id;
 
 -- name: DeleteOAuth2ProviderAppCodesByAppAndUserID :exec
 DELETE FROM oauth2_provider_app_codes WHERE app_id = $1 AND user_id = $2;
@@ -170,7 +177,8 @@ INSERT INTO oauth2_provider_app_tokens (
     app_secret_id,
     api_key_id,
     user_id,
-    audience
+    audience,
+    scope
 ) VALUES(
     $1,
     $2,
@@ -181,7 +189,8 @@ INSERT INTO oauth2_provider_app_tokens (
     $7,
     $8,
     $9,
-    $10
+    $10,
+    $11
 ) RETURNING *;
 
 -- name: GetOAuth2ProviderAppTokenByPrefix :one

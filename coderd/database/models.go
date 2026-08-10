@@ -5583,6 +5583,8 @@ type OAuth2ProviderAppCode struct {
 	StateHash sql.NullString `db:"state_hash" json:"state_hash"`
 	// The redirect_uri provided during authorization, to be verified during token exchange (RFC 6749 §4.1.3).
 	RedirectUri sql.NullString `db:"redirect_uri" json:"redirect_uri"`
+	// Space-separated scope negotiated at authorization time. NULL means no scope was recorded and the exchanged token is unrestricted.
+	Scope sql.NullString `db:"scope" json:"scope"`
 }
 
 type OAuth2ProviderAppSecret struct {
@@ -5611,6 +5613,8 @@ type OAuth2ProviderAppToken struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 	// Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.
 	AppID uuid.UUID `db:"app_id" json:"app_id"`
+	// Space-separated scope granted to this token. A refresh may narrow this but never widen it. NULL means no scope was recorded and the token is unrestricted.
+	Scope sql.NullString `db:"scope" json:"scope"`
 }
 
 type Organization struct {

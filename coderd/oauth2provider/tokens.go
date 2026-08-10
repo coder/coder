@@ -375,6 +375,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			APIKeyID:    newKey.ID,
 			UserID:      dbCode.UserID,
 			Audience:    dbCode.ResourceUri,
+			// A NULL scope records no restriction, so this token gets
+			// unrestricted access.
+			Scope: sql.NullString{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
@@ -499,6 +502,9 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,
 			Audience:    dbToken.Audience,
+			// A NULL scope records no restriction, so this token gets
+			// unrestricted access.
+			Scope: sql.NullString{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)

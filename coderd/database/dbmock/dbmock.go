@@ -675,6 +675,21 @@ func (mr *MockStoreMockRecorder) DeleteAPIKeyByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeyByID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeyByID), ctx, id)
 }
 
+// DeleteAPIKeyByIDReturningID mocks base method.
+func (m *MockStore) DeleteAPIKeyByIDReturningID(ctx context.Context, id string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAPIKeyByIDReturningID", ctx, id)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAPIKeyByIDReturningID indicates an expected call of DeleteAPIKeyByIDReturningID.
+func (mr *MockStoreMockRecorder) DeleteAPIKeyByIDReturningID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeyByIDReturningID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeyByIDReturningID), ctx, id)
+}
+
 // DeleteAPIKeysByUserID mocks base method.
 func (m *MockStore) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -1060,6 +1075,21 @@ func (m *MockStore) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid
 func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppCodeByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderAppCodeByID", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderAppCodeByID), ctx, id)
+}
+
+// DeleteOAuth2ProviderAppCodeByIDReturningID mocks base method.
+func (m *MockStore) DeleteOAuth2ProviderAppCodeByIDReturningID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOAuth2ProviderAppCodeByIDReturningID", ctx, id)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOAuth2ProviderAppCodeByIDReturningID indicates an expected call of DeleteOAuth2ProviderAppCodeByIDReturningID.
+func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppCodeByIDReturningID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderAppCodeByIDReturningID", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderAppCodeByIDReturningID), ctx, id)
 }
 
 // DeleteOAuth2ProviderAppCodesByAppAndUserID mocks base method.

@@ -2067,6 +2067,17 @@ func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
 
+func (q *querier) DeleteAPIKeyByIDReturningID(ctx context.Context, id string) (string, error) {
+	key, err := q.db.GetAPIKeyByID(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, key); err != nil {
+		return "", err
+	}
+	return q.db.DeleteAPIKeyByIDReturningID(ctx, id)
+}
+
 func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	// TODO: This is not 100% correct because it omits apikey IDs.
 	err := q.authorizeContext(ctx, policy.ActionDelete,
@@ -2312,6 +2323,17 @@ func (q *querier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 		return err
 	}
 	return q.db.DeleteOAuth2ProviderAppCodeByID(ctx, id)
+}
+
+func (q *querier) DeleteOAuth2ProviderAppCodeByIDReturningID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	code, err := q.db.GetOAuth2ProviderAppCodeByID(ctx, id)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, code); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.DeleteOAuth2ProviderAppCodeByIDReturningID(ctx, id)
 }
 
 func (q *querier) DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error {

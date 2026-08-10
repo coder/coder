@@ -259,6 +259,9 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
 				StateHash:           hashOAuth2State(params.state),
 				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: params.redirectURIProvided},
+				// A NULL scope records no restriction, so the token this code
+				// is exchanged for gets unrestricted access.
+				Scope: sql.NullString{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert oauth2 authorization code: %w", err)

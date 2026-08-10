@@ -2596,7 +2596,8 @@ CREATE TABLE oauth2_provider_app_codes (
     code_challenge text,
     code_challenge_method text,
     state_hash text,
-    redirect_uri text
+    redirect_uri text,
+    scope text
 );
 
 COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';
@@ -2610,6 +2611,8 @@ COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge_method IS 'PKCE chall
 COMMENT ON COLUMN oauth2_provider_app_codes.state_hash IS 'SHA-256 hash of the OAuth2 state parameter, stored to prevent state reflection attacks.';
 
 COMMENT ON COLUMN oauth2_provider_app_codes.redirect_uri IS 'The redirect_uri provided during authorization, to be verified during token exchange (RFC 6749 §4.1.3).';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.scope IS 'Space-separated scope negotiated at authorization time. NULL means no scope was recorded and the exchanged token is unrestricted.';
 
 CREATE TABLE oauth2_provider_app_secrets (
     id uuid NOT NULL,
@@ -2633,7 +2636,8 @@ CREATE TABLE oauth2_provider_app_tokens (
     api_key_id text NOT NULL,
     audience text,
     user_id uuid NOT NULL,
-    app_id uuid NOT NULL
+    app_id uuid NOT NULL,
+    scope text
 );
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
@@ -2643,6 +2647,8 @@ COMMENT ON COLUMN oauth2_provider_app_tokens.audience IS 'Token audience binding
 COMMENT ON COLUMN oauth2_provider_app_tokens.user_id IS 'Denormalized user ID for performance optimization in authorization checks';
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.app_id IS 'Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.';
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.scope IS 'Space-separated scope granted to this token. A refresh may narrow this but never widen it. NULL means no scope was recorded and the token is unrestricted.';
 
 CREATE TABLE oauth2_provider_apps (
     id uuid NOT NULL,
