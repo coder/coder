@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -200,7 +199,7 @@ func (c *Client) OrganizationGroupsPaginated(ctx context.Context, orgID uuid.UUI
 		return PaginatedGroupsResponse{}, ReadBodyAsError(res)
 	}
 	var resp PaginatedGroupsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type GroupRequest struct {
