@@ -20644,7 +20644,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "actual": {
-                    "description": "Actual is the usage measured against Limit, when known: a\npoint-in-time count for most features, or usage accumulated over\nUsagePeriod for features that set one. Its unit matches Limit's;\nFeatureAgentRuntimeHours reports whole hours floored from the\nrecorded milliseconds.",
+                    "description": "Actual is the usage measured against Limit, when known: a\npoint-in-time count for most features, or usage accumulated over\nUsagePeriod for features that set one. Its unit matches Limit's;\nFeatureAgentRuntimeHours reports whole hours floored from the\nrecorded milliseconds. FeatureAgentRuntimeHours usage can trail by\nroughly one hour because the current hour is not emitted, plus the\nentitlement refresh interval.",
                     "type": "integer"
                 },
                 "enabled": {

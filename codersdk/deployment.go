@@ -394,7 +394,9 @@ type Feature struct {
 	// point-in-time count for most features, or usage accumulated over
 	// UsagePeriod for features that set one. Its unit matches Limit's;
 	// FeatureAgentRuntimeHours reports whole hours floored from the
-	// recorded milliseconds.
+	// recorded milliseconds. FeatureAgentRuntimeHours usage can trail by
+	// roughly one hour because the current hour is not emitted, plus the
+	// entitlement refresh interval.
 	Actual *int64 `json:"actual,omitempty"`
 
 	// Below is only for features that use usage periods.

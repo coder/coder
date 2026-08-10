@@ -1001,7 +1001,7 @@ const (
 	// grant the feature.
 	ClaimAgentRuntimeHoursAllocation = "agent_runtime_hours_allocation"
 	// ClaimAgentRuntimeHoursLimitSoft is the advisory warning threshold. It
-	// becomes the feature's SoftLimit when 0 < soft < allocation and is
+	// becomes the feature's SoftLimit when 0 <= soft < allocation and is
 	// ignored otherwise.
 	ClaimAgentRuntimeHoursLimitSoft = "agent_runtime_hours_limit_soft"
 	// ClaimAgentRuntimeHoursLimitHard is the enforcement ceiling. It becomes
@@ -1097,7 +1097,7 @@ func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement
 		UsagePeriod: &usagePeriod,
 	}
 	if softOk {
-		if soft > 0 && soft < allocation {
+		if soft >= 0 && soft < allocation {
 			feature.SoftLimit = &soft
 		} else {
 			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitSoft)

@@ -1459,6 +1459,11 @@ func TestLicenseEntitlements(t *testing.T) {
 		}
 	}
 
+	// Captured by AgentRuntimeHours/UsagePeriodBounds. Only that case
+	// reads or writes these, so parallel siblings cannot race them.
+	var agentRuntimeUsageQueryFrom, agentRuntimeUsageQueryTo time.Time
+	var agentRuntimeUsageQueryCalled bool
+
 	premiumLicense := func() *coderdenttest.LicenseOptions {
 		return (&coderdenttest.LicenseOptions{
 			AccountType:   "salesforce",
@@ -1737,6 +1742,31 @@ func TestLicenseEntitlements(t *testing.T) {
 				// Soft limit (100) is used as the single Limit.
 				assert.Equal(t, int64(100), *feature.Limit)
 				assert.Equal(t, int64(150), *feature.Actual)
+			},
+		},
+		{
+			// hoursToMsFn discards the period bounds, so a swapped or wrong
+			// license period would still pass the other cases. Capture the
+			// arguments here and require they match the feature's UsagePeriod.
+			Name: "AgentRuntimeHours/UsagePeriodBounds",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, from, to time.Time) (int64, error) {
+					agentRuntimeUsageQueryFrom = from
+					agentRuntimeUsageQueryTo = to
+					agentRuntimeUsageQueryCalled = true
+					return 0, nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				require.True(t, agentRuntimeUsageQueryCalled)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				require.NotNil(t, feature.UsagePeriod)
+				assert.Equal(t, feature.UsagePeriod.Start, agentRuntimeUsageQueryFrom)
+				assert.Equal(t, feature.UsagePeriod.End, agentRuntimeUsageQueryTo)
 			},
 		},
 		{
@@ -3052,20 +3082,19 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 		},
 		{
-			// A zero soft limit would warn at zero usage forever, so it is
-			// dropped rather than rejecting the license. The canonical way
-			// to express "no soft limit" is omitting the claim, so a
-			// present-but-dropped zero still warns.
+			// A zero soft limit is valid (0 <= soft < allocation) and warns
+			// from the start of the usage period. Omitting the claim is the
+			// way to express "no soft limit".
 			name: "ZeroSoft",
 			features: license.Features{
 				license.ClaimAgentRuntimeHoursAllocation: 100,
 				license.ClaimAgentRuntimeHoursLimitSoft:  0,
 			},
 			expectFeature: &codersdk.Feature{
-				Enabled: true,
-				Limit:   ptr.Ref[int64](100),
+				Enabled:   true,
+				Limit:     ptr.Ref[int64](100),
+				SoftLimit: ptr.Ref[int64](0),
 			},
-			expectClaimsIgnored: true,
 		},
 		{
 			name: "NegativeSoft",
