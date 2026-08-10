@@ -109,8 +109,8 @@ To set this up, follow these steps:
    }
 
    module "jfrog" {
-     source                   = "registry.coder.com/modules/jfrog-token/coder"
-     version                  = "1.0.30"
+     source                   = "registry.coder.com/coder/jfrog-token/coder"
+     version                  = "1.2.2"
      agent_id                 = coder_agent.example.id
      jfrog_url                = "https://XXXX.jfrog.io"
      artifactory_access_token = var.artifactory_access_token
