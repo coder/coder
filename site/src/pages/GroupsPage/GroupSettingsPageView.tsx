@@ -88,7 +88,7 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 						rel="noreferrer"
 						size="sm"
 					>
-						View docs
+						Learn how effective budget is resolved
 					</Link>
 				</span>
 				{budgetValue !== "" && (

@@ -58,7 +58,9 @@ export const AIBudgetUncapped: Story = {
 		).toHaveAttribute("placeholder", "no budget");
 		await expect(canvas.getByText("no budget")).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: /view docs/i }),
+			canvas.getByRole("link", {
+				name: /learn how effective budget is resolved/i,
+			}),
 		).toHaveAttribute(
 			"href",
 			expect.stringContaining(
