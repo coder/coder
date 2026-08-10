@@ -245,6 +245,47 @@ func TestAuthorization(t *testing.T) {
 	}
 }
 
+// TestAIAgentInterceptionLineage verifies that AI Bridge interceptions
+// initiated by an AI agent record the agent user as initiator_id, and that
+// the sponsoring human is recoverable by joining ai_agents.owner_user_id.
+func TestAIAgentInterceptionLineage(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	owner := dbgen.User(t, db, database.User{})
+	organization := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: organization.ID,
+		UserID:         owner.ID,
+	})
+
+	agentUser, agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        owner.ID,
+		OrganizationID: organization.ID,
+		OriginType:     database.AIAgentOriginChat,
+		OriginID:       uuid.New(),
+	})
+	require.NoError(t, err)
+	key, _, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.ChatAgentProfile(agent.OriginID))
+	require.NoError(t, err)
+
+	interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: agentUser.ID,
+		APIKeyID:    sql.NullString{String: key.ID, Valid: true},
+		Provider:    "openai",
+		Model:       "gpt-4",
+	}, nil)
+
+	// Attribution: the interception records the agent user, not the human.
+	require.Equal(t, agentUser.ID, interception.InitiatorID)
+
+	// Lineage: the sponsoring human is recoverable via the ai_agents row.
+	resolvedAgent, err := db.GetAIAgentByUserID(ctx, interception.InitiatorID)
+	require.NoError(t, err)
+	require.Equal(t, owner.ID, resolvedAgent.OwnerUserID)
+}
+
 func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 	t.Parallel()
 
