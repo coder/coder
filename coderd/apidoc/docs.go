@@ -5761,6 +5761,66 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/organizations/{organization}/paginated-groups": {
+            "get": {
+                "description": "Unlike \"Get groups by organization\" (GET /organizations/{organization}/groups),\nwhich authorizes each group individually via its ACL, this endpoint requires\norganization-wide group read permission and does no per-group filtering. It is\ntherefore not a drop-in replacement: callers without org-wide group read receive\nan error rather than a filtered subset.\n\nThe ` + "`" + `q` + "`" + ` parameter uses the shared filter syntax. Bare terms (including multi-word)\nperform a free-text search over group name and display name. ` + "`" + `search:` + "`" + ` is the only\naccepted key and unknown keys return 400. Because group display names may contain\ncolons, a value with a colon must be quoted, e.g. ` + "`" + `search:\"team: frontend\"` + "`" + `; an\nunquoted colon fails with ` + "`" + `Query element \"team:\" cannot start or end with ':'` + "`" + `.\n\nThis endpoint returns group summaries without the member roster: each group\ncarries only ` + "`" + `total_member_count` + "`" + ` and no ` + "`" + `members` + "`" + ` field. Callers that need the\nroster use the group members endpoint (GET /groups/{group}/members).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get groups by organization (paginated)",
+                "operationId": "get-groups-by-organization-paginated",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query (see description for syntax and colon-quoting)",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PaginatedGroupsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/organizations/{organization}/paginated-members": {
             "get": {
                 "produces": [
@@ -22520,6 +22580,59 @@ const docTemplate = `{
                 "organization_assign_default": {
                     "description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.PaginatedGroup": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_display_name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "quota_allowance": {
+                    "type": "integer"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.GroupSource"
+                },
+                "total_member_count": {
+                    "description": "TotalMemberCount is the number of members in the group, shown even when\nthe caller cannot read individual members. The roster itself is not\nreturned by this endpoint.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.PaginatedGroupsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.PaginatedGroup"
+                    }
                 }
             }
         },

@@ -527,7 +527,7 @@ jobs:
     # `make test` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
     # some of the preceding steps are slow.
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -662,11 +662,12 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # Our macOS runners have 8 cores.
-          # Even though this parallelism seems high, we've observed relatively low flakiness in the past.
-          # See https://github.com/coder/coder/pull/21091#discussion_r2609891540.
+          # Our macOS runners have 8 cores. test-parallelism-tests matches
+          # Linux's rather than the previous 16, to rule out scheduler
+          # contention as a contributor to the macOS test-go-pg timeouts
+          # tracked in coder/internal#1365.
           test-parallelism-packages: "8"
-          test-parallelism-tests: "16"
+          test-parallelism-tests: "8"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
@@ -737,7 +738,7 @@ jobs:
     # `make test` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
     # some of the preceding steps are slow.
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -808,7 +809,11 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    timeout-minutes: 25
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-race` to ensure we receive a trace of running goroutines.
+    # Setting this to the timeout +5m should work quite well even if
+    # some of the preceding steps are slow.
+    timeout-minutes: 30
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0

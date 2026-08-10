@@ -15125,6 +15125,101 @@ func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetG
 	return items, nil
 }
 
+const getGroupsByOrganizationIDPaginated = `-- name: GetGroupsByOrganizationIDPaginated :many
+SELECT
+		groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source, groups.chat_spend_limit_micros,
+		organizations.name AS organization_name,
+		organizations.display_name AS organization_display_name,
+		COUNT(*) OVER() AS count
+FROM
+		groups
+INNER JOIN
+		organizations ON groups.organization_id = organizations.id
+WHERE
+		true
+		AND groups.organization_id = $1
+		-- Keyset pagination cursor. When @after_id is set, return only groups
+		-- ordered after it, matching the ORDER BY (LOWER(name), id) below. This
+		-- lets callers page without duplicated or skipped rows even if groups are
+		-- inserted or deleted between page requests.
+		AND CASE
+				WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+						(LOWER(groups.name), groups.id) > (
+								SELECT LOWER(name), id FROM groups WHERE id = $2
+						)
+				ELSE true
+		END
+		-- Filter by group name or display name (substring, case-insensitive).
+		AND CASE WHEN $3 :: text != '' THEN (
+				groups.name ILIKE concat('%', $3, '%')
+				OR groups.display_name ILIKE concat('%', $3, '%')
+			)
+			ELSE true
+		END
+ORDER BY
+		-- Deterministic and consistent ordering of all groups. This is to ensure consistent pagination.
+		LOWER(groups.name) ASC, groups.id ASC OFFSET $4
+LIMIT
+		-- A null limit means "no limit", so 0 means return all
+		NULLIF($5 :: int, 0)
+`
+
+type GetGroupsByOrganizationIDPaginatedParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	AfterID        uuid.UUID `db:"after_id" json:"after_id"`
+	Search         string    `db:"search" json:"search"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type GetGroupsByOrganizationIDPaginatedRow struct {
+	Group                   Group  `db:"group" json:"group"`
+	OrganizationName        string `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string `db:"organization_display_name" json:"organization_display_name"`
+	Count                   int64  `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetGroupsByOrganizationIDPaginated(ctx context.Context, arg GetGroupsByOrganizationIDPaginatedParams) ([]GetGroupsByOrganizationIDPaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationIDPaginated,
+		arg.OrganizationID,
+		arg.AfterID,
+		arg.Search,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupsByOrganizationIDPaginatedRow
+	for rows.Next() {
+		var i GetGroupsByOrganizationIDPaginatedRow
+		if err := rows.Scan(
+			&i.Group.ID,
+			&i.Group.Name,
+			&i.Group.OrganizationID,
+			&i.Group.AvatarURL,
+			&i.Group.QuotaAllowance,
+			&i.Group.DisplayName,
+			&i.Group.Source,
+			&i.Group.ChatSpendLimitMicros,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAllUsersGroup = `-- name: InsertAllUsersGroup :one
 INSERT INTO groups (
 	id,
@@ -19246,7 +19341,7 @@ type InsertOAuth2ProviderAppParams struct {
 	Icon                    string                `db:"icon" json:"icon"`
 	CallbackURL             string                `db:"callback_url" json:"callback_url"`
 	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
-	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientType              string                `db:"client_type" json:"client_type"`
 	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
 	ClientIDIssuedAt        sql.NullTime          `db:"client_id_issued_at" json:"client_id_issued_at"`
 	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
@@ -19555,7 +19650,7 @@ type UpdateOAuth2ProviderAppByClientIDParams struct {
 	Icon                    string                `db:"icon" json:"icon"`
 	CallbackURL             string                `db:"callback_url" json:"callback_url"`
 	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
-	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientType              string                `db:"client_type" json:"client_type"`
 	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
 	ResponseTypes           []string              `db:"response_types" json:"response_types"`
@@ -19661,7 +19756,7 @@ type UpdateOAuth2ProviderAppByIDParams struct {
 	Icon                    string                `db:"icon" json:"icon"`
 	CallbackURL             string                `db:"callback_url" json:"callback_url"`
 	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
-	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientType              string                `db:"client_type" json:"client_type"`
 	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
 	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
@@ -38914,7 +39009,11 @@ SELECT
 					'error', workspace_agent_metadata.error,
 					'timeout', workspace_agent_metadata.timeout,
 					'interval', workspace_agent_metadata.interval,
-					'collected_at', workspace_agent_metadata.collected_at,
+					-- Rendered explicitly as UTC RFC3339: jsonb renders
+					-- timestamptz in the session TimeZone, and the year-1
+					-- default of collected_at renders named zones with
+					-- LMT second-offsets (even BC), which Go rejects.
+					'collected_at', to_char(workspace_agent_metadata.collected_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
 					'display_order', workspace_agent_metadata.display_order
 				))
 			FROM

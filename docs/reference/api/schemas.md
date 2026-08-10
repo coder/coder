@@ -9787,6 +9787,67 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 | » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
 | `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
 
+## codersdk.PaginatedGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                         | Required | Restrictions | Description                                                                                                                                                              |
+|-----------------------------|----------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                       | false    |              |                                                                                                                                                                          |
+| `display_name`              | string                                       | false    |              |                                                                                                                                                                          |
+| `id`                        | string                                       | false    |              |                                                                                                                                                                          |
+| `name`                      | string                                       | false    |              |                                                                                                                                                                          |
+| `organization_display_name` | string                                       | false    |              |                                                                                                                                                                          |
+| `organization_id`           | string                                       | false    |              |                                                                                                                                                                          |
+| `organization_name`         | string                                       | false    |              |                                                                                                                                                                          |
+| `quota_allowance`           | integer                                      | false    |              |                                                                                                                                                                          |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource) | false    |              |                                                                                                                                                                          |
+| `total_member_count`        | integer                                      | false    |              | Total member count is the number of members in the group, shown even when the caller cannot read individual members. The roster itself is not returned by this endpoint. |
+
+## codersdk.PaginatedGroupsResponse
+
+```json
+{
+  "count": 0,
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "source": "user",
+      "total_member_count": 0
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                        | Required | Restrictions | Description |
+|----------|-------------------------------------------------------------|----------|--------------|-------------|
+| `count`  | integer                                                     | false    |              |             |
+| `groups` | array of [codersdk.PaginatedGroup](#codersdkpaginatedgroup) | false    |              |             |
+
 ## codersdk.PaginatedMembersResponse
 
 ```json
