@@ -1,13 +1,21 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import DialogActions from "@mui/material/DialogActions";
-import TextField from "@mui/material/TextField";
+import { useTheme } from "@emotion/react";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Dialog, DialogActionButtons } from "#/components/Dialogs/Dialog";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
+import { Label } from "#/components/Label/Label";
+import { Textarea } from "#/components/Textarea/Textarea";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
+import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 
 interface AnnouncementBannerDialogProps {
@@ -22,6 +30,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 	onUpdate,
 }) => {
 	const theme = useTheme();
+	const isCreating = banner.message === "";
 
 	const bannerForm = useFormik<{
 		message: string;
@@ -33,39 +42,87 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 		},
 		onSubmit: (banner) => onUpdate(banner),
 	});
-	const bannerFieldHelpers = getFormHelpers(bannerForm);
+	const getFieldHelpers = getFormHelpers(bannerForm);
+	const messageField = getFieldHelpers("message", {
+		helperText: "Markdown bold, italics, and links are supported.",
+	});
+	const messageHelperId = `${messageField.id}-helper`;
+	const messageErrorId = `${messageField.id}-error`;
 
 	const [showHuePicker, setShowHuePicker] = useState(false);
+	const previewMessage = bannerForm.values.message.trim();
 
 	return (
-		<Dialog css={styles.dialogWrapper} open onClose={onCancel}>
-			{/* Banner preview */}
-			<div className="fixed top-0 left-0 right-0">
+		<Dialog
+			open
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) {
+					onCancel();
+				}
+			}}
+		>
+			{/* Banner preview. Rendered outside DialogContent so its fixed
+			    positioning is relative to the viewport, not the dialog's
+			    transformed containing block. */}
+			<div className="pointer-events-none fixed top-0 right-0 left-0 z-[60]">
 				<AnnouncementBannerView
 					message={bannerForm.values.message}
 					backgroundColor={bannerForm.values.background_color}
 				/>
 			</div>
 
-			<div css={styles.dialogContent}>
-				<h3 css={styles.dialogTitle}>Announcement banner</h3>
+			<DialogContent
+				className="max-w-[500px]"
+				data-testid="dialog"
+				aria-describedby={undefined}
+			>
+				<DialogHeader>
+					<DialogTitle>Announcement banner</DialogTitle>
+				</DialogHeader>
+
 				<div className="flex flex-col gap-4">
-					<div>
-						<h4 css={styles.settingName}>Message</h4>
-						<TextField
-							{...bannerFieldHelpers("message", {
-								helperText: "Markdown bold, italics, and links are supported.",
-							})}
-							fullWidth
-							multiline
-							inputProps={{
-								"aria-label": "Message",
-								placeholder: "Enter a message for the banner",
-							}}
+					<div className="flex flex-col gap-2">
+						<Label htmlFor={messageField.id}>Message</Label>
+						<Textarea
+							id={messageField.id}
+							name={messageField.name}
+							value={messageField.value}
+							onChange={messageField.onChange}
+							onBlur={messageField.onBlur}
+							rows={3}
+							placeholder="Enter a message for the banner"
+							aria-invalid={messageField.error}
+							aria-describedby={
+								messageField.error
+									? messageErrorId
+									: messageField.helperText
+										? messageHelperId
+										: undefined
+							}
+							className={cn(messageField.error && "border-border-destructive")}
 						/>
+						{messageField.error ? (
+							<span
+								id={messageErrorId}
+								className="text-xs text-content-destructive"
+							>
+								{messageField.helperText}
+							</span>
+						) : (
+							messageField.helperText && (
+								<span
+									id={messageHelperId}
+									className="text-xs text-content-secondary"
+								>
+									{messageField.helperText}
+								</span>
+							)
+						)}
 					</div>
 					<div>
-						<h4 css={styles.settingName}>Background color</h4>
+						<h4 className="m-0 mb-2 text-base font-semibold text-content-primary">
+							Background color
+						</h4>
 						<div className="flex flex-col gap-4">
 							{showHuePicker ? (
 								<SliderPicker
@@ -129,51 +186,18 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 						</div>
 					</div>
 				</div>
-			</div>
 
-			<DialogActions>
-				<DialogActionButtons
-					cancelText="Cancel"
-					confirmLoading={bannerForm.isSubmitting}
-					confirmText="Update"
-					disabled={bannerForm.isSubmitting}
-					onCancel={onCancel}
-					onConfirm={bannerForm.handleSubmit}
-				/>
-			</DialogActions>
+				<DialogFooter>
+					<DialogActions
+						cancelText="Cancel"
+						confirmLoading={bannerForm.isSubmitting}
+						confirmText={isCreating ? "Create" : "Update"}
+						confirmDisabled={bannerForm.isSubmitting || previewMessage === ""}
+						onCancel={onCancel}
+						onConfirm={bannerForm.handleSubmit}
+					/>
+				</DialogFooter>
+			</DialogContent>
 		</Dialog>
 	);
 };
-
-const styles = {
-	dialogWrapper: (theme) => ({
-		"& .MuiPaper-root": {
-			background: theme.palette.background.paper,
-			border: `1px solid ${theme.palette.divider}`,
-			width: "100%",
-			maxWidth: 500,
-		},
-		"& .MuiDialogActions-spacing": {
-			padding: "0 40px 40px",
-		},
-	}),
-	dialogContent: (theme) => ({
-		color: theme.palette.text.secondary,
-		padding: "40px 40px 20px",
-	}),
-	dialogTitle: (theme) => ({
-		margin: 0,
-		marginBottom: 16,
-		color: theme.palette.text.primary,
-		fontWeight: 400,
-		fontSize: 20,
-	}),
-	settingName: (theme) => ({
-		marginTop: 0,
-		marginBottom: 8,
-		color: theme.palette.text.primary,
-		fontSize: 16,
-		lineHeight: "150%",
-		fontWeight: 600,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

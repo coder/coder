@@ -73,7 +73,7 @@ export const EmptyTemplates: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["templates", { q: "has-ai-task:true" }],
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
 				data: [],
 			},
 			{

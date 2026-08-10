@@ -1,9 +1,8 @@
 # Mux
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 Mux makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop; it is open source and provider-agnostic.
 
@@ -55,9 +54,9 @@ export ANTHROPIC_API_KEY="<your-coder-api-token>"
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic"
 ```
 
-## Running Mux in a Coder workspace
+## Run Mux in a Coder workspace
 
-If you want to run Mux inside a Coder workspace (for example, as a Coder app), you can install it with the [Mux module](https://registry.coder.com/modules/coder/mux) and pre-configure AI Gateway via environment variables on the agent:
+To run Mux inside a Coder workspace (for example, as a Coder app), you can install it with the [Mux module](https://registry.coder.com/modules/coder/mux) and pre-configure AI Gateway via environment variables on the agent:
 
 ```tf
 data "coder_workspace" "me" {}
@@ -76,7 +75,7 @@ resource "coder_agent" "main" {
 
 module "mux" {
   source   = "registry.coder.com/coder/mux/coder"
-  version  = "~> 1.0" # See the module page for the latest version.
+  version  = "~> 1.5"
   agent_id = coder_agent.main.id
 }
 ```

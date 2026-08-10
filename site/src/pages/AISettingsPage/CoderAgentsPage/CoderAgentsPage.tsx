@@ -1,19 +1,15 @@
 import type { FC } from "react";
-import {
-	type QueryClient,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
-import { API } from "#/api/api";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatAdvisorConfig,
 	chatComputerUseProvider,
 	chatModelConfigs,
+	chatModelOverride,
 	chatPersonalModelOverridesAdminSettings,
-	chatProviderConfigs,
 	updateChatAdvisorConfig,
 	updateChatComputerUseProvider,
+	updateChatModelOverride,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -31,30 +27,6 @@ const titleGenerationOverrideContext: TypesGen.ChatModelOverrideContext =
 const compactionOverrideContext: TypesGen.ChatModelOverrideContext =
 	"compaction";
 
-const chatModelOverrideKey = (context: TypesGen.ChatModelOverrideContext) =>
-	["chat-model-override", context] as const;
-
-const chatModelOverrideQuery = (
-	context: TypesGen.ChatModelOverrideContext,
-) => ({
-	queryKey: chatModelOverrideKey(context),
-	queryFn: () => API.experimental.getChatModelOverride(context),
-});
-
-const updateChatModelOverrideMutation = (
-	queryClient: QueryClient,
-	context: TypesGen.ChatModelOverrideContext,
-) => ({
-	mutationFn: (req: TypesGen.UpdateChatModelOverrideRequest) =>
-		API.experimental.updateChatModelOverride(context, req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatModelOverrideKey(context),
-			exact: true,
-		});
-	},
-});
-
 const CoderAgentsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
@@ -70,19 +42,19 @@ const CoderAgentsPage: FC = () => {
 		enabled: canEditDeploymentConfig,
 	});
 	const generalModelOverrideQuery = useQuery({
-		...chatModelOverrideQuery(generalOverrideContext),
+		...chatModelOverride(generalOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
 	const exploreModelOverrideQuery = useQuery({
-		...chatModelOverrideQuery(exploreOverrideContext),
+		...chatModelOverride(exploreOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
 	const titleGenerationModelQuery = useQuery({
-		...chatModelOverrideQuery(titleGenerationOverrideContext),
+		...chatModelOverride(titleGenerationOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
 	const compactionModelQuery = useQuery({
-		...chatModelOverrideQuery(compactionOverrideContext),
+		...chatModelOverride(compactionOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
 	const modelConfigsQuery = useQuery(chatModelConfigs());
@@ -102,19 +74,16 @@ const CoderAgentsPage: FC = () => {
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
 	);
 	const saveGeneralModelOverrideMutation = useMutation(
-		updateChatModelOverrideMutation(queryClient, generalOverrideContext),
+		updateChatModelOverride(queryClient, generalOverrideContext),
 	);
 	const saveTitleGenerationModelMutation = useMutation(
-		updateChatModelOverrideMutation(
-			queryClient,
-			titleGenerationOverrideContext,
-		),
+		updateChatModelOverride(queryClient, titleGenerationOverrideContext),
 	);
 	const saveCompactionModelMutation = useMutation(
-		updateChatModelOverrideMutation(queryClient, compactionOverrideContext),
+		updateChatModelOverride(queryClient, compactionOverrideContext),
 	);
 	const saveExploreModelOverrideMutation = useMutation(
-		updateChatModelOverrideMutation(queryClient, exploreOverrideContext),
+		updateChatModelOverride(queryClient, exploreOverrideContext),
 	);
 	const saveAdvisorConfigMutation = useMutation(
 		updateChatAdvisorConfig(queryClient),

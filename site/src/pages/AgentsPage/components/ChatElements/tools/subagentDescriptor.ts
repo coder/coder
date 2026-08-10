@@ -1,14 +1,9 @@
 import { asString } from "../runtimeTypeUtils";
 import { parseArgs } from "./utils";
 
-export type SubagentAction =
-	| "spawn"
-	| "wait"
-	| "message"
-	| "interrupt"
-	| "list";
+export type SubagentAction = "spawn" | "wait" | "message" | "interrupt";
 export type SubagentVariant = "general" | "explore" | "computer_use";
-export type SubagentIconKind = "bot" | "monitor";
+type SubagentIconKind = "bot" | "monitor";
 
 export type SubagentDescriptor = {
 	action: SubagentAction;
@@ -17,6 +12,10 @@ export type SubagentDescriptor = {
 	title: string;
 	fallbackTitle: string;
 	supportsDesktopAffordance: boolean;
+	/** Set only when the spawn args explicitly selected a model. */
+	modelConfigId?: string;
+	/** Set only when the spawn args explicitly pinned a reasoning effort. */
+	reasoningEffort?: string;
 };
 
 const subagentCatalog: Record<
@@ -55,11 +54,6 @@ const actionByToolName: Record<string, SubagentAction> = {
 	// Legacy persisted tool name kept so old chat histories still render.
 	close_agent: "interrupt",
 	interrupt_agent: "interrupt",
-	// list_agents is a subagent tool but renders through
-	// ListAgentsRenderer, not SubagentRenderer. The "list" action
-	// exists for isSubagentToolName classification and ToolIcon
-	// dispatch, not for the SubagentRenderer label machinery.
-	list_agents: "list",
 };
 
 const variantBySpawnToolName: Record<string, SubagentVariant> = {
@@ -151,6 +145,12 @@ export const getSubagentDescriptor = ({
 	const title =
 		getProvidedSubagentTitle({ args: argsRecord, result: resultRecord }) ||
 		catalogEntry.fallbackTitle;
+	const modelConfigId =
+		action === "spawn" ? asString(argsRecord?.model_config_id).trim() : "";
+	const reasoningEffort =
+		action === "spawn"
+			? asString(argsRecord?.reasoning_effort).trim().toLowerCase()
+			: "";
 
 	return {
 		action,
@@ -159,5 +159,7 @@ export const getSubagentDescriptor = ({
 		title,
 		fallbackTitle: catalogEntry.fallbackTitle,
 		supportsDesktopAffordance: catalogEntry.supportsDesktopAffordance,
+		...(modelConfigId ? { modelConfigId } : {}),
+		...(reasoningEffort ? { reasoningEffort } : {}),
 	};
 };

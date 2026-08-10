@@ -86,6 +86,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,
+		arg.AgentsAllowed,
 		arg.AuthorID,
 		arg.AuthorUsername,
 		arg.HasExternalAgent,
@@ -130,6 +131,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.CorsBehavior,
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
+			&i.AgentsAllowed,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -826,6 +828,8 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.PlanMode,
 			&i.Chat.ClientType,
 			&i.Chat.LastTurnSummary,
+			&i.Chat.Summary,
+			&i.Chat.SummaryGeneratedAt,
 			&i.Chat.SnapshotVersion,
 			&i.Chat.HistoryVersion,
 			&i.Chat.QueueVersion,
@@ -842,6 +846,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.ContextDirtySince,
 			&i.Chat.ContextDirtyResources,
 			&i.Chat.ContextError,
+			&i.Chat.CompactionRequestedAt,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}
@@ -905,6 +910,8 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
 			&i.SnapshotVersion,
 			&i.HistoryVersion,
 			&i.QueueVersion,
@@ -920,7 +927,8 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.ContextAggregateHash,
 			&i.ContextDirtySince,
 			&i.ContextDirtyResources,
-			&i.ContextError); err != nil {
+			&i.ContextError,
+			&i.CompactionRequestedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1052,6 +1060,9 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 			&i.CacheWriteInputTokens,
 			&i.LastPrompt,
 			&i.LastActiveAt,
+			&i.NetworkCallsTotal,
+			&i.NetworkCallsBlocked,
+			&i.FirewallActive,
 		); err != nil {
 			return nil, err
 		}

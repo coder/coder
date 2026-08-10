@@ -571,7 +571,9 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
+      "hard_limit": 0,
       "limit": 0,
+      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -582,7 +584,9 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
+      "hard_limit": 0,
       "limit": 0,
+      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -1032,6 +1036,50 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 | Status | Meaning                                                         | Description | Schema |
 |--------|-----------------------------------------------------------------|-------------|--------|
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get group AI spend
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/groups/{group}/ai/spend \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/groups/{group}/ai/spend`
+
+Returns the AI spend limit and aggregate spend for the group.
+
+### Parameters
+
+| Name    | In   | Type         | Required | Description |
+|---------|------|--------------|----------|-------------|
+| `group` | path | string(uuid) | true     | Group ID    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "current_spend_micros": 0,
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "spend_limit_micros": 0,
+  "total_spend_limit_micros": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupAISpend](schemas.md#codersdkgroupaispend) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1715,6 +1763,116 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get OAuth2 provider settings
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2-provider/settings \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/oauth2-provider/settings`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "dynamic_client_registration_enabled": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update OAuth2 provider settings
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/settings \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/oauth2-provider/settings`
+
+> Body parameter
+
+```json
+{
+  "dynamic_client_registration_enabled": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                         | Required | Description                      |
+|--------|------|------------------------------------------------------------------------------|----------|----------------------------------|
+| `body` | body | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) | true     | OAuth2 provider settings request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "dynamic_client_registration_enabled": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Export organization AI spend as CSV
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spend/export \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/ai/spend/export`
+
+Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
+The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
+An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
+Requires organization-level administrator permissions.
+
+### Parameters
+
+| Name           | In    | Type              | Required | Description                     |
+|----------------|-------|-------------------|----------|---------------------------------|
+| `organization` | path  | string(uuid)      | true     | Organization ID                 |
+| `period_start` | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
+| `period_end`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+|--------|---------------------------------------------------------|-------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get groups by organization
 
 ### Code samples
@@ -1927,7 +2085,8 @@ Unknown or unreadable group IDs are silently omitted.
     {
       "current_spend_micros": 0,
       "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
-      "spend_limit_micros": 0
+      "spend_limit_micros": 0,
+      "total_spend_limit_micros": 0
     }
   ],
   "period_end": "2019-08-24T14:15:22Z",
@@ -3823,12 +3982,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/budget \
+curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/v2/users/{user}/ai/budget`
+`GET /api/v2/users/{user}/ai/budget/override`
 
 ### Parameters
 
@@ -3864,13 +4023,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget \
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /api/v2/users/{user}/ai/budget`
+`PUT /api/v2/users/{user}/ai/budget/override`
 
 > Body parameter
 
@@ -3916,11 +4075,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```sh
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai/budget \
+curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /api/v2/users/{user}/ai/budget`
+`DELETE /api/v2/users/{user}/ai/budget/override`
 
 ### Parameters
 
@@ -3962,11 +4121,13 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
 ```json
 {
   "current_spend_micros": 0,
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
   "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
-  "limit_source": "user_override",
   "period_end": "2019-08-24T14:15:22Z",
   "period_start": "2019-08-24T14:15:22Z",
-  "spend_limit_micros": 0,
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
@@ -5021,7 +5182,7 @@ curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/Users \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `GET /scim/v2/Users`
@@ -5043,7 +5204,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X POST http://coder-server:8080/scim/v2/Users \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `POST /scim/v2/Users`
@@ -5133,7 +5294,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/Users/{id} \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `GET /scim/v2/Users/{id}`
@@ -5161,7 +5322,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `PUT /scim/v2/Users/{id}`
@@ -5253,7 +5414,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `PATCH /scim/v2/Users/{id}`

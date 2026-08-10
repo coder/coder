@@ -42,7 +42,7 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
@@ -72,6 +72,7 @@ import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
+import type { ChatSlashCommand } from "../utils/slashCommands";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -205,6 +206,9 @@ interface AgentChatInputProps {
 	// AI Gateway is disabled deployment-wide, independent of provider/model
 	// configuration. Forces the setup notice regardless of the counts above.
 	aiGatewayDisabled?: boolean;
+	// Built-in commands offered by the "/" trigger menu ahead of
+	// personal skills.
+	slashCommands?: readonly ChatSlashCommand[];
 }
 
 export interface AttachedWorkspaceInfo {
@@ -412,6 +416,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelCount,
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
+	slashCommands,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const showAgentSetupNotice =
@@ -1228,6 +1233,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					hasWorkspace={hasSkillsWorkspace}
 					workspaceSkills={workspaceSkills}
 					autoFocus
+					slashCommands={slashCommands}
 				/>
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip

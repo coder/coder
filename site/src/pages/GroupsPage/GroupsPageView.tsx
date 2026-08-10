@@ -1,14 +1,13 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
-import type { GroupWithAICostControl } from "#/api/api";
+import type { Group, OrganizationGroupsAISpend } from "#/api/typesGenerated";
 import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -19,26 +18,57 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
-import { InfoIconTooltip } from "./InfoIconTooltip";
+import { SpendEstimateDocsLink } from "./AICostControl";
+import { StatusIconTooltip } from "./StatusIconTooltip";
+
+const EM_DASH = "\u2014";
+
+export type GroupWithSpend = Group & {
+	readonly spend: OrganizationGroupsAISpend["groups"][number] | undefined;
+};
+
+/** Attach each group's spend, when present, so rows get a single object. */
+export const joinGroupsSpend = (
+	groups: Group[] | undefined,
+	groupsSpend: OrganizationGroupsAISpend | undefined,
+): GroupWithSpend[] | undefined => {
+	if (groups === undefined) {
+		return undefined;
+	}
+	const spendByGroupId = new Map(
+		groupsSpend?.groups.map((spend) => [spend.group_id, spend]) ?? [],
+	);
+	return groups.map((group) => ({
+		...group,
+		spend: spendByGroupId.get(group.id),
+	}));
+};
 
 type GroupsPageViewProps = {
-	groups: GroupWithAICostControl[] | undefined;
+	groups: GroupWithSpend[] | undefined;
+	/** True when the spend query failed; cells then show an em dash. */
+	spendError: boolean;
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
 	showAIBudget: boolean;
+	permissions: Permissions;
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	groups,
+	spendError,
 	canCreateGroup,
 	groupsEnabled,
 	showAIBudget,
+	permissions,
 }) => {
 	if (!groupsEnabled) {
 		return (
@@ -46,6 +76,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 				message="Groups"
 				description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
 				documentationLink={docs("/admin/users/groups-roles")}
+				canViewPremium={permissions.viewAllLicenses}
 			/>
 		);
 	}
@@ -62,7 +93,21 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 						<TableHead className="w-2/5">
 							<div className="flex items-center gap-1">
 								AI budget
-								<InfoIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
+								{spendError ? (
+									<StatusIconTooltip
+										kind="warning"
+										message="AI spend couldn't be loaded, so budgets aren't shown."
+									/>
+								) : (
+									<StatusIconTooltip
+										message={
+											<>
+												Estimated AI spend compared to the group's AI budget for
+												the active period. <SpendEstimateDocsLink />
+											</>
+										}
+									/>
+								)}
 							</div>
 						</TableHead>
 					)}
@@ -81,7 +126,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 };
 
 interface GroupsTableBodyProps {
-	groups: GroupWithAICostControl[] | undefined;
+	groups: GroupWithSpend[] | undefined;
 	canCreateGroup: boolean;
 	showAIBudget: boolean;
 }
@@ -96,28 +141,24 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	}
 	if (groups.length === 0) {
 		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState
-						message="No groups yet"
-						description={
-							canCreateGroup
-								? "Create your first group"
-								: "You don't have permission to create a group"
-						}
-						cta={
-							canCreateGroup && (
-								<Button asChild>
-									<RouterLink to="create">
-										<PlusIcon className="size-icon-sm" />
-										Create group
-									</RouterLink>
-								</Button>
-							)
-						}
-					/>
-				</TableCell>
-			</TableRow>
+			<TableEmpty
+				message="No groups yet"
+				description={
+					canCreateGroup
+						? "Create your first group"
+						: "You don't have permission to create a group"
+				}
+				cta={
+					canCreateGroup && (
+						<Button asChild>
+							<RouterLink to="create">
+								<PlusIcon className="size-icon-sm" />
+								Create group
+							</RouterLink>
+						</Button>
+					)
+				}
+			/>
 		);
 	}
 	return (
@@ -130,7 +171,7 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 };
 
 interface GroupRowProps {
-	group: GroupWithAICostControl;
+	group: GroupWithSpend;
 	showAIBudget: boolean;
 }
 
@@ -176,19 +217,19 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						)}
 					</div>
 				) : (
-					"-"
+					EM_DASH
 				)}
 			</TableCell>
 
 			{showAIBudget && (
 				<TableCell>
-					{group.ai_cost_control ? (
+					{group.spend ? (
 						<AIBudgetUsage
-							currentSpend={group.ai_cost_control.current_spend_micros}
-							spendLimit={group.ai_cost_control.spend_limit_micros}
+							currentSpend={group.spend.current_spend_micros}
+							spendLimit={group.spend.total_spend_limit_micros}
 						/>
 					) : (
-						"-"
+						EM_DASH
 					)}
 				</TableCell>
 			)}

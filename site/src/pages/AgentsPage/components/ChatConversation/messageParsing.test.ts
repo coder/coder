@@ -1151,30 +1151,4 @@ describe("getSubagentDescriptor", () => {
 			});
 		}
 	});
-
-	it("renders list_agents with a fixed generic affordance", () => {
-		const descriptor = getSubagentDescriptor({
-			name: "list_agents",
-			args: {},
-			result: {
-				agents: [
-					{ chat_id: "agent-1", type: "explore", status: "completed" },
-					{ chat_id: "agent-2", type: "computer_use", status: "running" },
-				],
-				total: 2,
-				returned: 2,
-				offset: 0,
-				has_more: false,
-			},
-		});
-
-		// The list result has no single top-level type, so the descriptor
-		// must not derive a variant from per-agent types.
-		expect(descriptor).toMatchObject({
-			action: "list",
-			variant: "general",
-			iconKind: "bot",
-			supportsDesktopAffordance: false,
-		});
-	});
 });

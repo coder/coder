@@ -88,7 +88,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 		...(isDuplicating && { isDefault: false }),
 	};
 	const [showAdvanced, setShowAdvanced] = useState(false);
-	const [showPricing, setShowPricing] = useState(false);
 	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [confirmingReplaceDefault, setConfirmingReplaceDefault] =
@@ -171,7 +170,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 					...(values.isDefault !== editingModel.is_default && {
 						is_default: values.isDefault,
 					}),
-					model_config: builtModelConfig,
+					// An omitted model_config preserves the stored options
+					// server-side, so clearing the last field must send an
+					// explicit empty config to replace them.
+					model_config: builtModelConfig ?? {},
 				};
 
 				await onUpdateModel(editingModel.id, req);
@@ -227,13 +229,18 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const compressionThresholdValid =
 		!form.values.compressionThreshold.trim() ||
 		parseThresholdInteger(form.values.compressionThreshold) !== null;
+	const hasProviderChange =
+		isEditing &&
+		!!editingModel &&
+		!!selectedProviderState?.providerConfig &&
+		selectedProviderState.providerConfig.id !== editingModel.ai_provider_id;
 	const canSubmit =
 		!isSaving &&
 		!hasFieldErrors &&
 		form.values.model.trim().length > 0 &&
 		contextLimitValid &&
 		compressionThresholdValid &&
-		(!isEditing || form.dirty);
+		(!isEditing || form.dirty || hasProviderChange);
 
 	const handleConfirmReplaceDefault = () => {
 		replaceDefaultConfirmedRef.current = true;
@@ -323,8 +330,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 					displayNameField={displayNameField}
 					setDefaultDisabled={setDefaultDisabled}
 					modelConfigFormBuildResult={modelConfigFormBuildResult}
-					showPricing={showPricing}
-					setShowPricing={setShowPricing}
 					showProviderConfig={showProviderConfig}
 					setShowProviderConfig={setShowProviderConfig}
 					showAdvanced={showAdvanced}

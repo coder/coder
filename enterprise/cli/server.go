@@ -154,6 +154,12 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		usageCron.Start(ctx)
 		closers.Add(usageCron)
 
+		// Usage generation is deliberately not license-gated; the
+		// publish_usage_data license flag only gates publishing to Tallyman.
+		usageGenerator := usage.NewGenerator(quartz.NewReal(), options.Logger.Named("usage-event-generator"), options.Database, *options.UsageInserter.Load())
+		usageGenerator.Start(ctx)
+		closers.Add(usageGenerator)
+
 		// In-memory AI Bridge Proxy daemon. The bridge daemon itself is
 		// started unconditionally by AGPL cli/server.go (chatd uses its
 		// in-memory roundtripper regardless of license); only the proxy

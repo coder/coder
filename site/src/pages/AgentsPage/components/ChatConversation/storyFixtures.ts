@@ -79,7 +79,6 @@ export const buildRetryState = (
 	error: "Anthropic returned an unexpected error.",
 	kind: "generic",
 	provider: "anthropic",
-	delayMs: 2000,
 	retryingAt: "2026-03-10T00:00:02.000Z",
 	...overrides,
 });

@@ -96,7 +96,12 @@ type Buffer struct {
 }
 
 type episodeState struct {
-	created        bool
+	created bool
+	// modelStartedAt is stamped by StartModelInvocation when the
+	// episode's provider stream is opened. It is zero for episodes
+	// that never invoke a model, such as local tool execution
+	// batches.
+	modelStartedAt time.Time
 	closed         bool
 	closedAt       time.Time
 	closedHeapItem *closedEpisodeItem
@@ -194,6 +199,25 @@ func (b *Buffer) CreateEpisode(key Key) error {
 	return nil
 }
 
+// StartModelInvocation stamps the instant the episode opens its provider
+// stream, which starts the episode's billable model invocation window.
+func (b *Buffer) StartModelInvocation(key Key) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return ErrMessagePartBufferClosed
+	}
+	episode, err := b.getEpisodeLocked(key)
+	if err != nil {
+		return err
+	}
+	if episode.closed {
+		return ErrEpisodeClosed
+	}
+	episode.modelStartedAt = b.opts.Clock.Now("message-part-buffer", "model-invocation-start")
+	return nil
+}
+
 // AddPart appends a part to an existing episode.
 //
 // Parts receive contiguous sequence numbers so stream endpoints can detect
@@ -264,6 +288,19 @@ func (b *Buffer) GetParts(key Key) ([]Part, error) {
 		return nil, err
 	}
 	return slices.Clone(episode.parts), nil
+}
+
+// ModelInvokedAt returns the instant stamped by StartModelInvocation, or the
+// zero time if there is none. Read it before CloseEpisode: closed episodes
+// are garbage collected, so reading afterwards races the cleanup loop.
+func (b *Buffer) ModelInvokedAt(key Key) time.Time {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	episode := b.episodes[key]
+	if episode == nil {
+		return time.Time{}
+	}
+	return episode.modelStartedAt
 }
 
 // SubscribeToEpisode replays existing parts and streams new parts.

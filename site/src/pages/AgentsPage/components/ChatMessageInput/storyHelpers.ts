@@ -46,3 +46,17 @@ export const expectNoVisibleText = async (text: string): Promise<void> => {
 		).toBe(true);
 	});
 };
+
+// The 1px tolerance absorbs subpixel rounding in scrolled rects.
+export const expectInsideListViewport = async (
+	element: HTMLElement,
+): Promise<void> => {
+	const list = element.closest("[cmdk-list]");
+	expect(list).not.toBeNull();
+	await waitFor(() => {
+		const listRect = (list as HTMLElement).getBoundingClientRect();
+		const elementRect = element.getBoundingClientRect();
+		expect(elementRect.top).toBeGreaterThanOrEqual(listRect.top - 1);
+		expect(elementRect.bottom).toBeLessThanOrEqual(listRect.bottom + 1);
+	});
+};
