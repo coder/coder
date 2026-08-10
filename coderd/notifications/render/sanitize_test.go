@@ -191,6 +191,30 @@ func TestSanitizedPayload(t *testing.T) {
 		assert.Equal(t, "normaluser", sanitized.UserUsername)
 	})
 
+	t.Run("leaves skipped control-flow labels verbatim", func(t *testing.T) {
+		t.Parallel()
+		// Labels named in skipLabels hold machine-set enum values used in Go
+		// template control flow. Escaping them (e.g. "user_override" ->
+		// "user\_override") would break comparisons like
+		// {{if eq .Labels.limit_source "user_override"}}, so they must be left
+		// verbatim while every other user-controlled label is still escaped.
+		payload := types.MessagePayload{
+			UserName: "[evil](https://evil.example)",
+			Labels: map[string]string{
+				"limit_source": "user_override",
+				"username":     "## not a heading_value",
+			},
+		}
+		sanitized := render.SanitizedPayload(payload, "limit_source")
+
+		// Skipped label is untouched, including the underscore.
+		assert.Equal(t, "user_override", sanitized.Labels["limit_source"])
+
+		// Other labels and UserName are still escaped.
+		assert.Equal(t, "\\#\\# not a heading\\_value", sanitized.Labels["username"])
+		assert.Contains(t, sanitized.UserName, "\\[evil\\]")
+	})
+
 	t.Run("leaves the original payload untouched", func(t *testing.T) {
 		t.Parallel()
 		// The original must keep its raw values so non-Markdown consumers
@@ -263,6 +287,37 @@ This new user account was created {{if .Labels.created_account_user_name}}for **
 		assert.NotContains(t, body, "## URGENT")
 		// Should still contain escaped versions
 		assert.Contains(t, body, "\\[Click\\]")
+	})
+
+	t.Run("control-flow label comparison survives sanitization", func(t *testing.T) {
+		t.Parallel()
+		// Regression: the AI budget admin templates gate a line on
+		// {{if eq .Labels.limit_source "user_override"}}. Because the label
+		// value contains an underscore, escaping it would break the eq
+		// comparison and silently drop the line. Skipping the control-flow
+		// label keeps the comparison working while user-controlled labels stay
+		// escaped.
+		payload := types.MessagePayload{
+			Labels: map[string]string{
+				"username":     "[evil](https://evil.example)",
+				"limit_source": "user_override",
+			},
+		}
+		sanitized := render.SanitizedPayload(payload, "limit_source")
+
+		bodyTmpl := `User **{{.Labels.username}}** reached their limit.` + "\n\n" +
+			`{{- if eq .Labels.limit_source "user_override"}}` + "\n\n" +
+			`This limit is a per-user override.` + "\n" +
+			`{{- end}}`
+
+		body, err := render.GoTemplate(bodyTmpl, sanitized, nil)
+		require.NoError(t, err)
+
+		// The conditional line renders because limit_source was not escaped.
+		assert.Contains(t, body, "This limit is a per-user override.")
+		// The user-controlled label is still escaped.
+		assert.NotContains(t, body, "[evil](")
+		assert.Contains(t, body, "\\[evil\\]")
 	})
 
 	t.Run("bold formatting in template still works", func(t *testing.T) {
