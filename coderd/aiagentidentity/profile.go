@@ -86,7 +86,11 @@ func validateProfile(profile Profile) (Profile, error) {
 		if !scope.Valid() {
 			return Profile{}, xerrors.Errorf("invalid AI agent scope %q", scope)
 		}
-		if scope == database.ApiKeyScopeCoderApikeysmanageSelf || scope == database.ApiKeyScopeCoderTemplatesauthor {
+		switch scope {
+		case database.ApiKeyScopeCoderAll,
+			database.ApiKeyScopeCoderApplicationConnect,
+			database.ApiKeyScopeCoderApikeysmanageSelf,
+			database.ApiKeyScopeCoderTemplatesauthor:
 			return Profile{}, xerrors.Errorf("AI agent scope %q is forbidden", scope)
 		}
 
@@ -118,6 +122,9 @@ func validateProfile(profile Profile) (Profile, error) {
 		validated, err := rbac.NewAllowListElement(entry.Type, entry.ID)
 		if err != nil {
 			return Profile{}, xerrors.Errorf("validate AI agent allow-list entry: %w", err)
+		}
+		if validated.Type == policy.WildcardSymbol && validated.ID == policy.WildcardSymbol {
+			return Profile{}, xerrors.New("AI agent allow-list entries cannot grant every resource")
 		}
 		normalized = append(normalized, validated)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -62,6 +63,73 @@ func TestCreateAndMintKey(t *testing.T) {
 	require.Equal(t, owner.ID, resolved.Actor.OwnerUserID)
 	require.Equal(t, agentUser.ID, resolved.Actor.AgentUserID)
 
+	profileTests := []struct {
+		name    string
+		profile aiagentidentity.Profile
+		wantErr string
+	}{
+		{
+			name:    "chat profile",
+			profile: aiagentidentity.ChatAgentProfile(uuid.New()),
+		},
+		{
+			name:    "workspace profile",
+			profile: aiagentidentity.WorkspaceAgentIdentityProfile(uuid.New()),
+		},
+		{
+			name: "user read",
+			profile: aiagentidentity.Profile{
+				Scopes: database.APIKeyScopes{database.ApiKeyScopeUserRead},
+				AllowList: database.AllowList{
+					{Type: rbac.ResourceUser.Type, ID: policy.WildcardSymbol},
+				},
+			},
+		},
+		{
+			name: "coder all",
+			profile: aiagentidentity.Profile{
+				Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+				AllowList: database.AllowList{
+					{Type: rbac.ResourceWorkspace.Type, ID: originID.String()},
+				},
+			},
+			wantErr: "forbidden",
+		},
+		{
+			name: "application connect",
+			profile: aiagentidentity.Profile{
+				Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
+				AllowList: database.AllowList{
+					{Type: rbac.ResourceWorkspace.Type, ID: originID.String()},
+				},
+			},
+			wantErr: "forbidden",
+		},
+		{
+			name: "global allow list",
+			profile: aiagentidentity.Profile{
+				Scopes:    database.APIKeyScopes{database.ApiKeyScopeWorkspaceRead},
+				AllowList: database.AllowList{rbac.AllowListAll()},
+			},
+			wantErr: "every resource",
+		},
+	}
+	for _, tt := range profileTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			key, _, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, tt.profile)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, key.Scopes)
+			require.NotEmpty(t, key.AllowList)
+		})
+	}
+
 	_, _, err = aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.Profile{})
 	require.ErrorContains(t, err, "at least one scope")
 
@@ -81,18 +149,17 @@ func TestCreateAndMintKey(t *testing.T) {
 		database.ApiKeyScopeUserSecretRead,
 		database.ApiKeyScopeUserSkillRead,
 	} {
-		_, _, err = aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.Profile{
-			Scopes:    database.APIKeyScopes{forbidden},
-			AllowList: database.AllowList{rbac.AllowListAll()},
+		t.Run(string(forbidden), func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			_, _, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.Profile{
+				Scopes:    database.APIKeyScopes{forbidden},
+				AllowList: database.AllowList{rbac.AllowListAll()},
+			})
+			require.ErrorContains(t, err, "forbidden", "scope %q must be forbidden", forbidden)
 		})
-		require.ErrorContains(t, err, "forbidden", "scope %q must be forbidden", forbidden)
 	}
-	okKey, _, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.Profile{
-		Scopes:    database.APIKeyScopes{database.ApiKeyScopeUserRead},
-		AllowList: database.AllowList{rbac.AllowListAll()},
-	})
-	require.NoError(t, err)
-	require.True(t, okKey.Scopes.Has(database.ApiKeyScopeUserRead))
 }
 
 func TestCreateRequiresOwnerOrganizationMembership(t *testing.T) {
