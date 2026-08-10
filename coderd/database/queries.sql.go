@@ -3824,6 +3824,7 @@ WHERE
 	u.status = 'active'::user_status
 	AND u.deleted = false
 	AND u.is_system = false
+	AND u.kind = 'human'::user_kind
 `
 
 func (q *sqlQuerier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
@@ -3889,10 +3890,11 @@ WHERE
 	AND u.status = 'active'::user_status
 	AND u.deleted = false
 	AND u.is_system = false
+	AND u.kind = 'human'::user_kind
 `
 
 // Returns user IDs from the provided list that are consuming an AI seat.
-// Filters to active, non-deleted, non-system users to match the canonical
+// Filters to active, non-deleted, non-system human users to match the canonical
 // seat count query (GetActiveAISeatCount).
 func (q *sqlQuerier) GetUserAISeatStates(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, getUserAISeatStates, pq.Array(userIds))

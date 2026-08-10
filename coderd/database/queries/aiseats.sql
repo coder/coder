@@ -32,4 +32,5 @@ ON
 WHERE
 	u.status = 'active'::user_status
 	AND u.deleted = false
-	AND u.is_system = false;
+	AND u.is_system = false
+	AND u.kind = 'human'::user_kind;

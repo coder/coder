@@ -13037,6 +13037,46 @@ func TestUpsertAISeats(t *testing.T) {
 	require.False(t, alreadyExists)
 }
 
+func TestAISeatsExcludeAIAgents(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	now := dbtime.Now()
+
+	human := dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+	agent, err := db.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
+		ID:        uuid.New(),
+		Username:  "ai-test-" + uuid.NewString()[:8],
+		CreatedAt: now,
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        human.ID,
+		FirstUsedAt:   now,
+		LastEventType: database.AISeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	_, err = db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        agent.ID,
+		FirstUsedAt:   now,
+		LastEventType: database.AISeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+
+	count, err := db.GetActiveAISeatCount(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count)
+
+	seatUsers, err := db.GetUserAISeatStates(ctx, []uuid.UUID{human.ID, agent.ID})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{human.ID}, seatUsers)
+}
+
 func TestIncrementUserAIDailySpend(t *testing.T) {
 	t.Parallel()
 

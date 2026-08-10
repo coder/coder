@@ -893,7 +893,7 @@ type sqlcQuerier interface {
 	GetUserAIProviderKeys(ctx context.Context) ([]UserAIProviderKey, error)
 	GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]UserAIProviderKey, error)
 	// Returns user IDs from the provided list that are consuming an AI seat.
-	// Filters to active, non-deleted, non-system users to match the canonical
+	// Filters to active, non-deleted, non-system human users to match the canonical
 	// seat count query (GetActiveAISeatCount).
 	GetUserAISeatStates(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error)
 	// Total spend for (user_id, effective_group_id) on or after period_start until NOW.
