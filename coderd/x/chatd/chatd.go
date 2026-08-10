@@ -3866,6 +3866,31 @@ func (p *Server) loadPersonalSkillBody(
 	return parsed, nil
 }
 
+// chatAIAgentActor resolves the chat's AI agent identity for in-process
+// platform tool attribution. Returns false for chats predating AI agent
+// identities (fallback: owner execution) and for revoked identities.
+func (p *Server) chatAIAgentActor(ctx context.Context, chat database.Chat) (aiagentidentity.AIAgentActor, bool) {
+	//nolint:gocritic // Resolving internal AI agent metadata requires system access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	agent, err := p.db.GetAIAgentByOrigin(systemCtx, database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginChat,
+		OriginID:   chat.ID,
+	})
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			p.logger.Warn(ctx, "resolve chat AI agent identity",
+				slog.Error(err), slog.F("chat_id", chat.ID))
+		}
+		return aiagentidentity.AIAgentActor{}, false
+	}
+	return aiagentidentity.AIAgentActor{
+		AgentUserID: agent.UserID,
+		OwnerUserID: agent.OwnerUserID,
+		OriginType:  agent.OriginType,
+		OriginID:    agent.OriginID,
+	}, true
+}
+
 func (p *Server) appendRootChatTools(
 	ctx context.Context,
 	tools []fantasy.AgentTool,
@@ -3876,6 +3901,32 @@ func (p *Server) appendRootChatTools(
 		// Notify the frontend immediately so it can start streaming
 		// build logs before the tool completes.
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+
+	// Platform workspace tools execute under the chat's AI agent identity
+	// when one exists: the context actor makes the coderd-side
+	// implementations narrow authorization to the chat agent scope profile
+	// and attribute audit to the agent on behalf of the owner. Chats
+	// predating identities fall back to plain owner execution.
+	createFn := p.createWorkspaceFn
+	startFn := p.startWorkspaceFn
+	stopFn := p.stopWorkspaceFn
+	if actor, ok := p.chatAIAgentActor(ctx, opts.chat); ok {
+		if inner := p.createWorkspaceFn; inner != nil {
+			createFn = func(ctx context.Context, ownerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+				return inner(aiagentidentity.WithActor(ctx, actor), ownerID, req)
+			}
+		}
+		if inner := p.startWorkspaceFn; inner != nil {
+			startFn = func(ctx context.Context, ownerID uuid.UUID, workspaceID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				return inner(aiagentidentity.WithActor(ctx, actor), ownerID, workspaceID, req)
+			}
+		}
+		if inner := p.stopWorkspaceFn; inner != nil {
+			stopFn = func(ctx context.Context, ownerID uuid.UUID, workspaceID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				return inner(aiagentidentity.WithActor(ctx, actor), ownerID, workspaceID, req)
+			}
+		}
 	}
 
 	tools = append(tools,
@@ -3889,7 +3940,7 @@ func (p *Server) appendRootChatTools(
 		}),
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
-			CreateFn:                       p.createWorkspaceFn,
+			CreateFn:                       createFn,
 			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 			WorkspaceMu:                    opts.workspaceMu,
@@ -3898,7 +3949,7 @@ func (p *Server) appendRootChatTools(
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			StartFn:       p.startWorkspaceFn,
+			StartFn:       startFn,
 			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
@@ -3906,7 +3957,7 @@ func (p *Server) appendRootChatTools(
 		}),
 		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			StopFn:        p.stopWorkspaceFn,
+			StopFn:        stopFn,
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
 			Logger:        p.logger,

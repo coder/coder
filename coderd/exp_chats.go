@@ -25,6 +25,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -3713,6 +3714,44 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, diff)
 }
 
+// chatToolSubject builds the authorization subject for an in-process chat
+// platform tool call, plus the user ID that should be recorded as the
+// acting principal (build initiator / audit actor).
+//
+// When the context carries an AI agent actor (chats with identities, see
+// AI_AGENT_SECURITY_ARCHITECTURE.md Vertical 1), the subject is the
+// OWNER's live roles narrowed to the chat agent scope profile with
+// Type=SubjectTypeAIAgent, and the acting principal is the agent user.
+// This mirrors httpmw's API-key construction so the permission ceiling and
+// attribution apply identically to in-process execution. Chats without
+// identities fall back to the plain owner subject.
+func (api *API) chatToolSubject(ctx context.Context, ownerID uuid.UUID) (rbac.Subject, uuid.UUID, error) {
+	agentActor, ok := aiagentidentity.ActorFromContext(ctx)
+	if !ok {
+		actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+		if err != nil {
+			return rbac.Subject{}, uuid.Nil, xerrors.Errorf("load user authorization: %w", err)
+		}
+		return actor, ownerID, nil
+	}
+	// Fail closed: a context actor sponsored by a different user than the
+	// chat owner indicates corrupted wiring, never a legitimate call.
+	if agentActor.OwnerUserID != ownerID {
+		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("AI agent actor owner %s does not match chat owner %s", agentActor.OwnerUserID, ownerID)
+	}
+	profile := aiagentidentity.ChatAgentProfile(agentActor.OriginID)
+	scopeSet := database.APIKeyScopeSet{
+		Scopes:    profile.Scopes,
+		AllowList: profile.AllowList,
+	}
+	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, scopeSet)
+	if err != nil {
+		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("load AI agent authorization: %w", err)
+	}
+	actor.Type = rbac.SubjectTypeAIAgent
+	return actor, agentActor.AgentUserID, nil
+}
+
 // chatCreateWorkspace provides workspace creation for the chat
 // processor. RBAC authorization uses context-based checks via
 // dbauthz.As rather than fake *http.Request objects.
@@ -3721,9 +3760,9 @@ func (api *API) chatCreateWorkspace(
 	ownerID uuid.UUID,
 	req codersdk.CreateWorkspaceRequest,
 ) (codersdk.Workspace, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	actor, actingUserID, err := api.chatToolSubject(ctx, ownerID)
 	if err != nil {
-		return codersdk.Workspace{}, xerrors.Errorf("load user authorization: %w", err)
+		return codersdk.Workspace{}, err
 	}
 	ctx = dbauthz.As(ctx, actor)
 
@@ -3771,7 +3810,9 @@ func (api *API) chatCreateWorkspace(
 			WorkspaceOwner: owner.Username,
 		},
 	})
-	aReq.UserID = ownerID
+	// Actor = the AI agent user when present; on_behalf_of = owner is
+	// populated by audit.InitRequest from the context actor.
+	aReq.UserID = actingUserID
 	defer commitAudit()
 
 	workspace, err := createWorkspace(ctx, aReq, ownerID, api, owner, req, nil)
@@ -3798,9 +3839,9 @@ func (api *API) chatStartWorkspace(
 	workspaceID uuid.UUID,
 	req codersdk.CreateWorkspaceBuildRequest,
 ) (codersdk.WorkspaceBuild, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	actor, actingUserID, err := api.chatToolSubject(ctx, ownerID)
 	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
+		return codersdk.WorkspaceBuild{}, err
 	}
 	ctx = dbauthz.As(ctx, actor)
 
@@ -3829,9 +3870,9 @@ func (api *API) chatStartWorkspace(
 	}
 
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
-	// record the correct initiator.
+	// record the correct initiator (the AI agent user when present).
 	syntheticKey := database.APIKey{
-		UserID: ownerID,
+		UserID: actingUserID,
 	}
 
 	apiBuild, err := api.postWorkspaceBuildsInternal(
@@ -3874,9 +3915,9 @@ func (api *API) chatStopWorkspace(
 	workspaceID uuid.UUID,
 	req codersdk.CreateWorkspaceBuildRequest,
 ) (codersdk.WorkspaceBuild, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	actor, actingUserID, err := api.chatToolSubject(ctx, ownerID)
 	if err != nil {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
+		return codersdk.WorkspaceBuild{}, err
 	}
 	ctx = dbauthz.As(ctx, actor)
 
@@ -3888,9 +3929,9 @@ func (api *API) chatStopWorkspace(
 	req.Transition = codersdk.WorkspaceTransitionStop
 
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
-	// record the correct initiator.
+	// record the correct initiator (the AI agent user when present).
 	syntheticKey := database.APIKey{
-		UserID: ownerID,
+		UserID: actingUserID,
 	}
 
 	apiBuild, err := api.postWorkspaceBuildsInternal(
