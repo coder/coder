@@ -77,6 +77,7 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 		AdditionalFields: takeFirstSlice(seed.AdditionalFields, []byte("{}")),
 		RequestID:        takeFirst(seed.RequestID, uuid.New()),
 		ResourceIcon:     takeFirst(seed.ResourceIcon, ""),
+		OnBehalfOfUserID: seed.OnBehalfOfUserID,
 	})
 	require.NoError(t, err, "insert audit log")
 	return log

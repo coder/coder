@@ -1815,6 +1815,51 @@ func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
 }
 
+// GetAIAgentByOrigin mocks base method.
+func (m *MockStore) GetAIAgentByOrigin(ctx context.Context, arg database.GetAIAgentByOriginParams) (database.AIAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIAgentByOrigin", ctx, arg)
+	ret0, _ := ret[0].(database.AIAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIAgentByOrigin indicates an expected call of GetAIAgentByOrigin.
+func (mr *MockStoreMockRecorder) GetAIAgentByOrigin(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentByOrigin", reflect.TypeOf((*MockStore)(nil).GetAIAgentByOrigin), ctx, arg)
+}
+
+// GetAIAgentByUserID mocks base method.
+func (m *MockStore) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIAgentByUserID", ctx, userID)
+	ret0, _ := ret[0].(database.AIAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIAgentByUserID indicates an expected call of GetAIAgentByUserID.
+func (mr *MockStoreMockRecorder) GetAIAgentByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentByUserID", reflect.TypeOf((*MockStore)(nil).GetAIAgentByUserID), ctx, userID)
+}
+
+// GetAIAgentsByOwnerID mocks base method.
+func (m *MockStore) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIAgentsByOwnerID", ctx, ownerUserID)
+	ret0, _ := ret[0].([]database.GetAIAgentsByOwnerIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIAgentsByOwnerID indicates an expected call of GetAIAgentsByOwnerID.
+func (mr *MockStoreMockRecorder) GetAIAgentsByOwnerID(ctx, ownerUserID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAIAgentsByOwnerID), ctx, ownerUserID)
+}
+
 // GetAIBridgeChatCost mocks base method.
 func (m *MockStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	m.ctrl.T.Helper()
@@ -7379,6 +7424,36 @@ func (mr *MockStoreMockRecorder) IncrementUserAIDailySpend(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementUserAIDailySpend", reflect.TypeOf((*MockStore)(nil).IncrementUserAIDailySpend), ctx, arg)
 }
 
+// InsertAIAgent mocks base method.
+func (m *MockStore) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentParams) (database.AIAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIAgent", ctx, arg)
+	ret0, _ := ret[0].(database.AIAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIAgent indicates an expected call of InsertAIAgent.
+func (mr *MockStoreMockRecorder) InsertAIAgent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgent", reflect.TypeOf((*MockStore)(nil).InsertAIAgent), ctx, arg)
+}
+
+// InsertAIAgentUser mocks base method.
+func (m *MockStore) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAgentUserParams) (database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIAgentUser", ctx, arg)
+	ret0, _ := ret[0].(database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIAgentUser indicates an expected call of InsertAIAgentUser.
+func (mr *MockStoreMockRecorder) InsertAIAgentUser(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentUser", reflect.TypeOf((*MockStore)(nil).InsertAIAgentUser), ctx, arg)
+}
+
 // InsertAIBridgeInterception mocks base method.
 func (m *MockStore) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	m.ctrl.T.Helper()
@@ -9580,6 +9655,21 @@ func (m *MockStore) UnsetDefaultChatModelConfigs(ctx context.Context) error {
 func (mr *MockStoreMockRecorder) UnsetDefaultChatModelConfigs(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnsetDefaultChatModelConfigs", reflect.TypeOf((*MockStore)(nil).UnsetDefaultChatModelConfigs), ctx)
+}
+
+// UpdateAIAgentDeleted mocks base method.
+func (m *MockStore) UpdateAIAgentDeleted(ctx context.Context, arg database.UpdateAIAgentDeletedParams) (database.AIAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAIAgentDeleted", ctx, arg)
+	ret0, _ := ret[0].(database.AIAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAIAgentDeleted indicates an expected call of UpdateAIAgentDeleted.
+func (mr *MockStoreMockRecorder) UpdateAIAgentDeleted(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIAgentDeleted", reflect.TypeOf((*MockStore)(nil).UpdateAIAgentDeleted), ctx, arg)
 }
 
 // UpdateAIBridgeInterceptionEnded mocks base method.

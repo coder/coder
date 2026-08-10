@@ -1057,6 +1057,30 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIAgentByOrigin(ctx context.Context, arg database.GetAIAgentByOriginParams) (database.AIAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIAgentByOrigin(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIAgentByOrigin").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentByOrigin").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIAgentByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetAIAgentByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentByUserID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIAgentsByOwnerID(ctx, ownerUserID)
+	m.queryLatencies.WithLabelValues("GetAIAgentsByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentsByOwnerID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeChatCost(ctx, rootChatID)
@@ -3937,6 +3961,22 @@ func (m queryMetricsStore) IncrementUserAIDailySpend(ctx context.Context, arg da
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentParams) (database.AIAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgent").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAgentUserParams) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIAgentUser(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIAgentUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgentUser").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIBridgeInterception(ctx, arg)
@@ -5079,6 +5119,14 @@ func (m queryMetricsStore) UnsetDefaultChatModelConfigs(ctx context.Context) err
 	m.queryLatencies.WithLabelValues("UnsetDefaultChatModelConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnsetDefaultChatModelConfigs").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateAIAgentDeleted(ctx context.Context, arg database.UpdateAIAgentDeletedParams) (database.AIAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIAgentDeleted(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAIAgentDeleted").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIAgentDeleted").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {

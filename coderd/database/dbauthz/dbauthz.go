@@ -2772,6 +2772,31 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 	return q.db.FindMatchingPresetID(ctx, arg)
 }
 
+func (q *querier) GetAIAgentByOrigin(ctx context.Context, arg database.GetAIAgentByOriginParams) (database.AIAgent, error) {
+	agent, err := q.db.GetAIAgentByOrigin(ctx, arg)
+	if err != nil {
+		return database.AIAgent{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(agent.UserID)); err != nil {
+		return database.AIAgent{}, err
+	}
+	return agent, nil
+}
+
+func (q *querier) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID)); err != nil {
+		return database.AIAgent{}, err
+	}
+	return q.db.GetAIAgentByUserID(ctx, userID)
+}
+
+func (q *querier) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(ownerUserID)); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIAgentsByOwnerID(ctx, ownerUserID)
+}
+
 func (q *querier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	// The aggregate covers one chat tree, so it is authorized through the
 	// root chat. Members cannot read interception rows back, but they can
@@ -5857,6 +5882,20 @@ func (q *querier) IncrementUserAIDailySpend(ctx context.Context, arg database.In
 	return q.db.IncrementUserAIDailySpend(ctx, arg)
 }
 
+func (q *querier) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentParams) (database.AIAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUser); err != nil {
+		return database.AIAgent{}, err
+	}
+	return q.db.InsertAIAgent(ctx, arg)
+}
+
+func (q *querier) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAgentUserParams) (database.User, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUser); err != nil {
+		return database.User{}, err
+	}
+	return q.db.InsertAIAgentUser(ctx, arg)
+}
+
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
 }
@@ -7201,6 +7240,13 @@ func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
 		return err
 	}
 	return q.db.UnsetDefaultChatModelConfigs(ctx)
+}
+
+func (q *querier) UpdateAIAgentDeleted(ctx context.Context, arg database.UpdateAIAgentDeletedParams) (database.AIAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUserObject(arg.UserID)); err != nil {
+		return database.AIAgent{}, err
+	}
+	return q.db.UpdateAIAgentDeleted(ctx, arg)
 }
 
 func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {

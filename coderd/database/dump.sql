@@ -10,6 +10,11 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
+CREATE TYPE ai_agent_origin AS ENUM (
+    'chat',
+    'workspace'
+);
+
 CREATE TYPE ai_provider_type AS ENUM (
     'openai',
     'anthropic',
@@ -627,6 +632,11 @@ CREATE TYPE task_status AS ENUM (
     'paused',
     'unknown',
     'error'
+);
+
+CREATE TYPE user_kind AS ENUM (
+    'human',
+    'ai_agent'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -1485,6 +1495,15 @@ $$;
 
 COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv.';
 
+CREATE TABLE ai_agents (
+    user_id uuid NOT NULL,
+    owner_user_id uuid NOT NULL,
+    origin_type ai_agent_origin NOT NULL,
+    origin_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted boolean DEFAULT false NOT NULL
+);
+
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1745,7 +1764,8 @@ CREATE TABLE audit_logs (
     status_code integer NOT NULL,
     additional_fields jsonb NOT NULL,
     request_id uuid NOT NULL,
-    resource_icon text NOT NULL
+    resource_icon text NOT NULL,
+    on_behalf_of_user_id uuid
 );
 
 CREATE TABLE boundary_logs (
@@ -2154,10 +2174,11 @@ CREATE TABLE users (
     is_system boolean DEFAULT false NOT NULL,
     is_service_account boolean DEFAULT false NOT NULL,
     chat_spend_limit_micros bigint,
+    kind user_kind DEFAULT 'human'::user_kind NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
     CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
-    CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
-    CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
+    CONSTRAINT users_email_not_empty CHECK (((email = ''::text) = ((is_service_account = true) OR (kind = 'ai_agent'::user_kind)))),
+    CONSTRAINT users_service_account_login_type CHECK ((((is_service_account = false) AND (kind <> 'ai_agent'::user_kind)) OR (login_type = 'none'::login_type))),
     CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
 );
 
@@ -4253,6 +4274,9 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_agents
+    ADD CONSTRAINT ai_agents_pkey PRIMARY KEY (user_id);
+
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
@@ -4688,6 +4712,10 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
+CREATE UNIQUE INDEX idx_ai_agents_origin ON ai_agents USING btree (origin_type, origin_id) WHERE (NOT deleted);
+
+CREATE INDEX idx_ai_agents_owner ON ai_agents USING btree (owner_user_id);
+
 CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
 
 CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHERE (deleted = false);
@@ -4745,6 +4773,8 @@ CREATE INDEX idx_audit_log_organization_id ON audit_logs USING btree (organizati
 CREATE INDEX idx_audit_log_resource_id ON audit_logs USING btree (resource_id);
 
 CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
+
+CREATE INDEX idx_audit_logs_on_behalf_of_user_id ON audit_logs USING btree (on_behalf_of_user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
@@ -5117,6 +5147,12 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_agents
+    ADD CONSTRAINT ai_agents_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_agents
+    ADD CONSTRAINT ai_agents_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

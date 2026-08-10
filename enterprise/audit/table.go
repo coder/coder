@@ -174,6 +174,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"is_system":                    ActionTrack, // Should never change, but track it anyway.
 		"is_service_account":           ActionTrack, // Should never change, but track it anyway.
 		"chat_spend_limit_micros":      ActionTrack,
+		"kind":                         ActionTrack, // Should never change, but track it anyway.
 	},
 	&database.WorkspaceTable{}: {
 		"id":                 ActionTrack,

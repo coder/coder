@@ -462,6 +462,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 			&i.IsSystem,
 			&i.IsServiceAccount,
 			&i.ChatSpendLimitMicros,
+			&i.Kind,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -535,6 +536,7 @@ func (q *sqlQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAu
 			&i.AuditLog.AdditionalFields,
 			&i.AuditLog.RequestID,
 			&i.AuditLog.ResourceIcon,
+			&i.AuditLog.OnBehalfOfUserID,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,

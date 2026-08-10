@@ -127,7 +127,8 @@ INSERT INTO audit_logs (
 		status_code,
 		additional_fields,
 		request_id,
-		resource_icon
+		resource_icon,
+		on_behalf_of_user_id
 	)
 VALUES (
 		$1,
@@ -144,7 +145,8 @@ VALUES (
 		$12,
 		$13,
 		$14,
-		$15
+		$15,
+		$16
 	)
 RETURNING *;
 

@@ -7,6 +7,7 @@ type UniqueConstraint string
 // UniqueConstraint enums.
 const (
 	UniqueAgentStatsPkey                                      UniqueConstraint = "agent_stats_pkey"                                                // ALTER TABLE ONLY workspace_agent_stats ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
+	UniqueAIAgentsPkey                                        UniqueConstraint = "ai_agents_pkey"                                                  // ALTER TABLE ONLY ai_agents ADD CONSTRAINT ai_agents_pkey PRIMARY KEY (user_id);
 	UniqueAIGatewayKeysPkey                                   UniqueConstraint = "ai_gateway_keys_pkey"                                            // ALTER TABLE ONLY ai_gateway_keys ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 	UniqueAIModelPricesPkey                                   UniqueConstraint = "ai_model_prices_pkey"                                            // ALTER TABLE ONLY ai_model_prices ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
 	UniqueAIProviderKeysPkey                                  UniqueConstraint = "ai_provider_keys_pkey"                                           // ALTER TABLE ONLY ai_provider_keys ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);
@@ -150,6 +151,7 @@ const (
 	UniqueAIGatewayKeysNameIndex                              UniqueConstraint = "ai_gateway_keys_name_idx"                                        // CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (lower(name));
 	UniqueAIGatewayKeysSecretPrefixIndex                      UniqueConstraint = "ai_gateway_keys_secret_prefix_idx"                               // CREATE UNIQUE INDEX ai_gateway_keys_secret_prefix_idx ON ai_gateway_keys USING btree (secret_prefix);
 	UniqueAIProvidersNameUnique                               UniqueConstraint = "ai_providers_name_unique"                                        // CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
+	UniqueIndexAIAgentsOrigin                                 UniqueConstraint = "idx_ai_agents_origin"                                            // CREATE UNIQUE INDEX idx_ai_agents_origin ON ai_agents USING btree (origin_type, origin_id) WHERE (NOT deleted);
 	UniqueIndexAPIKeyName                                     UniqueConstraint = "idx_api_key_name"                                                // CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 	UniqueIndexChatDebugRunsIDChat                            UniqueConstraint = "idx_chat_debug_runs_id_chat"                                     // CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (id, chat_id);
 	UniqueIndexChatDebugStepsRunStep                          UniqueConstraint = "idx_chat_debug_steps_run_step"                                   // CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps USING btree (run_id, step_number);

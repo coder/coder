@@ -16,6 +16,64 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AIAgentOrigin string
+
+const (
+	AIAgentOriginChat      AIAgentOrigin = "chat"
+	AIAgentOriginWorkspace AIAgentOrigin = "workspace"
+)
+
+func (e *AIAgentOrigin) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIAgentOrigin(s)
+	case string:
+		*e = AIAgentOrigin(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIAgentOrigin: %T", src)
+	}
+	return nil
+}
+
+type NullAIAgentOrigin struct {
+	AIAgentOrigin AIAgentOrigin `json:"ai_agent_origin"`
+	Valid         bool          `json:"valid"` // Valid is true if AIAgentOrigin is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIAgentOrigin) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIAgentOrigin, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIAgentOrigin.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIAgentOrigin) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIAgentOrigin), nil
+}
+
+func (e AIAgentOrigin) Valid() bool {
+	switch e {
+	case AIAgentOriginChat,
+		AIAgentOriginWorkspace:
+		return true
+	}
+	return false
+}
+
+func AllAIAgentOriginValues() []AIAgentOrigin {
+	return []AIAgentOrigin{
+		AIAgentOriginChat,
+		AIAgentOriginWorkspace,
+	}
+}
+
 type AIBridgeInterceptionErrorType string
 
 const (
@@ -3900,6 +3958,64 @@ func AllTaskStatusValues() []TaskStatus {
 	}
 }
 
+type UserKind string
+
+const (
+	UserKindHuman   UserKind = "human"
+	UserKindAIAgent UserKind = "ai_agent"
+)
+
+func (e *UserKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UserKind(s)
+	case string:
+		*e = UserKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UserKind: %T", src)
+	}
+	return nil
+}
+
+type NullUserKind struct {
+	UserKind UserKind `json:"user_kind"`
+	Valid    bool     `json:"valid"` // Valid is true if UserKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullUserKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.UserKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.UserKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullUserKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.UserKind), nil
+}
+
+func (e UserKind) Valid() bool {
+	switch e {
+	case UserKindHuman,
+		UserKindAIAgent:
+		return true
+	}
+	return false
+}
+
+func AllUserKindValues() []UserKind {
+	return []UserKind{
+		UserKindHuman,
+		UserKindAIAgent,
+	}
+}
+
 // Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
@@ -4683,6 +4799,15 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 	}
 }
 
+type AIAgent struct {
+	UserID      uuid.UUID     `db:"user_id" json:"user_id"`
+	OwnerUserID uuid.UUID     `db:"owner_user_id" json:"owner_user_id"`
+	OriginType  AIAgentOrigin `db:"origin_type" json:"origin_type"`
+	OriginID    uuid.UUID     `db:"origin_id" json:"origin_id"`
+	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
+	Deleted     bool          `db:"deleted" json:"deleted"`
+}
+
 // Audit log of requests intercepted by AI Bridge
 type AIBridgeInterception struct {
 	ID uuid.UUID `db:"id" json:"id"`
@@ -4888,6 +5013,7 @@ type AuditLog struct {
 	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
 	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
+	OnBehalfOfUserID uuid.NullUUID   `db:"on_behalf_of_user_id" json:"on_behalf_of_user_id"`
 }
 
 // Persisted boundary audit events. Each row is a single audit event processed by a Boundary proxy.
@@ -6193,6 +6319,7 @@ type User struct {
 	// Determines if a user is an admin-managed account that cannot login
 	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
+	Kind                 UserKind      `db:"kind" json:"kind"`
 }
 
 // Per-user AI spend override that supersedes group budget resolution.

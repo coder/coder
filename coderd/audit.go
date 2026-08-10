@@ -183,6 +183,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		RequestID:        params.RequestID,
 		ResourceIcon:     "",
 		OrganizationID:   params.OrganizationID,
+		OnBehalfOfUserID: uuid.NullUUID{},
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
