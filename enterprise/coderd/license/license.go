@@ -121,6 +121,15 @@ func Entitlements(
 				EndDate:   endTime,
 			})
 		},
+		AgentRuntimeMsFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
+			// Bounds and bucket semantics are documented on the query.
+			//
+			// nolint:gocritic // Reading usage events requires the usage publisher subject.
+			return db.GetTotalUsageHBAgentRuntimeV1(dbauthz.AsUsagePublisher(ctx), database.GetTotalUsageHBAgentRuntimeV1Params{
+				StartTime: startTime,
+				EndTime:   endTime,
+			})
+		},
 	})
 	if err != nil {
 		return entitlements, err
@@ -142,6 +151,9 @@ type FeatureArguments struct {
 	// state of the world, but a count between two points in time determined by
 	// the licenses.
 	ManagedAgentCountFn ManagedAgentCountFn
+	// AgentRuntimeMsFn is queried with two points in time determined by the
+	// licenses, like the managed agent count above.
+	AgentRuntimeMsFn AgentRuntimeMsFn
 	// UserCountingMode selects the count that FeatureUserLimit candidates
 	// from AI Governance addon licenses are evaluated against. Under
 	// UserCountingModeWorkspaceCapable they use WorkspaceCapableUserCountFn's
@@ -174,6 +186,10 @@ const (
 )
 
 type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
+
+// AgentRuntimeMsFn returns the total Coder Agent runtime in milliseconds
+// recorded between from (inclusive) and to (exclusive).
+type AgentRuntimeMsFn = ManagedAgentCountFn
 
 type WorkspaceCapableUserCountFn func(ctx context.Context) (int64, error)
 
@@ -734,6 +750,32 @@ func LicensesEntitlements(
 		}
 	}
 
+	// Usage is measured even for a zero allocation, which reports the
+	// feature disabled: see decodeAgentRuntimeHours. Reported usage can
+	// trail real usage; the sources of staleness and loss are documented
+	// on the enterprise/coderd/usage.AgentRuntime* constants.
+	runtimeHours := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+	if entitlements.HasLicense && runtimeHours.UsagePeriod != nil {
+		runtimeMs, ok, err := measureUsage(ctx, &entitlements,
+			featureArguments.Logger, featureArguments.AgentRuntimeMsFn, *runtimeHours.UsagePeriod,
+			"agent runtime", codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
+		if err != nil {
+			return entitlements, err
+		}
+		if ok {
+			actualHours := agentRuntimeMsToHours(runtimeMs)
+			runtimeHours.Actual = &actualHours
+			// Written back directly rather than through AddFeature; see
+			// the managed-agent write-back above for why.
+			entitlements.Features[codersdk.FeatureAgentRuntimeHours] = runtimeHours
+
+			// The allocation is dereferenced without a nil check because
+			// decodeAgentRuntimeHours always sets Limit for this feature.
+			entitlements.Warnings = appendAgentRuntimeHoursWarning(
+				entitlements.Warnings, actualHours, *runtimeHours.Limit, runtimeHours.SoftLimit)
+		}
+	}
+
 	if entitlements.HasLicense {
 		userLimit := entitlements.Features[codersdk.FeatureUserLimit]
 		// The enforced count and its meaning come from the selected
@@ -899,6 +941,28 @@ func measureUsage(
 	return value, true, nil
 }
 
+// appendAgentRuntimeHoursWarning appends at most one warning: reaching the
+// allocation supersedes the advisory soft limit, so the dashboard banner
+// never stacks both messages.
+func appendAgentRuntimeHoursWarning(warnings []string, actualHours int64, allocation int64, softLimit *int64) []string {
+	if allocation <= 0 {
+		return warnings
+	}
+
+	switch {
+	case actualHours >= allocation:
+		return append(warnings, fmt.Sprintf(
+			codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText,
+			actualHours, allocation))
+	case softLimit != nil && actualHours >= *softLimit:
+		return append(warnings, fmt.Sprintf(
+			codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText,
+			actualHours, allocation, *softLimit))
+	}
+
+	return warnings
+}
+
 func appendAIGovernanceSeatLimitWarning(warnings []string, actual int64, limit int64) []string {
 	if limit <= 0 {
 		return warnings
@@ -973,6 +1037,19 @@ func isAgentRuntimeHoursClaim(name codersdk.FeatureName) bool {
 	default:
 		return false
 	}
+}
+
+// agentRuntimeMsToHours floors milliseconds of Coder Agent runtime to whole
+// hours, the unit shared by the agent_runtime_hours_* claims and the
+// feature's limits. Flooring keeps the rendered value and the whole-hour
+// warning thresholds in agreement. Negative input (not producible by the
+// production query, but AgentRuntimeMsFn is a caller-supplied seam) clamps
+// to 0.
+func agentRuntimeMsToHours(ms int64) int64 {
+	if ms <= 0 {
+		return 0
+	}
+	return ms / int64(time.Hour/time.Millisecond)
 }
 
 // decodeAgentRuntimeHours builds the codersdk.FeatureAgentRuntimeHours

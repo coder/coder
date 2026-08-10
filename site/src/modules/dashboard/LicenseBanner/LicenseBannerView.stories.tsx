@@ -2,7 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import {
 	type Entitlements,
+	LicenseAgentRuntimeHoursAllocationReachedWarningText,
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
+	LicenseAgentRuntimeHoursSoftLimitWarningText,
+	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseManagedAgentUsageUnavailableErrorText,
@@ -17,7 +20,7 @@ import {
 } from "#/testHelpers/entities";
 import { docs } from "#/utils/docs";
 import { DashboardContext, type DashboardValue } from "../DashboardProvider";
-import { LicenseBanner } from "./LicenseBanner";
+import { formatLicenseMessage, LicenseBanner } from "./LicenseBanner";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
@@ -244,6 +247,7 @@ const renderLicenseBannerWithAIGovernance = ({
 // Without the data-variant assertions, every story would keep passing with
 // the muted/prominent classifier disabled.
 const mutedVariant = "warning";
+const prominentVariant = "warningProminent";
 
 export const AIGovernanceNearLimit: Story = {
 	render: () =>
@@ -296,9 +300,62 @@ export const AIGovernanceOverLimitGracePeriod: Story = {
 	},
 };
 
+export const AgentRuntimeHoursSoftLimit: Story = {
+	render: () =>
+		renderLicenseBanner({
+			warnings: [
+				formatLicenseMessage(
+					LicenseAgentRuntimeHoursSoftLimitWarningText,
+					90,
+					100,
+					80,
+				),
+			],
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveTextContent(
+			"Your deployment is approaching its Coder Agent runtime hours allocation: 90 of the 100 hours included in the current license term are used, at or above the advisory soft limit of 80 hours.",
+		);
+		// The advisory soft-limit warning renders in the muted variant,
+		// unlike the allocation-reached warning below.
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
+		// The operator is inside their allocation with nothing owed, so no
+		// sales call-to-action is rendered.
+		await expect(
+			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const AgentRuntimeHoursAllocationReached: Story = {
+	render: () =>
+		renderLicenseBanner({
+			warnings: [
+				formatLicenseMessage(
+					LicenseAgentRuntimeHoursAllocationReachedWarningText,
+					100,
+					100,
+				),
+			],
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveTextContent(
+			"Your deployment has used 100 of the 100 Coder Agent runtime hours included in the current license term.",
+		);
+		await expect(banner).toHaveAttribute("data-variant", prominentVariant);
+		await expect(
+			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
+		).toHaveAttribute("href", "mailto:sales@coder.com");
+	},
+};
+
 // Each entry of the frontend's diagnosticMessages set is pinned on both
 // properties the set drives: the muted variant and the suppressed sales
-// link. The "unavailable" message arrives on the errors channel; see the
+// link. The "unavailable" pair arrives on the errors channel; see the
 // LicenseManagedAgentUsageUnavailableErrorText doc for why.
 const playMutedDiagnostic =
 	(message: string): Story["play"] =>
@@ -311,6 +368,14 @@ const playMutedDiagnostic =
 			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
 		).not.toBeInTheDocument();
 	};
+
+export const AgentRuntimeUsageUnavailable: Story = {
+	render: () =>
+		renderLicenseBanner({
+			errors: [LicenseAgentRuntimeUsageUnavailableErrorText],
+		}),
+	play: playMutedDiagnostic(LicenseAgentRuntimeUsageUnavailableErrorText),
+};
 
 export const ManagedAgentUsageUnavailable: Story = {
 	render: () =>
@@ -328,12 +393,15 @@ export const AgentRuntimeHoursClaimsIgnored: Story = {
 	play: playMutedDiagnostic(LicenseAgentRuntimeHoursClaimsIgnoredWarningText),
 };
 
-// An all-diagnostic banner must not claim license limits were exceeded.
+// An all-diagnostic banner (e.g. one database blip failing both usage
+// queries) must not claim license limits were exceeded.
 export const UsageDiagnosticsOnlyHeading: Story = {
 	render: () =>
 		renderLicenseBanner({
-			errors: [LicenseManagedAgentUsageUnavailableErrorText],
-			warnings: [LicenseAgentRuntimeHoursClaimsIgnoredWarningText],
+			errors: [
+				LicenseManagedAgentUsageUnavailableErrorText,
+				LicenseAgentRuntimeUsageUnavailableErrorText,
+			],
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

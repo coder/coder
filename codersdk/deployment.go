@@ -383,29 +383,28 @@ type Feature struct {
 	Limit       *int64      `json:"limit,omitempty"`
 	// SoftLimit is the advisory warning threshold that accompanies Limit for
 	// features whose license carries it. For these features, Limit carries
-	// the purchased allocation.
-	//
-	// Only certain features set this field:
-	// - FeatureAgentRuntimeHours
+	// the purchased allocation. Only FeatureAgentRuntimeHours sets this
+	// field.
 	SoftLimit *int64 `json:"soft_limit,omitempty"`
 	// HardLimit is the enforcement threshold that accompanies Limit for
 	// features whose license carries it. See SoftLimit for the set of
 	// features that use these thresholds.
 	HardLimit *int64 `json:"hard_limit,omitempty"`
-	Actual    *int64 `json:"actual,omitempty"`
+	// Actual is the usage measured against Limit, when known: a
+	// point-in-time count for most features, or usage accumulated over
+	// UsagePeriod for features that set one. Its unit matches Limit's;
+	// FeatureAgentRuntimeHours reports whole hours floored from the
+	// recorded milliseconds.
+	Actual *int64 `json:"actual,omitempty"`
 
 	// Below is only for features that use usage periods.
 
 	// UsagePeriod denotes that the usage is a counter that accumulates over
 	// this period (and most likely resets with the issuance of the next
-	// license).
-	//
-	// These dates are determined from the license that this entitlement comes
-	// from, see enterprise/coderd/license/license.go.
-	//
-	// Only certain features set these fields:
-	// - FeatureManagedAgentLimit
-	// - FeatureAgentRuntimeHours
+	// license). These dates are determined from the license that this
+	// entitlement comes from, see enterprise/coderd/license/license.go.
+	// Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
+	// field.
 	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
 }
 

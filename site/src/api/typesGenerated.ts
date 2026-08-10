@@ -5150,10 +5150,8 @@ export interface Feature {
 	/**
 	 * SoftLimit is the advisory warning threshold that accompanies Limit for
 	 * features whose license carries it. For these features, Limit carries
-	 * the purchased allocation.
-	 *
-	 * Only certain features set this field:
-	 * - FeatureAgentRuntimeHours
+	 * the purchased allocation. Only FeatureAgentRuntimeHours sets this
+	 * field.
 	 */
 	readonly soft_limit?: number;
 	/**
@@ -5162,18 +5160,21 @@ export interface Feature {
 	 * features that use these thresholds.
 	 */
 	readonly hard_limit?: number;
+	/**
+	 * Actual is the usage measured against Limit, when known: a
+	 * point-in-time count for most features, or usage accumulated over
+	 * UsagePeriod for features that set one. Its unit matches Limit's;
+	 * FeatureAgentRuntimeHours reports whole hours floored from the
+	 * recorded milliseconds.
+	 */
 	readonly actual?: number;
 	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
 	 * this period (and most likely resets with the issuance of the next
-	 * license).
-	 *
-	 * These dates are determined from the license that this entitlement comes
-	 * from, see enterprise/coderd/license/license.go.
-	 *
-	 * Only certain features set these fields:
-	 * - FeatureManagedAgentLimit
-	 * - FeatureAgentRuntimeHours
+	 * license). These dates are determined from the license that this
+	 * entitlement comes from, see enterprise/coderd/license/license.go.
+	 * Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
+	 * field.
 	 */
 	readonly usage_period?: UsagePeriod;
 }
@@ -5724,6 +5725,15 @@ export const LicenseAIGovernanceOverLimitWarningText =
 
 // From codersdk/licenses.go
 /**
+ * LicenseAgentRuntimeHoursAllocationReachedWarningText is emitted once
+ * the deployment reaches its runtime hour allocation. Placeholders are
+ * whole hours: used, allocation.
+ */
+export const LicenseAgentRuntimeHoursAllocationReachedWarningText =
+	"Your deployment has used %d of the %d Coder Agent runtime hours included in the current license term.";
+
+// From codersdk/licenses.go
+/**
  * LicenseAgentRuntimeHoursClaimsIgnoredWarningText is emitted when a
  * license carries unusable Coder Agent runtime hour claims (see
  * decodeAgentRuntimeHours in enterprise/coderd/license); the logs name
@@ -5732,6 +5742,29 @@ export const LicenseAIGovernanceOverLimitWarningText =
  */
 export const LicenseAgentRuntimeHoursClaimsIgnoredWarningText =
 	"A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued.";
+
+// From codersdk/licenses.go
+/**
+ * LicenseAgentRuntimeHoursSoftLimitWarningText is emitted while runtime
+ * usage is at or above the advisory soft limit but within the
+ * allocation. Placeholders are whole hours: used, allocation, soft
+ * limit.
+ *
+ * The dashboard's LicenseBanner matches this text's pre-placeholder
+ * prefix to render it muted and without a sales link, so the license
+ * warning texts must stay pairwise distinct before their first
+ * placeholder. See TestLicenseAgentRuntimeHoursWarningTexts.
+ */
+export const LicenseAgentRuntimeHoursSoftLimitWarningText =
+	"Your deployment is approaching its Coder Agent runtime hours allocation: %d of the %d hours included in the current license term are used, at or above the advisory soft limit of %d hours.";
+
+// From codersdk/licenses.go
+/**
+ * LicenseAgentRuntimeUsageUnavailableErrorText is the Coder Agent
+ * runtime hours sibling of LicenseManagedAgentUsageUnavailableErrorText.
+ */
+export const LicenseAgentRuntimeUsageUnavailableErrorText =
+	"Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details.";
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";

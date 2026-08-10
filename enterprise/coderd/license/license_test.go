@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -963,18 +964,69 @@ func TestEntitlements(t *testing.T) {
 		require.Equal(t, codersdk.LicenseManagedAgentLimitExceededWarningText, entitlements.Warnings[0])
 	})
 
+	t.Run("AgentRuntimeHoursHasValue", func(t *testing.T) {
+		t.Parallel()
+
+		// Use a mock database so the production closure that reads
+		// usage_events can be observed directly.
+		mDB, licenseOpts := premiumRuntimeHoursFixture(t)
+
+		// The Premium feature set grants a default managed agent limit, so
+		// that usage is queried too. It is not what this test is about.
+		mDB.EXPECT().
+			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
+			Return(int64(0), nil)
+		mDB.EXPECT().
+			GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Cond(func(params database.GetTotalUsageHBAgentRuntimeV1Params) bool {
+				// gomock doesn't seem to compare times very nicely, so check
+				// them manually. The bounds must be the usage period of the
+				// winning license.
+				if !assert.WithinDuration(t, licenseOpts.NotBefore, params.StartTime, time.Second) {
+					return false
+				}
+				if !assert.WithinDuration(t, licenseOpts.ExpiresAt, params.EndTime, time.Second) {
+					return false
+				}
+				return true
+			})).
+			// 90h30m of runtime floors to 90 hours.
+			Return((90*time.Hour + 30*time.Minute).Milliseconds(), nil)
+
+		entitlements, err := license.Entitlements(context.Background(), testutil.Logger(t), mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.Empty(t, entitlements.Errors)
+
+		runtimeHours, ok := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+		require.True(t, ok)
+		require.NotNil(t, runtimeHours.Actual)
+		require.EqualValues(t, 90, *runtimeHours.Actual)
+		require.NotNil(t, runtimeHours.Limit)
+		require.EqualValues(t, 100, *runtimeHours.Limit)
+
+		// 90 hours is past the soft limit of 80 but below the allocation of
+		// 100, so only the soft warning is emitted.
+		require.Len(t, entitlements.Warnings, 1)
+		require.Equal(t,
+			fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, 90, 100, 80),
+			entitlements.Warnings[0])
+	})
+
 	t.Run("UsageQueryErrorsAreLoggedAndStable", func(t *testing.T) {
 		t.Parallel()
 
-		// Drive the real Entitlements closure with a mock database so
+		// Drive the real Entitlements closures with a mock database so
 		// measureUsage's failure path is exercised end to end: the cause
-		// must land in the coderd log, which the stable payload text points
+		// must land in the coderd log, which the stable payload texts point
 		// at, and must not land on the unauthenticated entitlements payload.
 		mDB, _ := premiumRuntimeHoursFixture(t)
 
 		mDB.EXPECT().
 			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
 			Return(int64(0), xerrors.New("kaboom managed"))
+		mDB.EXPECT().
+			GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
+			Return(int64(0), xerrors.New("kaboom runtime"))
 
 		// The error-level logs are the behavior under test, so the default
 		// failing test logger cannot be used.
@@ -986,9 +1038,10 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
-		// The failure surfaces its stable text without the raw cause,
+		// Both failures surface their stable text without the raw cause,
 		// on the channel the codersdk constant docs prescribe.
 		require.Contains(t, entitlements.Errors, codersdk.LicenseManagedAgentUsageUnavailableErrorText)
+		require.Contains(t, entitlements.Errors, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
 		for _, entry := range append(entitlements.Errors, entitlements.Warnings...) {
 			require.NotContains(t, entry, "kaboom")
 		}
@@ -996,6 +1049,8 @@ func TestEntitlements(t *testing.T) {
 		logs := logBuf.String()
 		require.Contains(t, logs, "get managed agent count for entitlements")
 		require.Contains(t, logs, "kaboom managed")
+		require.Contains(t, logs, "get agent runtime for entitlements")
+		require.Contains(t, logs, "kaboom runtime")
 	})
 
 	t.Run("UsageQueryCancelDoesNotLogError", func(t *testing.T) {
@@ -1008,6 +1063,9 @@ func TestEntitlements(t *testing.T) {
 
 		mDB.EXPECT().
 			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
+			Return(int64(0), nil)
+		mDB.EXPECT().
+			GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
 			Return(int64(0), context.Canceled)
 
 		var logBuf bytes.Buffer
@@ -1016,8 +1074,8 @@ func TestEntitlements(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		_, err := license.Entitlements(ctx, logger, mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
-		require.ErrorContains(t, err, "get managed agent count")
-		require.NotContains(t, logBuf.String(), "get managed agent count for entitlements")
+		require.ErrorContains(t, err, "get agent runtime")
+		require.NotContains(t, logBuf.String(), "get agent runtime for entitlements")
 	})
 
 	t.Run("AIGovernanceSeatWarnings", func(t *testing.T) {
@@ -1379,6 +1437,28 @@ func TestLicenseEntitlements(t *testing.T) {
 		}).Valid(time.Now())
 	}
 
+	// agentRuntimeHoursLicense builds an enterprise license carrying the
+	// agent runtime hour claims. A nil softLimit omits the claim; any
+	// non-nil value is minted verbatim so tests can construct zero or
+	// nonsensical soft limits. A positive allocation also carries a hard
+	// limit above the allocation (decodeAgentRuntimeHours ignores a lower
+	// one).
+	agentRuntimeHoursLicense := func(allocation int64, softLimit *int64) *coderdenttest.LicenseOptions {
+		var hard *int64
+		if allocation > 0 {
+			hard = ptr.Ref(allocation + 20)
+		}
+		return enterpriseLicense().UserLimit(100).AgentRuntimeHours(allocation, softLimit, hard)
+	}
+
+	// hoursToMsFn reports whole hours of runtime as the milliseconds the usage
+	// events actually record.
+	hoursToMsFn := func(hours int64) license.AgentRuntimeMsFn {
+		return func(_ context.Context, _, _ time.Time) (int64, error) {
+			return (time.Duration(hours) * time.Hour).Milliseconds(), nil
+		}
+	}
+
 	premiumLicense := func() *coderdenttest.LicenseOptions {
 		return (&coderdenttest.LicenseOptions{
 			AccountType:   "salesforce",
@@ -1399,8 +1479,11 @@ func TestLicenseEntitlements(t *testing.T) {
 		Licenses    []*coderdenttest.LicenseOptions
 		Enablements map[codersdk.FeatureName]bool
 		Arguments   license.FeatureArguments
-		// KeepNilManagedAgentCountFn skips the default ManagedAgentCountFn
+		// KeepNilAgentRuntimeMsFn skips the default AgentRuntimeMsFn
 		// injection below so the nil dev-error path can be exercised.
+		KeepNilAgentRuntimeMsFn bool
+		// KeepNilManagedAgentCountFn is the managed agent sibling of
+		// KeepNilAgentRuntimeMsFn.
 		KeepNilManagedAgentCountFn bool
 		// CancelContext cancels the context passed to LicensesEntitlements
 		// before the call, exercising the usage-measurement abort policy.
@@ -1657,10 +1740,142 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
+			// The soft warning end to end: the remaining threshold
+			// arithmetic is pinned by TestAppendAgentRuntimeHoursWarning.
+			Name: "AgentRuntimeHours/AtSoftLimit",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: hoursToMsFn(80),
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				require.Len(t, entitlements.Warnings, 1)
+				assert.Equal(t, fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, 80, 100, 80),
+					entitlements.Warnings[0])
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(80), *feature.Actual)
+			},
+		},
+		{
+			// At the allocation the soft warning is suppressed, so exactly one
+			// warning is emitted rather than both.
+			Name: "AgentRuntimeHours/AtAllocation",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: hoursToMsFn(100),
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				require.Len(t, entitlements.Warnings, 1)
+				assert.Equal(t, fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText, 100, 100),
+					entitlements.Warnings[0])
+				assert.NotContains(t, entitlements.Warnings,
+					fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, 100, 100, 80))
+			},
+		},
+		{
+			// A zero allocation carries no hour budget, so Enabled reports
+			// false and the hour thresholds never warn, but Actual is still
+			// reported. See decodeAgentRuntimeHours.
+			Name: "AgentRuntimeHours/ZeroAllocation",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(0, nil),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: hoursToMsFn(50),
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.False(t, feature.Enabled)
+				require.NotNil(t, feature.Limit)
+				assert.Equal(t, int64(0), *feature.Limit)
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(50), *feature.Actual)
+			},
+		},
+		{
+			// Partial hours are floored, so 99h59m59s does not reach the
+			// 100 hour allocation.
+			Name: "AgentRuntimeHours/PartialHourFloored",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return (100 * time.Hour).Milliseconds() - 1, nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				require.Len(t, entitlements.Warnings, 1)
+				assert.Equal(t, fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, 99, 100, 80),
+					entitlements.Warnings[0])
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(99), *feature.Actual)
+			},
+		},
+		{
+			// A license without the allocation claim does not grant the
+			// feature, so usage is never queried and nothing warns.
+			Name: "AgentRuntimeHours/NoClaimNoFeature",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().UserLimit(100),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					// Poison value: if the runtime block ever ran without the
+					// allocation claim, Actual would be set and the Nil
+					// assertion below would fail on the subtest's t.
+					return (9999 * time.Hour).Milliseconds(), nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.Nil(t, feature.Actual)
+				assert.Nil(t, feature.UsagePeriod)
+			},
+		},
+		{
 			// A query failure is surfaced as a stable text in Errors (see
 			// the codersdk constant docs for the channel choice) and
 			// leaves Actual unset without aborting the rest of the
 			// entitlements.
+			Name: "AgentRuntimeHours/QueryError",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 0, xerrors.New("kaboom")
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoWarnings(t, entitlements)
+				require.Len(t, entitlements.Errors, 1)
+				assert.Equal(t, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText, entitlements.Errors[0])
+				// The raw error is logged rather than exposed on the
+				// unauthenticated entitlements payload.
+				assert.NotContains(t, entitlements.Errors[0], "kaboom")
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.Nil(t, feature.Actual)
+				// The rest of the entitlements are still computed.
+				require.NotNil(t, feature.Limit)
+				assert.Equal(t, int64(100), *feature.Limit)
+			},
+		},
+		{
+			// The managed agent sibling of QueryError: the stable text
+			// hides the raw cause the same way.
 			Name: "ManagedAgentLimit/QueryError",
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
@@ -1674,18 +1889,24 @@ func TestLicenseEntitlements(t *testing.T) {
 				assertNoWarnings(t, entitlements)
 				require.Len(t, entitlements.Errors, 1)
 				assert.Equal(t, codersdk.LicenseManagedAgentUsageUnavailableErrorText, entitlements.Errors[0])
-				// The raw error is logged rather than exposed on the
-				// unauthenticated entitlements payload.
 				assert.NotContains(t, entitlements.Errors[0], "kaboom")
 				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 				assert.Nil(t, feature.Actual)
 			},
 		},
 		{
-			// Forgetting to wire ManagedAgentCountFn is a dev error:
-			// production always provides the closure, so it fails the whole
-			// call loudly instead of degrading into an operator-facing
-			// message.
+			// Forgetting to wire AgentRuntimeMsFn is a dev error: production
+			// always provides both closures, so it fails the whole call
+			// loudly instead of degrading into an operator-facing message.
+			Name: "AgentRuntimeHours/NilRuntimeFnDevError",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			KeepNilAgentRuntimeMsFn: true,
+			ExpectedErrorContains:   "developer error: no closure provided to measure agent runtime usage",
+		},
+		{
+			// The managed agent sibling of NilRuntimeFnDevError.
 			Name: "ManagedAgentLimit/NilFnDevError",
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
@@ -1697,6 +1918,20 @@ func TestLicenseEntitlements(t *testing.T) {
 			// A failure while the computation's own context is canceled
 			// aborts the whole call rather than degrading to an
 			// entitlements error.
+			Name: "AgentRuntimeHours/ContextCanceled",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			CancelContext: true,
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 0, context.Canceled
+				},
+			},
+			ExpectedErrorContains: "get agent runtime",
+		},
+		{
+			// The managed agent sibling of ContextCanceled.
 			Name: "ManagedAgentLimit/ContextCanceled",
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
@@ -1708,6 +1943,49 @@ func TestLicenseEntitlements(t *testing.T) {
 				},
 			},
 			ExpectedErrorContains: "get managed agent count",
+		},
+		{
+			// Postgres raises the same SQLSTATE 57014 for statement_timeout
+			// kills. With a live context that is a query failure, not a
+			// shutdown: it must degrade into the stable diagnostic instead
+			// of aborting every refresh (and coderd startup) on deployments
+			// with an aggressive statement_timeout.
+			Name: "AgentRuntimeHours/StatementTimeout",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 0, xerrors.Errorf("query: %w", &pq.Error{Code: "57014", Message: "canceling statement due to statement timeout"})
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoWarnings(t, entitlements)
+				require.Len(t, entitlements.Errors, 1)
+				assert.Equal(t, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText, entitlements.Errors[0])
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.Nil(t, feature.Actual)
+			},
+		},
+		{
+			// A grace-period license still reports Actual and still warns at
+			// its thresholds.
+			Name: "AgentRuntimeHours/GracePeriod",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)).GracePeriod(time.Now()),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: hoursToMsFn(100),
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.Equal(t, codersdk.EntitlementGracePeriod, feature.Entitlement)
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(100), *feature.Actual)
+				assert.Contains(t, entitlements.Warnings,
+					fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText, 100, 100))
+			},
 		},
 		{
 			Name: "ExternalTemplate",
@@ -1745,6 +2023,13 @@ func TestLicenseEntitlements(t *testing.T) {
 					return 0, nil
 				}
 			}
+			// Default to 0 agent runtime.
+			if tc.Arguments.AgentRuntimeMsFn == nil && !tc.KeepNilAgentRuntimeMsFn {
+				tc.Arguments.AgentRuntimeMsFn = func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
+					return 0, nil
+				}
+			}
+
 			ctx := context.Background()
 			if tc.CancelContext {
 				var cancel context.CancelFunc
@@ -1777,10 +2062,13 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 	aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more."
 
 	// A Premium license grants a managed agent limit by default, and a nil
-	// usage closure is a hard developer error, so these subtests wire a
-	// zero-usage measurement closure.
+	// usage closure is a hard developer error, so these subtests wire
+	// zero-usage measurement closures.
 	zeroUsageArgs := license.FeatureArguments{
 		ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+			return 0, nil
+		},
+		AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
 			return 0, nil
 		},
 	}
@@ -2337,6 +2625,18 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 func TestAgentRuntimeHoursLicenses(t *testing.T) {
 	t.Parallel()
 
+	// These cases exercise claim decoding rather than usage accounting, so
+	// they report no runtime. A nil AgentRuntimeMsFn fails the whole
+	// LicensesEntitlements call as a developer error when the feature is
+	// present, so the closure must always be supplied.
+	noRuntime := func() license.FeatureArguments {
+		return license.FeatureArguments{
+			AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+				return 0, nil
+			},
+		}
+	}
+
 	t.Run("AllClaims", func(t *testing.T) {
 		t.Parallel()
 
@@ -2362,7 +2662,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 
 		entitlements, err := license.LicensesEntitlements(
 			context.Background(), time.Now(), []database.License{lic},
-			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime(),
 		)
 		require.NoError(t, err)
 		require.Empty(t, entitlements.Errors)
@@ -2377,7 +2677,9 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 		require.EqualValues(t, 80, *feature.SoftLimit)
 		require.NotNil(t, feature.HardLimit)
 		require.EqualValues(t, 120, *feature.HardLimit)
-		require.Nil(t, feature.Actual)
+		// Actual is populated from usage, which is zero for this license.
+		require.NotNil(t, feature.Actual)
+		require.EqualValues(t, 0, *feature.Actual)
 		require.NotNil(t, feature.UsagePeriod)
 		require.WithinDuration(t, licIat, feature.UsagePeriod.IssuedAt, 2*time.Second)
 		require.WithinDuration(t, licNbf, feature.UsagePeriod.Start, 2*time.Second)
@@ -2420,7 +2722,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 
 		entitlements, err := license.LicensesEntitlements(
 			context.Background(), now, []database.License{lic},
-			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime(),
 		)
 		require.NoError(t, err)
 		require.Empty(t, entitlements.Errors)
@@ -2454,7 +2756,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 
 		entitlements, err := license.LicensesEntitlements(
 			context.Background(), time.Now(), []database.License{lic},
-			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime(),
 		)
 		require.NoError(t, err)
 		require.Empty(t, entitlements.Errors)
@@ -2488,7 +2790,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 
 		entitlements, err := license.LicensesEntitlements(
 			context.Background(), time.Now(), []database.License{lic},
-			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime(),
 		)
 		require.NoError(t, err)
 		require.Empty(t, entitlements.Errors)
@@ -2550,7 +2852,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 			{lic1, lic2},
 			{lic2, lic1},
 		} {
-			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), order, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{})
+			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), order, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime())
 			require.NoError(t, err)
 
 			feature, ok := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
@@ -2610,7 +2912,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 			{lic1, lic2},
 			{lic2, lic1},
 		} {
-			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), order, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{})
+			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), order, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime())
 			require.NoError(t, err)
 
 			feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
@@ -2641,7 +2943,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 
 		entitlements, err := license.LicensesEntitlements(
 			context.Background(), time.Now(), []database.License{lic},
-			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime(),
 		)
 		require.NoError(t, err)
 		require.Empty(t, entitlements.Errors)
@@ -2692,7 +2994,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 
 		entitlements, err := license.LicensesEntitlements(
 			context.Background(), time.Now(), []database.License{lic},
-			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime(),
 		)
 		require.NoError(t, err)
 		require.Empty(t, entitlements.Errors)
@@ -2924,6 +3226,9 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 				context.Background(), time.Now(), []database.License{lic},
 				map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{
 					Logger: slog.Make(sloghuman.Sink(&logBuf)),
+					AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+						return 0, nil
+					},
 				},
 			)
 			require.NoError(t, err)
@@ -2998,6 +3303,9 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			context.Background(), time.Now(), licenses,
 			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{
 				Logger: slog.Make(sloghuman.Sink(&logBuf)),
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 0, nil
+				},
 			},
 		)
 		require.NoError(t, err)
