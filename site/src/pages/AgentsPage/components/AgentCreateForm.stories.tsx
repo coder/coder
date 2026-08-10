@@ -1,7 +1,7 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
 import { useState } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
 import {
 	expect,
 	fn,
@@ -28,6 +28,8 @@ import {
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
 import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
+
+let capturedQueryClient: QueryClient | undefined;
 
 const permittedOrgsKey = permittedOrganizationsKey({
 	object: { resource_type: "chat", owner_id: "me" },
@@ -1670,5 +1672,36 @@ export const MCPServersErrorShowsAlertAndDisablesSend: Story = {
 		const matches = await canvas.findAllByText(/failed to load mcp servers/i);
 		expect(matches.length).toBeGreaterThan(0);
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+	},
+};
+
+export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
+	decorators: [
+		(Story) => {
+			capturedQueryClient = useQueryClient();
+			return <Story />;
+		},
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs")
+			.mockResolvedValueOnce([])
+			.mockRejectedValue(new Error("failed to refresh MCP servers"));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("send after a failed refetch");
+		const send = canvas.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(send).toBeEnabled());
+		if (!capturedQueryClient) {
+			throw new Error("query client was not captured by the story decorator");
+		}
+		await capturedQueryClient.refetchQueries();
+		const matches = await canvas.findAllByText(
+			/failed to refresh mcp servers/i,
+		);
+		expect(matches.length).toBeGreaterThan(0);
+		expect(send).toBeEnabled();
 	},
 };
