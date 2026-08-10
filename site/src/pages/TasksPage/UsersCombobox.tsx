@@ -158,7 +158,7 @@ function mapUsersToOptions(
 	return includeAuthenticatedUser(users)
 		.toSorted(sortSelectedFirst)
 		.map((user) => ({
-			label: user.name || user.username,
+			label: user.username,
 			value: user.username,
 			avatarUrl: user.avatar_url,
 		}));

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AssignableRoles, SlimRole } from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import {
 	Dialog,
 	DialogActions,
@@ -93,11 +94,7 @@ const ActiveRoleSelectorDialog: React.FC<Required<RoleSelectorDialogProps>> = ({
 				<DialogHeader>
 					<div className="flex flex-row justify-between items-center">
 						<DialogTitle>Edit roles</DialogTitle>
-						<AvatarData
-							title={user.username}
-							subtitle={user.email}
-							src={user.avatar_url}
-						/>
+						<AvatarData {...userIdentity(user)} />
 					</div>
 				</DialogHeader>
 				<RoleSelector

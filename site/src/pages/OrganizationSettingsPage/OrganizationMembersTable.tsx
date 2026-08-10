@@ -6,6 +6,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import {
@@ -132,8 +133,7 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 									size="lg"
 								/>
 							}
-							title={member.name || member.username}
-							subtitle={member.email}
+							{...userIdentity(member)}
 						/>
 					</TableCell>
 					<UserRoleCell
