@@ -2399,9 +2399,9 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// users and groups on its ACL. We deliberately use the System context to
 	// look up that data, but only return minimal identity information that is
 	// safe to expose to anyone who can read the ACL: MinimalUser for ACL users
-	// (no email or other PII) and group identity plus a member count for ACL
-	// groups (no member roster). This mirrors the chat ACL and template
-	// available-ACL endpoints.
+	// (including email for disambiguation) and group identity plus a member
+	// count for ACL groups (no member roster). This mirrors the chat ACL and
+	// template available-ACL endpoints.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
@@ -2413,8 +2413,9 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		userIDs = append(userIDs, id)
 	}
-	// ACL users are returned as MinimalUser, which contains no PII, so it is
-	// safe to fetch them under the System context.
+	// ACL users are returned as MinimalUser. Email is included for
+	// disambiguation, but the response still omits roles and org memberships,
+	// so it is safe to fetch them under the System context.
 	// nolint:gocritic
 	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -3173,12 +3174,7 @@ func (api *API) workspaceAvailableUsers(rw http.ResponseWriter, r *http.Request)
 
 	minimalUsers := make([]codersdk.MinimalUser, 0, len(users))
 	for _, user := range users {
-		minimalUsers = append(minimalUsers, codersdk.MinimalUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			Name:      user.Name,
-			AvatarURL: user.AvatarURL,
-		})
+		minimalUsers = append(minimalUsers, db2sdk.MinimalUser(user))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, minimalUsers)

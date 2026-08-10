@@ -5534,6 +5534,7 @@ export const MockSession: TypesGen.AIBridgeSession = {
 		id: "59da0bfe-9c99-47fa-a563-f9fdb18449d0",
 		username: "bob",
 		name: "The Builder, Bob",
+		email: "bob@coder.com",
 		avatar_url:
 			"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeDqc5b7Ny5bJOKxDeFvy17kBQ2_ZmBE8vKw&s",
 	},

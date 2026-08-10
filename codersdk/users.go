@@ -65,11 +65,13 @@ func (req UsersRequest) asRequestOption() RequestOption {
 }
 
 // MinimalUser is the minimal information needed to identify a user and show
-// them on the UI.
+// them on the UI. Email is included so callers can disambiguate users who
+// share a display name or avatar.
 type MinimalUser struct {
 	ID        uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username  string    `json:"username" validate:"required" table:"username,default_sort"`
 	Name      string    `json:"name,omitempty" table:"name"`
+	Email     string    `json:"email" table:"email" format:"email"`
 	AvatarURL string    `json:"avatar_url,omitempty" format:"uri"`
 }
 
@@ -79,7 +81,6 @@ type MinimalUser struct {
 // required by the frontend.
 type ReducedUser struct {
 	MinimalUser `table:"m,recursive_inline"`
-	Email       string    `json:"email" validate:"required" table:"email" format:"email"`
 	CreatedAt   time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
 	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`

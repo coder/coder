@@ -387,6 +387,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 [
   {
     "avatar_url": "http://example.com",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "username": "string"
@@ -404,13 +405,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Status Code **200**
 
-| Name           | Type         | Required | Restrictions | Description |
-|----------------|--------------|----------|--------------|-------------|
-| `[array item]` | array        | false    |              |             |
-| `» avatar_url` | string(uri)  | false    |              |             |
-| `» id`         | string(uuid) | true     |              |             |
-| `» name`       | string       | false    |              |             |
-| `» username`   | string       | true     |              |             |
+| Name           | Type          | Required | Restrictions | Description |
+|----------------|---------------|----------|--------------|-------------|
+| `[array item]` | array         | false    |              |             |
+| `» avatar_url` | string(uri)   | false    |              |             |
+| `» email`      | string(email) | false    |              |             |
+| `» id`         | string(uuid)  | true     |              |             |
+| `» name`       | string        | false    |              |             |
+| `» username`   | string        | true     |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1810,6 +1812,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
   "users": [
     {
       "avatar_url": "http://example.com",
+      "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "role": "admin",
