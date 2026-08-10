@@ -24,10 +24,9 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 			</p>
 
 			<CodeExample
-				className="max-w-full"
+				className="max-w-full [&>code]:block [&>code]:min-w-0 [&>code]:overflow-x-auto [&>code]:whitespace-nowrap"
 				code={`curl -fsSL ${origin}/install.sh | sh`}
 				secret={false}
-				wrap={false}
 			/>
 
 			<div className="pt-4">
