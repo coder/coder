@@ -83,8 +83,8 @@ pages.
 | [2.31](https://coder.com/changelog/coder-2-31)   | February 23, 2026 | Not Supported            | [v2.31.14](https://github.com/coder/coder/releases/tag/v2.31.14) |
 | [2.32](https://coder.com/changelog/coder-2-32)   | April 14, 2026    | Not Supported            | [v2.32.10](https://github.com/coder/coder/releases/tag/v2.32.10) |
 | [2.33](https://coder.com/changelog/coder-2-33)   | May 05, 2026      | Not Supported            | [v2.33.11](https://github.com/coder/coder/releases/tag/v2.33.11) |
-| [2.34](https://coder.com/changelog/coder-2-34)   | June 02, 2026     | Security Support         | [v2.34.7](https://github.com/coder/coder/releases/tag/v2.34.7)   |
-| [2.35](https://coder.com/changelog/coder-2-35-1) | July 07, 2026     | Stable                   | [v2.35.3](https://github.com/coder/coder/releases/tag/v2.35.3)   |
+| [2.34](https://coder.com/changelog/coder-2-34)   | June 02, 2026     | Security Support         | [v2.34.8](https://github.com/coder/coder/releases/tag/v2.34.8)   |
+| [2.35](https://coder.com/changelog/coder-2-35-1) | July 07, 2026     | Stable                   | [v2.35.4](https://github.com/coder/coder/releases/tag/v2.35.4)   |
 | [2.36](https://coder.com/changelog/coder-2-36)   | August 04, 2026   | Mainline                 | [v2.36.0](https://github.com/coder/coder/releases/tag/v2.36.0)   |
 | 2.37                                             |                   | Not Released             | N/A                                                              |
 <!-- RELEASE_CALENDAR_END -->

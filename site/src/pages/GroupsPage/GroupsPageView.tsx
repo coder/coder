@@ -24,6 +24,7 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { SpendEstimateDocsLink } from "./AICostControl";
 import { StatusIconTooltip } from "./StatusIconTooltip";
@@ -58,6 +59,7 @@ type GroupsPageViewProps = {
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
 	showAIBudget: boolean;
+	permissions: Permissions;
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
@@ -66,6 +68,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	canCreateGroup,
 	groupsEnabled,
 	showAIBudget,
+	permissions,
 }) => {
 	if (!groupsEnabled) {
 		return (
@@ -73,6 +76,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 				message="Groups"
 				description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
 				documentationLink={docs("/admin/users/groups-roles")}
+				canViewPremium={permissions.viewAllLicenses}
 			/>
 		);
 	}
@@ -88,7 +92,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 					{showAIBudget && (
 						<TableHead className="w-2/5">
 							<div className="flex items-center gap-1">
-								AI budget
+								AI spend
 								{spendError ? (
 									<StatusIconTooltip
 										kind="warning"
@@ -98,8 +102,8 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 									<StatusIconTooltip
 										message={
 											<>
-												Estimated AI spend compared to the group's AI budget for
-												the active period. <SpendEstimateDocsLink />
+												Approximate AI spend compared to the group's AI budget
+												for the active period. <SpendEstimateDocsLink />
 											</>
 										}
 									/>

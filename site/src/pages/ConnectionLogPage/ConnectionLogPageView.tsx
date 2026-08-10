@@ -15,6 +15,7 @@ import { Table, TableBody } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
 import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
@@ -27,6 +28,7 @@ interface ConnectionLogPageViewProps {
 	error?: unknown;
 	filterProps: ComponentProps<typeof ConnectionLogFilter>;
 	connectionLogsQuery: PaginationResult;
+	permissions: Permissions;
 }
 
 export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
@@ -36,6 +38,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	error,
 	filterProps,
 	connectionLogsQuery: paginationResult,
+	permissions,
 }) => {
 	const isLoading =
 		(connectionLogs === undefined ||
@@ -84,6 +87,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					message="Connection logs"
 					description="Connection logs allow you to see how and when users connect to workspaces. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/monitoring/connection-logs")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
 		</Margins>

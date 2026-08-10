@@ -2,6 +2,9 @@
 -- Upsert a batch of (provider, model) rows from a JSON array. Each element
 -- must have provider, model, and the four price fields; null prices are
 -- written as SQL NULL.
+-- A conflicting row is only rewritten when a price differs, so updated_at
+-- records when a price last changed. Prices are nullable and a NULL on
+-- either side counts as a difference.
 INSERT INTO ai_model_prices (
 	provider, model, input_price, output_price, cache_read_price, cache_write_price
 )
@@ -18,7 +21,18 @@ ON CONFLICT (provider, model) DO UPDATE SET
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
 	cache_write_price = EXCLUDED.cache_write_price,
-	updated_at        = NOW();
+	updated_at        = NOW()
+WHERE (
+	ai_model_prices.input_price,
+	ai_model_prices.output_price,
+	ai_model_prices.cache_read_price,
+	ai_model_prices.cache_write_price
+) IS DISTINCT FROM (
+	EXCLUDED.input_price,
+	EXCLUDED.output_price,
+	EXCLUDED.cache_read_price,
+	EXCLUDED.cache_write_price
+);
 
 -- name: GetAIModelPriceByProviderModel :one
 SELECT *
