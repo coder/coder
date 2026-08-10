@@ -24,6 +24,6 @@
   },
   "title": "alice has reached their monthly AI budget limit",
   "title_markdown": "alice has reached their monthly AI budget limit",
-  "body": "User alice has reached their monthly AI budget limit ($1000.00). Subsequent requests will be blocked.\n\nEffective group: Engineering\n\nAI budget period: July 1, 2026 - August 1, 2026",
-  "body_markdown": "User **alice** has reached their monthly AI budget limit ($1000.00). Subsequent requests will be blocked.\n\nEffective group: **Engineering**\n\nAI budget period: July 1, 2026 - August 1, 2026"
+  "body": "User alice has reached their monthly AI budget limit ($1000.00). Subsequent requests will be blocked.\n\nEffective group: Engineering\n\nThis limit is a per-user override.\n\nAI budget period: July 1, 2026 - August 1, 2026",
+  "body_markdown": "User **alice** has reached their monthly AI budget limit ($1000.00). Subsequent requests will be blocked.\n\nEffective group: **Engineering**\n\nThis limit is a per-user override.\n\nAI budget period: July 1, 2026 - August 1, 2026"
 }
