@@ -171,7 +171,7 @@ export const WithAIBudgetsLoading: Story = {
 	},
 };
 
-// Spend still loading: every AI budget cell falls back to an em dash.
+// Spend still loading: every AI spend cell falls back to an em dash.
 export const WithAIBudgetsSpendLoading: Story = {
 	args: {
 		groups: [aiGroup("ai-loading", "Spend loading")],
@@ -223,7 +223,7 @@ export const WithAIBudgetsSpendUnavailable: Story = {
 	},
 };
 
-// AI Bridge hidden: no AI budget column.
+// AI Bridge hidden: no AI spend column.
 export const WithoutAIBudgetColumn: Story = {
 	args: {
 		groups: [aiGroup("ai-hidden", "No AI column")],
@@ -233,7 +233,7 @@ export const WithoutAIBudgetColumn: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByText("AI budget")).not.toBeInTheDocument();
+		expect(canvas.queryByText("AI spend")).not.toBeInTheDocument();
 	},
 };
 

@@ -1,6 +1,8 @@
 package chatcompletions
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,6 +18,78 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 )
+
+func TestStreamProcessorUsage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		chunks               []string
+		wantPromptTokens     int64
+		wantCompletionTokens int64
+		wantTotalTokens      int64
+	}{
+		{
+			name: "cumulative snapshots with trailing usage-less chunk",
+			chunks: []string{
+				`{"id":"chatcmpl-cumulative","choices":[{"index":0,"delta":{"content":"one"}}],"usage":{"prompt_tokens":6000,"completion_tokens":10,"total_tokens":6010}}`,
+				`{"id":"chatcmpl-cumulative","choices":[{"index":0,"delta":{"content":" two"}}],"usage":{"prompt_tokens":6000,"completion_tokens":20,"total_tokens":6020}}`,
+				`{"id":"chatcmpl-cumulative","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030}}`,
+				`{"id":"chatcmpl-cumulative","choices":[]}`,
+			},
+			wantPromptTokens:     6000,
+			wantCompletionTokens: 30,
+			wantTotalTokens:      6030,
+		},
+		{
+			name: "usage only on final chunk",
+			chunks: []string{
+				`{"id":"chatcmpl-final","choices":[{"index":0,"delta":{"content":"one"}}]}`,
+				`{"id":"chatcmpl-final","choices":[{"index":0,"delta":{"content":" two"}}]}`,
+				`{"id":"chatcmpl-final","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030}}`,
+			},
+			wantPromptTokens:     6000,
+			wantCompletionTokens: 30,
+			wantTotalTokens:      6030,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+			interceptor := NewStreamingInterceptor(uuid.New(), nil, intercept.Config{}, nil, nil, otel.Tracer("test"))
+			processor := newStreamProcessor(t.Context(), logger, nil)
+
+			var relayed []byte
+			for _, rawChunk := range tt.chunks {
+				var chunk openai.ChatCompletionChunk
+				require.NoError(t, json.Unmarshal([]byte(rawChunk), &chunk))
+				require.True(t, processor.process(chunk))
+				if chunk.JSON.Usage.Valid() {
+					var err error
+					relayed, err = interceptor.marshalChunk(&chunk, interceptor.ID(), processor)
+					require.NoError(t, err)
+				}
+			}
+
+			var payload struct {
+				Usage openai.CompletionUsage `json:"usage"`
+			}
+			relayed = bytes.TrimSuffix(bytes.TrimPrefix(relayed, []byte("data: ")), []byte("\n\n"))
+			require.NoError(t, json.Unmarshal(relayed, &payload))
+			assert.Equal(t, tt.wantPromptTokens, payload.Usage.PromptTokens)
+			assert.Equal(t, tt.wantCompletionTokens, payload.Usage.CompletionTokens)
+			assert.Equal(t, tt.wantTotalTokens, payload.Usage.TotalTokens)
+
+			usage := processor.lastUsage
+			assert.Equal(t, tt.wantPromptTokens, usage.PromptTokens)
+			assert.Equal(t, tt.wantCompletionTokens, usage.CompletionTokens)
+			assert.Equal(t, tt.wantTotalTokens, usage.TotalTokens)
+		})
+	}
+}
 
 // Test that when the upstream provider returns an error before streaming starts,
 // the error status code and body are correctly relayed to the client.
