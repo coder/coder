@@ -18,7 +18,7 @@ const mockAISpend: UserAISpendStatus = {
 	period_end: "2026-07-01T00:00:00Z",
 };
 
-const spendPeriodLabel = "Estimated AI spend: June 1 - July 1, 2026";
+const spendPeriodLabel = "Approximate AI spend June 1 - July 1, 2026";
 
 const aiCostControl: { features: FeatureName[] } = {
 	features: ["aibridge"],
@@ -71,10 +71,10 @@ export const WithAISpend: Story = {
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows AI spend", async () => {
-			const menu = await openDropdown(canvasElement);
+			await openDropdown(canvasElement);
 			await waitFor(() => {
 				expect(document.body).toHaveTextContent("$819 / $1,200 USD");
-				expect(menu.getByText(spendPeriodLabel)).toBeVisible();
+				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
@@ -95,10 +95,10 @@ export const AISpendWarning: Story = {
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows the warning marker near the limit", async () => {
-			const menu = await openDropdown(canvasElement);
+			await openDropdown(canvasElement);
 			await waitFor(() => {
 				expect(document.body).toHaveTextContent("$1,080 / $1,200 USD");
-				expect(menu.getByText(spendPeriodLabel)).toBeVisible();
+				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
@@ -142,10 +142,10 @@ export const AISpendExceeded: Story = {
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows the exceeded marker at the limit", async () => {
-			const menu = await openDropdown(canvasElement);
+			await openDropdown(canvasElement);
 			await waitFor(() => {
 				expect(document.body).toHaveTextContent("$1,500 / $1,200 USD");
-				expect(menu.getByText(spendPeriodLabel)).toBeVisible();
+				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
@@ -163,10 +163,10 @@ export const AISpendUnlimited: Story = {
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows unlimited spend without a bar", async () => {
-			const menu = await openDropdown(canvasElement);
+			await openDropdown(canvasElement);
 			await waitFor(() => {
 				expect(document.body).toHaveTextContent("$819 / Unlimited USD");
-				expect(menu.getByText(spendPeriodLabel)).toBeVisible();
+				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
 				screen.queryByRole("progressbar", { name: "AI spend usage" }),
@@ -274,7 +274,7 @@ export const AISpendHiddenOnInvalidData: Story = {
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend on invalid data", async () => {
 			await openDropdown(canvasElement);
-			expect(screen.queryByText(spendPeriodLabel)).not.toBeInTheDocument();
+			expect(document.body).not.toHaveTextContent(spendPeriodLabel);
 		});
 	},
 };
@@ -295,7 +295,7 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend on a negative limit", async () => {
 			await openDropdown(canvasElement);
-			expect(screen.queryByText(spendPeriodLabel)).not.toBeInTheDocument();
+			expect(document.body).not.toHaveTextContent(spendPeriodLabel);
 		});
 	},
 };
