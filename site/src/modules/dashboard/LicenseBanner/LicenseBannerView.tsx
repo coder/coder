@@ -70,10 +70,19 @@ const getBannerVariant = (
 	return hasProminentWarning ? "warningProminent" : "warning";
 };
 
-const bannerTitle = (variant: LicenseBannerVariant): string =>
-	variant === "error"
-		? "License errors require attention"
-		: "Your license limits have been exceeded";
+// The muted variant only wins when every message is muted (see
+// getBannerVariant), which means advisories and diagnostics: nothing has
+// been exceeded, so the heading must not assert exceedance.
+const bannerTitle = (variant: LicenseBannerVariant): string => {
+	switch (variant) {
+		case "error":
+			return "License errors require attention";
+		case "warningProminent":
+			return "Your license limits have been exceeded";
+		case "warning":
+			return "License notices";
+	}
+};
 
 const bannerRole = (variant: LicenseBannerVariant): "alert" | "status" =>
 	variant === "error" ? "alert" : "status";
@@ -142,6 +151,9 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 	return (
 		<div
 			role={bannerRole(bannerVariant)}
+			// The muted/prominent distinction otherwise only reaches the DOM
+			// as a background class, which tests must not assert on.
+			data-variant={bannerVariant}
 			className={cn(bannerVariants({ variant: bannerVariant }))}
 		>
 			<div className="flex min-w-0 flex-1 items-start gap-2">
