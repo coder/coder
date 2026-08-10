@@ -168,12 +168,17 @@ wins.
 
 ## Permissions
 
-| Action                        | Required role              |
-|-------------------------------|----------------------------|
-| Create, update, or delete     | Organization admin         |
-| View enabled servers          | Member granted through ACL |
-| OAuth2 connect and disconnect | Member granted through ACL |
-| Manage ACLs                   | Organization admin         |
+| Action                    | Required role              |
+|---------------------------|----------------------------|
+| Create, update, or delete | Organization admin         |
+| View enabled servers      | Member granted through ACL |
+| OAuth2 connect            | Member granted through ACL |
+| OAuth2 disconnect         | Token owner                |
+| Manage ACLs               | Organization admin         |
+
+Disconnect only needs a valid session: users removed from the ACL or the
+organization can still delete their stored token and revoke the provider
+grant.
 
 Members only see enabled servers in their own organizations. Sensitive fields
 such as API keys and client secrets are redacted in API responses.
