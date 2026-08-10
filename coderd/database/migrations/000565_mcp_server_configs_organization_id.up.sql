@@ -55,17 +55,20 @@ SELECT
     config.transport,
     config.url,
     config.auth_type,
-    CASE WHEN config.auth_type = 'oauth2' THEN '' ELSE config.oauth2_client_id END,
-    CASE WHEN config.auth_type = 'oauth2' THEN '' ELSE config.oauth2_client_secret END,
-    CASE WHEN config.auth_type = 'oauth2' THEN NULL ELSE config.oauth2_client_secret_key_id END,
+    -- Never copy admin-entered credentials into other organizations:
+    -- the new organization's admins gain update access to the copy and
+    -- could repoint its URL while reusing the inherited secret. OAuth
+    -- client identity is cleared for every auth type because the API
+    -- stores OAuth fields regardless of auth_type and preserves them
+    -- when a copy is later switched to oauth2.
+    '',
+    '',
+    NULL,
     config.oauth2_auth_url,
     config.oauth2_token_url,
     config.oauth2_revocation_url,
     config.oauth2_scopes,
     config.api_key_header,
-    -- Never copy admin-entered credentials into other organizations:
-    -- the new organization's admins gain update access to the copy and
-    -- could repoint its URL while reusing the inherited secret.
     '',
     NULL,
     '{}',

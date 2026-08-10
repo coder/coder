@@ -3084,7 +3084,9 @@ func TestMigration000565MCPServerConfigsOrganizationID(t *testing.T) {
 	keyID := sql.NullString{String: keyDigest, Valid: true}
 	configs := []configSeed{
 		{id: uuid.New(), slug: "migration-565-none", authType: "none", apiKeyHeader: "Authorization", customHeaders: "{}"},
-		{id: uuid.New(), slug: "migration-565-api-key", authType: "api_key", apiKeyHeader: "X-API-Key", apiKeyValue: "api-key-ciphertext", apiKeyValueKeyID: keyID, customHeaders: "{}"},
+		// Leftover OAuth fields on a non-oauth2 config: the API stores
+		// them for any auth type, so copies must clear them too.
+		{id: uuid.New(), slug: "migration-565-api-key", authType: "api_key", apiKeyHeader: "X-API-Key", apiKeyValue: "api-key-ciphertext", apiKeyValueKeyID: keyID, customHeaders: "{}", oauth2ClientID: "leftover-client-id", oauth2ClientSecret: "leftover-secret-ciphertext", oauth2ClientSecretKeyID: keyID, oauth2TokenURL: "https://oauth.example.com/leftover-token"},
 		{id: uuid.New(), slug: "migration-565-custom-headers", authType: "custom_headers", apiKeyHeader: "Authorization", customHeaders: "custom-headers-ciphertext", customHeadersKeyID: keyID},
 		{
 			id:                      uuid.New(),
@@ -3232,24 +3234,23 @@ func TestMigration000565MCPServerConfigsOrganizationID(t *testing.T) {
 			require.Equal(t, config.authType, authType)
 			copiedIDs[orgID][config.id] = copiedID
 
-			// Copies never inherit admin-entered credentials, and
-			// copies of credentialed configs start disabled.
+			// Copies never inherit admin-entered credentials, whatever
+			// the auth type, and copies of credentialed configs start
+			// disabled.
 			require.Empty(t, apiKeyValue)
 			require.False(t, apiKeyValueKeyID.Valid)
 			require.Equal(t, "{}", customHeaders)
 			require.False(t, customHeadersKeyID.Valid)
+			require.Empty(t, oauth2ClientID)
+			require.Empty(t, oauth2ClientSecret)
+			require.False(t, oauth2ClientSecretKeyID.Valid)
+			require.Equal(t, config.oauth2AuthURL, oauth2AuthURL)
+			require.Equal(t, config.oauth2TokenURL, oauth2TokenURL)
+			require.Equal(t, config.oauth2RevocationURL, oauth2RevocationURL)
+			require.Equal(t, config.oauth2Scopes, oauth2Scopes)
 			switch config.authType {
 			case "none":
 				require.True(t, enabled)
-			case "oauth2":
-				require.Empty(t, oauth2ClientID)
-				require.Empty(t, oauth2ClientSecret)
-				require.False(t, oauth2ClientSecretKeyID.Valid)
-				require.Equal(t, config.oauth2AuthURL, oauth2AuthURL)
-				require.Equal(t, config.oauth2TokenURL, oauth2TokenURL)
-				require.Equal(t, config.oauth2RevocationURL, oauth2RevocationURL)
-				require.Equal(t, config.oauth2Scopes, oauth2Scopes)
-				require.False(t, enabled)
 			default:
 				require.False(t, enabled)
 			}
