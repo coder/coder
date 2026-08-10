@@ -459,6 +459,46 @@ func TestPostChats(t *testing.T) {
 		})
 		_, _, err = coderd.ChatToolSubject(api, wrongCtx, member.ID)
 		require.Error(t, err)
+
+		// In-process platform callbacks must re-check agent and owner
+		// liveness because chat workers are detached from the HTTP gate.
+		_, err = db.UpdateUserStatus(sysCtx, database.UpdateUserStatusParams{
+			ID:        agent.UserID,
+			Status:    database.UserStatusSuspended,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		_, _, err = coderd.ChatToolSubject(api, actorCtx, member.ID)
+		require.Error(t, err)
+
+		_, err = db.UpdateUserStatus(sysCtx, database.UpdateUserStatusParams{
+			ID:        agent.UserID,
+			Status:    database.UserStatusActive,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateUserStatus(sysCtx, database.UpdateUserStatusParams{
+			ID:        member.ID,
+			Status:    database.UserStatusSuspended,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		_, _, err = coderd.ChatToolSubject(api, actorCtx, member.ID)
+		require.Error(t, err)
+		_, _, err = coderd.ChatToolSubject(api, ctx, member.ID)
+		require.Error(t, err)
+
+		_, err = db.UpdateUserStatus(sysCtx, database.UpdateUserStatusParams{
+			ID:        member.ID,
+			Status:    database.UserStatusActive,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.NoError(t, db.UpdateUserDeletedByID(sysCtx, member.ID))
+		_, _, err = coderd.ChatToolSubject(api, actorCtx, member.ID)
+		require.Error(t, err)
+		_, _, err = coderd.ChatToolSubject(api, ctx, member.ID)
+		require.Error(t, err)
 	})
 
 	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {

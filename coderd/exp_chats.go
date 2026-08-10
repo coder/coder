@@ -3728,28 +3728,54 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 func (api *API) chatToolSubject(ctx context.Context, ownerID uuid.UUID) (rbac.Subject, uuid.UUID, error) {
 	agentActor, ok := aiagentidentity.ActorFromContext(ctx)
 	if !ok {
-		actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+		//nolint:gocritic // Detached chat workers must verify owner liveness.
+		owner, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), ownerID)
+		if err != nil {
+			return rbac.Subject{}, uuid.Nil, xerrors.Errorf("load chat owner: %w", err)
+		}
+		if owner.Deleted || owner.Status != database.UserStatusActive {
+			return rbac.Subject{}, uuid.Nil, xerrors.Errorf("chat owner %s is not active", ownerID)
+		}
+		actor, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
 		if err != nil {
 			return rbac.Subject{}, uuid.Nil, xerrors.Errorf("load user authorization: %w", err)
 		}
+		if userStatus != database.UserStatusActive {
+			return rbac.Subject{}, uuid.Nil, xerrors.Errorf("chat owner %s authorization is not active", ownerID)
+		}
 		return actor, ownerID, nil
 	}
-	// Fail closed: a context actor sponsored by a different user than the
-	// chat owner indicates corrupted wiring, never a legitimate call.
-	if agentActor.OwnerUserID != ownerID {
-		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("AI agent actor owner %s does not match chat owner %s", agentActor.OwnerUserID, ownerID)
+
+	identity, err := aiagentidentity.Resolve(ctx, api.Database, agentActor.AgentUserID)
+	if err != nil {
+		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("resolve chat AI agent identity: %w", err)
 	}
-	profile := aiagentidentity.ChatAgentProfile(agentActor.OriginID)
+	if identity.Actor != agentActor {
+		return rbac.Subject{}, uuid.Nil, xerrors.New("chat AI agent actor does not match its authoritative identity")
+	}
+	if identity.AgentUser.Deleted || identity.AgentUser.Status != database.UserStatusActive {
+		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("chat AI agent user %s is not active", identity.AgentUser.ID)
+	}
+	if identity.OwnerUser.ID != ownerID || identity.OwnerUser.Kind != database.UserKindHuman ||
+		identity.OwnerUser.Deleted || identity.OwnerUser.Status != database.UserStatusActive {
+		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("chat AI agent owner %s is not an active human user", ownerID)
+	}
+
+	profile := aiagentidentity.ChatAgentProfile(identity.Actor.OriginID)
 	scopeSet := database.APIKeyScopeSet{
 		Scopes:    profile.Scopes,
 		AllowList: profile.AllowList,
 	}
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, scopeSet)
+	actor, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, scopeSet)
 	if err != nil {
 		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("load AI agent authorization: %w", err)
 	}
+	if userStatus != database.UserStatusActive {
+		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("chat AI agent owner %s authorization is not active", ownerID)
+	}
 	actor.Type = rbac.SubjectTypeAIAgent
-	return actor, agentActor.AgentUserID, nil
+	actor.FriendlyName = identity.AgentUser.Username
+	return actor, identity.AgentUser.ID, nil
 }
 
 // chatCreateWorkspace provides workspace creation for the chat
