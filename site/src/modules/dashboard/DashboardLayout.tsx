@@ -6,6 +6,7 @@ import { Outlet } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { AgentRuntimeBanner } from "#/modules/dashboard/AgentRuntimeBanner/AgentRuntimeBanner";
 import { AnnouncementBanners } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
 import { cn } from "#/utils/cn";
@@ -21,7 +22,10 @@ export const DashboardLayout: FC = () => {
 
 	return (
 		<>
-			{canViewDeployment && <LicenseBanner />}
+			{/* LicenseBanner already covers the runtime hours allocation for
+			    admins, so the member banner only mounts on its else branch to
+			    avoid double-bannering. */}
+			{canViewDeployment ? <LicenseBanner /> : <AgentRuntimeBanner />}
 			<AnnouncementBanners />
 
 			<div className="flex flex-col min-h-screen justify-between">
