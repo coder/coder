@@ -18,6 +18,12 @@ alongside this one.
 
 Terms used in this document with a specific meaning.
 
+**Audit.** The subject of this document: the keeping of a journal of persistent
+state changes, against which the state of the world can be reconciled. It never
+refers to the existing mechanism named `audit_logs`, which does something
+different and is discussed under the relationship section below. Where the
+existing mechanism is meant, it is named explicitly.
+
 **Entry.** An element of the audit journal. The journal is composed of entries.
 An entry is a reflection and recording of an event.
 
@@ -86,9 +92,35 @@ that which the audit journal describes.
   coherence is achieved after the fact rather than atomically. Reconciliation
   is the mechanism that achieves it.
 
-### Existing mechanisms
+### Relationship to the existing mechanism
 
-Use of the existing audit mechanisms is not required.
+The mechanism presently called `audit_logs`, with its supporting packages in
+`coderd/audit` and `enterprise/audit`, serves a different purpose from the
+approach in this document. It records what a user did, attributed to a request,
+carrying a field level diff and a status code. It is deletable by retention
+policy, droppable by filter, and disabled entirely unless licensed. Those are
+reasonable properties for what it does, and disqualifying properties for an
+integrity ledger.
+
+**The two are independent systems running side by side.** Neither supersedes the
+other. This approach does not extend the existing mechanism and does not require
+its use. The purposes are different enough that a single mechanism would have to
+be simultaneously deletable and permanent, droppable and complete, licensed and
+invariant.
+
+**Recommendation: the existing mechanism should be renamed.** Its present name
+claims the word "audit" for something that is not audit in the sense used here.
+The confusion is not hypothetical: without a rename the two systems read as one
+system in two states of completeness, and a reader encountering both will assume
+the newer is meant to replace the older. No replacement name is proposed here.
+
+### The two history tables are a different case
+
+`user_status_changes` and `user_deleted` are already in the spirit of this
+approach, though they were built ad hoc for one entity. **They should eventually
+be incorporated into it.** What they do today may not match the eventual design
+in detail, but the new system should be able to do everything they currently do,
+consistently and on principle rather than case by case.
 
 ## Derived
 
