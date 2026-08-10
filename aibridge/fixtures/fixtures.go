@@ -67,6 +67,9 @@ var (
 
 	//go:embed openai/chatcompletions/streaming_injected_tool_nonzero_index.txtar
 	OaiChatStreamingInjectedToolNonzeroIndex []byte
+
+	//go:embed openai/chatcompletions/streaming_cumulative_usage_injected_tool.txtar
+	OaiChatStreamingCumulativeUsageInjectedTool []byte
 )
 
 var (

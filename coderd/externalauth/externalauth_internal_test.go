@@ -1,7 +1,12 @@
 package externalauth
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -9,9 +14,96 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+func TestLogThrottle(t *testing.T) {
+	t.Parallel()
+
+	const interval = time.Minute
+	var th logThrottle
+	start := time.Now()
+
+	suppressed, ok := th.shouldLog(start, interval)
+	require.True(t, ok, "the first event should log")
+	require.EqualValues(t, 0, suppressed)
+
+	for i := range 3 {
+		_, ok := th.shouldLog(start.Add(time.Duration(i+1)*time.Second), interval)
+		require.False(t, ok, "events within the interval should be suppressed")
+	}
+	_, ok = th.shouldLog(start.Add(interval-time.Millisecond), interval)
+	require.False(t, ok, "an event just inside the interval should be suppressed")
+
+	suppressed, ok = th.shouldLog(start.Add(interval), interval)
+	require.True(t, ok, "the first event after the interval should log")
+	require.EqualValues(t, 4, suppressed, "suppressed should count events since the last log")
+
+	suppressed, ok = th.shouldLog(start.Add(2*interval), interval)
+	require.True(t, ok)
+	require.EqualValues(t, 0, suppressed, "suppressed should reset after each log")
+
+	// Suppress one event, then let more than two intervals elapse.
+	_, ok = th.shouldLog(start.Add(2*interval+time.Second), interval)
+	require.False(t, ok)
+	suppressed, ok = th.shouldLog(start.Add(5*interval), interval)
+	require.True(t, ok)
+	require.EqualValues(t, 0, suppressed, "counts from a burst that ended more than an interval ago are discarded")
+}
+
+func TestLogThrottleConcurrent(t *testing.T) {
+	t.Parallel()
+
+	const (
+		interval = time.Minute
+		events   = 32
+	)
+	var th logThrottle
+	now := time.Now()
+
+	var (
+		wg     sync.WaitGroup
+		logged atomic.Int64
+	)
+	for range events {
+		wg.Go(func() {
+			if _, ok := th.shouldLog(now, interval); ok {
+				logged.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	require.EqualValues(t, 1, logged.Load(), "exactly one concurrent event should log")
+
+	suppressed, ok := th.shouldLog(now.Add(interval), interval)
+	require.True(t, ok)
+	require.EqualValues(t, events-1, suppressed, "every other concurrent event should be counted")
+}
+
+// TestLogRateLimitedValidationSuppressed verifies the suppressed count
+// reaches the emitted log line.
+func TestLogRateLimitedValidationSuppressed(t *testing.T) {
+	t.Parallel()
+
+	logs := &bytes.Buffer{}
+	c := &Config{Logger: slog.Make(slogjson.Sink(logs)).Leveled(slog.LevelDebug)}
+	c.rateLimitLogThrottle.lastLog = time.Now().Add(-rateLimitLogInterval - time.Second)
+	c.rateLimitLogThrottle.suppressed = 5
+
+	c.logRateLimitedValidation(context.Background(), http.StatusTooManyRequests, "status_code")
+
+	var entry struct {
+		Fields struct {
+			Suppressed *int64 `json:"suppressed"`
+		} `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	require.NotNil(t, entry.Fields.Suppressed, "the log line should carry the suppressed field")
+	require.EqualValues(t, 5, *entry.Fields.Suppressed)
+}
 
 func TestGitlabDefaults(t *testing.T) {
 	t.Parallel()

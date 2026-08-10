@@ -5525,7 +5525,7 @@ type OAuth2ProviderApp struct {
 	// List of valid redirect URIs for the application
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
 	// OAuth2 client type: confidential or public
-	ClientType sql.NullString `db:"client_type" json:"client_type"`
+	ClientType string `db:"client_type" json:"client_type"`
 	// Whether this app was created via dynamic client registration
 	DynamicallyRegistered sql.NullBool `db:"dynamically_registered" json:"dynamically_registered"`
 	// RFC 7591: Timestamp when client_id was issued

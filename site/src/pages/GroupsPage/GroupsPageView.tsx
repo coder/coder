@@ -92,7 +92,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 					{showAIBudget && (
 						<TableHead className="w-2/5">
 							<div className="flex items-center gap-1">
-								AI budget
+								AI spend
 								{spendError ? (
 									<StatusIconTooltip
 										kind="warning"
@@ -102,8 +102,8 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 									<StatusIconTooltip
 										message={
 											<>
-												Estimated AI spend compared to the group's AI budget for
-												the active period. <SpendEstimateDocsLink />
+												Approximate AI spend compared to the group's AI budget
+												for the active period. <SpendEstimateDocsLink />
 											</>
 										}
 									/>
