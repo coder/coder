@@ -3234,9 +3234,7 @@ func TestMigration000565MCPServerConfigsOrganizationID(t *testing.T) {
 			require.Equal(t, config.authType, authType)
 			copiedIDs[orgID][config.id] = copiedID
 
-			// Copies never inherit admin-entered credentials, whatever
-			// the auth type, and copies of credentialed configs start
-			// disabled.
+			// Each organization's admin must re-enter credentials deliberately.
 			require.Empty(t, apiKeyValue)
 			require.False(t, apiKeyValueKeyID.Valid)
 			require.Equal(t, "{}", customHeaders)

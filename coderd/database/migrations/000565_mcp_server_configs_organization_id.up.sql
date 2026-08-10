@@ -14,11 +14,9 @@ BEGIN
     END IF;
 END $$;
 
--- Pre-existing deployment-wide configs move to the default organization
--- with credentials intact. The default organization succeeds the
--- deployment scope, so its operator-appointed admins take over the
--- inherited secrets; copies for other organizations (below) never
--- receive credentials.
+-- Originals move to the default organization with credentials intact:
+-- it succeeds the deployment scope, so its operator-appointed admins
+-- take over the inherited secrets. Copies below never get credentials.
 UPDATE mcp_server_configs
 SET organization_id = (SELECT id FROM organizations WHERE is_default = true LIMIT 1);
 
@@ -60,12 +58,9 @@ SELECT
     config.transport,
     config.url,
     config.auth_type,
-    -- Never copy admin-entered credentials into other organizations:
-    -- the new organization's admins gain update access to the copy and
-    -- could repoint its URL while reusing the inherited secret. OAuth
-    -- client identity is cleared for every auth type because the API
-    -- stores OAuth fields regardless of auth_type and preserves them
-    -- when a copy is later switched to oauth2.
+    -- Never copy admin-entered credentials: the copy's admins could repoint
+    -- its URL and reuse the inherited secret. OAuth identity is cleared for
+    -- every auth type because the API stores it regardless of auth_type.
     '',
     '',
     NULL,
