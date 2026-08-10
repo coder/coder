@@ -30,59 +30,10 @@ it is speaking about storage.
 The restriction on "record" applies to its use as a noun standing in for an
 entry. As a verb it remains ordinary usage: an entry records an event.
 
-**`workspace_agent`.** The long standing Coder concept: the process that runs
-inside a provisioned workspace and provides that workspace's services,
-including SSH access, port forwarding, terminal connectivity, application
-serving, health reporting, and resource statistics. It authenticates to the
-control plane with its own token and reaches it over the tailnet. Sub-agents,
-such as the one created for a devcontainer, are also `workspace_agent` entities
-carrying a reference to their parent.
-
-This name is pervasive. It is the prefix on eleven tables and appears in nine
-enum types in the schema, it is used throughout Go identifiers, and it is the
-value `workspace_agent` in the audit `resource_type` enum.
-
-In this document `workspace_agent` is always written in full and is never
-shortened to "agent". Its name reaches the codebase through the general
-software sense of an agent as a process acting for a system, which itself
-derives from the legal sense below. The codebase's usage does not depend on
-that relation.
-
-**Agent, in the relation of principal and agent.** From the law of agency in the
-English legal tradition. An agent is a party authorized to act on behalf of
-another party, the principal, such that acts taken within the scope of that
-authority bind the principal as though the principal had acted directly.
-Authority may be actual, whether express or implied, or apparent, where the
-principal's own conduct leads a third party reasonably to believe that authority
-exists. A principal may also ratify an unauthorized act after the fact and
-thereby become bound by it.
-
-Three parties are in view, not two: the principal, the agent, and the third
-party with whom the agent deals.
-
-The relation is fiduciary. Among the duties the agent owes the principal is the
-**duty to account**: to keep and render a faithful account of what was done
-under the delegated authority. That duty is the origin of the obligation this
-document is concerned with. Double entry bookkeeping arose in the same
-mercantile tradition, as the means by which agents and factors accounted to
-their principals. Audit and agency are therefore not separate subjects that
-happen to meet here. The account exists because authority was delegated.
-
-**AI agent.** A software system that pursues goals over multiple steps with
-latitude in choosing its own actions, typically driven by a large language
-model. Claude Code is one. Competing examples include GitHub Copilot and OpenAI
-Codex.
-
-An AI agent ordinarily stands in the relation of principal and agent described
-above: it acts on behalf of a person, within some scope of authority, and its
-acts have effects attributed to that person. The two senses therefore overlap
-in substance and not merely in spelling. That is what makes fixing this
-vocabulary necessary rather than merely tidy.
-
-**Usage of the bare word.** Unqualified, "agent" means an agent in the relation
-of principal and agent. That sense is the oldest of the three and the origin of
-the others, so it holds the unmodified word. The other two senses are always
-qualified: `workspace_agent` written in full, and "AI agent" written in full.
+**Agent**. The three senses of "agent", and the terms for the entities this work
+deals with, are defined in `poc_audit/entity_model.md` rather than here, since
+they are facts about entities rather than about audit. The bare word "agent"
+refers to the legal sense of principal vs. agent.
 
 ### What makes an event auditable
 
@@ -330,8 +281,12 @@ existing data. See `.claude/docs/DATABASE.md`.
   state and its responsible parties can be reconstructed.
 - **Placement of the entry.** Trigger, store layer, or handler, given the
   unbypassability and actor tension above.
-- **Actor model.** Whether an entry must capture both the principal and the
-  agent, and whether either alone is ever sufficient.
+- **Attribution of a delegated act.** Settled: an entry records the actor
+  behind the action, and not both a principal and an agent. See the attribution
+  position in `poc_audit/entity_model.md`, which establishes that delegation is
+  authorized in advance and recorded separately, so it does not need to appear
+  in each entry. Retained here as a pointer because the question was raised
+  here.
 - **Resolution policy.** On detecting divergence: note the discrepancy only,
   correct automatically, or produce adjusting entries for human disposition.
   Whether a correction is itself an auditable event.
