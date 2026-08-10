@@ -31,14 +31,14 @@ type FormData = {
 	display_name: string;
 	avatar_url: string;
 	quota_allowance: number;
-	// Per-member AI budget, in dollars. "" is unlimited; 0 disables.
+	// Per-member AI budget, in dollars. "" means no budget; 0 disables AI access.
 	monthly_budget_per_member: string;
 };
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),
 	quota_allowance: Yup.number().required().min(0).integer(),
-	// Optional: empty is unlimited. A value must be within the range; 0 disables.
+	// Optional: empty means no budget. A value must be within the range; 0 disables.
 	monthly_budget_per_member: Yup.number()
 		.transform((value, original) => (original === "" ? undefined : value))
 		.min(0, aiBudgetRangeError)
@@ -69,26 +69,20 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 	const budgetValue = monthlyBudgetPerMember.trim();
 	const budgetAmount = Number(budgetValue);
 
-	// Empty means unlimited spend; $0 disables AI access. Both states show an
-	// explanatory alert alongside the summary line.
+	// Both an empty value and $0 leave the group without a budget. An explicit
+	// $0 limit additionally calls out that it disables AI access.
 	if (budgetValue === "" || budgetAmount === 0) {
-		const { label, message } =
-			budgetValue === ""
-				? {
-						label: "unlimited budget",
-						message: "Members in this group have no spending cap.",
-					}
-				: {
-						label: "no budget",
-						message: "A $0 limit disables AI access for this group.",
-					};
 		return (
 			<>
 				<span className="text-left text-xs text-content-secondary">
 					This group has{" "}
-					<span className="font-medium text-content-primary">{label}</span>.
+					<span className="font-medium text-content-primary">no budget</span>.
 				</span>
-				<Alert severity="info">{message}</Alert>
+				{budgetValue !== "" && (
+					<Alert severity="info">
+						A $0 limit disables AI access for this group.
+					</Alert>
+				)}
 			</>
 		);
 	}
@@ -251,7 +245,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 									min="0"
 									max={maxAIBudgetDollars}
 									step="1"
-									placeholder="unlimited"
+									placeholder="no budget"
 									aria-invalid={budgetField.error}
 								/>
 								<InputGroupAddon align="inline-end">USD</InputGroupAddon>

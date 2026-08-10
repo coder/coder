@@ -46,7 +46,7 @@ export const WithAIBudget: Story = {
 	},
 };
 
-export const AIBudgetUncapped: Story = {
+export const AIBudgetUnset: Story = {
 	args: {
 		showAISettings: true,
 		initialBudgetDollars: null,
@@ -55,11 +55,11 @@ export const AIBudgetUncapped: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByLabelText("Monthly limit per member"),
-		).toHaveAttribute("placeholder", "unlimited");
-		await expect(canvas.getByText("unlimited budget")).toBeInTheDocument();
+		).toHaveAttribute("placeholder", "no budget");
+		await expect(canvas.getByText("no budget")).toBeInTheDocument();
 		await expect(
-			canvas.getByText("Members in this group have no spending cap."),
-		).toBeInTheDocument();
+			canvas.queryByText("A $0 limit disables AI access for this group."),
+		).not.toBeInTheDocument();
 	},
 };
 
