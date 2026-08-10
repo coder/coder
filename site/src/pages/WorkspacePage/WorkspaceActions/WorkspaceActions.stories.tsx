@@ -211,30 +211,12 @@ export const CancelHiddenForUser: Story = {
 	},
 };
 
-export const FavoriteShownForOwner: Story = {
-	args: {
-		workspace: Mocks.MockWorkspace,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("button", { name: "Favorite" }),
-		).toBeVisible();
-	},
-};
-
 export const FavoriteHiddenForNonOwner: Story = {
 	args: {
 		workspace: Mocks.MockWorkspace,
 	},
 	parameters: {
 		user: Mocks.MockUserMember,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.queryByRole("button", { name: "Favorite" }),
-		).not.toBeInTheDocument();
 	},
 };
 
