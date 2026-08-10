@@ -191,3 +191,8 @@ grant specific groups or users instead through the API
 (`GET`/`PATCH /api/experimental/mcp-servers/{id}/acl`); there is no ACL editor
 in the settings page. ACL management is available in all editions and does not
 require an enterprise entitlement. ACL changes are recorded in the audit log.
+
+Revoking access stops a member from newly selecting the server in any chat,
+but chats that already have the server selected keep using it, the same way
+existing workspaces keep running after template access is revoked. To cut
+off existing chats as well, disable or delete the server.
