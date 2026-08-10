@@ -7,9 +7,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	markdown "github.com/coder/coder/v2/coderd/render"
+
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
-	markdown "github.com/coder/coder/v2/coderd/render"
 )
 
 func TestSMTPHTMLTemplateEscapesAppearanceHelpers(t *testing.T) {
