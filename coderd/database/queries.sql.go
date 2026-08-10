@@ -38886,8 +38886,7 @@ SELECT
 	-- subquery unevaluated for every caller that does not opt in, and
 	-- it only runs for the returned page. Each element carries the
 	-- workspace_agent_id so multi-agent workspaces can map values onto
-	-- the right agent. Keys match case-insensitively because search
-	-- queries are lowercased.
+	-- the right agent.
 	CASE WHEN cardinality($1 :: text[]) > 0 THEN
 		COALESCE((
 			SELECT
@@ -38920,7 +38919,12 @@ SELECT
 				workspace_resources.job_id = fwos.latest_build_provisioner_job_id
 				-- Filter out deleted sub agents.
 				AND workspace_agents.deleted = FALSE
-				AND LOWER(workspace_agent_metadata.key) = ANY($1 :: text[])
+				-- Both sides are lowercased so matching is
+				-- case-insensitive regardless of how the caller cased
+				-- the requested keys.
+				AND LOWER(workspace_agent_metadata.key) = ANY(ARRAY(
+					SELECT LOWER(key) FROM unnest($1 :: text[]) AS k(key)
+				))
 		), '[]'::jsonb)
 	ELSE
 		-- Never NULL: lib/pq cannot scan NULL into json.RawMessage.
