@@ -2232,6 +2232,22 @@ class ApiMethods {
 
 	/**
 	 * @param organization Can be the organization's ID or name
+	 * @param options Pagination and search options
+	 */
+	getOrganizationPaginatedGroups = async (
+		organization: string,
+		options?: TypesGen.PaginatedGroupsRequest,
+	): Promise<TypesGen.PaginatedGroupsResponse> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/paginated-groups`,
+			options,
+		);
+		const response = await this.axios.get(url);
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
 	 */
 	createGroup = async (
 		organization: string,

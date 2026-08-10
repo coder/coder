@@ -9,6 +9,8 @@ import type {
 	GroupMembersResponse,
 	GroupRequest,
 	OrganizationGroupsAISpend,
+	PaginatedGroupsRequest,
+	PaginatedGroupsResponse,
 	PatchGroupRequest,
 	UsersRequest,
 } from "#/api/typesGenerated";
@@ -93,6 +95,37 @@ export const groupMembersAISpend = (
 	} satisfies UseQueryOptions<GroupMembersAISpend>;
 };
 
+const getPaginatedGroupsByOrganizationQueryKey = (
+	organization: string,
+	req?: PaginatedGroupsRequest,
+) => {
+	// Nested under the org groups key so create/patch/delete invalidations,
+	// which target ["organization", org, "groups"], also cover this list.
+	const base = [...getGroupsByOrganizationQueryKey(organization), "paginated"];
+	return req ? [...base, req] : base;
+};
+
+export function paginatedGroupsByOrganization(
+	organization: string,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<PaginatedGroupsResponse, PaginatedGroupsRequest> {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
+			};
+		},
+
+		queryKey: ({ payload }) =>
+			getPaginatedGroupsByOrganizationQueryKey(organization, payload),
+		queryFn: ({ payload }) =>
+			API.getOrganizationPaginatedGroups(organization, payload),
+	};
+}
+
 const getRootGroupQueryKey = (organization: string, groupName: string) => [
 	"organization",
 	organization,
@@ -166,6 +199,33 @@ export function groupMembers(
 			API.getGroupMembers(organization, groupName, payload, signal),
 	};
 }
+
+export const getGroupMemberAvatarsQueryKey = (
+	organization: string,
+	groupName: string,
+	limit: number,
+) => [...getGroupMembersQueryKey(organization, groupName), "avatars", limit];
+
+/** Number of member avatars previewed per group row in list views. */
+export const GROUP_MEMBER_AVATAR_LIMIT = 5;
+
+/**
+ * A capped page of a group's members for avatar previews in list views. The
+ * paginated groups endpoint no longer returns rosters, so rows fetch a small
+ * preview lazily. Nests under the group members key so membership mutations
+ * invalidate it.
+ */
+export const groupMemberAvatars = (
+	organization: string,
+	groupName: string,
+	limit: number,
+): UseQueryOptions<GroupMembersResponse> => {
+	return {
+		queryKey: getGroupMemberAvatarsQueryKey(organization, groupName, limit),
+		queryFn: ({ signal }) =>
+			API.getGroupMembers(organization, groupName, { limit }, signal),
+	};
+};
 
 export type GroupsByUserId = Readonly<Map<string, readonly Group[]>>;
 
