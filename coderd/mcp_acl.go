@@ -111,31 +111,11 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 		aReq.Old = current
 		userACL := maps.Clone(current.UserACL)
 		groupACL := maps.Clone(current.GroupACL)
-		for rawID, role := range req.UserRoles {
-			// Validation guarantees the key parses; canonicalize it so
-			// noncanonical spellings hit the same keys RBAC reads.
-			parsed, err := uuid.Parse(rawID)
-			if err != nil {
-				return xerrors.Errorf("parse validated user ID %q: %w", rawID, err)
-			}
-			id := parsed.String()
-			if role == codersdk.MCPServerConfigRoleDeleted {
-				delete(userACL, id)
-				continue
-			}
-			userACL[id] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+		if err := applyMCPServerConfigACLRoles(userACL, req.UserRoles); err != nil {
+			return err
 		}
-		for rawID, role := range req.GroupRoles {
-			parsed, err := uuid.Parse(rawID)
-			if err != nil {
-				return xerrors.Errorf("parse validated group ID %q: %w", rawID, err)
-			}
-			id := parsed.String()
-			if role == codersdk.MCPServerConfigRoleDeleted {
-				delete(groupACL, id)
-				continue
-			}
-			groupACL[id] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+		if err := applyMCPServerConfigACLRoles(groupACL, req.GroupRoles); err != nil {
+			return err
 		}
 		if err := tx.UpdateMCPServerConfigACLByID(ctx, database.UpdateMCPServerConfigACLByIDParams{
 			ID:        config.ID,
@@ -220,6 +200,25 @@ func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWr
 		})
 	}
 	return result, true
+}
+
+// applyMCPServerConfigACLRoles applies validated role updates to the
+// cloned ACL, canonicalizing keys so noncanonical UUID spellings hit
+// the same keys RBAC reads.
+func applyMCPServerConfigACLRoles(entries database.ChatACL, roles map[string]codersdk.MCPServerConfigRole) error {
+	for rawID, role := range roles {
+		parsed, err := uuid.Parse(rawID)
+		if err != nil {
+			return xerrors.Errorf("parse validated ACL ID %q: %w", rawID, err)
+		}
+		id := parsed.String()
+		if role == codersdk.MCPServerConfigRoleDeleted {
+			delete(entries, id)
+			continue
+		}
+		entries[id] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	}
+	return nil
 }
 
 func parseMCPServerConfigACLIDs(entries database.ChatACL) []uuid.UUID {

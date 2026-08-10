@@ -641,10 +641,7 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 	require.Len(t, memberConfigs, 1)
 	require.Equal(t, "enabled-server", memberConfigs[0].Slug)
 
-	// An ACL-restricted config separates the auditors' management view
-	// from per-server access: it must stay in their full listing while
-	// row-level reads stay closed so audit rights cannot select or
-	// connect to servers the ACL withholds.
+	// Auditors list ACL-restricted configs but cannot read them row-level.
 	restricted := createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "restricted-server", true)
 	err = adminClient.UpdateMCPServerConfigACL(ctx, restricted.ID, codersdk.UpdateMCPServerConfigACLRequest{
 		GroupRoles: map[string]codersdk.MCPServerConfigRole{
