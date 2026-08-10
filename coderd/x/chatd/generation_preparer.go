@@ -25,6 +25,53 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// effectiveMCPServerConfigs loads the MCP server configs for a turn:
+// the chat's stored selection plus every enabled Force On config.
+// Force On inclusion is enforced at generation time, not just at
+// write time, so chats persisted before enforcement existed (or
+// before an admin marked a server Force On) cannot dodge the policy
+// (Cure53 CDM-02-010). Explore chats are exempt: their spawn-time
+// snapshot is immutable by design and must never widen after spawn;
+// Force On servers reach the snapshot through the parent chat's
+// enforced ID list.
+func (server *Server) effectiveMCPServerConfigs(
+	ctx context.Context,
+	logger slog.Logger,
+	chat database.Chat,
+) ([]database.MCPServerConfig, error) {
+	var configs []database.MCPServerConfig
+	if len(chat.MCPServerIDs) > 0 {
+		var err error
+		configs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
+		if err != nil {
+			// Best-effort for the user-selected set, matching prior
+			// behavior: a load failure degrades the turn rather than
+			// failing it.
+			logger.Warn(ctx, "failed to load MCP server configs", slog.Error(err))
+			configs = nil
+		}
+	}
+	if isExploreSubagentMode(chat.Mode) {
+		return configs, nil
+	}
+	forced, err := server.db.GetForcedMCPServerConfigs(ctx)
+	if err != nil {
+		// Fail closed: running the turn without the forced set would
+		// silently bypass a security policy.
+		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+	}
+	seen := make(map[uuid.UUID]struct{}, len(configs))
+	for _, cfg := range configs {
+		seen[cfg.ID] = struct{}{}
+	}
+	for _, cfg := range forced {
+		if _, ok := seen[cfg.ID]; !ok {
+			configs = append(configs, cfg)
+		}
+	}
+	return configs, nil
+}
+
 func (server *Server) prepareGeneration(
 	ctx context.Context,
 	input generationPrepareInput,
@@ -58,24 +105,11 @@ func (server *Server) prepareGeneration(
 		}
 		return nil
 	})
-	if len(chat.MCPServerIDs) > 0 {
-		g.Go(func() error {
-			var err error
-			mcpConfigs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
-			if err != nil {
-				logger.Warn(ctx, "failed to load MCP server configs", slog.Error(err))
-			}
-			return nil
-		})
-		g.Go(func() error {
-			var err error
-			mcpTokens, err = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
-			if err != nil {
-				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(err))
-			}
-			return nil
-		})
-	}
+	g.Go(func() error {
+		var err error
+		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, logger, chat)
+		return err
+	})
 	if err := g.Wait(); err != nil {
 		return generationPrepared{}, err
 	}
@@ -311,6 +345,11 @@ func (server *Server) prepareGeneration(
 	})
 	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
+			var tokenErr error
+			mcpTokens, tokenErr = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
+			if tokenErr != nil {
+				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
+			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
