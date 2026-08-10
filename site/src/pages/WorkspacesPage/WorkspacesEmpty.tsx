@@ -1,16 +1,18 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { Link } from "react-router";
+import { deploymentConfig } from "#/api/queries/deployment";
 import type { Template } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 
 interface WorkspacesEmptyProps {
 	isUsingFilter: boolean;
 	templates?: Template[];
 	canCreateTemplate: boolean;
-	templateBuilderEnabled: boolean;
 	canCreateWorkspace: boolean;
 }
 
@@ -18,10 +20,19 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,
 	templates,
 	canCreateTemplate,
-	templateBuilderEnabled,
 	canCreateWorkspace,
 }) => {
 	const getLink = useLinks();
+	const { permissions } = useAuthenticated();
+	const deploymentConfigQuery = useQuery({
+		...deploymentConfig(),
+		enabled: permissions.createTemplates,
+	});
+	// The template builder is on by default and only disabled on airgapped
+	// deployments via CODER_DISABLE_TEMPLATE_BUILDER.
+	const templateBuilderEnabled =
+		deploymentConfigQuery.isSuccess &&
+		!deploymentConfigQuery.data?.config?.template_builder?.disabled;
 
 	const totalFeaturedTemplates = 6;
 	const featuredTemplates = templates?.slice(0, totalFeaturedTemplates);

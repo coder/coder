@@ -94,7 +94,6 @@ interface WorkspacesTableProps {
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
-	templateBuilderEnabled: boolean;
 	canCreateWorkspace: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
@@ -108,7 +107,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onCheckChange,
 	templates,
 	canCreateTemplate,
-	templateBuilderEnabled,
 	canCreateWorkspace,
 	onActionSuccess,
 	onActionError,
@@ -172,7 +170,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								templates={templates}
 								isUsingFilter={isUsingFilter}
 								canCreateTemplate={canCreateTemplate}
-								templateBuilderEnabled={templateBuilderEnabled}
 								canCreateWorkspace={canCreateWorkspace}
 							/>
 						</TableCell>
