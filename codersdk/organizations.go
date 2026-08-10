@@ -229,6 +229,10 @@ type CreateTemplateRequest struct {
 
 	// CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
 	CORSBehavior *CORSBehavior `json:"cors_behavior"`
+
+	// AgentsAllowed controls whether Coder Agents can create workspaces using
+	// this template. Defaults to true.
+	AgentsAllowed *bool `json:"agents_allowed,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.

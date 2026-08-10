@@ -2,9 +2,9 @@ import type { FC } from "react";
 import { useNavigate } from "react-router";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
-import { Pill } from "#/components/Pill/Pill";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -14,8 +14,8 @@ interface VersionRowProps {
 	version: TemplateVersion;
 	isActive: boolean;
 	isLatest: boolean;
-	onPromoteClick?: (templateVersionId: string) => void;
-	onArchiveClick?: (templateVersionId: string) => void;
+	onPromoteClick?: (version: TemplateVersion) => void;
+	onArchiveClick?: (version: TemplateVersion) => void;
 }
 
 export const VersionRow: FC<VersionRowProps> = ({
@@ -62,34 +62,26 @@ export const VersionRow: FC<VersionRowProps> = ({
 					</div>
 					<div className="flex flex-row items-center gap-4">
 						{isActive && (
-							<Pill role="status" type="success">
+							<Badge role="status" variant="green">
 								Active
-							</Pill>
+							</Badge>
 						)}
-						{isLatest && (
-							<Pill role="status" type="info">
-								Newest
-							</Pill>
-						)}
+						{isLatest && <Badge role="status">Newest</Badge>}
 						{jobStatus === "pending" && (
-							<Pill role="status" type="inactive">
-								Pending&hellip;
-							</Pill>
+							<Badge role="status">Pending&hellip;</Badge>
 						)}
 						{jobStatus === "running" && (
-							<Pill role="status" type="active">
+							<Badge role="status" variant="info">
 								Building&hellip;
-							</Pill>
+							</Badge>
 						)}
 						{(jobStatus === "canceling" || jobStatus === "canceled") && (
-							<Pill role="status" type="inactive">
-								Canceled
-							</Pill>
+							<Badge role="status">Canceled</Badge>
 						)}
 						{jobStatus === "failed" && (
-							<Pill role="status" type="error">
+							<Badge role="status" variant="destructive">
 								Failed
-							</Pill>
+							</Badge>
 						)}
 
 						{jobStatus === "failed" && onArchiveClick && (
@@ -99,7 +91,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 								onClick={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
-									onArchiveClick?.(version.id);
+									onArchiveClick?.(version);
 								}}
 							>
 								Archive&hellip;
@@ -113,7 +105,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 								onClick={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
-									onPromoteClick?.(version.id);
+									onPromoteClick?.(version);
 								}}
 							>
 								Promote&hellip;

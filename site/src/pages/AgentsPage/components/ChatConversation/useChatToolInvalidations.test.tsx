@@ -3,7 +3,12 @@ import type { FC, PropsWithChildren } from "react";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { chatEntityKey } from "#/api/queries/chats";
+import {
+	chatEntityKey,
+	chatMessagesKey,
+	chatPromptsKey,
+	chatsByWorkspace,
+} from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesQueryKeyPrefix } from "#/api/queries/workspaces";
 import { createChatStore } from "./chatStore";
@@ -108,6 +113,7 @@ describe("useChatToolInvalidations", () => {
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith({
 				queryKey: chatEntityKey("chat-1"),
+				exact: true,
 			});
 			expect(invalidateSpy).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -119,8 +125,45 @@ describe("useChatToolInvalidations", () => {
 				queryKey: getWorkspaceQuotaQueryKey(ORGANIZATION_NAME, USERNAME),
 				exact: true,
 			});
-			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
+	});
+
+	it("does not invalidate chat sub-resources on create_workspace completion", async () => {
+		queryClient.setQueryData(chatEntityKey("chat-1"), { id: "chat-1" });
+		queryClient.setQueryData(chatMessagesKey("chat-1"), {
+			pages: [],
+			pageParams: [],
+		});
+		queryClient.setQueryData(chatPromptsKey("chat-1"), { prompts: [] });
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-1",
+		});
+		const { setStreamState } = renderInvalidations();
+
+		await act(async () => {
+			setStreamState(createStreamState("create_workspace"));
+		});
+
+		await waitFor(() => {
+			expect(
+				queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+				"detail entry should be invalidated",
+			).toBe(true);
+		});
+		expect(
+			queryClient.getQueryState(chatsByWorkspace(["ws-1"]).queryKey)
+				?.isInvalidated,
+			"by-workspace entry should be invalidated",
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
+			"messages entry should NOT be invalidated",
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatPromptsKey("chat-1"))?.isInvalidated,
+			"prompts entry should NOT be invalidated",
+		).not.toBe(true);
 	});
 
 	it("dispatches workspace mutation invalidations on start_workspace completion", async () => {
@@ -146,6 +189,7 @@ describe("useChatToolInvalidations", () => {
 
 		expect(invalidateSpy).not.toHaveBeenCalledWith({
 			queryKey: chatEntityKey("chat-1"),
+			exact: true,
 		});
 	});
 
@@ -185,6 +229,7 @@ describe("useChatToolInvalidations", () => {
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith({
 				queryKey: chatEntityKey("chat-1"),
+				exact: true,
 			});
 			expect(invalidateSpy).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -192,7 +237,7 @@ describe("useChatToolInvalidations", () => {
 					predicate: expect.any(Function),
 				}),
 			);
-			expect(invalidateSpy).toHaveBeenCalledTimes(2);
+			expect(invalidateSpy).toHaveBeenCalledTimes(3);
 		});
 	});
 
@@ -215,7 +260,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
 
 		await act(async () => {
@@ -223,7 +268,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
 	});
 
@@ -235,7 +280,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
 
 		rerender({
@@ -249,9 +294,10 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(6);
+			expect(invalidateSpy).toHaveBeenCalledTimes(8);
 			expect(invalidateSpy).toHaveBeenCalledWith({
 				queryKey: chatEntityKey("chat-2"),
+				exact: true,
 			});
 		});
 	});
@@ -274,7 +320,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await waitFor(() => {
-			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
 	});
 

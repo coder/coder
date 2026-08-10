@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import type { Permission } from "#/api/typesGenerated";
-import { Pill } from "#/components/Pill/Pill";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -56,10 +56,10 @@ const PermissionsPill: FC<PermissionPillProps> = ({
 	);
 
 	return (
-		<Pill type="muted" className="w-fit">
+		<Badge className="w-fit">
 			<b>{resource}</b>:{" "}
 			{actions.map((p) => `${p.negate ? "!" : ""}${p.action}`).join(", ")}
-		</Pill>
+		</Badge>
 	);
 };
 
@@ -75,13 +75,9 @@ const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill
-					type="muted"
-					className="w-fit"
-					data-testid="overflow-permissions-pill"
-				>
+				<Badge className="w-fit" data-testid="overflow-permissions-pill">
 					+{resources.length} more
-				</Pill>
+				</Badge>
 			</TooltipTrigger>
 
 			<TooltipContent className="px-4 py-3 border-surface-quaternary">
