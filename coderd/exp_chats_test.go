@@ -2069,11 +2069,13 @@ func TestListChats_Search(t *testing.T) {
 		t.Parallel()
 		ctx, client, _, _, _ := setup(t)
 
-		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Query: `search:"!!!"`,
-		})
-		require.NoError(t, err)
-		require.Empty(t, chats)
+		for _, query := range []string{`search:"!!!"`, `search:"or"`} {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Query: query,
+			})
+			require.NoError(t, err)
+			require.Empty(t, chats)
+		}
 	})
 
 	t.Run("ComposesWithRepoFilterAndArchivedDefault", func(t *testing.T) {

@@ -24,5 +24,8 @@ test("searches chats with backend full-text search", async ({ page }) => {
 	await searchInput.fill("full-text-smoke");
 
 	await expect((await searchResponse).status()).toBe(200);
+	await expect(
+		page.getByText("No matching chats", { exact: false }),
+	).toBeVisible();
 	await expect(page.getByRole("alert")).not.toBeVisible();
 });

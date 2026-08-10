@@ -6964,19 +6964,6 @@ func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUps
 	return err
 }
 
-const chatSearchQueryIsEmpty = `-- name: ChatSearchQueryIsEmpty :one
-SELECT numnode(websearch_to_tsquery('simple', $1::text)) = 0 AS is_empty
-`
-
-// Reports whether search text tokenizes to an empty tsquery (e.g. '!!!').
-// Used to reject input that would silently match nothing.
-func (q *sqlQuerier) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error) {
-	row := q.db.QueryRowContext(ctx, chatSearchQueryIsEmpty, search)
-	var is_empty bool
-	err := row.Scan(&is_empty)
-	return is_empty, err
-}
-
 const countChatQueuedMessages = `-- name: CountChatQueuedMessages :one
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages

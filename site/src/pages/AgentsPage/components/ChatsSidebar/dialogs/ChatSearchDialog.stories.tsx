@@ -385,18 +385,35 @@ export const ErrorState: Story = {
 		const body = within(document.body);
 		const searchInput = body.getByRole("combobox", { name: "Search chats" });
 
-		await userEvent.click(body.getByRole("button", { name: "Toggle filters" }));
-		await userEvent.click(await body.findByText("PR status"));
-		await userEvent.type(searchInput, "badvalue");
-		await userEvent.keyboard("{Enter}");
+		await userEvent.type(searchInput, "backend failure");
 
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: "pr_status:badvalue",
+				q: 'search:"backend failure"',
 			});
 		});
 		await expect(await body.findByRole("alert")).toBeInTheDocument();
+	},
+};
+
+export const ClearingErrorReturnsToDefaultView: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockRejectedValue(
+			new Error("Bad filter"),
+		);
+	},
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+
+		await userEvent.type(searchInput, "backend failure");
+		await expect(await body.findByRole("alert")).toBeInTheDocument();
+
+		await userEvent.clear(searchInput);
+
+		await expect(await body.findByText("Recent chats")).toBeInTheDocument();
+		await expect(body.queryByRole("alert")).not.toBeInTheDocument();
 	},
 };
 
@@ -421,15 +438,12 @@ export const ErrorStateWithStackTrace: Story = {
 		const body = within(document.body);
 		const searchInput = body.getByRole("combobox", { name: "Search chats" });
 
-		await userEvent.click(body.getByRole("button", { name: "Toggle filters" }));
-		await userEvent.click(await body.findByText("PR status"));
-		await userEvent.type(searchInput, "badvalue");
-		await userEvent.keyboard("{Enter}");
+		await userEvent.type(searchInput, "backend failure");
 
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: "pr_status:badvalue",
+				q: 'search:"backend failure"',
 			});
 		});
 		const alert = await body.findByRole("alert");
@@ -722,11 +736,21 @@ export const EmptyIncompleteFilterDoesNotCommit: Story = {
 
 		await userEvent.click(body.getByRole("button", { name: "Toggle filters" }));
 		await userEvent.click(await body.findByText("PR status"));
-		await userEvent.type(searchInput, '""');
+		await userEvent.type(searchInput, ",,");
 		await userEvent.keyboard("{Enter}");
 
-		await expect(searchInput).toHaveValue('""');
+		await expect(searchInput).toHaveValue(",,");
 		await expect(body.getByText("pr_status:")).toBeInTheDocument();
+
+		await userEvent.clear(searchInput);
+		await userEvent.type(searchInput, "open");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: "pr_status:open",
+			});
+		});
 		expect(API.experimental.getChats).not.toHaveBeenCalledWith({
 			limit: CHAT_SEARCH_LIMIT,
 			q: "pr_status:",
@@ -765,7 +789,7 @@ export const CommittedFilterDoesNotLeakStaleText: Story = {
 	},
 };
 
-export const NoSearchableWordsShowsNoResults: Story = {
+export const EmptySearchResultsShowNoAlert: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 	},
@@ -775,6 +799,12 @@ export const NoSearchableWordsShowsNoResults: Story = {
 
 		await userEvent.type(searchInput, "or");
 
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: 'search:"or"',
+			});
+		});
 		await expect(
 			await body.findByText("No matching chats", { exact: false }),
 		).toBeInTheDocument();
@@ -814,6 +844,12 @@ export const PunctuationOnlyTextHidesIndexingNote: Story = {
 		await userEvent.click(await body.findByText("Unread"));
 		await userEvent.type(searchInput, "???");
 
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: 'has_unread:true search:"???"',
+			});
+		});
 		await expect(
 			await body.findByText("No matching chats", { exact: false }),
 		).toBeInTheDocument();

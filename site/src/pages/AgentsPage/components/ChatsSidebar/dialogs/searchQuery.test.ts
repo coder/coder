@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildChatSearchQuery, extractTypedFilters } from "./searchQuery";
+import {
+	buildChatSearchQuery,
+	extractTypedFilters,
+	KNOWN_FILTER_KEYS,
+} from "./searchQuery";
 
-const knownKeys = new Set(["archived", "diff_url", "has_unread", "pr_status"]);
+const knownKeys = KNOWN_FILTER_KEYS;
 
 describe("buildChatSearchQuery", () => {
 	it("returns no query for empty input", () => {
@@ -84,18 +88,26 @@ describe("buildChatSearchQuery", () => {
 		});
 	});
 
-	it("does not emit punctuation-only free text", () => {
-		for (const input of ['"', "???", "___", ":-)", "!!!"]) {
+	it("emits no-lexeme text without marking it searchable", () => {
+		for (const input of ["???", "___", ":-)", "!!!", "OR"]) {
 			expect(buildChatSearchQuery([], input)).toEqual({
-				query: undefined,
+				query: `search:"${input}"`,
 				hasSearchText: false,
 			});
 		}
+		expect(buildChatSearchQuery([], '"')).toEqual({
+			query: undefined,
+			hasSearchText: false,
+		});
+		expect(buildChatSearchQuery([], "or")).toEqual({
+			query: 'search:"or"',
+			hasSearchText: true,
+		});
 
 		expect(
 			buildChatSearchQuery([{ key: "has_unread", value: "true" }], "???"),
 		).toEqual({
-			query: "has_unread:true",
+			query: 'has_unread:true search:"???"',
 			hasSearchText: false,
 		});
 	});
@@ -105,6 +117,21 @@ describe("buildChatSearchQuery", () => {
 			query: 'search:"日本語"',
 			hasSearchText: true,
 		});
+	});
+
+	it("does not emit invalid structured filters", () => {
+		for (const filter of [
+			{ key: "pr_status", value: "banana" },
+			{ key: "has_unread", value: "maybe" },
+			{ key: "archived", value: "no" },
+			{ key: "diff_url", value: "ftp://example.com/x" },
+			{ key: "diff_url", value: "https:///pull/1" },
+		]) {
+			expect(buildChatSearchQuery([filter], "")).toEqual({
+				query: undefined,
+				hasSearchText: false,
+			});
+		}
 	});
 
 	it("skips filters whose sanitized value is empty", () => {
@@ -160,7 +187,20 @@ describe("extractTypedFilters", () => {
 		});
 		expect(extractTypedFilters("fix has_unread:true", knownKeys, [])).toEqual({
 			filters: [{ key: "has_unread", value: "true" }],
-			remainingText: "fix ",
+			remainingText: "fix",
+			consumed: true,
+		});
+	});
+
+	it("returns multiple recognized filters", () => {
+		expect(
+			extractTypedFilters("has_unread:true archived:false", knownKeys, []),
+		).toEqual({
+			filters: [
+				{ key: "has_unread", value: "true" },
+				{ key: "archived", value: "false" },
+			],
+			remainingText: "",
 			consumed: true,
 		});
 	});
@@ -217,7 +257,7 @@ describe("extractTypedFilters", () => {
 		});
 	});
 
-	it("leaves unknown, incomplete, and empty filter-like text unchanged", () => {
+	it("leaves unknown, incomplete, empty, and invalid filter-like text unchanged", () => {
 		for (const text of [
 			"foo:bar",
 			"title:",
@@ -225,6 +265,11 @@ describe("extractTypedFilters", () => {
 			"search:fix",
 			"pr:12",
 			"has_unread:",
+			"has_unread:maybe",
+			"archived:no",
+			"pr_status:banana",
+			"pr_status:,,",
+			'diff_url:"ftp://example.com/x"',
 			'pr_status:""',
 			"http://example.com",
 			"fix:lint",
@@ -235,6 +280,14 @@ describe("extractTypedFilters", () => {
 				consumed: false,
 			});
 		}
+	});
+
+	it("keeps invalid recognized filters as literal search text", () => {
+		const extracted = extractTypedFilters("pr_status:banana", knownKeys, []);
+		expect(buildChatSearchQuery([], extracted.remainingText)).toEqual({
+			query: 'search:"pr_status:banana"',
+			hasSearchText: true,
+		});
 	});
 
 	it("keeps everything after the first colon in diff URLs", () => {

@@ -339,11 +339,6 @@ SET search_tsv = COALESCE(
     ''::tsvector)
 FROM batch WHERE cm.id = batch.id;
 
--- name: ChatSearchQueryIsEmpty :one
--- Reports whether search text tokenizes to an empty tsquery (e.g. '!!!').
--- Used to reject input that would silently match nothing.
-SELECT numnode(websearch_to_tsquery('simple', @search::text)) = 0 AS is_empty;
-
 -- name: GetChatByID :one
 SELECT *
 FROM chats_expanded

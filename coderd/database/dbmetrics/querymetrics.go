@@ -265,14 +265,6 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
-func (m queryMetricsStore) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.ChatSearchQueryIsEmpty(ctx, search)
-	m.queryLatencies.WithLabelValues("ChatSearchQueryIsEmpty").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ChatSearchQueryIsEmpty").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)

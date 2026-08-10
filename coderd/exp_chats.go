@@ -381,22 +381,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A search with no lexemes has no possible matches.
-	if searchParams.Search != "" {
-		isEmpty, err := api.Database.ChatSearchQueryIsEmpty(ctx, searchParams.Search)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate search query.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if isEmpty {
-			httpapi.Write(ctx, rw, http.StatusOK, []codersdk.Chat{})
-			return
-		}
-	}
-
 	var labelFilter pqtype.NullRawMessage
 	if labelParams := r.URL.Query()["label"]; len(labelParams) > 0 {
 		labelMap := make(map[string]string, len(labelParams))

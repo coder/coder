@@ -1726,6 +1726,9 @@ describe("getChatListQueryString", () => {
 		// coderd/searchquery/search_test.go.
 		expect(getChatListQueryString(toChatListParams())).toBe("archived:false");
 		expect(
+			getChatListQueryString(toChatListParams({ chatStatus: "unread" })),
+		).toBe("archived:false has_unread:true");
+		expect(
 			getChatListQueryString(
 				toChatListParams({
 					prStatuses: ["draft", "closed"],

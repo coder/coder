@@ -1270,9 +1270,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 
 	// These query shapes must match the emitters in
 	// site/src/pages/AgentsPage/components/ChatsSidebar/dialogs/searchQuery.ts
-	// and site/src/api/queries/chats.ts. This follows the cross-language
-	// contract precedent in coderd/x/chatd/sanitize_test.go and
-	// site/src/utils/invisibleUnicode.test.ts.
+	// and site/src/api/queries/chats.ts.
 	testCases := []struct {
 		name  string
 		query string
@@ -1283,12 +1281,15 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		{name: "SearchURL", query: `search:"http://example.com"`},
 		{name: "SearchUnicode", query: `search:"日本語"`},
 		{name: "SearchOperators", query: `search:"fix race OR deadlock -timeout"`},
+		{name: "SearchPunctuationOnly", query: `search:"!!!"`},
+		{name: "SearchOperatorWord", query: `search:"or"`},
 		{name: "HasUnread", query: "has_unread:true"},
 		{name: "Archived", query: "archived:true"},
 		{name: "PRStatuses", query: "pr_status:open,merged"},
 		{name: "DiffURL", query: `diff_url:"https://github.com/coder/coder/pull/1"`},
 		{name: "FilterAndSearch", query: `has_unread:true search:"fix auth"`},
 		{name: "SidebarDefault", query: "archived:false"},
+		{name: "SidebarUnread", query: "archived:false has_unread:true"},
 		{
 			name:  "SidebarFiltered",
 			query: "archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
@@ -1300,6 +1301,15 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 			t.Parallel()
 			_, errs := searchquery.Chats(testCase.query)
 			require.Empty(t, errs)
+		})
+	}
+
+	rejectedQueries := []string{"pr_status:banana", "has_unread:maybe"}
+	for _, query := range rejectedQueries {
+		t.Run("Rejects"+query, func(t *testing.T) {
+			t.Parallel()
+			_, errs := searchquery.Chats(query)
+			require.NotEmpty(t, errs)
 		})
 	}
 }

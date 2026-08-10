@@ -17,43 +17,58 @@ import { ChatSearchInput, type SearchFilter } from "./ChatSearchInput";
 import { ChatSearchResults } from "./ChatSearchResults";
 import {
 	buildChatSearchQuery,
+	CHAT_SEARCH_FILTER_KEYS,
+	type ChatSearchFilterKey,
 	extractTypedFilters,
-	sanitizeChatSearchValue,
+	isValidChatSearchFilterValue,
+	KNOWN_FILTER_KEYS,
 } from "./searchQuery";
 
 // Filter definitions. Filters with a defaultValue are inserted as complete
 // pills (e.g. has_unread:true). Filters without one are inserted as
 // incomplete pills so the user can type the value.
 type FilterDefinition = {
-	readonly key: string;
+	readonly key: ChatSearchFilterKey;
 	readonly label: string;
 	readonly icon: FC<{ className?: string }>;
 	readonly defaultValue: string | null;
+	readonly validate: (value: string) => boolean;
 };
 
-const FILTER_DEFINITIONS: readonly FilterDefinition[] = [
-	{
-		key: "has_unread",
+const FILTER_DEFINITIONS_BY_KEY: Readonly<
+	Record<ChatSearchFilterKey, Omit<FilterDefinition, "key">>
+> = {
+	has_unread: {
 		label: "Unread",
 		icon: CircleDotIcon,
 		defaultValue: "true",
+		validate: (value) => isValidChatSearchFilterValue("has_unread", value),
 	},
-	{
-		key: "archived",
+	archived: {
 		label: "Archived",
 		icon: ArchiveIcon,
 		defaultValue: "true",
+		validate: (value) => isValidChatSearchFilterValue("archived", value),
 	},
-	{
-		key: "pr_status",
+	pr_status: {
 		label: "PR status",
 		icon: FileTextIcon,
 		defaultValue: null,
+		validate: (value) => isValidChatSearchFilterValue("pr_status", value),
 	},
-	{ key: "diff_url", label: "Diff URL", icon: LinkIcon, defaultValue: null },
-];
+	diff_url: {
+		label: "Diff URL",
+		icon: LinkIcon,
+		defaultValue: null,
+		validate: (value) => isValidChatSearchFilterValue("diff_url", value),
+	},
+};
 
-const KNOWN_FILTER_KEYS = new Set(FILTER_DEFINITIONS.map((def) => def.key));
+const FILTER_DEFINITIONS: readonly FilterDefinition[] =
+	CHAT_SEARCH_FILTER_KEYS.map((key) => ({
+		key,
+		...FILTER_DEFINITIONS_BY_KEY[key],
+	}));
 
 type ChatSearchDialogProps = {
 	readonly open: boolean;
@@ -157,21 +172,18 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	const currentQuery = buildChatSearchQuery(queryFilters, queryFreeText);
 	const hasActiveSearch =
 		queryFilters.length > 0 || queryFreeText.trim() !== "";
-	const querySnapshot = currentQuery.query
-		? `${currentQuery.hasSearchText ? "1" : "0"}${currentQuery.query}`
-		: "";
+	const querySnapshot = JSON.stringify(currentQuery);
 	const debouncedQuerySnapshot = useDebouncedValue(
 		querySnapshot,
 		SEARCH_DEBOUNCE_MS,
 	);
-	const normalizedQuery = debouncedQuerySnapshot
-		? debouncedQuerySnapshot.slice(1)
-		: undefined;
-	const hasSearchText = debouncedQuerySnapshot.startsWith("1");
-	const hasQuery = hasActiveSearch && normalizedQuery !== undefined;
+	const debouncedQueryInput: ReturnType<typeof buildChatSearchQuery> =
+		JSON.parse(debouncedQuerySnapshot);
+	const { query: debouncedQuery, hasSearchText } = debouncedQueryInput;
+	const hasQuery = hasActiveSearch && debouncedQuery !== undefined;
 
 	const searchQuery = useQuery({
-		...chatSearch({ q: normalizedQuery ?? "" }),
+		...chatSearch({ q: debouncedQuery ?? "" }),
 		enabled: open && hasQuery,
 		placeholderData: keepPreviousData,
 	});
@@ -210,7 +222,10 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 
 	const commitIncompleteFilter = () => {
 		const value = freeText.trim();
-		if (incompleteFilterKey && sanitizeChatSearchValue(value).trim() !== "") {
+		const definition = FILTER_DEFINITIONS.find(
+			(def) => def.key === incompleteFilterKey,
+		);
+		if (incompleteFilterKey && definition?.validate(value)) {
 			setFilters((previous) => [
 				...previous.filter((filter) => filter.key !== incompleteFilterKey),
 				{ key: incompleteFilterKey, value },
@@ -398,7 +413,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			<ChatSearchResults
 				chats={searchQuery.data}
 				recentChats={recentChats}
-				error={searchQuery.error}
+				error={hasQuery ? searchQuery.error : undefined}
 				hasQuery={hasQuery}
 				hasSearchText={hasSearchText}
 				location={location}
