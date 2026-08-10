@@ -2,6 +2,7 @@ import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatWatchEventKinds } from "#/api/typesGenerated";
 import {
 	ERROR_STATUSES,
 	SUCCESS_STATUSES,
@@ -11,19 +12,25 @@ import {
 	addChildToParentInCache,
 	archiveChat,
 	type ChatListInput,
+	cancelChatEntity,
+	cancelChatListQueries,
 	cancelChatListRefetches,
+	cancelChatMessages,
+	cancelLoadedChatEntityRefetch,
 	chatACL,
 	chatACLKey,
 	chatAdvisorConfig,
 	chatAdvisorConfigKey,
 	chatCost,
 	chatCostTreeKey,
+	chatDebugRunKey,
 	chatDebugRunsKey,
 	chatDiffContentsKey,
 	chatEntityKey,
 	chatListFamilyKey,
 	chatListKey,
 	chatMessagesKey,
+	chatPromptsKey,
 	chatSearch,
 	chatsByWorkspace,
 	createChat,
@@ -32,17 +39,32 @@ import {
 	editChatMessage,
 	infiniteChats,
 	interruptChat,
+	invalidateChatACL,
+	invalidateChatCostTree,
+	invalidateChatDebugRuns,
+	invalidateChatDiffContents,
+	invalidateChatEntity,
 	invalidateChatListQueries,
+	invalidateChatMessages,
+	invalidateChatPrompts,
+	invalidateChatSearches,
+	invalidateChatsByWorkspace,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
+	patchChatEntity,
+	patchChatMessages,
 	pinChat,
 	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
+	removeChatEntity,
+	removeChatFromChatsByWorkspace,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	setChatGroupRole,
 	setChatUserRole,
+	shouldInvalidateChatSearches,
+	shouldInvalidateChatsByWorkspace,
 	TERMINAL_RUN_STATUSES,
 	toChatListParams,
 	unarchiveChat,
@@ -50,6 +72,7 @@ import {
 	updateChatAdvisorConfig,
 	updateChatPlanMode,
 	updateChatTitle,
+	updateChatWorkspace,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
 } from "./chats";
@@ -928,6 +951,7 @@ describe("mutation invalidation scope", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
 
 		const mutation = createChatMessage(queryClient, chatId);
 		await mutation.onSuccess?.();
@@ -939,6 +963,14 @@ describe("mutation invalidation scope", () => {
 				`${label} should NOT be invalidated by createChatMessage`,
 			).not.toBe(true);
 		}
+		// The send path invalidates searches through
+		// useChatStore.upsertCacheMessages; doing it here too would
+		// double-invalidate every send.
+		expect(
+			queryClient.getQueryState(chatSearch({ q: "alpha" }).queryKey)
+				?.isInvalidated,
+			"chat searches should NOT be invalidated by createChatMessage",
+		).not.toBe(true);
 	});
 
 	it("createChatMessage invalidates debug runs and chat detail, not messages", async () => {
@@ -1531,6 +1563,142 @@ describe("mutation invalidation scope", () => {
 		expect(
 			queryClient.getQueryState(chatListKey(toChatListParams()))?.isInvalidated,
 			"chat list should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it.each<{
+		name: string;
+		settle: (queryClient: QueryClient) => unknown;
+	}>([
+		{
+			name: "archiveChat onSettled",
+			settle: (queryClient) =>
+				archiveChat(queryClient).onSettled(undefined, undefined, "chat-1"),
+		},
+		{
+			name: "unarchiveChat onSettled",
+			settle: (queryClient) =>
+				unarchiveChat(queryClient).onSettled(undefined, undefined, "chat-1"),
+		},
+		{
+			name: "updateChatTitle onSettled",
+			settle: (queryClient) =>
+				updateChatTitle(queryClient).onSettled(undefined, undefined, {
+					chatId: "chat-1",
+					title: "New",
+				}),
+		},
+		{
+			name: "editChatMessage onSettled",
+			settle: (queryClient) =>
+				editChatMessage(queryClient, "chat-1").onSettled(),
+		},
+		{
+			name: "createChat onSuccess",
+			settle: (queryClient) => createChat(queryClient).onSuccess(),
+		},
+	])("$name invalidates chat searches", async ({ settle }) => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
+
+		settle(queryClient);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(
+			queryClient.getQueryState(chatSearch({ q: "alpha" }).queryKey)
+				?.isInvalidated,
+			"chat search entry should be invalidated",
+		).toBe(true);
+	});
+
+	it.each<{
+		name: string;
+		settle: (queryClient: QueryClient) => unknown;
+	}>([
+		{
+			name: "archiveChat onSettled",
+			settle: (queryClient) =>
+				archiveChat(queryClient).onSettled(undefined, undefined, "chat-1"),
+		},
+		{
+			name: "unarchiveChat onSettled",
+			settle: (queryClient) =>
+				unarchiveChat(queryClient).onSettled(undefined, undefined, "chat-1"),
+		},
+		{
+			name: "updateChatWorkspace onSettled",
+			settle: (queryClient) =>
+				updateChatWorkspace(queryClient).onSettled(undefined, undefined, {
+					chatId: "chat-1",
+					workspaceId: "ws-1",
+				}),
+		},
+		{
+			name: "createChat onSuccess",
+			settle: (queryClient) => createChat(queryClient).onSuccess(),
+		},
+	])("$name invalidates chats by workspace", async ({ settle }) => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-1",
+		});
+
+		settle(queryClient);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(
+			queryClient.getQueryState(chatsByWorkspace(["ws-1"]).queryKey)
+				?.isInvalidated,
+			"by-workspace entry should be invalidated",
+		).toBe(true);
+	});
+
+	it("archiveChat onSuccess synchronously removes the chat's by-workspace mappings", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-1",
+			"ws-2": "chat-2",
+		});
+
+		archiveChat(queryClient).onSuccess(undefined, "chat-1");
+
+		// Assert before any timer flush: the archived chat must be gone
+		// from the mapping without waiting for the onSettled refetch.
+		expect(
+			queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey),
+		).toEqual({ "ws-2": "chat-2" });
+	});
+
+	it.each<{
+		name: string;
+		settle: (queryClient: QueryClient) => unknown;
+	}>([
+		{
+			name: "updateChatTitle onSettled",
+			settle: (queryClient) =>
+				updateChatTitle(queryClient).onSettled(undefined, undefined, {
+					chatId: "chat-1",
+					title: "New",
+				}),
+		},
+		{
+			name: "createChatMessage onSuccess",
+			settle: (queryClient) =>
+				createChatMessage(queryClient, "chat-1").onSuccess?.(),
+		},
+	])("$name does not invalidate chats by workspace", async ({ settle }) => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-1",
+		});
+
+		settle(queryClient);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(
+			queryClient.getQueryState(chatsByWorkspace(["ws-1"]).queryKey)
+				?.isInvalidated,
+			"by-workspace entry should NOT be invalidated",
 		).not.toBe(true);
 	});
 });
@@ -2856,6 +3024,438 @@ describe("chat ACL query factories", () => {
 		await mutation.onSuccess?.(undefined, variables);
 		expect(queryClient.getQueryState(chatACLKey(chatId))?.isInvalidated).toBe(
 			true,
+		);
+	});
+});
+
+describe("semantic cache operations: exact invalidations", () => {
+	it("invalidateChatEntity touches only the detail entry", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatEntityKey("chat-2"), makeChat("chat-2"));
+
+		await invalidateChatEntity(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
+			"messages entry should NOT be invalidated",
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-2"))?.isInvalidated,
+			"other chat's detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatDiffContents touches only the diff-contents entry", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatDiffContentsKey("chat-1"), { files: [] });
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		await invalidateChatDiffContents(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatDiffContentsKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatPrompts touches only the prompts entry", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatPromptsKey("chat-1"), { prompts: [] });
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		await invalidateChatPrompts(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatPromptsKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatMessages touches only the messages entry", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		await invalidateChatMessages(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatACL touches only the ACL entry", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatACLKey("chat-1"), {});
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		await invalidateChatACL(queryClient, "chat-1");
+
+		expect(queryClient.getQueryState(chatACLKey("chat-1"))?.isInvalidated).toBe(
+			true,
+		);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatCostTree touches only the matching cost tree entry", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatCostTreeKey("chat-1"), {});
+		queryClient.setQueryData(chatCostTreeKey("chat-2"), {});
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		await invalidateChatCostTree(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatCostTreeKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatCostTreeKey("chat-2"))?.isInvalidated,
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+});
+
+describe("semantic cache operations: prefix invalidations", () => {
+	it("invalidateChatListQueries touches every list entry and nothing outside the family", async () => {
+		const queryClient = createTestQueryClient();
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		seedInfiniteChats(queryClient, [makeChat("chat-1")], { archived: true });
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {});
+
+		await invalidateChatListQueries(queryClient);
+
+		expect(queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated).toBe(
+			true,
+		);
+		expect(
+			queryClient.getQueryState(
+				chatListKey(toChatListParams({ archived: true })),
+			)?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatsByWorkspace(["ws-1"]).queryKey)
+				?.isInvalidated,
+		).not.toBe(true);
+	});
+
+	it("invalidateChatsByWorkspace touches by-workspace entries only", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {});
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		await invalidateChatsByWorkspace(queryClient);
+
+		expect(
+			queryClient.getQueryState(chatsByWorkspace(["ws-1"]).queryKey)
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+		).not.toBe(true);
+	});
+
+	describe(shouldInvalidateChatsByWorkspace.name, () => {
+		// created/deleted have their own watch branches; title, summary,
+		// diff, and context events do not move updated_at ordering.
+		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {
+			action_required: true,
+			chat_summary_change: false,
+			context_dirty: false,
+			created: false,
+			deleted: false,
+			diff_status_change: false,
+			status_change: true,
+			summary_change: false,
+			title_change: false,
+		};
+
+		it.each(ChatWatchEventKinds)("%s", (kind) => {
+			expect(shouldInvalidateChatsByWorkspace(kind)).toBe(expectedByKind[kind]);
+		});
+	});
+
+	it("invalidateChatDebugRuns touches the runs list and run details only", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatDebugRunsKey("chat-1"), []);
+		queryClient.setQueryData(chatDebugRunKey("chat-1", "run-1"), {});
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+
+		await invalidateChatDebugRuns(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryState(chatDebugRunsKey("chat-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatDebugRunKey("chat-1", "run-1"))
+				?.isInvalidated,
+			"run detail entry should be invalidated by the family prefix",
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
+			"detail entry should NOT be invalidated",
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
+			"messages entry should NOT be invalidated",
+		).not.toBe(true);
+	});
+
+	it("invalidateChatSearches touches every search entry and nothing outside the family", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
+		queryClient.setQueryData(chatSearch({ q: "beta" }).queryKey, []);
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {});
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatCostTreeKey("chat-1"), {});
+
+		await invalidateChatSearches(queryClient);
+
+		expect(
+			queryClient.getQueryState(chatSearch({ q: "alpha" }).queryKey)
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatSearch({ q: "beta" }).queryKey)
+				?.isInvalidated,
+		).toBe(true);
+		for (const [label, key] of [
+			["chat list", infiniteChatsTestKey],
+			["by-workspace", chatsByWorkspace(["ws-1"]).queryKey],
+			["chat detail", chatEntityKey("chat-1")],
+			["messages", chatMessagesKey("chat-1")],
+			["cost tree", chatCostTreeKey("chat-1")],
+		] as const) {
+			expect(
+				queryClient.getQueryState(key)?.isInvalidated,
+				`${label} entry should NOT be invalidated`,
+			).not.toBe(true);
+		}
+	});
+
+	describe(shouldInvalidateChatSearches.name, () => {
+		// Search results render title, status, diff status, and the
+		// action-required badge. Summary and context events are excluded:
+		// stale last_turn_summary subtitles are accepted until
+		// reconciliation lands. The created and deleted kinds are handled
+		// by their own watch branches before the merge path runs.
+		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {
+			action_required: true,
+			chat_summary_change: false,
+			context_dirty: false,
+			created: false,
+			deleted: false,
+			diff_status_change: true,
+			status_change: true,
+			summary_change: false,
+			title_change: true,
+		};
+
+		it.each(ChatWatchEventKinds)("%s", (kind) => {
+			expect(shouldInvalidateChatSearches(kind)).toBe(expectedByKind[kind]);
+		});
+	});
+});
+
+describe("semantic cache operations: cancellation", () => {
+	it("cancelChatListQueries cancels unconditionally across the list family", async () => {
+		const queryClient = createTestQueryClient();
+		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
+
+		await cancelChatListQueries(queryClient);
+
+		expect(cancelSpy).toHaveBeenCalledWith({
+			queryKey: chatListFamilyKey,
+		});
+	});
+
+	it("cancelChatEntity cancels the exact detail entry unconditionally", async () => {
+		const queryClient = createTestQueryClient();
+		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
+
+		await cancelChatEntity(queryClient, "chat-1");
+
+		expect(cancelSpy).toHaveBeenCalledWith({
+			queryKey: chatEntityKey("chat-1"),
+			exact: true,
+		});
+	});
+
+	it("cancelLoadedChatEntityRefetch is a no-op when detail data is absent", async () => {
+		const queryClient = createTestQueryClient();
+		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
+
+		await cancelLoadedChatEntityRefetch(queryClient, "chat-1");
+
+		expect(cancelSpy).not.toHaveBeenCalled();
+	});
+
+	it("cancelLoadedChatEntityRefetch cancels exactly when detail data exists", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
+
+		await cancelLoadedChatEntityRefetch(queryClient, "chat-1");
+
+		expect(cancelSpy).toHaveBeenCalledWith({
+			queryKey: chatEntityKey("chat-1"),
+			exact: true,
+		});
+	});
+
+	it("cancelChatMessages cancels the exact messages entry", async () => {
+		const queryClient = createTestQueryClient();
+		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
+
+		await cancelChatMessages(queryClient, "chat-1");
+
+		expect(cancelSpy).toHaveBeenCalledWith({
+			queryKey: chatMessagesKey("chat-1"),
+			exact: true,
+		});
+	});
+});
+
+describe("semantic cache operations: removal and patching", () => {
+	it("removeChatEntity removes only the exact detail entry", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatPromptsKey("chat-1"), { prompts: [] });
+		queryClient.setQueryData(chatACLKey("chat-1"), {});
+		queryClient.setQueryData(chatDiffContentsKey("chat-1"), { files: [] });
+		queryClient.setQueryData(chatDebugRunsKey("chat-1"), []);
+		queryClient.setQueryData(chatDebugRunKey("chat-1", "run-1"), {});
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+
+		removeChatEntity(queryClient, "chat-1");
+
+		expect(queryClient.getQueryData(chatEntityKey("chat-1"))).toBeUndefined();
+		for (const [label, key] of [
+			["messages", chatMessagesKey("chat-1")],
+			["prompts", chatPromptsKey("chat-1")],
+			["acl", chatACLKey("chat-1")],
+			["diff-contents", chatDiffContentsKey("chat-1")],
+			["debug-runs", chatDebugRunsKey("chat-1")],
+			["debug-run detail", chatDebugRunKey("chat-1", "run-1")],
+		] as const) {
+			expect(
+				queryClient.getQueryData(key),
+				`${label} entry should survive removeChatEntity`,
+			).toBeDefined();
+		}
+		expect(
+			queryClient.getQueryData(infiniteChatsTestKey),
+			"list entry should survive removeChatEntity",
+		).toBeDefined();
+	});
+
+	it("patchChatEntity applies the updater to the exact detail entry", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+
+		patchChatEntity(queryClient, "chat-1", (chat) =>
+			chat ? { ...chat, title: "Patched" } : chat,
+		);
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey("chat-1"))?.title,
+		).toBe("Patched");
+	});
+
+	it("patchChatMessages preserves the previous reference when the updater is a no-op", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatMessagesKey("chat-1"), {
+			pages: [{ messages: [], queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+		const before = queryClient.getQueryData(chatMessagesKey("chat-1"));
+
+		patchChatMessages(queryClient, "chat-1", (data) => data);
+
+		expect(queryClient.getQueryData(chatMessagesKey("chat-1"))).toBe(before);
+	});
+
+	it("removeChatFromChatsByWorkspace removes only mappings pointing at the chat", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-1",
+			"ws-2": "chat-2",
+		});
+		queryClient.setQueryData(chatsByWorkspace(["ws-3"]).queryKey, {
+			"ws-3": "chat-1",
+		});
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
+		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
+
+		removeChatFromChatsByWorkspace(queryClient, "chat-1");
+
+		expect(
+			queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey),
+		).toEqual({ "ws-2": "chat-2" });
+		expect(
+			queryClient.getQueryData(chatsByWorkspace(["ws-3"]).queryKey),
+		).toEqual({});
+		for (const [label, key] of [
+			["chat list", infiniteChatsTestKey],
+			["chat detail", chatEntityKey("chat-1")],
+			["chat search", chatSearch({ q: "alpha" }).queryKey],
+		] as const) {
+			expect(
+				queryClient.getQueryData(key),
+				`${label} entry should survive removeChatFromChatsByWorkspace`,
+			).toBeDefined();
+			expect(
+				queryClient.getQueryState(key)?.isInvalidated,
+				`${label} entry should NOT be invalidated`,
+			).not.toBe(true);
+		}
+	});
+
+	it("removeChatFromChatsByWorkspace preserves the previous reference when the chat is absent", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
+			"ws-1": "chat-2",
+		});
+		const before = queryClient.getQueryData(
+			chatsByWorkspace(["ws-1"]).queryKey,
+		);
+
+		removeChatFromChatsByWorkspace(queryClient, "chat-1");
+
+		expect(queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey)).toBe(
+			before,
 		);
 	});
 });

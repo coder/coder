@@ -225,6 +225,10 @@ Replace them with the literal meaning.
 >
 > Coder ships with a default template out of the box.
 
+The rule covers developer idiom too.
+"Spin up a workspace" becomes "create a workspace", "tear down the deployment" becomes "delete the deployment", and "stand up a cluster" becomes "deploy a cluster".
+The figurative forms are so common in developer conversation that they no longer register as figurative, but they translate as badly as any other idiom.
+
 *Documentation-only.
 Planned Vale rule `Coder.Idioms`.*
 
@@ -406,7 +410,7 @@ Aim for a Flesch-Kincaid grade level of 8 to 10 in body prose.
 The target supports comprehension for non-native English readers, ESL audiences, and anyone skimming under time pressure.
 The reading-level rule decomposes into prose rules covered elsewhere in this guide:
 
-- Short sentences.
+- [Short sentences and paragraphs](./voice-and-tone.md#keep-sentences-and-paragraphs-short).
   Aim for 25 words or fewer.
 - [Active voice by default](./voice-and-tone.md#active-voice-by-default).
 - [Present tense by default](./voice-and-tone.md#present-tense-by-default).

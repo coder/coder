@@ -44,12 +44,11 @@ import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { docs } from "#/utils/docs";
 import {
-	formatTemplateActiveDevelopers,
+	formatTemplateActiveDevelopersLabel,
 	formatTemplateBuildTime,
 } from "#/utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
-import { TemplatesFilter } from "./TemplatesFilter";
-import type { TemplateFilterState } from "./TemplatesPage";
+import { type TemplateFilterState, TemplatesFilter } from "./TemplatesFilter";
 
 const TemplateHelpPopover: FC = () => {
 	return (
@@ -132,7 +131,9 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 	const navigate = useNavigate();
 
-	const developerCount = `${formatTemplateActiveDevelopers(template.active_user_count)} developer${template.active_user_count !== 1 ? "s" : ""}`;
+	const developerCount = formatTemplateActiveDevelopersLabel(
+		template.active_user_count,
+	);
 
 	const clickableRow = useClickableTableRow({
 		onClick: () => navigate(templatePageLink),

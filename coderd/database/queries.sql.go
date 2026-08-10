@@ -24920,20 +24920,6 @@ func (q *sqlQuerier) GetChatSystemPromptConfig(ctx context.Context) (GetChatSyst
 	return i, err
 }
 
-const getChatTemplateAllowlist = `-- name: GetChatTemplateAllowlist :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_template_allowlist'), '') :: text AS template_allowlist
-`
-
-// GetChatTemplateAllowlist returns the JSON-encoded template allowlist.
-// Returns an empty string when no allowlist has been configured (all templates allowed).
-func (q *sqlQuerier) GetChatTemplateAllowlist(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatTemplateAllowlist)
-	var template_allowlist string
-	err := row.Scan(&template_allowlist)
-	return template_allowlist, err
-}
-
 const getChatTitleGenerationModelOverride = `-- name: GetChatTitleGenerationModelOverride :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_title_generation_model_override'), '') :: text AS model_config_id
@@ -25357,16 +25343,6 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat
 
 func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatSystemPrompt, value)
-	return err
-}
-
-const upsertChatTemplateAllowlist = `-- name: UpsertChatTemplateAllowlist :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_template_allowlist', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_template_allowlist'
-`
-
-func (q *sqlQuerier) UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatTemplateAllowlist, templateAllowlist)
 	return err
 }
 
@@ -26813,7 +26789,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names
 WHERE
@@ -26858,6 +26834,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.CorsBehavior,
 		&i.DisableModuleCache,
 		&i.TimeTilAutostopNotify,
+		&i.AgentsAllowed,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -26870,7 +26847,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names AS templates
 WHERE
@@ -26923,6 +26900,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.CorsBehavior,
 		&i.DisableModuleCache,
 		&i.TimeTilAutostopNotify,
+		&i.AgentsAllowed,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -26934,7 +26912,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -26980,6 +26958,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.CorsBehavior,
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
+			&i.AgentsAllowed,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -27002,7 +26981,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
+	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.agents_allowed, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
 FROM
 	template_with_names AS t
 LEFT JOIN
@@ -27069,23 +27048,29 @@ WHERE
 			tv.has_ai_task = $9 :: boolean
 		ELSE true
 	END
+	-- Filter by agents_allowed
+	AND CASE
+		WHEN $10 :: boolean IS NOT NULL THEN
+			t.agents_allowed = $10 :: boolean
+		ELSE true
+	END
 	-- Filter by author_id
 	AND CASE
-		  WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  t.created_by = $10
+		  WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $11
 		  ELSE true
 	END
 	-- Filter by author_username
 	AND CASE
-		  WHEN $11 :: text != '' THEN
-			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($11) AND deleted = false)
+		  WHEN $12 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($12) AND deleted = false)
 		  ELSE true
 	END
 
 	-- Filter by has_external_agent in latest version
 	AND CASE
-		WHEN $12 :: boolean IS NOT NULL THEN
-			tv.has_external_agent = $12 :: boolean
+		WHEN $13 :: boolean IS NOT NULL THEN
+			tv.has_external_agent = $13 :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
@@ -27103,6 +27088,7 @@ type GetTemplatesWithFilterParams struct {
 	IDs              []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated       sql.NullBool `db:"deprecated" json:"deprecated"`
 	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
+	AgentsAllowed    sql.NullBool `db:"agents_allowed" json:"agents_allowed"`
 	AuthorID         uuid.UUID    `db:"author_id" json:"author_id"`
 	AuthorUsername   string       `db:"author_username" json:"author_username"`
 	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
@@ -27119,6 +27105,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,
+		arg.AgentsAllowed,
 		arg.AuthorID,
 		arg.AuthorUsername,
 		arg.HasExternalAgent,
@@ -27163,6 +27150,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.CorsBehavior,
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
+			&i.AgentsAllowed,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -27202,10 +27190,11 @@ INSERT INTO
 		allow_user_cancel_workspace_jobs,
 		max_port_sharing_level,
 		use_classic_parameter_flow,
-		cors_behavior
+		cors_behavior,
+		agents_allowed
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 `
 
 type InsertTemplateParams struct {
@@ -27226,6 +27215,7 @@ type InsertTemplateParams struct {
 	MaxPortSharingLevel          AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
+	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -27247,6 +27237,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.MaxPortSharingLevel,
 		arg.UseClassicParameterFlow,
 		arg.CorsBehavior,
+		arg.AgentsAllowed,
 	)
 	return err
 }
@@ -27349,7 +27340,8 @@ SET
 	max_port_sharing_level = $9,
 	use_classic_parameter_flow = $10,
 	cors_behavior = $11,
-	disable_module_cache = $12
+	disable_module_cache = $12,
+	agents_allowed = $13
 WHERE
 	id = $1
 `
@@ -27367,6 +27359,7 @@ type UpdateTemplateMetaByIDParams struct {
 	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache           bool            `db:"disable_module_cache" json:"disable_module_cache"`
+	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -27383,6 +27376,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.UseClassicParameterFlow,
 		arg.CorsBehavior,
 		arg.DisableModuleCache,
+		arg.AgentsAllowed,
 	)
 	return err
 }
@@ -38665,7 +38659,7 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed
 	FROM
 		templates
 	WHERE
