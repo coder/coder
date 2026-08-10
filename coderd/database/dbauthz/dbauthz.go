@@ -2783,6 +2783,17 @@ func (q *querier) GetAIAgentByOrigin(ctx context.Context, arg database.GetAIAgen
 	return agent, nil
 }
 
+func (q *querier) GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg database.GetAIAgentByOriginIncludingDeletedParams) (database.AIAgent, error) {
+	agent, err := q.db.GetAIAgentByOriginIncludingDeleted(ctx, arg)
+	if err != nil {
+		return database.AIAgent{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(agent.UserID)); err != nil {
+		return database.AIAgent{}, err
+	}
+	return agent, nil
+}
+
 func (q *querier) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID)); err != nil {
 		return database.AIAgent{}, err

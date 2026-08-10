@@ -294,6 +294,10 @@ type sqlcQuerier interface {
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
 	GetAIAgentByOrigin(ctx context.Context, arg GetAIAgentByOriginParams) (AIAgent, error)
+	// Returns the newest identity for an origin regardless of deletion, so
+	// callers can distinguish "origin never had an identity" (no rows) from
+	// "identity was revoked" (deleted = true) and fail closed on the latter.
+	GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg GetAIAgentByOriginIncludingDeletedParams) (AIAgent, error)
 	GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (AIAgent, error)
 	GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]GetAIAgentsByOwnerIDRow, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent

@@ -911,6 +911,37 @@ func (q *sqlQuerier) GetAIAgentByOrigin(ctx context.Context, arg GetAIAgentByOri
 	return i, err
 }
 
+const getAIAgentByOriginIncludingDeleted = `-- name: GetAIAgentByOriginIncludingDeleted :one
+SELECT user_id, owner_user_id, origin_type, origin_id, created_at, deleted
+FROM ai_agents
+WHERE origin_type = $1
+	AND origin_id = $2
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetAIAgentByOriginIncludingDeletedParams struct {
+	OriginType AIAgentOrigin `db:"origin_type" json:"origin_type"`
+	OriginID   uuid.UUID     `db:"origin_id" json:"origin_id"`
+}
+
+// Returns the newest identity for an origin regardless of deletion, so
+// callers can distinguish "origin never had an identity" (no rows) from
+// "identity was revoked" (deleted = true) and fail closed on the latter.
+func (q *sqlQuerier) GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg GetAIAgentByOriginIncludingDeletedParams) (AIAgent, error) {
+	row := q.db.QueryRowContext(ctx, getAIAgentByOriginIncludingDeleted, arg.OriginType, arg.OriginID)
+	var i AIAgent
+	err := row.Scan(
+		&i.UserID,
+		&i.OwnerUserID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.CreatedAt,
+		&i.Deleted,
+	)
+	return i, err
+}
+
 const getAIAgentByUserID = `-- name: GetAIAgentByUserID :one
 SELECT user_id, owner_user_id, origin_type, origin_id, created_at, deleted
 FROM ai_agents

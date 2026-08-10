@@ -1065,6 +1065,14 @@ func (m queryMetricsStore) GetAIAgentByOrigin(ctx context.Context, arg database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg database.GetAIAgentByOriginIncludingDeletedParams) (database.AIAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIAgentByOriginIncludingDeleted(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIAgentByOriginIncludingDeleted").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentByOriginIncludingDeleted").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIAgentByUserID(ctx, userID)

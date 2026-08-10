@@ -1830,6 +1830,21 @@ func (mr *MockStoreMockRecorder) GetAIAgentByOrigin(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentByOrigin", reflect.TypeOf((*MockStore)(nil).GetAIAgentByOrigin), ctx, arg)
 }
 
+// GetAIAgentByOriginIncludingDeleted mocks base method.
+func (m *MockStore) GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg database.GetAIAgentByOriginIncludingDeletedParams) (database.AIAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIAgentByOriginIncludingDeleted", ctx, arg)
+	ret0, _ := ret[0].(database.AIAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIAgentByOriginIncludingDeleted indicates an expected call of GetAIAgentByOriginIncludingDeleted.
+func (mr *MockStoreMockRecorder) GetAIAgentByOriginIncludingDeleted(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentByOriginIncludingDeleted", reflect.TypeOf((*MockStore)(nil).GetAIAgentByOriginIncludingDeleted), ctx, arg)
+}
+
 // GetAIAgentByUserID mocks base method.
 func (m *MockStore) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error) {
 	m.ctrl.T.Helper()
