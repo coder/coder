@@ -24,6 +24,6 @@ export const generateRandomBase64String = (bytes: number): string => {
  * Generate a 16-byte (32-character) hexadecimal string for identifying
  * workspace connection sessions.
  */
-export const generateSessionId = (): string => {
+export const generateConnectionSessionId = (): string => {
 	return generateRandomString(16);
 };
