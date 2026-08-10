@@ -742,7 +742,8 @@ SET
 WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
-		AND NOT is_system
+    AND NOT is_system
+    AND kind = 'human'::user_kind
 RETURNING id, email, username, last_seen_at;
 
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.

@@ -31331,7 +31331,8 @@ SET
 WHERE
     last_seen_at < $2 :: timestamp
     AND status = 'active'::user_status
-		AND NOT is_system
+    AND NOT is_system
+    AND kind = 'human'::user_kind
 RETURNING id, email, username, last_seen_at
 `
 

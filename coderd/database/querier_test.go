@@ -2846,6 +2846,45 @@ func TestGetActiveUserCount(t *testing.T) {
 	require.Equal(t, int64(2), count)
 }
 
+func TestUpdateInactiveUsersToDormantExcludesAIAgents(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := dbtime.Now()
+	lastSeenAfter := now.Add(-time.Hour)
+
+	human := dbgen.User(t, db, database.User{
+		Status:     database.UserStatusActive,
+		LastSeenAt: lastSeenAfter.Add(-time.Hour),
+	})
+	agent, err := db.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
+		ID:        uuid.New(),
+		Username:  "ai-test-" + uuid.NewString()[:8],
+		CreatedAt: lastSeenAfter.Add(-time.Hour),
+	})
+	require.NoError(t, err)
+
+	updated, err := db.UpdateInactiveUsersToDormant(ctx, database.UpdateInactiveUsersToDormantParams{
+		UpdatedAt:     now,
+		LastSeenAfter: lastSeenAfter,
+	})
+	require.NoError(t, err)
+	require.Len(t, updated, 1)
+	require.Equal(t, human.ID, updated[0].ID)
+
+	human, err = db.GetUserByID(ctx, human.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.UserStatusDormant, human.Status)
+
+	agent, err = db.GetUserByID(ctx, agent.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.UserStatusActive, agent.Status)
+}
+
 func TestUserChangeLoginType(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
