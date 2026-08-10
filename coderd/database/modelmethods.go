@@ -763,6 +763,7 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 			LastSeenAt:       r.LastSeenAt,
 			IsSystem:         r.IsSystem,
 			IsServiceAccount: r.IsServiceAccount,
+			Kind:             r.Kind,
 		}
 	}
 

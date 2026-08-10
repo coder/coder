@@ -435,6 +435,49 @@ func (s *MethodTestSuite) TestAPIKey() {
 	}))
 }
 
+func (s *MethodTestSuite) TestAIAgents() {
+	s.Run("GetAIAgentByOrigin", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		agent := testutil.Fake(s.T(), faker, database.AIAgent{})
+		arg := database.GetAIAgentByOriginParams{OriginType: agent.OriginType, OriginID: agent.OriginID}
+		dbm.EXPECT().GetAIAgentByOrigin(gomock.Any(), arg).Return(agent, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(agent.UserID), policy.ActionRead).Returns(agent)
+	}))
+
+	s.Run("GetAIAgentByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		agent := testutil.Fake(s.T(), faker, database.AIAgent{})
+		dbm.EXPECT().GetAIAgentByUserID(gomock.Any(), agent.UserID).Return(agent, nil).AnyTimes()
+		check.Args(agent.UserID).Asserts(rbac.ResourceUserObject(agent.UserID), policy.ActionRead).Returns(agent)
+	}))
+
+	s.Run("GetAIAgentsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ownerID := uuid.New()
+		row := testutil.Fake(s.T(), faker, database.GetAIAgentsByOwnerIDRow{})
+		dbm.EXPECT().GetAIAgentsByOwnerID(gomock.Any(), ownerID).Return([]database.GetAIAgentsByOwnerIDRow{row}, nil).AnyTimes()
+		check.Args(ownerID).Asserts(rbac.ResourceUserObject(ownerID), policy.ActionReadPersonal).Returns([]database.GetAIAgentsByOwnerIDRow{row})
+	}))
+
+	s.Run("InsertAIAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.InsertAIAgentParams{})
+		agent := testutil.Fake(s.T(), faker, database.AIAgent{UserID: arg.UserID})
+		dbm.EXPECT().InsertAIAgent(gomock.Any(), arg).Return(agent, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUser, policy.ActionCreate).Returns(agent)
+	}))
+
+	s.Run("InsertAIAgentUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.InsertAIAgentUserParams{})
+		user := testutil.Fake(s.T(), faker, database.User{ID: arg.ID})
+		dbm.EXPECT().InsertAIAgentUser(gomock.Any(), arg).Return(user, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUser, policy.ActionCreate).Returns(user)
+	}))
+
+	s.Run("UpdateAIAgentDeleted", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.UpdateAIAgentDeletedParams{})
+		agent := testutil.Fake(s.T(), faker, database.AIAgent{UserID: arg.UserID})
+		dbm.EXPECT().UpdateAIAgentDeleted(gomock.Any(), arg).Return(agent, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdate).Returns(agent)
+	}))
+}
+
 func (s *MethodTestSuite) TestAuditLogs() {
 	s.Run("InsertAuditLog", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertAuditLogParams{ResourceType: database.ResourceTypeOrganization, Action: database.AuditActionCreate, Diff: json.RawMessage("{}"), AdditionalFields: json.RawMessage("{}")}
