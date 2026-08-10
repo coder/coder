@@ -32,6 +32,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
@@ -240,6 +241,125 @@ func TestAuthorization(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, &expected, resp)
 			}
+		})
+	}
+}
+
+func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		missingIdentity bool
+		mutate          func(context.Context, database.Store, database.User, database.User) error
+		wantErr         error
+	}{
+		{
+			name: "owner active",
+		},
+		{
+			name: "owner suspended",
+			mutate: func(ctx context.Context, db database.Store, owner, _ database.User) error {
+				_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+					ID:        owner.ID,
+					Status:    database.UserStatusSuspended,
+					UpdatedAt: dbtime.Now(),
+				})
+				return err
+			},
+			wantErr: aibridgedserver.ErrInactiveUser,
+		},
+		{
+			name: "owner deleted",
+			mutate: func(ctx context.Context, db database.Store, owner, _ database.User) error {
+				return db.UpdateUserDeletedByID(ctx, owner.ID)
+			},
+			wantErr: aibridgedserver.ErrDeletedUser,
+		},
+		{
+			name: "AI agent identity deleted",
+			mutate: func(ctx context.Context, db database.Store, _, agentUser database.User) error {
+				_, err := db.UpdateAIAgentDeleted(ctx, database.UpdateAIAgentDeletedParams{
+					Deleted: true,
+					UserID:  agentUser.ID,
+				})
+				return err
+			},
+			wantErr: aibridgedserver.ErrInvalidAIAgent,
+		},
+		{
+			name:            "AI agent identity missing",
+			missingIdentity: true,
+			wantErr:         aibridgedserver.ErrInvalidAIAgent,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, _ := dbtestutil.NewDB(t)
+			owner := dbgen.User(t, db, database.User{})
+			organization := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				OrganizationID: organization.ID,
+				UserID:         owner.ID,
+			})
+
+			var (
+				agentUser database.User
+				token     string
+				err       error
+			)
+			if tt.missingIdentity {
+				agentUser, err = db.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
+					ID:        uuid.New(),
+					Username:  testutil.GetRandomName(t),
+					CreatedAt: dbtime.Now(),
+				})
+				require.NoError(t, err)
+				_, token = dbgen.APIKey(t, db, database.APIKey{
+					UserID:    agentUser.ID,
+					LoginType: database.LoginTypeToken,
+				})
+			} else {
+				agentUser, _, err = aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+					OwnerID:        owner.ID,
+					OrganizationID: organization.ID,
+					OriginType:     database.AIAgentOriginChat,
+					OriginID:       uuid.New(),
+				})
+				require.NoError(t, err)
+				_, token, err = aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.ChatAgentProfile(uuid.New()))
+				require.NoError(t, err)
+			}
+
+			if tt.mutate != nil {
+				require.NoError(t, tt.mutate(ctx, db, owner, agentUser))
+			}
+
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			resp, err := srv.IsAuthorized(ctx, &proto.IsAuthorizedRequest{Key: token})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, agentUser.ID.String(), resp.GetOwnerId())
+			require.Equal(t, agentUser.Username, resp.GetUsername())
 		})
 	}
 }

@@ -46,14 +46,15 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey    = xerrors.New("invalid key")
-	ErrUnknownKey    = xerrors.New("unknown key")
-	ErrExpired       = xerrors.New("expired")
-	ErrUnknownUser   = xerrors.New("unknown user")
-	ErrDeletedUser   = xerrors.New("deleted user")
-	ErrInactiveUser  = xerrors.New("inactive user")
-	ErrSystemUser    = xerrors.New("system user")
-	ErrAmbiguousAuth = xerrors.New("both key and key_id set; exactly one required")
+	ErrInvalidKey     = xerrors.New("invalid key")
+	ErrUnknownKey     = xerrors.New("unknown key")
+	ErrExpired        = xerrors.New("expired")
+	ErrUnknownUser    = xerrors.New("unknown user")
+	ErrDeletedUser    = xerrors.New("deleted user")
+	ErrInactiveUser   = xerrors.New("inactive user")
+	ErrSystemUser     = xerrors.New("system user")
+	ErrInvalidAIAgent = xerrors.New("invalid AI agent identity")
+	ErrAmbiguousAuth  = xerrors.New("both key and key_id set; exactly one required")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
@@ -91,6 +92,7 @@ type store interface {
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
 
 	// Authorizer-related queries.
+	GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error)
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
 
@@ -815,6 +817,34 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 	if user.IsSystem {
 		return nil, ErrSystemUser
+	}
+
+	if user.Kind == database.UserKindAIAgent {
+		// Authentication must resolve identity metadata before an actor exists.
+		identityCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
+		agent, err := s.store.GetAIAgentByUserID(identityCtx, user.ID)
+		if err != nil {
+			s.logger.Warn(ctx, "failed to retrieve AI agent identity", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.Error(err))
+			return nil, ErrInvalidAIAgent
+		}
+		if agent.Deleted {
+			return nil, ErrInvalidAIAgent
+		}
+
+		owner, err := s.store.GetUserByID(identityCtx, agent.OwnerUserID)
+		if err != nil {
+			s.logger.Warn(ctx, "failed to retrieve AI agent owner", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.F("owner_user_id", agent.OwnerUserID), slog.Error(err))
+			return nil, ErrInvalidAIAgent
+		}
+		if owner.Kind != database.UserKindHuman {
+			return nil, ErrInvalidAIAgent
+		}
+		if owner.Deleted {
+			return nil, ErrDeletedUser
+		}
+		if owner.Status != database.UserStatusActive {
+			return nil, ErrInactiveUser
+		}
 	}
 
 	return &proto.IsAuthorizedResponse{
