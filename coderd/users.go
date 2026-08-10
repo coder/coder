@@ -781,6 +781,42 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
+// @Summary Get AI agents owned by a user
+// @ID get-ai-agents-by-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, username, or me"
+// @Success 200 {array} codersdk.AIAgent
+// @Router /api/v2/users/{user}/ai-agents [get]
+func (api *API) aiAgentsByUser(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	rows, err := api.Database.GetAIAgentsByOwnerID(ctx, user.ID)
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	agents := make([]codersdk.AIAgent, 0, len(rows))
+	for _, row := range rows {
+		agents = append(agents, codersdk.AIAgent{
+			ID:         row.AIAgent.UserID,
+			Username:   row.Username,
+			OriginType: codersdk.AIAgentOrigin(row.AIAgent.OriginType),
+			OriginID:   row.AIAgent.OriginID,
+			CreatedAt:  row.AIAgent.CreatedAt,
+			Deleted:    row.AIAgent.Deleted,
+		})
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, agents)
+}
+
 // Returns recent build parameters for the signed-in user.
 //
 // @Summary Get autofill build parameters for user

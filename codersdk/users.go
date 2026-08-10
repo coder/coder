@@ -103,6 +103,23 @@ type User struct {
 	HasAISeat bool `json:"has_ai_seat"`
 }
 
+type AIAgentOrigin string
+
+const (
+	AIAgentOriginChat      AIAgentOrigin = "chat"
+	AIAgentOriginWorkspace AIAgentOrigin = "workspace"
+)
+
+// AIAgent is a delegated AI agent identity owned by a human user.
+type AIAgent struct {
+	ID         uuid.UUID     `json:"id" format:"uuid"`
+	Username   string        `json:"username"`
+	OriginType AIAgentOrigin `json:"origin_type" enums:"chat,workspace"`
+	OriginID   uuid.UUID     `json:"origin_id" format:"uuid"`
+	CreatedAt  time.Time     `json:"created_at" format:"date-time"`
+	Deleted    bool          `json:"deleted"`
+}
+
 type GetUsersResponse struct {
 	Users []User `json:"users"`
 	Count int    `json:"count"`
@@ -997,6 +1014,20 @@ func (c *Client) User(ctx context.Context, userIdent string) (User, error) {
 	}
 	var user User
 	return user, ReadBodyAsJSON(res, &user)
+}
+
+// AIAgentsByUser returns AI agent identities owned by the user.
+func (c *Client) AIAgentsByUser(ctx context.Context, userIdent string) ([]AIAgent, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/ai-agents", userIdent), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var agents []AIAgent
+	return agents, ReadBodyAsJSON(res, &agents)
 }
 
 // UserQuietHoursSchedule returns the quiet hours settings for the user. This

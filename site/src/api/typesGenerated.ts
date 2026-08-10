@@ -10,6 +10,24 @@ export interface ACLAvailable {
 	readonly groups: readonly Group[];
 }
 
+// From codersdk/users.go
+/**
+ * AIAgent is a delegated AI agent identity owned by a human user.
+ */
+export interface AIAgent {
+	readonly id: string;
+	readonly username: string;
+	readonly origin_type: AIAgentOrigin;
+	readonly origin_id: string;
+	readonly created_at: string;
+	readonly deleted: boolean;
+}
+
+// From codersdk/users.go
+export type AIAgentOrigin = "chat" | "workspace";
+
+export const AIAgentOrigins: AIAgentOrigin[] = ["chat", "workspace"];
+
 // From codersdk/aibridge.go
 /**
  * AIBridgeAgenticAction represents a tool call with associated

@@ -9950,6 +9950,43 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/users/{user}/ai-agents": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get AI agents owned by a user",
+                "operationId": "get-ai-agents-by-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIAgent"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/users/{user}/ai/budget/override": {
             "get": {
                 "produces": [
@@ -15301,6 +15338,51 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.AIAgent": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "deleted": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "origin_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "origin_type": {
+                    "enum": [
+                        "chat",
+                        "workspace"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIAgentOrigin"
+                        }
+                    ]
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIAgentOrigin": {
+            "type": "string",
+            "enum": [
+                "chat",
+                "workspace"
+            ],
+            "x-enum-varnames": [
+                "AIAgentOriginChat",
+                "AIAgentOriginWorkspace"
+            ]
         },
         "codersdk.AIBridgeAgenticAction": {
             "type": "object",

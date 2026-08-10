@@ -16,6 +16,7 @@ JOIN
 	users u
 ON
 	u.id = tus.user_id
+	AND u.kind = 'human'::user_kind
 WHERE
 	tus.start_time >= @start_time::timestamptz
 	AND tus.end_time <= @end_time::timestamptz
@@ -72,6 +73,7 @@ JOIN
 	users u
 ON
 	u.id = ds.user_id
+	AND u.kind = 'human'::user_kind
 JOIN
 	template_ids t
 ON
@@ -806,8 +808,8 @@ GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.de
 -- GetUserStatusCounts returns the count of users in each status over time.
 -- The time range is inclusively defined by the start_time and end_time parameters.
 WITH
-system_users AS (
-    SELECT id FROM users WHERE is_system = TRUE
+excluded_users AS (
+    SELECT id FROM users WHERE is_system = TRUE OR kind = 'ai_agent'::user_kind
 ),
 	-- dates_of_interest generates the dates that will represent the horizontal axis of the chart.
 dates_of_interest AS (
@@ -831,7 +833,7 @@ latest_status_before_range AS (
 		FROM user_deleted ud
 		WHERE ud.user_id = usc.user_id AND (ud.deleted_at < usc.changed_at OR ud.deleted_at < @start_time)
 	) AS ud ON true
-    WHERE usc.user_id NOT IN (SELECT id FROM system_users)
+    WHERE usc.user_id NOT IN (SELECT id FROM excluded_users)
         AND NOT ud.deleted
         AND usc.changed_at < @start_time::timestamptz
     ORDER BY usc.user_id, usc.changed_at DESC
@@ -848,7 +850,7 @@ status_changes_during_range AS (
 		FROM user_deleted ud
 		WHERE ud.user_id = usc.user_id AND ud.deleted_at < usc.changed_at
 	) AS ud ON true
-    WHERE usc.user_id NOT IN (SELECT id FROM system_users)
+    WHERE usc.user_id NOT IN (SELECT id FROM excluded_users)
         AND NOT ud.deleted
         AND usc.changed_at >= @start_time::timestamptz
         AND usc.changed_at <= @end_time::timestamptz

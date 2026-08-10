@@ -296,6 +296,50 @@
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
+## codersdk.AIAgent
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "origin_id": "fa284d86-c703-4b55-825c-a163977fd80a",
+  "origin_type": "chat",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name          | Type                                             | Required | Restrictions | Description |
+|---------------|--------------------------------------------------|----------|--------------|-------------|
+| `created_at`  | string                                           | false    |              |             |
+| `deleted`     | boolean                                          | false    |              |             |
+| `id`          | string                                           | false    |              |             |
+| `origin_id`   | string                                           | false    |              |             |
+| `origin_type` | [codersdk.AIAgentOrigin](#codersdkaiagentorigin) | false    |              |             |
+| `username`    | string                                           | false    |              |             |
+
+#### Enumerated Values
+
+| Property      | Value(s)            |
+|---------------|---------------------|
+| `origin_type` | `chat`, `workspace` |
+
+## codersdk.AIAgentOrigin
+
+```json
+"chat"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `chat`, `workspace` |
+
 ## codersdk.AIBridgeAgenticAction
 
 ```json

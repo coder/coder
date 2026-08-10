@@ -14739,7 +14739,8 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, user_is_service_account, organization_id, group_name, group_id FROM group_members_expanded
-WHERE CASE
+WHERE user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
+AND CASE
       WHEN $1::bool THEN TRUE
       ELSE
         user_is_system = false
@@ -14794,6 +14795,7 @@ const getGroupMembersByGroupID = `-- name: GetGroupMembersByGroupID :many
 SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, user_is_service_account, organization_id, group_name, group_id
 FROM group_members_expanded
 WHERE group_id = $1
+  AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
   -- Filter by system type
   AND CASE
       WHEN $2::bool THEN TRUE
@@ -14858,6 +14860,7 @@ FROM
 	group_members_expanded
 WHERE
 	group_members_expanded.group_id = $1
+	AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -15073,6 +15076,7 @@ const getGroupMembersCountByGroupID = `-- name: GetGroupMembersCountByGroupID :o
 SELECT COUNT(*)
 FROM group_members_expanded
 WHERE group_id = $1
+  AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
   -- Filter by system type
   AND CASE
       WHEN $2::bool THEN TRUE
@@ -15102,6 +15106,7 @@ SELECT
 	COUNT(*) AS member_count
 FROM group_members_expanded
 WHERE group_id = ANY($1 :: uuid[])
+	AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
 	AND CASE
 		WHEN $2::bool THEN TRUE
 		ELSE user_is_system = false
@@ -16451,6 +16456,7 @@ JOIN
 	users u
 ON
 	u.id = ds.user_id
+	AND u.kind = 'human'::user_kind
 JOIN
 	template_ids t
 ON
@@ -16525,6 +16531,7 @@ JOIN
 	users u
 ON
 	u.id = tus.user_id
+	AND u.kind = 'human'::user_kind
 WHERE
 	tus.start_time >= $1::timestamptz
 	AND tus.end_time <= $2::timestamptz
@@ -16586,8 +16593,8 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 
 const getUserStatusCounts = `-- name: GetUserStatusCounts :many
 WITH
-system_users AS (
-    SELECT id FROM users WHERE is_system = TRUE
+excluded_users AS (
+    SELECT id FROM users WHERE is_system = TRUE OR kind = 'ai_agent'::user_kind
 ),
 	-- dates_of_interest generates the dates that will represent the horizontal axis of the chart.
 dates_of_interest AS (
@@ -16611,7 +16618,7 @@ latest_status_before_range AS (
 		FROM user_deleted ud
 		WHERE ud.user_id = usc.user_id AND (ud.deleted_at < usc.changed_at OR ud.deleted_at < $2)
 	) AS ud ON true
-    WHERE usc.user_id NOT IN (SELECT id FROM system_users)
+    WHERE usc.user_id NOT IN (SELECT id FROM excluded_users)
         AND NOT ud.deleted
         AND usc.changed_at < $2::timestamptz
     ORDER BY usc.user_id, usc.changed_at DESC
@@ -16628,7 +16635,7 @@ status_changes_during_range AS (
 		FROM user_deleted ud
 		WHERE ud.user_id = usc.user_id AND ud.deleted_at < usc.changed_at
 	) AS ud ON true
-    WHERE usc.user_id NOT IN (SELECT id FROM system_users)
+    WHERE usc.user_id NOT IN (SELECT id FROM excluded_users)
         AND NOT ud.deleted
         AND usc.changed_at >= $2::timestamptz
         AND usc.changed_at <= $3::timestamptz
@@ -20152,8 +20159,10 @@ FROM
 		INNER JOIN
 	users ON organization_members.user_id = users.id AND users.deleted = false
 WHERE
+	-- AI agents are not organization members and are hidden from member lists.
+	users.kind = 'human'::user_kind
 	-- Filter by organization id
-	CASE
+	AND CASE
 		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			organization_id = $1
 		ELSE true
@@ -20261,7 +20270,8 @@ FROM
 INNER JOIN
 	users ON organization_members.user_id = users.id AND users.deleted = false
 WHERE
-	CASE
+	users.kind = 'human'::user_kind
+	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
@@ -30296,6 +30306,7 @@ FROM
 WHERE
 	status = 'active'::user_status AND deleted = false
 	AND is_service_account = false
+	AND kind = 'human'::user_kind
 	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
@@ -30360,6 +30371,7 @@ WHERE
 	AND users.deleted = false
 	AND users.is_system = false
 	AND users.is_service_account = false
+	AND users.kind = 'human'::user_kind
 `
 
 type GetActiveUsersAuthorizationRolesRow struct {
@@ -30456,6 +30468,7 @@ FROM
 	users
 WHERE
 	users.id = $1
+	AND users.kind = 'human'::user_kind
 `
 
 type GetAuthorizationUserRolesRow struct {
@@ -30723,6 +30736,7 @@ FROM
 	users
 WHERE
 	deleted = false
+	AND kind = 'human'::user_kind
   	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
@@ -30826,6 +30840,7 @@ FROM
 	users
 WHERE
 	users.deleted = false
+	AND users.kind = 'human'::user_kind
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without

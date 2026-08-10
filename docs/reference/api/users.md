@@ -521,6 +521,70 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get AI agents owned by a user
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/ai-agents \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/users/{user}/ai-agents`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "deleted": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "origin_id": "fa284d86-c703-4b55-825c-a163977fd80a",
+    "origin_type": "chat",
+    "username": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                  |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIAgent](schemas.md#codersdkaiagent) |
+
+<h3 id="get-ai-agents-owned-by-a-user-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name            | Type                                                       | Required | Restrictions | Description |
+|-----------------|------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`  | array                                                      | false    |              |             |
+| `» created_at`  | string(date-time)                                          | false    |              |             |
+| `» deleted`     | boolean                                                    | false    |              |             |
+| `» id`          | string(uuid)                                               | false    |              |             |
+| `» origin_id`   | string(uuid)                                               | false    |              |             |
+| `» origin_type` | [codersdk.AIAgentOrigin](schemas.md#codersdkaiagentorigin) | false    |              |             |
+| `» username`    | string                                                     | false    |              |             |
+
+#### Enumerated Values
+
+| Property      | Value(s)            |
+|---------------|---------------------|
+| `origin_type` | `chat`, `workspace` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get user appearance settings
 
 ### Code samples

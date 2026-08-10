@@ -69,6 +69,7 @@ FROM
 	users
 WHERE
 	deleted = false
+	AND kind = 'human'::user_kind
   	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: GetActiveUserCount :one
@@ -79,6 +80,7 @@ FROM
 WHERE
 	status = 'active'::user_status AND deleted = false
 	AND is_service_account = false
+	AND kind = 'human'::user_kind
 	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
@@ -452,6 +454,7 @@ FROM
 	users
 WHERE
 	users.deleted = false
+	AND users.kind = 'human'::user_kind
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -655,7 +658,8 @@ SELECT
 FROM
 	users
 WHERE
-	users.id = @user_id;
+	users.id = @user_id
+	AND users.kind = 'human'::user_kind;
 
 -- name: GetActiveUsersAuthorizationRoles :many
 -- Returns the authorization roles (site and org-scoped, including implied
@@ -716,7 +720,8 @@ WHERE
 	users.status = 'active'::user_status
 	AND users.deleted = false
 	AND users.is_system = false
-	AND users.is_service_account = false;
+	AND users.is_service_account = false
+	AND users.kind = 'human'::user_kind;
 
 -- name: UpdateUserQuietHoursSchedule :one
 UPDATE
