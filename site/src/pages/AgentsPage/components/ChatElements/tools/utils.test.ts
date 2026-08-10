@@ -874,6 +874,19 @@ describe("buildEditDiff", () => {
 		const hasContext = hunk.hunkContent.some((c) => c.type === "context");
 		expect(hasContext).toBe(true);
 	});
+
+	it("keys diffs by patch content, not by file name", () => {
+		const first = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
+		const sameAgain = buildEditDiff("file.ts", [
+			{ search: "old", replace: "new" },
+		]);
+		const different = buildEditDiff("file.ts", [
+			{ search: "old", replace: "other" },
+		]);
+		expect(first?.cacheKey).toMatch(/^content-/);
+		expect(first?.cacheKey).toBe(sameAgain?.cacheKey);
+		expect(first?.cacheKey).not.toBe(different?.cacheKey);
+	});
 });
 
 describe("stripSvnIndexHeaders", () => {

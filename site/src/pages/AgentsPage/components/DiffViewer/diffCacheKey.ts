@@ -10,3 +10,26 @@ export const getDiffCacheKeyPrefix = (
 	prefix: string,
 	dataUpdatedAt: number,
 ): string => `${prefix}-${dataUpdatedAt}`;
+
+/**
+ * Build a content-derived worker-pool cache key prefix for `@pierre/diffs`.
+ *
+ * The worker pool caches highlighted ASTs keyed only by each file's
+ * `cacheKey`, and the diff components default that key to the file name.
+ * Two different diff bodies for the same path would then share one cache
+ * entry, and rendering the newer diff against the older highlighted AST
+ * throws inside the renderer. Hashing the patch text keeps the key stable
+ * across re-renders and remounts while staying specific to the exact diff
+ * body.
+ */
+export const getContentCacheKeyPrefix = (text: string): string => {
+	// FNV-1a. The key only needs to separate different patch bodies for the
+	// same path while an older AST is cached, so a 32-bit checksum is plenty;
+	// crypto.subtle is async and cannot run in the render path.
+	let hash = 0x811c9dc5;
+	for (let i = 0; i < text.length; i++) {
+		hash ^= text.charCodeAt(i);
+		hash = Math.imul(hash, 0x01000193);
+	}
+	return `content-${(hash >>> 0).toString(16)}`;
+};
