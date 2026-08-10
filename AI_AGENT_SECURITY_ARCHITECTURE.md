@@ -254,6 +254,16 @@ In `ValidateAPIKey` / subject construction path:
   should point AI tooling env vars (e.g. `CODER_SESSION_TOKEN` for CLI
   agents) at the agent key instead of the owner key. Do NOT change the
   existing owner-token behavior; additive only.
+- **Implemented PoC convention**: the opt-in gate is a boolean rich
+  parameter named `coder_ai_agent` (opts in only when its stored build
+  value is exactly `"true"`); the minted token rides provisioner job
+  metadata as `workspace_ai_agent_session_token` and is exported to the
+  Terraform provider process as
+  `CODER_WORKSPACE_AI_AGENT_SESSION_TOKEN` (empty when opted out).
+  Identity is reused across rebuilds; keys rotate per opted-in start
+  build; stop/delete revoke keys best-effort; opted-in mint failures
+  fail the build, opt-out paths never do. The
+  terraform-provider-coder data source remains the planned follow-up.
 
 #### aibridge (attribution only, near-free)
 
