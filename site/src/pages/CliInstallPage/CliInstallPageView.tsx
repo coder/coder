@@ -16,7 +16,7 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 				"flex flex-1 flex-col items-center justify-center",
 			)}
 		>
-			<Welcome>Install the Coder CLI</Welcome>
+			<Welcome>Install the Coder&nbsp;CLI</Welcome>
 
 			<p className="pb-2 text-center text-base leading-[1.4] text-content-secondary">
 				Copy the command below and{" "}
@@ -24,7 +24,7 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 			</p>
 
 			<CodeExample
-				className="max-w-full [&>code]:block [&>code]:min-w-0 [&>code]:overflow-x-auto [&>code]:whitespace-nowrap"
+				className="max-w-full [&>code]:overflow-x-hidden [&>code]:text-ellipsis [&>code]:whitespace-nowrap"
 				code={`curl -fsSL ${origin}/install.sh | sh`}
 				secret={false}
 			/>
