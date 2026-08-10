@@ -178,11 +178,15 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
 			{canCancel && <CancelButton handleAction={handleCancel} />}
 
-			<FavoriteButton
-				workspaceID={workspace.id}
-				isFavorite={workspace.favorite}
-				onToggle={handleToggleFavorite}
-			/>
+			{/* Favorite status is stored on the workspace itself rather than per
+			user, so the API only lets the owner toggle it. */}
+			{user.id === workspace.owner_id && (
+				<FavoriteButton
+					workspaceID={workspace.id}
+					isFavorite={workspace.favorite}
+					onToggle={handleToggleFavorite}
+				/>
+			)}
 
 			{permissions.shareWorkspace && (
 				<ShareButton
