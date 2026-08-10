@@ -88,6 +88,41 @@ of principal and agent. That sense is the oldest of the three and the origin of
 the others, so it holds the unmodified word. The other two senses are always
 qualified: `workspace_agent` written in full, and "AI agent" written in full.
 
+### Identifiers in source code
+
+The terminology rules above govern prose and rendered text. They are
+**recommended for source code identifiers as well**, in both senses:
+
+- `workspace_agent` written in full, in table names, column names, Go
+  identifiers, and package names.
+- `ai_agent` written in full, in the same places, for the AI agent entity.
+- **Where a short form is genuinely needed, it is `ws_agent`.** Not `agent`.
+  A short form that still says which kind of agent is meant costs four
+  characters and removes the ambiguity entirely.
+- **Unadorned uses of `agent` should be renamed for clarity over time**, each
+  to whichever of `ws_agent` or `ai_agent` it actually means. This is expected
+  to happen gradually, as the code containing them is touched for other
+  reasons, rather than as a single sweep.
+
+For `workspace_agent` the recommendation completes an existing practice for
+table names and establishes a new one for columns. See the finding below: all
+eleven tables in the family carry the full prefix, but among columns the short
+form is the more common of the two, and package names use it throughout. That
+is why this is a recommendation rather than a mandate, since honouring it means
+renaming.
+
+Some unadorned uses are out of reach and should be excluded from the
+recommendation rather than left as apparent violations. `coder_agent` is a
+Terraform resource type owned by the provider and written by template authors,
+and `CODER_AGENT_TOKEN` and `CODER_AGENT_URL` are part of the interface the
+workspace environment presents. Renaming any of those breaks users rather than
+clarifying anything.
+
+For `ai_agent` the cost is nil, because no such entity exists yet. Fixing the
+identifier form before the first table is written is the cheapest this decision
+will ever be, and it is the only one of the three senses that can still be got
+right for free.
+
 ### Actors in scope
 
 The actors this document currently covers:
@@ -206,6 +241,24 @@ Both entities are green field.
 `resource_type` enum already contains a `workspace_agent` value. An audit
 resource type named `agent` would sit next to it and require every reader to
 disambiguate.
+
+**Writing `workspace_agent` in full is the practice for table names and not
+for columns.** All eleven tables in the family carry the full prefix. Column
+names are close to evenly split, and the short form is in fact the more common
+of the two: seven are `workspace_agent_id` and eight are `agent_id`, across
+fifteen tables.
+
+There is no discernible rule behind the split. It does not even hold within the
+`workspace_agent_*` family itself, where `workspace_agent_scripts`,
+`workspace_agent_devcontainers`, `workspace_agent_log_sources`, and the two
+context tables use the full form, while `workspace_agent_stats` and both
+resource monitor tables use the short one. Outside the family it is likewise
+mixed: `boundary_sessions` and `task_workspace_apps` use the full form, while
+`chats`, `workspace_apps`, `workspace_app_stats`, `workspace_app_statuses`, and
+`jfrog_xray_scans` use the short one.
+
+Go package names use the short form throughout: `agent`, `agent/agentscripts`,
+and `coderd/agentapi`.
 
 **The product already uses "agent" in the AI sense.** For example
 `site/src/pages/AgentsPage` is the AI chat UI. The collision is already live
