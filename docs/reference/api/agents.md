@@ -624,6 +624,23 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   ],
   "logs_length": 0,
   "logs_overflowed": true,
+  "metadata": [
+    {
+      "description": {
+        "display_name": "string",
+        "interval": 0,
+        "key": "string",
+        "script": "string",
+        "timeout": 0
+      },
+      "result": {
+        "age": 0,
+        "collected_at": "2019-08-24T14:15:22Z",
+        "error": "string",
+        "value": "string"
+      }
+    }
+  ],
   "name": "string",
   "operating_system": "string",
   "parent_id": {
