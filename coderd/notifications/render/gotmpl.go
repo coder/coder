@@ -13,6 +13,70 @@ import (
 // This string is not exported as a const from the text/template.
 const NoValue = "<no value>"
 
+// markdownReplacer escapes characters that have special meaning in Markdown.
+// This prevents user-controlled values (display names, labels) from being
+// interpreted as Markdown syntax when interpolated into notification body
+// templates that are subsequently rendered as HTML.
+var markdownReplacer = strings.NewReplacer(
+	// Escape the backslash first (conceptually): strings.NewReplacer performs a
+	// single non-overlapping left-to-right pass and never re-processes its own
+	// output, so a user-supplied "\" becomes a literal "\\" without touching the
+	// backslashes we introduce below.
+	"\\", "\\\\",
+	"[", "\\[",
+	"]", "\\]",
+	"(", "\\(",
+	")", "\\)",
+	"#", "\\#",
+	"!", "\\!",
+	"*", "\\*",
+	// Escape both angle brackets. ">" alone left "<...>" CommonMark autolinks
+	// exploitable (angle-bracket autolinks are core inline syntax, not the
+	// parser.Autolink extension, so disabling that extension does not stop
+	// them); escaping "<" prevents such an autolink from ever opening.
+	"<", "\\<",
+	">", "\\>",
+	"~", "\\~",
+	"`", "\\`",
+	"|", "\\|",
+	"_", "\\_",
+	"\n", " ",
+	"\r", "",
+)
+
+// SanitizeMarkdown escapes Markdown metacharacters in a string and
+// collapses newlines so that the value is rendered as literal text
+// when embedded in a Markdown document.
+func SanitizeMarkdown(s string) string {
+	return markdownReplacer.Replace(s)
+}
+
+// SanitizedPayload returns a copy of p with Markdown metacharacters escaped in
+// the user-controlled fields (UserName and Labels). Use the returned copy only
+// to render the title and body templates, whose output is subsequently passed
+// through a Markdown renderer (HTMLFromMarkdownSafe for the SMTP HTML email, and
+// react-markdown for the in-product inbox). Escaping there prevents display
+// names and label values from injecting Markdown such as links or headings.
+//
+// The original payload is left unmodified. Non-Markdown consumers must receive
+// the verbatim values: the webhook delivers payload.Labels and payload.UserName
+// as raw JSON, the SMTP greeting interpolates UserName as HTML (escaped by the
+// template's `| html`, not by Markdown escaping), and the plaintext email part
+// is not Markdown. Escaping those in place left literal backslashes in every one
+// of them.
+func SanitizedPayload(p types.MessagePayload) types.MessagePayload {
+	sanitized := p
+	sanitized.UserName = SanitizeMarkdown(p.UserName)
+	if p.Labels != nil {
+		// Copy the map so the caller's payload keeps its raw label values.
+		sanitized.Labels = make(map[string]string, len(p.Labels))
+		for k, v := range p.Labels {
+			sanitized.Labels[k] = SanitizeMarkdown(v)
+		}
+	}
+	return sanitized
+}
+
 // GoTemplate attempts to substitute the given payload into the given template using Go's templating syntax.
 // TODO: memoize templates for memory efficiency?
 func GoTemplate(in string, payload types.MessagePayload, extraFuncs template.FuncMap) (string, error) {
