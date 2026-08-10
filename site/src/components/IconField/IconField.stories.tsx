@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, screen, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { IconField } from "./IconField";
 
 const meta: Meta<typeof IconField> = {
@@ -50,6 +50,15 @@ export const OpenPicker: Story = {
 		});
 		await userEvent.click(button);
 		await expect(button).toHaveAttribute("aria-expanded", "true");
-		await expect(await screen.findByText("Smileys & People")).toBeVisible();
+		// emoji-mart renders the picker into a shadow root, which testing-library
+		// queries cannot reach, so the category list is read off the host element.
+		// The popover scopes the lookup to the picker the click opened, since the
+		// field also keeps a hidden copy mounted to warm the lazy chunk.
+		const popover = await screen.findByRole("dialog");
+		await waitFor(() =>
+			expect(
+				popover.querySelector("em-emoji-picker")?.shadowRoot?.textContent,
+			).toContain("Smileys & People"),
+		);
 	},
 };

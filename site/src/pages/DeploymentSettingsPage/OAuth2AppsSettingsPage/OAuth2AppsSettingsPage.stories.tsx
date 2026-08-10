@@ -47,7 +47,9 @@ export const CanEditSettings: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
 
-		await expect(canvas.getByRole("button", { name: "Enable" })).toBeEnabled();
+		await expect(
+			await canvas.findByRole("button", { name: "Enable" }),
+		).toBeEnabled();
 	},
 };
 
@@ -68,7 +70,9 @@ export const ViewOnlyCannotEditSettings: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("tab", { name: "Settings" }));
 
-		await expect(canvas.getByRole("button", { name: "Enable" })).toBeDisabled();
+		await expect(
+			await canvas.findByRole("button", { name: "Enable" }),
+		).toBeDisabled();
 		await expect(
 			canvas.getByText(/permission to edit deployment configuration/),
 		).toBeVisible();
