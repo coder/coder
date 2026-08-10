@@ -118,6 +118,30 @@ seq: Sandbox creation (tooling smoke test) {
 }
 ```
 
+## Requirement for a future build process
+
+The tooling choice is **provisional**. d2 was selected for this proof of
+concept and may not be what we settle on.
+
+When a UML tooling choice is settled, we will want a build process that keeps
+the rendered SVG diagrams from drifting from their sources. Two constraints on
+that build process:
+
+- **The build must not fail when the UML tooling is not installed.** Absence of
+  the tool is a skip, not an error.
+- **Installing the UML tooling is optional.** No contributor should be required
+  to install it in order to build, test, or commit.
+
+Nothing enforces this today. The SVGs in this directory are kept current by
+hand, and they have drifted more than once.
+
+One observation about satisfying both constraints at once, offered rather than
+decided. Wanting no drift and allowing the tool to be absent are only
+consistent if some environment always has it. CI is the natural candidate:
+the check skips locally for anyone who has not installed the tool, and runs in
+CI where the tool is present. That keeps installation optional for people while
+still making drift detectable.
+
 ## Measured
 
 Eight participants, rendered by d2 at 1695 by 2620 pixels.
