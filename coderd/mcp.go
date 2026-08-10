@@ -648,6 +648,14 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
+		// Re-fetch on the transaction handle so omitted fields come from the latest
+		// row visible to this transaction, not the middleware snapshot.
+		current, err := tx.GetMCPServerConfigByID(ctx, existing.ID)
+		if err != nil {
+			return err
+		}
+		existing = current
+
 		touchesUserOIDC := existing.AuthType == "user_oidc" ||
 			(req.AuthType != nil && *req.AuthType == "user_oidc")
 		if touchesUserOIDC && !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
