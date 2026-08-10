@@ -25,7 +25,6 @@ import { Link, type Location, NavLink } from "react-router";
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -369,7 +368,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
-						<FeatureStageBadge contentType="beta" size="xs" />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
 						<Button

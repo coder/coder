@@ -2652,7 +2652,7 @@ CREATE TABLE oauth2_provider_apps (
     icon character varying(256) NOT NULL,
     callback_url text NOT NULL,
     redirect_uris text[],
-    client_type text DEFAULT 'confidential'::text,
+    client_type text DEFAULT 'confidential'::text NOT NULL,
     dynamically_registered boolean DEFAULT false,
     client_id_issued_at timestamp with time zone DEFAULT now(),
     client_secret_expires_at timestamp with time zone,
@@ -2670,7 +2670,8 @@ CREATE TABLE oauth2_provider_apps (
     software_id text,
     software_version text,
     registration_access_token bytea,
-    registration_client_uri text
+    registration_client_uri text,
+    CONSTRAINT oauth2_provider_apps_client_type_check CHECK ((client_type = ANY (ARRAY['confidential'::text, 'public'::text])))
 );
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';

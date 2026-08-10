@@ -5835,7 +5835,11 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		})
 	}))
 	s.Run("InsertOAuth2ProviderApp", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertOAuth2ProviderAppParams{}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
+		// client_type is NOT NULL with a CHECK for the two canonical values, and
+		// the insert always sends the column, so the zero value cannot be used.
+		check.Args(database.InsertOAuth2ProviderAppParams{
+			ClientType: "confidential",
+		}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)

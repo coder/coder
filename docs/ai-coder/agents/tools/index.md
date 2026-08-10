@@ -44,8 +44,7 @@ code), it provisions a workspace using three tools:
 | `read_template`    | Read a template's parameters and presets                  |
 | `create_workspace` | Create the workspace from a chosen template               |
 
-Administrators can restrict which templates these tools can see with the
-[template allowlist](../platform-controls/template-optimization.md#restrict-available-templates).
+Administrators can restrict which templates these tools can use with the switches on the [Templates page](../platform-controls/template-optimization.md#restrict-available-templates).
 
 ### list_templates
 
@@ -214,4 +213,4 @@ Guardrails:
   recommended.
 - The tool is idempotent: if the chat already has a workspace building or
   running, that workspace is returned instead of creating a duplicate.
-- Templates outside the administrator's allowlist are rejected.
+- Templates that do not allow Coder Agents are rejected.
