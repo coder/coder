@@ -9,6 +9,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/oauth2"
+
+	"github.com/coder/coder/v2/coderd/util/xhttp"
 )
 
 type Oauth2PKCEChallengeMethod string
@@ -68,6 +70,10 @@ type Factory struct {
 type metrics struct {
 	externalRequestCount *prometheus.CounterVec
 
+	// externalRequestRateLimited counts requests whose response indicated a
+	// rate limit (a 429, or a 403 carrying rate-limit headers).
+	externalRequestRateLimited *prometheus.CounterVec
+
 	// if the oauth supports it, rate limit metrics.
 	// rateLimit is the defined limit per interval
 	rateLimit          *prometheus.GaugeVec
@@ -91,6 +97,16 @@ func NewFactory(registry prometheus.Registerer) *Factory {
 				Subsystem: "oauth2",
 				Name:      "external_requests_total",
 				Help:      "The total number of api calls made to external oauth2 providers. 'status_code' will be 0 if the request failed with no response.",
+			}, []string{
+				"name",
+				"source",
+				"status_code",
+			}),
+			externalRequestRateLimited: factory.NewCounterVec(prometheus.CounterOpts{
+				Namespace: "coderd",
+				Subsystem: "oauth2",
+				Name:      "external_requests_rate_limited_total",
+				Help:      "The total number of api calls to external oauth2 providers that returned a rate-limited response (a 429, or a 403 with rate-limit headers).",
 			}, []string{
 				"name",
 				"source",
@@ -289,6 +305,13 @@ func (i *instrumentedTripper) RoundTrip(r *http.Request) (*http.Response, error)
 		"source":      string(i.source),
 		"status_code": fmt.Sprintf("%d", statusCode),
 	}).Inc()
+	if xhttp.IsRateLimited(resp) {
+		i.c.metrics.externalRequestRateLimited.With(prometheus.Labels{
+			"name":        i.c.name,
+			"source":      string(i.source),
+			"status_code": fmt.Sprintf("%d", statusCode),
+		}).Inc()
+	}
 
 	// Handle any extra interceptors.
 	for _, interceptor := range i.c.interceptors {
