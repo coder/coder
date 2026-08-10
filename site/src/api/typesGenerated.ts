@@ -5758,11 +5758,34 @@ export const LicenseAIGovernanceOverLimitWarningText =
 	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
 
 // From codersdk/licenses.go
+/**
+ * LicenseAgentRuntimeHoursClaimsIgnoredWarningText is emitted when a
+ * license carries unusable Coder Agent runtime hour claims (see
+ * decodeAgentRuntimeHours in enterprise/coderd/license); the logs name
+ * the license and the dropped claims. The dashboard renders the exact
+ * text as a muted diagnostic without a sales link.
+ */
+export const LicenseAgentRuntimeHoursClaimsIgnoredWarningText =
+	"A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued.";
+
+// From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
 
 // From codersdk/licenses.go
 export const LicenseManagedAgentLimitExceededWarningText =
 	"You have built more workspaces with managed agents than your license allows.";
+
+// From codersdk/licenses.go
+/**
+ * LicenseManagedAgentUsageUnavailableErrorText is emitted when the
+ * managed agent usage query fails while computing entitlements; the
+ * cause is logged server-side. It travels in the entitlements Errors
+ * channel so the alertable coderd_license_errors gauge counts
+ * measurement failures, but the dashboard recognizes the exact text and
+ * renders it as a muted diagnostic rather than a license error.
+ */
+export const LicenseManagedAgentUsageUnavailableErrorText =
+	"Unable to determine managed agent usage. The reported count is unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details.";
 
 // From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
