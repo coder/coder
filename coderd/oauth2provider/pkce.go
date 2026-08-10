@@ -12,8 +12,11 @@ const (
 	pkceVerifierMaxLength = 128
 )
 
-// ValidPKCEVerifier reports whether a code_verifier meets RFC 7636 §4.1: 43 to
-// 128 characters of the unreserved set [A-Za-z0-9-._~].
+// ValidPKCEFormat reports whether s meets RFC 7636 §4.1: 43 to 128 characters
+// of the unreserved set [A-Za-z0-9-._~]. RFC 7636 gives code_verifier and
+// code_challenge the same ABNF, so this check applies to both: a code_verifier
+// directly, and a code_challenge because the S256 method that produces it
+// (base64url(SHA256(verifier))) always yields a string within these bounds.
 //
 // The length floor is the whole point. PKCE is the only client authentication
 // some clients have, and the challenge travels in the authorization request
@@ -22,12 +25,15 @@ const (
 // brute-forces the verifier offline at whatever entropy the client chose,
 // where no server-side rate limit applies. A client that sends a
 // one-character verifier has set a one-character password, and the server
-// should refuse it rather than accept whatever the client picked.
-func ValidPKCEVerifier(verifier string) bool {
-	if len(verifier) < pkceVerifierMinLength || len(verifier) > pkceVerifierMaxLength {
+// should refuse it rather than accept whatever the client picked. The same
+// bound on code_challenge keeps a malformed value from being persisted
+// verbatim and failing late, at token exchange, instead of at the
+// authorization request where RFC 7636 §4.4.1 expects it to be rejected.
+func ValidPKCEFormat(s string) bool {
+	if len(s) < pkceVerifierMinLength || len(s) > pkceVerifierMaxLength {
 		return false
 	}
-	for _, r := range verifier {
+	for _, r := range s {
 		switch {
 		case r >= 'A' && r <= 'Z',
 			r >= 'a' && r <= 'z',

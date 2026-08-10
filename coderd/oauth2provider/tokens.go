@@ -283,7 +283,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// Reject a verifier outside RFC 7636 §4.1's bounds before comparing it. A
 	// short verifier hashes to a valid-looking challenge, so the comparison
 	// below cannot tell a well-formed secret from a one-character one.
-	if !ValidPKCEVerifier(req.CodeVerifier) {
+	if !ValidPKCEFormat(req.CodeVerifier) {
 		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
 	}
 	if !dbCode.CodeChallenge.Valid || dbCode.CodeChallenge.String == "" {

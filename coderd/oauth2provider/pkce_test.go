@@ -126,7 +126,7 @@ func TestValidatePKCECodeChallengeMethod(t *testing.T) {
 	}
 }
 
-func TestValidPKCEVerifier(t *testing.T) {
+func TestValidPKCEFormat(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -198,7 +198,7 @@ func TestValidPKCEVerifier(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.expectValid, oauth2provider.ValidPKCEVerifier(tt.verifier))
+			require.Equal(t, tt.expectValid, oauth2provider.ValidPKCEFormat(tt.verifier))
 		})
 	}
 }

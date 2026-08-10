@@ -189,6 +189,39 @@ func TestOAuth2WithoutPKCEIsRejected(t *testing.T) {
 	)
 }
 
+// TestOAuth2MalformedCodeChallengeIsRejected verifies that a code_challenge
+// below the RFC 7636 §4.1 length floor is rejected at the authorization
+// request, rather than being stored and only failing once a client attempts
+// to exchange the resulting code.
+func TestOAuth2MalformedCodeChallengeIsRejected(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: false,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
+	t.Cleanup(func() {
+		oauth2providertest.CleanupOAuth2App(t, client, app.ID)
+	})
+
+	state := oauth2providertest.GenerateState(t)
+
+	authParams := oauth2providertest.AuthorizeParams{
+		ClientID:            app.ID.String(),
+		ResponseType:        "code",
+		RedirectURI:         oauth2providertest.TestRedirectURI,
+		State:               state,
+		CodeChallenge:       "too-short",
+		CodeChallengeMethod: "S256",
+	}
+
+	oauth2providertest.AuthorizeOAuth2AppExpectingError(
+		t, client, client.URL.String(), authParams, http.StatusBadRequest,
+	)
+}
+
 func TestOAuth2TokenExchangeClientSecretBasic(t *testing.T) {
 	t.Parallel()
 
