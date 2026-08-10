@@ -64,6 +64,7 @@ type SubjectType string
 
 const (
 	SubjectTypeUser                         SubjectType = "user"
+	SubjectTypeAIAgent                      SubjectType = "ai_agent"
 	SubjectTypeProvisionerd                 SubjectType = "provisionerd"
 	SubjectTypeAutostart                    SubjectType = "autostart"
 	SubjectTypeConnectionLogger             SubjectType = "connection_logger"
