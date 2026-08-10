@@ -18,7 +18,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -492,13 +491,27 @@ func TestProvisionerDaemonServe(t *testing.T) {
 
 		listener := capturePS.waitListener(ctx, t)
 
+		// A completed RPC proves the handler finished connection setup, which
+		// includes the post-subscribe key re-check. That re-check closes the
+		// connection both when the key is gone and when the read errors, so it
+		// has to run before the key is touched below. The error must come from
+		// the job lookup: a transport error would mean the session is already
+		// gone, which proves nothing about setup.
+		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{JobId: uuid.NewString()})
+		require.ErrorContains(t, err, "get job")
+
 		// Make the key re-check fail before deleting the key, so no reader
-		// (including the immediate first heartbeat) can observe the bare
-		// deletion; then delete the key so a successful re-check would
-		// terminate. The error path must leave the session running.
-		store.fail.Store(true)
-		//nolint:gocritic // The test deletes the key outside the request actor.
-		err = db.DeleteProvisionerKey(dbauthz.AsSystemRestricted(ctx), keyID)
+		// (including the heartbeat key check) can observe the bare deletion;
+		// then delete the key so a successful re-check would terminate. The
+		// error path must leave the session running. The write gate holds off
+		// key reads for both steps, so none is in flight across the deletion.
+		func() {
+			store.gate.Lock()
+			defer store.gate.Unlock()
+			store.fail.Store(true)
+			//nolint:gocritic // The test deletes the key outside the request actor.
+			err = db.DeleteProvisionerKey(dbauthz.AsSystemRestricted(ctx), keyID)
+		}()
 		require.NoError(t, err)
 		listener(ctx, nil, dbpubsub.ErrDroppedMessages)
 		select {
@@ -1337,15 +1350,26 @@ func TestGetProvisionerDaemons(t *testing.T) {
 // failKeyReadStore returns an error from GetProvisionerKeyByID for the key
 // identified by keyID while fail is set. All other reads pass through. keyID
 // is set after the key is created so earlier lookups are unaffected.
+//
+// Reads of that key hold gate for reading while they check fail and query the
+// database. A caller that takes gate for writing therefore runs with no such
+// read in flight, and any read that arrives afterwards observes the writer's
+// changes to fail and to the key itself. gate is not reentrant: a writer must
+// not read through this store while holding it.
 type failKeyReadStore struct {
 	database.Store
 	keyID atomic.Pointer[uuid.UUID]
 	fail  atomic.Bool
+	gate  sync.RWMutex
 }
 
 func (s *failKeyReadStore) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
-	if target := s.keyID.Load(); target != nil && *target == id && s.fail.Load() {
-		return database.ProvisionerKey{}, xerrors.New("transient database error")
+	if target := s.keyID.Load(); target != nil && *target == id {
+		s.gate.RLock()
+		defer s.gate.RUnlock()
+		if s.fail.Load() {
+			return database.ProvisionerKey{}, xerrors.New("transient database error")
+		}
 	}
 	return s.Store.GetProvisionerKeyByID(ctx, id)
 }

@@ -150,7 +150,8 @@ func TestAcquirer_ProvisionerKeyDeleted(t *testing.T) {
 	require.NoError(t, err)
 
 	// The keyed acquiree exits terminally rather than re-parking, without
-	// ever attempting a claim.
+	// ever attempting a claim. Count only its own calls: its clearance passes
+	// to the unkeyed acquiree, whose call can land before this assertion.
 	select {
 	case <-ctx.Done():
 		t.Fatal("timeout waiting for keyed acquiree to exit")
@@ -158,7 +159,7 @@ func TestAcquirer_ProvisionerKeyDeleted(t *testing.T) {
 		require.ErrorIs(t, err, provisionerdserver.ErrProvisionerKeyDeleted)
 	}
 	<-keyed.jc
-	require.Equal(t, 0, fs.callCount())
+	require.Equal(t, 0, fs.callCountForWorker(keyed.workerID))
 
 	// Its clearance is handed to the unkeyed acquiree, which claims a job
 	// without a new posting or backup poll.
@@ -829,6 +830,20 @@ func (s *fakeOrderedStore) callCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.params)
+}
+
+// callCountForWorker returns the number of AcquireProvisionerJob calls made on
+// behalf of workerID.
+func (s *fakeOrderedStore) callCountForWorker(workerID uuid.UUID) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var n int
+	for _, p := range s.params {
+		if p.WorkerID.UUID == workerID {
+			n++
+		}
+	}
+	return n
 }
 
 func (s *fakeOrderedStore) lockCallCount() int {
