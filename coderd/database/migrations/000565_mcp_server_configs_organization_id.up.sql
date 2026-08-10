@@ -14,6 +14,11 @@ BEGIN
     END IF;
 END $$;
 
+-- Pre-existing deployment-wide configs move to the default organization
+-- with credentials intact. The default organization succeeds the
+-- deployment scope, so its operator-appointed admins take over the
+-- inherited secrets; copies for other organizations (below) never
+-- receive credentials.
 UPDATE mcp_server_configs
 SET organization_id = (SELECT id FROM organizations WHERE is_default = true LIMIT 1);
 
