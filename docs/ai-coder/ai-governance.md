@@ -7,8 +7,9 @@ development environments. As adoption grows, many enterprises also need
 observability, management, and policy controls to support secure and auditable
 AI rollouts.
 
-AI Governance is included with a Premium license. Each Premium user gets access
-to a set of features that help organizations safely roll out AI tooling at scale:
+AI Governance is included with all Premium and Agents licenses. Each user gets
+access to a set of features that help organizations safely roll out AI tooling
+at scale:
 
 - [AI Gateway](./ai-gateway/index.md): LLM gateway to audit AI sessions, central
   MCP server management, and policy enforcement
@@ -16,7 +17,7 @@ to a set of features that help organizations safely roll out AI tooling at scale
   agents, restricting which domains can be accessed by AI agents
 
 > [!NOTE]
-> AI Gateway and Agent Firewall require a Premium license.
+> AI Gateway and Agent Firewall require a Premium or Agents license.
 > Community deployments cannot access these features.
 
 ## Who should use AI Governance
@@ -79,7 +80,7 @@ rates, and usage patterns to inform decisions about AI strategy.
 Starting with Coder v2.30 (February 2026), AI Gateway and Agent Firewall are
 generally available as part of AI Governance.
 
-To learn more about AI Governance, pricing, or trial options, reach out to your
+To learn more about AI Governance or to get in touch, reach out to your
 [Coder account team](https://coder.com/contact/sales).
 
 ## How Coder Tasks usage is measured
@@ -120,14 +121,14 @@ may also consume agent workspace builds.
 ### Agent Workspace Build Limits
 
 Without proper controls and sandboxing, it is not recommended to open up Coder
-Tasks to a large audience in the enterprise. Both Community and Premium
-deployments include 1,000 Agent Workspace Builds, primarily for proof-of-concept
-use and basic workflows. Community deployments do not have access to
+Tasks to a large audience in the enterprise. Community deployments include 1,000
+Agent Workspace Builds, primarily for proof-of-concept use and basic workflows.
+Community deployments do not have access to
 [AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md).
 
-Premium deployments include a shared usage pool of Agent Workspace Builds for
-automated workflows, along with limits that scale proportionately with user
-count. Usage counts are measured and sent to Coder via
+Premium and Agents deployments include a shared usage pool of Agent Workspace
+Builds for automated workflows, along with limits that scale proportionately with
+user count. Usage counts are measured and sent to Coder via
 [usage data reporting](./usage-data-reporting.md). Coder Tasks and other AI
 features continue to function normally even if the limit is breached. Admins
 will receive a warning to [contact their account team](https://coder.com/contact)
@@ -146,8 +147,8 @@ entitlement limits in the Licenses page.</small>
 
 ## Identifying AI seat consumers
 
-When AI Governance is licensed, the **Users** table and
-**Organization Members** table display an **AI add-on** column that shows
+When AI Governance is enabled, the **Users** table and
+**Organization Members** table display an **AI** column that shows
 whether each user is consuming an AI seat:
 
 - A green check icon indicates the user is actively consuming an AI seat.
