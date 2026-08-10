@@ -10911,11 +10911,10 @@ func TestUsageEventsTrigger(t *testing.T) {
 		insert("hb_agent_runtime_v1:2025-01-02_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 250}`, day2)
 		requireDaily(`{"runtime_ms": 1500}`, `{"runtime_ms": 250}`)
 
-		// Re-inserting a bucket must not double-count it. The daily rollup
-		// sums runtime_ms, so idempotency rests on the aggregate trigger
-		// being AFTER INSERT: Postgres does not fire it for rows suppressed
-		// by ON CONFLICT (id) DO NOTHING. Concurrent replicas and backfill
-		// re-runs both take this path.
+		// Re-inserting a bucket under its deterministic id must not
+		// double-count it: the daily rollup's AFTER INSERT trigger does not
+		// fire for rows suppressed by the insert's ON CONFLICT (id)
+		// arbiter.
 		insert("hb_agent_runtime_v1:2025-01-01_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 1000}`, day1)
 		requireDaily(`{"runtime_ms": 1500}`, `{"runtime_ms": 250}`)
 
@@ -10923,6 +10922,38 @@ func TestUsageEventsTrigger(t *testing.T) {
 		insert("hb-seats-1", "hb_ai_seats_v1", `{"count": 3}`, day2)
 		rows := getDailyRows(ctx, sqlDB)
 		require.Len(t, rows, 3)
+
+		// The same bucket under a different id is not an idempotent
+		// re-insert but a duplicate that would double any aggregate summing
+		// runtime_ms; the unique partial index
+		// idx_usage_events_agent_runtime rejects it loudly instead of the
+		// (id) arbiter silently dropping it.
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "different-id-same-bucket",
+			EventType: "hb_agent_runtime_v1",
+			EventData: []byte(`{"runtime_ms": 9999}`),
+			CreatedAt: day1,
+		})
+		require.True(t, database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime),
+			"expected unique violation on idx_usage_events_agent_runtime, got %v", err)
+		// The rejected row must not have reached the daily rollup either.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 3)
+		require.JSONEq(t, `{"runtime_ms": 1500}`, string(rows[0].UsageData))
+
+		// created_at must be the exact UTC hourly bucket start;
+		// usage_events_agent_runtime_hour_aligned rejects a misaligned row
+		// so it cannot skew the period a bucket is attributed to.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "hb_agent_runtime_v1:misaligned",
+			EventType: "hb_agent_runtime_v1",
+			EventData: []byte(`{"runtime_ms": 100}`),
+			CreatedAt: day1.Add(30 * time.Minute),
+		})
+		require.ErrorContains(t, err, string(database.CheckUsageEventsAgentRuntimeHourAligned))
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 3)
+		require.JSONEq(t, `{"runtime_ms": 1500}`, string(rows[0].UsageData))
 	})
 
 	t.Run("UnknownEventType", func(t *testing.T) {
