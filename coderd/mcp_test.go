@@ -714,6 +714,10 @@ func TestMCPServerConfigACL(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 
+	_, err = groupMemberClient.MCPServerConfigACL(ctx, config.ID)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
 	mAudit.ResetLogs()
 	err = groupMemberClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{})
 	require.ErrorAs(t, err, &sdkErr)

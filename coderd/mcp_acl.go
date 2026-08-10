@@ -35,6 +35,13 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	config := httpmw.MCPServerConfigParam(r)
 
+	// The read gate admits every ACL-granted member, so gate ACL
+	// enumeration on the same share permission that gates updates.
+	if !api.Authorize(r, policy.ActionShare, config.RBACObject()) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	users, ok := api.mcpServerConfigACLUsers(ctx, rw, config.UserACL)
 	if !ok {
 		return
@@ -146,7 +153,7 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 
 func (api *API) mcpServerConfigACLUsers(ctx context.Context, rw http.ResponseWriter, entries database.ChatACL) ([]codersdk.MCPServerConfigUser, bool) {
 	ids := parseMCPServerConfigACLIDs(entries)
-	//nolint:gocritic // ACL readers may resolve principals after the config read gate passes.
+	//nolint:gocritic // ACL managers may resolve principals after the share gate passes.
 	users, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), ids)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -167,7 +174,7 @@ func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWr
 	var groups []database.GetGroupsRow
 	if len(ids) > 0 {
 		var err error
-		//nolint:gocritic // ACL readers may resolve principals after the config read gate passes.
+		//nolint:gocritic // ACL managers may resolve principals after the share gate passes.
 		groups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: ids})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -180,7 +187,7 @@ func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWr
 		for _, group := range groups {
 			groupIDs = append(groupIDs, group.Group.ID)
 		}
-		//nolint:gocritic // ACL readers may resolve group sizes after the config read gate passes.
+		//nolint:gocritic // ACL managers may resolve group sizes after the share gate passes.
 		countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
 			GroupIds:      groupIDs,
 			IncludeSystem: false,
