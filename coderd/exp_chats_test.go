@@ -402,6 +402,65 @@ func TestPostChats(t *testing.T) {
 		require.ElementsMatch(t, expectedProfile.AllowList, keys[0].AllowList)
 	})
 
+	t.Run("AIAgentToolSubject", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, api := newChatClientWithAPIAndDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID, Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello from tool subject test",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Verifying internal identity state requires system access.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		agent, err := db.GetAIAgentByOrigin(sysCtx, database.GetAIAgentByOriginParams{
+			OriginType: database.AIAgentOriginChat,
+			OriginID:   chat.ID,
+		})
+		require.NoError(t, err)
+
+		// Without a context actor: plain owner subject, acting = owner.
+		subject, actingUserID, err := coderd.ChatToolSubject(api, ctx, member.ID)
+		require.NoError(t, err)
+		require.Equal(t, rbac.SubjectTypeUser, subject.Type)
+		require.Equal(t, member.ID, actingUserID)
+
+		// With the chat's AI agent actor: agent-typed subject narrowed to
+		// the chat profile scope, acting = agent user.
+		actorCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
+			AgentUserID: agent.UserID,
+			OwnerUserID: agent.OwnerUserID,
+			OriginType:  agent.OriginType,
+			OriginID:    agent.OriginID,
+		})
+		subject, actingUserID, err = coderd.ChatToolSubject(api, actorCtx, member.ID)
+		require.NoError(t, err)
+		require.Equal(t, rbac.SubjectTypeAIAgent, subject.Type)
+		require.Equal(t, agent.UserID, actingUserID)
+		require.Equal(t, member.ID.String(), subject.ID, "authorization identity must remain the owner")
+
+		// Mismatched sponsor fails closed.
+		wrongCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
+			AgentUserID: agent.UserID,
+			OwnerUserID: uuid.New(),
+			OriginType:  agent.OriginType,
+			OriginID:    agent.OriginID,
+		})
+		_, _, err = coderd.ChatToolSubject(api, wrongCtx, member.ID)
+		require.Error(t, err)
+	})
+
 	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
 		t.Parallel()
 
