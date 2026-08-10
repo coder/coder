@@ -421,7 +421,7 @@ func (server *Server) prepareGeneration(
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	if isRootChat {
-		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+		tools, err = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
 			workspaceCtx:    &workspaceCtx,
@@ -430,6 +430,9 @@ func (server *Server) prepareGeneration(
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
 		})
+		if err != nil {
+			return generationPrepared{}, xerrors.Errorf("append root chat tools: %w", err)
+		}
 	}
 
 	skillOpts := chattool.ReadSkillOptions{

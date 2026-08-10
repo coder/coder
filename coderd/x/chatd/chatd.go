@@ -3867,35 +3867,40 @@ func (p *Server) loadPersonalSkillBody(
 }
 
 // chatAIAgentActor resolves the chat's AI agent identity for in-process
-// platform tool attribution. Returns false for chats predating AI agent
-// identities (fallback: owner execution) and for revoked identities.
-func (p *Server) chatAIAgentActor(ctx context.Context, chat database.Chat) (aiagentidentity.AIAgentActor, bool) {
+// platform tool attribution. It returns ok=false only for chats that never had
+// an identity, which may fall back to owner execution. Revoked identities and
+// lookup failures return an error so callers fail closed.
+func (p *Server) chatAIAgentActor(ctx context.Context, chat database.Chat) (aiagentidentity.AIAgentActor, bool, error) {
 	//nolint:gocritic // Resolving internal AI agent metadata requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	agent, err := p.db.GetAIAgentByOrigin(systemCtx, database.GetAIAgentByOriginParams{
+	agent, err := p.db.GetAIAgentByOriginIncludingDeleted(systemCtx, database.GetAIAgentByOriginIncludingDeletedParams{
 		OriginType: database.AIAgentOriginChat,
 		OriginID:   chat.ID,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return aiagentidentity.AIAgentActor{}, false, nil
+	}
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			p.logger.Warn(ctx, "resolve chat AI agent identity",
-				slog.Error(err), slog.F("chat_id", chat.ID))
-		}
-		return aiagentidentity.AIAgentActor{}, false
+		p.logger.Warn(ctx, "resolve chat AI agent identity",
+			slog.Error(err), slog.F("chat_id", chat.ID))
+		return aiagentidentity.AIAgentActor{}, false, xerrors.Errorf("resolve chat AI agent identity: %w", err)
+	}
+	if agent.Deleted {
+		return aiagentidentity.AIAgentActor{}, false, xerrors.Errorf("resolve chat AI agent identity: %w", aiagentidentity.ErrAIAgentDeleted)
 	}
 	return aiagentidentity.AIAgentActor{
 		AgentUserID: agent.UserID,
 		OwnerUserID: agent.OwnerUserID,
 		OriginType:  agent.OriginType,
 		OriginID:    agent.OriginID,
-	}, true
+	}, true, nil
 }
 
 func (p *Server) appendRootChatTools(
 	ctx context.Context,
 	tools []fantasy.AgentTool,
 	opts rootChatToolsOptions,
-) []fantasy.AgentTool {
+) ([]fantasy.AgentTool, error) {
 	onChatUpdated := func(updatedChat database.Chat) {
 		opts.workspaceCtx.selectWorkspace(updatedChat)
 		// Notify the frontend immediately so it can start streaming
@@ -3911,7 +3916,11 @@ func (p *Server) appendRootChatTools(
 	createFn := p.createWorkspaceFn
 	startFn := p.startWorkspaceFn
 	stopFn := p.stopWorkspaceFn
-	if actor, ok := p.chatAIAgentActor(ctx, opts.chat); ok {
+	actor, ok, err := p.chatAIAgentActor(ctx, opts.chat)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
 		if inner := p.createWorkspaceFn; inner != nil {
 			createFn = func(ctx context.Context, ownerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 				return inner(aiagentidentity.WithActor(ctx, actor), ownerID, req)
@@ -3974,7 +3983,7 @@ func (p *Server) appendRootChatTools(
 
 	return append(tools, p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
-	}, opts.modelConfigID)...)
+	}, opts.modelConfigID)...), nil
 }
 
 func appendDynamicTools(

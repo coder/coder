@@ -38,6 +38,13 @@ func TestSyntheticAPIKeyLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, firstID, secondID)
 
+	legacyChatKeyID, err := server.ensureChatGatewayKeyID(t.Context(), database.Chat{
+		ID:      uuid.New(),
+		OwnerID: user.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, firstID, legacyChatKeyID)
+
 	first, err := db.GetAPIKeyByID(t.Context(), firstID)
 	require.NoError(t, err)
 	require.Equal(t, user.LoginType, first.LoginType)

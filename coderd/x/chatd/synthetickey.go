@@ -36,7 +36,10 @@ const (
 // current key ID to the gateway. Chats predating identities fall back to
 // the per-user synthetic key.
 func (p *Server) ensureChatGatewayKeyID(ctx context.Context, chat database.Chat) (string, error) {
-	actor, ok := p.chatAIAgentActor(ctx, chat)
+	actor, ok, err := p.chatAIAgentActor(ctx, chat)
+	if err != nil {
+		return "", err
+	}
 	if !ok {
 		return p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	}
