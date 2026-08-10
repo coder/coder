@@ -111,14 +111,26 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 		aReq.Old = current
 		userACL := maps.Clone(current.UserACL)
 		groupACL := maps.Clone(current.GroupACL)
-		for id, role := range req.UserRoles {
+		for rawID, role := range req.UserRoles {
+			// Validation guarantees the key parses; canonicalize it so
+			// noncanonical spellings hit the same keys RBAC reads.
+			parsed, err := uuid.Parse(rawID)
+			if err != nil {
+				return xerrors.Errorf("parse validated user ID %q: %w", rawID, err)
+			}
+			id := parsed.String()
 			if role == codersdk.MCPServerConfigRoleDeleted {
 				delete(userACL, id)
 				continue
 			}
 			userACL[id] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
 		}
-		for id, role := range req.GroupRoles {
+		for rawID, role := range req.GroupRoles {
+			parsed, err := uuid.Parse(rawID)
+			if err != nil {
+				return xerrors.Errorf("parse validated group ID %q: %w", rawID, err)
+			}
+			id := parsed.String()
 			if role == codersdk.MCPServerConfigRoleDeleted {
 				delete(groupACL, id)
 				continue

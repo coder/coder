@@ -745,6 +745,32 @@ func TestMCPServerConfigACL(t *testing.T) {
 	require.Len(t, aclResponse.Users, 1)
 	require.Equal(t, nonMember.ID, aclResponse.Users[0].ID)
 
+	// Noncanonical UUID spellings pass validation, so grants and
+	// deletions must canonicalize to hit the same ACL keys RBAC reads.
+	err = adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			strings.ToUpper(groupMember.ID.String()): codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.NoError(t, err)
+	aclResponse, err = adminClient.MCPServerConfigACL(ctx, config.ID)
+	require.NoError(t, err)
+	require.Len(t, aclResponse.Users, 2)
+
+	err = adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			"urn:uuid:" + nonMember.ID.String():      codersdk.MCPServerConfigRoleDeleted,
+			strings.ToUpper(groupMember.ID.String()): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+	aclResponse, err = adminClient.MCPServerConfigACL(ctx, config.ID)
+	require.NoError(t, err)
+	require.Empty(t, aclResponse.Users)
+	_, err = nonMemberClient.MCPServerConfigByID(ctx, config.ID)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
 	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
 	err = adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
