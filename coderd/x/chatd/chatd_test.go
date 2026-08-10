@@ -6664,6 +6664,45 @@ func TestActiveServer_AnthropicUsageMatchesFinalDelta(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 150, Valid: true}, last.CacheReadTokens)
 }
 
+func TestActiveServer_AnthropicPersistsPerRequestUsage(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	anthropicURL := chattest.NewAnthropic(t, func(_ *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithMessageUsages(
+			chattest.AnthropicUsage{
+				InputTokens:              2,
+				CacheReadInputTokens:     139956,
+				CacheCreationInputTokens: 7770,
+			},
+			chattest.AnthropicUsage{
+				InputTokens:              4,
+				CacheReadInputTokens:     287682,
+				CacheCreationInputTokens: 15556,
+				OutputTokens:             4996,
+			},
+			"cached response",
+		)...)
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	messages := chatMessages(ctx, t, db, chat.ID)
+	last := messages[len(messages)-1]
+	require.Equal(t, database.ChatMessageRoleAssistant, last.Role)
+	require.Equal(t, sql.NullInt64{Int64: 139956, Valid: true}, last.CacheReadTokens)
+	require.Equal(t, sql.NullInt64{Int64: 7770, Valid: true}, last.CacheCreationTokens)
+	require.Equal(t, sql.NullInt64{Int64: 2, Valid: true}, last.InputTokens)
+	require.Equal(t, sql.NullInt64{Int64: 4996, Valid: true}, last.OutputTokens)
+	require.Equal(t, sql.NullInt64{Int64: 4998, Valid: true}, last.TotalTokens)
+}
+
 func TestActiveServer_ChatTurnDebugRunRecordsStreamStep(t *testing.T) {
 	t.Parallel()
 
