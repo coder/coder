@@ -10,6 +10,9 @@ OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
+      --agents-allowed bool (default: true)
+          Allow Coder Agents to create workspaces using this template.
+
       --default-ttl duration (default: 24h)
           Specify a default TTL for workspaces created from this template. It is
           the default time before shutdown - workspaces created from this

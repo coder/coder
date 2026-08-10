@@ -50,12 +50,11 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "blocked_users",
 			Help:      "The number of users currently over their AI budget.",
 		}, []string{"group_id"}),
-		// Pessimistic cardinality: 3 providers, 5 models = up to 15.
+		// Pessimistic cardinality: one series per configured provider and model.
 		UnpricedTokenUsageRecords: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "cost_control",
 			Name:      "unpriced_token_usage_records_total",
-			Help: "The number of recorded AI token-usage records for which no model price was found " +
-				"(provider: anthropic, openai, copilot).",
+			Help:      "The number of recorded AI token-usage records for which no (provider, model) price was found.",
 		}, []string{"provider", "model"}),
 		// Pessimistic cardinality: 3 outcomes, 8 buckets + 3 extra series
 		// (count, sum, +Inf) = up to 33.

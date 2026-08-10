@@ -67,6 +67,28 @@ export const Default: Story = {
 	},
 };
 
+export const EmptySecrets: Story = {
+	parameters: {
+		queries: [
+			{ key: oauth2ProviderAppKey(appId), data: mockApp },
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText(mockApp.name)).toBeVisible();
+		await expect(
+			canvas.getByRole("table", { name: "OAuth2 client secrets" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByText("No client secrets have been generated."),
+		).toBeVisible();
+	},
+};
+
 export const Loading: Story = {
 	parameters: {
 		queries: [],

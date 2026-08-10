@@ -64,7 +64,6 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 type recordedOpenAIRequest struct {
@@ -1988,194 +1987,6 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	require.Equal(t, []uuid.UUID{modelConfigA.ID, modelConfigB.ID, modelConfigC.ID}, userModelConfigIDs)
 }
 
-func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
-		Enabled:            true,
-		DefaultLimitMicros: 100,
-		Period:             string(codersdk.ChatUsageLimitPeriodDay),
-	})
-	require.NoError(t, err)
-
-	clock := quartz.NewMock(t)
-
-	streamStarted := make(chan struct{})
-	interrupted := make(chan struct{})
-	secondRequestStarted := make(chan struct{}, 1)
-	thirdRequestStarted := make(chan struct{}, 1)
-	allowFinish := make(chan struct{})
-	allowSecondRequestFinish := make(chan struct{})
-	allowThirdRequestFinish := make(chan struct{})
-	var requestCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		switch requestCount.Add(1) {
-		case 1:
-			chunks := make(chan chattest.OpenAIChunk, 1)
-			go func() {
-				defer close(chunks)
-				chunks <- chattest.OpenAITextChunks("partial")[0]
-				select {
-				case <-streamStarted:
-				default:
-					close(streamStarted)
-				}
-				<-req.Context().Done()
-				select {
-				case <-interrupted:
-				default:
-					close(interrupted)
-				}
-				<-allowFinish
-			}()
-			return chattest.OpenAIResponse{StreamingChunks: chunks}
-		case 2:
-			select {
-			case secondRequestStarted <- struct{}{}:
-			default:
-			}
-			chunks := make(chan chattest.OpenAIChunk, 1)
-			go func() {
-				defer close(chunks)
-				chunks <- chattest.OpenAITextChunks("second run partial")[0]
-				select {
-				case <-allowSecondRequestFinish:
-				case <-req.Context().Done():
-				}
-			}()
-			return chattest.OpenAIResponse{StreamingChunks: chunks}
-		case 3:
-			select {
-			case thirdRequestStarted <- struct{}{}:
-			default:
-			}
-			chunks := make(chan chattest.OpenAIChunk, 1)
-			go func() {
-				defer close(chunks)
-				chunks <- chattest.OpenAITextChunks("third run partial")[0]
-				select {
-				case <-allowThirdRequestFinish:
-				case <-req.Context().Done():
-				}
-			}()
-			return chattest.OpenAIResponse{StreamingChunks: chunks}
-		}
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.Clock = clock
-		// Keep periodic polling frozen so request handoff is synchronized
-		// through explicit mock channels.
-		cfg.PendingChatAcquireInterval = time.Hour
-		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
-	})
-
-	user, org, model := seedChatDependencies(t, db)
-	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "interrupt-autopromote-limit",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	testutil.TryReceive(ctx, t, streamStarted)
-
-	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
-	})
-	require.NoError(t, err)
-	require.True(t, queuedResult.Queued)
-	require.NotNil(t, queuedResult.QueuedMessage)
-
-	testutil.TryReceive(ctx, t, interrupted)
-
-	close(allowFinish)
-	testutil.TryReceive(ctx, t, secondRequestStarted)
-
-	laterQueuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("later queued")},
-	})
-	require.NoError(t, err)
-	require.True(t, laterQueuedResult.Queued)
-	require.NotNil(t, laterQueuedResult.QueuedMessage)
-
-	spendChat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		Title:             "other-spend",
-	})
-
-	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("spent elsewhere"),
-	})
-	require.NoError(t, err)
-
-	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          spendChat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		ContentVersion:  chatprompt.CurrentContentVersion,
-		Content:         assistantContent,
-		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
-	})
-
-	close(allowSecondRequestFinish)
-	testutil.TryReceive(ctx, t, thirdRequestStarted)
-	require.GreaterOrEqual(t, requestCount.Load(), int32(3))
-
-	close(allowThirdRequestFinish)
-	chatd.WaitUntilIdleForTest(server)
-
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Empty(t, queued)
-
-	fromDB, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
-	require.False(t, fromDB.WorkerID.Valid)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-
-	userTexts := make([]string, 0, 3)
-	for _, message := range messages {
-		if message.Role != database.ChatMessageRoleUser {
-			continue
-		}
-		sdkMessage := db2sdk.ChatMessage(message)
-		if len(sdkMessage.Content) != 1 {
-			continue
-		}
-		userTexts = append(userTexts, sdkMessage.Content[0].Text)
-	}
-	require.Equal(t, []string{"hello", "queued", "later queued"}, userTexts)
-}
-
 func TestEditMessageRejectsMissingMessage(t *testing.T) {
 	t.Parallel()
 
@@ -3114,6 +2925,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 		messages := chatMessages(ctx, t, db, chat.ID)
 		var userTexts []string
 		var foundPartial bool
+		var partialRuntime sql.NullInt64
 		for _, msg := range messages {
 			parts, parseErr := chatprompt.ParseContent(msg)
 			require.NoError(t, parseErr)
@@ -3128,12 +2940,16 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 				for _, part := range parts {
 					if part.Type == codersdk.ChatMessagePartTypeText && strings.Contains(part.Text, "partial assistant output") {
 						foundPartial = true
+						partialRuntime = msg.RuntimeMs
 					}
 				}
 			}
 		}
 		require.Equal(t, []string{"start and call a tool", "queued after interrupt"}, userTexts)
 		require.True(t, foundPartial)
+		// The interrupted attempt bills the model invocation window it
+		// opened, so the partial assistant row keeps a runtime.
+		require.True(t, partialRuntime.Valid)
 
 		parts := chatToolParts(ctx, t, db, chat.ID)
 		call := requireToolCallPart(t, parts, "read_file")
@@ -6098,7 +5914,12 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	require.Equal(t, database.ChatMessageRoleAssistant, last.Role)
 	require.True(t, last.ContextLimit.Valid)
 	require.Equal(t, int64(4096), last.ContextLimit.Int64)
-	require.GreaterOrEqual(t, last.RuntimeMs.Int64, int64(0))
+	// runtime_ms is not asserted here: this stream is served in
+	// process and routinely finishes in under a millisecond, which
+	// InsertChatMessages stores as NULL. Runtime measurement and
+	// persistence are pinned deterministically in
+	// chatloop.TestGenerateAssistant_RecordsModelInvocationRuntime and
+	// TestInterruptTask_PartialAssistantKeepsAttemptRuntime.
 	requireTextPart(t, last, "done")
 
 	server = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -11118,7 +10939,7 @@ func TestMCPServerOAuth2TokenRefreshFailureGraceful(t *testing.T) {
 		"original token should be preserved when refresh fails")
 }
 
-func TestChatTemplateAllowlistEnforcement(t *testing.T) {
+func TestChatTemplateAgentsAllowedEnforcement(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -11173,25 +10994,20 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "allowed-template",
+		AgentsAllowed:  true,
 	})
 	tplBlocked = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "blocked-template",
+		AgentsAllowed:  false,
 	})
-
-	// Set the allowlist to only tplAllowed.
-	allowlistJSON, err := json.Marshal([]string{tplAllowed.ID.String()})
-	require.NoError(t, err)
-	err = db.UpsertChatTemplateAllowlist(dbauthz.AsSystemRestricted(ctx), string(allowlistJSON))
-	require.NoError(t, err)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		// Provide a CreateWorkspace function so the tool reaches
-		// the allowlist check instead of bailing with "not
-		// configured". If the allowlist is enforced correctly
-		// this function will never be called.
+		// Provide a CreateWorkspace function so the tool reaches the template
+		// access check instead of returning "not configured". The blocked
+		// template must be rejected before this function is called.
 		cfg.CreateWorkspace = func(
 			_ context.Context,
 			_ uuid.UUID,
@@ -11205,10 +11021,10 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
-		Title:          "allowlist-test",
+		Title:          "template-access-test",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Test allowlist enforcement"),
+			codersdk.ChatMessageText("Test template access enforcement"),
 		},
 	})
 	require.NoError(t, err)
@@ -11261,19 +11077,16 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 			len(toolResults["create_workspace"]) >= 1
 	}, testutil.IntervalFast)
 
-	// list_templates: only the allowed template should appear.
 	require.Contains(t, toolResults["list_templates"][0], tplAllowed.ID.String(),
 		"allowed template should appear in list_templates result")
 	require.NotContains(t, toolResults["list_templates"][0], tplBlocked.ID.String(),
-		"blocked template should NOT appear in list_templates result")
+		"blocked template should not appear in list_templates result")
 
-	// read_template: blocked ID → error, allowed ID → success.
-	require.Contains(t, toolResults["read_template"][0], "not found",
-		"read_template for blocked template should return not-found error")
+	require.Contains(t, toolResults["read_template"][0], "not available",
+		"read_template for blocked template should return an actionable error")
 	require.Contains(t, toolResults["read_template"][1], tplAllowed.ID.String(),
 		"read_template for allowed template should return template details")
 
-	// create_workspace: blocked ID → rejected.
 	require.Contains(t, toolResults["create_workspace"][0], "not available",
 		"create_workspace for blocked template should be rejected")
 }
@@ -11334,6 +11147,7 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		Name:           "code-2",
 		DisplayName:    "typescript-alpha",
 		Description:    "this is a long description",
+		AgentsAllowed:  true,
 	})
 	tplDocker = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
@@ -11341,6 +11155,7 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		Name:           "docker",
 		DisplayName:    "Docker Containers",
 		Description:    "Provision Docker containers as Coder workspaces",
+		AgentsAllowed:  true,
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {

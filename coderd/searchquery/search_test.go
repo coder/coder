@@ -342,6 +342,13 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "IncludeAgentMetadata",
+			Query: `include_agent_metadata:"task_status" include_agent_metadata:"cpu"`,
+			Expected: database.GetWorkspacesParams{
+				IncludeAgentMetadata: []string{"task_status", "cpu"},
+			},
+		},
+		{
 			Name:  "SharedWithMe",
 			Query: `shared_with_user:me`,
 			Setup: func(t *testing.T, db database.Store) {
@@ -414,6 +421,27 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 			Expected: database.GetWorkspacesParams{
 				SharedWithGroupID: uuid.MustParse("3c831688-0a5a-45a2-a796-f7648874df34"),
+			},
+		},
+		{
+			Name: "SharedWithGroupInOrgMixedCase",
+			// The parser lowercases the whole query, so a group whose stored
+			// name contains uppercase letters must still resolve. See
+			// GetGroupByOrgAndName, which matches the name case-insensitively.
+			Query: "shared_with_group:wibble/SupportShare",
+			Setup: func(t *testing.T, db database.Store) {
+				org := dbgen.Organization(t, db, database.Organization{
+					ID:   uuid.MustParse("b5f9d1f4-6d0e-4f6a-9a4a-7b2c3d4e5f60"),
+					Name: "wibble",
+				})
+				dbgen.Group(t, db, database.Group{
+					ID:             uuid.MustParse("1a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d"),
+					Name:           "SupportShare",
+					OrganizationID: org.ID,
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithGroupID: uuid.MustParse("1a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d"),
 			},
 		},
 		{
@@ -519,6 +547,10 @@ func TestSearchWorkspace(t *testing.T) {
 				if len(c.Expected.HasAgentStatuses) == len(values.HasAgentStatuses) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasAgentStatuses = values.HasAgentStatuses
+				}
+				if len(c.Expected.IncludeAgentMetadata) == len(values.IncludeAgentMetadata) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.IncludeAgentMetadata = values.IncludeAgentMetadata
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
@@ -959,6 +991,20 @@ func TestSearchTemplates(t *testing.T) {
 					Bool:  false,
 					Valid: false,
 				},
+			},
+		},
+		{
+			Name:  "AgentsAllowedTrue",
+			Query: "agents-allowed:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				AgentsAllowed: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "AgentsAllowedFalse",
+			Query: "agents-allowed:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				AgentsAllowed: sql.NullBool{Bool: false, Valid: true},
 			},
 		},
 		{

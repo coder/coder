@@ -56,7 +56,7 @@ func (c *Client) OAuth2ProviderApps(ctx context.Context, filter OAuth2ProviderAp
 		return []OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var apps []OAuth2ProviderApp
-	return apps, json.NewDecoder(res.Body).Decode(&apps)
+	return apps, ReadBodyAsJSON(res, &apps)
 }
 
 // OAuth2ProviderApp returns an application configured to authenticate using
@@ -71,7 +71,7 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 		return OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var apps OAuth2ProviderApp
-	return apps, json.NewDecoder(res.Body).Decode(&apps)
+	return apps, ReadBodyAsJSON(res, &apps)
 }
 
 type PostOAuth2ProviderAppRequest struct {
@@ -92,7 +92,7 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 		return OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderApp
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type PutOAuth2ProviderAppRequest struct {
@@ -113,7 +113,7 @@ func (c *Client) PutOAuth2ProviderApp(ctx context.Context, id uuid.UUID, app Put
 		return OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderApp
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteOAuth2ProviderApp deletes an application, also invalidating any tokens
@@ -153,7 +153,7 @@ func (c *Client) OAuth2ProviderAppSecrets(ctx context.Context, appID uuid.UUID) 
 		return []OAuth2ProviderAppSecret{}, ReadBodyAsError(res)
 	}
 	var resp []OAuth2ProviderAppSecret
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // PostOAuth2ProviderAppSecret creates a new secret for an OAuth2 application.
@@ -168,7 +168,7 @@ func (c *Client) PostOAuth2ProviderAppSecret(ctx context.Context, appID uuid.UUI
 		return OAuth2ProviderAppSecretFull{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderAppSecretFull
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteOAuth2ProviderAppSecret deletes a secret from an OAuth2 application,
@@ -209,7 +209,7 @@ func (c *Client) OAuth2ProviderSettings(ctx context.Context) (OAuth2ProviderSett
 		return OAuth2ProviderSettings{}, ReadBodyAsError(res)
 	}
 	var settings OAuth2ProviderSettings
-	return settings, json.NewDecoder(res.Body).Decode(&settings)
+	return settings, ReadBodyAsJSON(res, &settings)
 }
 
 // PutOAuth2ProviderSettings modifies the deployment-wide OAuth2 provider settings.
@@ -223,7 +223,7 @@ func (c *Client) PutOAuth2ProviderSettings(ctx context.Context, settings OAuth2P
 		return OAuth2ProviderSettings{}, ReadBodyAsError(res)
 	}
 	var updated OAuth2ProviderSettings
-	return updated, json.NewDecoder(res.Body).Decode(&updated)
+	return updated, ReadBodyAsJSON(res, &updated)
 }
 
 type OAuth2ProviderGrantType string
@@ -611,7 +611,7 @@ func (c *Client) PostOAuth2ClientRegistration(ctx context.Context, req OAuth2Cli
 		return OAuth2ClientRegistrationResponse{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ClientRegistrationResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetOAuth2ClientConfiguration retrieves client configuration (RFC 7592)
@@ -628,7 +628,7 @@ func (c *Client) GetOAuth2ClientConfiguration(ctx context.Context, clientID stri
 		return OAuth2ClientConfiguration{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ClientConfiguration
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // PutOAuth2ClientConfiguration updates client configuration (RFC 7592)
@@ -645,7 +645,7 @@ func (c *Client) PutOAuth2ClientConfiguration(ctx context.Context, clientID stri
 		return OAuth2ClientConfiguration{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ClientConfiguration
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteOAuth2ClientConfiguration deletes client registration (RFC 7592)

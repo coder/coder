@@ -949,6 +949,7 @@ export const MockTemplate: TypesGen.Template = {
 	created_by_name: "test_creator",
 	icon: "/icon/code.svg",
 	allow_user_cancel_workspace_jobs: true,
+	agents_allowed: true,
 	failure_ttl_ms: 0,
 	time_til_dormant_ms: 0,
 	time_til_dormant_autodelete_ms: 0,
@@ -3381,7 +3382,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
-	viewAnyAIBridgeInterception: true,
+	viewAnyAIBridgeInterception: false,
 	viewAnyAIProvider: false,
 	viewAIGatewayKeys: false,
 	createOAuth2App: false,
@@ -4867,6 +4868,10 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	},
 ];
 
+export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
+	dynamic_client_registration_enabled: false,
+};
+
 export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 	[
 		{
@@ -5555,6 +5560,54 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
+
+export const MockAIBridgeSessionNetworkCalls: readonly TypesGen.AgentFirewallLog[] =
+	[
+		{
+			id: "netcall-1",
+			session_id: "firewall-session-1",
+			sequence_number: 1,
+			proto: "http",
+			method: "POST",
+			detail: "https://api.github.com/repos/coder/coder",
+			allowed: true,
+			matched_rule: "allow api.github.com",
+			created_at: "2026-03-09T09:28:16.000Z",
+		},
+		{
+			id: "netcall-2",
+			session_id: "firewall-session-1",
+			sequence_number: 2,
+			proto: "http",
+			method: "GET",
+			detail: "https://registry.npmjs.org/lodash",
+			allowed: false,
+			matched_rule: null,
+			created_at: "2026-03-09T09:28:17.000Z",
+		},
+		{
+			id: "netcall-3",
+			session_id: "firewall-session-1",
+			sequence_number: 3,
+			proto: "http",
+			method: "POST",
+			detail: "https://hooks.slack.com/services/T01",
+			allowed: false,
+			matched_rule: null,
+			created_at: "2026-03-09T09:28:18.000Z",
+		},
+		{
+			id: "netcall-4",
+			session_id: "firewall-session-1",
+			sequence_number: 4,
+			proto: "dns",
+			method: "A",
+			detail: "api.github.com",
+			allowed: true,
+			matched_rule: "allow api.github.com",
+			created_at: "2026-03-09T09:28:19.000Z",
+		},
+	];
 
 export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 	id: "7a5d6b6a-5f02-4a9c-9c4e-2b3e2a3d2f01",

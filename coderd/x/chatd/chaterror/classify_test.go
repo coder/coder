@@ -136,6 +136,54 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
+			name: "AIBudget403ClassifiesAsUsageLimit",
+			err:  xerrors.New("status 403: AI budget of US$5.00 exceeded. Please contact an administrator for more details."),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
+				Detail:     "status 403: AI budget of US$5.00 exceeded. Please contact an administrator for more details.",
+				Kind:       codersdk.ChatErrorKindUsageLimit,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 403,
+			},
+		},
+		{
+			// The SDK message reduces to a bare status line, so the
+			// text/plain body is the only usage-limit signal.
+			name: "AIBudget403PlainTextBodyClassifiesAsUsageLimit",
+			err: testProviderError(
+				`POST "http://coder-aibridge/v1/messages": 403 Forbidden`,
+				403,
+				nil,
+				[]byte("HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nAI budget of US$10.00 exceeded. Please contact an administrator for more details.\n"),
+			),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
+				Detail:     "AI budget of US$10.00 exceeded. Please contact an administrator for more details.",
+				Kind:       codersdk.ChatErrorKindUsageLimit,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 403,
+			},
+		},
+		{
+			name: "HTMLBodyDoesNotBecomeDetail",
+			err: testProviderError(
+				`POST "https://example.com/v1/messages": 403 Forbidden`,
+				403,
+				nil,
+				[]byte("HTTP/1.1 403 Forbidden\r\nContent-Type: text/html\r\n\r\n<html><body>Forbidden</body></html>"),
+			),
+			want: chaterror.ClassifiedError{
+				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+				Detail:     `POST "https://example.com/v1/messages": 403 Forbidden`,
+				Kind:       codersdk.ChatErrorKindAuth,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 403,
+			},
+		},
+		{
 			name: "ForbiddenContextLengthClassifiesAsConfig",
 			err:  xerrors.New("forbidden: context length exceeded"),
 			want: chaterror.ClassifiedError{
@@ -1619,6 +1667,106 @@ func TestClassify_MissingKeyPreClassified(t *testing.T) {
 		classified.Message,
 		"Message should be filled by terminalMessage when not set explicitly",
 	)
+}
+
+func TestClassify_BedrockCredentialResolutionDeadline(t *testing.T) {
+	t.Parallel()
+
+	// AIBridge writes credential resolution failures as a plain-text 500.
+	// The fantasy adapter's Error() returns only the SDK transport wrapper;
+	// the useful text lives solely in the response body (structured.detail).
+	// The "resolve aws credentials" pattern in configPatterns matches on
+	// the body, classifying this as a non-retryable config error instead
+	// of a retryable generic 500.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages": 500 Internal Server Error`,
+		500,
+		nil,
+		testPlainDump("text/plain", "create anthropic client: resolve AWS credentials: "+
+			"failed to refresh cached credentials, no EC2 IMDS role found, "+
+			"operation error ec2imds: GetMetadata, canceled, context deadline exceeded"),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, 500, classified.StatusCode)
+	require.Contains(t, classified.Detail, "context deadline exceeded")
+}
+
+func TestClassify_BedrockBodyOnlySignals(t *testing.T) {
+	t.Parallel()
+
+	// AIBridge returns plain-text 500 bodies for all client creation
+	// failures. The fantasy adapter's Error() returns only the transport
+	// wrapper, so the useful text lives solely in the response body.
+	// Signal patterns must check combinedText (wrapper + body) for these
+	// to classify as the correct kind instead of a retryable generic 500.
+	tests := []struct {
+		name     string
+		body     string
+		wantKind codersdk.ChatErrorKind
+		wantRet  bool
+	}{
+		{
+			name:     "OverloadedInBody",
+			body:     "upstream provider is overloaded, please retry",
+			wantKind: codersdk.ChatErrorKindOverloaded,
+			wantRet:  true,
+		},
+		{
+			name:     "AuthInBody",
+			body:     "unauthorized: the security token included in the request is invalid",
+			wantKind: codersdk.ChatErrorKindAuth,
+			wantRet:  false,
+		},
+		{
+			name:     "ConfigInBody",
+			body:     "create bedrock client: invalid model identifier for this region",
+			wantKind: codersdk.ChatErrorKindConfig,
+			wantRet:  false,
+		},
+		{
+			name:     "TimeoutInBody",
+			body:     "upstream gateway timed out waiting for a response",
+			wantKind: codersdk.ChatErrorKindTimeout,
+			wantRet:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(testProviderError(
+				`POST "https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages": 500 Internal Server Error`,
+				500,
+				nil,
+				testPlainDump("text/plain", tt.body),
+			))
+			require.Equal(t, tt.wantKind, classified.Kind, "kind")
+			require.Equal(t, tt.wantRet, classified.Retryable, "retryable")
+			require.Equal(t, 500, classified.StatusCode)
+		})
+	}
+}
+
+func TestClassify_ProviderDisabledBodyOnly(t *testing.T) {
+	t.Parallel()
+
+	// AIBridge writes the provider_disabled sentinel as a plain-text 503
+	// body. The fantasy adapter's Error() returns only the transport
+	// wrapper, so the sentinel lives solely in the response body.
+	// Without checking combinedText, the 503 status code would match the
+	// timeout rule and classify as retryable instead of non-retryable.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages": 503 Service Unavailable`,
+		503,
+		nil,
+		testPlainDump("text/plain", `provider_disabled: AI provider "anthropic" is disabled`),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindProviderDisabled, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, 503, classified.StatusCode)
 }
 
 func testProviderError(

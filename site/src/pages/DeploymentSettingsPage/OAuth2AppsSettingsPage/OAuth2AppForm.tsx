@@ -6,13 +6,13 @@ import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
+import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
-import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
 import {
 	getFormHelpers,
 	iconValidator,
@@ -109,6 +109,12 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 		form.dirty && !form.isSubmitting,
 	);
 
+	const handleIconChange = (value: string) => {
+		void form.setFieldValue("icon", value);
+		void form.setFieldTouched("icon", true);
+		onIconChange?.(value);
+	};
+
 	return (
 		<Form onSubmit={form.handleSubmit}>
 			<FormFields>
@@ -134,15 +140,13 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					<div className="text-xs text-content-secondary">
 						Optional. URL or emoji shown for this application.
 					</div>
-					<IconPickerField
+					<IconField
 						id="icon"
 						value={form.values.icon}
 						disabled={formDisabled}
-						onChange={(value) => {
-							void form.setFieldValue("icon", value);
-							void form.setFieldTouched("icon", true);
-							onIconChange?.(value);
-						}}
+						label={null}
+						onChange={(event) => handleIconChange(event.target.value)}
+						onPickEmoji={handleIconChange}
 					/>
 					{iconField.error ? (
 						<span className="text-xs text-content-destructive">

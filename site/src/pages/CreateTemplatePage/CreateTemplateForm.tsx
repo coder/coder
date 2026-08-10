@@ -1,5 +1,3 @@
-import Link from "@mui/material/Link";
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
@@ -29,12 +27,16 @@ import {
 	FormSection,
 	HorizontalForm,
 } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Textarea } from "#/components/Textarea/Textarea";
 import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
 import { SelectedTemplate } from "#/pages/CreateWorkspacePage/SelectedTemplate";
+import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
@@ -228,6 +230,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 		onSubmit,
 	});
 	const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
+	const descriptionField = getFieldHelpers("description", {
+		maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+	});
+	const descriptionHelperId = `${descriptionField.id}-helper`;
 
 	const permittedOrgsQuery = useQuery({
 		...permittedOrganizations({
@@ -318,13 +324,13 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 						<SelectedTemplate template={props.copiedTemplate} />
 					)}
 
-					<TextField
-						{...getFieldHelpers("name")}
+					<FormField
+						field={getFieldHelpers("name")}
+						label="Name"
 						disabled={isSubmitting}
 						onChange={onChangeTrimmed(form)}
-						fullWidth
 						required
-						label="Name"
+						className="w-full"
 					/>
 				</FormFields>
 			</FormSection>
@@ -335,23 +341,45 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 				description="A friendly name, description, and icon to help developers identify your template."
 			>
 				<FormFields>
-					<TextField
-						{...getFieldHelpers("display_name")}
-						disabled={isSubmitting}
-						fullWidth
+					<FormField
+						field={getFieldHelpers("display_name")}
 						label="Display name"
+						disabled={isSubmitting}
+						className="w-full"
 					/>
 
-					<TextField
-						{...getFieldHelpers("description", {
-							maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
-						})}
-						disabled={isSubmitting}
-						rows={5}
-						multiline
-						fullWidth
-						label="Description"
-					/>
+					<div className="flex flex-col gap-2">
+						<Label htmlFor={descriptionField.id}>Description</Label>
+						<Textarea
+							id={descriptionField.id}
+							name={descriptionField.name}
+							value={descriptionField.value ?? ""}
+							onChange={descriptionField.onChange}
+							onBlur={descriptionField.onBlur}
+							disabled={isSubmitting}
+							rows={5}
+							aria-invalid={descriptionField.error}
+							aria-describedby={
+								descriptionField.helperText ? descriptionHelperId : undefined
+							}
+							className={cn(
+								descriptionField.error && "border-border-destructive",
+							)}
+						/>
+						{descriptionField.helperText && (
+							<span
+								id={descriptionHelperId}
+								className={cn(
+									"text-xs",
+									descriptionField.error
+										? "text-content-destructive"
+										: "text-content-secondary",
+								)}
+							>
+								{descriptionField.helperText}
+							</span>
+						)}
+					</div>
 
 					<IconField
 						{...getFieldHelpers("icon")}
@@ -369,7 +397,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 					description={
 						<>
 							Tags are a way to control which provisioner daemons complete which
-							build jobs.&nbsp;
+							build jobs.{" "}
 							<Link
 								href={docs("/admin/provisioners")}
 								target="_blank"
@@ -427,20 +455,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 					<button
 						type="button"
 						onClick={onOpenBuildLogsDrawer}
-						css={(theme) => ({
-							backgroundColor: "transparent",
-							border: 0,
-							fontWeight: 500,
-							fontSize: 14,
-							cursor: "pointer",
-							color: theme.palette.text.secondary,
-
-							"&:hover": {
-								textDecoration: "underline",
-								textUnderlineOffset: 4,
-								color: theme.palette.text.primary,
-							},
-						})}
+						className="cursor-pointer border-0 bg-transparent text-sm font-medium text-content-secondary hover:text-content-primary hover:underline hover:underline-offset-4"
 					>
 						Show build logs
 					</button>

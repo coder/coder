@@ -272,6 +272,9 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	}
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
+	// include_agent_metadata expands the response with the named agent
+	// metadata keys; it does not filter the returned workspaces.
+	filter.IncludeAgentMetadata = parser.Strings(values, []string{}, "include_agent_metadata")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
 	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", actorID)
@@ -347,6 +350,7 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
+		AgentsAllowed:    parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
 		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
 		AuthorUsername:   parser.String(values, "", "author"),
 		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),

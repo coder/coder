@@ -11,7 +11,7 @@ import {
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { v4 as uuidv4 } from "uuid";
-import { chatDiffContentsKey } from "#/api/queries/chats";
+import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	AgentChatSendShortcut,
@@ -33,6 +33,7 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
+import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import type { useChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
@@ -70,7 +71,6 @@ import {
 	getPersistedSidebarTabId,
 	savePersistedSidebarTabId,
 } from "./utils/sidebarTabStorage";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -407,10 +407,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const handleRefresh = () => {
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
-			void queryClient.invalidateQueries({
-				queryKey: chatDiffContentsKey(agentId),
-				exact: true,
-			});
+			void invalidateChatDiffContents(queryClient, agentId);
 		}
 		return sent;
 	};

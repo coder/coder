@@ -17,7 +17,7 @@ const OTHER_ORG_MESSAGE =
 	"This user's AI budget is managed by a group in another organization and isn't visible here.";
 
 /**
- * The AI budget and Budget group cells for a group member. Spend is scoped to
+ * The AI spend and Budget group cells for a group member. Spend is scoped to
  * the viewed group; the limit comes from the member's effective group.
  */
 export const GroupMemberBudgetCells: FC<{

@@ -18,23 +18,30 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	addChildToParentInCache,
 	applyChatArchiveStateToCaches,
+	applyWatchedChatArchived,
+	applyWatchedChatCreatedOrUnarchived,
 	archiveChat,
 	cancelChatListRefetches,
-	chatCostKey,
-	chatDiffContentsKey,
-	chatKey,
+	cancelLoadedChatEntityRefetch,
+	chatEntityKey,
 	chatModelConfigs,
 	chatModels,
-	chatsByWorkspaceKeyPrefix,
 	infiniteChats,
+	invalidateChatCostTree,
+	invalidateChatDiffContents,
+	invalidateChatEntity,
 	invalidateChatListQueries,
+	invalidateChatSearches,
+	invalidateChatsByWorkspace,
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
 	readInfiniteChatsCache,
-	removeChildFromParentInCache,
+	removeChatFromChatsByWorkspace,
 	reorderPinnedChat,
+	shouldInvalidateChatSearches,
+	shouldInvalidateChatsByWorkspace,
 	unarchiveChat,
 	unpinChat,
 	updateChatTitle,
@@ -48,8 +55,8 @@ import {
 	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationName,
@@ -59,6 +66,11 @@ import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./components/ChatConversation/chatError";
+import { getChatCostTreeID } from "./components/ChatConversation/chatHelpers";
 import { isActiveChatStatus } from "./components/ChatConversation/chatStore";
 import {
 	ChatsSidebar,
@@ -84,10 +96,6 @@ import {
 } from "./utils/modelOptions";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-} from "./utils/usageLimitMessage";
 
 export interface AgentsPageOutletContext {
 	chatErrorReasons: Record<string, ChatDetailError>;
@@ -126,32 +134,25 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
-// Chat IDs whose cost queries must refetch after a watch event, or an
-// empty array when the event cannot change any cost. Cost accrues while
-// a chat generates, so refetch when a status change lands in a
-// non-active status. The cost endpoint sums the requested chat's
-// subtree (GetChatModelUsageCostByChatID walks parent_chat_id), so a
-// subagent going idle must also refresh its ancestors' rolled-up
-// totals. The watch payload only carries the immediate parent and the
-// root, which covers every ancestor for nesting up to two levels deep;
-// deeper intermediate ancestors are refreshed by the query staleTime.
-export const chatCostIdsToInvalidate = (
+// Summary and title generation can bill after the turn reports a non-active
+// status, so invalidate the root-keyed cost query when those events arrive.
+const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"chat_summary_change",
+	"summary_change",
+	"title_change",
+]);
+
+export const chatCostIdToInvalidate = (
 	chat: TypesGen.Chat,
 	eventKind: TypesGen.ChatWatchEventKind,
-): readonly string[] => {
+): string | undefined => {
+	if (POST_TURN_BILLED_EVENT_KINDS.has(eventKind)) {
+		return getChatCostTreeID(chat);
+	}
 	if (eventKind !== "status_change" || isActiveChatStatus(chat.status)) {
-		return [];
+		return undefined;
 	}
-	// root_chat_id is self-referential on root chats and parent_chat_id
-	// equals root_chat_id at depth one; the set dedupes both cases.
-	const ids = new Set([chat.id]);
-	if (chat.parent_chat_id) {
-		ids.add(chat.parent_chat_id);
-	}
-	if (chat.root_chat_id) {
-		ids.add(chat.root_chat_id);
-	}
-	return [...ids];
+	return getChatCostTreeID(chat);
 };
 
 const AgentsPageLayout: FC = () => {
@@ -305,17 +306,14 @@ const AgentsPageLayout: FC = () => {
 			),
 		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
+			removeChatFromChatsByWorkspace(queryClient, chatId);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
 			clearPersistedRightPanelState(chatId);
 			void invalidateChatListQueries(queryClient);
-			void queryClient.invalidateQueries({
-				queryKey: chatKey(chatId),
-				exact: true,
-			});
-			void queryClient.invalidateQueries({
-				queryKey: chatsByWorkspaceKeyPrefix,
-			});
+			void invalidateChatEntity(queryClient, chatId);
+			void invalidateChatsByWorkspace(queryClient);
+			void invalidateChatSearches(queryClient);
 			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
 				username: user.username,
@@ -416,7 +414,7 @@ const AgentsPageLayout: FC = () => {
 			return;
 		}
 		const chat =
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)) ??
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)) ??
 			chatList.find((candidate) => candidate.id === chatId);
 		if (chat === undefined || isActiveChat(chat)) {
 			setPendingArchiveChatId(chatId);
@@ -451,7 +449,7 @@ const AgentsPageLayout: FC = () => {
 				// callback time so it reflects the user's current
 				// location.
 				activeChatId
-					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
+					? queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(activeChatId))
 							?.root_chat_id
 					: undefined,
 			)
@@ -584,6 +582,7 @@ const AgentsPageLayout: FC = () => {
 			return changed ? next : chats;
 		});
 		void invalidateChatListQueries(queryClient);
+		void invalidateChatSearches(queryClient);
 	}, [agentId, queryClient]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
@@ -612,30 +611,19 @@ const AgentsPageLayout: FC = () => {
 					}
 
 					if (chatEvent.kind === "deleted") {
-						// Drop the chat from the flat root list (root or
-						// cascade via root_chat_id) and from any parent's
-						// embedded children (individual child archive).
-						updateInfiniteChatsCache(queryClient, (chats) =>
-							chats.filter(
-								(c) =>
-									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
-							),
-						);
-						removeChildFromParentInCache(queryClient, updatedChat.id);
-						queryClient.removeQueries({
-							queryKey: chatKey(updatedChat.id),
-							exact: true,
-						});
+						// The server publishes `deleted` when a chat is
+						// archived (one event per family member); there is
+						// no hard-delete wire event. Patch archive state in
+						// place so an open route stays mounted and flips to
+						// its read-only state.
+						applyWatchedChatArchived(queryClient, updatedChat);
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
 						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
 						// chatKey and infinite-list caches below.
-						void queryClient.invalidateQueries({
-							queryKey: chatDiffContentsKey(updatedChat.id),
-							exact: true,
-						});
+						void invalidateChatDiffContents(queryClient, updatedChat.id);
 					}
 					// Merge watch payloads by event kind so stale field
 					// snapshots do not clobber fresher cached metadata.
@@ -649,17 +637,7 @@ const AgentsPageLayout: FC = () => {
 					// title generation finished, so its response carries
 					// the fallback title.
 					void cancelChatListRefetches(queryClient);
-					// Only cancel a per-chat refetch when the cache
-					// already has data. Cancelling a first-time fetch
-					// reverts the query to pending/idle with no data
-					// and no retry, which AgentChatPage shows as
-					// "Chat not found".
-					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
-						void queryClient.cancelQueries({
-							queryKey: chatKey(updatedChat.id),
-							exact: true,
-						});
-					}
+					void cancelLoadedChatEntityRefetch(queryClient, updatedChat.id);
 
 					if (chatEvent.kind === "created") {
 						if (updatedChat.parent_chat_id) {
@@ -671,9 +649,23 @@ const AgentsPageLayout: FC = () => {
 								updatedChat,
 								updatedChat.parent_chat_id,
 							);
+							// A family unarchive and a new sub-agent with a
+							// mounted initial fetch both need entity recovery.
+							const cachedChat = queryClient.getQueryData<TypesGen.Chat>(
+								chatEntityKey(updatedChat.id),
+							);
+							if (
+								cachedChat?.archived ||
+								(cachedChat === undefined &&
+									queryClient.getQueryState(chatEntityKey(updatedChat.id)) !==
+										undefined)
+							) {
+								applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
+							}
 						} else {
+							// `created` also fires for unarchive transitions.
+							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
 							prependToInfiniteChatsCache(queryClient, updatedChat);
-							void invalidateChatListQueries(queryClient);
 						}
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
@@ -683,14 +675,18 @@ const AgentsPageLayout: FC = () => {
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
 						}
-						for (const costChatId of chatCostIdsToInvalidate(
+						if (shouldInvalidateChatSearches(chatEvent.kind)) {
+							void invalidateChatSearches(queryClient);
+						}
+						if (shouldInvalidateChatsByWorkspace(chatEvent.kind)) {
+							void invalidateChatsByWorkspace(queryClient);
+						}
+						const costChatId = chatCostIdToInvalidate(
 							updatedChat,
 							chatEvent.kind,
-						)) {
-							void queryClient.invalidateQueries({
-								queryKey: chatCostKey(costChatId),
-								exact: true,
-							});
+						);
+						if (costChatId) {
+							void invalidateChatCostTree(queryClient, costChatId);
 						}
 						if (chatEvent.kind === "context_dirty") {
 							// The watch payload carries only the lightweight
@@ -699,10 +695,7 @@ const AgentsPageLayout: FC = () => {
 							// resources the single-chat GET computes. Only the
 							// active chat has an observer, so other chats are
 							// merely marked stale.
-							void queryClient.invalidateQueries({
-								queryKey: chatKey(updatedChat.id),
-								exact: true,
-							});
+							void invalidateChatEntity(queryClient, updatedChat.id);
 						}
 					}
 				});
@@ -710,6 +703,8 @@ const AgentsPageLayout: FC = () => {
 			},
 			onOpen() {
 				void invalidateChatListQueries(queryClient);
+				void invalidateChatsByWorkspace(queryClient);
+				void invalidateChatSearches(queryClient);
 			},
 		});
 	}, [queryClient]);
@@ -739,7 +734,6 @@ const AgentsPageLayout: FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
-	const isAnalytics = sidebarView.panel === "analytics";
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -789,7 +783,7 @@ const AgentsPageLayout: FC = () => {
 						"sm:h-full sm:min-h-0 sm:border-b-0",
 						agentId
 							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-							: isSettingsDetail || isAnalytics
+							: isSettingsDetail
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-none flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",

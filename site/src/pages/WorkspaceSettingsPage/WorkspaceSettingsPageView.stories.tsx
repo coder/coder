@@ -46,7 +46,6 @@ export const UpdateAutomaticUpdatesPolicy: Story = {
 		await waitFor(() =>
 			expect(args.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({ automatic_updates: "always" }),
-				// formik passes its helper bag as the second argument.
 				expect.anything(),
 			),
 		);
