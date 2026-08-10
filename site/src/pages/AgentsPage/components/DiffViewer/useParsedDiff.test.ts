@@ -1,6 +1,7 @@
 import { parsePatchFiles } from "@pierre/diffs";
+import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { dedupeFilesByName } from "./useParsedDiff";
+import { dedupeFilesByName, useParsedDiff } from "./useParsedDiff";
 
 // Two `diff --git` sections for the same post-image path. `parsePatchFiles`
 // emits one FileDiffMetadata per section, so this is the exact shape that made
@@ -84,5 +85,42 @@ describe("dedupeFilesByName", () => {
 
 	it("returns an empty array unchanged", () => {
 		expect(dedupeFilesByName([])).toEqual([]);
+	});
+});
+
+describe("useParsedDiff", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("derives a content-specific cache key when no prefix is supplied", () => {
+		const { result } = renderHook(() => useParsedDiff(uniqueFilesDiff));
+
+		expect(result.current).toHaveLength(2);
+		// Keys are content-derived instead of bare file names, so a
+		// later diff body for the same path cannot reuse this AST.
+		for (const file of result.current) {
+			expect(file.cacheKey).toMatch(/^content-/);
+		}
+		expect(result.current[0].cacheKey).not.toBe(result.current[1].cacheKey);
+	});
+
+	it("keeps an explicit prefix when one is supplied", () => {
+		const { result } = renderHook(() =>
+			useParsedDiff(uniqueFilesDiff, "chat-1-123"),
+		);
+
+		expect(result.current[0].cacheKey).toMatch(/^chat-1-123-/);
+	});
+
+	it("gives different bodies different keys", () => {
+		const first = renderHook(() => useParsedDiff(uniqueFilesDiff));
+		const second = renderHook(() =>
+			useParsedDiff(uniqueFilesDiff.replace("const a = 2", "const a = 3")),
+		);
+
+		expect(first.result.current[0].cacheKey).not.toBe(
+			second.result.current[0].cacheKey,
+		);
 	});
 });

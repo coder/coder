@@ -1,6 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { useMemo } from "react";
+import { getContentCacheKeyPrefix } from "./diffCacheKey";
 
 // A single diff body can list the same post-image path more than once: the
 // server may concatenate several `git diff` outputs, or one patch may carry
@@ -39,10 +40,12 @@ export function useParsedDiff(
 ): FileDiffMetadata[] {
 	return useMemo(() => {
 		if (!diffString) return [];
+		// Without a prefix the diff components default every cacheKey to
+		// the file name, so two bodies for the same path collide in the
+		// worker pool and the renderer throws on the stale AST.
+		const prefix = cacheKeyPrefix ?? getContentCacheKeyPrefix(diffString);
 		try {
-			const files = parsePatchFiles(diffString, cacheKeyPrefix).flatMap(
-				(p) => p.files,
-			);
+			const files = parsePatchFiles(diffString, prefix).flatMap((p) => p.files);
 			return dedupeFilesByName(files);
 		} catch (e) {
 			console.error("Failed to parse diff:", e);
