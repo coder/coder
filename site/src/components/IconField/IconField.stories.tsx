@@ -52,9 +52,7 @@ export const OpenPicker: Story = {
 		await expect(button).toHaveAttribute("aria-expanded", "true");
 		const popover = await screen.findByRole("dialog");
 		await waitFor(() =>
-			expect(
-				popover.querySelector("em-emoji-picker"),
-			).toBeInTheDocument(),
+			expect(popover.querySelector("em-emoji-picker")).toBeInTheDocument(),
 		);
 	},
 };
