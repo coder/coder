@@ -942,7 +942,22 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := api.Database.DeleteMCPServerConfigByID(ctx, config.ID); err != nil {
+	err := api.Database.InTx(func(tx database.Store) error {
+		// Re-fetch under a row lock so the audit record describes the
+		// row this request actually removes, not a middleware snapshot
+		// that a concurrent update may have made stale.
+		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, config.ID)
+		if err != nil {
+			return err
+		}
+		aReq.Old = current
+		return tx.DeleteMCPServerConfigByID(ctx, current.ID)
+	}, nil)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete MCP server config.",
 			Detail:  err.Error(),

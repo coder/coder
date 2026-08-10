@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -361,6 +362,36 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
 	})
 
+	t.Run("DeleteAuditsPersistedRow", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		db, ps := dbtestutil.NewDB(t)
+		store := &staleMCPServerConfigReadStore{Store: db}
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+			Auditor:             mAudit,
+			Database:            store,
+			Pubsub:              ps,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		config := createMCPServerConfig(t, client, firstUser.OrganizationID, "audit-delete-stale", true)
+
+		// Simulate a concurrent update landing between the param
+		// middleware read and the delete transaction.
+		store.stale.Store(true)
+		mAudit.ResetLogs()
+		err := client.DeleteMCPServerConfig(ctx, config.ID)
+		require.NoError(t, err)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, config.DisplayName, logs[0].ResourceTarget)
+	})
+
 	t.Run("AutoDiscoveryFailureNotAudited", func(t *testing.T) {
 		t.Parallel()
 
@@ -477,6 +508,23 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
 		require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
 	})
+}
+
+// staleMCPServerConfigReadStore corrupts plain config reads once armed,
+// simulating a concurrent update that outdates the param middleware's
+// snapshot. Locked ForUpdate reads stay untouched.
+type staleMCPServerConfigReadStore struct {
+	database.Store
+
+	stale atomic.Bool
+}
+
+func (s *staleMCPServerConfigReadStore) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	config, err := s.Store.GetMCPServerConfigByID(ctx, id)
+	if err == nil && s.stale.Load() {
+		config.DisplayName = "stale middleware snapshot"
+	}
+	return config, err
 }
 
 func TestMCPServerConfigsNonAdmin(t *testing.T) {
