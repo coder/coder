@@ -25,9 +25,9 @@ jobs:
     name: Flake Check
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     # This timeout must be greater than the Go test timeout set in `make test`
-    # (-timeout 20m) so we receive a goroutine trace before the runner kills
+    # (-timeout 25m) so we receive a goroutine trace before the runner kills
     # the job. Mirrors the test-go-pg job in ci.yaml.
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
