@@ -31,17 +31,11 @@ export function dedupeFilesByName(
 	return unique;
 }
 
-// Plain function rather than a hook: the AgentsPage is opted into the React
-// Compiler, which caches this call's result by argument identity on its own,
-// so an explicit useMemo here would be redundant.
 export function parseDiffString(
 	diffString: string | undefined | null,
 	cacheKeyPrefix?: string,
 ): FileDiffMetadata[] {
 	if (!diffString) return [];
-	// Without a prefix the diff components default every cacheKey to
-	// the file name, so two bodies for the same path collide in the
-	// worker pool and the renderer throws on the stale AST.
 	const prefix = cacheKeyPrefix ?? getContentCacheKeyPrefix(diffString);
 	try {
 		const files = parsePatchFiles(diffString, prefix).flatMap((p) => p.files);

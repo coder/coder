@@ -12,15 +12,9 @@ export const getDiffCacheKeyPrefix = (
 ): string => `${prefix}-${dataUpdatedAt}`;
 
 /**
- * Build a content-derived worker-pool cache key prefix for `@pierre/diffs`.
- *
- * The worker pool caches highlighted ASTs keyed only by each file's
- * `cacheKey`, and the diff components default that key to the file name.
- * Two different diff bodies for the same path would then share one cache
- * entry, and rendering the newer diff against the older highlighted AST
- * throws inside the renderer. Hashing the patch text keeps the key stable
- * across re-renders and remounts while staying specific to the exact diff
- * body.
+ * The @pierre/diffs worker pool keys cached ASTs by file name alone, so
+ * hash the patch text to keep different diff bodies for the same path on
+ * distinct keys, stable across re-renders and remounts.
  */
 export const getContentCacheKeyPrefix = (text: string): string => {
 	// FNV-1a. The key only needs to separate different patch bodies for the
