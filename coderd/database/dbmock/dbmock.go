@@ -9429,6 +9429,21 @@ func (mr *MockStoreMockRecorder) RevokeDBCryptKey(ctx, activeKeyDigest any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), ctx, activeKeyDigest)
 }
 
+// RevokeOrphanedChatAIAgents mocks base method.
+func (m *MockStore) RevokeOrphanedChatAIAgents(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeOrphanedChatAIAgents", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RevokeOrphanedChatAIAgents indicates an expected call of RevokeOrphanedChatAIAgents.
+func (mr *MockStoreMockRecorder) RevokeOrphanedChatAIAgents(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeOrphanedChatAIAgents", reflect.TypeOf((*MockStore)(nil).RevokeOrphanedChatAIAgents), ctx)
+}
+
 // SelectUsageEventsForPublishing mocks base method.
 func (m *MockStore) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]database.UsageEvent, error) {
 	m.ctrl.T.Helper()

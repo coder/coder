@@ -443,6 +443,11 @@ func (s *MethodTestSuite) TestAIAgents() {
 		check.Args(arg).Asserts(rbac.ResourceUserObject(agent.UserID), policy.ActionRead).Returns(agent)
 	}))
 
+	s.Run("RevokeOrphanedChatAIAgents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().RevokeOrphanedChatAIAgents(gomock.Any()).Return(int64(1), nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns(int64(1))
+	}))
+
 	s.Run("GetAIAgentByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		agent := testutil.Fake(s.T(), faker, database.AIAgent{})
 		dbm.EXPECT().GetAIAgentByUserID(gomock.Any(), agent.UserID).Return(agent, nil).AnyTimes()

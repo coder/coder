@@ -1090,6 +1090,30 @@ func (q *sqlQuerier) InsertAIAgentUser(ctx context.Context, arg InsertAIAgentUse
 	return i, err
 }
 
+const revokeOrphanedChatAIAgents = `-- name: RevokeOrphanedChatAIAgents :execrows
+WITH orphaned AS (
+	UPDATE ai_agents
+	SET deleted = true
+	WHERE origin_type = 'chat'
+		AND deleted = false
+		AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.id = ai_agents.origin_id)
+	RETURNING user_id
+)
+DELETE FROM api_keys
+WHERE user_id IN (SELECT user_id FROM orphaned)
+`
+
+// Marks chat-origin AI agent identities deleted when their chat no longer
+// exists (retention purge hard-deletes chats; ai_agents.origin_id has no
+// FK) and revokes their API keys. Idempotent.
+func (q *sqlQuerier) RevokeOrphanedChatAIAgents(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeOrphanedChatAIAgents)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateAIAgentDeleted = `-- name: UpdateAIAgentDeleted :one
 UPDATE ai_agents
 SET deleted = $1

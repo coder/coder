@@ -4993,6 +4993,14 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	return r0
 }
 
+func (m queryMetricsStore) RevokeOrphanedChatAIAgents(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.RevokeOrphanedChatAIAgents(ctx)
+	m.queryLatencies.WithLabelValues("RevokeOrphanedChatAIAgents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RevokeOrphanedChatAIAgents").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]database.UsageEvent, error) {
 	start := time.Now()
 	r0, r1 := m.s.SelectUsageEventsForPublishing(ctx, now)

@@ -1336,6 +1336,10 @@ type sqlcQuerier interface {
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
+	// Marks chat-origin AI agent identities deleted when their chat no longer
+	// exists (retention purge hard-deletes chats; ai_agents.origin_id has no
+	// FK) and revokes their API keys. Idempotent.
+	RevokeOrphanedChatAIAgents(ctx context.Context) (int64, error)
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
 	// for the table.

@@ -449,6 +449,13 @@ func (*instance) purgeChatsInTx(ctx context.Context, tx database.Store, start ti
 		if err != nil {
 			return 0, 0, xerrors.Errorf("failed to delete old chat files: %w", err)
 		}
+
+		// Purged chats leave their AI agent identities behind
+		// (ai_agents.origin_id has no FK to chats): mark them deleted
+		// and revoke their API keys.
+		if _, err := tx.RevokeOrphanedChatAIAgents(ctx); err != nil {
+			return 0, 0, xerrors.Errorf("failed to revoke orphaned chat AI agents: %w", err)
+		}
 	}
 
 	return purgedChats, purgedChatFiles, nil

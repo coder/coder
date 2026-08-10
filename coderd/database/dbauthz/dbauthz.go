@@ -7080,6 +7080,14 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
 }
 
+func (q *querier) RevokeOrphanedChatAIAgents(ctx context.Context) (int64, error) {
+	// Retention-purge maintenance: revokes identities and keys system-wide.
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.RevokeOrphanedChatAIAgents(ctx)
+}
+
 func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.Time) ([]database.UsageEvent, error) {
 	// ActionUpdate because we're updating the publish_started_at column.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
