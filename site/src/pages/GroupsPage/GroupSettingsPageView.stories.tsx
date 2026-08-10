@@ -24,7 +24,7 @@ type Story = StoryObj<typeof GroupSettingsPageView>;
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Without the AI add-on, the AI budget section is hidden.
+		// Without the aibridge feature, the AI budget section is hidden.
 		await expect(canvas.queryByText("AI budget")).not.toBeInTheDocument();
 	},
 };

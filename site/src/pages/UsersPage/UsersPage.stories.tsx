@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, spyOn, userEvent, within } from "storybook/test";
+import { screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { deploymentConfigQueryKey } from "#/api/queries/deployment";
 import { groupsQueryKey } from "#/api/queries/groups";
@@ -78,34 +78,6 @@ export default meta;
 type Story = StoryObj<typeof UsersPage>;
 
 export const Loaded: Story = {};
-
-export const WithAIAddonColumn: Story = {
-	parameters: {
-		features: ["ai_governance_user_limit"],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const header = await canvas.findByRole("columnheader", {
-			name: /AI add-on/i,
-		});
-
-		await expect(header).toBeVisible();
-	},
-};
-
-export const WithoutAIAddonColumn: Story = {
-	parameters: {
-		features: ["audit_log"],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByRole("columnheader", { name: "User" });
-
-		await expect(
-			canvas.queryByRole("columnheader", { name: /AI add-on/i }),
-		).not.toBeInTheDocument();
-	},
-};
 
 export const SuspendUserSuccess: Story = {
 	play: async ({ canvasElement }) => {

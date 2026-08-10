@@ -49,18 +49,3 @@ export const GroupsHelpPopover: FC = () => {
 		</HelpPopover>
 	);
 };
-
-export const AiAddonHelpPopover: FC = () => {
-	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger size="small" />
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is the AI add-on?</HelpPopoverTitle>
-				<HelpPopoverText>
-					Users with access to AI features like AI Gateway or Tasks who are
-					actively consuming a seat.
-				</HelpPopoverText>
-			</HelpPopoverContent>
-		</HelpPopover>
-	);
-};
