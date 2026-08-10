@@ -16,7 +16,7 @@ const Example: Story = {};
 
 export const LongOrigin: Story = {
 	args: {
-		origin: "https://coder.a-very-long-subdomain.example-company-name.com",
+		origin: "https://coder.alb.eks.us-east-1.aws.internal.cdr.dev",
 	},
 };
 
