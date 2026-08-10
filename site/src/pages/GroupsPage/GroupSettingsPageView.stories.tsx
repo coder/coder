@@ -58,6 +58,14 @@ export const AIBudgetUnset: Story = {
 		).toHaveAttribute("placeholder", "no budget");
 		await expect(canvas.getByText("no budget")).toBeInTheDocument();
 		await expect(
+			canvas.getByRole("link", { name: /view docs/i }),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/ai-coder/ai-gateway/cost-controls#effective-group-resolution",
+			),
+		);
+		await expect(
 			canvas.queryByText("A $0 limit disables AI access for this group."),
 		).not.toBeInTheDocument();
 	},

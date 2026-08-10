@@ -13,6 +13,7 @@ import {
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	aiBudgetRangeError,
@@ -20,6 +21,7 @@ import {
 	maxAIBudgetDollars,
 } from "#/modules/groups";
 import { usdBudgetFormatter } from "#/utils/currency";
+import { docs } from "#/utils/docs";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -76,7 +78,18 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 			<>
 				<span className="text-left text-xs text-content-secondary">
 					This group has{" "}
-					<span className="font-medium text-content-primary">no budget</span>.
+					<span className="font-medium text-content-primary">no budget</span>{" "}
+					set.{" "}
+					<Link
+						href={docs(
+							"/ai-coder/ai-gateway/cost-controls#effective-group-resolution",
+						)}
+						target="_blank"
+						rel="noreferrer"
+						size="sm"
+					>
+						View docs
+					</Link>
 				</span>
 				{budgetValue !== "" && (
 					<Alert severity="info">
