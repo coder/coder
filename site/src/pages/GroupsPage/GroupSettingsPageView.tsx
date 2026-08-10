@@ -71,8 +71,8 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 	const budgetValue = monthlyBudgetPerMember.trim();
 	const budgetAmount = Number(budgetValue);
 
-	// Both an empty value and $0 leave the group without a budget. An explicit
-	// $0 limit additionally calls out that it disables AI access.
+	// Empty means no budget; $0 disables AI access. Only the $0 state shows an
+	// explanatory alert alongside the summary line.
 	if (budgetValue === "" || budgetAmount === 0) {
 		return (
 			<>
