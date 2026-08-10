@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import {
+	type Entitlements,
+	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
+	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
 import {
@@ -180,30 +183,24 @@ export const ManagedAgentLimitExceededWithOtherWarnings: Story = {
 	},
 };
 
-const renderLicenseBannerWithAIGovernance = ({
-	actual,
-	entitlement = "entitled",
-	limit,
+const renderLicenseBanner = ({
+	errors = [],
 	warnings = [],
+	features = {},
 }: {
-	actual: number;
-	entitlement?: "entitled" | "grace_period" | "not_entitled";
-	limit?: number;
+	errors?: string[];
 	warnings?: string[];
+	features?: Partial<Entitlements["features"]>;
 }) => {
 	const mockDashboardValue: DashboardValue = {
 		entitlements: {
 			...MockEntitlements,
 			has_license: true,
+			errors,
 			warnings,
 			features: {
 				...MockEntitlements.features,
-				ai_governance_user_limit: {
-					enabled: true,
-					entitlement,
-					actual,
-					...(limit !== undefined ? { limit } : {}),
-				},
+				...features,
 			},
 		},
 		experiments: MockExperiments,
@@ -215,11 +212,38 @@ const renderLicenseBannerWithAIGovernance = ({
 	};
 
 	return (
-		<DashboardContext.Provider value={mockDashboardValue}>
+		<DashboardContext value={mockDashboardValue}>
 			<LicenseBanner />
-		</DashboardContext.Provider>
+		</DashboardContext>
 	);
 };
+
+const renderLicenseBannerWithAIGovernance = ({
+	actual,
+	entitlement = "entitled",
+	limit,
+	warnings = [],
+}: {
+	actual: number;
+	entitlement?: "entitled" | "grace_period" | "not_entitled";
+	limit?: number;
+	warnings?: string[];
+}) =>
+	renderLicenseBanner({
+		warnings,
+		features: {
+			ai_governance_user_limit: {
+				enabled: true,
+				entitlement,
+				actual,
+				...(limit !== undefined ? { limit } : {}),
+			},
+		},
+	});
+
+// Without the data-variant assertions, every story would keep passing with
+// the muted/prominent classifier disabled.
+const mutedVariant = "warning";
 
 export const AIGovernanceNearLimit: Story = {
 	render: () =>
@@ -230,9 +254,13 @@ export const AIGovernanceNearLimit: Story = {
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("status")).toHaveTextContent(
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveTextContent(
 			"You have used 95% of your AI Governance add-on seats.",
 		);
+		// Pins the AI Governance near-limit branch of isMutedWarning,
+		// independently of the runtime soft-limit branch below.
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		await expect(
 			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
 		).toHaveAttribute("href", "mailto:sales@coder.com");
@@ -265,5 +293,58 @@ export const AIGovernanceOverLimitGracePeriod: Story = {
 		await expect(canvas.getByRole("status")).toHaveTextContent(
 			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
 		);
+	},
+};
+
+// Each entry of the frontend's diagnosticMessages set is pinned on both
+// properties the set drives: the muted variant and the suppressed sales
+// link. The "unavailable" message arrives on the errors channel; see the
+// LicenseManagedAgentUsageUnavailableErrorText doc for why.
+const playMutedDiagnostic =
+	(message: string): Story["play"] =>
+	async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveTextContent(message);
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
+		await expect(
+			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
+		).not.toBeInTheDocument();
+	};
+
+export const ManagedAgentUsageUnavailable: Story = {
+	render: () =>
+		renderLicenseBanner({
+			errors: [LicenseManagedAgentUsageUnavailableErrorText],
+		}),
+	play: playMutedDiagnostic(LicenseManagedAgentUsageUnavailableErrorText),
+};
+
+export const AgentRuntimeHoursClaimsIgnored: Story = {
+	render: () =>
+		renderLicenseBanner({
+			warnings: [LicenseAgentRuntimeHoursClaimsIgnoredWarningText],
+		}),
+	play: playMutedDiagnostic(LicenseAgentRuntimeHoursClaimsIgnoredWarningText),
+};
+
+// An all-diagnostic banner must not claim license limits were exceeded.
+export const UsageDiagnosticsOnlyHeading: Story = {
+	render: () =>
+		renderLicenseBanner({
+			errors: [LicenseManagedAgentUsageUnavailableErrorText],
+			warnings: [LicenseAgentRuntimeHoursClaimsIgnoredWarningText],
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
+		await expect(canvas.getByText("License notices")).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Your license limits have been exceeded"),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("License errors require attention"),
+		).not.toBeInTheDocument();
 	},
 };
