@@ -97,6 +97,17 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2
 				Detail: "Parameter \"client_secret\" is required and cannot be empty",
 			})
 		}
+		// A code_verifier outside RFC 7636 §4.1's bounds is a syntax error
+		// (RFC 6749 §5.2), distinct from a well-formed verifier that fails the
+		// PKCE hash comparison in authorizationCodeGrant, which RFC 7636 §4.6
+		// maps to invalid_grant instead. Checking it here, alongside the other
+		// syntax validation, keeps the two failure modes distinguishable.
+		if !ValidPKCEFormat(req.CodeVerifier) {
+			p.Errors = append(p.Errors, codersdk.ValidationError{
+				Field:  "code_verifier",
+				Detail: "must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 §4.1)",
+			})
+		}
 	}
 
 	// Validate redirect URI - errors are added to p.Errors.
@@ -158,6 +169,18 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 					return
 				}
 			}
+
+			// A malformed code_verifier gets its own message so a client that
+			// sent a well-formed but wrong verifier (rejected later, as
+			// invalid_grant, by the PKCE hash comparison) can tell the two
+			// failures apart instead of retrying the same bad verifier forever.
+			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
+				return validationError.Field == "code_verifier"
+			}) {
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 §4.1)")
+				return
+			}
+
 			// Generic invalid request for other validation errors
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The request is missing required parameters or is otherwise malformed")
 			return
@@ -277,15 +300,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		}
 	}
 
-	// PKCE is mandatory for all authorization code flows
-	// (OAuth 2.1). Verify the code verifier against the stored
-	// challenge.
-	// Reject a verifier outside RFC 7636 §4.1's bounds before comparing it. A
-	// short verifier hashes to a valid-looking challenge, so the comparison
-	// below cannot tell a well-formed secret from a one-character one.
-	if !ValidPKCEFormat(req.CodeVerifier) {
-		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
-	}
+	// PKCE is mandatory for all authorization code flows (OAuth 2.1). Verify
+	// the code verifier against the stored challenge. extractTokenRequest
+	// already rejected a malformed verifier as invalid_request, so
+	// req.CodeVerifier is guaranteed to meet RFC 7636 §4.1's bounds here; a
+	// mismatch below is a wrong-but-well-formed verifier, RFC 7636 §4.6's
+	// invalid_grant case.
 	if !dbCode.CodeChallenge.Valid || dbCode.CodeChallenge.String == "" {
 		// Code was issued without a challenge — should not happen
 		// with authorize endpoint enforcement, but defend in depth.

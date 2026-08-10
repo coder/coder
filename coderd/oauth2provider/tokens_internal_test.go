@@ -110,6 +110,10 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			form.Set("client_id", "test-client")
 			form.Set("client_secret", "test-secret")
 			form.Set("code", "test-code")
+			// This test only exercises scope parsing, but code_verifier is
+			// validated unconditionally for this grant type, so use a value
+			// that satisfies the RFC 7636 §4.1 length floor.
+			form.Set("code_verifier", strings.Repeat("a", 43))
 			if tc.scopeParam != "" {
 				form.Set("scope", tc.scopeParam)
 			}
@@ -147,22 +151,22 @@ func TestExtractTokenParams_ScopesURLEncoded(t *testing.T) {
 	}{
 		{
 			name:           "PlusEncodedSpaces",
-			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&scope=scope1+scope2+scope3",
+			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&code_verifier=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&scope=scope1+scope2+scope3",
 			expectedScopes: []string{"scope1", "scope2", "scope3"},
 		},
 		{
 			name:           "PercentEncodedSpaces",
-			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&scope=scope1%20scope2%20scope3",
+			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&code_verifier=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&scope=scope1%20scope2%20scope3",
 			expectedScopes: []string{"scope1", "scope2", "scope3"},
 		},
 		{
 			name:           "MixedEncoding",
-			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&scope=scope1+scope2%20scope3",
+			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&code_verifier=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&scope=scope1+scope2%20scope3",
 			expectedScopes: []string{"scope1", "scope2", "scope3"},
 		},
 		{
 			name:           "ColonEncodedInScope",
-			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&scope=coder%3Aworkspace.create+coder%3Aworkspace.operate",
+			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&code_verifier=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&scope=coder%3Aworkspace.create+coder%3Aworkspace.operate",
 			expectedScopes: []string{"coder:workspace.create", "coder:workspace.operate"},
 		},
 	}
@@ -216,6 +220,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
+				form.Set("code_verifier", strings.Repeat("a", 43))
 				return form
 			},
 			expectedScopes: []string{},
@@ -229,6 +234,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
+				form.Set("code_verifier", strings.Repeat("a", 43))
 				form.Set("scope", "   ")
 				return form
 			},
@@ -244,6 +250,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
+				form.Set("code_verifier", strings.Repeat("a", 43))
 				form.Set("scope", longScope)
 				return form
 			},
