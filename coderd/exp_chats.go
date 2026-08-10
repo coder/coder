@@ -1621,8 +1621,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 
 	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
 
-	// Queued-for-capacity state is derived on read rather than stored.
-	// A failure is non-fatal: the chat remains usable without the flag.
+	// Queued-for-capacity is derived on read; failures leave the flag false.
 	if api.chatDaemon != nil {
 		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
 		if err != nil {

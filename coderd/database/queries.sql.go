@@ -7086,8 +7086,8 @@ type CountChatCapacityByPoolRow struct {
 }
 
 // Counts fresh-owner active slots and unowned running chats by pool.
-// @exclude_chat_id excludes active counts only, keeping stale-owner
-// takeovers capacity-neutral.
+// @exclude_chat_id removes the candidate from active counts so re-admission
+// does not require an extra slot.
 func (q *sqlQuerier) CountChatCapacityByPool(ctx context.Context, arg CountChatCapacityByPoolParams) (CountChatCapacityByPoolRow, error) {
 	row := q.db.QueryRowContext(ctx, countChatCapacityByPool, arg.ExcludeChatID, arg.StaleSeconds)
 	var i CountChatCapacityByPoolRow
@@ -8598,9 +8598,9 @@ type GetChatQueuedForCapacityParams struct {
 	ChatID           uuid.UUID `db:"chat_id" json:"chat_id"`
 }
 
-// A chat waits for capacity only when it is running, unarchived, unowned,
-// and its pool is full. Pool fullness distinguishes capacity waits from
-// ordinary worker pickup delay.
+// A chat waits for capacity only when it is running, unarchived, has no
+// fresh matching runner heartbeat, and its pool is full. Pool fullness
+// distinguishes capacity waits from ordinary worker pickup delay.
 func (q *sqlQuerier) GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, getChatQueuedForCapacity,
 		arg.StaleSeconds,

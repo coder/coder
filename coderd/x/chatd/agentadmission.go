@@ -25,8 +25,7 @@ type AgentCapacityLimits struct {
 	Subagent int64
 }
 
-// noopAgentCapacityLimiter admits every chat; it stands in when no factory is
-// configured (AGPL builds) so callers never check for nil.
+// noopAgentCapacityLimiter keeps capacity uncapped when no limiter is configured.
 type noopAgentCapacityLimiter struct{}
 
 func (noopAgentCapacityLimiter) Admit(context.Context, database.Store, database.Chat) (bool, error) {
@@ -38,6 +37,6 @@ func (noopAgentCapacityLimiter) Limits() (AgentCapacityLimits, bool) {
 }
 
 // AgentCapacityLimiterFactory builds the concurrent-agent capacity limiter.
-// Its stale threshold must match worker ownership checks. A nil factory
-// leaves capacity uncapped.
+// Its stale threshold must match worker ownership checks. A nil factory or
+// limiter leaves capacity uncapped.
 type AgentCapacityLimiterFactory func(heartbeatStaleSeconds int32) AgentCapacityLimiter

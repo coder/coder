@@ -3051,7 +3051,6 @@ type Config struct {
 
 	PrometheusRegistry prometheus.Registerer
 
-	// AgentCapacityLimiterFactory limits concurrent chat agents when non-nil.
 	AgentCapacityLimiterFactory AgentCapacityLimiterFactory
 
 	// OIDCTokenSource resolves the calling user's OIDC access
@@ -3188,8 +3187,6 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	agentCapacityLimiter := AgentCapacityLimiter(noopAgentCapacityLimiter{})
 	var agentCapacityMetrics *capacityMetrics
 	if cfg.AgentCapacityLimiterFactory != nil {
-		// A nil factory result falls back to the noop like a nil factory,
-		// keeping the server and worker limiters non-nil.
 		if limiter := cfg.AgentCapacityLimiterFactory(int32(inFlightChatStaleAfter.Seconds())); limiter != nil {
 			agentCapacityLimiter = limiter
 			if cfg.PrometheusRegistry != nil {

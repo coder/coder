@@ -94,8 +94,8 @@ type sqlcQuerier interface {
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Counts fresh-owner active slots and unowned running chats by pool.
-	// @exclude_chat_id excludes active counts only, keeping stale-owner
-	// takeovers capacity-neutral.
+	// @exclude_chat_id removes the candidate from active counts so re-admission
+	// does not require an extra slot.
 	CountChatCapacityByPool(ctx context.Context, arg CountChatCapacityByPoolParams) (CountChatCapacityByPoolRow, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
@@ -481,9 +481,9 @@ type sqlcQuerier interface {
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
-	// A chat waits for capacity only when it is running, unarchived, unowned,
-	// and its pool is full. Pool fullness distinguishes capacity waits from
-	// ordinary worker pickup delay.
+	// A chat waits for capacity only when it is running, unarchived, has no
+	// fresh matching runner heartbeat, and its pool is full. Pool fullness
+	// distinguishes capacity waits from ordinary worker pickup delay.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
 	// Returns the queue head (lowest position, then lowest id).

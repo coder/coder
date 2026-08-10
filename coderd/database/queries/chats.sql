@@ -2814,8 +2814,8 @@ ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id A
 
 -- name: CountChatCapacityByPool :one
 -- Counts fresh-owner active slots and unowned running chats by pool.
--- @exclude_chat_id excludes active counts only, keeping stale-owner
--- takeovers capacity-neutral.
+-- @exclude_chat_id removes the candidate from active counts so re-admission
+-- does not require an extra slot.
 SELECT
     COUNT(*) FILTER (WHERE fresh AND owned AND counted AND is_root)::bigint AS active_root_count,
     COUNT(*) FILTER (WHERE fresh AND owned AND counted AND NOT is_root)::bigint AS active_subagent_count,
@@ -2858,9 +2858,9 @@ WHERE c.status = 'running'::chat_status
   );
 
 -- name: GetChatQueuedForCapacity :one
--- A chat waits for capacity only when it is running, unarchived, unowned,
--- and its pool is full. Pool fullness distinguishes capacity waits from
--- ordinary worker pickup delay.
+-- A chat waits for capacity only when it is running, unarchived, has no
+-- fresh matching runner heartbeat, and its pool is full. Pool fullness
+-- distinguishes capacity waits from ordinary worker pickup delay.
 SELECT (
     c.status = 'running'::chat_status
     AND c.archived = false

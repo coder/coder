@@ -281,8 +281,7 @@ func TestWorker_FullPoolDoesNotStarveOtherPool(t *testing.T) {
 	opts := testOptions(t, f, starter)
 	opts.AgentCapacityLimiter = &rootRefusingAdmission{}
 
-	// The root backlog is deep enough to hide the later subagent without
-	// pool-interleaved ordering.
+	// The root backlog hides the later subagent unless the query interleaves pools.
 	roots := make([]database.Chat, 0, 2*int(opts.AcquisitionBatchSize)+5)
 	for range cap(roots) {
 		roots = append(roots, f.createRunningChat(t))

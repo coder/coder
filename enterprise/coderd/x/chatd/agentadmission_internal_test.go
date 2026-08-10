@@ -86,7 +86,6 @@ func (f admissionFixture) occupiedSubagent(t *testing.T, root database.Chat) dat
 	return chat
 }
 
-// testAdmission shrinks both pools to two slots so tests fill them cheaply.
 func testAdmission(set *entitlements.Set) *admission {
 	a := newAdmission(set, 30)
 	a.rootCapacity = 2
@@ -185,7 +184,8 @@ func TestAdmission_TakeoverOfCountedChatIsCapacityNeutral(t *testing.T) {
 	require.True(t, admitted, "an already-counted chat must re-admit for takeover at full capacity")
 }
 
-// Mirror the worker's single-transaction Admit-then-Acquire path.
+// The single transaction verifies that the admission lock covers the
+// ownership write.
 func TestAdmission_ConcurrentAdmitNeverOverAdmits(t *testing.T) {
 	t.Parallel()
 	f := newAdmissionFixture(t)

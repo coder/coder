@@ -26,8 +26,8 @@ func NewAgentCapacityLimiterFactory(set *entitlements.Set) osschatd.AgentCapacit
 	}
 }
 
-// The admission lock remains held through ownership acquisition, serializing
-// pool counts across replicas.
+// Admit acquires a transaction-scoped lock that remains held through the
+// ownership write, preventing replicas from over-admitting a pool.
 type admission struct {
 	entitlements     *entitlements.Set
 	staleSeconds     int32
@@ -82,9 +82,8 @@ func (a *admission) Limits() (osschatd.AgentCapacityLimits, bool) {
 	}, !a.uncapped()
 }
 
-// uncapped returns true for an enabled entitlement with remaining hours.
-// Missing limit or usage data fails open to avoid capping on incomplete
-// entitlement data; runtime-hour license decoding leaves Actual unset.
+// Missing runtime-hour limit or usage data fails open because license decoding
+// does not populate Actual.
 func (a *admission) uncapped() bool {
 	f, ok := a.entitlements.Feature(codersdk.FeatureAgentRuntimeHours)
 	if !ok || !f.Enabled {

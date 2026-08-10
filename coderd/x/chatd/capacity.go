@@ -184,8 +184,8 @@ func (w *chatWorker) refreshCapacityMetrics(ctx context.Context) {
 	metrics := w.opts.CapacityMetrics
 	metrics.active.WithLabelValues("root").Set(float64(counts.ActiveRootCount))
 	metrics.active.WithLabelValues("subagent").Set(float64(counts.ActiveSubagentCount))
-	// Unowned running chats count as queued only when their pool is full;
-	// otherwise they are ordinary pickups the next acquisition pass owns.
+	// Only unowned running chats in full pools are capacity-queued; the rest
+	// remain ordinary worker pickups.
 	limits, capped := w.opts.AgentCapacityLimiter.Limits()
 	var queuedRoot, queuedSubagent int64
 	if capped && counts.ActiveRootCount >= limits.Root {
