@@ -29,7 +29,6 @@ import {
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
-import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockGroup,
 	MockOrganizationMember,
@@ -39,7 +38,6 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
-	deliverWebSocketEvents,
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
@@ -2329,150 +2327,6 @@ export const DurableUpdateFansOutToOlderPage: Story = {
 			expect(canvas.getAllByText("Fresh revision")).toHaveLength(1);
 		});
 		expect(canvas.queryByText("Old revision")).not.toBeInTheDocument();
-	},
-};
-
-const mockPaginatedOldRevision: TypesGen.ChatMessage = {
-	...MockChatMessage,
-	id: 40,
-	role: "assistant",
-	content: [{ type: "text", text: "Stale pagination revision" }],
-};
-
-const mockPaginatedFreshRevision: TypesGen.ChatMessage = {
-	...mockPaginatedOldRevision,
-	// Streamdown memoizes markdown sections by source position, so the
-	// fresh text must differ in length from the stale text to re-render.
-	content: [
-		{ type: "text", text: "Fresh pagination revision, updated by the stream" },
-	],
-};
-
-const mockOlderPageRow: TypesGen.ChatMessage = {
-	...MockChatMessage,
-	id: 10,
-	role: "user",
-	content: [{ type: "text", text: "Older page row" }],
-};
-
-// Tall filler rows keep the load-older sentinel outside the 600px
-// IntersectionObserver window at mount, so pagination only starts when
-// the play function scrolls there.
-const paginationFillerMessages: TypesGen.ChatMessage[] = Array.from(
-	{ length: 24 },
-	(_, index) => ({
-		...MockChatMessage,
-		id: index + 11,
-		chat_id: CHAT_ID,
-		role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
-		content: [
-			{
-				type: "text",
-				text: `History row ${index + 11} with enough copy to occupy vertical space in the conversation timeline.`,
-			},
-		],
-	}),
-);
-
-/**
- * A durable WebSocket update for a loaded message arrives while an
- * older page is still fetching. fetchNextPage settles with the
- * pre-fetch snapshot, so the page wraps the fetch in a pagination
- * epoch and replays the buffered write after settle; without that
- * replay the stale snapshot would win and the store would render the
- * old text again.
- */
-export const DurableUpdateSurvivesPaginationFetch: Story = {
-	parameters: {
-		queries: [
-			...withoutQuery(
-				buildQueries(
-					{
-						id: CHAT_ID,
-						...baseChatFields,
-						title: "Pagination epoch chat",
-						status: "waiting",
-					},
-					{ messages: [], queued_messages: [], has_more: false },
-				),
-				chatMessagesKey(CHAT_ID),
-			),
-			{
-				key: chatMessagesKey(CHAT_ID),
-				data: {
-					pages: [
-						{
-							messages: [mockPaginatedOldRevision, ...paginationFillerMessages],
-							queued_messages: [],
-							has_more: true,
-						},
-					],
-					pageParams: [undefined],
-				},
-			},
-		],
-		webSocket: {
-			"/chats/": [
-				{
-					event: "message",
-					data: JSON.stringify([
-						{
-							type: "message",
-							chat_id: CHAT_ID,
-							message: mockPaginatedFreshRevision,
-						},
-					] satisfies TypesGen.ChatStreamEvent[]),
-					controlled: true,
-				},
-			],
-		},
-	},
-	beforeEach: ({ parameters }) => {
-		const deferred = createDeferred<TypesGen.ChatMessagesResponse>();
-		parameters.paginationDeferred = deferred;
-		parameters.getChatMessagesSpy = spyOn(
-			API.experimental,
-			"getChatMessages",
-		).mockImplementation(() => deferred.promise);
-	},
-	play: async ({ canvasElement, parameters }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Stale pagination revision")).toBeVisible();
-
-		const scrollContainer = canvas.getByTestId("scroll-container");
-		// The reversed layout puts the oldest content at the largest
-		// negative offset.
-		scrollContainer.scrollTop = -scrollContainer.scrollHeight;
-		await waitFor(() => {
-			expect(scrollContainer).toHaveAttribute("aria-busy", "true");
-		});
-		expect(parameters.getChatMessagesSpy).toHaveBeenCalledTimes(1);
-
-		// Land the durable update while the deferred fetch is held.
-		deliverWebSocketEvents();
-		expect(
-			await canvas.findByText(
-				"Fresh pagination revision, updated by the stream",
-			),
-		).toBeVisible();
-
-		parameters.paginationDeferred.resolve({
-			messages: [mockOlderPageRow],
-			queued_messages: [],
-			has_more: false,
-		});
-		await waitFor(() => {
-			expect(scrollContainer).not.toHaveAttribute("aria-busy");
-		});
-		expect(await canvas.findByText("Older page row")).toBeVisible();
-		await waitFor(() => {
-			expect(
-				canvas.getAllByText("Fresh pagination revision, updated by the stream"),
-			).toHaveLength(1);
-		});
-		expect(
-			canvas.queryByText("Stale pagination revision"),
-		).not.toBeInTheDocument();
 	},
 };
 

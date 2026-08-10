@@ -53,6 +53,7 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./chatStore";
+import { chatPaginationEpochs, replayChatCacheWrites } from "./useChatStore";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
@@ -1094,6 +1095,128 @@ describe("useChatStore", () => {
 		expect(cached?.pages[1]?.messages[0]?.content).toEqual(
 			updatedMessage.content,
 		);
+	});
+
+	it("replays a buffered durable write after a pagination settle clobbers it", async () => {
+		const chatID = "chat-epoch-race";
+		// Two pages: page 0 is newest, page 1 holds the older message the
+		// durable update targets.
+		const olderMessage = buildMessage(chatID, 1, "user", "older page row");
+		const newerMessage = buildMessage(chatID, 3, "user", "newest prompt");
+		const middleMessage = buildMessage(chatID, 2, "assistant", "middle");
+		const initialMessages = [olderMessage, middleMessage, newerMessage];
+		const updatedOlder = buildMessage(
+			chatID,
+			1,
+			"user",
+			"older page row, edited",
+		);
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const snapshotPages = {
+			pages: [
+				{
+					messages: [newerMessage, middleMessage],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [olderMessage],
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined, 2],
+		};
+		queryClient.setQueryData(chatMessagesKey(chatID), snapshotPages);
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store, upsertCacheMessages } = useChatStore({
+					chatID,
+					chatMessages: initialMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: initialMessages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return { upsertCacheMessages, store };
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.store.getSnapshot().orderedMessageIDs).toEqual([
+				1, 2, 3,
+			]);
+		});
+
+		// Pagination starts, opening an epoch.
+		const generation = chatPaginationEpochs.open(chatID);
+
+		// A durable update lands mid-flight: written to the cache immediately
+		// and buffered on the epoch.
+		act(() => {
+			result.current.upsertCacheMessages([updatedOlder]);
+		});
+		const midFlight = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+		}>(chatMessagesKey(chatID));
+		expect(midFlight?.pages[1]?.messages[0]?.content).toEqual(
+			updatedOlder.content,
+		);
+
+		// The fetch settles with the pre-fetch snapshot plus the fetched
+		// older page, clobbering the mid-flight write.
+		const fetchedOlderPage = {
+			messages: [buildMessage(chatID, 0, "user", "fetched older row")],
+			queued_messages: [],
+			has_more: false,
+		};
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [...snapshotPages.pages, fetchedOlderPage],
+			pageParams: [...snapshotPages.pageParams, 1],
+		});
+		const settled = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+		}>(chatMessagesKey(chatID));
+		expect(settled?.pages[1]?.messages[0]?.content).toEqual(
+			olderMessage.content,
+		);
+
+		// Closing the epoch replays the buffered write against the settled
+		// cache, restoring the durable update.
+		const writes = chatPaginationEpochs.close(chatID, generation);
+		expect(writes).toBeDefined();
+		replayChatCacheWrites(queryClient, chatID, writes ?? []);
+
+		const replayed = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+		}>(chatMessagesKey(chatID));
+		expect(replayed?.pages[1]?.messages[0]?.content).toEqual(
+			updatedOlder.content,
+		);
+		// The fetched older page survives the replay.
+		expect(replayed?.pages[2]?.messages[0]?.id).toBe(0);
 	});
 
 	it("clears stream state when a new durable message arrives", async () => {

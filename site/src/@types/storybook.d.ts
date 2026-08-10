@@ -11,9 +11,9 @@ import type { QueryKey } from "react-query";
 import type { ReactRouterAddonStoryParameters } from "storybook-addon-remix-react-router";
 
 declare module "@storybook/react-vite" {
-	export type WebSocketEvent =
-		| { event: "message"; data: string; controlled?: boolean }
-		| { event: "open" | "error" | "close"; controlled?: boolean };
+	type WebSocketEvent =
+		| { event: "message"; data: string }
+		| { event: "open" | "error" | "close" };
 	interface Parameters {
 		features?: FeatureName[];
 		experiments?: Experiments;
