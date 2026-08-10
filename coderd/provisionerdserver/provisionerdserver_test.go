@@ -5606,9 +5606,10 @@ func TestDownloadFile(t *testing.T) {
 }
 
 // TestAcquireJob_AIAgentSessionToken exercises the workspace AI agent
-// identity lifecycle across build transitions: opted-in start builds mint a
-// workspace-pinned key for a reusable identity, opt-out and stop builds
-// revoke keys, and workspaces that never opt in create nothing.
+// identity lifecycle across build transitions: claim builds revoke identities
+// sponsored by the former owner, opted-in start builds mint a workspace-pinned
+// key for a reusable identity, opt-out and stop builds revoke keys, and
+// workspaces that never opt in create nothing.
 func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	t.Parallel()
 
@@ -5641,7 +5642,7 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	buildNumber := int32(0)
 	// acquireBuild inserts a build with the given transition/parameters and
 	// acquires it through the server, returning the acquired job's metadata.
-	acquireBuild := func(t *testing.T, transition database.WorkspaceTransition, params []database.WorkspaceBuildParameter) *sdkproto.Metadata {
+	acquireBuild := func(t *testing.T, transition database.WorkspaceTransition, stage sdkproto.PrebuiltWorkspaceBuildStage, params []database.WorkspaceBuildParameter) *sdkproto.Metadata {
 		t.Helper()
 		buildNumber++
 		buildID := uuid.New()
@@ -5653,7 +5654,8 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 			FileID:         file.ID,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-				WorkspaceBuildID: buildID,
+				WorkspaceBuildID:            buildID,
+				PrebuiltWorkspaceBuildStage: stage,
 			})),
 			Tags: pd.Tags,
 		})
@@ -5685,10 +5687,32 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 		Value: "true",
 	}}
 
-	// Build 1: opted-in start build mints an identity and a scoped key.
-	metadata := acquireBuild(t, database.WorkspaceTransitionStart, optIn)
+	formerOwner := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         formerOwner.ID,
+		OrganizationID: pd.OrganizationID,
+	})
+	_, staleAgent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        formerOwner.ID,
+		OrganizationID: pd.OrganizationID,
+		OriginType:     database.AIAgentOriginWorkspace,
+		OriginID:       workspace.ID,
+	})
+	require.NoError(t, err)
+	staleKey, _, err := aiagentidentity.MintKey(ctx, db, staleAgent.UserID, aiagentidentity.WorkspaceAgentIdentityProfile(workspace.ID))
+	require.NoError(t, err)
+
+	// Build 1: an opted-in claim revokes the former owner's identity, then mints
+	// a new identity and scoped key for the current owner.
+	metadata := acquireBuild(t, database.WorkspaceTransitionStart, sdkproto.PrebuiltWorkspaceBuildStage_CLAIM, optIn)
 	firstToken := metadata.GetWorkspaceAiAgentSessionToken()
 	require.NotEmpty(t, firstToken)
+
+	revokedAgent, err := db.GetAIAgentByUserID(ctx, staleAgent.UserID)
+	require.NoError(t, err)
+	require.True(t, revokedAgent.Deleted)
+	_, err = db.GetAPIKeyByID(ctx, staleKey.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "claim must revoke the former owner's agent key")
 
 	agent, err := db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
 		OriginType: database.AIAgentOriginWorkspace,
@@ -5696,6 +5720,7 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, user.ID, agent.OwnerUserID)
+	require.NotEqual(t, staleAgent.UserID, agent.UserID)
 
 	agentUser, err := db.GetUserByID(ctx, agent.UserID)
 	require.NoError(t, err)
@@ -5710,7 +5735,7 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	require.Equal(t, workspace.ID.String(), firstKey.AllowList[0].ID)
 
 	// Build 2: rebuild reuses the identity and rotates the key.
-	metadata = acquireBuild(t, database.WorkspaceTransitionStart, optIn)
+	metadata = acquireBuild(t, database.WorkspaceTransitionStart, sdkproto.PrebuiltWorkspaceBuildStage_NONE, optIn)
 	secondToken := metadata.GetWorkspaceAiAgentSessionToken()
 	require.NotEmpty(t, secondToken)
 	require.NotEqual(t, firstToken, secondToken)
@@ -5725,7 +5750,7 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows, "stale key must be rotated out")
 
 	// Build 3: stop build revokes the key but keeps the identity.
-	metadata = acquireBuild(t, database.WorkspaceTransitionStop, nil)
+	metadata = acquireBuild(t, database.WorkspaceTransitionStop, sdkproto.PrebuiltWorkspaceBuildStage_NONE, nil)
 	require.Empty(t, metadata.GetWorkspaceAiAgentSessionToken())
 	secondKeyID := strings.Split(secondToken, "-")[0]
 	_, err = db.GetAPIKeyByID(ctx, secondKeyID)
@@ -5737,7 +5762,7 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	require.NoError(t, err, "identity survives stop for reuse on restart")
 
 	// Build 4: opt-out start build mints nothing and never fails.
-	metadata = acquireBuild(t, database.WorkspaceTransitionStart, nil)
+	metadata = acquireBuild(t, database.WorkspaceTransitionStart, sdkproto.PrebuiltWorkspaceBuildStage_NONE, nil)
 	require.Empty(t, metadata.GetWorkspaceAiAgentSessionToken())
 
 	// A workspace that never opts in gets no identity at all.

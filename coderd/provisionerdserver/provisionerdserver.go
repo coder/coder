@@ -642,6 +642,12 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		var aiAgentSessionToken string
 		switch workspaceBuild.Transition {
 		case database.WorkspaceTransitionStart:
+			if input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+				if err := s.revokeAIAgentIdentityForWorkspace(ctx, workspace.ID); err != nil {
+					s.Logger.Error(ctx, "failed to revoke AI agent identity on prebuild claim",
+						slog.Error(err), slog.F("workspace_id", workspace.ID))
+				}
+			}
 			if aiAgentOptedIn(workspaceBuildParameters) {
 				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace)
 				if err != nil {
@@ -3293,6 +3299,20 @@ func (s *server) revokeAIAgentSessionTokens(ctx context.Context, workspace datab
 	}
 	profile := aiagentidentity.WorkspaceAgentIdentityProfile(workspace.ID)
 	return s.deleteAIAgentSessionToken(ctx, agent, profile.TokenName)
+}
+
+func (s *server) revokeAIAgentIdentityForWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	agent, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginWorkspace,
+		OriginID:   workspaceID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("get AI agent by origin: %w", err)
+	}
+	return s.revokeAIAgentIdentity(ctx, agent)
 }
 
 // revokeAIAgentIdentity revokes the identity's keys and marks it deleted.
