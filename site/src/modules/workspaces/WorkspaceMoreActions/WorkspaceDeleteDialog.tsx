@@ -100,6 +100,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 						<Label htmlFor={confirmId}>Workspace name</Label>
 						<Input
 							id={confirmId}
+							className="text-content-primary"
 							name="confirmation"
 							autoComplete="off"
 							autoFocus
