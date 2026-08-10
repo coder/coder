@@ -5570,3 +5570,151 @@ func TestDownloadFile(t *testing.T) {
 		require.Equal(t, moduleData, data)
 	})
 }
+
+// TestAcquireJob_AIAgentSessionToken exercises the workspace AI agent
+// identity lifecycle across build transitions: opted-in start builds mint a
+// workspace-pinned key for a reusable identity, opt-out and stop builds
+// revoke keys, and workspaces that never opt in create nothing.
+func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
+	t.Parallel()
+
+	srv, db, ps, pd := setup(t, false, nil)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	user := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: pd.OrganizationID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: pd.OrganizationID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		CreatedBy:      user.ID,
+	})
+	file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: pd.OrganizationID,
+		CreatedBy:      user.ID,
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		JobID:          uuid.New(),
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     template.ID,
+		OwnerID:        user.ID,
+		OrganizationID: pd.OrganizationID,
+	})
+
+	buildNumber := int32(0)
+	// acquireBuild inserts a build with the given transition/parameters and
+	// acquires it through the server, returning the acquired job's metadata.
+	acquireBuild := func(t *testing.T, transition database.WorkspaceTransition, params []database.WorkspaceBuildParameter) *sdkproto.Metadata {
+		t.Helper()
+		buildNumber++
+		buildID := uuid.New()
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			OrganizationID: pd.OrganizationID,
+			InitiatorID:    user.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         file.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: buildID,
+			})),
+			Tags: pd.Tags,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                buildID,
+			WorkspaceID:       workspace.ID,
+			BuildNumber:       buildNumber,
+			JobID:             job.ID,
+			TemplateVersionID: version.ID,
+			Transition:        transition,
+			Reason:            database.BuildReasonInitiator,
+			InitiatorID:       user.ID,
+		})
+		for i := range params {
+			params[i].WorkspaceBuildID = build.ID
+		}
+		if len(params) > 0 {
+			dbgen.WorkspaceBuildParameters(t, db, params)
+		}
+		acquired, err := srv.AcquireJob(ctx, nil)
+		require.NoError(t, err)
+		workspaceBuild, ok := acquired.Type.(*proto.AcquiredJob_WorkspaceBuild_)
+		require.True(t, ok, "expected workspace build job")
+		return workspaceBuild.WorkspaceBuild.Metadata
+	}
+
+	optIn := []database.WorkspaceBuildParameter{{
+		Name:  provisionerdserver.AIAgentOptInParameterName,
+		Value: "true",
+	}}
+
+	// Build 1: opted-in start build mints an identity and a scoped key.
+	metadata := acquireBuild(t, database.WorkspaceTransitionStart, optIn)
+	firstToken := metadata.GetWorkspaceAiAgentSessionToken()
+	require.NotEmpty(t, firstToken)
+
+	agent, err := db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginWorkspace,
+		OriginID:   workspace.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, user.ID, agent.OwnerUserID)
+
+	agentUser, err := db.GetUserByID(ctx, agent.UserID)
+	require.NoError(t, err)
+	require.Equal(t, database.UserKindAIAgent, agentUser.Kind)
+
+	keyID := strings.Split(firstToken, "-")[0]
+	firstKey, err := db.GetAPIKeyByID(ctx, keyID)
+	require.NoError(t, err)
+	require.Equal(t, agent.UserID, firstKey.UserID)
+	// The key must be pinned to exactly this workspace.
+	require.Len(t, firstKey.AllowList, 1)
+	require.Equal(t, workspace.ID.String(), firstKey.AllowList[0].ID)
+
+	// Build 2: rebuild reuses the identity and rotates the key.
+	metadata = acquireBuild(t, database.WorkspaceTransitionStart, optIn)
+	secondToken := metadata.GetWorkspaceAiAgentSessionToken()
+	require.NotEmpty(t, secondToken)
+	require.NotEqual(t, firstToken, secondToken)
+
+	reused, err := db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginWorkspace,
+		OriginID:   workspace.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, agent.UserID, reused.UserID, "identity user must be reused across rebuilds")
+	_, err = db.GetAPIKeyByID(ctx, keyID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "stale key must be rotated out")
+
+	// Build 3: stop build revokes the key but keeps the identity.
+	metadata = acquireBuild(t, database.WorkspaceTransitionStop, nil)
+	require.Empty(t, metadata.GetWorkspaceAiAgentSessionToken())
+	secondKeyID := strings.Split(secondToken, "-")[0]
+	_, err = db.GetAPIKeyByID(ctx, secondKeyID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "stop must revoke the agent key")
+	_, err = db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginWorkspace,
+		OriginID:   workspace.ID,
+	})
+	require.NoError(t, err, "identity survives stop for reuse on restart")
+
+	// Build 4: opt-out start build mints nothing and never fails.
+	metadata = acquireBuild(t, database.WorkspaceTransitionStart, nil)
+	require.Empty(t, metadata.GetWorkspaceAiAgentSessionToken())
+
+	// A workspace that never opts in gets no identity at all.
+	otherWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     template.ID,
+		OwnerID:        user.ID,
+		OrganizationID: pd.OrganizationID,
+	})
+	_, err = db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginWorkspace,
+		OriginID:   otherWorkspace.ID,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
