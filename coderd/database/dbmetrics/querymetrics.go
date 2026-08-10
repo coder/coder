@@ -2153,6 +2153,14 @@ func (m queryMetricsStore) GetGroups(ctx context.Context, arg database.GetGroups
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetGroupsByOrganizationIDPaginated(ctx context.Context, arg database.GetGroupsByOrganizationIDPaginatedParams) ([]database.GetGroupsByOrganizationIDPaginatedRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGroupsByOrganizationIDPaginated(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationIDPaginated").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupsByOrganizationIDPaginated").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetHealthSettings(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetHealthSettings(ctx)

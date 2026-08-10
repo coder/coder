@@ -47,6 +47,49 @@ type GroupMembersResponse struct {
 	Count int           `json:"count"`
 }
 
+type PaginatedGroupsResponse struct {
+	Groups []PaginatedGroup `json:"groups"`
+	Count  int              `json:"count"`
+}
+
+// PaginatedGroup is a group summary returned by the paginated groups endpoint.
+// It deliberately omits the member roster (which the endpoint does not return)
+// and exposes only the total member count. Fetch the roster via the group
+// members endpoint.
+type PaginatedGroup struct {
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	Name           string    `json:"name"`
+	DisplayName    string    `json:"display_name"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	// TotalMemberCount is the number of members in the group, shown even when
+	// the caller cannot read individual members. The roster itself is not
+	// returned by this endpoint.
+	TotalMemberCount        int         `json:"total_member_count"`
+	AvatarURL               string      `json:"avatar_url" format:"uri"`
+	QuotaAllowance          int         `json:"quota_allowance"`
+	Source                  GroupSource `json:"source"`
+	OrganizationName        string      `json:"organization_name"`
+	OrganizationDisplayName string      `json:"organization_display_name"`
+}
+
+// PaginatedGroupsRequest are the filters for a paginated groups request.
+// Groups only support free-text search, so unlike UsersRequest it exposes no
+// key:value filters that the endpoint would reject.
+type PaginatedGroupsRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+	Pagination
+}
+
+func (req PaginatedGroupsRequest) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if req.SearchQuery != "" {
+			q.Set("q", req.SearchQuery)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
 }
@@ -131,6 +174,31 @@ func (c *Client) GroupByOrgAndName(ctx context.Context, orgID uuid.UUID, name st
 		return Group{}, ReadBodyAsError(res)
 	}
 	var resp Group
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// OrganizationGroupsPaginated lists filtered and paginated groups in an
+// organization. Unlike Groups (GET /groups), which authorizes each group
+// individually via its ACL, this endpoint requires organization-wide group
+// read permission and does no per-group filtering. It is therefore not a
+// drop-in replacement for Groups: callers without org-wide group read will
+// receive an error rather than a filtered subset.
+func (c *Client) OrganizationGroupsPaginated(ctx context.Context, orgID uuid.UUID, req PaginatedGroupsRequest) (PaginatedGroupsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/paginated-groups", orgID.String()),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return PaginatedGroupsResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return PaginatedGroupsResponse{}, ReadBodyAsError(res)
+	}
+	var resp PaginatedGroupsResponse
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
