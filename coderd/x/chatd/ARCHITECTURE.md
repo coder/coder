@@ -17,6 +17,17 @@ Messages and queued messages no longer carry `api_key_id` columns; attribution i
 
 Deleting a synthetic key (password reset, explicit key deletion, dbpurge of long-expired keys) does not touch chat messages, queued messages, or their version fields. Chatd mints a replacement on the next request without mutating history. User suspension and deletion still block delegated gateway authorization.
 
+## AI agent identities
+
+Each chat created through `postChats` mints an **AI agent identity**: a real `users` row with `kind = 'ai_agent'` owned by the chat owner, plus an `ai_agents` metadata row with `origin_type = 'chat'` and `origin_id = <chat.ID>`, and a chat-scoped API key. The chat, identity, and key are created in one transaction (an outer `chatstate.PublishBuffer` holds notifications until it commits). See `AI_AGENT_SECURITY_ARCHITECTURE.md` (Vertical 1) for the cross-cutting design.
+
+The identity serves two purposes:
+
+1. **Attribution.** Platform actions the chat performs are attributed to the agent user (`audit_logs.user_id`, `aibridge_interceptions.initiator_id`) with the human recorded in `audit_logs.on_behalf_of_user_id`. For AI Gateway calls, chats with an identity present the identity's chat-scoped key (via `ensureChatGatewayKeyID`) instead of the per-user synthetic key, giving per-chat (not per-user) lineage. Chats predating identities fall back to the synthetic key path described above.
+2. **Reduced-permission execution.** In-process platform tools (create/start/stop workspace) run under a subject built from the owner's live roles intersected with the chat agent scope profile (`aiagentidentity.ChatAgentProfile`), constructed by `chatToolSubject`. The subject's authorization ID stays the owner (so owner-scoped resource checks pass), its type is `ai_agent`, and the acting user recorded as build initiator / audit actor is the agent user. Because roles are read live, the agent can never exceed the owner's current permissions; the profile further removes credential management (`api_key`), user secrets, user skills, PII (`user:read_personal`), and template authoring, while allowing `user:read` so the tools can resolve the owner they act for.
+
+The identity is revoked when its chat is deleted: the retention purge (`dbpurge`) marks orphaned chat-origin `ai_agents` rows deleted and deletes their API keys. Owner suspension or deletion blocks the identity's key at authentication time (the same liveness check the API-key middleware applies).
+
 # Core state machine
 
 The core state machine describes how a chat's execution state in the database can change over time. A fundamental component of the state machine is the set of valid **states** it can be in. We will consider 2 kinds of states: **execution states** and **ownership states**. These states let us describe what the runtime components of chatd can do with a chat at a given point in time.
