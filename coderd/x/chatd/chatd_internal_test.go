@@ -148,6 +148,57 @@ func TestChatAIAgentLookupErrorFailsClosed(t *testing.T) {
 	require.ErrorIs(t, err, lookupErr)
 }
 
+func TestAppendRootChatToolsWrapsPlatformToolsWithAIAgentActor(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chat := database.Chat{
+		ID:             uuid.New(),
+		OwnerID:        uuid.New(),
+		OrganizationID: uuid.New(),
+	}
+	agent := database.AIAgent{
+		UserID:      uuid.New(),
+		OwnerUserID: chat.OwnerID,
+		OriginType:  database.AIAgentOriginChat,
+		OriginID:    chat.ID,
+	}
+	db.EXPECT().GetAIAgentByOriginIncludingDeleted(
+		gomock.Any(),
+		database.GetAIAgentByOriginIncludingDeletedParams{
+			OriginType: database.AIAgentOriginChat,
+			OriginID:   chat.ID,
+		},
+	).Return(agent, nil)
+
+	server := &Server{
+		db:     db,
+		clock:  quartz.NewReal(),
+		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	}
+	tools, err := server.appendRootChatTools(t.Context(), nil, rootChatToolsOptions{
+		chat:         chat,
+		workspaceCtx: &turnWorkspaceContext{},
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(tools), 5)
+
+	wantNames := []string{
+		"list_templates",
+		"read_template",
+		"create_workspace",
+		"start_workspace",
+		"stop_workspace",
+	}
+	for i, wantName := range wantNames {
+		require.Equal(t, wantName, tools[i].Info().Name)
+		wrapped, ok := tools[i].(aiAgentActorTool)
+		require.True(t, ok, "%s must propagate the AI agent actor", wantName)
+		require.Equal(t, agent.UserID, wrapped.actor.AgentUserID)
+	}
+}
+
 func TestUpdateChatSummary(t *testing.T) {
 	t.Parallel()
 

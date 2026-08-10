@@ -15,9 +15,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/quartz"
 )
 
@@ -431,13 +428,4 @@ var templateSearchCompactReplacer = strings.NewReplacer(" ", "", "-", "", "_", "
 
 func compactTemplateSearch(value string) string {
 	return templateSearchCompactReplacer.Replace(value)
-}
-
-// asOwner sets up a dbauthz context scoped to what the owner can access.
-func asOwner(ctx context.Context, db database.Store, ownerID uuid.UUID) (context.Context, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, db, ownerID, rbac.ScopeAll)
-	if err != nil {
-		return ctx, xerrors.Errorf("load user authorization: %w", err)
-	}
-	return dbauthz.As(ctx, actor), nil
 }

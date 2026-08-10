@@ -3896,6 +3896,15 @@ func (p *Server) chatAIAgentActor(ctx context.Context, chat database.Chat) (aiag
 	}, true, nil
 }
 
+type aiAgentActorTool struct {
+	fantasy.AgentTool
+	actor aiagentidentity.AIAgentActor
+}
+
+func (t aiAgentActorTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	return t.AgentTool.Run(aiagentidentity.WithActor(ctx, t.actor), call)
+}
+
 func (p *Server) appendRootChatTools(
 	ctx context.Context,
 	tools []fantasy.AgentTool,
@@ -3909,36 +3918,14 @@ func (p *Server) appendRootChatTools(
 	}
 
 	// Platform workspace tools execute under the chat's AI agent identity
-	// when one exists: the context actor makes the coderd-side
-	// implementations narrow authorization to the chat agent scope profile
-	// and attribute audit to the agent on behalf of the owner. Chats
-	// predating identities fall back to plain owner execution.
-	createFn := p.createWorkspaceFn
-	startFn := p.startWorkspaceFn
-	stopFn := p.stopWorkspaceFn
-	actor, ok, err := p.chatAIAgentActor(ctx, opts.chat)
+	// when one exists. Wrapping every tool propagates the actor to both the
+	// coderd callbacks and the chattool database reads. Chats predating
+	// identities fall back to plain owner execution.
+	actor, hasActor, err := p.chatAIAgentActor(ctx, opts.chat)
 	if err != nil {
 		return nil, err
 	}
-	if ok {
-		if inner := p.createWorkspaceFn; inner != nil {
-			createFn = func(ctx context.Context, ownerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
-				return inner(aiagentidentity.WithActor(ctx, actor), ownerID, req)
-			}
-		}
-		if inner := p.startWorkspaceFn; inner != nil {
-			startFn = func(ctx context.Context, ownerID uuid.UUID, workspaceID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
-				return inner(aiagentidentity.WithActor(ctx, actor), ownerID, workspaceID, req)
-			}
-		}
-		if inner := p.stopWorkspaceFn; inner != nil {
-			stopFn = func(ctx context.Context, ownerID uuid.UUID, workspaceID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
-				return inner(aiagentidentity.WithActor(ctx, actor), ownerID, workspaceID, req)
-			}
-		}
-	}
-
-	tools = append(tools,
+	platformTools := []fantasy.AgentTool{
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
 			OwnerID: opts.chat.OwnerID,
 			Logger:  p.logger,
@@ -3949,7 +3936,7 @@ func (p *Server) appendRootChatTools(
 		}),
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
-			CreateFn:                       createFn,
+			CreateFn:                       p.createWorkspaceFn,
 			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 			WorkspaceMu:                    opts.workspaceMu,
@@ -3958,7 +3945,7 @@ func (p *Server) appendRootChatTools(
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			StartFn:       startFn,
+			StartFn:       p.startWorkspaceFn,
 			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
@@ -3966,12 +3953,18 @@ func (p *Server) appendRootChatTools(
 		}),
 		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			StopFn:        stopFn,
+			StopFn:        p.stopWorkspaceFn,
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
 			Logger:        p.logger,
 		}),
-	)
+	}
+	if hasActor {
+		for i, tool := range platformTools {
+			platformTools[i] = aiAgentActorTool{AgentTool: tool, actor: actor}
+		}
+	}
+	tools = append(tools, platformTools...)
 	if opts.isPlanModeTurn {
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: opts.workspaceCtx.getWorkspaceConn,

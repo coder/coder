@@ -449,6 +449,12 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, rbac.SubjectTypeAIAgent, subject.Type)
 		require.Equal(t, agent.UserID, actingUserID)
 		require.Equal(t, member.ID.String(), subject.ID, "authorization identity must remain the owner")
+		require.Error(t, api.HTTPAuth.Authorizer.Authorize(
+			ctx,
+			subject,
+			policy.ActionCreate,
+			rbac.ResourceApiKey.WithOwner(member.ID.String()),
+		), "chat AI agent profile must exclude API key management")
 
 		// Mismatched sponsor fails closed.
 		wrongCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
