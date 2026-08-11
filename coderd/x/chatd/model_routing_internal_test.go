@@ -28,8 +28,6 @@ import (
 )
 
 type aibridgeTestFactory struct {
-	// mu guards the recorded fields: concurrently running chat runners
-	// can share one factory and call TransportFor at the same time.
 	mu           sync.Mutex
 	providerName string
 	source       aibridge.Source
