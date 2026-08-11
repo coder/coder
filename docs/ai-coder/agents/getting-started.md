@@ -162,10 +162,9 @@ credential scoping, and pre-installing dependencies.
 
 ### Plan for change between releases
 
-Coder Agents is generally available. However, APIs, behavior, and
-configuration may change between releases. As always, we recommend
-reviewing release notes before upgrading so changes do not affect
-production.
+Coder Agents is generally available.
+However, APIs, behavior, and configuration may change between releases.
+As always, you should review [release notes](https://github.com/coder/coder/releases) and the [changelog](https://coder.com/changelog) before upgrading, so changes do not affect production.
 
 ### Use HTTPS for push notifications
 
