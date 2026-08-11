@@ -3317,9 +3317,7 @@ func TestMigration000571MCPServerConfigACL(t *testing.T) {
 		require.Equal(t, "'{}'::jsonb", defaultValue)
 	}
 
-	// A pre-ACL replica's insert omits both ACL columns; the trigger
-	// must backfill the Everyone grant so the new server stays visible
-	// to ordinary members.
+	// Pre-ACL inserts must receive the Everyone read grant.
 	legacyInsertID := uuid.New()
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO mcp_server_configs (
@@ -3335,7 +3333,7 @@ func TestMigration000571MCPServerConfigACL(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, fmt.Sprintf(`{%q:{"permissions":["read"]}}`, orgID.String()), groupACL)
 
-	// Inserts that set an ACL are not rewritten.
+	// A non-empty user ACL prevents the compatibility default.
 	explicitInsertID := uuid.New()
 	explicitACL := fmt.Sprintf(`{%q: {"permissions": ["read"]}}`, uuid.New().String())
 	_, err = sqlDB.ExecContext(ctx, `
@@ -3353,8 +3351,6 @@ func TestMigration000571MCPServerConfigACL(t *testing.T) {
 	require.JSONEq(t, `{}`, explicitGroupACL)
 	require.JSONEq(t, explicitACL, explicitUserACL)
 
-	// The down migration must remove the compatibility trigger with the
-	// columns it defaults.
 	downSQL, err := os.ReadFile("000571_mcp_server_config_acl.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))

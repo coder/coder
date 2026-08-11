@@ -1204,11 +1204,8 @@ type PromoteQueuedResult struct {
 	PromotedMessage database.ChatMessage
 }
 
-// forcedMCPServerConfigsForOwner returns the enabled Force On MCP
-// server configs in the organization whose ACL grants the chat owner
-// read access. Force On must not widen access beyond the server's
-// ACL, so the query runs as the owner and the dbauthz post-filter
-// drops servers the owner cannot see.
+// forcedMCPServerConfigsForOwner filters enabled Force On configs
+// through the chat owner's ACL so availability cannot widen access.
 func forcedMCPServerConfigsForOwner(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID) ([]database.MCPServerConfig, error) {
 	owner, _, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
 	if err != nil {
@@ -1221,11 +1218,9 @@ func forcedMCPServerConfigsForOwner(ctx context.Context, store database.Store, o
 	return forced, nil
 }
 
-// enforceForcedMCPServerIDs appends the ID of every enabled Force On
-// MCP server config the chat owner can read that is missing from ids.
-// Force On availability is a server-side policy: callers must not be
-// able to exclude such servers by stripping IDs from a request (Cure53
-// CDM-02-010).
+// enforceForcedMCPServerIDs appends owner-readable Force On config IDs
+// missing from ids so callers cannot exclude such servers by stripping
+// IDs from a request (Cure53 CDM-02-010).
 func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
 	forced, err := forcedMCPServerConfigsForOwner(ctx, store, organizationID, ownerID)
 	if err != nil {

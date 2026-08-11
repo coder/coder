@@ -25,15 +25,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// effectiveMCPServerConfigs loads the MCP server configs for a turn:
-// the chat's stored selection plus every enabled Force On config the
-// chat owner can read. Force On inclusion is enforced at generation
-// time, not just at write time, so chats persisted before enforcement
-// existed (or before an admin marked a server Force On) cannot dodge
-// the policy (Cure53 CDM-02-010). Explore chats are exempt: their
-// spawn-time snapshot is immutable by design and must never widen
-// after spawn; Force On servers reach the snapshot through the parent
-// chat's enforced ID list.
+// effectiveMCPServerConfigs loads the chat's stored selection plus
+// owner-readable Force On configs at generation time, so stored lists
+// predating enforcement cannot dodge the policy (Cure53 CDM-02-010).
+// Explore chats keep their immutable spawn-time snapshot instead.
 func (server *Server) effectiveMCPServerConfigs(
 	ctx context.Context,
 	logger slog.Logger,

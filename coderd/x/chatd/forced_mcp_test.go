@@ -9,7 +9,6 @@ package chatd_test
 import (
 	"net/http/httptest"
 	"sync"
-	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -17,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -29,13 +29,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
-func testAccessControlStorePointer() *atomic.Pointer[dbauthz.AccessControlStore] {
-	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
-	var store dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
-	acs.Store(&store)
-	return acs
-}
 
 // newEchoMCPTestServer starts an MCP test server exposing an "echo"
 // tool and returns its base URL.
@@ -103,9 +96,7 @@ func TestCreateChat_ForceOnMCPServerEnforced(t *testing.T) {
 		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	// A force_on server whose ACL denies the owner must not attach:
-	// Force On cannot widen access beyond the server's ACL. The grant
-	// goes to an unrelated group instead of the Everyone group.
+	// Grant read access only to an unrelated group.
 	dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		OrganizationID: org.ID,
 		DisplayName:    "ACL Denied Forced MCP",
@@ -120,25 +111,21 @@ func TestCreateChat_ForceOnMCPServerEnforced(t *testing.T) {
 		UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
-	// The ACL check only exists at the dbauthz layer, so this server
-	// runs on a dbauthz-wrapped store like production instead of the
-	// raw store other chatd tests use.
+	// Use the dbauthz wrapper so the MCP ACL post-filter runs.
 	authzDB := dbauthz.New(
 		db,
 		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		testAccessControlStorePointer(),
+		coderdtest.AccessControlStorePointer(),
 	)
 	server := newActiveTestServer(t, authzDB, ps, func(cfg *chatd.Config) {
 		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
-	// Chat creation requires the agents-access org role, which API
-	// users receive through org settings; grant it to the seeded
-	// member directly.
+	// The seeded member needs agents-access to create a chat.
 	_, err := db.UpdateMemberRoles(dbauthz.AsSystemRestricted(ctx), database.UpdateMemberRolesParams{
-		GrantedRoles: []string{"agents-access"},
+		GrantedRoles: []string{rbac.RoleAgentsAccess()},
 		UserID:       user.ID,
 		OrgID:        org.ID,
 	})
