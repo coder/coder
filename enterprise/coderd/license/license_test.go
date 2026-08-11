@@ -2501,6 +2501,55 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 		require.NotNil(t, feature.UsagePeriod)
 	})
 
+	// An unlimited (-1) allocation grants the feature enabled with no Limit,
+	// which the API serves as an omitted "limit" field, the shape the UI
+	// already renders as "Unlimited".
+	t.Run("UnlimitedAllocation", func(t *testing.T) {
+		t.Parallel()
+
+		lic := database.License{
+			ID:         1,
+			UploadedAt: time.Now(),
+			Exp:        time.Now().Add(time.Hour),
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					license.ClaimAgentRuntimeHoursAllocation: license.AgentRuntimeHoursUnlimitedAllocation,
+				},
+			}),
+		}
+
+		entitlements, err := license.LicensesEntitlements(
+			context.Background(), time.Now(), []database.License{lic},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{},
+		)
+		require.NoError(t, err)
+		require.Empty(t, entitlements.Errors)
+		require.NotContains(t, entitlements.Warnings,
+			codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText)
+
+		feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+		require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+		require.True(t, feature.Enabled)
+		require.Nil(t, feature.Limit)
+		require.Nil(t, feature.SoftLimit)
+		require.Nil(t, feature.HardLimit)
+		require.NotNil(t, feature.UsagePeriod)
+
+		// The entitlements JSON served by GET /api/v2/entitlements omits
+		// "limit" entirely for the unlimited feature.
+		data, err := json.Marshal(entitlements)
+		require.NoError(t, err)
+		var raw struct {
+			Features map[codersdk.FeatureName]map[string]any `json:"features"`
+		}
+		require.NoError(t, json.Unmarshal(data, &raw))
+		rawFeature := raw.Features[codersdk.FeatureAgentRuntimeHours]
+		require.Equal(t, true, rawFeature["enabled"])
+		require.NotContains(t, rawFeature, "limit")
+		require.Contains(t, rawFeature, "usage_period")
+	})
+
 	// The license with the newest issued-at claim wins, even if another
 	// license was loaded first or has a larger allocation. The soft and hard
 	// limits come from the winning license.
@@ -2853,9 +2902,48 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			expectClaimsIgnored: true,
 		},
 		{
+			// An unlimited allocation grants the feature with no Limit and
+			// no warning: -1 is the canonical unlimited encoding, not an
+			// issuance mistake.
+			name: "UnlimitedAllocation",
+			features: license.Features{
+				license.ClaimAgentRuntimeHoursAllocation: license.AgentRuntimeHoursUnlimitedAllocation,
+			},
+			expectFeature: &codersdk.Feature{
+				Enabled: true,
+			},
+		},
+		{
+			// Threshold claims alongside an unlimited allocation have
+			// nothing to threshold against; the grant survives but the
+			// issuance mistake must stay visible via the warning.
+			name: "UnlimitedWithSoft",
+			features: license.Features{
+				license.ClaimAgentRuntimeHoursAllocation: license.AgentRuntimeHoursUnlimitedAllocation,
+				license.ClaimAgentRuntimeHoursLimitSoft:  80,
+			},
+			expectFeature: &codersdk.Feature{
+				Enabled: true,
+			},
+			expectClaimsIgnored: true,
+		},
+		{
+			name: "UnlimitedWithHard",
+			features: license.Features{
+				license.ClaimAgentRuntimeHoursAllocation: license.AgentRuntimeHoursUnlimitedAllocation,
+				license.ClaimAgentRuntimeHoursLimitHard:  120,
+			},
+			expectFeature: &codersdk.Feature{
+				Enabled: true,
+			},
+			expectClaimsIgnored: true,
+		},
+		{
+			// Only exactly -1 is the unlimited sentinel; any other negative
+			// allocation stays unusable.
 			name: "NegativeAllocation",
 			features: license.Features{
-				license.ClaimAgentRuntimeHoursAllocation: -1,
+				license.ClaimAgentRuntimeHoursAllocation: -2,
 			},
 			expectClaimsIgnored: true,
 		},
