@@ -8,7 +8,7 @@ import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { pageTitle } from "#/utils/page";
 import { sendDeploymentEvent } from "#/utils/telemetry";
-import { SetupPageView, setupCompleteRedirect } from "./SetupPageView";
+import { SetupPageView } from "./SetupPageView";
 
 export const SetupPage: FC = () => {
 	const {

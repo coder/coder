@@ -28,7 +28,6 @@ import {
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 
-
 const usernameValidator = nameValidator("Username");
 const usernameFromEmail = (email: string): string => {
 	try {
@@ -212,7 +211,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						<>
 							<Button className="w-full" asChild type="submit" size="lg">
 								<a
-									href="/api/v2/users/oauth2/github/callback"
+									href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
+										"/templates/new/builder",
+									)}`}
 								>
 									<ExternalImage src="/icon/github.svg?blackWithColor" />
 									GitHub
