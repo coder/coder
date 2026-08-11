@@ -37,6 +37,7 @@
 		"#/*": "./src/*"
 	},
 	"dependencies": {
+		"@base-ui-components/react": "1.0.0-rc.0",
 		"@dnd-kit/core": "6.3.1",
 		"@dnd-kit/sortable": "10.0.0",
 		"@dnd-kit/utilities": "3.2.2",
@@ -116,7 +117,6 @@
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
 		"unique-names-generator": "4.7.1",
 		"uuid": "14.0.0",
-		"vaul": "1.1.2",
 		"websocket-ts": "2.3.0",
 		"yup": "1.7.1"
 	},

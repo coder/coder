@@ -1,36 +1,49 @@
 /**
- * Copied from shadcn/ui on 08/04/2026
+ * Adapted from shadcn/ui's Drawer, reimplemented on top of Base UI's Dialog
+ * primitive instead of the unmaintained `vaul` package. Base UI has no
+ * dedicated drawer, so the slide-in behavior is layered on the Dialog parts
+ * with the same public API shadcn exposes.
  * @see {@link https://ui.shadcn.com/docs/components/drawer}
+ * @see {@link https://base-ui.com/react/components/dialog}
  */
-import { Drawer as DrawerPrimitive } from "vaul";
+import { Dialog as DialogPrimitive } from "@base-ui-components/react/dialog";
+import { createContext, useContext } from "react";
 import { cn } from "#/utils/cn";
 
-export const Drawer: React.FC<
-	React.ComponentPropsWithRef<typeof DrawerPrimitive.Root>
-> = ({ shouldScaleBackground = true, ...props }) => {
+type DrawerDirection = "top" | "bottom" | "left" | "right";
+
+const DrawerDirectionContext = createContext<DrawerDirection>("right");
+
+type DrawerProps = React.ComponentPropsWithRef<typeof DialogPrimitive.Root> & {
+	direction?: DrawerDirection;
+};
+
+export const Drawer: React.FC<DrawerProps> = ({
+	direction = "right",
+	...props
+}) => {
 	return (
-		<DrawerPrimitive.Root
-			shouldScaleBackground={shouldScaleBackground}
-			{...props}
-		/>
+		<DrawerDirectionContext.Provider value={direction}>
+			<DialogPrimitive.Root {...props} />
+		</DrawerDirectionContext.Provider>
 	);
 };
 
-export const DrawerTrigger = DrawerPrimitive.Trigger;
+export const DrawerTrigger = DialogPrimitive.Trigger;
 
-export const DrawerClose = DrawerPrimitive.Close;
+export const DrawerClose = DialogPrimitive.Close;
 
-const DrawerPortal = DrawerPrimitive.Portal;
+const DrawerPortal = DialogPrimitive.Portal;
 
 const DrawerOverlay: React.FC<
-	React.ComponentPropsWithRef<typeof DrawerPrimitive.Overlay>
+	React.ComponentPropsWithRef<typeof DialogPrimitive.Backdrop>
 > = ({ className, ...props }) => {
 	return (
-		<DrawerPrimitive.Overlay
+		<DialogPrimitive.Backdrop
 			className={cn(
 				`fixed inset-0 z-50 bg-overlay
-				data-[state=open]:animate-in data-[state=closed]:animate-out
-				data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0`,
+				data-[open]:animate-in data-[closed]:animate-out
+				data-[closed]:fade-out-0 data-[open]:fade-in-0`,
 				className,
 			)}
 			{...props}
@@ -38,39 +51,41 @@ const DrawerOverlay: React.FC<
 	);
 };
 
+const directionClasses: Record<DrawerDirection, string> = {
+	top: `inset-x-0 top-0 mb-24 max-h-[80vh] rounded-b-lg border-b border-border
+		data-[open]:slide-in-from-top data-[closed]:slide-out-to-top`,
+	bottom: `inset-x-0 bottom-0 mt-24 max-h-[80vh] rounded-t-lg border-t border-border
+		data-[open]:slide-in-from-bottom data-[closed]:slide-out-to-bottom`,
+	right: `inset-y-0 right-0 h-full w-3/4 border-l border-border sm:max-w-sm
+		data-[open]:slide-in-from-right data-[closed]:slide-out-to-right`,
+	left: `inset-y-0 left-0 h-full w-3/4 border-r border-border sm:max-w-sm
+		data-[open]:slide-in-from-left data-[closed]:slide-out-to-left`,
+};
+
 export const DrawerContent: React.FC<
-	React.ComponentPropsWithRef<typeof DrawerPrimitive.Content>
+	React.ComponentPropsWithRef<typeof DialogPrimitive.Popup>
 > = ({ className, children, ...props }) => {
+	const direction = useContext(DrawerDirectionContext);
 	return (
 		<DrawerPortal>
 			<DrawerOverlay />
-			<DrawerPrimitive.Content
+			<DialogPrimitive.Popup
+				data-drawer-direction={direction}
 				className={cn(
-					"group/drawer-content fixed z-50 flex h-auto flex-col bg-surface-primary outline-none",
-					`data-[vaul-drawer-direction=top]:inset-x-0 data-[vaul-drawer-direction=top]:top-0
-					data-[vaul-drawer-direction=top]:mb-24 data-[vaul-drawer-direction=top]:max-h-[80vh]
-					data-[vaul-drawer-direction=top]:rounded-b-lg data-[vaul-drawer-direction=top]:border-b data-[vaul-drawer-direction=top]:border-border`,
-					`data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0
-					data-[vaul-drawer-direction=bottom]:mt-24 data-[vaul-drawer-direction=bottom]:max-h-[80vh]
-					data-[vaul-drawer-direction=bottom]:rounded-t-lg data-[vaul-drawer-direction=bottom]:border-t data-[vaul-drawer-direction=bottom]:border-border`,
-					`data-[vaul-drawer-direction=right]:inset-y-0 data-[vaul-drawer-direction=right]:right-0
-					data-[vaul-drawer-direction=right]:h-full data-[vaul-drawer-direction=right]:w-3/4
-					data-[vaul-drawer-direction=right]:border-l data-[vaul-drawer-direction=right]:border-border
-					data-[vaul-drawer-direction=right]:sm:max-w-sm`,
-					`data-[vaul-drawer-direction=left]:inset-y-0 data-[vaul-drawer-direction=left]:left-0
-					data-[vaul-drawer-direction=left]:h-full data-[vaul-drawer-direction=left]:w-3/4
-					data-[vaul-drawer-direction=left]:border-r data-[vaul-drawer-direction=left]:border-border
-					data-[vaul-drawer-direction=left]:sm:max-w-sm`,
+					`group/drawer-content fixed z-50 flex h-auto flex-col bg-surface-primary outline-none
+					transition ease-in-out data-[open]:animate-in data-[closed]:animate-out
+					data-[closed]:duration-300 data-[open]:duration-500`,
+					directionClasses[direction],
 					className,
 				)}
 				{...props}
 			>
 				<div
 					className={`mx-auto mt-4 hidden h-2 w-[100px] shrink-0 rounded-full bg-surface-tertiary
-					group-data-[vaul-drawer-direction=bottom]/drawer-content:block`}
+					group-data-[drawer-direction=bottom]/drawer-content:block`}
 				/>
 				{children}
-			</DrawerPrimitive.Content>
+			</DialogPrimitive.Popup>
 		</DrawerPortal>
 	);
 };
@@ -83,8 +98,8 @@ export const DrawerHeader: React.FC<React.ComponentPropsWithRef<"div">> = ({
 		<div
 			className={cn(
 				`flex flex-col gap-0.5 p-4
-				group-data-[vaul-drawer-direction=bottom]/drawer-content:text-center
-				group-data-[vaul-drawer-direction=top]/drawer-content:text-center
+				group-data-[drawer-direction=bottom]/drawer-content:text-center
+				group-data-[drawer-direction=top]/drawer-content:text-center
 				md:gap-1.5 md:text-left`,
 				className,
 			)}
@@ -106,10 +121,10 @@ export const DrawerFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
 };
 
 export const DrawerTitle: React.FC<
-	React.ComponentPropsWithRef<typeof DrawerPrimitive.Title>
+	React.ComponentPropsWithRef<typeof DialogPrimitive.Title>
 > = ({ className, ...props }) => {
 	return (
-		<DrawerPrimitive.Title
+		<DialogPrimitive.Title
 			className={cn(
 				"text-lg font-semibold leading-none tracking-tight text-content-primary",
 				className,
@@ -120,10 +135,10 @@ export const DrawerTitle: React.FC<
 };
 
 export const DrawerDescription: React.FC<
-	React.ComponentPropsWithRef<typeof DrawerPrimitive.Description>
+	React.ComponentPropsWithRef<typeof DialogPrimitive.Description>
 > = ({ className, ...props }) => {
 	return (
-		<DrawerPrimitive.Description
+		<DialogPrimitive.Description
 			className={cn("text-sm text-content-secondary", className)}
 			{...props}
 		/>

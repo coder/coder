@@ -61,11 +61,9 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 						<DrawerTitle className="m-0 text-base font-medium">
 							Creating template...
 						</DrawerTitle>
-						<DrawerClose asChild>
-							<Button size="icon-lg" variant="subtle">
-								<XIcon />
-								<span className="sr-only">Close build logs</span>
-							</Button>
+						<DrawerClose render={<Button size="icon-lg" variant="subtle" />}>
+							<XIcon />
+							<span className="sr-only">Close build logs</span>
 						</DrawerClose>
 					</header>
 

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "#/components/Button/Button";
 import {
 	Drawer,
@@ -18,18 +18,14 @@ const meta: Meta<typeof Drawer> = {
 	args: {
 		children: (
 			<>
-				<DrawerTrigger asChild>
-					<Button>Open Drawer</Button>
-				</DrawerTrigger>
+				<DrawerTrigger render={<Button>Open Drawer</Button>} />
 				<DrawerContent>
 					<DrawerHeader>
 						<DrawerTitle>Example Drawer Title</DrawerTitle>
 						<DrawerDescription>Drawer description text</DrawerDescription>
 					</DrawerHeader>
 					<DrawerFooter>
-						<DrawerClose asChild>
-							<Button variant="outline">Cancel</Button>
-						</DrawerClose>
+						<DrawerClose render={<Button variant="outline">Cancel</Button>} />
 						<Button>Submit</Button>
 					</DrawerFooter>
 				</DrawerContent>
@@ -45,6 +41,21 @@ export const OpenDrawer: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "Open Drawer" }));
+		await expect(await screen.findByRole("dialog")).toBeInTheDocument();
+	},
+};
+
+export const CloseDrawer: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Open Drawer" }));
+		const dialog = await screen.findByRole("dialog");
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Cancel" }),
+		);
+		await waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 	},
 };
 
@@ -53,9 +64,7 @@ export const OpenRightDrawer: Story = {
 		direction: "right",
 		children: (
 			<>
-				<DrawerTrigger asChild>
-					<Button>Open Right Drawer</Button>
-				</DrawerTrigger>
+				<DrawerTrigger render={<Button>Open Right Drawer</Button>} />
 				<DrawerContent className="sm:max-w-md">
 					<DrawerHeader>
 						<DrawerTitle>Right-side drawer</DrawerTitle>
@@ -64,9 +73,7 @@ export const OpenRightDrawer: Story = {
 						</DrawerDescription>
 					</DrawerHeader>
 					<DrawerFooter>
-						<DrawerClose asChild>
-							<Button variant="outline">Close</Button>
-						</DrawerClose>
+						<DrawerClose render={<Button variant="outline">Close</Button>} />
 					</DrawerFooter>
 				</DrawerContent>
 			</>
@@ -77,5 +84,6 @@ export const OpenRightDrawer: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Open Right Drawer" }),
 		);
+		await expect(await screen.findByRole("dialog")).toBeInTheDocument();
 	},
 };
