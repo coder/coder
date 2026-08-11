@@ -95,7 +95,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	// Fetch user secrets after the errgroup because this needs workspace.OwnerID.
 	// AI-bound agents are denied ambient owner credentials by the shared Vertical 2
 	// phase 1 policy.
-	if aiagentidentity.WorkspaceAgentAllowsOwnerCredentials(ctx, workspaceAgent) {
+	if aiagentidentity.WorkspaceAgentAllowsOwnerCredentials(workspaceAgent) {
 		//nolint:gocritic // System context needed to read secrets for the workspace owner.
 		userSecrets, err = a.Database.ListUserSecretsWithValues(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
 		if err != nil {

@@ -2089,7 +2089,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// this workspace's own template-declared providers instead of scanning
 	// every provider configured on the deployment.
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	if !aiagentidentity.WorkspaceAgentAllowsOwnerCredentials(ctx, workspaceAgent) {
+	if !aiagentidentity.WorkspaceAgentAllowsOwnerCredentials(workspaceAgent) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "AI-bound workspace agents must use the MCP gateway for external authentication.",
 		})

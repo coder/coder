@@ -120,7 +120,7 @@ func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	agent := httpmw.WorkspaceAgent(r)
-	if !aiagentidentity.WorkspaceAgentAllowsOwnerCredentials(ctx, agent) {
+	if !aiagentidentity.WorkspaceAgentAllowsOwnerCredentials(agent) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "AI-bound workspace agents cannot access owner Git SSH keys.",
 		})
