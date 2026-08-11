@@ -8,7 +8,7 @@ import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { pageTitle } from "#/utils/page";
 import { sendDeploymentEvent } from "#/utils/telemetry";
-import { SetupPageView, setupCompleteRedirect } from "./SetupPageView";
+import { SetupPageView } from "./SetupPageView";
 
 export const SetupPage: FC = () => {
 	const {
@@ -41,7 +41,7 @@ export const SetupPage: FC = () => {
 	// If the user is logged in, navigate to the app
 	if (isSignedIn) {
 		return setupRequired.current ? (
-			<Navigate to={setupCompleteRedirect} replace />
+			<Navigate to="/templates/new/builder" replace />
 		) : (
 			<Navigate to="/" state={{ isRedirect: true }} replace />
 		);

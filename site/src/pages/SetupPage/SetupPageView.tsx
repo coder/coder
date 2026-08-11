@@ -28,8 +28,6 @@ import {
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 
-export const setupCompleteRedirect = "/templates/new/builder";
-
 const usernameValidator = nameValidator("Username");
 const usernameFromEmail = (email: string): string => {
 	try {
@@ -214,7 +212,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<Button className="w-full" asChild type="submit" size="lg">
 								<a
 									href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
-										setupCompleteRedirect,
+										"/templates/new/builder",
 									)}`}
 								>
 									<ExternalImage src="/icon/github.svg?blackWithColor" />
