@@ -177,6 +177,21 @@ describe("handleAttachmentDownloadClick", () => {
 				action: expect.objectContaining({ label: "Save" }),
 			}),
 		);
+
+		const action: unknown = vi.mocked(toast.error).mock.calls[0][1]?.action;
+		if (
+			action === null ||
+			typeof action !== "object" ||
+			!("onClick" in action) ||
+			typeof action.onClick !== "function"
+		) {
+			throw new Error("expected the toast to carry a Save action");
+		}
+		action.onClick();
+		expect(share).toHaveBeenCalledTimes(2);
+		const first: { files: File[] } = share.mock.calls[0][0];
+		const retry: { files: File[] } = share.mock.calls[1][0];
+		expect(retry.files[0]).toBe(first.files[0]);
 	});
 
 	it("shows a plain failure toast after a permanent share failure", async () => {
