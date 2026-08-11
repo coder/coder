@@ -351,6 +351,45 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
+// From codersdk/aiegresspolicy.go
+/**
+ * AIEgressPolicy is the versioned, template-level egress allow list for
+ * AI-confined execution. It is stored per template and edited through the
+ * API without a template push or workspace rebuild. Revision increases
+ * monotonically with every write; revision 0 with no rules is the
+ * implicit default for templates that have never stored a policy and
+ * means deny-all beyond the platform's implicit allows.
+ *
+ * The agent-facing read of this object is materialized: coderd injects
+ * implicit allow rules for the control plane (the deployment access URL
+ * and any configured AI gateway) so the confined child can always reach
+ * coderd. Template admins do not need to (and cannot) remove those.
+ */
+export interface AIEgressPolicy {
+	readonly template_id: string;
+	readonly revision: number;
+	readonly rules: readonly AIEgressRule[];
+	readonly updated_at: string;
+	/**
+	 * UpdatedBy is the coderd actor that wrote this revision. It is the
+	 * nil UUID for the implicit revision-0 default.
+	 */
+	readonly updated_by: string;
+}
+
+// From codersdk/aiegresspolicy.go
+/**
+ * AIEgressRule permits outbound traffic to a single host pattern. The
+ * policy is default-deny: traffic matching no rule is refused. Host is an
+ * exact hostname ("github.com") or a single-label wildcard
+ * ("*.github.com"); IP literals are matched exactly. An empty Ports list
+ * permits 80 and 443 only.
+ */
+export interface AIEgressRule {
+	readonly host: string;
+	readonly ports?: readonly number[];
+}
+
 // From codersdk/aigatewaykeys.go
 /**
  * AIGatewayKey is a shared secret used by a standalone AI Gateway
@@ -580,6 +619,15 @@ export const AIProviderTypes: AIProviderType[] = [
 	"openai-compat",
 	"openrouter",
 	"vercel",
+];
+
+// From codersdk/aiegresspolicy.go
+export type AISandboxEgressEnforcement = "advisory" | "forced" | "none";
+
+export const AISandboxEgressEnforcements: AISandboxEgressEnforcement[] = [
+	"advisory",
+	"forced",
+	"none",
 ];
 
 // From codersdk/aibridge.go
@@ -9351,6 +9399,15 @@ export interface TraceConfig {
 export interface TransitionStats {
 	readonly P50: number | null;
 	readonly P95: number | null;
+}
+
+// From codersdk/aiegresspolicy.go
+/**
+ * UpdateAIEgressPolicyRequest replaces the template's egress allow list,
+ * producing a new revision. Writes are admin-only and audited.
+ */
+export interface UpdateAIEgressPolicyRequest {
+	readonly rules: readonly AIEgressRule[];
 }
 
 // From codersdk/aiproviders.go
