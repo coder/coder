@@ -1,3 +1,4 @@
+import { cva } from "class-variance-authority";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { createContext, useContext } from "react";
 import { cn } from "#/utils/cn";
@@ -45,16 +46,28 @@ const DrawerOverlay: React.FC<
 	);
 };
 
-const directionClasses: Record<DrawerDirection, string> = {
-	top: `inset-x-0 top-0 max-h-[80vh] w-full border-b border-border
-		data-[state=open]:slide-in-from-top data-[state=closed]:slide-out-to-top`,
-	bottom: `inset-x-0 bottom-0 max-h-[80vh] w-full border-t border-border
-		data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom`,
-	left: `inset-y-0 left-0 h-full w-3/4 border-r border-border sm:max-w-sm
-		data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left`,
-	right: `inset-y-0 right-0 h-full w-3/4 border-l border-border sm:max-w-sm
-		data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right`,
-};
+const drawerContentVariants = cva(
+	`fixed z-50 flex h-auto flex-col bg-surface-primary outline-none will-change-transform
+	data-[state=open]:animate-in data-[state=closed]:animate-out
+	data-[state=open]:duration-500 data-[state=closed]:duration-300`,
+	{
+		variants: {
+			direction: {
+				top: `inset-x-0 top-0 max-h-[80vh] w-full border-b border-border
+					data-[state=open]:slide-in-from-top data-[state=closed]:slide-out-to-top`,
+				bottom: `inset-x-0 bottom-0 max-h-[80vh] w-full border-t border-border
+					data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom`,
+				left: `inset-y-0 left-0 h-full w-3/4 border-r border-border sm:max-w-sm
+					data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left`,
+				right: `inset-y-0 right-0 h-full w-3/4 border-l border-border sm:max-w-sm
+					data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right`,
+			},
+		},
+		defaultVariants: {
+			direction: "right",
+		},
+	},
+);
 
 export const DrawerContent: React.FC<
 	React.ComponentPropsWithRef<typeof DialogPrimitive.Content>
@@ -65,13 +78,7 @@ export const DrawerContent: React.FC<
 		<DrawerPortal>
 			<DrawerOverlay />
 			<DialogPrimitive.Content
-				className={cn(
-					"fixed z-50 flex h-auto flex-col bg-surface-primary outline-none will-change-transform",
-					"data-[state=open]:animate-in data-[state=closed]:animate-out",
-					"data-[state=open]:duration-500 data-[state=closed]:duration-300",
-					directionClasses[direction],
-					className,
-				)}
+				className={cn(drawerContentVariants({ direction }), className)}
 				{...props}
 			>
 				{children}
