@@ -7,6 +7,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// WorkspacesPageLimit is the largest page size the workspaces list endpoint
+// accepts and the page size clients use when reading that endpoint to
+// exhaustion. A request that omits limit receives this many rows; a limit of 0
+// or greater than this is rejected.
+const WorkspacesPageLimit = 100
+
 // Pagination sets pagination options for the endpoints that support it.
 type Pagination struct {
 	// AfterID returns all or up to Limit results after the given

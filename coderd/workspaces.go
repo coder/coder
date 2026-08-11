@@ -144,7 +144,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Workspaces
 // @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items)."
-// @Param limit query int false "Page limit"
+// @Param limit query int false "Page limit, from 1 to 100. Defaults to 100 when omitted."
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
 // @Router /api/v2/workspaces [get]
@@ -152,7 +152,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	page, ok := ParsePagination(rw, r)
+	page, ok := ParsePaginationBounded(rw, r, codersdk.WorkspacesPageLimit)
 	if !ok {
 		return
 	}

@@ -69,7 +69,8 @@ export const UsageIndicator: FC = () => {
 	const workspacesQuery = useQuery({
 		...workspaces({
 			q: `owner:me organization:${organizationName}`,
-			limit: 0,
+			// Only the total is read, so a single row is enough.
+			limit: 1,
 		}),
 		enabled: hasWorkspaceQuotaUsage && organizationName !== "",
 	});

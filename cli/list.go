@@ -168,12 +168,12 @@ func (r *RootCmd) list() *serpent.Command {
 // convert workspaces to scheduleListRow.
 func QueryConvertWorkspaces[T any](ctx context.Context, client *codersdk.Client, filter codersdk.WorkspaceFilter, convertF func(time.Time, codersdk.Workspace) T) ([]T, error) {
 	var empty []T
-	workspaces, err := client.Workspaces(ctx, filter)
+	workspaces, err := client.AllWorkspaces(ctx, filter)
 	if err != nil {
 		return empty, xerrors.Errorf("query workspaces: %w", err)
 	}
-	converted := make([]T, len(workspaces.Workspaces))
-	for i, workspace := range workspaces.Workspaces {
+	converted := make([]T, len(workspaces))
+	for i, workspace := range workspaces {
 		converted[i] = convertF(time.Now(), workspace)
 	}
 	return converted, nil

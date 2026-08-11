@@ -474,25 +474,13 @@ func (r *RootCmd) configSSH() *serpent.Command {
 
 			if configOptions.noWildcard {
 				// Fetch all workspaces to generate individual host entries.
-				var wsNames []string
-				offset := 0
-				const pageSize = 100
-				for {
-					res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-						Owner:  codersdk.Me,
-						Offset: offset,
-						Limit:  pageSize,
-					})
-					if err != nil {
-						return xerrors.Errorf("fetch workspaces: %w", err)
-					}
-					for _, ws := range res.Workspaces {
-						wsNames = append(wsNames, ws.Name)
-					}
-					if len(res.Workspaces) < pageSize {
-						break
-					}
-					offset += pageSize
+				workspaces, err := client.AllWorkspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
+				if err != nil {
+					return xerrors.Errorf("fetch workspaces: %w", err)
+				}
+				wsNames := make([]string, 0, len(workspaces))
+				for _, ws := range workspaces {
+					wsNames = append(wsNames, ws.Name)
 				}
 				configOptions.workspaceNames = wsNames
 			}

@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import { useQuery } from "react-query";
-import { workspaces } from "#/api/queries/workspaces";
+import { allWorkspaces } from "#/api/queries/workspaces";
 import type { Template, Workspace } from "#/api/typesGenerated";
 import type { TemplateScheduleFormValues } from "./formHelpers";
 
@@ -10,7 +10,7 @@ export const useWorkspacesToGoDormant = (
 	fromDate: Date,
 ) => {
 	const { data } = useQuery(
-		workspaces({
+		allWorkspaces({
 			q: `template:${template.name}`,
 		}),
 	);
@@ -44,7 +44,7 @@ export const useWorkspacesToBeDeleted = (
 	fromDate: Date,
 ) => {
 	const { data } = useQuery(
-		workspaces({
+		allWorkspaces({
 			q: `template:${template.name} dormant:true`,
 		}),
 	);

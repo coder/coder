@@ -172,19 +172,19 @@ func (r *Runner) measureCreation(ctx context.Context, logger slog.Logger) error 
 	defer cancel()
 
 	tkr := r.cfg.Clock.TickerFunc(workspacesCtx, workspacePollInterval, func() error {
-		workspaces, err := r.client.Workspaces(workspacesCtx, codersdk.WorkspaceFilter{
+		workspaces, err := r.client.AllWorkspaces(workspacesCtx, codersdk.WorkspaceFilter{
 			Template: r.template.Name,
 		})
 		if err != nil {
 			return xerrors.Errorf("list workspaces: %w", err)
 		}
 
-		createdCount := len(workspaces.Workspaces)
+		createdCount := len(workspaces)
 		runningCount := 0
 		failedCount := 0
 		succeededCount := 0
 
-		for _, ws := range workspaces.Workspaces {
+		for _, ws := range workspaces {
 			switch ws.LatestBuild.Job.Status {
 			case codersdk.ProvisionerJobRunning:
 				runningCount++
@@ -228,13 +228,13 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 	// The reconciler may have created extra workspaces beyond the configured
 	// target (e.g. replacements for failed builds), so using targetNumWorkspaces
 	// as the denominator would undercount completed deletions.
-	initialWorkspaces, err := r.client.Workspaces(deletionCtx, codersdk.WorkspaceFilter{
+	initialWorkspaces, err := r.client.AllWorkspaces(deletionCtx, codersdk.WorkspaceFilter{
 		Template: r.template.Name,
 	})
 	if err != nil {
 		return xerrors.Errorf("list workspaces at deletion start: %w", err)
 	}
-	initialWorkspaceCount := len(initialWorkspaces.Workspaces)
+	initialWorkspaceCount := len(initialWorkspaces)
 
 	// retryCount tracks how many delete builds we've submitted per workspace.
 	// lastRetriedBuildID prevents submitting a second retry for the same failed
@@ -243,7 +243,7 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 	lastRetriedBuildID := make(map[uuid.UUID]uuid.UUID)
 
 	tkr := r.cfg.Clock.TickerFunc(deletionCtx, workspacePollInterval, func() error {
-		workspaces, err := r.client.Workspaces(deletionCtx, codersdk.WorkspaceFilter{
+		workspaces, err := r.client.AllWorkspaces(deletionCtx, codersdk.WorkspaceFilter{
 			Template: r.template.Name,
 		})
 		if err != nil {
@@ -255,7 +255,7 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 		failedCount := 0
 		exhaustedCount := 0
 
-		for _, ws := range workspaces.Workspaces {
+		for _, ws := range workspaces {
 			if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionDelete {
 				// The reconciler hasn't submitted a delete build yet.
 				continue
@@ -298,7 +298,7 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 			}
 		}
 
-		completedCount := initialWorkspaceCount - len(workspaces.Workspaces)
+		completedCount := initialWorkspaceCount - len(workspaces)
 		createdCount += completedCount
 
 		r.cfg.Metrics.SetDeletionJobsCreated(createdCount, r.template.Name)
@@ -306,13 +306,13 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 		r.cfg.Metrics.SetDeletionJobsFailed(failedCount, r.template.Name)
 		r.cfg.Metrics.SetDeletionJobsCompleted(completedCount, r.template.Name)
 
-		if len(workspaces.Workspaces) == 0 {
+		if len(workspaces) == 0 {
 			return errTickerDone
 		}
 
 		// If every remaining workspace has exhausted all retries, fail
 		// immediately rather than waiting for the timeout.
-		if exhaustedCount > 0 && exhaustedCount == len(workspaces.Workspaces) {
+		if exhaustedCount > 0 && exhaustedCount == len(workspaces) {
 			return xerrors.Errorf("%d workspace(s) failed to delete after %d attempts", exhaustedCount, maxDeletionRetries+1)
 		}
 
@@ -408,7 +408,9 @@ func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
 	}
 
 	// Workspaces must be deleted before the template can be deleted.
-	workspaces, err := allWorkspacesForTemplate(ctx, r.client, r.template.Name)
+	workspaces, err := r.client.AllWorkspaces(ctx, codersdk.WorkspaceFilter{
+		Template: r.template.Name,
+	})
 	if err != nil {
 		return xerrors.Errorf("list workspaces for template %q: %w", r.template.Name, err)
 	}
@@ -459,28 +461,6 @@ func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
 
 	logger.Info(ctx, "template deleted successfully", slog.F("template_name", r.template.Name))
 	return nil
-}
-
-// allWorkspacesForTemplate returns all workspaces belonging to templateName,
-// paginating through results until exhausted.
-func allWorkspacesForTemplate(ctx context.Context, client *codersdk.Client, templateName string) ([]codersdk.Workspace, error) {
-	const pageSize = 100
-	var workspaces []codersdk.Workspace
-	for page := 0; ; page++ {
-		resp, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Template: templateName,
-			Offset:   page * pageSize,
-			Limit:    pageSize,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("list workspaces page %d: %w", page, err)
-		}
-		workspaces = append(workspaces, resp.Workspaces...)
-		if len(resp.Workspaces) < pageSize {
-			break
-		}
-	}
-	return workspaces, nil
 }
 
 //go:embed tf/main.tf.tpl

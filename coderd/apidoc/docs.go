@@ -13617,7 +13617,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Page limit, from 1 to 100. Defaults to 100 when omitted.",
                         "name": "limit",
                         "in": "query"
                     },

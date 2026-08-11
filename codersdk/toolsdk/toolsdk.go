@@ -595,14 +595,14 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 		if owner == "" {
 			owner = codersdk.Me
 		}
-		workspaces, err := deps.coderClient.Workspaces(ctx, codersdk.WorkspaceFilter{
+		workspaces, err := deps.coderClient.AllWorkspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: owner,
 		})
 		if err != nil {
 			return nil, err
 		}
-		minimalWorkspaces := make([]MinimalWorkspace, len(workspaces.Workspaces))
-		for i, workspace := range workspaces.Workspaces {
+		minimalWorkspaces := make([]MinimalWorkspace, len(workspaces))
+		for i, workspace := range workspaces {
 			minimalWorkspaces[i] = MinimalWorkspace{
 				ID:                      workspace.ID.String(),
 				Name:                    workspace.Name,

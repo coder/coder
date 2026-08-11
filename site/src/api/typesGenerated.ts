@@ -11499,6 +11499,15 @@ export interface WorkspaceUser extends MinimalUser {
 	readonly role: WorkspaceRole;
 }
 
+// From codersdk/pagination.go
+/**
+ * WorkspacesPageLimit is the largest page size the workspaces list endpoint
+ * accepts and the page size clients use when reading that endpoint to
+ * exhaustion. A request that omits limit receives this many rows; a limit of 0
+ * or greater than this is rejected.
+ */
+export const WorkspacesPageLimit = 100;
+
 // From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {
 	readonly q?: string;

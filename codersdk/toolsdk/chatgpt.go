@@ -69,14 +69,14 @@ func searchTemplates(ctx context.Context, deps Deps, query string) ([]SearchResu
 
 func searchWorkspaces(ctx context.Context, deps Deps, query string) ([]SearchResultItem, error) {
 	serverURL := deps.ServerURL()
-	workspaces, err := deps.coderClient.Workspaces(ctx, codersdk.WorkspaceFilter{
+	workspaces, err := deps.coderClient.AllWorkspaces(ctx, codersdk.WorkspaceFilter{
 		FilterQuery: query,
 	})
 	if err != nil {
 		return nil, err
 	}
-	results := make([]SearchResultItem, len(workspaces.Workspaces))
-	for i, workspace := range workspaces.Workspaces {
+	results := make([]SearchResultItem, len(workspaces))
+	for i, workspace := range workspaces {
 		results[i] = SearchResultItem{
 			ID:    createObjectID(ObjectTypeWorkspace, workspace.ID.String()).String(),
 			Title: workspace.Name,

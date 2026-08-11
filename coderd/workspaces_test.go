@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -3327,6 +3328,34 @@ func TestOffsetLimit(t *testing.T) {
 		Offset: math.MaxInt32 + 1, // Potential risk: pq: OFFSET must not be negative
 	})
 	require.Error(t, err)
+}
+
+func TestWorkspacesPageLimit(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// A limit outside [1, codersdk.WorkspacesPageLimit] is rejected rather than
+	// clamped. codersdk.Pagination omits a zero limit, so the query is built by
+	// hand.
+	for _, limit := range []string{"0", strconv.Itoa(codersdk.WorkspacesPageLimit + 1)} {
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/workspaces?limit="+limit, nil)
+		require.NoError(t, err)
+		_ = res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	}
+
+	_, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{Limit: codersdk.WorkspacesPageLimit + 1})
+	var apiErr *codersdk.Error
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	require.Len(t, apiErr.Validations, 1)
+	require.Equal(t, "limit", apiErr.Validations[0].Field)
+
+	// The maximum is accepted.
+	_, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{Limit: codersdk.WorkspacesPageLimit})
+	require.NoError(t, err)
 }
 
 func TestWorkspaceUpdateAutostart(t *testing.T) {

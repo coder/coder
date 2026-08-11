@@ -8,6 +8,7 @@ import {
 } from "#/testHelpers/entities";
 import { API, getURLWithSearchParams, ParameterValidationError } from "./api";
 import type * as TypesGen from "./typesGenerated";
+import { WorkspacesPageLimit } from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();
 
@@ -658,5 +659,63 @@ describe("api.ts", () => {
 				expectedError,
 			);
 		});
+	});
+});
+
+describe("getAllWorkspaces", () => {
+	const workspacePage = (count: number, rows: number) => ({
+		workspaces: Array.from({ length: rows }, (_, i) => ({
+			...MockWorkspace,
+			id: `ws-${i}`,
+		})),
+		count,
+	});
+
+	it("issues a single request when the total fits in one page", async () => {
+		const page = workspacePage(3, 3);
+		const getWorkspaces = vi
+			.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce(page);
+
+		const result = await API.getAllWorkspaces({ q: "owner:me" });
+
+		expect(getWorkspaces).toHaveBeenCalledTimes(1);
+		expect(getWorkspaces).toHaveBeenCalledWith({
+			q: "owner:me",
+			limit: WorkspacesPageLimit,
+			offset: 0,
+		});
+		expect(result).toStrictEqual(page);
+	});
+
+	it("advances the offset by the page size until the total is reached", async () => {
+		const getWorkspaces = vi
+			.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce(workspacePage(250, WorkspacesPageLimit))
+			.mockResolvedValueOnce(workspacePage(250, WorkspacesPageLimit))
+			.mockResolvedValueOnce(workspacePage(250, 50));
+
+		const result = await API.getAllWorkspaces();
+
+		expect(getWorkspaces.mock.calls.map(([req]) => req?.offset)).toStrictEqual([
+			0,
+			WorkspacesPageLimit,
+			WorkspacesPageLimit * 2,
+		]);
+		expect(result.workspaces).toHaveLength(250);
+		expect(result.count).toBe(250);
+	});
+
+	it("keeps requesting pages when a page is shorter than the page size", async () => {
+		const getWorkspaces = vi
+			.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce(workspacePage(150, 40))
+			.mockResolvedValueOnce(workspacePage(150, 50));
+
+		const result = await API.getAllWorkspaces();
+
+		expect(getWorkspaces).toHaveBeenCalledTimes(2);
+		expect(result.workspaces).toHaveLength(90);
+		expect(result.count).toBe(150);
 	});
 });
