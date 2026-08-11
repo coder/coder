@@ -164,6 +164,30 @@ func TestForkReapExitCodes(t *testing.T) {
 	}
 }
 
+func TestForkReapStartCallback(t *testing.T) {
+	t.Parallel()
+	if testutil.InCI() {
+		t.Skip("Detected CI, skipping reaper tests")
+	}
+	if !runSubprocess(t) {
+		return
+	}
+
+	started := make(chan int, 1)
+	var reapLock sync.RWMutex
+	opts := append([]reaper.Option{
+		reaper.WithExecArgs("/bin/sh", "-c", "exit 0"),
+		reaper.WithStartCallback(func(pid int) { started <- pid }),
+		reaper.WithReapLock(&reapLock),
+	}, withDone(t)...)
+	reapLock.RLock()
+	exitCode, err := reaper.ForkReap(opts...)
+	reapLock.RUnlock()
+	require.NoError(t, err)
+	require.Equal(t, 0, exitCode)
+	require.Positive(t, <-started)
+}
+
 func TestForkReapEnv(t *testing.T) {
 	t.Parallel()
 	if testutil.InCI() {

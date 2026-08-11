@@ -101,6 +101,10 @@ func ForkReap(opt ...Option) (int, error) {
 		return 1, xerrors.Errorf("fork exec: %w", err)
 	}
 
+	if opts.StartCallback != nil {
+		opts.StartCallback(pid)
+	}
+
 	startSignalForwarding(opts.Logger, pid, opts.CatchSignals)
 
 	var wstatus syscall.WaitStatus

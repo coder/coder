@@ -29,6 +29,14 @@ func WithEnv(env []string) Option {
 	}
 }
 
+// WithStartCallback sets a function called immediately after the child is
+// forked successfully.
+func WithStartCallback(callback func(pid int)) Option {
+	return func(o *options) {
+		o.StartCallback = callback
+	}
+}
+
 // WithPIDCallback sets the channel that reaped child process PIDs are pushed
 // onto.
 func WithPIDCallback(ch reap.PidCh) Option {
@@ -84,6 +92,7 @@ func WithReapLock(mu *sync.RWMutex) Option {
 type options struct {
 	ExecArgs      []string
 	Env           []string
+	StartCallback func(pid int)
 	PIDs          reap.PidCh
 	CatchSignals  []os.Signal
 	Logger        slog.Logger
