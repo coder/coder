@@ -115,16 +115,15 @@ export const buildChatSearchQuery = (
 	}
 
 	const text = sanitizeChatSearchValue(freeText).trim();
-	// A token with any letter or number is a searchable word under the 'simple'
-	// config, including OR/AND/NOT in any casing (they are operators only
-	// between operands). Only punctuation/symbol-only input has no lexemes.
+	// Operator words (OR/AND/NOT) count as searchable text; they only act as
+	// operators between operands.
 	const hasSearchText = text
 		.split(/\s+/)
 		.some((token) => /[\p{L}\p{N}]/u.test(token));
 	if (text !== "") {
-		// Quotes make the complete search value one backend token. OR and
-		// -negation remain live; quoted phrases are flattened to AND-of-words
-		// because the backend tokenizer cannot carry embedded quotes.
+		// The wrapper quotes make the value one token for the backend parser and
+		// are stripped before FTS, so OR and -negation stay live but typed phrase
+		// quotes are lost.
 		parts.push(`search:"${text}"`);
 	}
 
@@ -174,11 +173,10 @@ const stripSurroundingQuotes = (value: string): string => {
 };
 
 /**
- * Extracts complete recognized filters from typed text. Unbalanced quoted and
- * invalid filter tokens pass through unchanged. `consumed` reports whether any
- * filter token was removed. It can be true while `filters` is empty when the
- * typed value already matches the active pill. The caller owns any separator
- * needed after suppressing the triggering Space keystroke.
+ * Extracts recognized filters from typed text. Unbalanced-quoted and invalid
+ * tokens pass through unchanged. `consumed` is true if any filter token was
+ * removed, even when `filters` is empty (a typed value equal to the active
+ * pill). The caller owns any separator after a suppressed Space keystroke.
  */
 export const extractTypedFilters = (
 	text: string,

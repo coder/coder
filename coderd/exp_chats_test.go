@@ -2069,10 +2069,9 @@ func TestListChats_Search(t *testing.T) {
 		t.Parallel()
 		ctx, client, db, firstUser, modelConfig := setup(t)
 
-		// A control chat whose title contains the word "or". A lone "or" is a
-		// real lexeme under the simple config (an operator only between
-		// operands), so search:"or" must match it, while search:"!!!" has no
-		// lexemes and matches nothing.
+		// "or" is a real lexeme (an operator only between operands), so
+		// search:"or" matches the control chat; search:"!!!" has no lexemes and
+		// matches nothing.
 		control := createChat(t, db, firstUser, modelConfig.ID, "fix this or that")
 		backfillSearchTsv(ctx, t, db)
 

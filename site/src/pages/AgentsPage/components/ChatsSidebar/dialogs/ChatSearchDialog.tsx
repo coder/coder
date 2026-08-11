@@ -162,8 +162,8 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	>(undefined);
 	const listboxId = useId();
 
-	// Prevents a committed incomplete-filter value from briefly reappearing as
-	// full-text search.
+	// Debounce as one snapshot so a committed incomplete-filter value cannot
+	// reappear as full-text search.
 	const queryFilters =
 		incompleteFilterKey && freeText.trim()
 			? [...filters, { key: incompleteFilterKey, value: freeText.trim() }]
