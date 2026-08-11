@@ -1,4 +1,6 @@
 import { isAxiosError } from "axios";
+import { saveAs } from "file-saver";
+import JSZip from "jszip";
 import type { FC } from "react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -62,9 +64,42 @@ const personalSkillError = (
 	};
 };
 
+const downloadPersonalSkillFile = async (
+	name: string,
+	fetchContent: (name: string) => Promise<string>,
+): Promise<void> => {
+	const content = await fetchContent(name);
+	saveAs(
+		new Blob([content], { type: "text/markdown;charset=utf-8" }),
+		`${name}.md`,
+	);
+};
+
+const exportPersonalSkillsArchive = async (
+	skills: readonly UserSkillMetadata[],
+	fetchContent: (name: string) => Promise<string>,
+): Promise<void> => {
+	const contents = await Promise.all(
+		skills.map(async (skill) => ({
+			name: skill.name,
+			content: await fetchContent(skill.name),
+		})),
+	);
+	const zip = new JSZip();
+	for (const { name, content } of contents) {
+		zip.file(`${name}/SKILL.md`, content);
+	}
+	const archive = await zip.generateAsync({ type: "blob" });
+	saveAs(archive, "personal-skills.zip");
+};
+
 const AgentSettingsPersonalSkillsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const [dialogState, setDialogState] = useState<DialogState>(null);
+	const [downloadingSkillName, setDownloadingSkillName] = useState<
+		string | undefined
+	>(undefined);
+	const [isExportingAll, setIsExportingAll] = useState(false);
 	const skillsQuery = useQuery(userSkills());
 	const skills = skillsQuery.data ?? [];
 	const existingNames = skills.map((skill) =>
@@ -147,6 +182,42 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 			}
 		},
 	});
+
+	const fetchSkillContent = (name: string): Promise<string> =>
+		queryClient.fetchQuery(userSkill(name)).then((skill) => skill.content);
+
+	const handleDownload = async (skill: UserSkillMetadata) => {
+		if (downloadingSkillName) {
+			return;
+		}
+		setDownloadingSkillName(skill.name);
+		try {
+			await downloadPersonalSkillFile(skill.name, fetchSkillContent);
+		} catch (error) {
+			toast.error(
+				getErrorMessage(error, "Failed to download personal skill."),
+				{
+					description: getErrorDetail(error),
+				},
+			);
+		}
+		setDownloadingSkillName(undefined);
+	};
+
+	const handleExportAll = async () => {
+		if (isExportingAll || skills.length === 0) {
+			return;
+		}
+		setIsExportingAll(true);
+		try {
+			await exportPersonalSkillsArchive(skills, fetchSkillContent);
+		} catch (error) {
+			toast.error(getErrorMessage(error, "Failed to export personal skills."), {
+				description: getErrorDetail(error),
+			});
+		}
+		setIsExportingAll(false);
+	};
 
 	let editInitialValues: PersonalSkillFormValues | undefined;
 	let editLoadError: unknown = editSkillQuery.error;
@@ -274,6 +345,14 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 				deleteMutation.reset();
 				setDialogState({ type: "delete", skill });
 			}}
+			onDownload={(skill) => {
+				void handleDownload(skill);
+			}}
+			onExportAll={() => {
+				void handleExportAll();
+			}}
+			downloadingSkillName={downloadingSkillName}
+			isExportingAll={isExportingAll}
 			editorState={editorState}
 			deleteState={deleteState}
 		/>
