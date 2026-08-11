@@ -1123,6 +1123,11 @@
 							"title": "Extending Agents",
 							"description": "Extend Coder Agents with custom skills and MCP tools defined in your workspace templates.",
 							"path": "./ai-coder/agents/extending-agents.md"
+						},
+						{
+							"title": "Tasks to Chats API Migration",
+							"description": "Migrate your integrations from the deprecated Coder Tasks API to the Coder Agents Chats API.",
+							"path": "./ai-coder/agents/tasks-to-chats-migration.md"
 						}
 					]
 				},
