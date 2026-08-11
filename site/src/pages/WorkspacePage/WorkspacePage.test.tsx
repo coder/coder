@@ -194,25 +194,6 @@ describe("WorkspacePage", () => {
 		await testButton(MockWorkspace, "Stop", stopWorkspaceMock);
 	});
 
-	it("requests an orchestrated restart when the user presses Restart", async () => {
-		const restartWorkspaceMock = vi
-			.spyOn(API, "restartWorkspace")
-			.mockResolvedValueOnce(undefined);
-
-		await renderWorkspacePage(MockWorkspace);
-
-		const user = userEvent.setup();
-		await user.click(screen.getByTestId("workspace-restart-button"));
-		const confirmButton = await screen.findByTestId("confirm-button");
-		await user.click(confirmButton);
-
-		await waitFor(() => {
-			expect(restartWorkspaceMock).toHaveBeenCalledWith(
-				expect.objectContaining({ workspace: MockWorkspace }),
-			);
-		});
-	});
-
 	it("requests cancellation when the user presses Cancel", async () => {
 		server.use(
 			http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {

@@ -92,3 +92,20 @@ export const RestartDialogOutdatedWorkspace: Story = {
 		);
 	},
 };
+
+export const ConfirmRestart: Story = {
+	beforeEach: () => {
+		spyOn(API, "restartWorkspace").mockResolvedValue(undefined);
+	},
+	play: async ({ canvasElement }) => {
+		const dialog = await openRestartDialog(canvasElement);
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Restart" }),
+		);
+		await waitFor(() =>
+			expect(API.restartWorkspace).toHaveBeenCalledWith(
+				expect.objectContaining({ workspace: Mocks.MockWorkspace }),
+			),
+		);
+	},
+};
