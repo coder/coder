@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -3847,6 +3848,97 @@ func TestWorkspaceAgentAIBindingCredentialStarvation(t *testing.T) {
 	require.NotEmpty(t, key.PrivateKey)
 
 	_, err = boundClient.GitSSHKey(ctx)
+	require.Error(t, err)
+	var gitSSHKeyErr *codersdk.Error
+	require.ErrorAs(t, err, &gitSSHKeyErr)
+	require.Equal(t, http.StatusForbidden, gitSSHKeyErr.StatusCode())
+}
+
+func TestWorkspaceAgentAIDesignationCredentialStarvation(t *testing.T) {
+	t.Parallel()
+
+	providerID := "ai-designation-" + uuid.NewString()
+	accessToken := uuid.NewString()
+	secretValue := uuid.NewString()
+	agentToken := uuid.NewString()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		ExternalAuthConfigs: []*externalauth.Config{
+			fakeExternalAuthConfig(providerID, accessToken, regexp.MustCompile(`.*`)),
+		},
+	})
+	db := api.Database
+	owner := coderdtest.CreateFirstUser(t, client)
+	_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name:    "ai-designation-secret",
+		Value:   secretValue,
+		EnvName: "AI_DESIGNATION_SECRET",
+	})
+	require.NoError(t, err)
+	dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+		ProviderID:       providerID,
+		UserID:           owner.UserID,
+		OAuthAccessToken: accessToken,
+		OAuthExpiry:      dbtime.Now().Add(24 * time.Hour),
+	})
+
+	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+	chatID := uuid.New()
+	_, chatAgent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        owner.UserID,
+		OrganizationID: owner.OrganizationID,
+		OriginType:     database.AIAgentOriginChat,
+		OriginID:       chatID,
+	})
+	require.NoError(t, err)
+	actorCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
+		AgentUserID: chatAgent.UserID,
+		OwnerUserID: chatAgent.OwnerUserID,
+		OriginType:  chatAgent.OriginType,
+		OriginID:    chatAgent.OriginID,
+	})
+
+	workspace, err := coderd.ChatCreateWorkspace(api, actorCtx, owner.UserID, codersdk.CreateWorkspaceRequest{
+		Name:       "chat-designated-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8],
+		TemplateID: template.ID,
+	})
+	require.NoError(t, err)
+	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	agents, err := db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(dbauthz.AsSystemRestricted(ctx), database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+		WorkspaceID: workspace.ID,
+		BuildNumber: build.BuildNumber,
+	})
+	require.NoError(t, err)
+	require.Len(t, agents, 1)
+	require.Equal(t, uuid.NullUUID{UUID: chatAgent.UserID, Valid: true}, agents[0].AIAgentID)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
+	conn, err := agentClient.ConnectRPC(ctx)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, conn.Close())
+	}()
+	manifest, err := agentproto.NewDRPCAgentClient(conn).GetManifest(ctx, &agentproto.GetManifestRequest{})
+	require.NoError(t, err)
+	require.Empty(t, agentsdk.SecretsFromProto(manifest.Secrets))
+
+	_, err = agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{ID: providerID})
+	require.Error(t, err)
+	var externalAuthErr *codersdk.Error
+	require.ErrorAs(t, err, &externalAuthErr)
+	require.Equal(t, http.StatusForbidden, externalAuthErr.StatusCode())
+
+	_, err = agentClient.GitSSHKey(ctx)
 	require.Error(t, err)
 	var gitSSHKeyErr *codersdk.Error
 	require.ErrorAs(t, err, &gitSSHKeyErr)
