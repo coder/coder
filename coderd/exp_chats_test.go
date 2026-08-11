@@ -9914,9 +9914,10 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 		return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
 	})
 
-	client, api := newChatClientWithAPI(t)
+	client, _, api := newChatClientWithoutAIBridge(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfigWithBaseURL(t, client, baseURL)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -9969,9 +9970,10 @@ func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {
 		return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
 	})
 
-	client, api := newChatClientWithAPI(t)
+	client, _, api := newChatClientWithoutAIBridge(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfigWithBaseURL(t, client, baseURL)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 	uploadResp, err := client.UploadChatFile(
 		ctx,

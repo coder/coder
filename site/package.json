@@ -52,7 +52,7 @@
 		"@lexical/utils": "0.48.0",
 		"@monaco-editor/react": "4.7.0",
 		"@novnc/novnc": "^1.5.0",
-		"@pierre/diffs": "1.2.7",
+		"@pierre/diffs": "1.3.3",
 		"@pierre/trees": "1.0.0-beta.4",
 		"@tanstack/react-query-devtools": "5.82.0",
 		"@xterm/addon-canvas": "0.7.0",

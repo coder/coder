@@ -1,5 +1,4 @@
-import Checkbox from "@mui/material/Checkbox";
-import { EllipsisVerticalIcon } from "lucide-react";
+import { EllipsisVerticalIcon, PencilIcon, TrashIcon } from "lucide-react";
 import type { FC } from "react";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -9,6 +8,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Switch } from "#/components/Switch/Switch";
 import { TableCell, TableRow } from "#/components/Table/Table";
 
 interface AnnouncementBannerItemProps {
@@ -30,11 +30,13 @@ export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
 }) => {
 	return (
 		<TableRow>
-			<TableCell>
-				<Checkbox
-					size="small"
+			<TableCell className="align-middle pl-5">
+				<Switch
 					checked={enabled}
-					onClick={() => void onUpdate({ enabled: !enabled })}
+					aria-label="Enabled"
+					onCheckedChange={(checked) => {
+						void onUpdate({ enabled: checked });
+					}}
 				/>
 			</TableCell>
 
@@ -56,12 +58,14 @@ export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={() => onEdit()}>
+							<PencilIcon className="size-icon-xs" />
 							Edit&hellip;
 						</DropdownMenuItem>
 						<DropdownMenuItem
 							className="text-content-destructive focus:text-content-destructive"
 							onClick={() => onDelete()}
 						>
+							<TrashIcon className="size-icon-xs" />
 							Delete&hellip;
 						</DropdownMenuItem>
 					</DropdownMenuContent>

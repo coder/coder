@@ -39,7 +39,10 @@ export const UserDropdownAISpend: FC<UserDropdownAISpendProps> = ({
 				/>
 			)}
 			<div className="mt-1 text-xs text-content-secondary">
-				Estimated AI spend: {formatSpendPeriodLabel(periodStart, periodEnd)}
+				Approximate AI spend{" "}
+				<span className="whitespace-nowrap">
+					{formatSpendPeriodLabel(periodStart, periodEnd)}
+				</span>
 			</div>
 		</div>
 	);
