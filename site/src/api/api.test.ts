@@ -5,6 +5,7 @@ import {
 	MockTemplateVersion2,
 	MockWorkspace,
 	MockWorkspaceBuild,
+	MockWorkspaceBuildStop,
 } from "#/testHelpers/entities";
 import { API, getURLWithSearchParams, ParameterValidationError } from "./api";
 import type * as TypesGen from "./typesGenerated";
@@ -368,6 +369,176 @@ describe("api.ts", () => {
 					},
 				);
 			});
+		});
+	});
+
+	describe("restartWorkspace", () => {
+		afterEach(() => {
+			vi.useRealTimers();
+			vi.restoreAllMocks();
+		});
+
+		const stopBuild: TypesGen.WorkspaceBuild = {
+			...MockWorkspaceBuildStop,
+			build_number: 7,
+		};
+		const childBuild: TypesGen.WorkspaceBuild = {
+			...MockWorkspaceBuild,
+			build_number: stopBuild.build_number + 1,
+			id: "child-build",
+			transition: "start",
+		};
+		const buildParameters: TypesGen.WorkspaceBuildParameter[] = [
+			{ name: "region", value: "us-east" },
+		];
+		const notFoundError = {
+			isAxiosError: true,
+			response: { status: 404 },
+		};
+
+		it("forwards an abort signal when fetching a workspace build", async () => {
+			const controller = new AbortController();
+			const get = vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: childBuild,
+			});
+
+			await API.getWorkspaceBuildByNumber(
+				childBuild.workspace_owner_name,
+				childBuild.workspace_name,
+				childBuild.build_number,
+				controller.signal,
+			);
+
+			expect(get).toHaveBeenCalledWith(
+				`/api/v2/users/${childBuild.workspace_owner_name}/workspace/${childBuild.workspace_name}/builds/${childBuild.build_number}`,
+				{ signal: controller.signal },
+			);
+		});
+
+		it("submits one stop build with a follow-up start", async () => {
+			const postWorkspaceBuild = vi
+				.spyOn(API, "postWorkspaceBuild")
+				.mockResolvedValue(stopBuild);
+			vi.spyOn(API, "waitForBuild")
+				.mockResolvedValueOnce(MockProvisionerJob)
+				.mockResolvedValueOnce(MockProvisionerJob);
+			vi.spyOn(API, "getWorkspaceBuildByNumber").mockResolvedValue(childBuild);
+			const startWorkspace = vi
+				.spyOn(API, "startWorkspace")
+				.mockResolvedValue(childBuild);
+
+			await API.restartWorkspace({
+				workspace: MockWorkspace,
+				buildParameters,
+			});
+
+			expect(postWorkspaceBuild).toHaveBeenCalledOnce();
+			expect(postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+				transition: "stop",
+				reason: "dashboard",
+				on_success: {
+					transition: "start",
+					rich_parameter_values: buildParameters,
+				},
+			});
+			expect(startWorkspace).not.toHaveBeenCalled();
+		});
+
+		it("does not pin the follow-up start to a template version", async () => {
+			const postWorkspaceBuild = vi
+				.spyOn(API, "postWorkspaceBuild")
+				.mockResolvedValue(stopBuild);
+			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
+				...MockProvisionerJob,
+				status: "canceled",
+			});
+
+			await API.restartWorkspace({ workspace: MockWorkspace });
+
+			const request = postWorkspaceBuild.mock.calls[0][1];
+			expect(request.on_success).toBeDefined();
+			expect(request.on_success).not.toHaveProperty("template_version_id");
+		});
+
+		it("does not look for a follow-up build when the stop is canceled", async () => {
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(stopBuild);
+			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
+				...MockProvisionerJob,
+				status: "canceled",
+			});
+			const getWorkspaceBuildByNumber = vi.spyOn(
+				API,
+				"getWorkspaceBuildByNumber",
+			);
+
+			await API.restartWorkspace({ workspace: MockWorkspace });
+
+			expect(getWorkspaceBuildByNumber).not.toHaveBeenCalled();
+		});
+
+		it("waits for the server-created child build after the stop succeeds", async () => {
+			vi.useFakeTimers();
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(stopBuild);
+			const waitForBuild = vi
+				.spyOn(API, "waitForBuild")
+				.mockResolvedValueOnce(MockProvisionerJob)
+				.mockResolvedValueOnce(MockProvisionerJob);
+			const getWorkspaceBuildByNumber = vi
+				.spyOn(API, "getWorkspaceBuildByNumber")
+				.mockRejectedValueOnce(notFoundError)
+				.mockResolvedValue(childBuild);
+
+			const restart = API.restartWorkspace({ workspace: MockWorkspace });
+			await vi.advanceTimersByTimeAsync(1000);
+			await restart;
+
+			expect(getWorkspaceBuildByNumber).toHaveBeenCalledTimes(2);
+			expect(getWorkspaceBuildByNumber).toHaveBeenCalledWith(
+				stopBuild.workspace_owner_name,
+				stopBuild.workspace_name,
+				stopBuild.build_number + 1,
+				expect.any(AbortSignal),
+			);
+			expect(waitForBuild).toHaveBeenNthCalledWith(1, stopBuild);
+			expect(waitForBuild).toHaveBeenNthCalledWith(2, childBuild);
+		});
+
+		it("stops waiting when the follow-up build is not created in time", async () => {
+			vi.useFakeTimers();
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(stopBuild);
+			vi.spyOn(API, "waitForBuild").mockResolvedValue(MockProvisionerJob);
+			const getWorkspaceBuildByNumber = vi
+				.spyOn(API, "getWorkspaceBuildByNumber")
+				.mockImplementation(
+					(_username, _workspaceName, _buildNumber, signal) => {
+						return new Promise((_, reject) => {
+							signal?.addEventListener("abort", () =>
+								reject(new Error("canceled")),
+							);
+						});
+					},
+				);
+
+			const restart = API.restartWorkspace({ workspace: MockWorkspace });
+			let settled = false;
+			void restart.then(
+				() => {
+					settled = true;
+				},
+				() => {
+					settled = true;
+				},
+			);
+
+			await vi.advanceTimersByTimeAsync(59_999);
+			expect(settled).toBe(false);
+			expect(getWorkspaceBuildByNumber.mock.calls[0][3]?.aborted).toBe(false);
+
+			await vi.advanceTimersByTimeAsync(1);
+			await expect(restart).rejects.toThrow(
+				"The workspace stopped but the follow-up start build was not created.",
+			);
+			expect(getWorkspaceBuildByNumber.mock.calls[0][3]?.aborted).toBe(true);
 		});
 	});
 

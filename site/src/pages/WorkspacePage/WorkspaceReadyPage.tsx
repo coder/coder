@@ -385,6 +385,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					<>
 						Restarting your workspace will stop all running processes and{" "}
 						<strong>delete non-persistent data</strong>.
+						{workspace.outdated &&
+							" This workspace will start using the template's latest active version."}
 					</>
 				}
 			/>

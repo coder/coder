@@ -1276,10 +1276,12 @@ class ApiMethods {
 		username: string,
 		workspaceName: string,
 		buildNumber: number,
+		signal?: AbortSignal,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const response = await this.axios.get<TypesGen.WorkspaceBuild>(
-			`/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
-		);
+		const url = `/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`;
+		const response = await this.axios.get<TypesGen.WorkspaceBuild>(url, {
+			signal,
+		});
 
 		return response.data;
 	};
@@ -1311,6 +1313,53 @@ class ApiMethods {
 				return res(latestJobInfo);
 			})();
 		});
+	};
+
+	private waitForRestartBuild = async (
+		stopBuild: TypesGen.WorkspaceBuild,
+	): Promise<TypesGen.WorkspaceBuild> => {
+		const deadline = Date.now() + 60_000;
+		const timeoutError = new Error(
+			"The workspace stopped but the follow-up start build was not created.",
+		);
+
+		const controller = new AbortController();
+		const timeoutId = setTimeout(
+			() => controller.abort(),
+			Math.max(0, deadline - Date.now()),
+		);
+		try {
+			while (true) {
+				const remainingTime = deadline - Date.now();
+				if (remainingTime <= 0) {
+					throw timeoutError;
+				}
+
+				try {
+					return await this.getWorkspaceBuildByNumber(
+						stopBuild.workspace_owner_name,
+						stopBuild.workspace_name,
+						stopBuild.build_number + 1,
+						controller.signal,
+					);
+				} catch (error) {
+					if (controller.signal.aborted) {
+						throw timeoutError;
+					}
+					if (!isAxiosError(error) || error.response?.status !== 404) {
+						throw error;
+					}
+				}
+
+				const delayTime = Math.min(1000, deadline - Date.now());
+				if (delayTime <= 0) {
+					throw timeoutError;
+				}
+				await delay(delayTime);
+			}
+		} finally {
+			clearTimeout(timeoutId);
+		}
 	};
 
 	postWorkspaceBuild = async (
@@ -1411,21 +1460,21 @@ class ApiMethods {
 		workspace,
 		buildParameters,
 	}: RestartWorkspaceParameters): Promise<void> => {
-		const stopBuild = await this.stopWorkspace(workspace.id);
+		const stopBuild = await this.postWorkspaceBuild(workspace.id, {
+			transition: "stop",
+			reason: "dashboard",
+			on_success: {
+				transition: "start",
+				rich_parameter_values: buildParameters,
+			},
+		});
 		const awaitedStopBuild = await this.waitForBuild(stopBuild);
 
-		// If the restart is canceled halfway through, make sure we bail
 		if (awaitedStopBuild?.status === "canceled") {
 			return;
 		}
 
-		const startBuild = await this.startWorkspace(
-			workspace.id,
-			workspace.latest_build.template_version_id,
-			undefined,
-			buildParameters,
-		);
-
+		const startBuild = await this.waitForRestartBuild(stopBuild);
 		await this.waitForBuild(startBuild);
 	};
 

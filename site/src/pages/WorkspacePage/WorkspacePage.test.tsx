@@ -26,6 +26,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildDelete,
+	MockWorkspaceBuildStop,
 } from "#/testHelpers/entities";
 import {
 	type RenderWithAuthOptions,
@@ -194,24 +195,36 @@ describe("WorkspacePage", () => {
 		await testButton(MockWorkspace, "Stop", stopWorkspaceMock);
 	});
 
-	it("requests a stop when the user presses Restart", async () => {
-		const stopWorkspaceMock = vi
-			.spyOn(API, "stopWorkspace")
-			.mockResolvedValueOnce(MockWorkspaceBuild);
+	it("requests an orchestrated restart when the user presses Restart", async () => {
+		const childBuild = {
+			...MockWorkspaceBuild,
+			build_number: MockWorkspaceBuildStop.build_number + 1,
+		};
+		const postWorkspaceBuild = vi
+			.spyOn(API, "postWorkspaceBuild")
+			.mockResolvedValueOnce(MockWorkspaceBuildStop);
+		vi.spyOn(API, "waitForBuild").mockResolvedValue(MockWorkspaceBuild.job);
+		vi.spyOn(API, "getWorkspaceBuildByNumber").mockResolvedValue(childBuild);
+		const startWorkspace = vi.spyOn(API, "startWorkspace");
 
-		// Render
 		await renderWorkspacePage(MockWorkspace);
 
-		// Actions
 		const user = userEvent.setup();
 		await user.click(screen.getByTestId("workspace-restart-button"));
 		const confirmButton = await screen.findByTestId("confirm-button");
 		await user.click(confirmButton);
 
-		// Assertions
 		await waitFor(() => {
-			expect(stopWorkspaceMock).toBeCalled();
+			expect(postWorkspaceBuild).toHaveBeenCalledOnce();
 		});
+		expect(postWorkspaceBuild).toHaveBeenCalledWith(
+			MockWorkspace.id,
+			expect.objectContaining({
+				transition: "stop",
+				on_success: expect.objectContaining({ transition: "start" }),
+			}),
+		);
+		expect(startWorkspace).not.toHaveBeenCalled();
 	});
 
 	it("requests cancellation when the user presses Cancel", async () => {
