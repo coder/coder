@@ -2,30 +2,43 @@ package notifications
 
 import (
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/scaletest/createusers"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type Config struct {
-	// User is the configuration for the user to create.
-	User createusers.Config `json:"user"`
+	// PreCreatedUser is the user the runner connects as. The caller must
+	// provide an already-authenticated user before the runner starts.
+	PreCreatedUser codersdk.User `json:"-"`
 
-	// Roles are the roles to assign to the user.
-	Roles []string `json:"roles"`
+	// SessionToken authenticates PreCreatedUser for the websocket connection.
+	SessionToken string `json:"-"`
 
-	// NotificationTimeout is how long to wait for notifications after triggering.
-	NotificationTimeout time.Duration `json:"notification_timeout"`
+	// URL is the deployment address the runner dials.
+	URL *url.URL `json:"-"`
+
+	// DialHTTPClient performs the websocket handshake request. It carries the
+	// caller's TLS and proxy configuration, without which the websocket library
+	// falls back to http.DefaultClient and ignores both.
+	//
+	// One client is shared by every runner. A websocket handshake returns 101 and
+	// hands the TCP connection to the caller, so it never re-enters the idle pool
+	// and every dial gets its own connection regardless of how many clients exist.
+	// It must not be a client whose transport caps MaxConnsPerHost, which would
+	// throttle the dials this test exists to make.
+	DialHTTPClient *http.Client `json:"-"`
 
 	// DialTimeout is how long to wait for websocket connection.
 	DialTimeout time.Duration `json:"dial_timeout"`
 
-	// ExpectedNotificationsIDs is the list of notification template IDs to expect.
-	ExpectedNotificationsIDs map[uuid.UUID]struct{} `json:"-"`
+	// ExpectedNotificationIDs is the set of notification template IDs to expect.
+	ExpectedNotificationIDs map[uuid.UUID]struct{} `json:"-"`
 
 	Metrics *Metrics `json:"-"`
 
@@ -35,7 +48,7 @@ type Config struct {
 	// ReceivingWatchBarrier is the barrier for receiving users. Regular users wait on this to disconnect after receiving users complete.
 	ReceivingWatchBarrier *sync.WaitGroup `json:"-"`
 
-	// SMTPApiUrl is the URL of the SMTP mock HTTP API
+	// SMTPApiURL is the URL of the SMTP mock HTTP API.
 	SMTPApiURL string `json:"smtp_api_url"`
 
 	// SMTPRequestTimeout is the timeout for SMTP requests.
@@ -46,25 +59,28 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
-	// The runner always needs an org; ensure we propagate it into the user config.
-	if c.User.OrganizationID == uuid.Nil {
-		return xerrors.New("user organization_id must be set")
+	if c.PreCreatedUser.ID == uuid.Nil {
+		return xerrors.New("pre_created_user must be set")
 	}
 
-	if err := c.User.Validate(); err != nil {
-		return xerrors.Errorf("user config: %w", err)
+	if c.SessionToken == "" {
+		return xerrors.New("session_token must be set")
+	}
+
+	if c.URL == nil {
+		return xerrors.New("url must be set")
+	}
+
+	if c.DialHTTPClient == nil {
+		return xerrors.New("dial_http_client must be set")
 	}
 
 	if c.DialBarrier == nil {
-		return xerrors.New("dial barrier must be set")
+		return xerrors.New("dial_barrier must be set")
 	}
 
 	if c.ReceivingWatchBarrier == nil {
 		return xerrors.New("receiving_watch_barrier must be set")
-	}
-
-	if c.NotificationTimeout <= 0 {
-		return xerrors.New("notification_timeout must be greater than 0")
 	}
 
 	if c.SMTPApiURL != "" && c.SMTPRequestTimeout <= 0 {

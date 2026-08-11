@@ -13,6 +13,13 @@ import (
 // share connections with the client being duplicated. It copies any headers already on the existing transport as
 // [codersdk.HeaderTransport] and add the headers in the argument.
 func DupClientCopyingHeaders(client *codersdk.Client, header http.Header) (*codersdk.Client, error) {
+	return DupClientConfiguringTransport(client, header, nil)
+}
+
+// DupClientConfiguringTransport duplicates the Client like DupClientCopyingHeaders and, when configure is non-nil,
+// calls it on the new transport before use. Callers that need to tune the connection pool go through this rather than
+// reaching into the returned client, which would mean asserting a transport shape this function already has in hand.
+func DupClientConfiguringTransport(client *codersdk.Client, header http.Header, configure func(*http.Transport)) (*codersdk.Client, error) {
 	nc := codersdk.New(client.URL, codersdk.WithLogger(client.Logger()))
 	nc.SessionTokenProvider = client.SessionTokenProvider
 	newHeader, t, err := extractHeaderAndInnerTransport(client.HTTPClient.Transport)
@@ -21,8 +28,13 @@ func DupClientCopyingHeaders(client *codersdk.Client, header http.Header) (*code
 	}
 	maps.Copy(newHeader, header)
 
+	transport := t.Clone()
+	if configure != nil {
+		configure(transport)
+	}
+
 	nc.HTTPClient.Transport = &codersdk.HeaderTransport{
-		Transport: t.Clone(),
+		Transport: transport,
 		Header:    newHeader,
 	}
 	return nc, nil

@@ -99,6 +99,13 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 	return User{User: user, SessionToken: loginRes.SessionToken}, nil
 }
 
+// User returns the user created by RunReturningUser, if any. It is set as soon
+// as creation succeeds, so callers can still identify a created user for cleanup
+// when a later step (such as login) fails.
+func (r *Runner) User() codersdk.User {
+	return r.user
+}
+
 func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
 	if r.user.ID != uuid.Nil {
 		err := r.client.DeleteUser(ctx, r.user.ID)
