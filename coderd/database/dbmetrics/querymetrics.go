@@ -2937,6 +2937,14 @@ func (m queryMetricsStore) GetTelemetryTaskEvents(ctx context.Context, createdAf
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplateAIEgressPolicy(ctx context.Context, templateID uuid.UUID) (database.TemplateAIEgressPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateAIEgressPolicy(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetTemplateAIEgressPolicy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateAIEgressPolicy").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateAppInsights(ctx, arg)
@@ -4423,6 +4431,14 @@ func (m queryMetricsStore) InsertTemplate(ctx context.Context, arg database.Inse
 	m.queryLatencies.WithLabelValues("InsertTemplate").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertTemplate").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) InsertTemplateAIEgressPolicy(ctx context.Context, arg database.InsertTemplateAIEgressPolicyParams) (database.TemplateAIEgressPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertTemplateAIEgressPolicy(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTemplateAIEgressPolicy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertTemplateAIEgressPolicy").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) error {

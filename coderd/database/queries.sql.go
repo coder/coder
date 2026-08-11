@@ -27025,6 +27025,63 @@ func (q *sqlQuerier) InsertTelemetryLock(ctx context.Context, arg InsertTelemetr
 	return err
 }
 
+const getTemplateAIEgressPolicy = `-- name: GetTemplateAIEgressPolicy :one
+SELECT template_id, revision, rules, created_at, created_by
+FROM template_ai_egress_policies
+WHERE template_id = $1
+ORDER BY revision DESC
+LIMIT 1
+`
+
+func (q *sqlQuerier) GetTemplateAIEgressPolicy(ctx context.Context, templateID uuid.UUID) (TemplateAIEgressPolicy, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateAIEgressPolicy, templateID)
+	var i TemplateAIEgressPolicy
+	err := row.Scan(
+		&i.TemplateID,
+		&i.Revision,
+		&i.Rules,
+		&i.CreatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const insertTemplateAIEgressPolicy = `-- name: InsertTemplateAIEgressPolicy :one
+INSERT INTO template_ai_egress_policies (
+	template_id,
+	revision,
+	rules,
+	created_by
+)
+SELECT
+	$1,
+	COALESCE(MAX(revision), 0) + 1,
+	$2::jsonb,
+	$3
+FROM template_ai_egress_policies
+WHERE template_id = $1
+RETURNING template_id, revision, rules, created_at, created_by
+`
+
+type InsertTemplateAIEgressPolicyParams struct {
+	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
+	Rules      json.RawMessage `db:"rules" json:"rules"`
+	CreatedBy  uuid.UUID       `db:"created_by" json:"created_by"`
+}
+
+func (q *sqlQuerier) InsertTemplateAIEgressPolicy(ctx context.Context, arg InsertTemplateAIEgressPolicyParams) (TemplateAIEgressPolicy, error) {
+	row := q.db.QueryRowContext(ctx, insertTemplateAIEgressPolicy, arg.TemplateID, arg.Rules, arg.CreatedBy)
+	var i TemplateAIEgressPolicy
+	err := row.Scan(
+		&i.TemplateID,
+		&i.Revision,
+		&i.Rules,
+		&i.CreatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
 const getTemplateAverageBuildTime = `-- name: GetTemplateAverageBuildTime :one
 WITH build_times AS (
 SELECT

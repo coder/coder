@@ -6045,6 +6045,15 @@ type Template struct {
 	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
 }
 
+// Insert-only revision history for template AI egress allow policies.
+type TemplateAIEgressPolicy struct {
+	TemplateID uuid.UUID       `db:"template_id" json:"template_id"`
+	Revision   int64           `db:"revision" json:"revision"`
+	Rules      json.RawMessage `db:"rules" json:"rules"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
+	CreatedBy  uuid.UUID       `db:"created_by" json:"created_by"`
+}
+
 type TemplateTable struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`

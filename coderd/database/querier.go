@@ -817,6 +817,7 @@ type sqlcQuerier interface {
 	//   because each resume cycle provisions a new app ID. This ensures
 	//   pre-pause statuses contribute to idle duration and active duration.
 	GetTelemetryTaskEvents(ctx context.Context, arg GetTelemetryTaskEventsParams) ([]GetTelemetryTaskEventsRow, error)
+	GetTemplateAIEgressPolicy(ctx context.Context, templateID uuid.UUID) (TemplateAIEgressPolicy, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
 	// timeframe. The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.
@@ -1172,6 +1173,7 @@ type sqlcQuerier interface {
 	// attempt to generate or publish the event to the telemetry service.
 	InsertTelemetryLock(ctx context.Context, arg InsertTelemetryLockParams) error
 	InsertTemplate(ctx context.Context, arg InsertTemplateParams) error
+	InsertTemplateAIEgressPolicy(ctx context.Context, arg InsertTemplateAIEgressPolicyParams) (TemplateAIEgressPolicy, error)
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error
 	InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error)
 	InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error

@@ -2500,6 +2500,13 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().GetPreviousTemplateVersion(gomock.Any(), arg).Return(b, nil).AnyTimes()
 		check.Args(arg).Asserts(t1, policy.ActionRead).Returns(b)
 	}))
+	s.Run("GetTemplateAIEgressPolicy", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		p := testutil.Fake(s.T(), faker, database.TemplateAIEgressPolicy{TemplateID: t1.ID})
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateAIEgressPolicy(gomock.Any(), t1.ID).Return(p, nil).AnyTimes()
+		check.Args(t1.ID).Asserts(t1, policy.ActionRead).Returns(p)
+	}))
 	s.Run("GetTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
@@ -2625,6 +2632,14 @@ func (s *MethodTestSuite) TestTemplate() {
 		arg := database.InsertTemplateParams{OrganizationID: uuid.New()}
 		dbm.EXPECT().InsertTemplate(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceTemplate.InOrg(arg.OrganizationID), policy.ActionCreate)
+	}))
+	s.Run("InsertTemplateAIEgressPolicy", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.InsertTemplateAIEgressPolicyParams{TemplateID: t1.ID, Rules: json.RawMessage("[]"), CreatedBy: uuid.New()}
+		p := testutil.Fake(s.T(), faker, database.TemplateAIEgressPolicy{TemplateID: t1.ID, Rules: arg.Rules, CreatedBy: arg.CreatedBy})
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().InsertTemplateAIEgressPolicy(gomock.Any(), arg).Return(p, nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate).Returns(p)
 	}))
 	s.Run("InsertTemplateVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})

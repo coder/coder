@@ -5460,6 +5460,21 @@ func (mr *MockStoreMockRecorder) GetTelemetryTaskEvents(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetryTaskEvents", reflect.TypeOf((*MockStore)(nil).GetTelemetryTaskEvents), ctx, arg)
 }
 
+// GetTemplateAIEgressPolicy mocks base method.
+func (m *MockStore) GetTemplateAIEgressPolicy(ctx context.Context, templateID uuid.UUID) (database.TemplateAIEgressPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateAIEgressPolicy", ctx, templateID)
+	ret0, _ := ret[0].(database.TemplateAIEgressPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateAIEgressPolicy indicates an expected call of GetTemplateAIEgressPolicy.
+func (mr *MockStoreMockRecorder) GetTemplateAIEgressPolicy(ctx, templateID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateAIEgressPolicy", reflect.TypeOf((*MockStore)(nil).GetTemplateAIEgressPolicy), ctx, templateID)
+}
+
 // GetTemplateAppInsights mocks base method.
 func (m *MockStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	m.ctrl.T.Helper()
@@ -8284,6 +8299,21 @@ func (m *MockStore) InsertTemplate(ctx context.Context, arg database.InsertTempl
 func (mr *MockStoreMockRecorder) InsertTemplate(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplate", reflect.TypeOf((*MockStore)(nil).InsertTemplate), ctx, arg)
+}
+
+// InsertTemplateAIEgressPolicy mocks base method.
+func (m *MockStore) InsertTemplateAIEgressPolicy(ctx context.Context, arg database.InsertTemplateAIEgressPolicyParams) (database.TemplateAIEgressPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTemplateAIEgressPolicy", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateAIEgressPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertTemplateAIEgressPolicy indicates an expected call of InsertTemplateAIEgressPolicy.
+func (mr *MockStoreMockRecorder) InsertTemplateAIEgressPolicy(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplateAIEgressPolicy", reflect.TypeOf((*MockStore)(nil).InsertTemplateAIEgressPolicy), ctx, arg)
 }
 
 // InsertTemplateVersion mocks base method.

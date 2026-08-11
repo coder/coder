@@ -4656,6 +4656,17 @@ func (q *querier) GetTelemetryTaskEvents(ctx context.Context, arg database.GetTe
 	return q.db.GetTelemetryTaskEvents(ctx, arg)
 }
 
+func (q *querier) GetTemplateAIEgressPolicy(ctx context.Context, templateID uuid.UUID) (database.TemplateAIEgressPolicy, error) {
+	template, err := q.db.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return database.TemplateAIEgressPolicy{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, template); err != nil {
+		return database.TemplateAIEgressPolicy{}, err
+	}
+	return q.db.GetTemplateAIEgressPolicy(ctx, templateID)
+}
+
 func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return nil, err
@@ -6370,6 +6381,17 @@ func (q *querier) InsertTemplate(ctx context.Context, arg database.InsertTemplat
 		return err
 	}
 	return q.db.InsertTemplate(ctx, arg)
+}
+
+func (q *querier) InsertTemplateAIEgressPolicy(ctx context.Context, arg database.InsertTemplateAIEgressPolicyParams) (database.TemplateAIEgressPolicy, error) {
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return database.TemplateAIEgressPolicy{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return database.TemplateAIEgressPolicy{}, err
+	}
+	return q.db.InsertTemplateAIEgressPolicy(ctx, arg)
 }
 
 func (q *querier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) error {

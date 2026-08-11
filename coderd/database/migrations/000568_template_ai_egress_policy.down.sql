@@ -1,0 +1,1 @@
+DROP TABLE template_ai_egress_policies;

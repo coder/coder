@@ -3235,6 +3235,16 @@ COMMENT ON COLUMN telemetry_locks.event_type IS 'The type of event that was sent
 
 COMMENT ON COLUMN telemetry_locks.period_ending_at IS 'The heartbeat period end timestamp.';
 
+CREATE TABLE template_ai_egress_policies (
+    template_id uuid NOT NULL,
+    revision bigint NOT NULL,
+    rules jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid NOT NULL
+);
+
+COMMENT ON TABLE template_ai_egress_policies IS 'Insert-only revision history for template AI egress allow policies.';
+
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
     end_time timestamp with time zone NOT NULL,
@@ -4521,6 +4531,9 @@ ALTER TABLE ONLY telemetry_items
 ALTER TABLE ONLY telemetry_locks
     ADD CONSTRAINT telemetry_locks_pkey PRIMARY KEY (event_type, period_ending_at);
 
+ALTER TABLE ONLY template_ai_egress_policies
+    ADD CONSTRAINT template_ai_egress_policies_pkey PRIMARY KEY (template_id, revision);
+
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
 
@@ -5422,6 +5435,9 @@ ALTER TABLE ONLY tasks
 
 ALTER TABLE ONLY tasks
     ADD CONSTRAINT tasks_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_ai_egress_policies
+    ADD CONSTRAINT template_ai_egress_policies_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
