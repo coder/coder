@@ -833,18 +833,16 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{}
 	}
 
-	// resolvedProvider/resolvedModel describe the model the fallback handle was
-	// built from; they only feed the status-label fallback candidate's labels.
 	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {
 		logger.Warn(ctx, "derive final turn status label: ensure synthetic API key", slog.Error(err))
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	model, dbConfig, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
+	resolved, err := server.resolveModelCall(ctx, chatModelSpec(callPurposeStatusLabel, chat, modelOpts))
 	if err != nil {
 		// Return what we have; generateFinalTurnStatusLabel falls back to a
-		// generic label when StatusLabelModel is nil.
+		// generic label when StatusLabel is nil.
 		logger.Warn(ctx, "derive final turn status label: resolve model", slog.Error(err))
 		return runChatResult{
 			FinalAssistantText:  finalAssistantText,
@@ -855,12 +853,8 @@ func (server *Server) deriveFinalTurnRunResult(
 
 	return runChatResult{
 		FinalAssistantText:  finalAssistantText,
-		StatusLabelModel:    model,
-		FallbackProvider:    resolvedProvider,
-		FallbackRoute:       modelRoute,
-		FallbackModel:       resolvedModel,
+		StatusLabel:         &resolved,
 		ModelBuildOptions:   modelOpts,
-		StatusLabelOptions:  dbConfig.Options,
 		TriggerMessageID:    triggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 	}

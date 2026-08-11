@@ -540,13 +540,9 @@ func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 		LastModelConfigID: modelConfig.ID,
 	})
 
-	model, config, _, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelBuildOptions{})
+	resolved, err := server.resolveModelCall(ctx, standardTurnSpec(chat, modelBuildOptions{}))
 	require.ErrorContains(t, err, "is disabled")
-	require.False(t, model.Valid())
-	require.Equal(t, database.ChatModelConfig{}, config)
-	require.False(t, debugEnabled)
-	require.Empty(t, resolvedProvider)
-	require.Empty(t, resolvedModel)
+	require.Equal(t, resolvedModelCall{}, resolved)
 }
 
 func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testing.T) {

@@ -443,10 +443,11 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.Equal(t, "the answer is 42", result.FinalAssistantText)
 		require.Equal(t, lastUserID, result.TriggerMessageID)
 		require.Equal(t, tipID, result.HistoryTipMessageID)
-		require.True(t, result.StatusLabelModel.Valid())
-		require.Equal(t, "openai", result.FallbackProvider)
-		require.Equal(t, "gpt-4o-mini", result.FallbackModel)
-		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelOptions))
+		require.NotNil(t, result.StatusLabel)
+		require.True(t, result.StatusLabel.model.Valid())
+		require.Equal(t, "openai", result.StatusLabel.resolvedProvider)
+		require.Equal(t, "gpt-4o-mini", result.StatusLabel.resolvedModel)
+		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabel.dbConfig.Options))
 	})
 
 	t.Run("NonWaitingReturnsEmpty", func(t *testing.T) {
@@ -482,7 +483,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
-		// A disabled AI provider makes resolveChatModel fail, exercising the
+		// A disabled AI provider makes model resolution fail, exercising the
 		// degraded path that still returns the re-derived text and IDs.
 		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
@@ -520,9 +521,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.Equal(t, "the answer is 42", result.FinalAssistantText)
 		require.NotZero(t, result.TriggerMessageID)
 		require.NotZero(t, result.HistoryTipMessageID)
-		require.False(t, result.StatusLabelModel.Valid())
-		require.Empty(t, result.FallbackProvider)
-		require.Empty(t, result.FallbackModel)
+		require.Nil(t, result.StatusLabel)
 	})
 }
 

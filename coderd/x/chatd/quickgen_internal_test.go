@@ -587,10 +587,10 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		chat,
 		[]database.ChatMessage{message},
 		nil,
-		"openai",
-		database.ChatModelConfig{Model: "test-model"},
-		chatprovider.NewModel(model, nil),
-		aiGatewayModelRoute{},
+		resolvedModelCall{
+			model:    chatprovider.NewModel(model, nil),
+			dbConfig: database.ChatModelConfig{Model: "test-model"},
+		},
 		modelBuildOptions{},
 		generated,
 		logger,
@@ -651,15 +651,22 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := titleOverrideTestServer(db, logger)
+	fallbackModel := chatprovider.NewModel(model, nil)
+	fallbackConfig := database.ChatModelConfig{Model: "gpt-4o-mini", Options: modelConfigRaw}
+	callConfig, err := parseModelConfigOptions(fallbackConfig.Options)
+	require.NoError(t, err)
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
 		messages,
 		nil,
-		fantasyopenai.Name,
-		database.ChatModelConfig{Model: "gpt-4o-mini", Options: modelConfigRaw},
-		chatprovider.NewModel(model, nil),
-		aiGatewayModelRoute{},
+		resolvedModelCall{
+			model:    fallbackModel,
+			dbConfig: fallbackConfig,
+			// Mirrors titleChatSpec: derive with no requested effort so the
+			// config's default reasoning effort applies.
+			providerOptions: chatprovider.ProviderOptionsForCall(fallbackModel, callConfig, nil),
+		},
 		modelBuildOptions{},
 		&generatedChatTitle{},
 		logger,
@@ -711,7 +718,7 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 		messages,
 		nil,
 		model,
-		nil,
+		titleObjectCall(resolvedModelCall{}),
 	)
 	require.NoError(t, err)
 	require.Equal(t, "Refresh title", title)
@@ -749,7 +756,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 		messages,
 		nil,
 		model,
-		nil,
+		titleObjectCall(resolvedModelCall{}),
 	)
 	require.NoError(t, err)
 }
@@ -784,7 +791,7 @@ func Test_generateManualTitle_ErrorsOnEmptyNormalizedTitle(t *testing.T) {
 		messages,
 		nil,
 		model,
-		nil,
+		titleObjectCall(resolvedModelCall{}),
 	)
 	require.ErrorContains(t, err, "generated title was empty")
 }
@@ -886,7 +893,7 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 	title, _, err := generateStructuredTitleWithUsage(
 		t.Context(),
 		model.LanguageModel(),
-		nil,
+		titleObjectCall(resolvedModelCall{}),
 		titleGenerationPrompt,
 		"summarize failed workspace build logs",
 	)
@@ -931,7 +938,7 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 	title, _, err := generateStructuredTitleWithUsage(
 		t.Context(),
 		model,
-		nil,
+		titleObjectCall(resolvedModelCall{}),
 		titleGenerationPrompt,
 		"summarize failed workspace build logs",
 	)
@@ -1032,7 +1039,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 	})
@@ -1043,7 +1050,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		server, requests := newOpenAICompatStructuredOutputServer(t, "propose_turn_status_label", `{"label":"Submitted PR"}`)
 		model := openAICompatTestModel(t, server.URL)
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model.LanguageModel(), turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model.LanguageModel(), turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 		require.Len(t, requests, 1)
@@ -1070,7 +1077,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 		require.Equal(t, []bool{true, false}, sawTemperature,
@@ -1092,7 +1099,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
 		require.ErrorContains(t, err, "JSON schema is invalid")
 		require.Equal(t, 1, calls,
 			"bad requests unrelated to temperature should not trigger a second attempt")
@@ -1109,7 +1116,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
 		require.ErrorContains(t, err, "generated turn status label was invalid")
 	})
 
@@ -1117,7 +1124,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		t.Parallel()
 
 		model := &chattest.FakeModel{}
-		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "  ")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "  ")
 		require.ErrorContains(t, err, "turn status label input was empty")
 	})
 }

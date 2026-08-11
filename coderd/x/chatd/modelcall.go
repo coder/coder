@@ -139,8 +139,9 @@ func standardTurnSpec(chat database.Chat, buildOpts modelBuildOptions) modelCall
 }
 
 // chatModelSpec resolves the chat's model without deriving provider options
-// or applying the standard-turn token default. Callers that need per-call
-// options derive them from their own spec.
+// or applying the standard-turn token default. Summary and status-label
+// calls historically send no provider options; that omission is preserved
+// here as declared policy.
 func chatModelSpec(purpose callPurpose, chat database.Chat, buildOpts modelBuildOptions) modelCallSpec {
 	return modelCallSpec{
 		purpose:         purpose,
@@ -148,6 +149,48 @@ func chatModelSpec(purpose callPurpose, chat database.Chat, buildOpts modelBuild
 		config:          configSelection{mode: configFromChat},
 		providerOptions: providerOptionsOmit,
 		debug:           debugPolicyAware,
+		buildOptions:    buildOpts,
+	}
+}
+
+// titleChatSpec resolves the chat's own model as the title-generation
+// fallback candidate. Title calls derive provider options without a
+// requested effort: the user's per-turn effort choice applies to turns, not
+// background title generation.
+func titleChatSpec(chat database.Chat, buildOpts modelBuildOptions) modelCallSpec {
+	return modelCallSpec{
+		purpose:         callPurposeTitle,
+		chat:            chat,
+		config:          configSelection{mode: configFromChat},
+		providerOptions: providerOptionsDerive,
+		debug:           debugPolicyAware,
+		buildOptions:    buildOpts,
+	}
+}
+
+// titleOverrideSpec builds the deployment-wide title override model from the
+// caller-selected config row. The route resolves with chatd scope so the
+// override works for chats whose owner cannot read the provider.
+func titleOverrideSpec(chat database.Chat, config database.ChatModelConfig, buildOpts modelBuildOptions) modelCallSpec {
+	return modelCallSpec{
+		purpose:          callPurposeTitle,
+		chat:             chat,
+		config:           configSelection{mode: configExplicit, config: config},
+		providerOptions:  providerOptionsDerive,
+		chatdScopedRoute: true,
+		buildOptions:     buildOpts,
+	}
+}
+
+// manualTitleSpec builds a caller-selected manual-title model: the preferred
+// small model or the chat's own config as fallback. Debug recording is
+// handled by a separate rebuild, matching the historical construction.
+func manualTitleSpec(chat database.Chat, config database.ChatModelConfig, buildOpts modelBuildOptions) modelCallSpec {
+	return modelCallSpec{
+		purpose:         callPurposeTitle,
+		chat:            chat,
+		config:          configSelection{mode: configExplicit, config: config},
+		providerOptions: providerOptionsDerive,
 		buildOptions:    buildOpts,
 	}
 }
@@ -329,4 +372,24 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		slog.F("debug_enabled", out.debugEnabled),
 	)
 	return out, nil
+}
+
+// objectCallOverrides carries the caller-owned schema and token cap for a
+// structured-output call. Quickgen flows use fixed caps instead of the model
+// config's tuning.
+type objectCallOverrides struct {
+	schemaName        string
+	schemaDescription string
+	maxOutputTokens   int64
+}
+
+// newObjectCall builds the fantasy.ObjectCall envelope for one
+// structured-output call. The caller attaches the prompt before sending.
+func (r resolvedModelCall) newObjectCall(o objectCallOverrides) fantasy.ObjectCall {
+	return fantasy.ObjectCall{
+		SchemaName:        o.schemaName,
+		SchemaDescription: o.schemaDescription,
+		MaxOutputTokens:   ptr.Ref(o.maxOutputTokens),
+		ProviderOptions:   r.providerOptions,
+	}
 }

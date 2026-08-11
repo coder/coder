@@ -2541,23 +2541,23 @@ func (p *Server) generateManualTitleCandidate(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, modelOpts)
+	resolved, err := p.resolveManualTitleModel(ctx, store, chat, modelOpts)
 	if err != nil {
 		return "", err
 	}
 
 	titleCtx := ctx
-	titleModel := model
+	titleModel := resolved.model
 	finishDebugRun := func(error) {}
 	if debugSvc := p.debugService(); debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID) {
 		titleCtx, titleModel, finishDebugRun = p.prepareManualTitleDebugRun(
 			ctx,
 			debugSvc,
 			chat,
-			modelConfig,
+			resolved.dbConfig,
 			modelOpts,
 			messages,
-			model,
+			resolved.model,
 		)
 	}
 
@@ -2566,7 +2566,7 @@ func (p *Server) generateManualTitleCandidate(
 		messages,
 		pasteText,
 		titleModel.LanguageModel(),
-		p.titleGenerationProviderOptions(ctx, titleModel, modelConfig),
+		titleObjectCall(resolved),
 	)
 	finishDebugRun(err)
 	if err != nil {
@@ -2792,15 +2792,15 @@ func (p *Server) resolveManualTitleModel(
 	store database.Store,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
-) (chatprovider.Model, database.ChatModelConfig, error) {
-	overrideConfig, overrideModel, _, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+) (resolvedModelCall, error) {
+	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		ctx,
 		chat,
 		modelOpts,
 	)
 	if overrideErr != nil {
 		if overrideSet {
-			return chatprovider.Model{}, database.ChatModelConfig{}, xerrors.Errorf(
+			return resolvedModelCall{}, xerrors.Errorf(
 				"resolve manual title generation model override: %w",
 				overrideErr,
 			)
@@ -2810,7 +2810,7 @@ func (p *Server) resolveManualTitleModel(
 			slog.Error(overrideErr),
 		)
 	} else if overrideSet {
-		return overrideModel, overrideConfig, nil
+		return overrideResolved, nil
 	}
 
 	configs, err := store.GetEnabledChatModelConfigs(ctx)
@@ -2827,7 +2827,7 @@ func (p *Server) resolveManualTitleModel(
 		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
 	}
 
-	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config)
+	resolved, err := p.resolveModelCall(ctx, manualTitleSpec(chat, config, modelOpts))
 	if err != nil {
 		p.logger.Debug(ctx, "manual title preferred model unavailable",
 			slog.F("chat_id", chat.ID),
@@ -2836,55 +2836,29 @@ func (p *Server) resolveManualTitleModel(
 		)
 		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
 	}
-	model, err := p.newModel(ctx, modelClientRequest{
-		Chat:          chat,
-		ModelName:     config.Model,
-		UserAgent:     chatprovider.UserAgent(),
-		ExtraHeaders:  chatprovider.CoderHeaders(chat),
-		ConfigOptions: config.Options,
-	}, route, modelOpts)
-	if err != nil {
-		p.logger.Debug(ctx, "manual title preferred model unavailable",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", config.Model),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-
-	return model, config, nil
+	return resolved, nil
 }
 
 func (p *Server) resolveFallbackManualTitleModel(
 	ctx context.Context,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
-) (chatprovider.Model, database.ChatModelConfig, error) {
+) (resolvedModelCall, error) {
 	config, err := p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return chatprovider.Model{}, database.ChatModelConfig{}, xerrors.Errorf(
+		return resolvedModelCall{}, xerrors.Errorf(
 			"resolve fallback manual title model config: %w",
 			err,
 		)
 	}
-	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config)
+	resolved, err := p.resolveModelCall(ctx, manualTitleSpec(chat, config, modelOpts))
 	if err != nil {
-		return chatprovider.Model{}, database.ChatModelConfig{}, err
-	}
-	model, err := p.newModel(ctx, modelClientRequest{
-		Chat:          chat,
-		ModelName:     config.Model,
-		UserAgent:     chatprovider.UserAgent(),
-		ExtraHeaders:  chatprovider.CoderHeaders(chat),
-		ConfigOptions: config.Options,
-	}, route, modelOpts)
-	if err != nil {
-		return chatprovider.Model{}, database.ChatModelConfig{}, xerrors.Errorf(
+		return resolvedModelCall{}, xerrors.Errorf(
 			"create fallback manual title model: %w",
 			err,
 		)
 	}
-	return model, config, nil
+	return resolved, nil
 }
 
 func mergeManualTitleMessages(
@@ -3489,13 +3463,11 @@ func (p *Server) trackWorkspaceUsage(
 }
 
 type runChatResult struct {
-	FinalAssistantText  string
-	StatusLabelModel    chatprovider.Model
-	FallbackProvider    string
-	FallbackRoute       aiGatewayModelRoute
-	FallbackModel       string
+	FinalAssistantText string
+	// StatusLabel is the resolved chat-model call used to generate the
+	// end-of-turn status label; nil when model resolution failed.
+	StatusLabel         *resolvedModelCall
 	ModelBuildOptions   modelBuildOptions
-	StatusLabelOptions  json.RawMessage
 	TriggerMessageID    int64
 	HistoryTipMessageID int64
 }
@@ -4068,29 +4040,6 @@ func buildProviderTools(options *codersdk.ChatModelProviderOptions) []chatloop.P
 	return tools
 }
 
-// resolveChatModel resolves the chat's model without deriving per-call
-// provider options. Transitional wrapper over resolveModelCall; remaining
-// callers migrate to purpose-specific specs.
-func (p *Server) resolveChatModel(
-	ctx context.Context,
-	chat database.Chat,
-	modelOpts modelBuildOptions,
-) (
-	model chatprovider.Model,
-	dbConfig database.ChatModelConfig,
-	route aiGatewayModelRoute,
-	debugEnabled bool,
-	resolvedProvider string,
-	resolvedModel string,
-	err error,
-) {
-	resolved, err := p.resolveModelCall(ctx, chatModelSpec(callPurposeStandardTurn, chat, modelOpts))
-	if err != nil {
-		return chatprovider.Model{}, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", err
-	}
-	return resolved.model, resolved.dbConfig, resolved.route, resolved.debugEnabled, resolved.resolvedProvider, resolved.resolvedModel, nil
-}
-
 func (p *Server) aiProviderConfig(ctx context.Context, provider database.AIProvider) (chatprovider.ConfiguredProvider, error) {
 	keys, err := p.db.GetAIProviderKeysByProviderID(ctx, provider.ID)
 	if err != nil {
@@ -4638,7 +4587,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 	}
 
 	assistantText := strings.TrimSpace(runResult.FinalAssistantText)
-	if assistantText == "" || !runResult.StatusLabelModel.Valid() {
+	if assistantText == "" || runResult.StatusLabel == nil {
 		return fallbackTurnStatusLabel(status)
 	}
 
@@ -4647,12 +4596,8 @@ func (p *Server) generateFinalTurnStatusLabel(
 		chat,
 		status,
 		assistantText,
-		runResult.FallbackProvider,
-		runResult.FallbackModel,
-		runResult.StatusLabelModel,
-		runResult.FallbackRoute,
+		*runResult.StatusLabel,
 		runResult.ModelBuildOptions,
-		runResult.StatusLabelOptions,
 		logger,
 		p.existingDebugService(),
 		runResult.TriggerMessageID,
@@ -4873,14 +4818,14 @@ func (p *Server) generateAndStoreChatSummary(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	model, _, ok := p.resolveChatSummaryModel(ctx, logger, chat, modelOpts)
+	resolved, ok := p.resolveChatSummaryModel(ctx, logger, chat, modelOpts)
 	if !ok {
 		return
 	}
 
 	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
 	defer cancelGen()
-	summary, _, genErr := generateChatSummary(summaryCtx, model, transcript)
+	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), transcript)
 
 	if genErr != nil {
 		logger.Debug(ctx, "failed to generate chat summary",
@@ -4896,15 +4841,14 @@ func (p *Server) resolveChatSummaryModel(
 	logger slog.Logger,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
-) (fantasy.LanguageModel, database.ChatModelConfig, bool) {
-	//nolint:dogsled // resolveChatModel returns rich routing metadata; summary generation only needs the model and its config.
-	model, dbConfig, _, _, _, _, err := p.resolveChatModel(ctx, chat, modelOpts)
+) (resolvedModelCall, bool) {
+	resolved, err := p.resolveModelCall(ctx, chatModelSpec(callPurposeSummary, chat, modelOpts))
 	if err != nil {
 		logger.Debug(ctx, "failed to resolve chat model for summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
-		return nil, database.ChatModelConfig{}, false
+		return resolvedModelCall{}, false
 	}
-	return model.LanguageModel(), dbConfig, true
+	return resolved, true
 }
 
 func shouldGenerateChatSummary(chat database.Chat, messages []database.ChatMessage) bool {
