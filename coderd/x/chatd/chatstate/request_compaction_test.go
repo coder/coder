@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -212,29 +213,44 @@ func TestRequestCompaction_ClearedByNewTurn(t *testing.T) {
 		"EditMessage starts a new turn and must clear the marker")
 }
 
-// TestRequestCompaction_ResetsGenerationAttempt verifies a chat that
-// errored with a spent retry budget gets a fresh one. The transition
-// inserts no history, so the history-change trigger cannot reset the
-// counter and the transition must do it explicitly.
-func TestRequestCompaction_ResetsGenerationAttempt(t *testing.T) {
+// TestRequestCompaction_GenerationAttemptBudget verifies the retry
+// budget handling: an exhausted counter is reset so the compaction
+// turn is not refused its first transient retry, while a sub-cap
+// counter continues forward because rewinding would reuse message
+// part buffer episode keys still inside the closed-episode retention
+// window.
+func TestRequestCompaction_GenerationAttemptBudget(t *testing.T) {
 	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	seeded := seedState(t, f, chatstate.StateE0)
-	for range 3 {
-		_, err := f.DB.IncrementChatGenerationAttempt(ctx, seeded.chatID)
-		require.NoError(t, err)
+
+	cases := []struct {
+		name        string
+		attempts    int
+		wantAttempt int64
+	}{
+		{name: "exhausted budget resets", attempts: chatretry.MaxAttempts, wantAttempt: 0},
+		{name: "sub-cap budget continues forward", attempts: 3, wantAttempt: 3},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			seeded := seedState(t, f, chatstate.StateE0)
+			for range tc.attempts {
+				_, err := f.DB.IncrementChatGenerationAttempt(ctx, seeded.chatID)
+				require.NoError(t, err)
+			}
 
-	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
-		return err
-	}))
+			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
+				return err
+			}))
 
-	chat := f.readChat(ctx, t, seeded.chatID)
-	require.Zero(t, chat.GenerationAttempt,
-		"RequestCompaction must reset the generation attempt counter")
+			chat := f.readChat(ctx, t, seeded.chatID)
+			require.Equal(t, tc.wantAttempt, chat.GenerationAttempt)
+		})
+	}
 }
 
 // TestRequestCompaction_RejectedWhenBusyOrArchived pins the matrix
