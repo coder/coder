@@ -44,9 +44,10 @@ const DrawerOverlay: React.FC<
 	return (
 		<DialogPrimitive.Overlay
 			className={cn(
-				`fixed inset-0 z-50 bg-overlay
+				`fixed inset-0 z-50 bg-overlay [animation-timing-function:cubic-bezier(0.32,0.72,0,1)]
 				data-[state=open]:animate-in data-[state=closed]:animate-out
-				data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0`,
+				data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
+				data-[state=open]:duration-500 data-[state=closed]:duration-300`,
 				className,
 			)}
 			{...props}
@@ -76,7 +77,7 @@ export const DrawerContent: React.FC<
 			<DialogPrimitive.Content
 				className={cn(
 					`fixed z-50 flex h-auto flex-col bg-surface-primary outline-none
-					transition ease-in-out
+					will-change-transform [animation-timing-function:cubic-bezier(0.32,0.72,0,1)]
 					data-[state=open]:animate-in data-[state=closed]:animate-out
 					data-[state=open]:duration-500 data-[state=closed]:duration-300`,
 					directionClasses[direction],
