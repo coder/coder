@@ -35,6 +35,13 @@ resource "docker_container" "workspace" {
 }
 ```
 
+## Agents and stopped workspaces
+
+Coder only creates workspace agents for start builds. If a `coder_agent`
+resource is still present in a stop build, for example because it isn't gated
+by `start_count`, it is ignored rather than reported as an agent that never
+connects.
+
 ## ⚠️ Persistence pitfalls
 
 Take this example resource:

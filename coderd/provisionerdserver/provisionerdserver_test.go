@@ -3915,6 +3915,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	insert := func(db database.Store, jobID uuid.UUID, resource *sdkproto.Resource) error {
 		return provisionerdserver.InsertWorkspaceResource(ctx, db, jobID, database.WorkspaceTransitionStart, resource, &telemetry.Snapshot{})
 	}
+	insertWithTransition := func(db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, resource *sdkproto.Resource) error {
+		return provisionerdserver.InsertWorkspaceResource(ctx, db, jobID, transition, resource, &telemetry.Snapshot{})
+	}
 	insertWithProtoIDs := func(db database.Store, jobID uuid.UUID, resource *sdkproto.Resource) error {
 		return provisionerdserver.InsertWorkspaceResource(ctx, db, jobID, database.WorkspaceTransitionStart, resource, &telemetry.Snapshot{}, provisionerdserver.InsertWorkspaceResourceWithAgentIDsFromProto())
 	}
@@ -3930,6 +3933,48 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
+	})
+	t.Run("AgentsOnlyOnStartBuilds", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			transition  database.WorkspaceTransition
+			wantsAgents bool
+		}{
+			{database.WorkspaceTransitionStart, true},
+			{database.WorkspaceTransitionStop, false},
+			{database.WorkspaceTransitionDelete, false},
+		} {
+			t.Run(string(tc.transition), func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+				err := insertWithTransition(db, job.ID, tc.transition, &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Name: "dev",
+						Apps: []*sdkproto.App{{
+							Slug: "code-server",
+						}},
+					}},
+				})
+				require.NoError(t, err)
+
+				// The resource itself is always recorded so stopped workspaces
+				// still display their persistent resources.
+				resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+				require.NoError(t, err)
+				require.Len(t, resources, 1)
+
+				agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+				require.NoError(t, err)
+				if tc.wantsAgents {
+					require.Len(t, agents, 1)
+					return
+				}
+				require.Empty(t, agents)
+			})
+		}
 	})
 	t.Run("InvalidAgentToken", func(t *testing.T) {
 		t.Parallel()

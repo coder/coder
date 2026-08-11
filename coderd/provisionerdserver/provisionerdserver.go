@@ -2869,7 +2869,19 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		agentNames = make(map[string]struct{})
 		appSlugs   = make(map[string]struct{})
 	)
-	for _, prAgent := range protoResource.Agents {
+
+	// Agents only exist while a workspace is running. Stop and delete builds
+	// tear down the compute the agent runs on, so any agent Terraform still
+	// reports for those transitions can never connect and would be surfaced as
+	// unhealthy. Whether an agent appears in a stop build at all depends on the
+	// shape of the Terraform dependency graph, so template authors otherwise
+	// have to gate coder_agent on start_count to get consistent behavior.
+	protoAgents := protoResource.Agents
+	if transition != database.WorkspaceTransitionStart {
+		protoAgents = nil
+	}
+
+	for _, prAgent := range protoAgents {
 		// Similar logic is duplicated in terraform/resources.go.
 		if prAgent.Name == "" {
 			return xerrors.Errorf("agent name cannot be empty")
