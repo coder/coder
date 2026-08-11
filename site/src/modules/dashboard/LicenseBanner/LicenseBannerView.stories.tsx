@@ -59,6 +59,10 @@ export const TwoWarnings: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("status")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("Your license limits have been exceeded"),
+		).toBeInTheDocument();
 		await expect(
 			canvas.queryByRole("button", { name: "Show more" }),
 		).not.toBeInTheDocument();
@@ -241,10 +245,6 @@ const renderLicenseBannerWithAIGovernance = ({
 		},
 	});
 
-// Without the data-variant assertions, every story would keep passing with
-// the muted/prominent classifier disabled.
-const mutedVariant = "warning";
-
 export const AIGovernanceNearLimit: Story = {
 	render: () =>
 		renderLicenseBannerWithAIGovernance({
@@ -258,9 +258,6 @@ export const AIGovernanceNearLimit: Story = {
 		await expect(banner).toHaveTextContent(
 			"You have used 95% of your AI Governance add-on seats.",
 		);
-		// Pins the AI Governance near-limit branch of isMutedWarning,
-		// independently of the runtime soft-limit branch below.
-		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		await expect(
 			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
 		).toHaveAttribute("href", "mailto:sales@coder.com");
@@ -296,17 +293,16 @@ export const AIGovernanceOverLimitGracePeriod: Story = {
 	},
 };
 
-// Each entry of the frontend's diagnosticMessages set is pinned on both
-// properties the set drives: the muted variant and the suppressed sales
+// Each diagnostic pins role=status (not alert) and a suppressed sales
 // link. The "unavailable" message arrives on the errors channel; see the
-// LicenseManagedAgentUsageUnavailableErrorText doc for why.
+// LicenseManagedAgentUsageUnavailableErrorText doc for why. Background
+// mutedness is covered by the visual snapshot.
 const playMutedDiagnostic =
 	(message: string): Story["play"] =>
 	async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByRole("status");
 		await expect(banner).toHaveTextContent(message);
-		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		await expect(
 			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
 		).not.toBeInTheDocument();
@@ -337,8 +333,7 @@ export const UsageDiagnosticsOnlyHeading: Story = {
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const banner = canvas.getByRole("status");
-		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
+		await expect(canvas.getByRole("status")).toBeInTheDocument();
 		await expect(canvas.getByText("License notices")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText("Your license limits have been exceeded"),
