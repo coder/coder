@@ -149,17 +149,13 @@ export const ChangingAutostopValueShowsRestartDialog: Story = {
 	},
 };
 
-const outdatedWorkspace: Workspace = { ...MockWorkspace, outdated: true };
-
 export const RestartDialogWarnsAboutTemplateUpdate: Story = {
 	parameters: {
-		reactRouter: workspaceRouterParameters(outdatedWorkspace),
-		queries: workspaceQueries(outdatedWorkspace),
+		reactRouter: workspaceRouterParameters(MockWorkspace),
+		queries: workspaceQueries(MockWorkspace),
 	},
 	beforeEach: () => {
-		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
-			outdatedWorkspace,
-		);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -173,7 +169,7 @@ export const RestartDialogWarnsAboutTemplateUpdate: Story = {
 		await user.click(await canvas.findByRole("button", { name: /save/i }));
 		await body.findByText("Restart workspace?");
 		await body.findByText(
-			/Restarting now will also update the workspace to the template's latest active version/,
+			/The restarted workspace will use the template's active version/,
 		);
 	},
 };
