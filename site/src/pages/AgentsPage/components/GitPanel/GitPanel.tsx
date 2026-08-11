@@ -298,9 +298,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		itemPrimary: "Working",
 		itemSecondary: repoLabel(repoRoot),
 		stateClasses: "text-content-secondary",
-		icon: (
-			<CircleDotIcon className="!size-3.5 shrink-0 text-content-secondary" />
-		),
+		icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
 	}));
 
 	const items: ViewItem[] = [
