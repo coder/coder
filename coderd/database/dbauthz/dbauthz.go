@@ -1767,17 +1767,6 @@ func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.Activi
 	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
 }
 
-func (q *querier) AdvanceChatHistoryVersion(ctx context.Context, id uuid.UUID) error {
-	chat, err := q.db.GetChatByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.AdvanceChatHistoryVersion(ctx, id)
-}
-
 func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	// Although this technically only reads users, only system-related functions
 	// should be allowed to call this.

@@ -6565,20 +6565,6 @@ func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal 
 	return items, nil
 }
 
-const advanceChatHistoryVersion = `-- name: AdvanceChatHistoryVersion :exec
-UPDATE chats
-SET history_version = snapshot_version, generation_attempt = 0, updated_at = NOW()
-WHERE id = $1::uuid
-`
-
-// Grants a turn that inserts no history the same fresh retry budget
-// and message part episode keys a history change would grant. The
-// sync_chat_retry_state trigger clears retry_state on the change.
-func (q *sqlQuerier) AdvanceChatHistoryVersion(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, advanceChatHistoryVersion, id)
-	return err
-}
-
 const archiveChatByID = `-- name: ArchiveChatByID :many
 WITH updated_chats AS (
     UPDATE chats
@@ -11428,9 +11414,12 @@ WITH updated_chat AS (
         last_error = $5::jsonb,
         requires_action_deadline_at = $6::timestamptz,
         compaction_requested_at = $7::timestamptz,
+        history_version = CASE WHEN $8::boolean THEN snapshot_version ELSE history_version END,
+        generation_attempt = CASE WHEN $8::boolean THEN 0 ELSE generation_attempt END,
+        retry_state = CASE WHEN $8::boolean THEN NULL ELSE retry_state END,
         pin_order = CASE WHEN $2::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
-    WHERE id = $8::uuid
+    WHERE id = $9::uuid
     RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
 ),
 chats_expanded AS (
@@ -11498,6 +11487,7 @@ type UpdateChatExecutionStateParams struct {
 	LastError                pqtype.NullRawMessage `db:"last_error" json:"last_error"`
 	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
 	CompactionRequestedAt    sql.NullTime          `db:"compaction_requested_at" json:"compaction_requested_at"`
+	GrantHistoryEpoch        bool                  `db:"grant_history_epoch" json:"grant_history_epoch"`
 	ID                       uuid.UUID             `db:"id" json:"id"`
 }
 
@@ -11506,6 +11496,10 @@ type UpdateChatExecutionStateParams struct {
 // requires-action deadline, and the manual compaction request marker.
 // Callers compose this with transition mutations inside a single
 // ChatMachine.Update transaction.
+//
+// grant_history_epoch gives a turn that inserts no history the same
+// fresh retry budget and message part episode keys a history change
+// would grant, mirroring the chat_messages trigger postcondition.
 func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatExecutionState,
 		arg.Status,
@@ -11515,6 +11509,7 @@ func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateCha
 		arg.LastError,
 		arg.RequiresActionDeadlineAt,
 		arg.CompactionRequestedAt,
+		arg.GrantHistoryEpoch,
 		arg.ID,
 	)
 	var i Chat

@@ -118,20 +118,6 @@ func (mr *MockStoreMockRecorder) ActivityBumpWorkspace(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivityBumpWorkspace", reflect.TypeOf((*MockStore)(nil).ActivityBumpWorkspace), ctx, arg)
 }
 
-// AdvanceChatHistoryVersion mocks base method.
-func (m *MockStore) AdvanceChatHistoryVersion(ctx context.Context, id uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AdvanceChatHistoryVersion", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// AdvanceChatHistoryVersion indicates an expected call of AdvanceChatHistoryVersion.
-func (mr *MockStoreMockRecorder) AdvanceChatHistoryVersion(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdvanceChatHistoryVersion", reflect.TypeOf((*MockStore)(nil).AdvanceChatHistoryVersion), ctx, id)
-}
-
 // AllUserIDs mocks base method.
 func (m *MockStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()

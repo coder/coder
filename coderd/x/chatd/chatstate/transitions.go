@@ -183,6 +183,10 @@ type executionStateUpdate struct {
 	LastError                pqtype.NullRawMessage
 	RequiresActionDeadlineAt sql.NullTime
 	CompactionRequestedAt    sql.NullTime
+	// GrantHistoryEpoch gives a turn that inserts no history the same
+	// fresh retry budget and message part episode keys a history
+	// change would grant.
+	GrantHistoryEpoch bool
 }
 
 func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error) {
@@ -195,6 +199,7 @@ func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error)
 		LastError:                u.LastError,
 		RequiresActionDeadlineAt: u.RequiresActionDeadlineAt,
 		CompactionRequestedAt:    u.CompactionRequestedAt,
+		GrantHistoryEpoch:        u.GrantHistoryEpoch,
 	})
 }
 
@@ -695,9 +700,6 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 	if err != nil {
 		return RequestCompactionResult{}, xerrors.Errorf("get db now: %w", err)
 	}
-	if err := tx.store.AdvanceChatHistoryVersion(tx.ctx, tx.chatID); err != nil {
-		return RequestCompactionResult{}, xerrors.Errorf("advance history version: %w", err)
-	}
 	updated, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
@@ -706,6 +708,7 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 		LastError:                pqtype.NullRawMessage{},
 		RequiresActionDeadlineAt: sql.NullTime{},
 		CompactionRequestedAt:    sql.NullTime{Time: now, Valid: true},
+		GrantHistoryEpoch:        true,
 	})
 	if err != nil {
 		return RequestCompactionResult{}, xerrors.Errorf("set running: %w", err)

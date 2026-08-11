@@ -50,10 +50,6 @@ type sqlcQuerier interface {
 	// We only bump if workspace shutdown is manual.
 	// We only bump when 5% of the deadline has elapsed.
 	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
-	// Grants a turn that inserts no history the same fresh retry budget
-	// and message part episode keys a history change would grant. The
-	// sync_chat_retry_state trigger clears retry_state on the change.
-	AdvanceChatHistoryVersion(ctx context.Context, id uuid.UUID) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
 	ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
@@ -1450,6 +1446,10 @@ type sqlcQuerier interface {
 	// requires-action deadline, and the manual compaction request marker.
 	// Callers compose this with transition mutations inside a single
 	// ChatMachine.Update transaction.
+	//
+	// grant_history_epoch gives a turn that inserts no history the same
+	// fresh retry budget and message part episode keys a history change
+	// would grant, mirroring the chat_messages trigger postcondition.
 	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified
