@@ -305,7 +305,11 @@ func TestWorkspaceAgent_ConfineProxy(t *testing.T) {
 				return false
 			}
 			proxyAddress = strings.TrimPrefix(proxyURL, "http://")
-			return strings.Contains(string(logContent), "AI egress policy fetch failed; started deny-all (degraded)")
+			// The policy endpoint serves the template's revision-0
+			// default (deny-all beyond the implicit coderd allow), so
+			// the supervisor bootstraps with a fetched policy rather
+			// than the degraded fetch-failure fallback.
+			return strings.Contains(string(logContent), "applied ai egress policy")
 		}
 		return false
 	}, testutil.WaitLong, testutil.IntervalMedium)

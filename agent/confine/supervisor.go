@@ -104,6 +104,10 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 		s.signalDegraded("AI egress policy fetch failed; started deny-all (degraded)", fetchErr)
 	} else {
 		engine.Update(policy)
+		s.options.Logger.Info(ctx, "applied ai egress policy",
+			slog.F("revision", policy.Revision),
+			slog.F("rule_count", len(policy.Rules)),
+		)
 	}
 
 	netns, forced := s.prepareNetwork(ctx)
