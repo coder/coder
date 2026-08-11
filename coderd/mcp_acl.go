@@ -133,6 +133,13 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 		return nil
 	}, nil)
 	if err != nil {
+		// A concurrent delete between the middleware fetch and the
+		// locked re-fetch stays concealed as 404, matching the update
+		// and delete handlers.
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		if dbauthz.IsNotAuthorizedError(err) {
 			httpapi.Forbidden(rw)
 			return

@@ -820,6 +820,48 @@ func TestMCPServerConfigACL(t *testing.T) {
 	require.Contains(t, sdkErr.Error(), foreignUser.ID.String())
 }
 
+// mcpServerConfigDeleteRaceStore deletes the config right after the param
+// middleware read once armed, so the handler's locked re-fetch sees a
+// concurrently deleted row.
+type mcpServerConfigDeleteRaceStore struct {
+	database.Store
+
+	armed atomic.Bool
+}
+
+func (s *mcpServerConfigDeleteRaceStore) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	config, err := s.Store.GetMCPServerConfigByID(ctx, id)
+	if err == nil && s.armed.CompareAndSwap(true, false) {
+		if err := s.Store.DeleteMCPServerConfigByID(ctx, id); err != nil {
+			return database.MCPServerConfig{}, err
+		}
+	}
+	return config, err
+}
+
+func TestMCPServerConfigACLConcurrentDelete(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	db, ps := dbtestutil.NewDB(t)
+	store := &mcpServerConfigDeleteRaceStore{Store: db}
+	adminClient := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+		Database:            store,
+		Pubsub:              ps,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	config := createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "acl-delete-race", true)
+
+	store.armed.Store(true)
+	err := adminClient.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACLRequest{})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+}
+
 // TestMCPServerConfigsSecretsNeverLeaked is a load-bearing test that
 // ensures secret fields (OAuth2 client secret, API key value, custom
 // headers) are never present in API responses for any caller. If this
