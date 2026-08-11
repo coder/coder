@@ -578,9 +578,29 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		workspaceBuildParameters, err := s.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
+		}
+
+		// An AI-designated workspace never receives the ambient full-owner
+		// session token; it gets the scoped AI session token instead.
+		// See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2.
+		workspaceIsAIDesignated := workspace.AIAgentID.Valid ||
+			(workspaceBuild.Transition == database.WorkspaceTransitionStart &&
+				aiAgentOptedIn(workspaceBuildParameters))
+
 		var sessionToken string
 		switch workspaceBuild.Transition {
 		case database.WorkspaceTransitionStart:
+			if workspaceIsAIDesignated {
+				// Drop any owner token minted by an earlier non-designated
+				// build so it cannot outlive designation.
+				if err := deleteSessionToken(ctx, s.Database, workspace); err != nil {
+					return nil, failJob(fmt.Sprintf("delete owner session token for AI workspace: %s", err))
+				}
+				break
+			}
 			sessionToken, err = s.regenerateSessionToken(ctx, owner, workspace)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("regenerate session token: %s", err))
@@ -630,11 +650,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
-		workspaceBuildParameters, err := s.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
-		}
-
 		// AI agent identity lifecycle (see AI_AGENT_SECURITY_ARCHITECTURE.md,
 		// Vertical 1 step 8). Opted-in start builds fail closed: a broken
 		// identity mint fails the build. Opt-out and stop/delete paths must
@@ -648,14 +663,38 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 						slog.Error(err), slog.F("workspace_id", workspace.ID))
 				}
 			}
-			if aiAgentOptedIn(workspaceBuildParameters) {
-				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace)
+			// Designation is sticky: a workspace already carrying a marker
+			// (chat-created, or a previous opt-in build) stays designated
+			// even if the parameter is dropped later. Otherwise a build
+			// parameter change could un-designate a workspace and restore
+			// the sponsor's ambient credentials.
+			designated, isDesignated, derr := s.resolveDesignatedAIAgent(ctx, workspace)
+			if derr != nil {
+				return nil, failJob(fmt.Sprintf("resolve designated AI agent: %s", derr))
+			}
+			switch {
+			case isDesignated:
+				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace, designated)
 				if err != nil {
 					return nil, failJob(fmt.Sprintf("regenerate AI agent session token: %s", err))
 				}
-			} else if err := s.revokeAIAgentSessionTokens(ctx, workspace); err != nil {
-				s.Logger.Error(ctx, "failed to revoke AI agent session token on opt-out build",
-					slog.Error(err), slog.F("workspace_id", workspace.ID))
+			case aiAgentOptedIn(workspaceBuildParameters):
+				originAgent, oerr := s.resolveWorkspaceOriginAIAgent(ctx, workspace)
+				if oerr != nil {
+					return nil, failJob(fmt.Sprintf("resolve workspace AI agent identity: %s", oerr))
+				}
+				if oerr := s.designateWorkspaceAIAgent(ctx, workspace, originAgent); oerr != nil {
+					return nil, failJob(fmt.Sprintf("designate workspace AI agent: %s", oerr))
+				}
+				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace, originAgent)
+				if err != nil {
+					return nil, failJob(fmt.Sprintf("regenerate AI agent session token: %s", err))
+				}
+			default:
+				if err := s.revokeAIAgentSessionTokens(ctx, workspace); err != nil {
+					s.Logger.Error(ctx, "failed to revoke AI agent session token on opt-out build",
+						slog.Error(err), slog.F("workspace_id", workspace.ID))
+				}
 			}
 		case database.WorkspaceTransitionStop, database.WorkspaceTransitionDelete:
 			if err := s.revokeAIAgentSessionTokens(ctx, workspace); err != nil {
@@ -2187,6 +2226,29 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
+		// Bind every agent of an AI-designated workspace to its marker
+		// identity. This runs inside the build-completion transaction, after
+		// all of this build's agents exist and before prior agents are
+		// soft-deleted, so it covers initial builds and rebuilds alike.
+		// See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2.
+		if workspace.AIAgentID.Valid {
+			buildAgents, err := db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+				WorkspaceID: workspaceBuild.WorkspaceID,
+				BuildNumber: workspaceBuild.BuildNumber,
+			})
+			if err != nil {
+				return xerrors.Errorf("get workspace agents for AI binding: %w", err)
+			}
+			for _, agent := range buildAgents {
+				if _, err := db.UpdateWorkspaceAgentAIAgentID(ctx, database.UpdateWorkspaceAgentAIAgentIDParams{
+					ID:        agent.ID,
+					AIAgentID: workspace.AIAgentID,
+				}); err != nil {
+					return xerrors.Errorf("bind workspace agent to AI identity: %w", err)
+				}
+			}
+		}
+
 		// Soft-delete agents from prior builds now that this build's
 		// agents have been inserted. Waiting until completion (rather
 		// than build creation) avoids bricking running workspaces
@@ -3210,34 +3272,44 @@ func aiAgentOptedIn(parameters []database.WorkspaceBuildParameter) bool {
 // identity and mints a fresh workspace-pinned API key for it. The identity
 // user is reused across rebuilds (enforced by the ai_agents unique origin
 // index); keys are rotated on every opted-in start build.
-func (s *server) regenerateAIAgentSessionToken(ctx context.Context, workspace database.Workspace) (string, error) {
-	agent, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   workspace.ID,
-	})
-	switch {
-	case err == nil:
-		// The identity must still belong to the current workspace owner.
-		// Ownership transfer (e.g. a future claim flow) invalidates the old
-		// sponsorship: revoke and recreate under the new owner.
-		if agent.OwnerUserID != workspace.OwnerID {
-			if err := s.revokeAIAgentIdentity(ctx, agent); err != nil {
-				return "", xerrors.Errorf("revoke AI agent identity after ownership change: %w", err)
-			}
-			agent, err = s.createWorkspaceAIAgent(ctx, workspace)
-			if err != nil {
-				return "", err
-			}
-		}
-	case errors.Is(err, sql.ErrNoRows):
-		agent, err = s.createWorkspaceAIAgent(ctx, workspace)
-		if err != nil {
-			return "", err
-		}
-	default:
-		return "", xerrors.Errorf("get AI agent by origin: %w", err)
+// resolveDesignatedAIAgent returns the workspace's AI designation marker
+// identity, or false when the workspace is not designated. The marker is
+// sticky: once set it survives rebuilds and cannot be cleared by dropping a
+// build parameter. Un-designating would re-expose the sponsor's ambient
+// credentials, so designation is deliberately one-way.
+// See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2.
+func (s *server) resolveDesignatedAIAgent(ctx context.Context, workspace database.Workspace) (database.AIAgent, bool, error) {
+	if !workspace.AIAgentID.Valid {
+		return database.AIAgent{}, false, nil
 	}
+	agent, err := s.Database.GetAIAgentByUserID(ctx, workspace.AIAgentID.UUID)
+	if err != nil {
+		return database.AIAgent{}, false, xerrors.Errorf("get designated AI agent: %w", err)
+	}
+	return agent, true, nil
+}
 
+// designateWorkspaceAIAgent records the marker for a human opt-in workspace
+// that does not carry one yet. Chat-created workspaces are designated at
+// creation with the requesting chat's identity, so they already have one.
+func (s *server) designateWorkspaceAIAgent(ctx context.Context, workspace database.Workspace, agent database.AIAgent) error {
+	//nolint:gocritic // Setting the internal designation marker requires system access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	if _, err := s.Database.SetWorkspaceAIAgentID(systemCtx, database.SetWorkspaceAIAgentIDParams{
+		ID:        workspace.ID,
+		AIAgentID: uuid.NullUUID{UUID: agent.UserID, Valid: true},
+	}); err != nil {
+		return xerrors.Errorf("set workspace AI designation: %w", err)
+	}
+	return nil
+}
+
+// regenerateAIAgentSessionToken mints a fresh workspace-pinned key for the
+// supplied identity. Callers resolve which identity applies: a designated
+// workspace uses its marker identity (which may be a chat identity, per the
+// identity continuity rule), while a human opt-in with no marker yet
+// creates or reuses the workspace-origin identity.
+func (s *server) regenerateAIAgentSessionToken(ctx context.Context, workspace database.Workspace, agent database.AIAgent) (string, error) {
 	// Rotate: MintKey does not replace keys by name, so drop the stale one
 	// first (mirrors deleteSessionTokenForUserAndWorkspace for owner tokens).
 	profile := aiagentidentity.WorkspaceAgentIdentityProfile(workspace.ID)
@@ -3249,6 +3321,39 @@ func (s *server) regenerateAIAgentSessionToken(ctx context.Context, workspace da
 		return "", xerrors.Errorf("mint AI agent session token: %w", err)
 	}
 	return token, nil
+}
+
+// resolveWorkspaceOriginAIAgent creates or reuses the workspace-origin
+// identity for the human opt-in path, re-sponsoring it when the workspace
+// owner changed.
+func (s *server) resolveWorkspaceOriginAIAgent(ctx context.Context, workspace database.Workspace) (database.AIAgent, error) {
+	agent, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginWorkspace,
+		OriginID:   workspace.ID,
+	})
+	switch {
+	case err == nil:
+		// The identity must still belong to the current workspace owner.
+		// Ownership transfer (e.g. a future claim flow) invalidates the old
+		// sponsorship: revoke and recreate under the new owner.
+		if agent.OwnerUserID != workspace.OwnerID {
+			if err := s.revokeAIAgentIdentity(ctx, agent); err != nil {
+				return database.AIAgent{}, xerrors.Errorf("revoke AI agent identity after ownership change: %w", err)
+			}
+			agent, err = s.createWorkspaceAIAgent(ctx, workspace)
+			if err != nil {
+				return database.AIAgent{}, err
+			}
+		}
+	case errors.Is(err, sql.ErrNoRows):
+		agent, err = s.createWorkspaceAIAgent(ctx, workspace)
+		if err != nil {
+			return database.AIAgent{}, err
+		}
+	default:
+		return database.AIAgent{}, xerrors.Errorf("get AI agent by origin: %w", err)
+	}
+	return agent, nil
 }
 
 func (s *server) createWorkspaceAIAgent(ctx context.Context, workspace database.Workspace) (database.AIAgent, error) {

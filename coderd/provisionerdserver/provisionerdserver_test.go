@@ -5761,9 +5761,20 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	})
 	require.NoError(t, err, "identity survives stop for reuse on restart")
 
-	// Build 4: opt-out start build mints nothing and never fails.
+	// Build 4: designation is STICKY. Dropping the parameter must not
+	// un-designate the workspace, otherwise a build-parameter change would
+	// restore the sponsor's ambient credentials. The scoped token keeps
+	// rotating and the owner token stays suppressed.
 	metadata = acquireBuild(t, database.WorkspaceTransitionStart, sdkproto.PrebuiltWorkspaceBuildStage_NONE, nil)
-	require.Empty(t, metadata.GetWorkspaceAiAgentSessionToken())
+	require.NotEmpty(t, metadata.GetWorkspaceAiAgentSessionToken(),
+		"designation must survive dropping the opt-in parameter")
+	require.Empty(t, metadata.GetWorkspaceOwnerSessionToken(),
+		"AI-designated workspaces never receive the owner session token")
+
+	designatedWorkspace, err := db.GetWorkspaceByID(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.True(t, designatedWorkspace.AIAgentID.Valid, "marker persists across builds")
+	require.Equal(t, agent.UserID, designatedWorkspace.AIAgentID.UUID)
 
 	// A workspace that never opts in gets no identity at all.
 	otherWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
