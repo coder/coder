@@ -28462,12 +28462,8 @@ type InsertUsageEventParams struct {
 	CreatedAt time.Time       `db:"created_at" json:"created_at"`
 }
 
-// Duplicate events are ignored intentionally to allow for multiple replicas
-// to publish heartbeat events. The (id) arbiter scopes that tolerance to
-// exact re-inserts of the same event: a duplicate hb_agent_runtime_v1
-// bucket under a different id raises on idx_usage_events_agent_runtime
-// instead, which generateBucket in enterprise/coderd/usage/generator.go
-// handles.
+// Duplicate events are ignored intentionally to allow for multiple replicas to
+// publish heartbeat events.
 func (q *sqlQuerier) InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error {
 	_, err := q.db.ExecContext(ctx, insertUsageEvent,
 		arg.ID,
