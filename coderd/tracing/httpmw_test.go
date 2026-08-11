@@ -29,6 +29,10 @@ type fakeTracer struct {
 	noop.TracerProvider
 	noopTracer
 	startCalled atomic.Int64
+	// span, when set, is returned from Start so tests can assert on the
+	// attributes the middleware records. When nil, Start returns
+	// tracing.NoopSpan.
+	span *recordingSpan
 }
 
 var (
@@ -44,6 +48,9 @@ func (f *fakeTracer) Tracer(_ string, _ ...trace.TracerOption) trace.Tracer {
 // Start implements trace.Tracer.
 func (f *fakeTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
 	f.startCalled.Add(1)
+	if f.span != nil {
+		return ctx, f.span
+	}
 	return ctx, tracing.NoopSpan
 }
 
@@ -65,22 +72,6 @@ func (s *recordingSpan) attributes() []attribute.KeyValue {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return slices.Clone(s.attrs)
-}
-
-// recordingTracer is a trace.TracerProvider/Tracer that hands out a single
-// recordingSpan.
-type recordingTracer struct {
-	noop.TracerProvider
-	noopTracer
-	span *recordingSpan
-}
-
-func (t *recordingTracer) Tracer(_ string, _ ...trace.TracerOption) trace.Tracer {
-	return t
-}
-
-func (t *recordingTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return ctx, t.span
 }
 
 const testSessionID = "0123456789abcdef0123456789abcdef"
@@ -142,7 +133,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 	t.Run("TracingEnabled", func(t *testing.T) {
 		t.Parallel()
 
-		tp := &recordingTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
+		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
 		fields := requestFields(t, tp, "/api/v2/workspaces", tracing.SessionIDBaggageKey+"="+testSessionID)
 
 		val, ok := fieldValue(fields, "session_id")
@@ -150,6 +141,21 @@ func Test_Middleware_SessionID(t *testing.T) {
 		require.Equal(t, testSessionID, val)
 
 		require.Contains(t, tp.span.attributes(), attribute.String("session_id", testSessionID))
+	})
+
+	t.Run("TracingEnabledNoBaggage", func(t *testing.T) {
+		t.Parallel()
+
+		// With tracing on but no baggage, the session ID is empty and the
+		// middleware must not set an empty session_id span attribute or log
+		// field.
+		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
+		fields := requestFields(t, tp, "/api/v2/workspaces", "")
+
+		_, ok := fieldValue(fields, "session_id")
+		require.False(t, ok, "session_id should be absent when no baggage is sent")
+		require.False(t, hasAttrKey(tp.span.attributes(), "session_id"),
+			"no session_id attribute should be set when no baggage is sent")
 	})
 
 	t.Run("TracingDisabled", func(t *testing.T) {
@@ -175,7 +181,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 	t.Run("MalformedBaggage", func(t *testing.T) {
 		t.Parallel()
 
-		tp := &recordingTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
+		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
 		fields := requestFields(t, tp, "/api/v2/workspaces", tracing.SessionIDBaggageKey+"=not-a-valid-session-id")
 
 		_, ok := fieldValue(fields, "session_id")
@@ -191,7 +197,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 		// asset routes must not extract session_id, even from well-formed
 		// baggage, so client-controlled baggage is never logged for every
 		// request.
-		tp := &recordingTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
+		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
 		fields := requestFields(t, tp, "/index.html", tracing.SessionIDBaggageKey+"="+testSessionID)
 
 		_, ok := fieldValue(fields, "session_id")
@@ -210,7 +216,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 
 		require.Equal(t, "session_id", tracing.SessionIDBaggageKey)
 
-		tp := &recordingTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
+		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
 		fields := requestFields(t, tp, "/api/v2/workspaces", tracing.SessionIDBaggageKey+"="+testSessionID)
 
 		_, ok := fieldValue(fields, tracing.SessionIDBaggageKey)
