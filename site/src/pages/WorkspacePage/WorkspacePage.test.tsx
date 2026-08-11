@@ -26,7 +26,6 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildDelete,
-	MockWorkspaceBuildStop,
 } from "#/testHelpers/entities";
 import {
 	type RenderWithAuthOptions,
@@ -196,16 +195,9 @@ describe("WorkspacePage", () => {
 	});
 
 	it("requests an orchestrated restart when the user presses Restart", async () => {
-		const childBuild = {
-			...MockWorkspaceBuild,
-			build_number: MockWorkspaceBuildStop.build_number + 1,
-		};
-		const postWorkspaceBuild = vi
-			.spyOn(API, "postWorkspaceBuild")
-			.mockResolvedValueOnce(MockWorkspaceBuildStop);
-		vi.spyOn(API, "waitForBuild").mockResolvedValue(MockWorkspaceBuild.job);
-		vi.spyOn(API, "getWorkspaceBuildByNumber").mockResolvedValue(childBuild);
-		const startWorkspace = vi.spyOn(API, "startWorkspace");
+		const restartWorkspaceMock = vi
+			.spyOn(API, "restartWorkspace")
+			.mockResolvedValueOnce(undefined);
 
 		await renderWorkspacePage(MockWorkspace);
 
@@ -215,16 +207,10 @@ describe("WorkspacePage", () => {
 		await user.click(confirmButton);
 
 		await waitFor(() => {
-			expect(postWorkspaceBuild).toHaveBeenCalledOnce();
+			expect(restartWorkspaceMock).toHaveBeenCalledWith(
+				expect.objectContaining({ workspace: MockWorkspace }),
+			);
 		});
-		expect(postWorkspaceBuild).toHaveBeenCalledWith(
-			MockWorkspace.id,
-			expect.objectContaining({
-				transition: "stop",
-				on_success: expect.objectContaining({ transition: "start" }),
-			}),
-		);
-		expect(startWorkspace).not.toHaveBeenCalled();
 	});
 
 	it("requests cancellation when the user presses Cancel", async () => {

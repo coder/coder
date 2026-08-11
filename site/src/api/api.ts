@@ -1278,10 +1278,10 @@ class ApiMethods {
 		buildNumber: number,
 		signal?: AbortSignal,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const url = `/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`;
-		const response = await this.axios.get<TypesGen.WorkspaceBuild>(url, {
-			signal,
-		});
+		const response = await this.axios.get<TypesGen.WorkspaceBuild>(
+			`/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
+			{ signal },
+		);
 
 		return response.data;
 	};
@@ -1318,23 +1318,10 @@ class ApiMethods {
 	private waitForRestartBuild = async (
 		stopBuild: TypesGen.WorkspaceBuild,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const deadline = Date.now() + 60_000;
-		const timeoutError = new Error(
-			"The workspace stopped but the follow-up start build was not created.",
-		);
-
 		const controller = new AbortController();
-		const timeoutId = setTimeout(
-			() => controller.abort(),
-			Math.max(0, deadline - Date.now()),
-		);
+		const timeoutId = setTimeout(() => controller.abort(), 60_000);
 		try {
-			while (true) {
-				const remainingTime = deadline - Date.now();
-				if (remainingTime <= 0) {
-					throw timeoutError;
-				}
-
+			while (!controller.signal.aborted) {
 				try {
 					return await this.getWorkspaceBuildByNumber(
 						stopBuild.workspace_owner_name,
@@ -1344,22 +1331,20 @@ class ApiMethods {
 					);
 				} catch (error) {
 					if (controller.signal.aborted) {
-						throw timeoutError;
+						break;
 					}
 					if (!isAxiosError(error) || error.response?.status !== 404) {
 						throw error;
 					}
 				}
-
-				const delayTime = Math.min(1000, deadline - Date.now());
-				if (delayTime <= 0) {
-					throw timeoutError;
-				}
-				await delay(delayTime);
+				await delay(1000);
 			}
 		} finally {
 			clearTimeout(timeoutId);
 		}
+		throw new Error(
+			"The workspace stopped but the follow-up start build was not created.",
+		);
 	};
 
 	postWorkspaceBuild = async (

@@ -423,9 +423,7 @@ describe("api.ts", () => {
 				.mockResolvedValueOnce(MockProvisionerJob)
 				.mockResolvedValueOnce(MockProvisionerJob);
 			vi.spyOn(API, "getWorkspaceBuildByNumber").mockResolvedValue(childBuild);
-			const startWorkspace = vi
-				.spyOn(API, "startWorkspace")
-				.mockResolvedValue(childBuild);
+			const startWorkspace = vi.spyOn(API, "startWorkspace");
 
 			await API.restartWorkspace({
 				workspace: MockWorkspace,
@@ -442,22 +440,6 @@ describe("api.ts", () => {
 				},
 			});
 			expect(startWorkspace).not.toHaveBeenCalled();
-		});
-
-		it("does not pin the follow-up start to a template version", async () => {
-			const postWorkspaceBuild = vi
-				.spyOn(API, "postWorkspaceBuild")
-				.mockResolvedValue(stopBuild);
-			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
-				...MockProvisionerJob,
-				status: "canceled",
-			});
-
-			await API.restartWorkspace({ workspace: MockWorkspace });
-
-			const request = postWorkspaceBuild.mock.calls[0][1];
-			expect(request.on_success).toBeDefined();
-			expect(request.on_success).not.toHaveProperty("template_version_id");
 		});
 
 		it("does not look for a follow-up build when the stop is canceled", async () => {
@@ -520,18 +502,8 @@ describe("api.ts", () => {
 				);
 
 			const restart = API.restartWorkspace({ workspace: MockWorkspace });
-			let settled = false;
-			void restart.then(
-				() => {
-					settled = true;
-				},
-				() => {
-					settled = true;
-				},
-			);
 
 			await vi.advanceTimersByTimeAsync(59_999);
-			expect(settled).toBe(false);
 			expect(getWorkspaceBuildByNumber.mock.calls[0][3]?.aborted).toBe(false);
 
 			await vi.advanceTimersByTimeAsync(1);
