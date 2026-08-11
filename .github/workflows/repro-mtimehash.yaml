@@ -70,7 +70,10 @@ jobs:
 
       - name: Verify fix
         shell: bash
+        # Run the exact production command from the Normalize File and
+        # Directory Timestamps step. No `head` truncation: closing the pipe
+        # early makes find exit 141 (SIGPIPE) under pipefail.
         run: |
           command -v mtimehash
-          find . -type f ! -path ./.git/\*\* | head -n 100 | mtimehash
+          find . -type f ! -path ./.git/\*\* | mtimehash
           echo "FIX VERIFIED: mtimehash installed and runs when install uses shell: bash"
