@@ -35,18 +35,18 @@ they act for:
 ### Concept
 
 Introduce **AI agent identities**: real principals, automatically minted
-per chat (and later per agent workspace), durably attributed to a human
-owner, and always bounded by that human's live permissions.
+at each human-to-AI boundary, durably attributed to a human owner, and always
+bounded by that human's live permissions.
 
 | Property            | Decision                                                                       |
 |---------------------|--------------------------------------------------------------------------------|
 | Principal model     | Real row in `users` with `kind = 'ai_agent'` + metadata side-table `ai_agents` |
-| Granularity         | One identity minted per chat / per agent workspace                             |
+| Granularity         | One per human-created chat or direct workspace opt-in; descendants reuse it    |
 | Audit semantics     | Actor = agent, `on_behalf_of` = human; queryable by both                       |
 | Permission ceiling  | Agent perms ⊆ owner perms, enforced structurally at request time               |
 | Reduction mechanism | Owner's live roles ∩ API key scopes ∩ allow list (existing machinery)          |
 | Credentials         | Plain API keys owned by the agent user                                         |
-| Creation            | Automatic at chat/workspace creation; no user-facing creation flow             |
+| Creation            | Automatic at those human-to-AI boundaries; no manual identity flow             |
 | Lifecycle           | Cascade suspend from owner; revoke on origin deletion                          |
 | Surfaces (v1)       | chatd (Coder Agents), in-workspace CLI agents, aibridge attribution            |
 
@@ -134,8 +134,8 @@ and be collision-retried. Visibly non-human by construction.
 CREATE TABLE ai_agents (
     user_id       uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     owner_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    origin_type   ai_agent_origin NOT NULL,     -- enum: 'chat', 'workspace'
-    origin_id     uuid NOT NULL,                -- chat ID or workspace ID
+    origin_type   ai_agent_origin NOT NULL,     /* enum: 'chat', 'workspace' */
+    origin_id     uuid NOT NULL,                /* chat ID or workspace ID */
     created_at    timestamptz NOT NULL DEFAULT now(),
     deleted       boolean NOT NULL DEFAULT false
 );
@@ -245,8 +245,9 @@ In `ValidateAPIKey` / subject construction path:
   owner key exposed as `WorkspaceOwnerSessionToken`
   (`data.coder_workspace_owner.me.session_token`).
 - Add a parallel, separately-plumbed value: an AI agent identity + scoped
-  key per workspace (profile `WorkspaceAgentIdentityProfile`), created when
-  the template opts in.
+  key per directly human-opted workspace (profile
+  `WorkspaceAgentIdentityProfile`). AI-created resources reuse the requesting
+  agent's identity, as specified in Vertical 2.
 - **Dependency flag**: exposing this to templates needs a
   terraform-provider-coder change (e.g.
   `data.coder_ai_agent.me.session_token` or equivalent). For the PoC,
@@ -372,356 +373,545 @@ and the network is wide open:
 - There is no workspace-wide network confinement. Agent Firewall (boundary)
   is per-process, opt-in, bypassable by any unwrapped process, and Premium.
   This vertical rebuilds egress control from the ground up and does NOT
-  build on boundary; the `boundary_*` tables/flows are left alone and
+  build on boundary; the `boundary_*` tables and flows are left alone and
   eventually superseded.
-- There is no first-class notion of a workspace or sub-environment that
-  exists *for* an AI agent.
+- There is no first-class, server-authoritative binding between a workspace
+  agent process and the AI identity responsible for its actions.
 
-### Concept: two modes, one architecture
+### Concept: human-owned workspaces with AI-bound agents
 
-|                                     | Mode 1: agent-owned workspace                                             | Mode 2: sandbox inside human workspace                             |
-|-------------------------------------|---------------------------------------------------------------------------|--------------------------------------------------------------------|
-| Ownership                           | `workspaces.owner_id` = AI agent user (V1)                                | Human owns workspace; sandboxed child agent bound to AI identity   |
-| Isolation boundary                  | Workspace network perimeter (netns supervisor; optionally VM-class infra) | Sandbox wall (microVM via coder/sandbox lineage, or other backend) |
-| Ambient human creds inside boundary | None, structurally (owner is the agent user, who has nothing)             | None, by policy (manifest diet for AI-bound child agents)          |
-| Human access                        | Auto-created workspace ACL grant (full control, no appropriation)         | Human owns the workspace already                                   |
+**Workspaces are always human-owned.** `workspaces.owner_id` remains the
+sponsoring human in every flow. Vertical 2 adds one binding mechanism:
+`workspace_agents.ai_agent_id`, a nullable foreign key to
+`ai_agents.user_id`. A workspace agent with this field set is **AI-bound**.
+An unbound workspace agent retains normal behavior.
 
-Both modes place an AI agent identity behind an isolation boundary with
-default-deny egress and credentials held outside the boundary. The sandbox
-runtime interface (below) is shared; Mode 1 is the degenerate case where
-the "sandbox" is the workspace interior itself.
+The same binding has two shapes:
 
-Design for N sandboxes per workspace (the data model supports multiple
-children via `workspace_agents.parent_id`); the PoC constrains to 1.
+| Shape                   | Binding                                                                                                   | Use case                                                                                             |
+|-------------------------|-----------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| AI-designated workspace | Every workspace agent in the workspace is bound to the same AI identity                                   | Workspaces created for or by AI, including chat-created workspaces and direct human workspace opt-in |
+| Sandboxed agent         | Only a child agent with `workspace_agents.parent_id` is bound; the parent workspace agent remains unbound | A confined AI sandbox inside a normal human workspace                                                |
+
+Design for N sandboxed child agents per workspace. The data model already
+supports multiple children through `workspace_agents.parent_id`; the PoC
+creates at most 1.
+
+#### Identity continuity
+
+AI identities are minted only at a human-to-AI boundary:
+
+1. When a human creates a chat, mint a new chat-origin identity, as built in
+   Vertical 1.
+2. When a human opts a workspace in through the `coder_ai_agent` parameter
+   with no chat involved, mint a new workspace-origin identity, as built in
+   Vertical 1.
+3. When an AI agent creates resources, do not mint another identity. Bind
+   the created workspace, workspace agents, sandboxed child agents, or child
+   chats to the requester's existing identity.
+
+A chat-created workspace therefore remains owned by the chat sponsor, while
+all of its workspace agents carry the chat identity's user ID in
+`workspace_agents.ai_agent_id`. Child chats already reuse the root chat
+identity; Vertical 2 extends that precedent to workspace and sandbox
+creation. One delegation chain has one unbroken AI identity lineage.
 
 ### Decisions
 
-| Property                  | Decision                                                                                                                  |
-|---------------------------|---------------------------------------------------------------------------------------------------------------------------|
-| Sandbox technology        | Pluggable runtime interface; coder/sandbox (libkrun microVM) is the flagship backend, but ANY backend must be supportable |
-| Workspace agent placement | A child workspace agent runs INSIDE the sandbox (keeps SSH/terminal/apps/port-forward via existing tailnet routing)       |
-| Identity binding          | `workspace_agents.ai_agent_id` (nullable FK to V1 `ai_agents.user_id`)                                                    |
-| Authorization             | Everything stays delegated (V1 model unchanged); Mode 1 bridged by an auto-created ACL grant                              |
-| Egress                    | Rebuilt from scratch: structural default-deny, SNI/CONNECT-level policy, audited; NOT boundary-based                      |
-| Credentials               | MCP-first; per-agent `ai_credential_mode = none \| injected \| brokered`, default `none`                                  |
-| External auth             | Nothing fancy: denied by default, passed through as-is when opted in                                                      |
-| Quota                     | Agent-owned workspaces charge the sponsoring human                                                                        |
-| Human-in-the-loop         | Designed for (egress approvals), implemented post-PoC                                                                     |
+| Property                  | Decision                                                                                                                    |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| Workspace ownership       | Always the sponsoring human; no agent-owned workspaces in the current design                                                |
+| Identity binding          | `workspace_agents.ai_agent_id` is the single server-authoritative binding                                                   |
+| Binding shapes            | All agents bound in an AI-designated workspace, or only a bound child agent in a normal workspace                           |
+| Identity creation         | Mint only at a human-to-AI boundary; AI-created descendants reuse the requester's identity                                  |
+| Sandbox technology        | Pluggable runtime interface; coder/sandbox (libkrun microVM) is the flagship, but any backend must be supportable           |
+| Workspace agent placement | A child workspace agent runs inside a sandbox, preserving SSH, terminal, apps, and port forwarding through existing routing |
+| Authorization             | Sponsor's live subject intersected with the appropriate workspace-agent or scoped session-token profile                     |
+| Egress                    | Structural default-deny, SNI/CONNECT-level policy, and attributed auditing; not boundary-based                              |
+| Credentials               | MCP-first; per-agent `ai_credential_mode = none \| injected \| brokered`, default `none`                                    |
+| Human access              | Follows directly from workspace ownership; no ACL bridge or auto-grant machinery                                            |
+| Human-in-the-loop         | Designed for egress approvals, implemented post-PoC                                                                         |
+| Sandbox cardinality       | Designed for N sandboxed children per workspace, limited to 1 in the PoC                                                    |
 
-### Mode 1: agent-owned workspaces
+### Binding and credential split
 
-#### The authorization bridge
+Implementers must keep the two workspace credentials separate. Both
+attribute actions to the AI agent, but they secure different principals and
+use different scope machinery.
 
-RBAC owner checks are literal: `resource.owner_id == subject.ID`. With
-`W.owner_id = AU` (agent user) three things break: the sponsoring human
-fails owner checks on W; the delegated agent subject (ID = human, per V1)
-also fails them; and the workspace agent inside W builds its subject from
-the owner's roles, which for AU are none.
+#### Workspace agent token: daemon authentication
 
-Resolution (no new authz machinery, V1 unchanged):
+The workspace agent token authenticates the workspace agent daemon. When
+`workspace_agents.ai_agent_id` is set, workspace-agent middleware must:
 
-1. **Auto-ACL grant**: when an agent workspace is created, coderd writes a
-   workspace ACL entry granting the sponsoring human `admin`
-   (`coderd/workspaces.go` ACL machinery, `db2sdk.WorkspaceRoleActions`).
-   The human gets full control; `owner_id` never changes (no
-   appropriation). ACL admin excludes delete: deletion goes through
-   lifecycle (TTL/cascade) or org admins; direct sponsor delete is an open
-   policy question, noted, not blocking.
-2. **Delegated subject reaches W through the human's grant**: the agent's
-   key still resolves to subject ID = human (V1), which now passes via the
-   ACL path, then is narrowed by scopes + allow list (pinned to W).
-3. **Workspace agent middleware** (`coderd/httpmw/workspaceagent.go`): when
-   the workspace owner is an AI agent user, resolve
-   `owner (AU) -> ai_agents.owner_user_id (human)` and build the sponsor's
-   subject ∩ `WorkspaceAgentScope`, mirroring V1's API-key middleware.
-   Fail closed if the `ai_agents` row is missing.
+1. Resolve the bound `ai_agents` row and its sponsoring owner. Use the V1
+   fail-closed resolution semantics, including an
+   `GetAIAgentByOriginIncludingDeleted`-style distinction between a missing
+   identity and a revoked or deleted identity.
+2. Reject authentication when the identity is missing, deleted, or revoked,
+   or when the sponsor is missing, deleted, suspended, or otherwise
+   inactive. A dangling binding is never treated as an unbound agent.
+3. Build the sponsor-owner RBAC subject, intersect it with
+   `rbac.WorkspaceAgentScope`, force `no_user_data`, and set
+   `Subject.Type = SubjectTypeAIAgent`.
+4. Stash `AIAgentActor{AgentUserID, OwnerUserID, OriginType, OriginID}` in
+   context for audit, request logging, and downstream attribution.
 
-#### Structural credential starvation
+This subject governs the workspace agent process itself, including agent API
+calls and lifecycle operations. It does not grant general CLI permissions to
+programs running inside the workspace.
 
-All ambient credential channels key off `workspaces.owner_id`, so with
-owner = AU they are empty by construction, not by filtering:
+#### Session token: in-workspace CLI tools
 
-| Channel                                                                                                               | Behavior in Mode 1                                                                                                                                       |
-|-----------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Manifest user secrets                                                                                                 | AU owns no secrets; manifest section is empty                                                                                                            |
-| `coder gitssh`                                                                                                        | Refuses in AI-owned workspaces (must never serve the sponsor's key); port-22 egress is default-deny anyway                                               |
-| External auth (`gitaskpass`)                                                                                          | 403 + pointer to MCP/broker unless `ai_credential_mode` says otherwise; AU has no links regardless. Make this an explicit policy denial, not an accident |
-| Owner session token (`coder_workspace_owner.me.session_token`, minted in `provisionerdserver.regenerateSessionToken`) | Minted for AU = the scoped V1 agent key. Verify the scope profile applies at this mint point                                                             |
-| Template-injected env (`coder_env`, scripts)                                                                          | Admin-authored; out of our control. Template envelope lints/warns when AI-designated templates interpolate owner secrets/tokens                          |
+The session token used by in-workspace CLI tools is the scoped AI API key
+minted through the existing V1 `WorkspaceAgentIdentityProfile` and step 8
+machinery. Reduced permissions for AI tool actions live in this credential,
+not in the workspace agent token.
 
-#### Creation, lifecycle, quota
+For an AI-designated workspace, coderd suppresses the full-owner session
+token exposed as `data.coder_workspace_owner.me.session_token` and provides
+the scoped AI session token instead. Both workspace agent token actions and
+scoped session-token actions audit `actor = agent` and
+`on_behalf_of = sponsor`.
 
-- Created by the chat agent (delegated, V1) or via API; the workspace's
-  `ai_agents` origin row is `(origin_type='workspace', origin_id=W)`, or
-  the owning identity is the chat's agent when chatd creates it (origin
-  stays `chat`). Template must opt in (envelope below).
-- Lifecycle: mandatory TTL (reuse the chat-workspace TTL precedent),
-  dormancy-aggressive defaults, cascade: chat deleted or sponsor
-  suspended -> workspace stopped, then auto-deleted after grace period.
-  Sponsor suspension already 401s the agent's key (V1 invariant 2).
-- Quota: charge the sponsor. Targeted change in the quota path
-  (`enterprise/coderd/workspacequota.go`, `queries/quotas.sql`): sum
-  workspaces owned by a user's sponsored agents into that user's bucket.
-  AGPL PoC may stub this; flag it.
+For a sandboxed child, inject the scoped AI session token only into the
+child boundary. The unbound parent can retain normal human-workspace
+behavior outside that boundary, but it must never copy its owner session
+token into the child.
 
-### Mode 2: sandboxed subagent in a human workspace
+The current workspace key lifetime is 24 hours. Chat keys renew on use, but
+workspace keys only rotate on a start build. A renewal path is required for
+workspaces or sandboxes that run for more than 24 hours; this is an explicit
+implementation work item, not a reason to extend key lifetime silently.
 
-#### Reuse boundary (from the devcontainer/subagent machinery)
+#### Workspace-agent audit attribution
+
+`audit.InitRequest` currently derives `user_id` from an API key or an
+explicit `Request.UserID`. Workspace-agent UUID authentication supplies
+neither. Every bound workspace-agent audit entry point must therefore set
+the actor explicitly to the bound AI agent user and set
+`on_behalf_of_user_id` to the sponsor.
+
+This plumbing must cover synchronous HTTP request audits and background
+workspace-agent events. Background producers cannot rely only on request
+context; their event payloads must carry both agent and sponsor attribution.
+
+### AI-designated workspaces
+
+An AI-designated workspace uses the same human ownership and per-agent
+binding as every other workspace. Its distinction is that every workspace
+agent is bound to one AI identity.
+
+#### Chat-created workspaces
+
+The chat workspace-creation tool forces AI designation. It must not depend
+on the selected template declaring the `coder_ai_agent` parameter or setting
+it to `true`.
+
+Creation follows these rules:
+
+1. Keep `workspaces.owner_id` set to the chat identity's sponsoring human.
+2. Reuse the requesting chat's AI identity. Do not create a workspace-origin
+   identity.
+3. Set `workspace_agents.ai_agent_id` to that chat identity for every agent
+   produced by the workspace build, including agents added by subsequent
+   builds.
+4. Suppress `data.coder_workspace_owner.me.session_token`, whose
+   `coder:all` owner credential must never enter an AI-designated workspace.
+5. Provide the scoped AI session token instead.
+
+The server owns this designation and propagates it through the build. A
+Terraform template can add a direct human opt-in surface, but it cannot
+cause a chat-created workspace to become unbound.
+
+#### Direct human workspace opt-in
+
+When a human starts or creates a workspace with `coder_ai_agent = true` and
+no existing AI requester, Vertical 1 mints the workspace-origin identity.
+Vertical 2 binds every workspace agent in that workspace to that identity,
+suppresses the owner session token, and supplies the scoped AI session
+token. Rebuilds reuse the identity.
+
+### Sandboxed agent in a human workspace
+
+#### Reuse boundary from the devcontainer and subagent machinery
 
 Reuse as-is: `workspace_agents.parent_id`, child token minting
-(`SubAgentAPI` in `coderd/agentapi/subagent.go`), per-agent tailnet
-identity + SSH routing (`coder ssh ws.child`), child apps, nested UI
-(`AgentRow` / devcontainer card patterns).
+(`SubAgentAPI` in `coderd/agentapi/subagent.go`), per-agent tailnet identity
+and SSH routing (`coder ssh ws.child`), child apps, and nested UI
+(`AgentRow` and devcontainer card patterns).
 
-Replace: everything devcontainer/Docker-specific in
-`agent/agentcontainers` (labels, `devcontainer` CLI, `docker cp` binary
-injection) with the sandbox runtime interface.
+Replace everything devcontainer and Docker-specific in
+`agent/agentcontainers` (labels, the `devcontainer` CLI, and `docker cp`
+binary injection) with the sandbox runtime interface.
 
-**Prerequisite fixes (pre-existing bugs, fix regardless):**
+**Prerequisite fix:** `DeleteSubAgent` does not verify that the target's
+`parent_id` equals the caller. Bind deletion to the calling parent before
+building sandbox lifecycle on this API. This compatibility-review finding
+remains unfixed.
 
-1. `DeleteSubAgent` does not verify the target's `parent_id` equals the
-   caller; bind deletion to the calling parent.
-2. Manifest user secrets bypass `no_user_data` (fetched under
-   `AsSystemRestricted`). For any child agent with `ai_agent_id` set, the
-   manifest is stripped: no user secrets, no external auth, no git key.
-   Fail closed.
+#### Sandbox runtime interface: agent side
 
-#### Sandbox runtime interface (agent-side)
-
-New package (suggested: `agent/aisandbox`) defining:
+Add a package such as `agent/aisandbox` defining:
 
 - **Capability discovery**: backends declare what they enforce
-  (`CanEnforceEgress`, `CanMountWorkspace`, `CanExec`, `CanSnapshot`,
+  (`CanEnforceEgress`, `CanMountWorkspace`, `CanExec`, `CanSnapshot`, and
   host requirements such as `/dev/kvm`). Coderd records declared
   capabilities so degraded confinement is visible, never silent.
-- **Lifecycle**: create/start/stop/delete/reconcile (reconcile matters:
-  sandboxes must survive agent restarts or fail loudly).
-- **Process ops**: exec/stream/signal; mounts; env injection for the child
-  agent (`CODER_AGENT_URL`, `CODER_AGENT_TOKEN` of the AI-bound child).
-- **Network policy**: apply/update egress policy; emit audit events.
+- **Lifecycle**: create, start, stop, delete, and reconcile. Reconciliation
+  matters because sandboxes must survive agent restarts or fail loudly.
+- **Process operations**: exec, stream, signal, mounts, and environment
+  injection for the child agent (`CODER_AGENT_URL` and
+  `CODER_AGENT_TOKEN` of the AI-bound child).
+- **Network policy**: apply or update egress policy and emit audit events.
 
 Backends:
 
-| Backend                           | Isolation                     | Egress enforcement                                                                       | Status                                   |
-|-----------------------------------|-------------------------------|------------------------------------------------------------------------------------------|------------------------------------------|
-| `microvm` (coder/sandbox lineage) | libkrun microVM, KVM required | deny-by-default proxy + recorded DNS, per-sandbox MITM possible (CA injected into guest) | flagship; needs hardening (below)        |
-| `netns` (new, shared with Mode 1) | Linux network namespace       | SNI/CONNECT proxy, default-deny                                                          | PoC-buildable everywhere; weaker than VM |
-| `devcontainer` (retrofit)         | container                     | none (declares it)                                                                       | compatibility                            |
+| Backend                           | Isolation                     | Egress enforcement                                                                   | Status                                  |
+|-----------------------------------|-------------------------------|--------------------------------------------------------------------------------------|-----------------------------------------|
+| `microvm` (coder/sandbox lineage) | libkrun microVM, KVM required | Deny-by-default proxy and recorded DNS; per-sandbox MITM is possible with a guest CA | Flagship; needs hardening               |
+| `netns`                           | Linux network namespace       | SNI/CONNECT proxy, default-deny                                                      | PoC-buildable broadly; weaker than a VM |
+| `devcontainer` (retrofit)         | Container                     | None, and declares that limitation                                                   | Compatibility backend                   |
 
-#### coder/sandbox hardening list (before production use)
+#### coder/sandbox hardening list before production use
 
-Current state: ~19-commit prototype, `package main` + `internal/`, Linux
-unverified at v0.1. Required work: extract an importable driver library;
-bind proxy listeners to VM-only addresses or authenticate them (today
-`:0` on all interfaces, unauthenticated); daemon-restart reconciliation
-(today VMs orphan their egress on daemon death); confine bind mounts to a
-designated workspace subtree; preseed the pinned `msb`/libkrunfw runtime
-(no unauthenticated first-use downloads); surface SDK resource limits
-(vCPU, memory, idle/max-duration); real KVM integration tests.
+Current state: approximately 19-commit prototype, `package main` plus
+`internal/`, Linux unverified at v0.1. Required work: extract an importable
+driver library; bind proxy listeners to VM-only addresses or authenticate
+them because `:0` currently listens on all interfaces without
+authentication; reconcile after daemon restart because VMs currently orphan
+their egress; confine bind mounts to a designated workspace subtree; preseed
+the pinned `msb` and libkrunfw runtime without unauthenticated first-use
+downloads; surface SDK resource limits for vCPU, memory, idle time, and
+maximum duration; add real KVM integration tests.
 
-### Egress control (both modes, rebuilt)
+### Credential starvation is policy, not structure
 
-#### Supervisor + confined child agent
+Human ownership means AI-bound agents can reach owner credential sources
+unless coderd denies them deliberately. Binding must activate fail-closed
+credential handling at three separate enforcement points:
+
+1. **Manifest user secrets.** `coderd/agentapi/manifest.go` calls
+   `ListUserSecretsWithValues` under `dbauthz.AsSystemRestricted` for
+   `workspace.OwnerID`, bypassing normal `no_user_data` scope checks. For an
+   AI-bound workspace agent, omit owner user secrets unless the stored
+   credential policy explicitly authorizes injection.
+2. **External auth.** `/workspaceagents/me/external-auth`, used by
+   `gitaskpass`, must deny an AI-bound caller by default and consult the
+   stored credential policy before returning any owner token.
+3. **Git SSH.** `/workspaceagents/me/gitsshkey` must deny an AI-bound caller
+   by default and consult the stored credential policy before serving any
+   owner private key.
+
+Manifest stripping alone is not sufficient. The external-auth and Git SSH
+endpoints are independent credential channels and must enforce the same
+server-authoritative binding. Missing binding metadata, identity resolution
+errors, or unknown credential modes deny access rather than falling back to
+human-agent behavior.
+
+Owner session-token suppression for AI-designated workspaces is a fourth,
+separate control. It is not governed by `ai_credential_mode`; an AI-designated
+workspace never receives the ambient `coder:all` owner session token, and a
+sandboxed child never receives a copy from its unbound parent.
+
+### Egress control for both binding shapes
+
+#### Supervisor and confined child agent
 
 The workspace agent already has a conditional two-process structure
-(`cli/agent.go` ~125-148: PID-1 Linux spawns `reaper.ForkReap`, fork-execs
-the real agent). Promote that slot into an explicit supervisor, decoupled
-from PID-1 (new flag/env, e.g. `CODER_AGENT_CONFINE`), so it also works on
-VM workspaces:
+(`cli/agent.go` around lines 125-148: PID 1 on Linux spawns
+`reaper.ForkReap`, then fork-execs the real agent). Promote that slot into an
+explicit supervisor, decoupled from PID 1 through a new flag or environment
+setting such as `CODER_AGENT_CONFINE`, so it also works in VM workspaces:
 
-1. Supervisor creates a netns + veth (or userspace fallback where veth
-   needs missing privileges) and a recorded DNS relay.
-2. Fork-execs the real agent INTO the netns. Everything the agent spawns
-   (SSH sessions, terminals, startup scripts, the AI process) inherits the
-   confined network view. Confinement is structural, not per-process
-   opt-in; nothing can run unconfined because the process spawner is
-   itself inside.
-3. Supervisor stays outside, runs the local egress proxy (policy +
-   audit + forward), keeps reaper duties, supervises the child.
+1. The supervisor creates a network namespace and veth, or a userspace
+   fallback where veth creation lacks privileges, plus a recorded DNS relay.
+2. It fork-execs the real agent into the namespace. Everything the agent
+   spawns, including SSH sessions, terminals, startup scripts, and the AI
+   process, inherits the confined network view. Confinement is structural,
+   not per-process opt-in; nothing spawned by the confined agent can run
+   outside its network policy.
+3. The supervisor stays outside, runs the local egress proxy for policy,
+   audit, and forwarding, keeps reaper duties, and supervises the child.
 
-In Mode 2 the parent workspace agent plays the supervisor role for the
-sandbox backend; in Mode 1 the supervisor process is it.
+For an AI-designated workspace, the workspace-level supervisor confines the
+workspace interior. For a sandboxed agent, the parent workspace agent
+manages the selected sandbox backend and the bound child workspace agent
+runs inside it.
 
 #### Policy: two layers
 
-- **L4 allows for the control plane**: coderd (HTTPS/wss) and DERP (443).
-  Confined agents default to relay-only (per-workspace equivalent of
-  `BlockDirect`); direct P2P (STUN/UDP) is incompatible with
-  default-deny-UDP. Optional narrow UDP allows for direct connections are
-  a documented tradeoff, not the default. Ingress (SSH/apps) rides the
-  agent's existing tailnet connection and is unaffected.
-- **L7 for everything else**: SNI/CONNECT-level allow/deny/audit with NO
-  decryption. Host-level rules (method/path granularity requires MITM and
-  is only available in Mode 2's microvm backend where the guest CA story
-  is sound; deployment-level transparent MITM is explicitly rejected: CA
-  distribution, key concentration, pinned clients, mTLS).
+- **L4 allows for the control plane**: coderd over HTTPS or WebSocket and
+  DERP over port 443. Confined agents default to relay-only tailnet behavior,
+  equivalent to a per-workspace `BlockDirect`. Direct peer-to-peer traffic
+  through STUN or UDP conflicts with default-deny UDP. Optional narrow UDP
+  allows are a documented tradeoff, not the default. Ingress for SSH and
+  apps rides the agent's existing tailnet connection and is unaffected.
+- **L7 for everything else**: SNI and CONNECT-level allow, deny, and audit
+  without decryption. Host-level rules are the portable ceiling. Method or
+  path rules require MITM and are available only where a sandbox backend,
+  such as `microvm`, can establish a sound guest CA boundary.
+  Deployment-level transparent MITM is rejected because of CA distribution,
+  key concentration, pinned clients, and mTLS.
 
-Policy is a first-class object: default-deny; implicit allows for coder
-control plane + AI Gateway; template/admin-declared allowlist; per-sandbox
-overrides bounded by the template envelope.
+Policy is a first-class object: default-deny; implicit allows for the Coder
+control plane and AI Gateway; a template or administrator allowlist; and
+per-sandbox overrides bounded by the template envelope.
 
-#### Audit stream
+#### Audit stream and retention
 
-Child agent/supervisor -> agentapi -> new tables `ai_sandbox_sessions` +
-`ai_sandbox_network_events` (attributed to `ai_agent_id`, correlatable
-with aibridge interceptions; modeled on but replacing the `boundary_*`
-pattern). This is a Vertical 3 input.
+The confined child or supervisor sends events through agentapi to
+`ai_sandbox_sessions` and `ai_sandbox_network_events`. Events correlate with
+aibridge interceptions and become a Vertical 3 input.
 
-Threat honesty for the doc: a netns beside its supervisor in the same
-container is a strong fence, not a wall. Mitigations in order: AI runs as
-non-root with supervisor under a different UID; drop
-`CAP_SYS_ADMIN`/`CAP_NET_ADMIN` where templates allow; highest tier uses
-VM-class workspaces with infra-enforced perimeter (NetworkPolicy/security
-groups) and the netns as defense-in-depth + audit source. The template
-envelope selects the tier.
+Both tables snapshot raw agent and sponsor UUIDs on each retained record.
+Those UUID columns are not foreign keys to `ai_agents` or `users`; audit
+history must survive identity revocation, workspace deletion, and identity
+cleanup. A session-to-event relationship may enforce its own retention-safe
+integrity, but deleting an identity must never delete egress audit records.
 
-### Credential plane (simplified for PoC)
+Threat honesty: a network namespace beside its supervisor in the same
+container is a strong fence, not a wall. Mitigations in order are: run the AI
+as non-root with the supervisor under a different UID; drop `CAP_SYS_ADMIN`
+and `CAP_NET_ADMIN` where templates allow; use VM-class workspaces with an
+infrastructure-enforced perimeter such as NetworkPolicy or security groups
+for the highest tier; retain the network namespace as defense in depth and
+an audit source. The template envelope selects the tier.
 
-Principle: **the credential holder always sits across an isolation
-boundary from the AI process.** Rules:
+### Credential plane
 
-1. **MCP-first.** Agent actions needing third-party auth go through the
-   MCP gateway in AI Gateway: human OAuths once at the gateway; agent
-   makes MCP tool calls; the gateway injects credentials upstream.
-   Credentials never transit the workspace in any form.
-2. **`ai_credential_mode`: one enum per agent, default `none`.** Declared
-   in Terraform on `coder_agent` (precedent: `api_key_scope`), extracted
-   by the provisioner, stored on the `workspace_agents` row, read
-   server-side by every enforcement point.
-3. **Nothing fancy for external auth.** Binary: denied (default) or passed
-   through as-is when opted in. No minting, no TTL games, no dual-grant
-   (all future hardening).
+Principle: **the credential holder always sits across an isolation boundary
+from the AI process.** Rules:
 
-| Enforcement point                     | `none` (default)         | `injected`                         | `brokered`                                                                        |
-|---------------------------------------|--------------------------|------------------------------------|-----------------------------------------------------------------------------------|
-| Manifest user secrets                 | omitted                  | included                           | omitted                                                                           |
-| External auth endpoint (`gitaskpass`) | 403 + MCP/broker pointer | stored token as-is                 | 403 + broker remote hint                                                          |
-| `gitssh`                              | refuses                  | serves only if explicitly declared | refuses                                                                           |
-| Git remotes/registry config           | untouched                | untouched                          | rewritten to broker hostname at agent startup                                     |
-| Broker                                | rejects caller           | n/a                                | authenticates the agent's Coder key, reads THIS row server-side, injects upstream |
+1. **MCP-first.** Agent actions needing third-party authentication go
+   through the MCP gateway in AI Gateway. The human authorizes once at the
+   gateway, the agent makes MCP tool calls, and the gateway injects
+   credentials upstream. Credentials never transit the workspace.
+2. **One `ai_credential_mode` per workspace agent, default `none`.** Declare
+   it in Terraform on `coder_agent`, following the `api_key_scope`
+   precedent; extract it through the provisioner; store it on the
+   `workspace_agents` row; read it server-side at every enforcement point.
+3. **External auth stays simple.** It is denied by default or passed through
+   as-is only after explicit opt-in. Reduced-scope token minting and refresh
+   adapters remain future work.
 
-- **Two-keyed consent for `injected`**: template declares it, AND the
-  sponsoring human consents (at chat/workspace creation or a per-provider
-  "allow my agents" setting), because external-auth links and user secrets
-  are the user's property, not the template's. Template-only opt-in
-  suffices only for admin-owned credentials (template env).
+| Enforcement point                     | `none` (default)     | `injected`                         | `brokered`                                                                 |
+|---------------------------------------|----------------------|------------------------------------|----------------------------------------------------------------------------|
+| Manifest user secrets                 | Omitted              | Included with consent              | Omitted                                                                    |
+| External auth endpoint (`gitaskpass`) | 403 plus MCP pointer | Stored token as-is with consent    | 403 plus broker remote hint                                                |
+| `gitssh`                              | Refuses              | Serves only if explicitly declared | Refuses                                                                    |
+| Git remotes and registry config       | Untouched            | Untouched                          | Rewritten to broker hostname at agent startup                              |
+| Broker                                | Rejects caller       | Not applicable                     | Authenticates the AI key, reads this row server-side, and injects upstream |
+
+- **Two-keyed consent for `injected`**: the template declares the mode and
+  the sponsoring human consents at chat or workspace creation, or through a
+  per-provider setting such as "allow my agents." External-auth links and
+  user secrets belong to the user, not the template. Template-only opt-in is
+  sufficient only for administrator-owned credentials such as template
+  environment variables.
 - **Grant-time audit**: injection has no per-use choke point, so record an
-  audit event at build time ("workspace W, agent AU, sponsor H received
-  external-auth github via template opt-in + sponsor consent").
+  audit event at build time, for example: "workspace W, agent AU, sponsor H
+  received external-auth github through template opt-in and sponsor
+  consent."
 - **Documented risk**: an injected credential is the durable, full-scope
-  token, exfiltratable by a prompt-injected agent; mitigated by egress
-  default-deny (exfil needs an allowed destination), accepted by the
-  admin + sponsor who opted in.
-- **Broker (tier for "agent never sees it")**: a terminating endpoint, NOT
-  a MITM. Workspace remotes are rewritten to
-  `https://git-broker.<deployment>/github.com/org/repo.git`; the broker
-  presents its own legitimate certificate, authenticates the caller by the
-  AI identity's scoped Coder key, maps agent -> sponsor -> credential,
-  injects upstream, enforces per-operation policy (fetch vs push is
-  distinguishable in the git protocol), audits. Same shape extends to
-  package registries. PoC-optional; spec it, build post-PoC if time.
-- **SSH git**: not brokerable here; default-deny port 22 in AI workspaces,
-  force HTTPS via `url.insteadOf`.
+  token and can be exfiltrated by a prompt-injected agent. Default-deny
+  egress limits exfiltration to allowed destinations. The administrator and
+  sponsor accept this risk when both opt in.
+- **Broker for the tier where the agent never sees the credential**: use a
+  terminating endpoint, not a MITM. Rewrite workspace remotes to a URL such
+  as `https://git-broker.<deployment>/github.com/org/repo.git`. The broker
+  presents its own legitimate certificate, authenticates the caller with
+  the scoped AI Coder key, maps agent to sponsor to credential, injects the
+  upstream credential, enforces per-operation policy, and audits. Git fetch
+  and push are distinguishable in the protocol. The same shape extends to
+  package registries. This is optional for the PoC and can land later.
+- **SSH git**: it is not brokerable in this design. Default-deny port 22 for
+  AI-bound execution and force HTTPS through `url.insteadOf`.
 - **Invariant**: nothing inside the workspace can influence its own
-  credential disposition. Enforcement points consult the stored row
+  credential disposition. Every enforcement point consults the stored row
   server-side; a lying agent only breaks itself.
-- Runtime observability: disposition surfaced on the workspace agent API
-  object (workspace page / `coder show`).
+- **Runtime observability**: surface disposition and binding on the
+  workspace agent API object, workspace page, and `coder show`.
 
-### Template envelope (Terraform)
+### Template envelope: Terraform
 
-Templates are the governance boundary: the confined thing must not define
-its own confinement. The envelope declares what is possible; runtime
-instantiates within it (mirroring the devcontainer declared/discovered
-hybrid: chatd or the parent agent may create sandbox instances
-dynamically, but only within the envelope).
+Templates are the governance boundary: the confined process must not define
+its own confinement. The envelope declares what is possible, and runtime
+instantiates within it. This mirrors the devcontainer declared and
+discovered hybrid: chatd or the parent agent may create sandbox instances
+dynamically, but only within the envelope.
 
-Envelope contents: AI-workspace opt-in flag (Mode 1); allowed sandbox
-backends + capability floor (e.g. "must enforce egress"); egress policy
-baseline (allowlist rules); `ai_credential_mode`; resource caps; mounts
-policy. Provisioner-time child agents follow the
-`coder_devcontainer.subagent_id` precedent so `coder_app`/`coder_env`/
-`coder_script` can attach to the sandboxed agent. Requires
-terraform-provider-coder changes (new `coder_sandbox` resource or
-attributes; same dependency-flag treatment as V1's provider change).
+Envelope contents: direct human AI-workspace opt-in through
+`coder_ai_agent`; allowed sandbox backends and a capability floor such as
+"must enforce egress"; egress allowlist baseline; `ai_credential_mode`;
+resource caps; and mounts policy. Chat-created workspaces are designated by
+coderd regardless of the opt-in parameter. The server always applies the
+credential-denial and default-deny baselines; templates can only request
+capabilities and bounded exceptions.
 
-### Schema changes (summary)
+Provisioner-time child agents follow the `coder_devcontainer.subagent_id`
+precedent so `coder_app`, `coder_env`, and `coder_script` can attach to the
+sandboxed agent. This requires terraform-provider-coder changes through a
+new `coder_sandbox` resource or attributes and keeps the same explicit
+dependency flag as the V1 provider surface.
 
-1. `workspace_agents.ai_agent_id` (nullable FK -> `ai_agents.user_id`) +
-   `workspace_agents.ai_credential_mode` (enum, default `none`).
-2. `ai_sandbox_sessions`, `ai_sandbox_network_events` (egress audit).
-3. Sandbox instance records (backend, declared capabilities, policy ref,
-   state) keyed to workspace + parent agent.
-4. Workspace ACL auto-grant needs no schema (existing ACL storage).
-5. Quota attribution query change (sponsor bucket).
+### Rejected alternative: agent-owned workspaces
 
-Follow `.claude/docs/DATABASE.md` end-to-end (queries, `make gen`,
-`enterprise/audit/table.go`, `make gen` again).
+Agent-owned workspaces remain technically viable. Every owner consumer could
+resolve the sponsor transitively through
+`workspace.owner_id -> ai_agents.owner_user_id`. The design was rejected
+because owner semantics fan out across approximately eight subsystems, each
+of which would need a durable sponsor, agent, or neither decision:
 
-### Invariants (drive tests from these)
+1. RBAC owner-equality checks.
+2. Quota allowance.
+3. Quota aggregation.
+4. Provisioner owner metadata.
+5. Owner session-token minting.
+6. Workspace sharing and ACL reconciliation.
+7. Dormancy RBAC.
+8. Listings and telemetry.
 
-1. **No ambient human credentials cross the boundary**: Mode 1 manifests
-   contain zero sponsor secrets/keys/tokens; Mode 2 AI-bound child
-   manifests are stripped. Fail closed.
-2. **Disposition is server-authoritative**: every credential enforcement
-   point reads the stored `ai_credential_mode`; no in-workspace input can
-   change it.
-3. **Default-deny egress**: a fresh AI workspace/sandbox can reach coderd,
-   DERP, and AI Gateway, and nothing else; every allowed/denied flow
-   produces an attributed audit event (when the backend declares egress
-   capability).
-4. **Structural confinement**: any process spawned via the confined agent
-   (SSH, terminal, scripts) observes the same network policy.
-5. **Sponsor control without appropriation**: sponsor holds ACL admin on
-   agent-owned workspaces from creation; `owner_id` never changes.
-6. **Capability honesty**: a backend that cannot enforce egress is
-   recorded as such and visible via API/UI.
-7. **V1 invariants all still hold** (ceiling, cascade suspend,
-   attribution) for workspace-agent and child-agent paths, not just API
-   keys.
+That creates a permanent two-notions-of-owner tax at every new owner
+consumer. Policy-based credential stripping must exist anyway for sandboxed
+child agents in human workspaces, so structural credential starvation in an
+agent-owned workspace would be redundant insurance rather than a sufficient
+security boundary.
+
+Keep this path documented for a future requirement that truly needs
+agent-owned workspaces. Such a proposal must inventory every owner consumer
+again and specify the sponsor, agent, or neither semantics at each site.
+
+### AI Gateway governance dependency
+
+The Vertical 1 **AI Gateway budget principal** follow-up remains open.
+Interception attribution must use the AI agent, while budget enforcement and
+spend aggregation must use the human sponsor. Vertical 2 credential,
+egress, and sandbox governance depend on that split so AI-designated
+workspace traffic cannot bypass sponsor budgets. Do not treat V2 governance
+as complete until the aibridge authorization response carries distinct
+attribution and budget principals.
+
+### Schema changes: summary
+
+1. Add `workspace_agents.ai_agent_id`, nullable foreign key to
+   `ai_agents.user_id`, and `workspace_agents.ai_credential_mode`, enum
+   `none | injected | brokered` with default `none`.
+2. Add sandbox instance records keyed to workspace and parent agent, with
+   backend, declared capabilities, policy reference, and lifecycle state.
+3. Add `ai_sandbox_sessions` and `ai_sandbox_network_events`. Snapshot raw
+   agent and sponsor UUIDs without foreign keys to `ai_agents` or `users` so
+   audit history survives identity cleanup.
+4. Add no auto-ACL machinery and no sponsor quota aggregation. Human
+   ownership already provides control and quota attribution.
+
+`ai_credential_mode` does not collide with the existing
+`agent_key_scope_enum ('all', 'no_user_data')`; it is a separate enum with a
+separate purpose.
+
+Follow `.claude/docs/DATABASE.md` end-to-end for implementation: queries,
+`make gen`, `enterprise/audit/table.go`, then `make gen` again.
+
+### Invariants: drive tests from these
+
+1. **Human ownership**: every workspace remains owned by its sponsoring
+   human. Sponsor control and quota attribution follow from ownership; no
+   ACL bridge is required.
+2. **Identity continuity**: identities are minted only at a human-to-AI
+   boundary. Every AI-created descendant reuses the requester's identity.
+3. **No ambient human credentials for bound agents**: an AI-bound agent is
+   denied owner user secrets, external-auth tokens, Git SSH keys, and the
+   ambient full-owner session token unless the design explicitly permits the
+   specific channel. Missing policy or resolution errors fail closed.
+4. **Binding is server-authoritative**: only coderd and provisioner data can
+   set or interpret `workspace_agents.ai_agent_id` and
+   `ai_credential_mode`. In-workspace input cannot unbind an agent or change
+   credential disposition.
+5. **Credential separation**: the workspace agent token governs the daemon;
+   the scoped AI session token governs in-workspace CLI actions. Neither can
+   silently substitute for the other.
+6. **Default-deny egress**: a fresh AI-designated workspace or sandboxed
+   agent can reach coderd, DERP, and AI Gateway, and nothing else. Every
+   allowed or denied flow produces an attributed audit event when the
+   backend declares egress capability.
+7. **Structural confinement**: every process spawned through the confined
+   workspace agent, including SSH, terminal, and scripts, observes the same
+   network policy.
+8. **Capability honesty**: a backend that cannot enforce egress records that
+   limitation and exposes it through API and UI.
+9. **Durable attribution**: bound workspace-agent requests and background
+   events record actor = agent and on_behalf_of = sponsor. Egress audit
+   records survive identity cleanup.
+10. **V1 invariants extend to workspace-agent and child-agent paths**: live
+    sponsor permission ceiling, cascade suspend, attribution, no
+    self-escalation, and fail-closed identity resolution apply beyond plain
+    API-key requests.
 
 ### Implementation order
 
-1. Prerequisite fixes: `DeleteSubAgent` parent check; manifest secret
-   stripping for AI-bound child agents.
-2. Schema: `ai_agent_id` + `ai_credential_mode` on workspace_agents;
-   sandbox + egress-audit tables.
-3. Workspace-agent middleware: AU-owner -> sponsor subject resolution.
-4. Mode 1 minimum: create agent-owned workspace (template opt-in),
-   auto-ACL grant, structural starvation checks, TTL lifecycle, scoped
-   session-token mint verification.
-5. Supervisor/netns confinement lib + SNI proxy + audit stream (Mode 1
-   usable end-to-end here).
-6. Sandbox runtime interface + `netns` backend; child-agent creation
-   bound to AI identity (Mode 2 usable with netns backend).
-7. Credential plane: `ai_credential_mode` enforcement points + two-keyed
-   consent + grant audit events.
-8. `microvm` backend (after coder/sandbox library extraction; can proceed
-   in parallel from step 6).
-9. Terraform provider envelope surface (dependency-flagged).
-10. Quota-to-sponsor attribution.
+Each phase is independently mergeable and must add tests for the invariants
+it introduces.
 
-### Non-goals (PoC) / future work
+1. **Prerequisite safety fixes**: add the `DeleteSubAgent` parent check and
+   fail-closed AI-bound handling at all three credential sources: manifest
+   user secrets, `/workspaceagents/me/external-auth`, and
+   `/workspaceagents/me/gitsshkey`. Land the minimum binding schema and
+   query support needed by those checks in the same phase.
+2. **Binding and attribution foundation**: complete
+   `workspace_agents.ai_agent_id` support; resolve bound identities in
+   workspace-agent middleware; build the sponsor subject intersected with
+   `WorkspaceAgentScope` and forced `no_user_data`; stash `AIAgentActor`;
+   plumb agent and sponsor attribution through request and background audit
+   events.
+3. **AI-designated workspace flow**: force designation in the chat workspace
+   tool; reuse the requester's identity; bind every resulting workspace
+   agent; implement direct human opt-in; suppress the owner session token;
+   provide the scoped AI session token; add the 24-hour key renewal path.
+4. **Confinement foundation**: add the sandbox runtime interface,
+   capability recording, supervisor split, `netns` backend, SNI/CONNECT
+   proxy, relay-only tailnet default, sandbox records, and retained egress
+   audit stream. This makes both an AI-designated workspace and one
+   sandboxed child usable with the portable backend.
+5. **Credential plane**: add `ai_credential_mode`, mode-specific exceptions
+   on top of default stripping, two-keyed consent, grant-time audit, MCP and
+   broker pointers, brokered Git HTTPS rewrite, and runtime observability.
+6. **MicroVM backend**: extract and harden coder/sandbox as a library, then
+   implement the `microvm` backend. This can begin after the runtime
+   interface stabilizes.
+7. **Terraform envelope**: add the provider resource or attributes for
+   sandbox declarations, credential mode, capabilities, policy, resources,
+   and mounts. Keep this dependency-flagged and merge only with a compatible
+   terraform-provider-coder surface.
+8. **Governance completion**: split AI Gateway attribution and budget
+   principals, then verify sponsor budget enforcement across chat,
+   AI-designated workspace, and sandbox traffic.
 
-- Human-in-the-loop egress approvals (designed for: approval API + UI on
-  the policy engine; implement post-PoC).
-- Per-credential dispositions (single enum only), credential mint adapters
-  (GitHub App installation tokens, GitLab project tokens), dual-grant
-  reduced-scope OAuth links, vend-refresh machinery.
-- Deployment-level transparent MITM (rejected outright).
-- L7 method/path egress rules outside the microvm backend.
-- More than 1 sandbox per workspace in practice (designed for N).
-- Snapshots/checkpointing; Windows/macOS sandbox backends.
-- Boundary/Agent Firewall integration or migration.
-- Seat/licensing and billing semantics for agent-owned workspaces.
+### Non-goals: PoC and future work
+
+- Human-in-the-loop egress approvals. The policy engine should support an
+  approval API and UI later.
+- Per-credential dispositions, reduced-scope credential mint adapters such
+  as GitHub App installation tokens and GitLab project tokens, dual-grant
+  OAuth links, and credential refresh machinery beyond the required Coder
+  key renewal path.
+- Deployment-level transparent MITM.
+- L7 method or path egress rules outside a backend with a sound guest CA
+  boundary, initially `microvm`.
+- More than 1 sandbox per workspace in practice, although the design
+  supports N.
+- Snapshots and checkpointing, plus Windows and macOS sandbox backends.
+- Boundary or Agent Firewall integration and migration.
+- True agent-owned workspaces unless the rejected alternative is revisited
+  with a complete owner-consumer inventory.
 
 ---
 
 ## Vertical 3: Auditing of Agent Activity
 
 *Stub. To be designed.* Known anchors: `on_behalf_of_user_id` from
-Vertical 1; `ai_sandbox_sessions` / `ai_sandbox_network_events` and
-credential grant-time audit events from Vertical 2; aibridge interception
-lineage; delegation chains deeper than one level; human-in-the-loop egress
-approval flows (designed for in Vertical 2, implemented here or alongside);
-frontend audit UX for agent-vs-human filtering.
+Vertical 1; bound workspace-agent and background-event attribution;
+retained `ai_sandbox_sessions` and `ai_sandbox_network_events` raw agent and
+sponsor UUIDs; credential grant-time audit events from Vertical 2; aibridge
+interception lineage; delegation chains deeper than one level; human-in-the-
+loop egress approval flows designed in Vertical 2; and frontend audit UX
+for agent-versus-human filtering.
