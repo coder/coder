@@ -17,11 +17,13 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -1613,6 +1615,72 @@ func TestSubAgentAPI(t *testing.T) {
 				require.Equal(t, childAgents[i].ID[:], listedAgent.Id)
 				require.Equal(t, childAgents[i].Name, listedAgent.Name)
 			}
+		})
+
+		t.Run("ExcludesSandboxChildren", func(t *testing.T) {
+			t.Parallel()
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+			user, agent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+			// Given: one ordinary child and one AI sandbox child.
+			ordinaryChild := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
+				ResourceID:      agent.ResourceID,
+				Name:            "ordinary-child",
+				Directory:       "/workspaces/wibble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+			sandboxChild := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
+				ResourceID:      agent.ResourceID,
+				Name:            "sandbox-child",
+				Directory:       "/workspaces/wobble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+
+			workspace, err := db.GetWorkspaceByAgentID(dbauthz.AsSystemRestricted(ctx), agent.ID) //nolint:gocritic // Test setup.
+			require.NoError(t, err)
+			// Identity creation requires the sponsor to be an org member.
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+			_, aiAgent, err := aiagentidentity.Create(dbauthz.AsSystemRestricted(ctx), db, aiagentidentity.CreateParams{ //nolint:gocritic // Test setup.
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				OriginType:     database.AIAgentOriginWorkspace,
+				OriginID:       workspace.ID,
+			})
+			require.NoError(t, err)
+			_, err = db.InsertAISandbox(dbauthz.AsSystemRestricted(ctx), database.InsertAISandboxParams{ //nolint:gocritic // Test setup.
+				ID:                uuid.New(),
+				WorkspaceID:       workspace.ID,
+				ParentAgentID:     agent.ID,
+				ChildAgentID:      sandboxChild.ID,
+				AIAgentID:         aiAgent.UserID,
+				Name:              "sandbox-child",
+				EgressEnforcement: string(codersdk.AISandboxEgressEnforcementForced),
+				CreatedAt:         dbtime.Now(),
+			})
+			require.NoError(t, err)
+
+			// When: We list the sub agents.
+			listResp, err := api.ListSubAgents(ctx, &proto.ListSubAgentsRequest{})
+			require.NoError(t, err)
+
+			// Then: Only the ordinary child is listed. The sandbox child has its
+			// own lifecycle owner, and listing it would let the devcontainer
+			// reconciler delete a live sandbox on agent restart.
+			require.Len(t, listResp.Agents, 1)
+			require.Equal(t, ordinaryChild.ID[:], listResp.Agents[0].Id)
 		})
 
 		t.Run("DoesNotListOtherAgentsChildren", func(t *testing.T) {
