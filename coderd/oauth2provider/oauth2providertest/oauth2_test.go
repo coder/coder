@@ -158,6 +158,52 @@ func TestOAuth2InvalidPKCE(t *testing.T) {
 	)
 }
 
+// TestOAuth2MalformedCodeVerifierIsRejected verifies that a code_verifier
+// below the RFC 7636 §4.1 length floor is rejected as invalid_request,
+// distinct from a well-formed verifier that fails the PKCE hash comparison
+// (invalid_grant, covered by TestOAuth2InvalidPKCE).
+func TestOAuth2MalformedCodeVerifierIsRejected(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: false,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	app, clientSecret := oauth2providertest.CreateTestOAuth2App(t, client)
+	t.Cleanup(func() {
+		oauth2providertest.CleanupOAuth2App(t, client, app.ID)
+	})
+
+	_, codeChallenge := oauth2providertest.GeneratePKCE(t)
+	state := oauth2providertest.GenerateState(t)
+
+	authParams := oauth2providertest.AuthorizeParams{
+		ClientID:            app.ID.String(),
+		ResponseType:        "code",
+		RedirectURI:         oauth2providertest.TestRedirectURI,
+		State:               state,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: "S256",
+	}
+
+	code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), authParams)
+	require.NotEmpty(t, code, "should receive authorization code")
+
+	tokenParams := oauth2providertest.TokenExchangeParams{
+		GrantType:    "authorization_code",
+		Code:         code,
+		ClientID:     app.ID.String(),
+		ClientSecret: clientSecret,
+		CodeVerifier: oauth2providertest.MalformedCodeVerifier,
+		RedirectURI:  oauth2providertest.TestRedirectURI,
+	}
+
+	oauth2providertest.PerformTokenExchangeExpectingError(
+		t, client.URL.String(), tokenParams, oauth2providertest.OAuth2ErrorTypes.InvalidRequest,
+	)
+}
+
 // TestOAuth2WithoutPKCEIsRejected verifies that authorization requests without
 // a code_challenge are rejected now that PKCE is mandatory.
 func TestOAuth2WithoutPKCEIsRejected(t *testing.T) {
