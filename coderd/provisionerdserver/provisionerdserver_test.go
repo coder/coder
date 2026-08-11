@@ -5779,6 +5779,96 @@ func TestCompleteJob_AIDesignatedWorkspaceAgentBinding(t *testing.T) {
 	})
 }
 
+func TestCompleteJob_NonDesignatedWorkspaceAgentRegression(t *testing.T) {
+	t.Parallel()
+
+	srv, db, ps, daemon := setup(t, false, nil)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: daemon.OrganizationID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: daemon.OrganizationID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		CreatedBy:      user.ID,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: daemon.OrganizationID,
+		CreatedBy:      user.ID,
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		JobID:          uuid.New(),
+	})
+	file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     template.ID,
+		OwnerID:        user.ID,
+		OrganizationID: daemon.OrganizationID,
+	})
+	buildID := uuid.New()
+	job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		OrganizationID: daemon.OrganizationID,
+		InitiatorID:    user.ID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		StorageMethod:  database.ProvisionerStorageMethodFile,
+		FileID:         file.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+			WorkspaceBuildID: buildID,
+		})),
+		Tags: daemon.Tags,
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		ID:                buildID,
+		WorkspaceID:       workspace.ID,
+		BuildNumber:       1,
+		JobID:             job.ID,
+		TemplateVersionID: version.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		Reason:            database.BuildReasonInitiator,
+		InitiatorID:       user.ID,
+	})
+
+	acquired, err := srv.AcquireJob(ctx, nil)
+	require.NoError(t, err)
+	workspaceBuild, ok := acquired.Type.(*proto.AcquiredJob_WorkspaceBuild_)
+	require.True(t, ok, "expected workspace build job")
+	require.NotEmpty(t, workspaceBuild.WorkspaceBuild.Metadata.GetWorkspaceOwnerSessionToken())
+	require.Empty(t, workspaceBuild.WorkspaceBuild.Metadata.GetWorkspaceAiAgentSessionToken())
+
+	_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+		JobId: job.ID.String(),
+		Type: &proto.CompletedJob_WorkspaceBuild_{
+			WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+				Resources: []*sdkproto.Resource{{
+					Name: "resource-" + uuid.NewString(),
+					Type: "test",
+					Agents: []*sdkproto.Agent{
+						{Name: "agent-a-" + uuid.NewString()},
+						{Name: "agent-b-" + uuid.NewString()},
+					},
+				}},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	agents, err := db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+		WorkspaceID: workspace.ID,
+		BuildNumber: build.BuildNumber,
+	})
+	require.NoError(t, err)
+	require.Len(t, agents, 2)
+	for _, agent := range agents {
+		require.False(t, agent.AIAgentID.Valid)
+	}
+
+	persistedWorkspace, err := db.GetWorkspaceByID(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.False(t, persistedWorkspace.AIAgentID.Valid)
+}
+
 // TestAcquireJob_AIAgentSessionToken exercises the workspace AI agent
 // identity lifecycle across build transitions: claim builds revoke identities
 // sponsored by the former owner, opted-in start builds mint a workspace-pinned
