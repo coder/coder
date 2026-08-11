@@ -10,7 +10,7 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
-import { useTasksEnabled } from "#/modules/tasks/useTasksEnabled";
+import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
@@ -21,7 +21,7 @@ interface ManagedAgentsConsumptionProps {
 export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	managedAgentFeature,
 }) => {
-	const tasksEnabled = useTasksEnabled();
+	const aiTasksEnabled = useAITasksEnabled();
 
 	// If no feature is provided or it's disabled, show disabled state
 	if (!managedAgentFeature?.enabled) {
@@ -101,7 +101,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 							even if AI tooling is involved.
 						</p>
 						<p>
-							{tasksEnabled ? (
+							{aiTasksEnabled ? (
 								<>
 									Today,{" "}
 									<Link

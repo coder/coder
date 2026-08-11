@@ -74,7 +74,7 @@ import {
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useTasksEnabled } from "#/modules/tasks/useTasksEnabled";
+import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { abilitiesByWorkspaceStatus } from "#/modules/workspaces/actions";
 import { WorkspaceBuildCancelDialog } from "#/modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import { WorkspaceMoreActions } from "#/modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
@@ -116,7 +116,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	chatsByWorkspace,
 }) => {
 	const dashboard = useDashboard();
-	const tasksEnabled = useTasksEnabled();
+	const aiTasksEnabled = useAITasksEnabled();
 	const isLoading = !workspaces;
 	const isEmpty = workspaces && workspaces.length === 0;
 	const hideHeaders = isLoading || isEmpty;
@@ -225,7 +225,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												{workspace.outdated && (
 													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
-												{tasksEnabled && workspace.task_id && (
+												{aiTasksEnabled && workspace.task_id && (
 													<Badge size="xs" variant="default">
 														Task
 													</Badge>

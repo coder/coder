@@ -5991,6 +5991,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "enable_ai_tasks": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -6036,7 +6037,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "refresh": 0,
       "threshold_database": 0
     },
-    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "host_prefix": true,
@@ -6276,7 +6276,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "swagger": {
       "enable": true
     },
-    "tasks_enabled": true,
     "telemetry": {
       "enable": true,
       "trace": true,
@@ -6619,6 +6618,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "enable_ai_tasks": true,
   "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
@@ -6664,7 +6664,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "refresh": 0,
     "threshold_database": 0
   },
-  "hide_ai_tasks": true,
   "http_address": "string",
   "http_cookies": {
     "host_prefix": true,
@@ -6904,7 +6903,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "swagger": {
     "enable": true
   },
-  "tasks_enabled": true,
   "telemetry": {
     "enable": true,
     "trace": true,
@@ -7002,6 +7000,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_path_apps`                            | boolean                                                                                              | false    |              |                                                                    |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `enable_ai_tasks`                              | boolean                                                                                              | false    |              |                                                                    |
 | `enable_authz_recording`                       | boolean                                                                                              | false    |              |                                                                    |
 | `enable_terraform_debug_mode`                  | boolean                                                                                              | false    |              |                                                                    |
 | `ephemeral_deployment`                         | boolean                                                                                              | false    |              |                                                                    |
@@ -7010,7 +7009,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `external_auth_github_default_provider_enable` | boolean                                                                                              | false    |              |                                                                    |
 | `external_token_encryption_keys`               | array of string                                                                                      | false    |              |                                                                    |
 | `healthcheck`                                  | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
-| `hide_ai_tasks`                                | boolean                                                                                              | false    |              |                                                                    |
 | `http_address`                                 | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
 | `http_cookies`                                 | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
 | `job_hang_detector_interval`                   | integer                                                                                              | false    |              |                                                                    |
@@ -7041,7 +7039,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `strict_transport_security_options`            | array of string                                                                                      | false    |              |                                                                    |
 | `support`                                      | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
 | `swagger`                                      | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
-| `tasks_enabled`                                | boolean                                                                                              | false    |              |                                                                    |
 | `telemetry`                                    | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
 | `template_builder`                             | [codersdk.TemplateBuilderConfig](#codersdktemplatebuilderconfig)                                     | false    |              |                                                                    |
 | `terms_of_service_url`                         | string                                                                                               | false    |              |                                                                    |

@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestTasksDisabled asserts that a deployment without CODER_ENABLE_TASKS
+// TestTasksDisabled asserts that a deployment without CODER_ENABLE_AI_TASKS
 // exposes no Tasks surface: the routes 404 and no built-in role grants a task
 // permission.
 //
@@ -26,7 +26,7 @@ func TestTasksDisabled(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	values := coderdtest.DeploymentValues(t)
-	values.TasksEnabled = false
+	values.EnableAITasks = false
 
 	client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: values})
 	owner := coderdtest.CreateFirstUser(t, client)

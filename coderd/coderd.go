@@ -392,7 +392,7 @@ func New(options *Options) *API {
 		NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
 		NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
 		NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
-		NoTasks:              !bool(options.DeploymentValues.TasksEnabled),
+		NoTasks:              !bool(options.DeploymentValues.EnableAITasks),
 	}
 	if roleOptions != (rbac.RoleOptions{}) {
 		rbac.ReloadBuiltinRoles(&roleOptions)
@@ -764,8 +764,7 @@ func New(options *Options) *API {
 		Entitlements:      options.Entitlements,
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
-		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
-		TasksEnabled:      options.DeploymentValues.TasksEnabled.Value(),
+		AITasksEnabled:    options.DeploymentValues.EnableAITasks.Value(),
 		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 	})
 	if err != nil {
@@ -1304,7 +1303,7 @@ func New(options *Options) *API {
 		// Tasks have been promoted to stable, but we have guaranteed a single release transition period
 		// where these routes must remain. These should be removed no earlier than Coder v2.30.0
 		r.Route("/tasks", func(r chi.Router) {
-			if !options.DeploymentValues.TasksEnabled {
+			if !options.DeploymentValues.EnableAITasks {
 				r.Use(httpmw.RouteNotFound())
 			}
 			r.Use(apiKeyMiddleware)
@@ -2162,7 +2161,7 @@ func New(options *Options) *API {
 			// Coder Tasks is hidden unless the deployment opts in. The routes
 			// stay registered so the tree is described in one place, but every
 			// request is answered as if the tree did not exist.
-			if !options.DeploymentValues.TasksEnabled {
+			if !options.DeploymentValues.EnableAITasks {
 				r.Use(httpmw.RouteNotFound())
 			}
 			r.Use(apiKeyMiddleware)

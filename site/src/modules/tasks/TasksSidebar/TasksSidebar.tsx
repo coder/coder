@@ -40,12 +40,12 @@ import { cn } from "#/utils/cn";
 import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
 import { taskStatusToStatusIndicatorVariant } from "../TaskStatus/TaskStatus";
 import { canPauseTask, canResumeTask, isPauseDisabled } from "../taskActions";
-import { useTasksEnabled } from "../useTasksEnabled";
+import { useAITasksEnabled } from "../useAITasksEnabled";
 import { UserCombobox } from "./UserCombobox";
 
 export const TasksSidebar: FC = () => {
 	const { user, permissions } = useAuthenticated();
-	const tasksEnabled = useTasksEnabled();
+	const aiTasksEnabled = useAITasksEnabled();
 	const ownerParam = useSearchParamsKey({
 		key: "owner",
 		defaultValue: user.username,
@@ -53,7 +53,7 @@ export const TasksSidebar: FC = () => {
 
 	const [isCollapsed, setIsCollapsed] = useState(false);
 
-	if (!tasksEnabled) {
+	if (!aiTasksEnabled) {
 		return null;
 	}
 

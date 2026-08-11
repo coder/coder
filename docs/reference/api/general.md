@@ -320,6 +320,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "scheme": "string",
       "user": {}
     },
+    "enable_ai_tasks": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -365,7 +366,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "refresh": 0,
       "threshold_database": 0
     },
-    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "host_prefix": true,
@@ -605,7 +605,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "swagger": {
       "enable": true
     },
-    "tasks_enabled": true,
     "telemetry": {
       "enable": true,
       "trace": true,

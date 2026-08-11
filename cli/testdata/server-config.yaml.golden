@@ -597,9 +597,6 @@ client:
   # 'webgl', or 'dom'.
   # (default: canvas, type: string)
   webTerminalRenderer: canvas
-  # Hide AI tasks from the dashboard.
-  # (default: false, type: bool)
-  hideAITasks: false
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []
@@ -798,7 +795,7 @@ workspace_prebuilds:
 # and its URLs are unavailable, the task RBAC permissions are stripped from
 # built-in roles, and the CLI task commands are hidden.
 # (default: false, type: bool)
-enableTasks: false
+enableAITasks: false
 # Configure the background chat processing daemon.
 chat:
   # How many pending chats a worker should acquire per polling cycle.

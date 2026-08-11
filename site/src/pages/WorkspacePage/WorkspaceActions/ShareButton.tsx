@@ -8,7 +8,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { isGroup } from "#/modules/groups";
-import { useTasksEnabled } from "#/modules/tasks/useTasksEnabled";
+import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { AddWorkspaceUserOrGroup } from "#/modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
 import { useWorkspaceSharing } from "#/modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
 import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
@@ -23,7 +23,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 	canUpdatePermissions,
 }) => {
 	const sharing = useWorkspaceSharing(workspace);
-	const tasksEnabled = useTasksEnabled();
+	const aiTasksEnabled = useAITasksEnabled();
 
 	return (
 		<Popover>
@@ -36,7 +36,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 			<PopoverContent align="end" className="w-[580px] p-4">
 				<div className="flex items-center gap-2 mb-4">
 					<h3 className="text-lg font-semibold m-0">
-						{tasksEnabled && workspace.task_id ? "Task" : "Workspace"} Sharing
+						{aiTasksEnabled && workspace.task_id ? "Task" : "Workspace"} Sharing
 					</h3>
 				</div>
 				<WorkspaceSharingForm

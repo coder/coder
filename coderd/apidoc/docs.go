@@ -19596,6 +19596,9 @@ const docTemplate = `{
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
+                "enable_ai_tasks": {
+                    "type": "boolean"
+                },
                 "enable_authz_recording": {
                     "type": "boolean"
                 },
@@ -19625,9 +19628,6 @@ const docTemplate = `{
                 },
                 "healthcheck": {
                     "$ref": "#/definitions/codersdk.HealthcheckConfig"
-                },
-                "hide_ai_tasks": {
-                    "type": "boolean"
                 },
                 "http_address": {
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
@@ -19728,9 +19728,6 @@ const docTemplate = `{
                 },
                 "swagger": {
                     "$ref": "#/definitions/codersdk.SwaggerConfig"
-                },
-                "tasks_enabled": {
-                    "type": "boolean"
                 },
                 "telemetry": {
                     "$ref": "#/definitions/codersdk.TelemetryConfig"

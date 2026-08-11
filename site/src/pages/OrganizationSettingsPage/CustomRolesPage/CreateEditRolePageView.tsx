@@ -33,7 +33,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { useTasksEnabled } from "#/modules/tasks/useTasksEnabled";
+import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { getFormHelpers, nameValidator } from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
@@ -198,7 +198,7 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 }) => {
 	const [checkedActions, setCheckActions] = useState(permissions);
 	const [showAllResources, setShowAllResources] = useState(allResources);
-	const tasksEnabled = useTasksEnabled();
+	const aiTasksEnabled = useAITasksEnabled();
 
 	// `RBACResourceActions` is generated at module scope, so the `task` resource
 	// is removed here rather than at the constant to keep Tasks roles unsettable
@@ -207,13 +207,13 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 		const allActions = showAllResources
 			? RBACResourceActions
 			: filteredRBACResourceActions;
-		if (tasksEnabled) {
+		if (aiTasksEnabled) {
 			return allActions;
 		}
 		return Object.fromEntries(
 			Object.entries(allActions).filter(([resource]) => resource !== "task"),
 		);
-	}, [showAllResources, tasksEnabled]);
+	}, [showAllResources, aiTasksEnabled]);
 
 	const handleActionCheckChange = async (name: string, checked: boolean) => {
 		const [resource_type, action] = name.split(":");
