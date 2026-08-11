@@ -543,7 +543,8 @@ and SSH routing (`coder ssh ws.child`), child apps, and nested UI
 
 Replace everything devcontainer and Docker-specific in
 `agent/agentcontainers` (labels, the `devcontainer` CLI, and `docker cp`
-binary injection) with the sandbox runtime interface.
+binary injection) with a generic parent-agent script executor and
+reconciler for the sandbox script contract below.
 
 **Prerequisite fix:** `DeleteSubAgent` does not verify that the target's
 `parent_id` equals the caller. Bind deletion to the calling parent before
@@ -576,12 +577,19 @@ with those variables. Illustrative docker-based `create` script:
 
 ```bash
 #!/usr/bin/env bash
+# An internal-only docker network with no gateway: the sandbox can reach
+# the parent-side proxy and the control plane through it, and nothing
+# else routes out. This is what an "egress_enforcement = forced"
+# attestation is claiming.
+docker network create --internal "sbnet-${CODER_SANDBOX_ID}" >/dev/null
+
 docker run -d --name "sb-${CODER_SANDBOX_ID}" \
-  --network none \
+  --network "sbnet-${CODER_SANDBOX_ID}" \
   -e CODER_AGENT_URL="$CODER_AI_AGENT_URL" \
   -e CODER_AGENT_TOKEN="$CODER_AI_AGENT_TOKEN" \
   -e CODER_SESSION_TOKEN="$CODER_AI_SESSION_TOKEN" \
   -e HTTPS_PROXY="http://${CODER_EGRESS_PROXY}" \
+  -e HTTP_PROXY="http://${CODER_EGRESS_PROXY}" \
   -v /home/coder/project:/workspace \
   ghcr.io/example/ai-sandbox:1.2 \
   /opt/coder agent
@@ -594,6 +602,28 @@ policy, and its audit stream; credential stripping keyed on the binding
 is the child agent's connection state; `destroy` runs on teardown; `create`
 re-runs on reconcile after agent restarts.
 
+#### Sandbox identity and key lifecycle
+
+The child's `ai_agent_id` and the owner of its `CODER_AI_SESSION_TOKEN`
+are always the SAME identity. Which identity, per identity continuity:
+
+- **AI-requested sandbox** (a chat or bound agent asks for one): reuse the
+  requester's existing identity (`AIAgentActor.AgentUserID`). No new
+  identity is minted.
+- **Human-declared sandbox** (template declares `coder_ai_sandbox`, no AI
+  requester): this is a human-to-AI boundary. Mint or reuse the V1
+  workspace-origin identity for the enclosing workspace, exactly as the
+  `coder_ai_agent` opt-in path does.
+
+The sandbox lifecycle (coderd, when creating the child agent row) calls
+`aiagentidentity.MintKey` with a sandbox-unique token name for that
+identity. The key is revoked when `destroy` runs or the sandbox record is
+deleted, and it participates in the same 24-hour renewal work item as
+other workspace keys. V1's `regenerateAIAgentSessionToken` cannot be
+reused unchanged: it looks up or creates a workspace-origin identity,
+which is wrong for AI-requested sandboxes that must reuse the requester's
+identity.
+
 **Attestation, not verification.** `egress_enforcement` is an admin
 attestation. A script that claims `forced` but leaks a side channel is
 undetectable at declaration time. This is consistent with the existing
@@ -603,6 +633,15 @@ sees no traffic while the AI is clearly active is an anomaly signal
 (a Vertical 3 input). It remains a downgrade from platform-enforced
 confinement; the doc states it plainly rather than implying the platform
 verifies scripts.
+
+Confinement guarantees are therefore SCOPED, not universal: the platform
+proxy is always default-deny for traffic that reaches it; the netns
+reference implementation guarantees forced routing for AI-designated
+workspaces; an arbitrary script only attests its routing coverage. The
+structural-confinement invariant applies to `forced` shapes; `advisory`
+and `none` do not satisfy it and are recorded as such. Requiring
+`forced` through the envelope is an admission-control claim, not added
+enforcement.
 
 #### Reference implementations
 
@@ -724,14 +763,31 @@ Delivery is one mechanism applied at two moments:
    re-fork.
 
 **The supervisor is the sole policy consumer.** The confined child never
-fetches, holds, or sees policy; its only network path is the parent proxy.
-This is what makes live updates safe and preserves the invariant that
-nothing inside the workspace can influence its own disposition.
+fetches, holds, or sees policy; in a `forced` shape its only network path
+is the parent proxy. This is what makes live updates safe and preserves
+the invariant that nothing inside the workspace can influence its own
+disposition.
+
+Who fetches and applies policy, per shape:
+
+- **AI-designated workspace**: the outer workspace-level supervisor (the
+  parent process of the main agent) establishes and retains the
+  egress-control stream to coderd BEFORE fork-execing the confined main
+  agent, and keeps it for revision pushes. The confined agent's normal
+  connection is separate and carries no policy. The supervisor reports
+  degraded state.
+- **Sandboxed child**: the unbound PARENT agent's existing coderd
+  connection receives policy revisions; the parent-side sandbox
+  controller and proxy apply them. The child's connection carries no
+  policy. The parent agent reports degraded state.
 
 #### Audit stream and retention
 
-The confined child or supervisor sends events through agentapi to
-`ai_sandbox_sessions` and `ai_sandbox_network_events`. Events correlate with
+The parent-side supervisor or sandbox controller, which owns the proxy,
+emits network events through agentapi to `ai_sandbox_sessions` and
+`ai_sandbox_network_events`. The confined child never emits network policy
+events; its connection state supplies health and it may produce non-network
+activity events only. Events correlate with
 aibridge interceptions and become a Vertical 3 input.
 
 Both tables snapshot raw agent and sponsor UUIDs on each retained record.
@@ -818,7 +874,10 @@ Egress rules do NOT live in the envelope or anywhere in Terraform; they
 live in template settings (see policy storage and delivery). Chat-created
 workspaces are designated by coderd regardless of the opt-in parameter.
 The server always applies the credential-denial and default-deny
-baselines; templates can only request capabilities and bounded exceptions.
+baselines. Templates declare the script contract, the attestation, and the
+credential mode. Only coderd-admin template-setting writes, and later
+human-in-the-loop approval writes, may change egress rules or overrides;
+templates cannot author egress exceptions.
 
 Provisioner-time child agents follow the `coder_devcontainer.subagent_id`
 precedent so `coder_app`, `coder_env`, and `coder_script` can attach to the
@@ -869,11 +928,19 @@ attribution and budget principals.
    `ai_agents.user_id`, and `workspace_agents.ai_credential_mode`, enum
    `none | injected | brokered` with default `none`.
 2. Add sandbox instance records keyed to workspace and parent agent, with
-   backend, declared capabilities, policy reference, and lifecycle state.
-3. Add `ai_sandbox_sessions` and `ai_sandbox_network_events`. Snapshot raw
+   parent and child agent IDs, sandbox ID, create/destroy script version
+   or digest, the `egress_enforcement` attestation, credential mode, the
+   effective policy revision reference, health, reconciliation, and
+   lifecycle state. Sandbox records never contain Terraform-derived egress
+   rules; they only reference the effective policy revision.
+3. Add server-side storage for the versioned template-settings egress
+   policy and its bounded per-workspace or per-sandbox override revisions,
+   including writer identity and audit linkage. This is the authoritative
+   policy model; nothing about it is Terraform-derived.
+4. Add `ai_sandbox_sessions` and `ai_sandbox_network_events`. Snapshot raw
    agent and sponsor UUIDs without foreign keys to `ai_agents` or `users` so
    audit history survives identity cleanup.
-4. Add no auto-ACL machinery and no sponsor quota aggregation. Human
+5. Add no auto-ACL machinery and no sponsor quota aggregation. Human
    ownership already provides control and quota attribution.
 
 `ai_credential_mode` does not collide with the existing
@@ -905,10 +972,14 @@ Follow `.claude/docs/DATABASE.md` end-to-end for implementation: queries,
 6. **Default-deny egress**: a fresh AI-designated workspace or sandboxed
    agent can reach coderd, DERP, and AI Gateway, and nothing else. Every
    allowed or denied flow produces an attributed audit event when the
-   backend declares egress capability.
-7. **Structural confinement**: every process spawned through the confined
-   workspace agent, including SSH, terminal, and scripts, observes the same
-   network policy.
+   shape attests `forced` routing. `advisory` and `none` shapes record
+   their weaker coverage instead of claiming confinement.
+7. **Structural confinement (`forced` shapes only)**: in an AI-designated
+   workspace confined by the netns supervisor, and in any sandbox attesting
+   `forced`, every process spawned through the confined agent, including
+   SSH, terminal, and scripts, observes the same network policy. Shapes
+   attesting `advisory` or `none` make no such guarantee and must be
+   recorded and surfaced as weaker.
 8. **Attestation honesty**: a sandbox's declared `egress_enforcement` is
    recorded server-side and surfaced through API and UI. The platform does
    not verify scripts; mismatch detection (an attested-forced sandbox whose
@@ -994,9 +1065,10 @@ template settings and are managed dynamically outside Terraform.
 #### Example 1: AI-designated workspace via direct human opt-in
 
 ```hcl
-# EXISTS TODAY: the server detects this parameter; value "true" mints the
-# workspace-origin identity (V1) and, with V2, binds every agent,
-# suppresses the owner token, and enables confinement.
+# EXISTS TODAY: parameter detection, workspace-origin identity mint, and
+# the scoped-token provisioner export (V1).
+# SERVER-SIDE V2: per-agent binding, owner-token suppression, and
+# confinement are added on top of the same signal.
 data "coder_parameter" "coder_ai_agent" {
   name    = "coder_ai_agent"
   type    = "bool"
