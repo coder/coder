@@ -75,7 +75,7 @@ func TestPagination(t *testing.T) {
 		},
 		{
 			Name:          "LimitAboveMax",
-			Limit:         strconv.Itoa(coderd.MaxPaginationLimit + 1),
+			Limit:         strconv.Itoa(codersdk.MaxPaginationLimit + 1),
 			ExpectedError: invalidValues,
 		},
 
@@ -105,7 +105,7 @@ func TestPagination(t *testing.T) {
 			Name: "DefaultsToMaxWhenAbsent",
 			ExpectedParams: codersdk.Pagination{
 				AfterID: uuid.Nil,
-				Limit:   coderd.MaxPaginationLimit,
+				Limit:   codersdk.MaxPaginationLimit,
 			},
 		},
 		{
@@ -116,10 +116,10 @@ func TestPagination(t *testing.T) {
 		},
 		{
 			Name:  "LimitAtMax",
-			Limit: strconv.Itoa(coderd.MaxPaginationLimit),
+			Limit: strconv.Itoa(codersdk.MaxPaginationLimit),
 			ExpectedParams: codersdk.Pagination{
 				AfterID: uuid.Nil,
-				Limit:   coderd.MaxPaginationLimit,
+				Limit:   codersdk.MaxPaginationLimit,
 			},
 		},
 		{
@@ -127,7 +127,7 @@ func TestPagination(t *testing.T) {
 			Offset: "150",
 			ExpectedParams: codersdk.Pagination{
 				AfterID: uuid.Nil,
-				Limit:   coderd.MaxPaginationLimit,
+				Limit:   codersdk.MaxPaginationLimit,
 				Offset:  150,
 			},
 		},
@@ -136,7 +136,7 @@ func TestPagination(t *testing.T) {
 			AfterID: "5f2005fc-acc4-4e5e-a7fa-be017359c60b",
 			ExpectedParams: codersdk.Pagination{
 				AfterID: uuid.MustParse("5f2005fc-acc4-4e5e-a7fa-be017359c60b"),
-				Limit:   coderd.MaxPaginationLimit,
+				Limit:   codersdk.MaxPaginationLimit,
 			},
 		},
 	}

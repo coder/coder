@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	aiblib "github.com/coder/coder/v2/aibridge"
-	agplcoderd "github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -782,7 +781,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		//nolint:gocritic // Owner role is irrelevant; testing pagination validation.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
 			Pagination: codersdk.Pagination{
-				Limit: agplcoderd.MaxPaginationLimit + 1,
+				Limit: codersdk.MaxPaginationLimit + 1,
 			},
 		})
 		var sdkErr *codersdk.Error

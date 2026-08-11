@@ -7,6 +7,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// MaxPaginationLimit is the largest page size the server accepts. An omitted
+// limit resolves to this value. A limit that is set must be a positive integer
+// no greater than this, so the resulting query is always bounded.
+const MaxPaginationLimit = 100
+
 // Pagination sets pagination options for the endpoints that support it.
 type Pagination struct {
 	// AfterID returns all or up to Limit results after the given
@@ -16,10 +21,10 @@ type Pagination struct {
 	// request.
 	AfterID uuid.UUID `json:"after_id,omitempty" format:"uuid"`
 	// Limit sets the maximum number of results returned in a single page.
-	// When set, it must be a positive integer no greater than the server's
-	// maximum page size, otherwise the request is rejected. A value of 0
+	// When set, it must be a positive integer no greater than
+	// MaxPaginationLimit, otherwise the request is rejected. A value of 0
 	// omits the query parameter entirely, and the server resolves the page
-	// size to its maximum.
+	// size to MaxPaginationLimit.
 	Limit int `json:"limit,omitempty"`
 	// Offset is used to indicate which page to return. An offset of 0
 	// returns the first 'limit' number of users.
