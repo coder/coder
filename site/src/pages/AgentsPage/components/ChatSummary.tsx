@@ -15,6 +15,13 @@ const EMPTY_VALUE = "-";
 /** Compact list spacing that keeps markers inside the narrow summary column. */
 const LIST_CLASSES = "my-2 flex flex-col gap-1 pl-5";
 
+/**
+ * How long resizing must settle before overflow is remeasured. Dragging the
+ * right panel resizes the summary every frame, and the overflow verdict is a
+ * boolean that flips at most a couple of times per drag.
+ */
+const RESIZE_SETTLE_MS = 100;
+
 interface ChatSummaryProps {
 	summary: string | null;
 	createdAt: string;
@@ -141,9 +148,21 @@ const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => {
 		// update while the box is already pinned there would resize nothing and
 		// stay clipped with no toggle. The inner element is unclamped, so its
 		// height tracks the content and its width tracks the resizable panel.
-		const observer = new ResizeObserver(measure);
+		//
+		// Debounce rather than schedule on an animation frame: observer
+		// callbacks are already delivered at most once per frame, so a frame
+		// callback would defer the same work instead of doing less of it.
+		// Settling skips the layout reads entirely while a drag is in flight.
+		let settleTimeout: ReturnType<typeof setTimeout> | undefined;
+		const observer = new ResizeObserver(() => {
+			clearTimeout(settleTimeout);
+			settleTimeout = setTimeout(measure, RESIZE_SETTLE_MS);
+		});
 		observer.observe(content);
-		return () => observer.disconnect();
+		return () => {
+			clearTimeout(settleTimeout);
+			observer.disconnect();
+		};
 	}, [isExpanded]);
 
 	return (
