@@ -1,13 +1,3 @@
-/**
- * A drawer (a.k.a. "sheet") that slides in from an edge of the screen.
- *
- * This mirrors the shadcn/ui drawer API (`Drawer`, `DrawerTrigger`,
- * `DrawerContent`, ...) but is implemented directly on top of Radix UI's
- * Dialog primitive rather than depending on the `vaul` package, which is
- * currently unmaintained. Radix Dialog already ships with the accessibility,
- * focus management, and open/close state we need, so this only adds the
- * edge positioning and slide animations on top of it.
- */
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { createContext, useContext } from "react";
 import { cn } from "#/utils/cn";
@@ -47,7 +37,7 @@ const DrawerOverlay: React.FC<
 				`fixed inset-0 z-50 bg-overlay [animation-timing-function:cubic-bezier(0.32,0.72,0,1)]
 				data-[state=open]:animate-in data-[state=closed]:animate-out
 				data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
-				data-[state=open]:duration-500 data-[state=closed]:duration-300`,
+				data-[state=open]:duration-300 data-[state=closed]:duration-100`,
 				className,
 			)}
 			{...props}
@@ -76,10 +66,9 @@ export const DrawerContent: React.FC<
 			<DrawerOverlay />
 			<DialogPrimitive.Content
 				className={cn(
-					`fixed z-50 flex h-auto flex-col bg-surface-primary outline-none
-					will-change-transform [animation-timing-function:cubic-bezier(0.32,0.72,0,1)]
-					data-[state=open]:animate-in data-[state=closed]:animate-out
-					data-[state=open]:duration-500 data-[state=closed]:duration-300`,
+					"fixed z-50 flex h-auto flex-col bg-surface-primary outline-none will-change-transform",
+					"data-[state=open]:animate-in data-[state=closed]:animate-out",
+					"data-[state=open]:duration-500 data-[state=closed]:duration-300",
 					directionClasses[direction],
 					className,
 				)}
