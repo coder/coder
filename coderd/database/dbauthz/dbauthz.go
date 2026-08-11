@@ -8478,6 +8478,13 @@ func (q *querier) UpdateWorkspaceACLByID(ctx context.Context, arg database.Updat
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateWorkspaceACLByID)(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentAIAgentID(ctx context.Context, arg database.UpdateWorkspaceAgentAIAgentIDParams) (database.WorkspaceAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	return q.db.UpdateWorkspaceAgentAIAgentID(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err

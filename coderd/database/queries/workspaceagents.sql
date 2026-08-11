@@ -98,6 +98,12 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *;
 
+-- name: UpdateWorkspaceAgentAIAgentID :one
+UPDATE workspace_agents
+SET ai_agent_id = @ai_agent_id
+WHERE id = @id
+RETURNING *;
+
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
 	workspace_agents

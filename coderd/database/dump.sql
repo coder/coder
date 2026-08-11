@@ -3026,6 +3026,7 @@ CREATE TABLE workspace_agents (
     parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
+    ai_agent_id uuid,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -5002,6 +5003,8 @@ CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspa
 
 COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Support index for template insights endpoint to build interval reports faster.';
 
+CREATE INDEX workspace_agents_ai_agent_id_idx ON workspace_agents USING btree (ai_agent_id);
+
 CREATE INDEX workspace_agents_auth_instance_id_deleted_idx ON workspace_agents USING btree (auth_instance_id, deleted);
 
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
@@ -5537,6 +5540,9 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_ai_agent_id_fkey FOREIGN KEY (ai_agent_id) REFERENCES ai_agents(user_id);
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
