@@ -248,13 +248,12 @@ func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg codersdk.AdvisorConfig,
-	fallbackModel chatprovider.Model,
-	fallbackCallConfig codersdk.ChatModelCallConfig,
+	fallback resolvedModelCall,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
-) (chatprovider.Model, codersdk.ChatModelCallConfig, error) {
+) (resolvedModelCall, error) {
 	if advisorCfg.ModelConfigID == uuid.Nil {
-		return fallbackModel, fallbackCallConfig, nil
+		return fallback, nil
 	}
 
 	// Re-read the override instead of using the cache so disabled models
@@ -270,7 +269,7 @@ func (p *Server) resolveAdvisorModelOverride(
 				"advisor model config is disabled or unavailable, continuing with chat model",
 				slog.F("model_config_id", advisorCfg.ModelConfigID),
 			)
-			return fallbackModel, fallbackCallConfig, nil
+			return fallback, nil
 		}
 		logger.Warn(
 			ctx,
@@ -278,90 +277,56 @@ func (p *Server) resolveAdvisorModelOverride(
 			slog.F("model_config_id", advisorCfg.ModelConfigID),
 			slog.Error(err),
 		)
-		return fallbackModel, fallbackCallConfig, nil
+		return fallback, nil
 	}
 
-	overrideCallConfig := codersdk.ChatModelCallConfig{}
-	if len(overrideConfig.Options) > 0 {
-		if err := json.Unmarshal(overrideConfig.Options, &overrideCallConfig); err != nil {
-			logger.Warn(
-				ctx,
-				"failed to parse advisor model config, continuing with chat model",
-				slog.F("model_config_id", advisorCfg.ModelConfigID),
-				slog.Error(err),
-			)
-			return fallbackModel, fallbackCallConfig, nil
-		}
-	}
-
-	route, err := p.resolveModelRouteForConfig(
-		ctx,
-		chat.OwnerID,
-		overrideConfig,
-	)
+	resolved, err := p.resolveModelCall(ctx, advisorOverrideSpec(chat, overrideConfig, modelOpts))
 	if err != nil {
-		if overrideConfig.AIProviderID.Valid {
-			return chatprovider.Model{}, codersdk.ChatModelCallConfig{}, xerrors.Errorf("resolve advisor override route: %w", err)
+		// Corrupt options JSON always falls back so a bad admin edit cannot
+		// break every turn; route and client failures fall back only when
+		// the config has no linked provider.
+		var parseErr modelCallConfigParseError
+		if overrideConfig.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
+			return resolvedModelCall{}, xerrors.Errorf("resolve advisor override model: %w", err)
 		}
 		logger.Warn(
 			ctx,
-			"failed to resolve advisor override route, continuing with chat model",
+			"failed to resolve advisor override model, continuing with chat model",
 			slog.F("model_config_id", advisorCfg.ModelConfigID),
 			slog.Error(err),
 		)
-		return fallbackModel, fallbackCallConfig, nil
-	}
-	overrideModel, err := p.newModel(ctx, modelClientRequest{
-		Chat:          chat,
-		ModelName:     overrideConfig.Model,
-		UserAgent:     chatprovider.UserAgent(),
-		ExtraHeaders:  chatprovider.CoderHeaders(chat),
-		ConfigOptions: overrideConfig.Options,
-	}, route, modelOpts)
-	if err != nil {
-		if overrideConfig.AIProviderID.Valid {
-			return chatprovider.Model{}, codersdk.ChatModelCallConfig{}, xerrors.Errorf("create advisor override model: %w", err)
-		}
-		logger.Warn(
-			ctx,
-			"failed to create advisor override model, continuing with chat model",
-			slog.F("model_config_id", advisorCfg.ModelConfigID),
-			slog.Error(err),
-		)
-		return fallbackModel, fallbackCallConfig, nil
+		return fallback, nil
 	}
 
 	if advisorCfg.ReasoningEffort != nil {
 		resolvedEffort := chatprovider.ResolveReasoningEffort(
 			advisorCfg.ReasoningEffort,
-			overrideCallConfig.ReasoningEffort,
+			resolved.callConfig.ReasoningEffort,
 		)
 		if resolvedEffort != nil {
-			overrideCallConfig.ReasoningEffort = &codersdk.ChatModelReasoningEffortConfig{
+			resolved.callConfig.ReasoningEffort = &codersdk.ChatModelReasoningEffortConfig{
 				Default: resolvedEffort,
 				Max:     resolvedEffort,
 			}
 		}
 	}
 
-	return overrideModel, overrideCallConfig, nil
+	return resolved, nil
 }
 
 func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg codersdk.AdvisorConfig,
-	fallbackModel chatprovider.Model,
-	fallbackCallConfig codersdk.ChatModelCallConfig,
+	fallback resolvedModelCall,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (*chatadvisor.Runtime, error) {
-	advisorModel, advisorCallConfig, err := p.resolveAdvisorModelOverride(
+	advisor, err := p.resolveAdvisorModelOverride(
 		ctx,
 		chat,
 		advisorCfg,
-		fallbackModel,
-		fallbackCallConfig,
+		fallback,
 		modelOpts,
 		logger,
 	)
@@ -391,13 +356,14 @@ func (p *Server) newAdvisorRuntime(
 		maxOutputTokens = defaultAdvisorMaxOutputTokens
 	}
 
+	advisorCallConfig := advisor.callConfig
 	advisorCallConfig.MaxOutputTokens = ptr.Ref(maxOutputTokens)
 	// The override resolver pins an explicit advisor effort into the model
 	// config. Fallback models keep their configured default effort.
-	providerOptions := chatprovider.ProviderOptionsForCall(advisorModel, advisorCallConfig, nil)
+	providerOptions := advisor.deriveProviderOptions(advisorCallConfig, nil)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
-		Model:           advisorModel.LanguageModel(),
+		Model:           advisor.model.LanguageModel(),
 		ModelConfig:     advisorCallConfig,
 		ProviderOptions: providerOptions,
 		MaxUsesPerRun:   maxUsesPerRun,
@@ -2634,20 +2600,14 @@ func (p *Server) prepareManualTitleDebugRun(
 			routeProvider = string(provider.Type)
 		}
 	}
-	debugOpts := modelOpts
-	debugOpts.RecordHTTP = true
 	var debugModelErr error
 	var debugModel chatprovider.Model
 	if routeErr != nil {
 		debugModelErr = routeErr
 	} else {
-		debugModel, debugModelErr = p.newModel(ctx, modelClientRequest{
-			Chat:          chat,
-			ModelName:     modelConfig.Model,
-			UserAgent:     chatprovider.UserAgent(),
-			ExtraHeaders:  chatprovider.CoderHeaders(chat),
-			ConfigOptions: modelConfig.Options,
-		}, route, debugOpts)
+		var debugResolved resolvedModelCall
+		debugResolved, debugModelErr = p.resolveModelCall(ctx, manualTitleDebugSpec(chat, modelConfig, route, debugSvc, routeProvider, modelOpts))
+		debugModel = debugResolved.model
 	}
 	switch {
 	case debugModelErr != nil:
@@ -2662,12 +2622,7 @@ func (p *Server) prepareManualTitleDebugRun(
 			slog.F("model", modelConfig.Model),
 		)
 	default:
-		titleModel = debugModel.WithLanguageModel(chatdebug.WrapModel(debugModel.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
-			ChatID:   chat.ID,
-			OwnerID:  chat.OwnerID,
-			Provider: routeProvider,
-			Model:    modelConfig.Model,
-		}))
+		titleModel = debugModel
 	}
 
 	var historyTipMessageID int64

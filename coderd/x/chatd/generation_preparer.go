@@ -176,8 +176,7 @@ func (server *Server) prepareGeneration(
 			ctx,
 			chat,
 			advisorCfg,
-			model,
-			callConfig,
+			resolved,
 			modelOpts,
 			logger,
 		)

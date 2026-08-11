@@ -195,6 +195,61 @@ func manualTitleSpec(chat database.Chat, config database.ChatModelConfig, buildO
 	}
 }
 
+// compactionOverrideSpec builds the deployment-wide compaction override
+// model from the caller-selected config row, whose reasoning effort was
+// already resolved at prepare time. The route resolves with chatd scope so
+// the override works for chats whose owner cannot read the provider.
+func compactionOverrideSpec(chat database.Chat, config database.ChatModelConfig, buildOpts modelBuildOptions) modelCallSpec {
+	return modelCallSpec{
+		purpose:          callPurposeCompaction,
+		chat:             chat,
+		config:           configSelection{mode: configExplicit, config: config},
+		providerOptions:  providerOptionsDerive,
+		debug:            debugPolicyAware,
+		chatdScopedRoute: true,
+		buildOptions:     buildOpts,
+	}
+}
+
+// advisorOverrideSpec builds the advisor's override model from the config
+// row the caller re-read from the database. Provider options are omitted
+// because the advisor derives them after pinning its reasoning effort and
+// output cap into the call config.
+func advisorOverrideSpec(chat database.Chat, config database.ChatModelConfig, buildOpts modelBuildOptions) modelCallSpec {
+	return modelCallSpec{
+		purpose:         callPurposeAdvisor,
+		chat:            chat,
+		config:          configSelection{mode: configExplicit, config: config},
+		providerOptions: providerOptionsOmit,
+		buildOptions:    buildOpts,
+	}
+}
+
+// manualTitleDebugSpec rebuilds the manual-title client with HTTP recording
+// after the caller verified debug is enabled and resolved the route itself
+// (the route's provider type also labels the debug run record).
+func manualTitleDebugSpec(
+	chat database.Chat,
+	config database.ChatModelConfig,
+	route aiGatewayModelRoute,
+	debugSvc *chatdebug.Service,
+	routeProvider string,
+	buildOpts modelBuildOptions,
+) modelCallSpec {
+	return modelCallSpec{
+		purpose:           callPurposeDebugRebuild,
+		chat:              chat,
+		config:            configSelection{mode: configExplicit, config: config},
+		providerOptions:   providerOptionsOmit,
+		debug:             debugPolicyForced,
+		debugSvc:          debugSvc,
+		debugWrapProvider: routeProvider,
+		debugWrapModel:    config.Model,
+		routeOverride:     &route,
+		buildOptions:      buildOpts,
+	}
+}
+
 // computerUseSpec swaps in the deployment's computer-use model. The client is
 // built without config options because the fixed model has no config row; the
 // chat model's call config still drives per-call provider options so admin
@@ -221,6 +276,18 @@ func computerUseSpec(
 		buildOptions:    buildOpts,
 	}
 }
+
+// modelCallConfigParseError marks malformed model-config options JSON. The
+// advisor override falls back to the chat model on corrupt options while
+// hard-failing on route and client errors, so it matches this type with
+// xerrors.As.
+type modelCallConfigParseError struct{ err error }
+
+func (e modelCallConfigParseError) Error() string {
+	return "parse model call config: " + e.err.Error()
+}
+
+func (e modelCallConfigParseError) Unwrap() error { return e.err }
 
 // resolvedModelCall is the output of resolveModelCall: a ready client plus
 // the metadata callers need for prompts, metrics, and debug attribution.
@@ -273,7 +340,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		var err error
 		out.callConfig, err = parseModelConfigOptions(configOptions)
 		if err != nil {
-			return resolvedModelCall{}, xerrors.Errorf("parse model call config: %w", err)
+			return resolvedModelCall{}, modelCallConfigParseError{err: err}
 		}
 	}
 	if spec.defaultMaxOutputTokens && out.callConfig.MaxOutputTokens == nil {
@@ -361,7 +428,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	out.model = model
 
 	if spec.providerOptions == providerOptionsDerive {
-		out.providerOptions = chatprovider.ProviderOptionsForCall(model, out.callConfig, spec.requestedEffort)
+		out.providerOptions = out.deriveProviderOptions(out.callConfig, spec.requestedEffort)
 	}
 
 	p.logger.Debug(ctx, "resolved model call",
@@ -372,6 +439,14 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		slog.F("debug_enabled", out.debugEnabled),
 	)
 	return out, nil
+}
+
+// deriveProviderOptions converts a call config into per-call provider
+// options for this resolved model. resolveModelCall derives from the spec's
+// parsed config; callers that mutate the call config after resolution
+// (advisor) re-derive here.
+func (r resolvedModelCall) deriveProviderOptions(callConfig codersdk.ChatModelCallConfig, requestedEffort *string) fantasy.ProviderOptions {
+	return chatprovider.ProviderOptionsForCall(r.model, callConfig, requestedEffort)
 }
 
 // objectCallOverrides carries the caller-owned schema and token cap for a

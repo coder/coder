@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -13,48 +13,9 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
-func TestCompactionOverrideProviderOptions(t *testing.T) {
-	t.Parallel()
-
-	model := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "anthropic", ModelName: "claude-3-5-haiku"}, nil)
-
-	t.Run("NoOptions", func(t *testing.T) {
-		t.Parallel()
-		opts, err := compactionOverrideProviderOptions(model, database.ChatModelConfig{})
-		require.NoError(t, err)
-		require.Nil(t, opts)
-	})
-
-	t.Run("ReasoningEffort", func(t *testing.T) {
-		t.Parallel()
-		effort := "low"
-		options, err := json.Marshal(codersdk.ChatModelCallConfig{
-			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-				Default: &effort,
-				Max:     &effort,
-			},
-		})
-		require.NoError(t, err)
-		opts, err := compactionOverrideProviderOptions(model, database.ChatModelConfig{Options: options})
-		require.NoError(t, err)
-		anthropicOpts, ok := opts[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
-		require.True(t, ok)
-		require.NotNil(t, anthropicOpts.Effort)
-		require.Equal(t, fantasyanthropic.Effort("low"), *anthropicOpts.Effort)
-	})
-
-	t.Run("MalformedOptions", func(t *testing.T) {
-		t.Parallel()
-		_, err := compactionOverrideProviderOptions(model, database.ChatModelConfig{Options: []byte("{")})
-		require.ErrorContains(t, err, "parse compaction model override call config")
-	})
-}
 
 func TestResolveCompactionOverrideConfig_Unset(t *testing.T) {
 	t.Parallel()
@@ -184,6 +145,15 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
 	providerID := uuid.New()
 	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+	effort := "low"
+	options, err := json.Marshal(codersdk.ChatModelCallConfig{
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+			Default: &effort,
+			Max:     &effort,
+		},
+	})
+	require.NoError(t, err)
+	overrideConfig.Options = options
 
 	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
@@ -199,19 +169,28 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	require.NotNil(t, resolved)
 	require.Equal(t, overrideConfig.ID, resolved.Config.ID)
 
-	override, err := server.buildCompactionOverrideModel(
-		ctx,
+	override, err := server.resolveModelCall(ctx, compactionOverrideSpec(
 		chat,
 		resolved.Config,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
-	)
+	))
 	require.NoError(t, err)
-	require.NotNil(t, override.model)
-	require.Equal(t, overrideConfig.ID, override.modelConfig.ID)
+	require.True(t, override.model.Valid())
+	require.Equal(t, overrideConfig.ID, override.dbConfig.ID)
 	require.Equal(t, "openai", override.resolvedProvider)
 	require.Equal(t, "gpt-4.1", override.resolvedModel)
 	// Prepare-time identity must match the built client's so
 	// still-over-limit metrics land on the same series.
 	require.Equal(t, override.resolvedProvider, resolved.ResolvedProvider)
 	require.Equal(t, override.resolvedModel, resolved.ResolvedModel)
+	// The summary call derives provider options from the override config,
+	// including the admin-resolved reasoning effort.
+	switch opts := override.providerOptions[fantasyopenai.Name].(type) {
+	case *fantasyopenai.ResponsesProviderOptions:
+		require.Equal(t, fantasyopenai.ReasoningEffort(effort), *opts.ReasoningEffort)
+	case *fantasyopenai.ProviderOptions:
+		require.Equal(t, fantasyopenai.ReasoningEffort(effort), *opts.ReasoningEffort)
+	default:
+		t.Fatalf("unexpected openai provider options type %T", opts)
+	}
 }

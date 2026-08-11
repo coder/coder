@@ -960,7 +960,10 @@ func (s *taskStarter) generateCompaction(
 	compactionOpts := prepared.Compaction.Options
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
 	if override := prepared.Compaction.Override; override != nil {
-		overrideModel, err := s.server.buildCompactionOverrideModel(ctx, prepared.Chat, override.Config, prepared.ModelBuildOptions)
+		// Errors are hard failures: a usable override that cannot be
+		// constructed must fail the generation visibly instead of silently
+		// compacting with the chat model.
+		overrideModel, err := s.server.resolveModelCall(ctx, compactionOverrideSpec(prepared.Chat, override.Config, prepared.ModelBuildOptions))
 		if err != nil {
 			return xerrors.Errorf("build compaction model override: %w", err)
 		}
@@ -971,7 +974,7 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
-		compactionOpts.ModelConfigID = overrideModel.modelConfig.ID
+		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
 		compactionOpts.ProviderOptions = overrideModel.providerOptions
 		compactionOpts.Messages = sanitizeCompactionPrompt(
 			ctx,
@@ -979,7 +982,7 @@ func (s *taskStarter) generateCompaction(
 			compactionOpts.Messages,
 			overrideModel.model,
 			prepared.Compaction.ChatModelConfig,
-			overrideModel.modelConfig,
+			overrideModel.dbConfig,
 		)
 	}
 	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)

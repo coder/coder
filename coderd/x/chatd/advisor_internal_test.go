@@ -113,12 +113,11 @@ func (p *Server) resolveAdvisorModelOverrideOrFallback(
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (chatprovider.Model, codersdk.ChatModelCallConfig) {
-	model, cfg, err := p.resolveAdvisorModelOverride(
+	resolved, err := p.resolveAdvisorModelOverride(
 		ctx,
 		chat,
 		advisorCfg,
-		fallbackModel,
-		fallbackCallConfig,
+		resolvedModelCall{model: fallbackModel, callConfig: fallbackCallConfig},
 		modelOpts,
 		logger,
 	)
@@ -126,7 +125,7 @@ func (p *Server) resolveAdvisorModelOverrideOrFallback(
 		logger.Warn(ctx, "failed to resolve advisor model override, continuing with chat model", slog.Error(err))
 		return fallbackModel, fallbackCallConfig
 	}
-	return model, cfg
+	return resolved.model, resolved.callConfig
 }
 
 func (p *Server) newAdvisorRuntimeOrFallback(
@@ -142,8 +141,7 @@ func (p *Server) newAdvisorRuntimeOrFallback(
 		ctx,
 		chat,
 		advisorCfg,
-		fallbackModel,
-		fallbackCallConfig,
+		resolvedModelCall{model: fallbackModel, callConfig: fallbackCallConfig},
 		modelOpts,
 		logger,
 	)
@@ -266,6 +264,40 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		)
 		require.Equal(t, fallbackModel, gotModel)
 		require.Equal(t, fallbackCallConfig, gotCfg)
+	})
+
+	// Corrupt options JSON on a provider-linked config must still fall
+	// back softly, unlike route or client failures which hard-fail for
+	// linked providers. Guards the modelCallConfigParseError distinction.
+	t.Run("InvalidOptionsJSONWithLinkedProviderReturnsFallback", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		configID := uuid.New()
+		store := &advisorOverrideStubStore{
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+				return database.ChatModelConfig{
+					ID:           configID,
+					Model:        "gpt-5.2",
+					Enabled:      true,
+					Options:      []byte("not valid json"),
+					DisplayName:  "gpt-5.2",
+					AIProviderID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				}, nil
+			},
+		}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		resolved, err := p.resolveAdvisorModelOverride(
+			ctx,
+			database.Chat{},
+			codersdk.AdvisorConfig{ModelConfigID: configID},
+			resolvedModelCall{model: fallbackModel, callConfig: fallbackCallConfig},
+			modelBuildOptions{},
+			logger,
+		)
+		require.NoError(t, err)
+		require.Equal(t, fallbackModel, resolved.model)
+		require.Equal(t, fallbackCallConfig, resolved.callConfig)
 	})
 
 	t.Run("MissingProviderKeyReturnsFallback", func(t *testing.T) {
@@ -446,17 +478,16 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 	p := newAdvisorTestServer(ctx, t, store)
 
 	ctx = aibridge.WithDelegatedAPIKeyID(ctx, uuid.NewString())
-	model, _, err := p.resolveAdvisorModelOverride(
+	resolved, err := p.resolveAdvisorModelOverride(
 		ctx,
 		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
 		codersdk.AdvisorConfig{ModelConfigID: configID},
-		chatprovider.NewModel(&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}, nil),
-		codersdk.ChatModelCallConfig{},
+		resolvedModelCall{model: chatprovider.NewModel(&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}, nil)},
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 		slog.Make(),
 	)
 	require.ErrorContains(t, err, "AI Gateway transport factory")
-	require.False(t, model.Valid())
+	require.False(t, resolved.model.Valid())
 }
 
 // TestStripAdvisorGuidanceBlock exercises the filter that keeps the advisor
