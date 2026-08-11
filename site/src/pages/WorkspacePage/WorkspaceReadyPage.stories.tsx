@@ -1,0 +1,91 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import * as Mocks from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "#/testHelpers/storybook";
+import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
+import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
+
+const permissions: WorkspacePermissions = {
+	readWorkspace: true,
+	shareWorkspace: true,
+	updateWorkspace: true,
+	updateWorkspaceVersion: true,
+	deleteFailedWorkspace: true,
+};
+
+const meta: Meta<typeof WorkspaceReadyPage> = {
+	title: "pages/WorkspacePage/WorkspaceReadyPage",
+	component: WorkspaceReadyPage,
+	args: {
+		workspace: Mocks.MockWorkspace,
+		template: Mocks.MockTemplate,
+		permissions,
+	},
+	parameters: {
+		queries: [
+			{ key: ["buildInfo"], data: Mocks.MockBuildInfo },
+			{
+				key: ["portForward", Mocks.MockWorkspaceAgent.id],
+				data: Mocks.MockListeningPortsResponse,
+			},
+			{
+				key: [
+					"templateVersion",
+					Mocks.MockWorkspace.template_active_version_id,
+				],
+				data: Mocks.MockTemplateVersion,
+			},
+		],
+		user: Mocks.MockUserOwner,
+	},
+	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
+	beforeEach: () => {
+		spyOn(API, "getDynamicParameters").mockResolvedValue([]);
+		spyOn(API, "workspaceBuildTimings").mockResolvedValue({
+			provisioner_timings: [],
+			agent_script_timings: [],
+			agent_connection_timings: [],
+		});
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof WorkspaceReadyPage>;
+
+const openRestartDialog = async (canvasElement: HTMLElement) => {
+	const body = within(canvasElement.ownerDocument.body);
+	const restartButton = await body.findByRole("button", {
+		name: /^restart…$/i,
+	});
+	await userEvent.click(restartButton);
+	return await body.findByRole("dialog");
+};
+
+export const RestartDialog: Story = {
+	play: async ({ canvasElement }) => {
+		const dialog = await openRestartDialog(canvasElement);
+		await waitFor(() =>
+			expect(dialog).toHaveTextContent(/delete non-persistent data/),
+		);
+		expect(dialog).not.toHaveTextContent(/latest active version/);
+	},
+};
+
+export const RestartDialogOutdatedWorkspace: Story = {
+	args: {
+		workspace: Mocks.MockRunningOutdatedWorkspace,
+	},
+	play: async ({ canvasElement }) => {
+		const dialog = await openRestartDialog(canvasElement);
+		await waitFor(() =>
+			expect(dialog).toHaveTextContent(
+				/This workspace will start using the template's latest active version/,
+			),
+		);
+	},
+};

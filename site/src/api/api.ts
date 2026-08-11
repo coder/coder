@@ -1318,8 +1318,11 @@ class ApiMethods {
 	private waitForRestartBuild = async (
 		stopBuild: TypesGen.WorkspaceBuild,
 	): Promise<TypesGen.WorkspaceBuild> => {
+		// The server orchestrator may create the child build up to ~2 minutes
+		// after the stop succeeds (30s backup poll plus up to 3 attempts spaced
+		// 30s apart), so the deadline must outlast that retry lifecycle.
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), 60_000);
+		const timeoutId = setTimeout(() => controller.abort(), 180_000);
 		try {
 			while (!controller.signal.aborted) {
 				try {

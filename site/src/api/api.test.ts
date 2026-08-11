@@ -503,7 +503,7 @@ describe("api.ts", () => {
 
 			const restart = API.restartWorkspace({ workspace: MockWorkspace });
 
-			await vi.advanceTimersByTimeAsync(59_999);
+			await vi.advanceTimersByTimeAsync(179_999);
 			expect(getWorkspaceBuildByNumber.mock.calls[0][3]?.aborted).toBe(false);
 
 			await vi.advanceTimersByTimeAsync(1);
