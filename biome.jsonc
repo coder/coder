@@ -172,8 +172,7 @@
 		},
 		{
 			// parseDiff.ts is the single choke point allowed to import
-			// the raw @pierre/diffs parsers; its test exercises the raw
-			// parser.
+			// the raw @pierre/diffs parsers.
 			"includes": [
 				"**/DiffViewer/parseDiff.ts",
 				"**/DiffViewer/parseDiff.test.ts"

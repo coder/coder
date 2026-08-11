@@ -534,11 +534,9 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 };
 
 /**
- * Builds a synthetic unified diff from edit pairs (normalized to
- * search/replace) for a single file. Each edit is diffed against only
- * its own snippet via `Diff.structuredPatch`, so lines can never
- * correlate across edits; the hunks are offset by the prior edits'
- * line counts and emitted as one patch.
+ * Builds a synthetic unified diff from edit pairs for a single file.
+ * Each edit is diffed against only its own snippet, so lines can never
+ * correlate across edits.
  */
 export const buildEditDiff = (
 	path: string,
