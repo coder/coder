@@ -50,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 	"github.com/coder/websocket"
@@ -15681,6 +15682,56 @@ func (requireActiveVersionStore) GetTemplateAccessControl(_ database.Template) d
 
 func (requireActiveVersionStore) SetTemplateAccessControl(_ context.Context, _ database.Store, _ uuid.UUID, _ dbauthz.TemplateAccessControl) error {
 	return nil
+}
+
+func TestChatCreateWorkspace_AIDesignation(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	db := api.Database
+	user := coderdtest.CreateFirstUser(t, client)
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	chatID := uuid.New()
+	_, chatAgent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        user.UserID,
+		OrganizationID: user.OrganizationID,
+		OriginType:     database.AIAgentOriginChat,
+		OriginID:       chatID,
+	})
+	require.NoError(t, err)
+	actorCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
+		AgentUserID: chatAgent.UserID,
+		OwnerUserID: chatAgent.OwnerUserID,
+		OriginType:  chatAgent.OriginType,
+		OriginID:    chatAgent.OriginID,
+	})
+
+	created, err := coderd.ChatCreateWorkspace(api, actorCtx, user.UserID, codersdk.CreateWorkspaceRequest{
+		Name:       "chat-designated-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8],
+		TemplateID: template.ID,
+	})
+	require.NoError(t, err)
+
+	workspace, err := db.GetWorkspaceByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: chatAgent.UserID, Valid: true}, workspace.AIAgentID)
+
+	_, err = db.GetAIAgentByOrigin(dbauthz.AsSystemRestricted(ctx), database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginWorkspace,
+		OriginID:   created.ID,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows, "chat-created workspaces must reuse the chat identity")
 }
 
 func TestChatStartWorkspace_RequireActiveVersion(t *testing.T) {

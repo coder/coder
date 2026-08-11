@@ -25,6 +25,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -3791,7 +3792,24 @@ func (api *API) chatCreateWorkspace(
 	aReq.UserID = actingUserID
 	defer commitAudit()
 
-	workspace, err := createWorkspace(ctx, aReq, ownerID, api, owner, req, nil)
+	var createOpts *createWorkspaceOptions
+	if aiActor, ok := aiagentidentity.ActorFromContext(ctx); ok {
+		createOpts = &createWorkspaceOptions{
+			postCreateInTX: func(hookCtx context.Context, tx database.Store, workspace database.Workspace) error {
+				// The marker is server-authoritative and must be committed before
+				// the initial build is created, so every build can bind its agents
+				// without relying on template parameters.
+				//nolint:gocritic // Setting the internal designation marker requires system access.
+				_, err := tx.SetWorkspaceAIAgentID(dbauthz.AsSystemRestricted(hookCtx), database.SetWorkspaceAIAgentIDParams{
+					ID:        workspace.ID,
+					AIAgentID: uuid.NullUUID{UUID: aiActor.AgentUserID, Valid: true},
+				})
+				return err
+			},
+		}
+	}
+
+	workspace, err := createWorkspace(ctx, aReq, ownerID, api, owner, req, createOpts)
 	if err != nil {
 		sw.WriteHeader(chatWorkspaceAuditStatus(err))
 		return codersdk.Workspace{}, err
