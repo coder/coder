@@ -83,6 +83,14 @@ func requireAISandboxAuditStatus(t *testing.T, err error, status int) {
 	require.Equal(t, status, sdkErr.StatusCode())
 }
 
+func requireAISandboxAuditStatusOneOf(t *testing.T, err error, statuses ...int) {
+	t.Helper()
+
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Contains(t, statuses, sdkErr.StatusCode())
+}
+
 func TestAISandboxAuditBoundSelfSession(t *testing.T) {
 	t.Parallel()
 
@@ -197,6 +205,126 @@ func TestAISandboxAuditParentChildSession(t *testing.T) {
 		StartedAt:         time.Now().UTC(),
 	})
 	requireAISandboxAuditStatus(t, err, http.StatusForbidden)
+}
+
+func TestAISandboxAuditReadAPI(t *testing.T) {
+	t.Parallel()
+
+	fixture := newBoundAISandboxAuditFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	workspaceID := fixture.workspace.Workspace.ID
+	startedAt := time.Now().UTC().Add(-time.Minute)
+	sessionID := uuid.New()
+
+	err := fixture.agentClient.PostAISandboxSession(ctx, agentsdk.PostAISandboxSessionRequest{
+		ID:                sessionID,
+		EgressEnforcement: codersdk.AISandboxEgressEnforcementForced,
+		StartedAt:         startedAt,
+	})
+	require.NoError(t, err)
+
+	err = fixture.agentClient.PatchAISandboxNetworkEvents(ctx, agentsdk.PatchAISandboxNetworkEventsRequest{
+		Events: []agentsdk.AISandboxNetworkEvent{
+			{
+				SessionID:      sessionID,
+				OccurredAt:     startedAt.Add(time.Second),
+				Protocol:       agentsdk.AISandboxNetworkProtocolConnect,
+				Host:           "first.example.com",
+				Port:           443,
+				Action:         agentsdk.AISandboxNetworkEventActionAllowed,
+				PolicyRevision: 10,
+			},
+			{
+				SessionID:      sessionID,
+				OccurredAt:     startedAt.Add(2 * time.Second),
+				Protocol:       agentsdk.AISandboxNetworkProtocolHTTP,
+				Host:           "second.example.com",
+				Port:           80,
+				Action:         agentsdk.AISandboxNetworkEventActionDenied,
+				PolicyRevision: 11,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	sessions, err := fixture.client.WorkspaceAISandboxSessions(ctx, workspaceID)
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	require.Equal(t, sessionID, sessions[0].ID)
+	require.Equal(t, workspaceID, sessions[0].WorkspaceID)
+	require.Equal(t, fixture.workspace.Agents[0].ID, sessions[0].ReporterAgentID)
+	require.Equal(t, fixture.workspace.Agents[0].ID, sessions[0].ConfinedAgentID)
+	require.Equal(t, fixture.agentUserID, sessions[0].AIAgentID)
+	require.Equal(t, fixture.owner.UserID, sessions[0].SponsorUserID)
+	require.Equal(t, codersdk.AISandboxEgressEnforcementForced, sessions[0].EgressEnforcement)
+	require.Nil(t, sessions[0].EndedAt)
+
+	storedEvents, err := fixture.db.GetAISandboxNetworkEventsBySessionID(dbauthz.AsSystemRestricted(ctx), sessionID)
+	require.NoError(t, err)
+	require.Len(t, storedEvents, 2)
+	firstStored, secondStored := storedEvents[0], storedEvents[1]
+	if secondStored.ID < firstStored.ID {
+		firstStored, secondStored = secondStored, firstStored
+	}
+
+	firstPage, err := fixture.client.AISandboxSessionNetworkEvents(ctx, workspaceID, sessionID, 0, 1)
+	require.NoError(t, err)
+	require.Len(t, firstPage, 1)
+	require.Equal(t, firstStored.SessionID, firstPage[0].SessionID)
+	require.Equal(t, firstStored.Host, firstPage[0].Host)
+	require.Equal(t, int(firstStored.Port), firstPage[0].Port)
+	require.Equal(t, codersdk.AISandboxNetworkProtocol(firstStored.Protocol), firstPage[0].Protocol)
+	require.Equal(t, codersdk.AISandboxNetworkEventAction(firstStored.Action), firstPage[0].Action)
+	require.Equal(t, firstStored.PolicyRevision, firstPage[0].PolicyRevision)
+
+	secondPage, err := fixture.client.AISandboxSessionNetworkEvents(ctx, workspaceID, sessionID, firstStored.ID, 1)
+	require.NoError(t, err)
+	require.Len(t, secondPage, 1)
+	require.Equal(t, secondStored.Host, secondPage[0].Host)
+
+	unrelatedClient, _ := coderdtest.CreateAnotherUser(t, fixture.client, fixture.owner.OrganizationID)
+	_, err = unrelatedClient.WorkspaceAISandboxSessions(ctx, workspaceID)
+	requireAISandboxAuditStatusOneOf(t, err, http.StatusForbidden, http.StatusNotFound)
+	_, err = unrelatedClient.AISandboxSessionNetworkEvents(ctx, workspaceID, sessionID, 0, 1)
+	requireAISandboxAuditStatusOneOf(t, err, http.StatusForbidden, http.StatusNotFound)
+
+	otherWorkspace := dbfake.WorkspaceBuild(t, fixture.db, database.WorkspaceTable{
+		OrganizationID: fixture.owner.OrganizationID,
+		OwnerID:        fixture.owner.UserID,
+	}).WithAgent().Do()
+	bindAISandboxAuditAgent(t, fixture.db, fixture.owner, otherWorkspace.Agents[0].ID)
+	otherAgentClient := agentsdk.New(fixture.client.URL, agentsdk.WithFixedToken(otherWorkspace.AgentToken))
+	otherSessionID := uuid.New()
+	err = otherAgentClient.PostAISandboxSession(ctx, agentsdk.PostAISandboxSessionRequest{
+		ID:                otherSessionID,
+		EgressEnforcement: codersdk.AISandboxEgressEnforcementAdvisory,
+		StartedAt:         startedAt,
+	})
+	require.NoError(t, err)
+	_, err = fixture.client.AISandboxSessionNetworkEvents(ctx, workspaceID, otherSessionID, 0, 1)
+	requireAISandboxAuditStatus(t, err, http.StatusNotFound)
+
+	_, err = fixture.db.SetWorkspaceAIAgentID(dbauthz.AsSystemRestricted(ctx), database.SetWorkspaceAIAgentIDParams{
+		ID:        workspaceID,
+		AIAgentID: uuid.NullUUID{UUID: fixture.agentUserID, Valid: true},
+	})
+	require.NoError(t, err)
+	workspace, err := fixture.client.Workspace(ctx, workspaceID)
+	require.NoError(t, err)
+	require.NotNil(t, workspace.AIAgentID)
+	require.Equal(t, fixture.agentUserID, *workspace.AIAgentID)
+
+	var foundAgent *codersdk.WorkspaceAgent
+	for _, resource := range workspace.LatestBuild.Resources {
+		for i := range resource.Agents {
+			if resource.Agents[i].ID == fixture.workspace.Agents[0].ID {
+				foundAgent = &resource.Agents[i]
+			}
+		}
+	}
+	require.NotNil(t, foundAgent)
+	require.NotNil(t, foundAgent.AIAgentID)
+	require.Equal(t, fixture.agentUserID, *foundAgent.AIAgentID)
 }
 
 func TestAISandboxAuditNetworkEvents(t *testing.T) {
