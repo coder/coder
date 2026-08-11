@@ -1,0 +1,414 @@
+package confine
+
+import (
+	"context"
+	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+)
+
+const (
+	// EnvAISandboxCreateScript declares the sandbox create command.
+	EnvAISandboxCreateScript = "CODER_AI_SANDBOX_CREATE_SCRIPT"
+	// EnvAISandboxDestroyScript declares the optional sandbox destroy command.
+	EnvAISandboxDestroyScript = "CODER_AI_SANDBOX_DESTROY_SCRIPT"
+	// EnvAISandboxName declares the sandbox reconciliation name.
+	EnvAISandboxName = "CODER_AI_SANDBOX_NAME"
+	// EnvAISandboxEgressEnforcement declares the admin egress attestation.
+	EnvAISandboxEgressEnforcement = "CODER_AI_SANDBOX_EGRESS_ENFORCEMENT"
+	// EnvAISandboxProxyAddress declares the parent-side proxy listen address.
+	EnvAISandboxProxyAddress = "CODER_AI_SANDBOX_PROXY_ADDRESS"
+
+	// EnvAIAgentURL is the coderd URL passed to the sandbox create script.
+	EnvAIAgentURL = "CODER_AI_AGENT_URL"
+	// EnvAIAgentToken is the child agent token passed to the create script.
+	// #nosec G101, this is an environment variable name, not a credential.
+	EnvAIAgentToken = "CODER_AI_AGENT_TOKEN"
+	// EnvAISessionToken is the scoped AI token passed only to the create script.
+	EnvAISessionToken = "CODER_AI_SESSION_TOKEN"
+	// EnvSandboxID is the sandbox lifecycle ID passed to sandbox scripts.
+	EnvSandboxID = "CODER_SANDBOX_ID"
+
+	defaultSandboxName         = "sandbox"
+	defaultSandboxProxyAddress = "127.0.0.1:0"
+	createScriptTimeout        = 5 * time.Minute
+	destroyScriptTimeout       = time.Minute
+	sessionReportAttempts      = 3
+	sessionReportWindow        = 20 * time.Second
+)
+
+var sandboxNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+
+// SandboxDeclaration describes one interim environment-declared AI sandbox.
+type SandboxDeclaration struct {
+	CreateScript      string
+	DestroyScript     string
+	Name              string
+	EgressEnforcement codersdk.AISandboxEgressEnforcement
+	// ProxyAddress defaults to parent loopback. Isolation technologies that
+	// cannot reach parent loopback, such as Docker, must declare a
+	// bridge-reachable parent address.
+	ProxyAddress string
+}
+
+// SandboxDeclarationFromEnv parses the interim environment declaration used
+// until the Terraform sandbox resource is available.
+func SandboxDeclarationFromEnv(lookup func(string) (string, bool)) (SandboxDeclaration, error) {
+	createScript, ok := lookup(EnvAISandboxCreateScript)
+	if !ok || strings.TrimSpace(createScript) == "" {
+		return SandboxDeclaration{}, xerrors.Errorf("%s is required", EnvAISandboxCreateScript)
+	}
+
+	declaration := SandboxDeclaration{
+		CreateScript:      createScript,
+		Name:              defaultSandboxName,
+		EgressEnforcement: codersdk.AISandboxEgressEnforcementNone,
+		ProxyAddress:      defaultSandboxProxyAddress,
+	}
+	if value, ok := lookup(EnvAISandboxDestroyScript); ok {
+		declaration.DestroyScript = value
+	}
+	if value, ok := lookup(EnvAISandboxName); ok && value != "" {
+		declaration.Name = value
+	}
+	if !sandboxNamePattern.MatchString(declaration.Name) {
+		return SandboxDeclaration{}, xerrors.Errorf("invalid AI sandbox name %q", declaration.Name)
+	}
+	if value, ok := lookup(EnvAISandboxEgressEnforcement); ok && value != "" {
+		declaration.EgressEnforcement = codersdk.AISandboxEgressEnforcement(value)
+	}
+	switch declaration.EgressEnforcement {
+	case codersdk.AISandboxEgressEnforcementForced,
+		codersdk.AISandboxEgressEnforcementAdvisory,
+		codersdk.AISandboxEgressEnforcementNone:
+	default:
+		return SandboxDeclaration{}, xerrors.Errorf(
+			"invalid AI sandbox egress enforcement %q", declaration.EgressEnforcement,
+		)
+	}
+	if value, ok := lookup(EnvAISandboxProxyAddress); ok && value != "" {
+		declaration.ProxyAddress = value
+	}
+	return declaration, nil
+}
+
+// SandboxClient is the parent-agent API used by the sandbox controller.
+type SandboxClient interface {
+	AgentClient
+	CreateAISandbox(context.Context, agentsdk.CreateAISandboxRequest) (agentsdk.CreateAISandboxResponse, error)
+	AISandboxes(context.Context) ([]agentsdk.AISandbox, error)
+	DeleteAISandbox(context.Context, uuid.UUID) error
+}
+
+// SandboxControllerOptions configures an environment-declared sandbox.
+type SandboxControllerOptions struct {
+	Declaration SandboxDeclaration
+	Client      SandboxClient
+	Logger      slog.Logger
+	LogDir      string
+	AccessURL   *url.URL
+	Execer      agentexec.Execer
+}
+
+// SandboxController reconciles one sandbox and owns its proxy and session.
+type SandboxController struct {
+	options SandboxControllerOptions
+}
+
+// NewSandboxController validates and constructs a sandbox controller.
+func NewSandboxController(options SandboxControllerOptions) (*SandboxController, error) {
+	if options.Client == nil {
+		return nil, xerrors.New("AI sandbox agent client is required")
+	}
+	if options.AccessURL == nil || options.AccessURL.Hostname() == "" {
+		return nil, xerrors.New("AI sandbox access URL is required")
+	}
+	if options.LogDir == "" {
+		return nil, xerrors.New("AI sandbox log directory is required")
+	}
+	if strings.TrimSpace(options.Declaration.CreateScript) == "" {
+		return nil, xerrors.New("AI sandbox create script is required")
+	}
+	if !sandboxNamePattern.MatchString(options.Declaration.Name) {
+		return nil, xerrors.Errorf("invalid AI sandbox name %q", options.Declaration.Name)
+	}
+	switch options.Declaration.EgressEnforcement {
+	case codersdk.AISandboxEgressEnforcementForced,
+		codersdk.AISandboxEgressEnforcementAdvisory,
+		codersdk.AISandboxEgressEnforcementNone:
+	default:
+		return nil, xerrors.Errorf(
+			"invalid AI sandbox egress enforcement %q", options.Declaration.EgressEnforcement,
+		)
+	}
+	if options.Declaration.ProxyAddress == "" {
+		return nil, xerrors.New("AI sandbox proxy address is required")
+	}
+	if options.Execer == nil {
+		options.Execer = agentexec.DefaultExecer
+	}
+	return &SandboxController{options: options}, nil
+}
+
+// Run reconciles the declared sandbox, executes its scripts, and retains the
+// proxy and audit session until ctx is canceled.
+func (c *SandboxController) Run(ctx context.Context) error {
+	if err := c.deleteStaleSandboxes(ctx); err != nil {
+		return err
+	}
+
+	createCtx, createCancel := context.WithTimeout(ctx, fetchTimeout)
+	sandbox, err := c.options.Client.CreateAISandbox(createCtx, agentsdk.CreateAISandboxRequest{
+		Name:              c.options.Declaration.Name,
+		EgressEnforcement: c.options.Declaration.EgressEnforcement,
+	})
+	createCancel()
+	if err != nil {
+		return xerrors.Errorf("create AI sandbox: %w", err)
+	}
+	if sandbox.Reconciled {
+		c.options.Logger.Info(ctx, "reconciled AI sandbox",
+			slog.F("sandbox_id", sandbox.ID),
+			slog.F("child_agent_id", sandbox.ChildAgentID),
+			slog.F("name", c.options.Declaration.Name),
+		)
+	} else {
+		c.options.Logger.Info(ctx, "created AI sandbox",
+			slog.F("sandbox_id", sandbox.ID),
+			slog.F("child_agent_id", sandbox.ChildAgentID),
+			slog.F("name", c.options.Declaration.Name),
+		)
+	}
+
+	port, err := accessURLPort(c.options.AccessURL)
+	if err != nil {
+		return err
+	}
+	engine := NewPolicyEngine(c.options.AccessURL.Hostname(), port)
+	fetchCtx, fetchCancel := context.WithTimeout(ctx, fetchTimeout)
+	policy, fetchErr := c.options.Client.AIEgressPolicy(fetchCtx)
+	fetchCancel()
+	if fetchErr != nil {
+		c.signalDegraded("AI egress policy fetch failed; started deny-all (degraded)", fetchErr)
+	} else {
+		engine.Update(policy)
+		c.options.Logger.Info(ctx, "applied AI egress policy",
+			slog.F("revision", policy.Revision),
+			slog.F("rule_count", len(policy.Rules)),
+		)
+	}
+
+	sessionID := uuid.New()
+	batcher := newEventBatcher(c.options.Client, c.options.Logger, sessionID, eventQueueSize)
+	proxy, err := ListenProxy(c.options.Declaration.ProxyAddress, engine, batcher.Add)
+	if err != nil {
+		return xerrors.Errorf("start AI sandbox egress proxy: %w", err)
+	}
+	c.options.Logger.Info(ctx, "ai sandbox egress proxy started",
+		slog.F("proxy_address", proxy.Addr().String()),
+		slog.F("sandbox_id", sandbox.ID),
+	)
+
+	runCtx, stop := context.WithCancel(ctx)
+	batcherDone := make(chan struct{})
+	go watchPolicy(runCtx, c.options.Client, c.options.Logger, engine)
+	go func() {
+		defer close(batcherDone)
+		batcher.Run(runCtx, eventFlushPeriod)
+	}()
+
+	startedAt := time.Now()
+	c.postSession(runCtx, agentsdk.PostAISandboxSessionRequest{
+		ID:                sessionID,
+		ChildAgentID:      sandbox.ChildAgentID,
+		EgressEnforcement: c.options.Declaration.EgressEnforcement,
+		StartedAt:         startedAt,
+	})
+
+	createEnv := c.createScriptEnvironment(sandbox, proxy.Addr().String())
+	if err := c.runScript(ctx, "create", c.options.Declaration.CreateScript, createEnv, createScriptTimeout); err != nil {
+		c.signalDegraded("AI sandbox create script failed; sandbox remains active (degraded)", err)
+	}
+
+	<-ctx.Done()
+
+	if strings.TrimSpace(c.options.Declaration.DestroyScript) != "" {
+		destroyEnv := c.destroyScriptEnvironment(sandbox, proxy.Addr().String())
+		if err := c.runScript(context.Background(), "destroy", c.options.Declaration.DestroyScript, destroyEnv, destroyScriptTimeout); err != nil {
+			c.signalDegraded("AI sandbox destroy script failed (degraded)", err)
+		}
+	}
+
+	endedAt := time.Now()
+	closeCtx, closeCancel := context.WithTimeout(context.Background(), sessionReportWindow)
+	c.postSession(closeCtx, agentsdk.PostAISandboxSessionRequest{
+		ID:                sessionID,
+		ChildAgentID:      sandbox.ChildAgentID,
+		EgressEnforcement: c.options.Declaration.EgressEnforcement,
+		StartedAt:         startedAt,
+		EndedAt:           &endedAt,
+	})
+	closeCancel()
+
+	stop()
+	<-batcherDone
+	batcher.Flush()
+	if err := proxy.Close(); err != nil {
+		c.options.Logger.Warn(context.Background(), "close AI sandbox egress proxy", slog.Error(err))
+	}
+	return nil
+}
+
+func (c *SandboxController) deleteStaleSandboxes(ctx context.Context) error {
+	listCtx, listCancel := context.WithTimeout(ctx, fetchTimeout)
+	sandboxes, err := c.options.Client.AISandboxes(listCtx)
+	listCancel()
+	if err != nil {
+		return xerrors.Errorf("list AI sandboxes: %w", err)
+	}
+	for _, sandbox := range sandboxes {
+		if sandbox.Name == c.options.Declaration.Name {
+			continue
+		}
+		deleteCtx, deleteCancel := context.WithTimeout(ctx, fetchTimeout)
+		err := c.options.Client.DeleteAISandbox(deleteCtx, sandbox.ID)
+		deleteCancel()
+		if err != nil {
+			return xerrors.Errorf("delete stale AI sandbox %q: %w", sandbox.Name, err)
+		}
+		c.options.Logger.Info(ctx, "deleted stale AI sandbox record",
+			slog.F("sandbox_id", sandbox.ID),
+			slog.F("child_agent_id", sandbox.ChildAgentID),
+			slog.F("name", sandbox.Name),
+		)
+	}
+	return nil
+}
+
+func (c *SandboxController) createScriptEnvironment(
+	sandbox agentsdk.CreateAISandboxResponse,
+	proxyAddress string,
+) []string {
+	env := c.scriptEnvironment(sandbox, proxyAddress)
+	return setEnv(env, EnvAISessionToken, sandbox.SessionToken)
+}
+
+func (c *SandboxController) destroyScriptEnvironment(
+	sandbox agentsdk.CreateAISandboxResponse,
+	proxyAddress string,
+) []string {
+	return unsetEnv(c.scriptEnvironment(sandbox, proxyAddress), EnvAISessionToken)
+}
+
+func (c *SandboxController) scriptEnvironment(
+	sandbox agentsdk.CreateAISandboxResponse,
+	proxyAddress string,
+) []string {
+	env := append([]string(nil), os.Environ()...)
+	env = setEnv(env, EnvAIAgentURL, c.options.AccessURL.String())
+	env = setEnv(env, EnvAIAgentToken, sandbox.AgentToken)
+	env = setEnv(env, EnvEgressProxy, proxyAddress)
+	return setEnv(env, EnvSandboxID, sandbox.ID.String())
+}
+
+func (c *SandboxController) runScript(
+	ctx context.Context,
+	kind string,
+	script string,
+	env []string,
+	timeout time.Duration,
+) error {
+	if err := os.MkdirAll(c.options.LogDir, 0o755); err != nil {
+		return xerrors.Errorf("create AI sandbox log directory: %w", err)
+	}
+	logPath := filepath.Join(c.options.LogDir, "coder-ai-sandbox.log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return xerrors.Errorf("open AI sandbox log: %w", err)
+	}
+	defer logFile.Close()
+
+	scriptCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	command := c.options.Execer.CommandContext(scriptCtx, "sh", "-c", script)
+	command.Env = env
+	command.Stdout = logFile
+	command.Stderr = logFile
+	if err := command.Run(); err != nil {
+		if scriptCtx.Err() != nil {
+			return xerrors.Errorf("AI sandbox %s script: %w", kind, scriptCtx.Err())
+		}
+		return xerrors.Errorf("AI sandbox %s script: %w", kind, err)
+	}
+	return nil
+}
+
+func (c *SandboxController) postSession(ctx context.Context, request agentsdk.PostAISandboxSessionRequest) {
+	backoff := time.Second
+	var lastErr error
+	for attempt := 1; attempt <= sessionReportAttempts; attempt++ {
+		reportCtx, cancel := context.WithTimeout(ctx, reportTimeout)
+		lastErr = c.options.Client.PostAISandboxSession(reportCtx, request)
+		cancel()
+		if lastErr == nil || isNotFound(lastErr) {
+			return
+		}
+		if attempt == sessionReportAttempts || !waitBackoff(ctx, backoff) {
+			break
+		}
+		backoff *= 2
+	}
+	c.options.Logger.Warn(context.Background(), "report AI sandbox session", slog.Error(lastErr))
+}
+
+func (c *SandboxController) signalDegraded(message string, cause error) {
+	ctx := context.Background()
+	c.options.Logger.Warn(ctx, message, slog.Error(cause))
+	reportCtx, cancel := context.WithTimeout(ctx, reportTimeout)
+	defer cancel()
+	err := c.options.Client.PatchLogs(reportCtx, agentsdk.PatchLogs{
+		Logs: []agentsdk.Log{{CreatedAt: time.Now(), Output: message, Level: codersdk.LogLevelWarn}},
+	})
+	if err != nil && !isNotFound(err) {
+		c.options.Logger.Warn(ctx, "report degraded AI sandbox", slog.Error(err))
+	}
+}
+
+func watchPolicy(ctx context.Context, client AgentClient, logger slog.Logger, engine *PolicyEngine) {
+	backoff := time.Second
+	for ctx.Err() == nil {
+		policies, closer, err := client.WatchAIEgressPolicy(ctx)
+		if err != nil {
+			if !isNotFound(err) {
+				logger.Warn(ctx, "watch AI egress policy", slog.Error(err))
+			}
+			if !waitBackoff(ctx, backoff) {
+				return
+			}
+			backoff = min(backoff*2, 30*time.Second)
+			continue
+		}
+		backoff = time.Second
+		for policy := range policies {
+			engine.Update(policy)
+		}
+		if closer != nil {
+			_ = closer.Close()
+		}
+		if !waitBackoff(ctx, backoff) {
+			return
+		}
+		backoff = min(backoff*2, 30*time.Second)
+	}
+}

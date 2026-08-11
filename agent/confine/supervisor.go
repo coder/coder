@@ -167,7 +167,7 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 
 	runCtx, stop := context.WithCancel(ctx)
 	defer stop()
-	go s.watchPolicy(runCtx, engine)
+	go watchPolicy(runCtx, s.options.Client, s.options.Logger, engine)
 	go batcher.Run(runCtx, eventFlushPeriod)
 
 	enforcement := codersdk.AISandboxEgressEnforcementAdvisory
@@ -242,32 +242,6 @@ func (s *Supervisor) prepareNetwork(ctx context.Context) (*networkNamespace, boo
 		return nil, false
 	}
 	return netns, true
-}
-
-func (s *Supervisor) watchPolicy(ctx context.Context, engine *PolicyEngine) {
-	backoff := time.Second
-	for ctx.Err() == nil {
-		policies, closer, err := s.options.Client.WatchAIEgressPolicy(ctx)
-		if err != nil {
-			s.logReportFailure(ctx, "watch AI egress policy", err)
-			if !waitBackoff(ctx, backoff) {
-				return
-			}
-			backoff = min(backoff*2, 30*time.Second)
-			continue
-		}
-		backoff = time.Second
-		for policy := range policies {
-			engine.Update(policy)
-		}
-		if closer != nil {
-			_ = closer.Close()
-		}
-		if !waitBackoff(ctx, backoff) {
-			return
-		}
-		backoff = min(backoff*2, 30*time.Second)
-	}
 }
 
 func (s *Supervisor) signalDegraded(message string, cause error) {
