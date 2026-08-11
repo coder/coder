@@ -192,29 +192,6 @@ const mockAttachmentFetch = () => {
 	});
 };
 
-// Read-only Navigator values must be shadowed with removable own properties.
-const overrideNavigatorForIOSStandalone = (
-	extras: Record<string, unknown> = {},
-): (() => void) => {
-	const overrides: Record<string, unknown> = {
-		userAgent:
-			"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
-		standalone: true,
-		...extras,
-	};
-	for (const [key, value] of Object.entries(overrides)) {
-		Object.defineProperty(navigator, key, {
-			value,
-			configurable: true,
-		});
-	}
-	return () => {
-		for (const key of Object.keys(overrides)) {
-			Reflect.deleteProperty(navigator, key);
-		}
-	};
-};
-
 const buildTextPart = (text: string): TypesGen.ChatTextPart => ({
 	type: "text",
 	text,
@@ -1340,10 +1317,18 @@ export const DownloadInIOSStandaloneSharesFile: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const share = fn().mockResolvedValue(undefined);
-		const restoreNavigator = overrideNavigatorForIOSStandalone({
+		// Read-only Navigator values must be shadowed with removable own
+		// properties.
+		const overrides: Record<string, unknown> = {
+			userAgent:
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+			standalone: true,
 			share,
 			canShare: fn().mockReturnValue(true),
-		});
+		};
+		for (const [key, value] of Object.entries(overrides)) {
+			Object.defineProperty(navigator, key, { value, configurable: true });
+		}
 		try {
 			await userEvent.click(
 				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
@@ -1355,7 +1340,9 @@ export const DownloadInIOSStandaloneSharesFile: Story = {
 			expect(shared.files[0].type).toBe("application/pdf");
 			expect(getAttachmentFetchCount("storybook-ios-share-report")).toBe(1);
 		} finally {
-			restoreNavigator();
+			for (const key of Object.keys(overrides)) {
+				Reflect.deleteProperty(navigator, key);
+			}
 		}
 	},
 };

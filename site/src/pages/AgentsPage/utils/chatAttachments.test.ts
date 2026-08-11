@@ -181,8 +181,6 @@ describe("handleAttachmentDownloadClick", () => {
 
 	it("shows a plain failure toast after a permanent share failure", async () => {
 		enterIOSStandalonePWA();
-		// jsdom's DOMException is not instanceof Error, so a plain Error
-		// stands in for permanent failures like DataError.
 		mockFileSharing(vi.fn().mockRejectedValue(new Error("share failed")));
 		mockAttachmentFetch();
 

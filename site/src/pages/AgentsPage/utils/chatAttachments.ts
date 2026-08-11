@@ -126,8 +126,8 @@ const shareFileViaSheet = (file: File, fileName: string): Promise<void> =>
 			return;
 		}
 		if (errorHasName(error, "NotAllowedError")) {
-			// A slow fetch consumes the click's transient activation; the
-			// toast click provides the fresh gesture the retry needs.
+			// Fetching may outlast transient user activation. The toast action
+			// supplies a fresh gesture for the retry.
 			showDownloadFailure(fileName, {
 				description: "The file is ready to save.",
 				action: {
@@ -180,10 +180,8 @@ const shareAttachmentFile = async (
 };
 
 /**
- * Avoids iOS standalone PWA QuickLook, which can leave no way back to the
- * app, by routing the download through the share sheet. Everywhere else,
- * and on iOS devices without file sharing, the native anchor download
- * proceeds.
+ * Uses the share sheet in iOS standalone mode to avoid a QuickLook navigation
+ * with no reliable return path. Otherwise, the native anchor handles the download.
  */
 export const handleAttachmentDownloadClick = (
 	event: { preventDefault: () => void },
