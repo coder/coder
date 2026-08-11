@@ -1890,6 +1890,19 @@ communicating directly.`,
 		Hidden:      false,
 		Default:     "coder",
 	}
+	enableTasks := serpent.Option{
+		Name:        "Enable Tasks",
+		Description: "Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI and its URLs are unavailable, the task RBAC permissions are stripped from built-in roles, and the CLI task commands are hidden.",
+		Flag:        "enable-tasks",
+		Env:         "CODER_ENABLE_TASKS",
+		Default:     "false",
+		Value:       &c.TasksEnabled,
+		YAML:        "enableTasks",
+		// Hidden keeps Tasks out of the generated CLI and configuration
+		// reference documentation while the feature is withdrawn from the
+		// product.
+		Hidden: true,
+	}
 
 	// AI Gateway options
 	aiGatewayProviderSeedingDeprecated := "Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. "
@@ -4302,7 +4315,11 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 		},
 		{
-			Name:        "Hide AI Tasks",
+			Name: "Hide AI Tasks",
+			// Superseded by --enable-tasks, which hides Tasks entirely rather
+			// than only removing the dashboard tab. Kept so existing
+			// deployments continue to parse, and hidden so it no longer
+			// documents Tasks.
 			Description: "Hide AI tasks from the dashboard.",
 			Flag:        "hide-ai-tasks",
 			Env:         "CODER_HIDE_AI_TASKS",
@@ -4310,20 +4327,10 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.HideAITasks,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
+			Hidden:      true,
+			UseInstead:  []serpent.Option{enableTasks},
 		},
-		{
-			Name:        "Enable Tasks",
-			Description: "Enable Coder Tasks. When unset, the Tasks routes are not registered, the Tasks UI and its URLs are unavailable, the task RBAC permissions are stripped from built-in roles, and the CLI task commands are hidden.",
-			Flag:        "enable-tasks",
-			Env:         "CODER_ENABLE_TASKS",
-			Default:     "false",
-			Value:       &c.TasksEnabled,
-			YAML:        "enableTasks",
-			// Hidden keeps Tasks out of the generated CLI and
-			// configuration reference documentation while the feature is
-			// withdrawn from the product.
-			Hidden: true,
-		},
+		enableTasks,
 		// Chat Options
 		{
 			Name:        "Chat: Acquire Batch Size",

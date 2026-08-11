@@ -794,8 +794,8 @@ workspace_prebuilds:
   # limit; disabled when set to zero.
   # (default: 3, type: int)
   failure_hard_limit: 3
-# Enable Coder Tasks. When unset, the Tasks routes are not registered, the Tasks
-# UI and its URLs are unavailable, the task RBAC permissions are stripped from
+# Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI
+# and its URLs are unavailable, the task RBAC permissions are stripped from
 # built-in roles, and the CLI task commands are hidden.
 # (default: false, type: bool)
 enableTasks: false

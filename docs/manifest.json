@@ -1647,10 +1647,6 @@
 							"path": "./reference/api/secrets.md"
 						},
 						{
-							"title": "Tasks",
-							"path": "./reference/api/tasks.md"
-						},
-						{
 							"title": "TemplateBuilder",
 							"path": "./reference/api/templatebuilder.md"
 						},

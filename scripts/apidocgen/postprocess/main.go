@@ -59,6 +59,17 @@ var (
 
 	sectionSeparator     = []byte("<!-- APIDOCGEN: BEGIN SECTION -->\n")
 	nonAlphanumericRegex = regexp.MustCompile(`[^a-z0-9 ]+`)
+
+	// unpublishedSections are swagger tags whose endpoints stay annotated,
+	// so TestEndpointsDocumented keeps passing, but whose reference page is
+	// not written to docs/reference/api and not listed in the manifest.
+	//
+	// Coder Tasks is withdrawn from the product and gated behind
+	// CODER_ENABLE_TASKS. Its handlers still exist, so widdershins still
+	// emits a Tasks section that must be dropped here.
+	unpublishedSections = map[string]struct{}{
+		"Tasks": {},
+	}
 )
 
 func main() {
@@ -145,6 +156,10 @@ func writeDocs(sections [][]byte) error {
 		sectionName, err := extractSectionName(section)
 		if err != nil {
 			return xerrors.Errorf("can't extract section name: %w", err)
+		}
+		if _, ok := unpublishedSections[sectionName]; ok {
+			log.Printf("Skip unpublished section: %s", sectionName)
+			continue
 		}
 		log.Printf("Write section: %s", sectionName)
 

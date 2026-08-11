@@ -126,11 +126,6 @@ Refer to [Coder Desktop](../user-guides/desktop/index.md).
 The editor extension that connects VS Code, and forks such as Cursor and Windsurf, to Coder workspaces.
 Refer to [VS Code](../user-guides/workspace-access/vscode.md).
 
-### Coder Tasks
-
-An earlier interface for running coding agents such as Claude Code and Aider inside workspaces.
-Coder Tasks is deprecated and is no longer available in new releases, with [Coder Agents](#coder-agents) as the long-term replacement.
-
 ### `coder_agent`
 
 The Terraform resource that declares a [workspace agent](#workspace-agent) inside a template.
