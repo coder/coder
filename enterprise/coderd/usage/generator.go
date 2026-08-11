@@ -158,12 +158,24 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 		return xerrors.Errorf("list existing agent runtime events: %w", err)
 	}
 	// A row marks its bucket complete regardless of publish outcome, so a
-	// bucket whose event Tallyman permanently rejected is never regenerated
-	// (re-inserting under the deterministic ID is a no-op via the insert's
-	// ON CONFLICT (id) arbiter). The runtime is not lost locally: the row
-	// keeps it, and clearing the row's publish columns re-queues it while
-	// the bucket is within SelectUsageEventsForPublishing's 30-day
-	// created_at cutoff.
+	// bucket whose event Tallyman permanently rejected is never
+	// regenerated (re-inserting under the deterministic ID is a no-op via
+	// the insert's ON CONFLICT (id) arbiter).
+	//
+	// The runtime is not lost locally: the row still holds it, and the
+	// event can be re-queued for publishing with
+	//
+	//	UPDATE usage_events
+	//	SET published_at = NULL, publish_started_at = NULL, failure_message = NULL
+	//	WHERE id = 'hb_agent_runtime_v1:<bucket start, e.g. 2026-07-15_14:00:00>';
+	//
+	// That re-arm only has an effect while the bucket is inside the
+	// publisher's 30-day cutoff: SelectUsageEventsForPublishing also
+	// filters created_at > now - INTERVAL '30 days', and created_at is the
+	// bucket start, so past that the UPDATE reports success but the row is
+	// never picked up again. The release gate (Tallyman must accept this
+	// event type before coderd ships it) is what keeps permanent
+	// rejections exceptional.
 	existing := make(map[time.Time]struct{}, len(existingTimes))
 	for _, ts := range existingTimes {
 		// created_at is always the exact bucket start for this event type;
