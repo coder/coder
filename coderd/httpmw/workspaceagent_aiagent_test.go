@@ -11,7 +11,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aiagentidentity"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -20,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -115,11 +118,12 @@ func serveWorkspaceAgent(t *testing.T, fixture workspaceAgentAIFixture, handler 
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set(codersdk.SessionTokenHeader, fixture.token.String())
-	rw := httptest.NewRecorder()
+	recorder := httptest.NewRecorder()
+	rw := &tracing.StatusWriter{ResponseWriter: recorder}
 	httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 		DB: fixture.db,
 	})(handler).ServeHTTP(rw, req)
-	return rw.Code
+	return recorder.Code
 }
 
 func TestWorkspaceAgentAIBinding(t *testing.T) {
@@ -170,6 +174,32 @@ func TestWorkspaceAgentAIBinding(t *testing.T) {
 		userResource := rbac.ResourceUser.WithOwner(fixture.owner.ID.String()).WithID(fixture.owner.ID)
 		require.NoError(t, authorizer.Authorize(context.Background(), subject, policy.ActionReadPersonal, userResource))
 	})
+}
+
+func TestWorkspaceAgentAIAuditAttribution(t *testing.T) {
+	t.Parallel()
+
+	fixture := newBoundWorkspaceAgentAIFixture(t)
+	auditor := audit.NewMock()
+	status := serveWorkspaceAgent(t, fixture, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(httpmw.WithRequestID(r.Context(), uuid.New()))
+		aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+			Audit:   auditor,
+			Log:     slogtest.Make(t, nil),
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+		aReq.New = database.User{ID: uuid.New(), Username: "workspace-agent-audit-target-" + uuid.NewString()}
+		rw.WriteHeader(http.StatusCreated)
+		commitAudit()
+	}))
+	require.Equal(t, http.StatusCreated, status)
+
+	logs := auditor.AuditLogs()
+	require.Len(t, logs, 1)
+	require.Equal(t, fixture.agentUser.ID, logs[0].UserID)
+	require.True(t, logs[0].OnBehalfOfUserID.Valid)
+	require.Equal(t, fixture.owner.ID, logs[0].OnBehalfOfUserID.UUID)
 }
 
 func TestWorkspaceAgentAIBindingLiveness(t *testing.T) {

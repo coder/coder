@@ -39,7 +39,6 @@ func TestAIAgentAuditAttribution(t *testing.T) {
 		Request: r,
 		Action:  database.AuditActionCreate,
 	})
-	req.UserID = agentUserID
 	req.New = database.User{ID: uuid.New(), Username: "created-user"}
 	sw.WriteHeader(http.StatusCreated)
 	commit()

@@ -506,9 +506,12 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		}
 
 		var userID uuid.UUID
-		key, ok := httpmw.APIKeyOptional(p.Request)
+		actor, hasAIAgentActor := aiagentidentity.ActorFromContext(p.Request.Context())
+		key, hasAPIKey := httpmw.APIKeyOptional(p.Request)
 		switch {
-		case ok:
+		case hasAIAgentActor:
+			userID = actor.AgentUserID
+		case hasAPIKey:
 			userID = key.UserID
 		case req.UserID != uuid.Nil:
 			userID = req.UserID
@@ -526,7 +529,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 
 		ip := database.ParseIP(p.Request.RemoteAddr)
 		onBehalfOfUserID := uuid.NullUUID{}
-		if actor, ok := aiagentidentity.ActorFromContext(p.Request.Context()); ok {
+		if hasAIAgentActor {
 			onBehalfOfUserID = uuid.NullUUID{UUID: actor.OwnerUserID, Valid: true}
 		}
 		auditLog := database.AuditLog{
