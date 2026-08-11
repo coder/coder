@@ -234,6 +234,11 @@ func TestRequestCompaction_FreshHistoryEpoch(t *testing.T) {
 				_, err := f.DB.IncrementChatGenerationAttempt(ctx, seeded.chatID)
 				require.NoError(t, err)
 			}
+			_, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
+				ID:         seeded.chatID,
+				RetryState: []byte(`{"attempt":1}`),
+			})
+			require.NoError(t, err)
 			before := f.readChat(ctx, t, seeded.chatID)
 
 			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
@@ -247,6 +252,8 @@ func TestRequestCompaction_FreshHistoryEpoch(t *testing.T) {
 			require.Greater(t, chat.HistoryVersion, before.HistoryVersion,
 				"epoch must advance past every version the previous turn's episode keys used")
 			require.Equal(t, chat.SnapshotVersion, chat.HistoryVersion)
+			require.False(t, chat.RetryState.Valid,
+				"a stale retry payload must not survive into the fresh epoch, even at attempt 0 where the generation_attempt trigger cannot clear it")
 		})
 	}
 }
