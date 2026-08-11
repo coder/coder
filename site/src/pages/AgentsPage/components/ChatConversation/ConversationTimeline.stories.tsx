@@ -1299,6 +1299,35 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 	},
 };
 
+export const AssistantMessageWithMismatchedExtensionFile: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here are the release notes." },
+					{
+						type: "file",
+						media_type: "application/pdf",
+						file_id: "storybook-mismatched-notes",
+						name: "release-notes.txt",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const downloadLink = canvas.getByRole("link", {
+			name: "Download release-notes.txt",
+		});
+		expect(downloadLink).toHaveAttribute("download", "release-notes.txt");
+	},
+};
+
 const iosDownloadStoryArgs: Story["args"] = buildStoryArgs(
 	buildUserMessage({
 		text: "I attached the deployment report.",

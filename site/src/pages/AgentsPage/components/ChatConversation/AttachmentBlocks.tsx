@@ -90,6 +90,13 @@ const getMediaTypeExtension = (mediaType: string): string | null => {
 		: null;
 };
 
+const getNameExtension = (name: string): string | null => {
+	const lastDot = name.lastIndexOf(".");
+	return lastDot > 0 && lastDot < name.length - 1
+		? name.slice(lastDot + 1)
+		: null;
+};
+
 const getAttachmentExtension = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
@@ -97,10 +104,9 @@ const getAttachmentExtension = (
 	if (mapped) {
 		return mapped;
 	}
-	const name = block.name?.trim();
-	const lastDot = name?.lastIndexOf(".") ?? -1;
-	if (name && lastDot > 0 && lastDot < name.length - 1) {
-		return sanitizeAttachmentExtension(name.slice(lastDot + 1));
+	const nameExtension = getNameExtension(block.name?.trim() ?? "");
+	if (nameExtension) {
+		return sanitizeAttachmentExtension(nameExtension);
 	}
 	return (
 		getMediaTypeExtension(block.media_type) ??
@@ -110,9 +116,6 @@ const getAttachmentExtension = (
 
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
-
-const isSuffixPreservingMediaType = (mediaType: string): boolean =>
-	mediaType.startsWith("text/");
 
 const getAttachmentHref = (block: FileAttachmentBlock): string | null => {
 	if (block.file_id) {
@@ -140,8 +143,6 @@ const getAttachmentDisplayName = (
 	return "Attached file";
 };
 
-const extensionAliases = new Set(["jpg:jpeg", "tiff:tif"]);
-
 const getAttachmentDownloadName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
@@ -150,21 +151,12 @@ const getAttachmentDownloadName = (
 		const extension = getAttachmentExtension(block);
 		return extension === "file" ? "attachment" : `attachment.${extension}`;
 	}
+	// Kept even when the name's extension disagrees with the media type.
+	if (name.startsWith(".") || getNameExtension(name)) {
+		return name;
+	}
 	const mediaExtension = getMediaTypeExtension(block.media_type);
-	if (!mediaExtension || name.startsWith(".")) {
-		return name;
-	}
-	if (
-		isSuffixPreservingMediaType(block.media_type) &&
-		/\.[^.\s]+$/.test(name)
-	) {
-		return name;
-	}
-	const suffix = name.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toLowerCase();
-	return suffix === mediaExtension ||
-		extensionAliases.has(`${mediaExtension}:${suffix}`)
-		? name
-		: `${name}.${mediaExtension}`;
+	return mediaExtension ? `${name}.${mediaExtension}` : name;
 };
 
 const getAttachmentBadgeLabel = (

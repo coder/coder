@@ -89,12 +89,6 @@ type AttachmentDownloadTarget = {
 	mediaType: string;
 };
 
-const errorHasName = (error: unknown, name: string): boolean =>
-	typeof error === "object" &&
-	error !== null &&
-	"name" in error &&
-	error.name === name;
-
 const showDownloadFailure = (
 	fileName: string,
 	options: {
@@ -105,8 +99,6 @@ const showDownloadFailure = (
 	toast.error(`Couldn't download ${fileName}`, options);
 };
 
-// Production CSP excludes data: from connect-src, so inline hrefs are
-// decoded locally instead.
 const fileFromDataURL = ({
 	href,
 	fileName,
@@ -122,10 +114,10 @@ const fileFromDataURL = ({
 
 const shareFileViaSheet = (file: File, fileName: string): Promise<void> =>
 	navigator.share({ files: [file] }).catch((error: unknown) => {
-		if (errorHasName(error, "AbortError")) {
+		if (error instanceof DOMException && error.name === "AbortError") {
 			return;
 		}
-		if (errorHasName(error, "NotAllowedError")) {
+		if (error instanceof DOMException && error.name === "NotAllowedError") {
 			// Fetching may outlast transient user activation. The toast action
 			// supplies a fresh gesture for the retry.
 			showDownloadFailure(fileName, {
