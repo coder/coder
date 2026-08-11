@@ -225,6 +225,23 @@ of the template will be used.
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -591,6 +608,23 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -924,6 +958,23 @@ of the template will be used.
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -1048,11 +1099,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                                                                                                 |
-|----------|-------|---------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy. |
-| `limit`  | query | integer | false    | Page limit                                                                                                                                                                                  |
-| `offset` | query | integer | false    | Page offset                                                                                                                                                                                 |
+| Name     | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                                    |
+|----------|-------|---------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items). |
+| `limit`  | query | integer | false    | Page limit                                                                                                                                                                                                                                                                                                                     |
+| `offset` | query | integer | false    | Page offset                                                                                                                                                                                                                                                                                                                    |
 
 ### Example responses
 
@@ -1218,6 +1269,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 ],
                 "logs_length": 0,
                 "logs_overflowed": true,
+                "metadata": [
+                  {
+                    "description": {},
+                    "result": {}
+                  }
+                ],
                 "name": "string",
                 "operating_system": "string",
                 "parent_id": {
@@ -1527,6 +1584,23 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -2146,6 +2220,23 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {

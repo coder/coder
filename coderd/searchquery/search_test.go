@@ -342,6 +342,13 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "IncludeAgentMetadata",
+			Query: `include_agent_metadata:"task_status" include_agent_metadata:"cpu"`,
+			Expected: database.GetWorkspacesParams{
+				IncludeAgentMetadata: []string{"task_status", "cpu"},
+			},
+		},
+		{
 			Name:  "SharedWithMe",
 			Query: `shared_with_user:me`,
 			Setup: func(t *testing.T, db database.Store) {
@@ -540,6 +547,10 @@ func TestSearchWorkspace(t *testing.T) {
 				if len(c.Expected.HasAgentStatuses) == len(values.HasAgentStatuses) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasAgentStatuses = values.HasAgentStatuses
+				}
+				if len(c.Expected.IncludeAgentMetadata) == len(values.IncludeAgentMetadata) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.IncludeAgentMetadata = values.IncludeAgentMetadata
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
@@ -1738,6 +1749,97 @@ func TestSearchChats(t *testing.T) {
 			} else {
 				require.Len(t, errs, 0, "expected no error")
 				require.Equal(t, c.Expected, values, "expected values")
+			}
+		})
+	}
+}
+
+func TestSearchGroups(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		Name                  string
+		Query                 string
+		Expected              string
+		ExpectedErrorContains string
+	}{
+		{
+			Name:     "Empty",
+			Query:    "",
+			Expected: "",
+		},
+		{
+			Name:     "SingleWord",
+			Query:    "alpha",
+			Expected: "alpha",
+		},
+		{
+			// Groups support free-text search, so an unquoted multi-word query
+			// is joined into a single search value instead of being rejected as
+			// a duplicate param.
+			Name:     "MultiWord",
+			Query:    "front end",
+			Expected: "front end",
+		},
+		{
+			Name:     "CaseInsensitive",
+			Query:    "AlPhA",
+			Expected: "alpha",
+		},
+		{
+			Name:     "MultiWordCaseInsensitive",
+			Query:    "Front End",
+			Expected: "front end",
+		},
+		{
+			Name:     "TrimsSurroundingSpaces",
+			Query:    "   alpha   ",
+			Expected: "alpha",
+		},
+		{
+			// Structured key:value queries are not supported for groups; the
+			// unrecognized key surfaces as an invalid query param. Rejecting
+			// unknown keys leaves room for real key:value filters later.
+			Name:                  "StructuredKeyValueRejected",
+			Query:                 "name:alpha",
+			ExpectedErrorContains: "is not a valid query param",
+		},
+		{
+			// The explicit search key is supported.
+			Name:     "SearchKey",
+			Query:    "search:alpha",
+			Expected: "alpha",
+		},
+		{
+			// A colon-containing name is searchable when quoted via the search
+			// key, since group display names may legally contain colons.
+			Name:     "QuotedColonValue",
+			Query:    `search:"team: frontend"`,
+			Expected: "team: frontend",
+		},
+		{
+			// An unquoted colon is treated as a key:value delimiter, so a bare
+			// colon term is rejected. Users must quote it (see QuotedColonValue).
+			Name:                  "BareColonRejected",
+			Query:                 "team: frontend",
+			ExpectedErrorContains: "cannot start or end with ':'",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
+			search, errs := searchquery.Groups(c.Query)
+			if c.ExpectedErrorContains != "" {
+				require.True(t, len(errs) > 0, "expect some errors")
+				var s strings.Builder
+				for _, err := range errs {
+					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+				}
+				require.Contains(t, s.String(), c.ExpectedErrorContains)
+			} else {
+				require.Len(t, errs, 0, "expected no error")
+				require.Equal(t, c.Expected, search, "expected search value")
 			}
 		})
 	}
