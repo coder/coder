@@ -1,4 +1,6 @@
-# Dynamic Parameters
+---
+title: Dynamic Parameters
+---
 
 Coder v2.24.0 introduces Dynamic Parameters to extend Coder [parameters](./parameters.md) with conditional form controls,
 enriched input types, and user identity awareness.

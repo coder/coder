@@ -1,4 +1,6 @@
-# Web Terminal
+---
+title: Web Terminal
+---
 
 The Web Terminal is a browser-based terminal interface that provides instant
 access to your workspace's shell environment directly from the Coder dashboard.

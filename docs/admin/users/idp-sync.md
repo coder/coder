@@ -1,6 +1,8 @@
-<!-- markdownlint-disable MD024 -->
-# IdP Sync
+---
+title: IdP Sync
+---
 
+<!-- markdownlint-disable MD024 -->
 > [!NOTE]
 > IdP sync is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).

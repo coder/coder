@@ -1,4 +1,6 @@
-# Windsurf
+---
+title: Windsurf
+---
 
 [Windsurf](https://codeium.com/windsurf) is Codeium's code editor designed for AI-assisted
 development.

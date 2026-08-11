@@ -1,4 +1,6 @@
-# Monitoring
+---
+title: Monitoring
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is

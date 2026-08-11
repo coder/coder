@@ -1,4 +1,6 @@
-# GitHub Copilot
+---
+title: GitHub Copilot
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../../ai-governance.md), which is

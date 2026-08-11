@@ -1,4 +1,6 @@
-# Setup
+---
+title: Setup
+---
 
 By default, AI Gateway runs inside the Coder control plane (`coderd`) and requires no separate compute.
 In embedded mode, `coderd` runs the Gateway in memory and brokers traffic to your configured AI providers on behalf of authenticated users.

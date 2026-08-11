@@ -1,4 +1,6 @@
-# Coder Desktop Connect and Sync
+---
+title: Coder Desktop Connect and Sync
+---
 
 Use Coder Desktop to work on your workspaces and files as though they're on your LAN.
 

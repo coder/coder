@@ -1,4 +1,6 @@
-# Prometheus
+---
+title: Prometheus
+---
 
 Coder exposes many metrics which can be consumed by a Prometheus server, and
 give insight into the current state of a live Coder deployment.

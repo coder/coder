@@ -1,3 +1,7 @@
+---
+title: Security & Agent Firewall
+---
+
 > [!NOTE]
 > Features mentioned on this page, such as AI Gateway and Agent Firewall,
 > are part of [AI Governance](./ai-governance.md), which is included with a

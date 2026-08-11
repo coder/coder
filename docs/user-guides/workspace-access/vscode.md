@@ -1,4 +1,6 @@
-# Visual Studio Code
+---
+title: Visual Studio Code
+---
 
 You can develop in your Coder workspace remotely with
 [VS Code](https://code.visualstudio.com/download).

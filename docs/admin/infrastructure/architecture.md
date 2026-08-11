@@ -1,4 +1,6 @@
-# Architecture
+---
+title: Architecture
+---
 
 The Coder deployment model is flexible and offers various components that
 platform administrators can deploy and scale depending on their use case. This

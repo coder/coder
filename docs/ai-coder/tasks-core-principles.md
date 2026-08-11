@@ -1,4 +1,6 @@
-# Understanding Coder Tasks
+---
+title: Understanding Coder Tasks
+---
 
 > [!WARNING]
 > Starting June 2, 2026, Coder Tasks will move to a 12-month Extended Support Release (ESR) for Premium customers.

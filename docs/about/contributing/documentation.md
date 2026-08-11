@@ -1,4 +1,6 @@
-# Documentation
+---
+title: Documentation
+---
 
 This style guide is primarily for use with authoring documentation.
 

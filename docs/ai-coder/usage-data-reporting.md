@@ -1,4 +1,6 @@
-# Usage Data Reporting
+---
+title: Usage Data Reporting
+---
 
 [AI Governance](./ai-governance.md) requires reporting usage data to Tallyman, a Coder-managed server for billing and reporting purposes. Coder only captures and sends the following information, related to your deployment ID:
 

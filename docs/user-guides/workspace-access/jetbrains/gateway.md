@@ -1,3 +1,7 @@
+---
+title: JetBrains Gateway
+---
+
 ## JetBrains Gateway
 
 > [! WARNING]

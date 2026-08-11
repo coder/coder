@@ -1,4 +1,6 @@
-# JetBrains Fleet
+---
+title: JetBrains Fleet
+---
 
 JetBrains Fleet is a code editor and lightweight IDE designed to support various
 programming languages and development environments.

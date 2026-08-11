@@ -1,4 +1,6 @@
-# Extending Agents
+---
+title: Extending Agents
+---
 
 Workspace templates can extend the agent with custom skills and MCP tools.
 These mechanisms let platform teams provide repository-specific instructions,
