@@ -26,7 +26,10 @@ const addDefaultURLScheme = (value: string): string => {
 	return /^[a-z][a-z\d+\-.]*:\/\//i.test(value) ? value : `https://${value}`;
 };
 
-const normalizeChatSearchFilterValue = (key: string, value: string): string => {
+export const normalizeChatSearchFilterValue = (
+	key: string,
+	value: string,
+): string => {
 	const sanitizedValue = sanitizeChatSearchValue(value).trim();
 	if (sanitizedValue === "") {
 		return "";

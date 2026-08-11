@@ -534,6 +534,34 @@ export const ParameterizedFilterPill: Story = {
 	},
 };
 
+export const ParameterizedPRStatusCommaContinuation: Story = {
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+
+		await userEvent.click(body.getByRole("button", { name: "Toggle filters" }));
+		await userEvent.click(await body.findByText("PR status"));
+		await userEvent.type(searchInput, "open,");
+		await userEvent.keyboard(" ");
+		await userEvent.type(searchInput, "merged");
+		await userEvent.keyboard("{Enter}");
+
+		await expect(
+			await body.findByText("pr_status:open,merged"),
+		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: "pr_status:open,merged",
+			});
+		});
+		expect(API.experimental.getChats).not.toHaveBeenCalledWith({
+			limit: CHAT_SEARCH_LIMIT,
+			q: 'pr_status:open search:"merged"',
+		});
+	},
+};
+
 export const DiffURLFilterPill: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChats").mockResolvedValue(mockChats);

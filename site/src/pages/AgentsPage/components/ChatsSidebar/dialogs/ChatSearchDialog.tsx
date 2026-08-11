@@ -21,6 +21,7 @@ import {
 	type ChatSearchFilterKey,
 	extractTypedFilters,
 	isValidChatSearchFilterValue,
+	normalizeChatSearchFilterValue,
 } from "./searchQuery";
 
 // Filter definitions. Filters with a defaultValue are inserted as complete
@@ -221,9 +222,13 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			(def) => def.key === incompleteFilterKey,
 		);
 		if (incompleteFilterKey && definition?.validate(value)) {
+			const committedValue =
+				incompleteFilterKey === "pr_status"
+					? normalizeChatSearchFilterValue(incompleteFilterKey, value)
+					: value;
 			setFilters((previous) => [
 				...previous.filter((filter) => filter.key !== incompleteFilterKey),
-				{ key: incompleteFilterKey, value },
+				{ key: incompleteFilterKey, value: committedValue },
 			]);
 			setFreeText("");
 			setIncompleteFilterKey(null);
@@ -281,7 +286,12 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		if (
 			(event.key === " " || event.key === "Enter") &&
 			incompleteFilterKey &&
-			freeText.trim()
+			freeText.trim() &&
+			!(
+				event.key === " " &&
+				incompleteFilterKey === "pr_status" &&
+				freeText.trimEnd().endsWith(",")
+			)
 		) {
 			event.preventDefault();
 			commitIncompleteFilter();
