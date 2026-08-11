@@ -34,10 +34,10 @@ const DrawerOverlay: React.FC<
 	return (
 		<DialogPrimitive.Overlay
 			className={cn(
-				`fixed inset-0 z-50 bg-overlay [animation-timing-function:cubic-bezier(0.32,0.72,0,1)]
-				data-[state=open]:animate-in data-[state=closed]:animate-out
-				data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
-				data-[state=open]:duration-300 data-[state=closed]:duration-100`,
+				"fixed inset-0 z-50 bg-overlay",
+				"data-[state=open]:animate-in data-[state=closed]:animate-out",
+				"data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+				"data-[state=open]:duration-300 data-[state=closed]:duration-100",
 				className,
 			)}
 			{...props}
