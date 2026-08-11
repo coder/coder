@@ -70,9 +70,8 @@ const getBannerVariant = (
 	return hasProminentWarning ? "warningProminent" : "warning";
 };
 
-// The muted variant only wins when every message is muted (see
-// getBannerVariant), which means advisories and diagnostics: nothing has
-// been exceeded, so the heading must not assert exceedance.
+// The muted "warning" variant means every message is an advisory or
+// diagnostic, so the heading must not assert exceedance.
 const bannerTitle = (variant: LicenseBannerVariant): string => {
 	switch (variant) {
 		case "error":

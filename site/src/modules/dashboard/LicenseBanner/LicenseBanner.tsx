@@ -36,8 +36,7 @@ const formatLicenseMessage = (template: string, ...values: number[]): string =>
 
 // Diagnostics about the license or the usage measurement rather than about
 // usage itself. They render muted, without the exceedance heading or a sales
-// link. The "unavailable" pair arrives via entitlements.errors but must not
-// render as license errors; see LicenseManagedAgentUsageUnavailableErrorText.
+// link, even when they arrive via entitlements.errors.
 const diagnosticMessages: readonly string[] = [
 	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
@@ -46,9 +45,8 @@ const diagnosticMessages: readonly string[] = [
 const isDiagnosticMessage = (message: string): boolean =>
 	diagnosticMessages.includes(message);
 
-// Advisories and diagnostics render in the muted variant: nothing is wrong
-// yet, so they must be visually distinct from warnings that demand action,
-// such as exceeding a license limit.
+// Advisories and diagnostics render muted to stay visually distinct from
+// warnings that demand action, such as exceeding a license limit.
 const isMutedWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
 	isDiagnosticMessage(message);
