@@ -494,10 +494,9 @@ var (
 		}.WithCachedASTValue()
 	}
 
-	// subjectChatdTokenOwner persists MCP OAuth2 token refreshes and
-	// refresh failures for one chat owner. The write-only user-level
-	// permission keeps the write scoped to that owner's rows; reads go
-	// through the daemon-wide chatd subject.
+	// MCP token refresh writes use this owner-scoped subject so the shared
+	// chatd context cannot update arbitrary users' personal data. Reads use
+	// the daemon-wide chatd subject.
 	subjectChatdTokenOwner = func(userID uuid.UUID) rbac.Subject {
 		return rbac.Subject{
 			Type:         rbac.SubjectTypeChatdTokenOwner,
