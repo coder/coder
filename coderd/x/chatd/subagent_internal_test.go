@@ -3363,11 +3363,12 @@ func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 	insertEnabledAnthropicProvider(t, db, user.ID)
 
 	mcpCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "MCP Test",
-		Slug:        "mcp-test",
-		Url:         "https://mcp.example.com",
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "MCP Test",
+		Slug:           "mcp-test",
+		Url:            "https://mcp.example.com",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	parentMCPIDs := []uuid.UUID{mcpCfg.ID}
