@@ -1,4 +1,3 @@
-import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { meAISpend } from "#/api/queries/users";
@@ -22,19 +21,19 @@ import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 
 // The normal state keeps the standard avatar border. Elevated states use a
-// thicker border plus a corner badge with an icon so the change is
+// thicker border plus a small notification-style dot so the change is
 // perceivable without relying on color alone.
 const severityIndicators: Partial<
-	Record<UsageSeverity, { border: string; badge: string; label: string }>
+	Record<UsageSeverity, { border: string; dot: string; label: string }>
 > = {
 	warning: {
 		border: "border-2 border-content-warning",
-		badge: "bg-content-warning",
+		dot: "bg-content-warning",
 		label: "AI spend is nearing its limit",
 	},
 	exceeded: {
 		border: "border-2 border-content-destructive",
-		badge: "bg-content-destructive",
+		dot: "bg-content-destructive",
 		label: "AI spend limit exceeded",
 	},
 };
@@ -97,12 +96,10 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 							{indicator && (
 								<span
 									className={cn(
-										"absolute -bottom-1 -right-1 flex size-4 items-center justify-center",
-										"rounded-full text-surface-primary",
-										indicator.badge,
+										"absolute -top-0.5 -right-0.5 size-2.5 rounded-full",
+										indicator.dot,
 									)}
 								>
-									<TriangleAlertIcon aria-hidden className="size-2.5" />
 									<span className="sr-only">{indicator.label}</span>
 								</span>
 							)}
