@@ -225,7 +225,9 @@ export const AISpendZeroLimit: Story = {
 	},
 };
 
-// Dropdown closed to isolate the avatar border, which reflects spend severity.
+// Dropdown closed to isolate the avatar border and severity badge, which
+// reflect spend severity. The normal state keeps the standard avatar with no
+// badge; only warning/exceeded show the indicator.
 
 export const AvatarBorderDisabled: Story = {
 	parameters: {
@@ -237,6 +239,14 @@ export const AvatarBorderNormal: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows no severity badge for normal spend", async () => {
+			const canvas = within(canvasElement);
+			expect(
+				canvas.queryByText(/AI spend (is nearing its limit|limit exceeded)/),
+			).not.toBeInTheDocument();
+		});
 	},
 };
 
@@ -250,6 +260,12 @@ export const AvatarBorderWarning: Story = {
 			},
 		],
 	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows the warning badge", async () => {
+			const canvas = within(canvasElement);
+			await canvas.findByText("AI spend is nearing its limit");
+		});
+	},
 };
 
 export const AvatarBorderExceeded: Story = {
@@ -261,6 +277,12 @@ export const AvatarBorderExceeded: Story = {
 				data: { ...mockAISpend, current_spend_micros: 1_500_000_000 },
 			},
 		],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows the exceeded badge", async () => {
+			const canvas = within(canvasElement);
+			await canvas.findByText("AI spend limit exceeded");
+		});
 	},
 };
 
