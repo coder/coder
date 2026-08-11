@@ -22,23 +22,24 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 	watchWorkspace,
 } from "#/api/api";
-import { getErrorMessage, isApiError } from "#/api/errors";
+import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
-	chatKey,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
-	chatProviderConfigs,
 	chatQueueConvergence,
 	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
 	interruptChat,
+	invalidateChatEntity,
 	mcpServerConfigs,
+	patchChatEntity,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
 	updateChatWorkspace,
@@ -68,6 +69,7 @@ import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -75,7 +77,12 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
+import {
+	type ChatDetailError,
+	isChatHookDeniedResponse,
+	isChatHookDispatchFailedResponse,
+	normalizeChatErrorPayload,
+} from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
@@ -114,13 +121,6 @@ import {
 	chatSlashCommandTriggerText,
 	resolveChatSlashCommandAvailability,
 } from "./utils/slashCommands";
-import {
-	type ChatDetailError,
-	formatUsageLimitMessage,
-	isChatHookDeniedResponse,
-	isChatHookDispatchFailedResponse,
-	isChatUsageLimitExceededResponse,
-} from "./utils/usageLimitMessage";
 
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
@@ -203,7 +203,7 @@ export const runPromoteQueuedMessage = async (params: {
 	promoteQueuedMessage: (id: number) => Promise<void>;
 	agentId: string | undefined;
 	clearChatErrorReason: (chatID: string) => void;
-	handleUsageLimitError: (error: unknown) => void;
+	onError: (error: unknown) => void;
 }): Promise<void> => {
 	const {
 		id,
@@ -211,7 +211,7 @@ export const runPromoteQueuedMessage = async (params: {
 		promoteQueuedMessage,
 		agentId,
 		clearChatErrorReason,
-		handleUsageLimitError,
+		onError,
 	} = params;
 	const previousSnapshot = store.getSnapshot();
 	store.batch(() => {
@@ -231,7 +231,7 @@ export const runPromoteQueuedMessage = async (params: {
 	} catch (error) {
 		store.unsuppressQueuedMessageID(id);
 		restoreOptimisticRequestSnapshot(store, previousSnapshot);
-		handleUsageLimitError(error);
+		onError(error);
 		throw error;
 	}
 };
@@ -423,6 +423,50 @@ export const getWorkspaceOptionsWithLinkedWorkspace = (
 	const nextWorkspaceOptions = [...workspaceOptions];
 	nextWorkspaceOptions[existingIndex] = workspace;
 	return nextWorkspaceOptions;
+};
+
+// Keep this list in sync with app fields consumed by the chat UI, or live
+// updates to those fields can retain stale query data.
+const watchedAgentAppFields: readonly (keyof TypesGen.WorkspaceApp)[] = [
+	"id",
+	"slug",
+	"health",
+	"hidden",
+	"external",
+	"command",
+	"subdomain",
+	"subdomain_name",
+	"display_name",
+];
+
+/** @internal Exported for testing. */
+export const isWatchedWorkspaceViewUnchanged = (
+	prev: TypesGen.Workspace,
+	next: TypesGen.Workspace,
+	chatAgentId: string | undefined,
+): boolean => {
+	const prevAgent = getWorkspaceAgent(prev, chatAgentId);
+	const nextAgent = getWorkspaceAgent(next, chatAgentId);
+	const prevApps = prevAgent?.apps ?? [];
+	const nextApps = nextAgent?.apps ?? [];
+	return (
+		prev.latest_build.status === next.latest_build.status &&
+		prev.health.healthy === next.health.healthy &&
+		prev.name === next.name &&
+		prev.owner_name === next.owner_name &&
+		prevAgent?.id === nextAgent?.id &&
+		prevAgent?.status === nextAgent?.status &&
+		prevAgent?.name === nextAgent?.name &&
+		prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
+		prevAgent?.lifecycle_state === nextAgent?.lifecycle_state &&
+		prevApps.length === nextApps.length &&
+		prevApps.every((prevApp, index) => {
+			const nextApp = nextApps[index];
+			return watchedAgentAppFields.every(
+				(field) => prevApp[field] === nextApp[field],
+			);
+		})
+	);
 };
 
 const buildAttachmentMediaTypes = (
@@ -740,9 +784,6 @@ const getPersistedDetailError = ({
 	chatRecord: TypesGen.Chat | undefined;
 	cachedError: ChatDetailError | undefined;
 }): ChatDetailError | undefined => {
-	if (cachedError?.kind === "usage_limit") {
-		return cachedError;
-	}
 	if (chatStatus !== "error") {
 		return undefined;
 	}
@@ -814,6 +855,7 @@ type _UncoveredAgentFields = Omit<
 	| "display_apps"
 	| "log_sources"
 	| "scripts"
+	| "metadata"
 	| "startup_script_behavior"
 >;
 // If this errors, a new field was added to WorkspaceAgent.
@@ -971,19 +1013,9 @@ const AgentChatPage: FC = () => {
 					// reads has changed. This prevents react-query
 					// from notifying subscribers and avoids a full
 					// AgentChatPage re-render on every heartbeat.
-					const prevAgent = getWorkspaceAgent(prev, chatAgentId);
-					const nextAgent = getWorkspaceAgent(next, chatAgentId);
 					if (
 						prev &&
-						prev.latest_build.status === next.latest_build.status &&
-						prev.health.healthy === next.health.healthy &&
-						prev.name === next.name &&
-						prev.owner_name === next.owner_name &&
-						prevAgent?.id === nextAgent?.id &&
-						prevAgent?.status === nextAgent?.status &&
-						prevAgent?.name === nextAgent?.name &&
-						prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
-						prevAgent?.lifecycle_state === nextAgent?.lifecycle_state
+						isWatchedWorkspaceViewUnchanged(prev, next, chatAgentId)
 					) {
 						return prev;
 					}
@@ -1091,11 +1123,11 @@ const AgentChatPage: FC = () => {
 	const chatMessagesList = (() => {
 		const pages = chatMessagesQuery.data?.pages;
 		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages and deduplicate by ID.
-		// Cross-page duplication can occur when upsertCacheMessages
-		// writes a message into page 0 while the same ID still
-		// exists in a later page. Last occurrence wins so the
-		// most up-to-date content is preserved.
+		// Collect all messages and deduplicate by ID as a defense
+		// against cross-page duplicates. Cache upserts fan the same
+		// fresh value out to every page containing an ID, so any
+		// surviving duplicates are value-identical and either
+		// occurrence is safe to render.
 		const all = pages.flatMap((p) => p.messages);
 		const byID = new Map(all.map((m) => [m.id, m]));
 		const deduped = Array.from(byID.values());
@@ -1186,7 +1218,7 @@ const AgentChatPage: FC = () => {
 				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
 			),
 		);
-		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
+		patchChatEntity(queryClient, chatId, (previousChat) =>
 			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
 		);
 	};
@@ -1350,36 +1382,23 @@ const AgentChatPage: FC = () => {
 		);
 	};
 
-	const handleUsageLimitError = (error: unknown): void => {
-		if (!agentId) {
+	const handleRequestError = (error: unknown): void => {
+		if (!agentId || !isApiError(error)) {
 			return;
 		}
-		if (
-			isApiError(error) &&
-			error.response?.status === 409 &&
-			isChatUsageLimitExceededResponse(error.response.data)
-		) {
-			const reason: ChatDetailError = {
-				kind: "usage_limit",
-				message: formatUsageLimitMessage(error.response.data),
-			};
-			store.setStreamError(reason);
-			setChatErrorReason(agentId, reason);
-		} else if (isApiError(error)) {
-			const detail = error.response?.data?.detail?.trim() || undefined;
-			const kind = isChatHookDeniedResponse(error.response?.data)
-				? "hook_denied"
-				: isChatHookDispatchFailedResponse(error.response?.data)
-					? "hook_dispatch_failed"
-					: "generic";
-			const reason: ChatDetailError = {
-				kind,
-				message: getErrorMessage(error, "An unexpected error occurred."),
-				...(detail ? { detail } : {}),
-			};
-			store.setStreamError(reason);
-			setChatErrorReason(agentId, reason);
-		}
+		const detail = error.response?.data?.detail?.trim() || undefined;
+		const kind = isChatHookDeniedResponse(error.response?.data)
+			? "hook_denied"
+			: isChatHookDispatchFailedResponse(error.response?.data)
+				? "hook_dispatch_failed"
+				: "generic";
+		const reason: ChatDetailError = {
+			kind,
+			message: getErrorMessage(error, "An unexpected error occurred."),
+			...(detail ? { detail } : {}),
+		};
+		store.setStreamError(reason);
+		setChatErrorReason(agentId, reason);
 	};
 
 	const handleInterrupt = () => {
@@ -1422,7 +1441,7 @@ const AgentChatPage: FC = () => {
 			promoteQueuedMessage,
 			agentId,
 			clearChatErrorReason,
-			handleUsageLimitError,
+			onError: handleRequestError,
 		});
 
 	const editing = useConversationEditingState({
@@ -1648,15 +1667,7 @@ const AgentChatPage: FC = () => {
 				await compact();
 			} catch (error) {
 				restoreOptimisticRequestSnapshot(store, previousSnapshot);
-				if (
-					isApiError(error) &&
-					error.response?.status === 409 &&
-					isChatUsageLimitExceededResponse(error.response.data)
-				) {
-					handleUsageLimitError(error);
-				} else {
-					toast.error(getErrorMessage(error, "Failed to compact chat."));
-				}
+				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;
 			}
 			return;
@@ -1714,13 +1725,10 @@ const AgentChatPage: FC = () => {
 				scrollToBottom: scrollToBottomRef.current,
 				onError: (error) => {
 					restoreOptimisticRequestSnapshot(store, previousSnapshot);
-					handleUsageLimitError(error);
+					handleRequestError(error);
 					// Hook dispatch failures can park an idle chat in error before returning the request error.
 					acceptServerChatStatus();
-					void queryClient.invalidateQueries({
-						queryKey: chatKey(agentId),
-						exact: true,
-					});
+					void invalidateChatEntity(queryClient, agentId);
 				},
 			});
 			if (editSelectedModelConfigID) {
@@ -1765,13 +1773,10 @@ const AgentChatPage: FC = () => {
 		try {
 			response = await sendMessage(request);
 		} catch (error) {
-			handleUsageLimitError(error);
+			handleRequestError(error);
 			// Hook dispatch failures can park an idle chat in error before returning the request error.
 			acceptServerChatStatus();
-			void queryClient.invalidateQueries({
-				queryKey: chatKey(agentId),
-				exact: true,
-			});
+			void invalidateChatEntity(queryClient, agentId);
 			throw error;
 		}
 		const isActiveChat = store.getActiveChatID() === agentId;
@@ -1903,6 +1908,37 @@ const AgentChatPage: FC = () => {
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				showRightPanel={showSidebarPanel}
+			/>
+		);
+	}
+
+	if (chatQuery.isLoadingError || chatMessagesQuery.isLoadingError) {
+		if (getErrorStatus(chatQuery.error) === 404) {
+			return (
+				<AgentChatPageNotFoundView
+					titleElement={titleElement}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				/>
+			);
+		}
+
+		return (
+			<AgentChatPageErrorView
+				titleElement={titleElement}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				error={
+					chatQuery.isLoadingError ? chatQuery.error : chatMessagesQuery.error
+				}
+				onRetry={() => {
+					if (chatQuery.isLoadingError) {
+						void chatQuery.refetch();
+					}
+					if (chatMessagesQuery.isLoadingError) {
+						void chatMessagesQuery.refetch();
+					}
+				}}
 			/>
 		);
 	}

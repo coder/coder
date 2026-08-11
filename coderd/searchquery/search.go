@@ -174,6 +174,30 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
+// Groups parses a group search query using the standard filter syntax shared
+// with the rest of the dashboard. Bare terms (including multi-word terms)
+// become a free-text search over group name and display name. A value that
+// contains a colon must be quoted or supplied via the explicit search key,
+// e.g. search:"team: frontend", because an unquoted colon is otherwise treated
+// as a key:value delimiter. Unknown keys are rejected, which keeps room for
+// real key:value filters in the future.
+func Groups(query string) (string, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return "", errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	search := parser.String(values, "", "search")
+	parser.ErrorExcessParams(values)
+	return search, parser.Errors
+}
+
 func Members(query string, organizationID uuid.UUID) (database.OrganizationMembersParams, []codersdk.ValidationError) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -272,6 +296,9 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	}
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
+	// include_agent_metadata expands the response with the named agent
+	// metadata keys; it does not filter the returned workspaces.
+	filter.IncludeAgentMetadata = parser.Strings(values, []string{}, "include_agent_metadata")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
 	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", actorID)
@@ -347,6 +374,7 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
+		AgentsAllowed:    parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
 		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
 		AuthorUsername:   parser.String(values, "", "author"),
 		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),

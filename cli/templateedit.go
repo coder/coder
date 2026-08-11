@@ -33,6 +33,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		allowUserCancelWorkspaceJobs   bool
 		allowUserAutostart             bool
 		allowUserAutostop              bool
+		agentsAllowed                  bool
 		requireActiveVersion           bool
 		deprecationMessage             string
 		disableEveryone                bool
@@ -142,6 +143,10 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 			}
 
+			if !userSetOption(inv, "agents-allowed") {
+				agentsAllowed = template.AgentsAllowed
+			}
+
 			if !userSetOption(inv, "require-active-version") {
 				requireActiveVersion = template.RequireActiveVersion
 			}
@@ -199,6 +204,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				AllowUserCancelWorkspaceJobs:   &allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:             &allowUserAutostart,
 				AllowUserAutostop:              &allowUserAutostop,
+				AgentsAllowed:                  &agentsAllowed,
 				RequireActiveVersion:           &requireActiveVersion,
 				DeprecationMessage:             deprecated,
 				DisableEveryoneGroupAccess:     &disableEveryoneGroup,
@@ -291,6 +297,12 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			Description: "Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to \"Dormancy Auto-Deletion\" in the UI.",
 			Default:     "0h",
 			Value:       serpent.DurationOf(&dormancyAutoDeletion),
+		},
+		{
+			Flag:        "agents-allowed",
+			Description: "Allow Coder Agents to create workspaces using this template.",
+			Default:     "true",
+			Value:       serpent.BoolOf(&agentsAllowed),
 		},
 		{
 			Flag:        "allow-user-cancel-workspace-jobs",

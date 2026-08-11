@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import type {
@@ -12,6 +11,7 @@ import {
 	HelpPopoverTitle,
 	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
@@ -75,7 +75,13 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 					{troubleshootingURL && (
 						<>
 							{" "}
-							<Link target="_blank" rel="noreferrer" href={troubleshootingURL}>
+							<Link
+								target="_blank"
+								rel="noreferrer"
+								href={troubleshootingURL}
+								className="p-0 mt-2"
+								showExternalIcon={false}
+							>
 								Troubleshoot
 							</Link>
 						</>

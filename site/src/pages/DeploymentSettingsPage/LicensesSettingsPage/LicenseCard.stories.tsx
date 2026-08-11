@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { expect, fn, within } from "storybook/test";
-import { chromatic } from "#/testHelpers/chromatic";
 import { MockLicenseResponse } from "#/testHelpers/entities";
 
 import { LicenseCard } from "./LicenseCard";
@@ -12,7 +11,6 @@ const FUTURE_START_DATE = dayjs("2099-01-01T12:00:00Z").unix();
 const meta: Meta<typeof LicenseCard> = {
 	title: "pages/DeploymentSettingsPage/LicensesSettingsPage/LicenseCard",
 	component: LicenseCard,
-	parameters: { chromatic },
 	args: {
 		license: MockLicenseResponse[0],
 		userLimitActual: 4,

@@ -6,7 +6,6 @@ import {
 	Outlet,
 	Route,
 	ScrollRestoration,
-	useLocation,
 	useParams,
 } from "react-router";
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
@@ -32,7 +31,7 @@ import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
 // - Pages that use heavy dependencies like charts or time libraries
-const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage/NotFoundPage"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
@@ -389,12 +388,6 @@ const AgentSettingsPersonalSkillsPage = lazy(
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
 );
-const AISettingsSpendPage = lazy(
-	() => import("./pages/AISettingsPage/SpendPage/SpendPage"),
-);
-const AgentAnalyticsPage = lazy(
-	() => import("./pages/AgentsPage/AgentAnalyticsPage"),
-);
 
 import {
 	AgentChatPageSkeleton,
@@ -546,12 +539,6 @@ const groupsRouter = () => {
 			</Route>
 		</Route>
 	);
-};
-
-/** Redirect that preserves the current query string. */
-const NavigateWithSearch = ({ to }: { to: string }) => {
-	const location = useLocation();
-	return <Navigate to={{ pathname: to, search: location.search }} replace />;
 };
 
 /** Redirect /aibridge/sessions/:sessionId to /ai-gateway/sessions/:sessionId. */
@@ -768,7 +755,6 @@ export const router = createBrowserRouter(
 						/>
 						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
-						<Route path="spend" element={<AISettingsSpendPage />} />
 						<Route
 							path="instructions"
 							element={<AISettingsInstructionsPage />}
@@ -905,23 +891,10 @@ export const router = createBrowserRouter(
 							element={<Navigate to="/ai/settings/mcp-servers" replace />}
 						/>
 						<Route
-							path="spend"
-							element={<NavigateWithSearch to="/ai/settings/spend" />}
-						/>
-						<Route
-							path="limits"
-							element={<NavigateWithSearch to="/ai/settings/spend" />}
-						/>
-						<Route
-							path="usage"
-							element={<NavigateWithSearch to="/ai/settings/spend" />}
-						/>
-						<Route
 							path="templates"
 							element={<Navigate to="/ai/settings/templates" replace />}
 						/>
 					</Route>
-					<Route path="analytics" element={<AgentAnalyticsPage />} />
 					<Route
 						path=":agentId"
 						element={

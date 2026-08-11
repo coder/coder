@@ -23,7 +23,10 @@ import (
 var epoch = time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
 
 const (
-	cronDateFormat = "2006-01-02_15:04:05"
+	// usageEventIDTimeFormat is the timestamp layout used in every
+	// deterministic usage event ID, both the cron's boundary IDs and the
+	// generator's bucket IDs.
+	usageEventIDTimeFormat = "2006-01-02_15:04:05"
 )
 
 // HeartbeatFunc generates a heartbeat event and its stable ID.
@@ -145,7 +148,7 @@ func (c *Cron) run(ctx context.Context, job CronJob) {
 		// Use the boundary (not wall-clock "now") for the stable ID
 		// so all replicas targeting the same boundary produce the
 		// same key.
-		stableID := string(job.EventType) + ":" + boundary.UTC().Format(cronDateFormat)
+		stableID := string(job.EventType) + ":" + boundary.UTC().Format(usageEventIDTimeFormat)
 
 		// Skip if this bucket was already recorded — avoids running
 		// the potentially expensive heartbeat function for a
@@ -184,7 +187,7 @@ func (c *Cron) run(ctx context.Context, job CronJob) {
 			continue
 		}
 
-		if err := c.ins.InsertHeartbeatUsageEvent(ctx, c.db, stableID, event); err != nil {
+		if err := c.ins.InsertHeartbeatUsageEvent(ctx, c.db, stableID, c.clock.Now(), event); err != nil {
 			c.log.Warn(ctx, "cron heartbeat insert failed",
 				slog.F("job", job.Name),
 				slog.Error(err),

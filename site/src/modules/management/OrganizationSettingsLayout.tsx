@@ -18,7 +18,7 @@ import {
 	canViewOrganization,
 	type OrganizationPermissions,
 } from "#/modules/permissions/organizations";
-import NotFoundPage from "#/pages/404Page/404Page";
+import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined

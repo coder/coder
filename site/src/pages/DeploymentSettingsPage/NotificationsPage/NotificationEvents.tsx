@@ -1,12 +1,4 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Card from "@mui/material/Card";
-import Divider from "@mui/material/Divider";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import { type FC, Fragment } from "react";
+import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -18,10 +10,12 @@ import type { DeploymentValues } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 import {
 	castNotificationMethod,
 	methodIcons,
@@ -108,36 +102,35 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 			)}
 
 			{Object.entries(templatesByGroup).map(([group, templates]) => (
-				<Card key={group} variant="outlined" className="bg-transparent w-full">
-					<List>
-						<ListItem css={styles.listHeader}>
-							<ListItemText css={styles.listItemText} primary={group} />
-						</ListItem>
+				<article
+					key={group}
+					className="border border-solid rounded-md overflow-hidden w-full"
+				>
+					<header className="bg-surface-secondary border-0 border-b border-solid px-4 py-3">
+						<span className="font-medium text-sm">{group}</span>
+					</header>
 
-						{templates.map((tpl, i) => {
-							const value = castNotificationMethod(tpl.method || defaultMethod);
-							const isLastItem = i === templates.length - 1;
+					{templates.map((tpl) => {
+						const value = castNotificationMethod(tpl.method || defaultMethod);
 
-							return (
-								<Fragment key={tpl.id}>
-									<ListItem>
-										<ListItemText
-											css={styles.listItemText}
-											primary={tpl.name}
-										/>
-										<MethodToggleGroup
-											templateId={tpl.id}
-											options={availableMethods}
-											value={value}
-											canEdit={canEdit}
-										/>
-									</ListItem>
-									{!isLastItem && <Divider />}
-								</Fragment>
-							);
-						})}
-					</List>
-				</Card>
+						return (
+							<div
+								key={tpl.id}
+								data-testid="notification-template-row"
+								className="flex items-center justify-between gap-3 px-4 py-3 border-0 [&:not(:last-child)]:border-b border-solid"
+							>
+								<span className="font-medium text-sm">{tpl.name}</span>
+								<MethodSelect
+									templateId={tpl.id}
+									templateName={tpl.name}
+									options={availableMethods}
+									value={value}
+									canEdit={canEdit}
+								/>
+							</div>
+						);
+					})}
+				</article>
 			))}
 		</div>
 	);
@@ -150,17 +143,19 @@ function requiredFieldsArePresent(
 	return fields.every((field) => Boolean(obj[field]));
 }
 
-type MethodToggleGroupProps = {
+type MethodSelectProps = {
 	templateId: string;
+	templateName: string;
 	options: NotificationMethod[];
 	value: NotificationMethod;
 	canEdit: boolean;
 };
 
-const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
+const MethodSelect: FC<MethodSelectProps> = ({
 	value,
 	options,
 	templateId,
+	templateName,
 	canEdit,
 }) => {
 	const queryClient = useQueryClient();
@@ -168,16 +163,14 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 		updateNotificationTemplateMethod(templateId, queryClient),
 	);
 
+	const SelectedIcon = methodIcons[value];
+
 	return (
-		<ToggleButtonGroup
-			exclusive
+		<Select
 			value={value}
-			size="small"
 			disabled={!canEdit}
-			aria-label="Notification method"
-			css={styles.toggleGroup}
-			onChange={async (_, method) => {
-				if (!method) {
+			onValueChange={async (method) => {
+				if (method === value) {
 					return;
 				}
 				try {
@@ -195,68 +188,31 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 				}
 			}}
 		>
-			{options.map((method) => {
-				const Icon = methodIcons[method];
-				const label = methodLabels[method];
-				return (
-					<Tooltip key={method}>
-						<TooltipTrigger asChild>
-							<ToggleButton
-								value={method}
-								css={styles.toggleButton}
-								disabled={!canEdit}
-								onClick={(e) => {
-									// Retain the value if the user clicks the same button, ensuring
-									// at least one value remains selected.
-									if (method === value) {
-										e.preventDefault();
-										e.stopPropagation();
-										return;
-									}
-								}}
-							>
-								<Icon aria-label={label} />
-							</ToggleButton>
-						</TooltipTrigger>
-						<TooltipContent side="bottom">{label}</TooltipContent>
-					</Tooltip>
-				);
-			})}
-		</ToggleButtonGroup>
+			<SelectTrigger
+				aria-label={`Notification method for ${templateName}`}
+				className="h-8 w-auto min-w-32 gap-2 [&>span]:flex [&>span]:items-center [&>span]:gap-2 [&>span]:line-clamp-none"
+			>
+				<SelectValue>
+					<span className="flex items-center gap-2 leading-none">
+						<SelectedIcon className="size-icon-sm shrink-0" aria-hidden />
+						{methodLabels[value]}
+					</span>
+				</SelectValue>
+			</SelectTrigger>
+			<SelectContent align="end">
+				{options.map((method) => {
+					const Icon = methodIcons[method];
+					const label = methodLabels[method];
+					return (
+						<SelectItem key={method} value={method}>
+							<span className="flex items-center gap-2 leading-none">
+								<Icon className="size-icon-sm shrink-0" aria-hidden />
+								{label}
+							</span>
+						</SelectItem>
+					);
+				})}
+			</SelectContent>
+		</Select>
 	);
 };
-
-const styles = {
-	listHeader: (theme) => ({
-		background: theme.palette.background.paper,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-	}),
-	listItemText: {
-		[`& .${listItemTextClasses.primary}`]: {
-			fontSize: 14,
-			fontWeight: 500,
-		},
-		[`& .${listItemTextClasses.secondary}`]: {
-			fontSize: 14,
-		},
-	},
-	toggleGroup: (theme) => ({
-		border: `1px solid ${theme.palette.divider}`,
-		borderRadius: 4,
-	}),
-	toggleButton: (theme) => ({
-		border: 0,
-		borderRadius: 4,
-		fontSize: 16,
-		padding: "4px 8px",
-		color: theme.palette.text.disabled,
-
-		"&:hover": {
-			color: theme.palette.text.primary,
-		},
-
-		"& svg": {
-			fontSize: "inherit",
-		},
-	}),
-} as Record<string, Interpolation<Theme>>;

@@ -27,7 +27,16 @@ import (
 
 // supportedProviders lists the providers we ship prices for. Adding a
 // provider here is enough to include it on the next regeneration.
-var supportedProviders = []string{"anthropic", "openai"}
+var supportedProviders = []string{
+	"anthropic",
+	"azure",
+	"bedrock",
+	"copilot",
+	"google",
+	"openai",
+	"openrouter",
+	"vercel",
+}
 
 // upstreamProvider is the subset of a models.dev per-provider entry we read.
 type upstreamProvider struct {

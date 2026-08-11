@@ -1,12 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { chromatic } from "#/testHelpers/chromatic";
 import { mockApiError } from "#/testHelpers/entities";
 import { SetupPageView } from "./SetupPageView";
 
 const meta: Meta<typeof SetupPageView> = {
 	title: "pages/SetupPage",
-	parameters: { chromatic },
 	component: SetupPageView,
 };
 

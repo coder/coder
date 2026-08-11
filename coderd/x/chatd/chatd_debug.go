@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"charm.land/fantasy"
-
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -118,10 +116,10 @@ func (p *Server) newDebugAwareModel(
 	req modelClientRequest,
 	route aiGatewayModelRoute,
 	opts modelBuildOptions,
-) (fantasy.LanguageModel, bool, error) {
+) (chatprovider.Model, bool, error) {
 	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, route.ModelProviderHint)
 	if err != nil {
-		return nil, false, err
+		return chatprovider.Model{}, false, err
 	}
 	route.ModelProviderHint = provider
 	req.ModelName = resolvedModel
@@ -132,16 +130,16 @@ func (p *Server) newDebugAwareModel(
 
 	model, err := p.newModel(ctx, req, route, opts)
 	if err != nil {
-		return nil, debugEnabled, err
+		return chatprovider.Model{}, debugEnabled, err
 	}
 	if !debugEnabled {
 		return model, false, nil
 	}
 
-	return chatdebug.WrapModel(model, debugSvc, chatdebug.RecorderOptions{
+	return model.WithLanguageModel(chatdebug.WrapModel(model.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
 		ChatID:   req.Chat.ID,
 		OwnerID:  req.Chat.OwnerID,
 		Provider: provider,
 		Model:    resolvedModel,
-	}), true, nil
+	})), true, nil
 }

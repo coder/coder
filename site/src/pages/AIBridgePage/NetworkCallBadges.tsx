@@ -2,36 +2,30 @@ import { BanIcon } from "lucide-react";
 import type { FC } from "react";
 import type { AIBridgeSessionNetworkCallSummary } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
-import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	NetworkMonitoringDisabled,
+	NetworkNoActivity,
+} from "./NetworkRequestStates";
 
 interface NetworkCallBadgesProps {
-	// summary is undefined when network call monitoring was not active for the
-	// session, which renders as "Disabled".
+	// summary is undefined when network request monitoring was not active for
+	// the session, which renders as "Disabled".
 	summary: AIBridgeSessionNetworkCallSummary | undefined;
 }
 
 export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({ summary }) => {
 	if (!summary) {
-		return (
-			<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
-				Disabled
-				<InfoTooltip message="Network call monitoring was not active for this session." />
-			</span>
-		);
+		return <NetworkMonitoringDisabled />;
 	}
 
 	if (summary.total === 0) {
-		return (
-			<span className="whitespace-nowrap text-content-secondary">
-				No activity
-			</span>
-		);
+		return <NetworkNoActivity />;
 	}
 
 	return (
@@ -63,7 +57,7 @@ export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({ summary }) => {
 				>
 					<div className="flex flex-col gap-1">
 						<div className="flex items-center justify-between gap-4">
-							<span className="text-content-secondary">Total calls</span>
+							<span className="text-content-secondary">Total requests</span>
 							<span>{summary.total.toLocaleString("en-US")}</span>
 						</div>
 						<div className="flex items-center justify-between gap-4">

@@ -142,6 +142,7 @@ func (t *Trigger) Trigger(
 	chat Chat,
 	msg Message,
 	event agenthooks.EventType,
+	capacity dispatch.CapacityClass,
 ) (*Result, error) {
 	if !t.Enabled() {
 		return emptyResult, nil
@@ -166,9 +167,10 @@ func (t *Trigger) Trigger(
 		return nil, xerrors.Errorf("unsupported hook event %q", event)
 	}
 	response, _, err := t.dispatcher.Dispatch(ctx, dispatch.Event{
-		Type:    event,
-		ChatRef: chat.ref(),
-		Data:    data,
+		Type:     event,
+		ChatRef:  chat.ref(),
+		Data:     data,
+		Capacity: capacity,
 	})
 	if err != nil {
 		return nil, err

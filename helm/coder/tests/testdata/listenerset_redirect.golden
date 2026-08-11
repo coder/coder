@@ -253,7 +253,7 @@ spec:
     - filters:
       - requestRedirect:
           scheme: https
-          statusCode: 308
+          statusCode: 301
         type: RequestRedirect
       matches:
       - path:

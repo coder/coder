@@ -1,9 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
 	clampPercentage,
+	formatSpendPeriodLabel,
 	getSeverity,
 	usageProgressPercentage,
 } from "./budget";
+
+describe("formatSpendPeriodLabel", () => {
+	it("renders API timestamps in UTC with the year on the exclusive end", () => {
+		expect(
+			formatSpendPeriodLabel("2026-06-01T00:00:00Z", "2026-07-01T00:00:00Z"),
+		).toBe("June 1 - July 1, 2026");
+	});
+
+	it("uses the end year when the window crosses into the next year", () => {
+		expect(
+			formatSpendPeriodLabel("2026-12-01T00:00:00Z", "2027-01-01T00:00:00Z"),
+		).toBe("December 1 - January 1, 2027");
+	});
+});
 
 describe("getSeverity", () => {
 	it("returns normal below the warning threshold", () => {

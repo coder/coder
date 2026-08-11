@@ -3709,7 +3709,7 @@ func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *tes
 		allowBYOK: true,
 	}
 	debugSvc := chatdebug.NewService(db, logger, nil)
-	fallbackModel := &chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}
+	fallbackModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}, nil)
 
 	server.prepareManualTitleDebugRun(
 		ctx,

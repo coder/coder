@@ -51,7 +51,7 @@ export const Admin: Story = {};
 
 export const SmallViewport: Story = {
 	parameters: {
-		chromatic: { viewports: [600] },
+		pixel: { matrix: { viewports: ["tablet"] } },
 	},
 };
 

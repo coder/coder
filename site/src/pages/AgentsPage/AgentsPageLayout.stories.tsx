@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import dayjs from "dayjs";
 import { useState } from "react";
 import { Navigate, useOutletContext } from "react-router";
 import {
@@ -14,9 +13,15 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
+import {
+	chatEntityKey,
+	chatMessagesKey,
+	chatPromptsKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockNoPermissions,
@@ -26,10 +31,11 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
-import AgentAnalyticsPage from "./AgentAnalyticsPage";
+import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
@@ -65,69 +71,6 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	},
 ];
 
-const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
-	start_date: "2026-02-10T00:00:00Z",
-	end_date: "2026-03-12T00:00:00Z",
-	total_cost_micros: 1_500_000,
-	priced_message_count: 12,
-	unpriced_messages_having_usage_count: 1,
-	total_input_tokens: 123_456,
-	total_output_tokens: 654_321,
-	total_cache_read_tokens: 9_876,
-	total_cache_creation_tokens: 5_432,
-	total_runtime_ms: 0,
-	by_model: [
-		{
-			model_config_id: defaultModelConfigID,
-			display_name: "GPT-4.1",
-			provider: "OpenAI",
-			model: "gpt-4.1",
-			total_cost_micros: 1_250_000,
-			message_count: 9,
-			total_input_tokens: 100_000,
-			total_output_tokens: 200_000,
-			total_cache_read_tokens: 7_654,
-			total_cache_creation_tokens: 3_210,
-			total_runtime_ms: 0,
-		},
-	],
-	by_chat: [
-		{
-			root_chat_id: "chat-1",
-			chat_title: "Quarterly review",
-			total_cost_micros: 750_000,
-			message_count: 5,
-			total_input_tokens: 60_000,
-			total_output_tokens: 80_000,
-			total_cache_read_tokens: 4_321,
-			total_cache_creation_tokens: 1_234,
-			total_runtime_ms: 0,
-		},
-	],
-};
-
-const mockUsageUsers: TypesGen.ChatCostUsersResponse = {
-	start_date: "2026-02-10T00:00:00Z",
-	end_date: "2026-03-12T00:00:00Z",
-	count: 1,
-	users: [
-		{
-			user_id: "user-1",
-			username: "alice",
-			name: "Alice Example",
-			avatar_url: "https://example.com/alice.png",
-			total_cost_micros: 1_200_000,
-			message_count: 12,
-			chat_count: 3,
-			total_input_tokens: 120_000,
-			total_output_tokens: 45_000,
-			total_cache_read_tokens: 6_789,
-			total_cache_creation_tokens: 2_468,
-			total_runtime_ms: 0,
-		},
-	],
-};
-
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const todayTimestamp = new Date().toISOString();
 
@@ -142,10 +85,6 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	updated_at: oneWeekAgo,
 	...overrides,
 });
-
-// Use local noon so the rendered range label stays stable
-// across timezones.
-const fixedNow = dayjs("2026-03-12T12:00:00");
 
 const AgentsRouteElement = () => (
 	<CoderAgentsPageView
@@ -226,17 +165,8 @@ const agentsRouting = {
 					path: "coder-agents",
 					element: <Navigate to="/ai/settings/coder-agents" replace />,
 				},
-				{
-					path: "spend",
-					element: <Navigate to="/ai/settings/spend" replace />,
-				},
-				{
-					path: "usage",
-					element: <Navigate to="/ai/settings/spend" replace />,
-				},
 			],
 		},
-		{ path: "analytics", element: <AgentAnalyticsPage now={fixedNow} /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
@@ -244,10 +174,7 @@ const agentsRouting = {
 
 const aiSettingsRouting = {
 	path: "/ai/settings",
-	children: [
-		{ path: "coder-agents", element: <AgentsRouteElement /> },
-		{ path: "spend", element: <div>Spend limits and usage</div> },
-	],
+	children: [{ path: "coder-agents", element: <AgentsRouteElement /> }],
 };
 
 const setInnerWidthForStory = (width: number) => {
@@ -390,12 +317,6 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			workspaces: [],
 			count: 0,
 		});
-		spyOn(API.experimental, "getChatCostSummary").mockResolvedValue(
-			mockAnalyticsSummary,
-		);
-		spyOn(API.experimental, "getChatCostUsers").mockResolvedValue(
-			mockUsageUsers,
-		);
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt: "",
 			include_default_system_prompt: true,
@@ -500,21 +421,8 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			retention_days: 30,
 		});
 		spyOn(API.experimental, "updateChatRetentionDays").mockResolvedValue();
-		spyOn(API.experimental, "getChatUsageLimitConfig").mockResolvedValue({
-			spend_limit_micros: null,
-			period: "month",
-			updated_at: "2026-02-18T00:00:00.000Z",
-			unpriced_model_count: 0,
-			overrides: [],
-			group_overrides: [],
-		});
+
 		spyOn(API, "getGroups").mockResolvedValue([]);
-		spyOn(API.experimental, "getChatCostUsers").mockResolvedValue({
-			start_date: "2026-02-10T00:00:00Z",
-			end_date: "2026-03-12T00:00:00Z",
-			count: 0,
-			users: [],
-		});
 	},
 };
 
@@ -707,6 +615,8 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 	],
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/chat-wide-sidebar" },
@@ -858,6 +768,8 @@ export const SidebarCollapsed: Story = {
 export const EmptyStateZoom200Desktop: Story = {
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
@@ -896,6 +808,8 @@ export const EmptyStateZoom200Desktop: Story = {
 export const CollapsedSidebarZoom200Desktop: Story = {
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
@@ -923,6 +837,8 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/chat-1" },
@@ -1024,6 +940,139 @@ export const WithAgentSelected: Story = {
 	},
 };
 
+// ---------------------------------------------------------------------------
+// Watch-event archive semantics: these stories mount the real AgentChatPage
+// under the layout's :agentId route so the layout's chat-watch socket drives
+// the page through the production watch path.
+// ---------------------------------------------------------------------------
+
+const agentsWithAgentChatPageRouting = {
+	...agentsRouting,
+	children: agentsRouting.children.map((route) =>
+		"path" in route && route.path === ":agentId"
+			? { ...route, element: <AgentChatPage /> }
+			: route,
+	),
+};
+
+const WATCHED_CHAT_ID = "chat-watched";
+
+// MockChat is owned by MockUserOwner, so the page renders the owner view
+// (composer enabled unless archived) instead of the other-user banner.
+const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
+	...MockChat,
+	id: WATCHED_CHAT_ID,
+	title: "Watched agent",
+	last_model_config_id: defaultModelConfigID,
+	created_at: oneWeekAgo,
+	updated_at: oneWeekAgo,
+	...overrides,
+});
+
+const watchedChatQueries = (chat: Chat) => [
+	{ key: chatEntityKey(chat.id), data: chat },
+	{
+		key: chatMessagesKey(chat.id),
+		data: {
+			pages: [{ messages: [], queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		},
+	},
+	{ key: chatPromptsKey(chat.id), data: { prompts: [] } },
+	{
+		key: getAuthorizationKey({
+			checks: {
+				canShareChat: {
+					object: {
+						resource_type: "chat",
+						owner_id: chat.owner_id,
+						organization_id: chat.organization_id,
+					},
+					action: "share",
+				},
+			},
+		}),
+		data: { canShareChat: true },
+	},
+];
+
+const chatWatchEvent = (kind: TypesGen.ChatWatchEventKind, chat: Chat) => ({
+	event: "message" as const,
+	data: JSON.stringify({ kind, chat } satisfies TypesGen.ChatWatchEvent),
+});
+
+const watchedChatPageParameters = (
+	chat: Chat,
+	watchEvents: readonly ReturnType<typeof chatWatchEvent>[],
+) => ({
+	queries: watchedChatQueries(chat),
+	webSocket: {
+		"/chats/watch": [...watchEvents],
+	},
+	reactRouter: reactRouterParameters({
+		location: {
+			path: `/agents/${WATCHED_CHAT_ID}`,
+			pathParams: { agentId: WATCHED_CHAT_ID },
+		},
+		routing: [agentsWithAgentChatPageRouting, aiSettingsRouting],
+	}),
+});
+
+const mockAgentChatPageAPIs = () => {
+	localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+	spyOn(API.experimental, "updateChat").mockResolvedValue();
+	return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+};
+
+export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat()]);
+		return mockAgentChatPageAPIs();
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		chatWatchEvent("deleted", watchedChat({ archived: true })),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("This agent has been archived and is read-only."),
+		).toBeVisible();
+		await waitFor(() => {
+			expect(canvas.getByRole("textbox")).toHaveAttribute(
+				"aria-disabled",
+				"true",
+			);
+		});
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+	},
+};
+
+export const UnarchiveWatchEventRecoversArchivedChat: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat({ archived: true })]);
+		return mockAgentChatPageAPIs();
+	},
+	parameters: watchedChatPageParameters(watchedChat({ archived: true }), [
+		chatWatchEvent("created", watchedChat({ archived: false })),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByRole("textbox")).not.toHaveAttribute(
+				"aria-disabled",
+				"true",
+			);
+		});
+		expect(
+			canvas.queryByText("This agent has been archived and is read-only."),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+	},
+};
+
 // Error reasons surface via each chat's last_error, which the
 // layout turns into sidebar error badges.
 export const WithErrorReasons: Story = {
@@ -1064,43 +1113,6 @@ export const WithErrorReasons: Story = {
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	await userEvent.click(await canvas.findByRole("link", { name: "Settings" }));
-};
-
-export const OpensAnalyticsForAdmins: Story = {
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/analytics" },
-			routing: [agentsRouting, aiSettingsRouting],
-		}),
-	},
-	play: async () => {
-		await waitFor(() => {
-			expect(
-				screen.getByText(
-					"Review your personal Coder Agents usage and cost breakdowns.",
-				),
-			).toBeInTheDocument();
-		});
-	},
-};
-
-export const OpensAnalyticsForNonAdmins: Story = {
-	parameters: {
-		permissions: MockNoPermissions,
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/analytics" },
-			routing: [agentsRouting, aiSettingsRouting],
-		}),
-	},
-	play: async () => {
-		await waitFor(() => {
-			expect(
-				screen.getByText(
-					"Review your personal Coder Agents usage and cost breakdowns.",
-				),
-			).toBeInTheDocument();
-		});
-	},
 };
 
 export const OpensSettingsForAdmins: Story = {

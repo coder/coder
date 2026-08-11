@@ -66,11 +66,20 @@ interface UserAIBudgetOverrideDialogProps {
 	user: ReducedUser;
 	currentGroup: Group;
 	effectiveGroupId?: string | null;
+	// When false, the budget is shown without the controls to change it.
+	canUpdate: boolean;
 }
 
 export const UserAIBudgetOverrideDialog: FC<
 	UserAIBudgetOverrideDialogProps
-> = ({ open, onOpenChange, user, currentGroup, effectiveGroupId }) => {
+> = ({
+	open,
+	onOpenChange,
+	user,
+	currentGroup,
+	effectiveGroupId,
+	canUpdate,
+}) => {
 	const queryClient = useQueryClient();
 	const budgetOverrideQuery = useQuery({
 		...userAIBudgetOverride(user.id),
@@ -100,6 +109,40 @@ export const UserAIBudgetOverrideDialog: FC<
 		userGroupsQuery.isLoading ||
 		groupBudgetQuery.isLoading;
 	const isSubmitting = saveMutation.isPending || deleteMutation.isPending;
+	const budget: BudgetProps = {
+		user,
+		currentGroup,
+		override: budgetOverrideQuery.data ?? null,
+		groupBudget: groupBudgetQuery.data ?? null,
+		userGroups: userGroupsQuery.data ?? [],
+	};
+
+	let body: ReactNode;
+	if (loadError) {
+		body = <ErrorAlert error={loadError} />;
+	} else if (isLoading) {
+		body = (
+			<div className="flex items-center gap-2 text-sm text-content-secondary">
+				<Spinner loading />
+				Loading AI budget...
+			</div>
+		);
+	} else if (canUpdate) {
+		body = (
+			<OverrideForm
+				{...budget}
+				defaultGroupId={
+					effectiveGroupId === undefined ? currentGroup.id : effectiveGroupId
+				}
+				isSubmitting={isSubmitting}
+				onSave={saveMutation.mutateAsync}
+				onRemove={deleteMutation.mutateAsync}
+				onClose={() => onOpenChange(false)}
+			/>
+		);
+	} else {
+		body = <ReadOnlyBudget {...budget} />;
+	}
 
 	return (
 		<Dialog
@@ -128,44 +171,72 @@ export const UserAIBudgetOverrideDialog: FC<
 					/>
 				</div>
 
-				{loadError ? (
-					<ErrorAlert error={loadError} />
-				) : isLoading ? (
-					<div className="flex items-center gap-2 text-sm text-content-secondary">
-						<Spinner loading />
-						Loading AI budget...
-					</div>
-				) : (
-					<OverrideForm
-						user={user}
-						currentGroup={currentGroup}
-						defaultGroupId={
-							effectiveGroupId === undefined
-								? currentGroup.id
-								: effectiveGroupId
-						}
-						override={budgetOverrideQuery.data ?? null}
-						groupBudget={groupBudgetQuery.data ?? null}
-						userGroups={userGroupsQuery.data ?? []}
-						isSubmitting={isSubmitting}
-						onSave={saveMutation.mutateAsync}
-						onRemove={deleteMutation.mutateAsync}
-						onClose={() => onOpenChange(false)}
-					/>
-				)}
+				{body}
 			</DialogContent>
 		</Dialog>
 	);
 };
 
-interface OverrideFormProps {
+interface BudgetProps {
 	user: ReducedUser;
 	currentGroup: Group;
-	// Group marked "(default)" in the picker; null marks none.
-	defaultGroupId: string | null;
 	override: UserAIBudgetOverride | null;
 	groupBudget: GroupAIBudget | null;
 	userGroups: readonly Group[];
+}
+
+/** The member's effective limit as a sentence, to place inside a paragraph. */
+const BudgetSummary: FC<BudgetProps> = ({
+	user,
+	currentGroup,
+	override,
+	groupBudget,
+	userGroups,
+}) => {
+	if (!override) {
+		return (
+			<>
+				{user.username}'s monthly limit is{" "}
+				<Bold>
+					{groupBudget ? formatUSD(groupBudget.spend_limit_micros) : "uncapped"}
+				</Bold>
+				, charged to <Bold>{groupDisplayName(currentGroup)}</Bold> group.
+			</>
+		);
+	}
+
+	const overrideGroup = findGroup(currentGroup, userGroups, override.group_id);
+	return (
+		<>
+			{user.username}'s <Bold>custom</Bold> monthly limit is{" "}
+			<Bold>{formatUSD(override.spend_limit_micros)}</Bold>, charged to{" "}
+			{overrideGroup ? (
+				<>
+					<Bold>{groupDisplayName(overrideGroup)}</Bold> group.
+				</>
+			) : (
+				// The group is unresolvable here, so it can't be named.
+				<Bold>their group.</Bold>
+			)}
+		</>
+	);
+};
+
+/**
+ * The budget without any editing controls. Setting an override requires
+ * updating both the user and the group it charges, so group admins can read a
+ * member's budget without being able to change it.
+ */
+const ReadOnlyBudget: FC<BudgetProps> = (props) => (
+	<p className="m-0 text-sm text-content-secondary">
+		<BudgetSummary {...props} /> To update this limit, contact a Coder
+		administrator.
+	</p>
+);
+
+interface OverrideFormProps extends BudgetProps {
+	// Group marked "(default)" in the picker; null marks none.
+	defaultGroupId: string | null;
 	isSubmitting: boolean;
 	onSave: (request: UpsertUserAIBudgetOverrideRequest) => Promise<unknown>;
 	onRemove: () => Promise<unknown>;
@@ -212,7 +283,6 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	}, [currentGroup, userGroups]);
 
 	const selectedGroup = groupOptions.find((g) => g.id === selectedGroupId);
-	const overrideGroup = groupOptions.find((g) => g.id === override?.group_id);
 
 	// A "0" budget is valid and disables AI. Empty, negative, or above the
 	// configurable maximum is not.
@@ -266,26 +336,13 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	return (
 		<form onSubmit={handleSubmit} className="flex flex-col gap-5">
 			<p className="m-0 text-sm text-content-secondary">
-				{override ? (
-					<>
-						{user.username}'s <Bold>custom</Bold> monthly limit is{" "}
-						<Bold>{formatUSD(override.spend_limit_micros)}</Bold>, charged to{" "}
-						<Bold>
-							{overrideGroup ? groupDisplayName(overrideGroup) : "their group"}
-						</Bold>{" "}
-						group.
-					</>
-				) : (
-					<>
-						{user.username}'s monthly limit is{" "}
-						<Bold>
-							{groupBudget
-								? formatUSD(groupBudget.spend_limit_micros)
-								: "uncapped"}
-						</Bold>
-						, charged to <Bold>{groupDisplayName(currentGroup)}</Bold> group.
-					</>
-				)}
+				<BudgetSummary
+					user={user}
+					currentGroup={currentGroup}
+					override={override}
+					groupBudget={groupBudget}
+					userGroups={userGroups}
+				/>
 			</p>
 
 			<Separator />
@@ -428,5 +485,16 @@ const Bold: FC<{ children: ReactNode }> = ({ children }) => (
 
 const groupDisplayName = (group: Group): string =>
 	group.display_name || group.name;
+
+/**
+ * Finds a group among the ones this dialog knows about. Groups in another
+ * organization aren't fetchable here, so they resolve to undefined.
+ */
+const findGroup = (
+	currentGroup: Group,
+	userGroups: readonly Group[],
+	groupID: string,
+): Group | undefined =>
+	[currentGroup, ...userGroups].find((group) => group.id === groupID);
 
 const formatUSD = (micros: number): string => `${formatBudgetUSD(micros)} USD`;

@@ -27,9 +27,9 @@ import {
 	parseServerEditDiffText,
 	parseServerEditResults,
 	sanitizeExecuteModelIntent,
+	stripNoNewline,
 	stripSvnIndexHeaders,
 	summarizeParsedCommands,
-	toProviderLabel,
 } from "./utils";
 
 describe("formatModelIntentLabel", () => {
@@ -81,24 +81,6 @@ describe("sanitizeExecuteModelIntent", () => {
 		expect(
 			sanitizeExecuteModelIntent("Testing using mock data", "npm test"),
 		).toBe("Testing using mock data");
-	});
-});
-
-describe("toProviderLabel", () => {
-	it("returns displayName when provided", () => {
-		expect(toProviderLabel("GitHub", "gh-id", "oauth")).toBe("GitHub");
-	});
-
-	it("falls back to providerID when displayName is empty", () => {
-		expect(toProviderLabel("", "gh-id", "oauth")).toBe("gh-id");
-	});
-
-	it("falls back to providerType when displayName and ID are empty", () => {
-		expect(toProviderLabel("", "", "oauth")).toBe("oauth");
-	});
-
-	it("returns default label when all are empty", () => {
-		expect(toProviderLabel("", "", "")).toBe("Git provider");
 	});
 });
 
@@ -696,9 +678,9 @@ describe("parseEditFilesArgs", () => {
 		expect(diff).not.toBeNull();
 	});
 
-	// search uses required() (rejects "") while replace uses
-	// defined() (allows ""). This asymmetry is intentional:
-	// empty search is meaningless, empty replace is a deletion.
+	// normalizeEdit drops edits with an empty search but keeps an
+	// empty replace: an empty search is meaningless, an empty
+	// replace is a deletion.
 	it("rejects edits with empty-string search", () => {
 		const args = {
 			files: [
@@ -823,6 +805,10 @@ describe("buildEditDiff", () => {
 			{ search: "const y = 3;", replace: "const y = 4;" },
 		]);
 		expect(diff).not.toBeNull();
+		// Guards the regression that dropped edits after the first.
+		const added = diff!.additionLines.join("");
+		expect(added).toContain("const x = 2;");
+		expect(added).toContain("const y = 4;");
 	});
 
 	it("does not emit console errors for multi-edit diffs", () => {
@@ -872,6 +858,40 @@ describe("buildEditDiff", () => {
 		expect(diff).not.toBeNull();
 	});
 
+	it("does not count the no-newline pragma in hunk headers", () => {
+		const diff = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
+		expect(diff).not.toBeNull();
+		// One-line replacement: the header must be 1/1, not 2/2 with the
+		// \ No newline pragma counted as a source line.
+		expect(diff!.hunks[0].deletionCount).toBe(1);
+		expect(diff!.hunks[0].additionCount).toBe(1);
+	});
+
+	it("does not manufacture blank lines at edit seams", () => {
+		// search ends in a newline, replace does not; a deletion edit
+		// sits beside a normal one. Neither may inject a blank line.
+		const diff = buildEditDiff("file.ts", [
+			{ search: "old\n", replace: "new" },
+			{ search: "a", replace: "" },
+			{ search: "b", replace: "c" },
+		]);
+		expect(diff).not.toBeNull();
+		expect(diff!.deletionLines).toEqual(["old\n", "a", "b"]);
+		expect(diff!.additionLines).toEqual(["new", "c"]);
+	});
+
+	it("never correlates lines across edits", () => {
+		// One edit deletes a block, another inserts the same block;
+		// each edit must render as its own change, not as shared context.
+		const diff = buildEditDiff("file.ts", [
+			{ search: "foo\nbar\nbaz", replace: "" },
+			{ search: "ctx", replace: "ctx\nfoo\nbar\nbaz" },
+		]);
+		expect(diff).not.toBeNull();
+		expect(diff!.deletionLines).toEqual(["foo\n", "bar\n", "baz", "ctx"]);
+		expect(diff!.additionLines).toEqual(["ctx\n", "foo\n", "bar\n", "baz"]);
+	});
+
 	it("handles replace with trailing newline (trailing empty popped)", () => {
 		const diff = buildEditDiff("file.ts", [
 			{ search: "old\n", replace: "new\n" },
@@ -892,6 +912,34 @@ describe("buildEditDiff", () => {
 		// middle line rather than removing and re-adding everything.
 		const hasContext = hunk.hunkContent.some((c) => c.type === "context");
 		expect(hasContext).toBe(true);
+	});
+
+	it("keys diffs by patch content, not by file name alone", () => {
+		const first = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
+		const sameAgain = buildEditDiff("file.ts", [
+			{ search: "old", replace: "new" },
+		]);
+		const different = buildEditDiff("file.ts", [
+			{ search: "old", replace: "other" },
+		]);
+		expect(first?.cacheKey).toMatch(/^content-/);
+		expect(first?.cacheKey).toBe(sameAgain?.cacheKey);
+		expect(first?.cacheKey).not.toBe(different?.cacheKey);
+	});
+
+	it("restamps the cache key when stripNoNewline clears the flags", () => {
+		const diff = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
+		expect(diff).not.toBeNull();
+		// Pin the flags so the test does not depend on jsdiff's
+		// no-newline marker emission for this fixture.
+		for (const hunk of diff!.hunks) {
+			hunk.noEOFCRDeletions = true;
+			hunk.noEOFCRAdditions = true;
+		}
+
+		const stripped = stripNoNewline(diff!);
+
+		expect(stripped.cacheKey).not.toBe(diff!.cacheKey);
 	});
 });
 

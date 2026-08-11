@@ -3,7 +3,7 @@ import type { WorkspaceAgentRepoChanges } from "#/api/typesGenerated";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
-import { useParsedDiff } from "../DiffViewer/useParsedDiff";
+import { parseDiffString } from "../DiffViewer/parseDiff";
 
 interface LocalDiffPanelProps {
 	repo: WorkspaceAgentRepoChanges;
@@ -18,7 +18,7 @@ export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 	diffStyle,
 	chatInputRef,
 }) => {
-	const parsedFiles = useParsedDiff(repo.unified_diff);
+	const parsedFiles = parseDiffString(repo.unified_diff);
 
 	return (
 		<CommentableDiffViewer

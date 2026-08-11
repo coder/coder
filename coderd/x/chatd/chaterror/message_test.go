@@ -81,14 +81,14 @@ func TestTerminalMessage(t *testing.T) {
 			kind:      codersdk.ChatErrorKindUsageLimit,
 			provider:  "openai",
 			retryable: false,
-			want:      "The usage quota for OpenAI has been exceeded. Check the billing and quota settings for the provider account.",
+			want:      "The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
 		},
 		{
 			name:      "UsageLimit_UnknownProvider",
 			kind:      codersdk.ChatErrorKindUsageLimit,
 			provider:  "",
 			retryable: false,
-			want:      "The usage quota for the AI provider has been exceeded. Check the billing and quota settings for the provider account.",
+			want:      "The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
 		},
 		{
 			name:      "MissingKey",
