@@ -3324,49 +3324,11 @@ func (s *server) regenerateAIAgentSessionToken(ctx context.Context, workspace da
 }
 
 // resolveWorkspaceOriginAIAgent creates or reuses the workspace-origin
-// identity for the human opt-in path, re-sponsoring it when the workspace
-// owner changed.
+// identity for the human opt-in path. The resolution rules, including
+// re-sponsoring after an ownership change, are shared with the sandbox
+// lifecycle, so they live in the identity package.
 func (s *server) resolveWorkspaceOriginAIAgent(ctx context.Context, workspace database.Workspace) (database.AIAgent, error) {
-	agent, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   workspace.ID,
-	})
-	switch {
-	case err == nil:
-		// The identity must still belong to the current workspace owner.
-		// Ownership transfer (e.g. a future claim flow) invalidates the old
-		// sponsorship: revoke and recreate under the new owner.
-		if agent.OwnerUserID != workspace.OwnerID {
-			if err := s.revokeAIAgentIdentity(ctx, agent); err != nil {
-				return database.AIAgent{}, xerrors.Errorf("revoke AI agent identity after ownership change: %w", err)
-			}
-			agent, err = s.createWorkspaceAIAgent(ctx, workspace)
-			if err != nil {
-				return database.AIAgent{}, err
-			}
-		}
-	case errors.Is(err, sql.ErrNoRows):
-		agent, err = s.createWorkspaceAIAgent(ctx, workspace)
-		if err != nil {
-			return database.AIAgent{}, err
-		}
-	default:
-		return database.AIAgent{}, xerrors.Errorf("get AI agent by origin: %w", err)
-	}
-	return agent, nil
-}
-
-func (s *server) createWorkspaceAIAgent(ctx context.Context, workspace database.Workspace) (database.AIAgent, error) {
-	_, agent, err := aiagentidentity.Create(ctx, s.Database, aiagentidentity.CreateParams{
-		OwnerID:        workspace.OwnerID,
-		OrganizationID: workspace.OrganizationID,
-		OriginType:     database.AIAgentOriginWorkspace,
-		OriginID:       workspace.ID,
-	})
-	if err != nil {
-		return database.AIAgent{}, xerrors.Errorf("create workspace AI agent identity: %w", err)
-	}
-	return agent, nil
+	return aiagentidentity.ResolveWorkspaceOrigin(ctx, s.Database, workspace)
 }
 
 func (s *server) deleteAIAgentSessionToken(ctx context.Context, agent database.AIAgent, tokenName string) error {
