@@ -643,6 +643,11 @@ export const AISandboxNetworkEventActions: AISandboxNetworkEventAction[] = [
  * AISandboxNetworkEventView is one retained egress policy decision.
  */
 export interface AISandboxNetworkEventView {
+	/**
+	 * ID is the stable row identifier and keyset pagination cursor: pass
+	 * the last event's ID as after_id to fetch the next page.
+	 */
+	readonly id: number;
 	readonly session_id: string;
 	readonly occurred_at: string;
 	readonly protocol: AISandboxNetworkProtocol;

@@ -2054,6 +2054,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/ai-sandbox-se
   {
     "action": "allowed",
     "host": "string",
+    "id": 0,
     "occurred_at": "2019-08-24T14:15:22Z",
     "policy_revision": 0,
     "port": 0,
@@ -2073,16 +2074,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/ai-sandbox-se
 
 Status Code **200**
 
-| Name                | Type                                                                                   | Required | Restrictions | Description |
-|---------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`      | array                                                                                  | false    |              |             |
-| `» action`          | [codersdk.AISandboxNetworkEventAction](schemas.md#codersdkaisandboxnetworkeventaction) | false    |              |             |
-| `» host`            | string                                                                                 | false    |              |             |
-| `» occurred_at`     | string(date-time)                                                                      | false    |              |             |
-| `» policy_revision` | integer                                                                                | false    |              |             |
-| `» port`            | integer                                                                                | false    |              |             |
-| `» protocol`        | [codersdk.AISandboxNetworkProtocol](schemas.md#codersdkaisandboxnetworkprotocol)       | false    |              |             |
-| `» session_id`      | string(uuid)                                                                           | false    |              |             |
+| Name                | Type                                                                                   | Required | Restrictions | Description                                                                                                                |
+|---------------------|----------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`      | array                                                                                  | false    |              |                                                                                                                            |
+| `» action`          | [codersdk.AISandboxNetworkEventAction](schemas.md#codersdkaisandboxnetworkeventaction) | false    |              |                                                                                                                            |
+| `» host`            | string                                                                                 | false    |              |                                                                                                                            |
+| `» id`              | integer                                                                                | false    |              | ID is the stable row identifier and keyset pagination cursor: pass the last event's ID as after_id to fetch the next page. |
+| `» occurred_at`     | string(date-time)                                                                      | false    |              |                                                                                                                            |
+| `» policy_revision` | integer                                                                                | false    |              |                                                                                                                            |
+| `» port`            | integer                                                                                | false    |              |                                                                                                                            |
+| `» protocol`        | [codersdk.AISandboxNetworkProtocol](schemas.md#codersdkaisandboxnetworkprotocol)       | false    |              |                                                                                                                            |
+| `» session_id`      | string(uuid)                                                                           | false    |              |                                                                                                                            |
 
 #### Enumerated Values
 

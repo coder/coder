@@ -142,6 +142,9 @@ type AISandboxSession struct {
 
 // AISandboxNetworkEventView is one retained egress policy decision.
 type AISandboxNetworkEventView struct {
+	// ID is the stable row identifier and keyset pagination cursor: pass
+	// the last event's ID as after_id to fetch the next page.
+	ID             int64                       `json:"id"`
 	SessionID      uuid.UUID                   `json:"session_id" format:"uuid"`
 	OccurredAt     time.Time                   `json:"occurred_at" format:"date-time"`
 	Protocol       AISandboxNetworkProtocol    `json:"protocol"`

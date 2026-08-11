@@ -1480,6 +1480,7 @@ None
 {
   "action": "allowed",
   "host": "string",
+  "id": 0,
   "occurred_at": "2019-08-24T14:15:22Z",
   "policy_revision": 0,
   "port": 0,
@@ -1490,15 +1491,16 @@ None
 
 ### Properties
 
-| Name              | Type                                                                         | Required | Restrictions | Description |
-|-------------------|------------------------------------------------------------------------------|----------|--------------|-------------|
-| `action`          | [codersdk.AISandboxNetworkEventAction](#codersdkaisandboxnetworkeventaction) | false    |              |             |
-| `host`            | string                                                                       | false    |              |             |
-| `occurred_at`     | string                                                                       | false    |              |             |
-| `policy_revision` | integer                                                                      | false    |              |             |
-| `port`            | integer                                                                      | false    |              |             |
-| `protocol`        | [codersdk.AISandboxNetworkProtocol](#codersdkaisandboxnetworkprotocol)       | false    |              |             |
-| `session_id`      | string                                                                       | false    |              |             |
+| Name              | Type                                                                         | Required | Restrictions | Description                                                                                                                |
+|-------------------|------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `action`          | [codersdk.AISandboxNetworkEventAction](#codersdkaisandboxnetworkeventaction) | false    |              |                                                                                                                            |
+| `host`            | string                                                                       | false    |              |                                                                                                                            |
+| `id`              | integer                                                                      | false    |              | ID is the stable row identifier and keyset pagination cursor: pass the last event's ID as after_id to fetch the next page. |
+| `occurred_at`     | string                                                                       | false    |              |                                                                                                                            |
+| `policy_revision` | integer                                                                      | false    |              |                                                                                                                            |
+| `port`            | integer                                                                      | false    |              |                                                                                                                            |
+| `protocol`        | [codersdk.AISandboxNetworkProtocol](#codersdkaisandboxnetworkprotocol)       | false    |              |                                                                                                                            |
+| `session_id`      | string                                                                       | false    |              |                                                                                                                            |
 
 ## codersdk.AISandboxNetworkProtocol
 

@@ -118,6 +118,7 @@ func (api *API) workspaceAISandboxSessionNetworkEvents(rw http.ResponseWriter, r
 	response := make([]codersdk.AISandboxNetworkEventView, 0, len(events))
 	for _, event := range events {
 		response = append(response, codersdk.AISandboxNetworkEventView{
+			ID:             event.ID,
 			SessionID:      event.SessionID,
 			OccurredAt:     event.OccurredAt,
 			Protocol:       codersdk.AISandboxNetworkProtocol(event.Protocol),

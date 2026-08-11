@@ -16561,6 +16561,10 @@ const docTemplate = `{
                 "host": {
                     "type": "string"
                 },
+                "id": {
+                    "description": "ID is the stable row identifier and keyset pagination cursor: pass\nthe last event's ID as after_id to fetch the next page.",
+                    "type": "integer"
+                },
                 "occurred_at": {
                     "type": "string",
                     "format": "date-time"
