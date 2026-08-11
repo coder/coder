@@ -2613,6 +2613,27 @@ func TestAcquireProvisionerJob(t *testing.T) {
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
+
+	t.Run("ProvisionerKeyLock", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitMedium)
+			org   = dbgen.Organization(t, db, database.Organization{})
+			key   = dbgen.ProvisionerKey(t, db, database.ProvisionerKey{OrganizationID: org.ID})
+		)
+
+		// While the key exists, the lock returns its ID.
+		id, err := db.LockProvisionerKeyByIDForShare(ctx, key.ID)
+		require.NoError(t, err)
+		require.Equal(t, key.ID, id)
+
+		// Once the key is deleted, the lock reports no rows.
+		err = db.DeleteProvisionerKey(ctx, key.ID)
+		require.NoError(t, err)
+		_, err = db.LockProvisionerKeyByIDForShare(ctx, key.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
 }
 
 func TestUserLastSeenFilter(t *testing.T) {

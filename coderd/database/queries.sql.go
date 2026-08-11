@@ -23804,6 +23804,27 @@ func (q *sqlQuerier) ListProvisionerKeysByOrganizationExcludeReserved(ctx contex
 	return items, nil
 }
 
+const lockProvisionerKeyByIDForShare = `-- name: LockProvisionerKeyByIDForShare :one
+SELECT
+    id
+FROM
+    provisioner_keys
+WHERE
+    id = $1
+FOR KEY SHARE
+`
+
+// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
+// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
+// is held the key cannot be deleted, and a committed deletion is observed as
+// no rows by later calls.
+func (q *sqlQuerier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, lockProvisionerKeyByIDForShare, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
 	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
