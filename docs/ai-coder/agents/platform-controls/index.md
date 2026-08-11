@@ -1,6 +1,4 @@
----
-title: Platform Controls
----
+# Platform Controls
 
 ## Design philosophy
 
