@@ -1941,6 +1941,148 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/agent-connect
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List AI sandbox sessions
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/ai-sandbox-sessions \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/workspaces/{workspace}/ai-sandbox-sessions`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+    "confined_agent_id": "ae10a8ec-db68-4582-b5e7-68155935cc15",
+    "created_at": "2019-08-24T14:15:22Z",
+    "egress_enforcement": "forced",
+    "ended_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "reporter_agent_id": "76d796c5-545e-4914-a1ae-f06b4c5f6986",
+    "sponsor_user_id": "0489048f-6235-4646-854e-7735d7c3e6e5",
+    "started_at": "2019-08-24T14:15:22Z",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                    |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AISandboxSession](schemas.md#codersdkaisandboxsession) |
+
+<h3 id="list-ai-sandbox-sessions-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                   | Type                                                                                 | Required | Restrictions | Description |
+|------------------------|--------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`         | array                                                                                | false    |              |             |
+| `» ai_agent_id`        | string(uuid)                                                                         | false    |              |             |
+| `» confined_agent_id`  | string(uuid)                                                                         | false    |              |             |
+| `» created_at`         | string(date-time)                                                                    | false    |              |             |
+| `» egress_enforcement` | [codersdk.AISandboxEgressEnforcement](schemas.md#codersdkaisandboxegressenforcement) | false    |              |             |
+| `» ended_at`           | string(date-time)                                                                    | false    |              |             |
+| `» id`                 | string(uuid)                                                                         | false    |              |             |
+| `» reporter_agent_id`  | string(uuid)                                                                         | false    |              |             |
+| `» sponsor_user_id`    | string(uuid)                                                                         | false    |              |             |
+| `» started_at`         | string(date-time)                                                                    | false    |              |             |
+| `» workspace_id`       | string(uuid)                                                                         | false    |              |             |
+
+#### Enumerated Values
+
+| Property             | Value(s)                     |
+|----------------------|------------------------------|
+| `egress_enforcement` | `advisory`, `forced`, `none` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List AI sandbox session network events
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/ai-sandbox-sessions/{session}/network-events \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/workspaces/{workspace}/ai-sandbox-sessions/{session}/network-events`
+
+### Parameters
+
+| Name        | In    | Type         | Required | Description                                          |
+|-------------|-------|--------------|----------|------------------------------------------------------|
+| `workspace` | path  | string(uuid) | true     | Workspace ID                                         |
+| `session`   | path  | string(uuid) | true     | AI sandbox session ID                                |
+| `after_id`  | query | integer      | false    | Return events with database ID greater than after_id |
+| `limit`     | query | integer      | false    | Page size, 1 to 100. Defaults to 100.                |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "action": "allowed",
+    "host": "string",
+    "occurred_at": "2019-08-24T14:15:22Z",
+    "policy_revision": 0,
+    "port": 0,
+    "protocol": "connect",
+    "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                      |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AISandboxNetworkEventView](schemas.md#codersdkaisandboxnetworkeventview) |
+
+<h3 id="list-ai-sandbox-session-network-events-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                | Type                                                                                   | Required | Restrictions | Description |
+|---------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`      | array                                                                                  | false    |              |             |
+| `» action`          | [codersdk.AISandboxNetworkEventAction](schemas.md#codersdkaisandboxnetworkeventaction) | false    |              |             |
+| `» host`            | string                                                                                 | false    |              |             |
+| `» occurred_at`     | string(date-time)                                                                      | false    |              |             |
+| `» policy_revision` | integer                                                                                | false    |              |             |
+| `» port`            | integer                                                                                | false    |              |             |
+| `» protocol`        | [codersdk.AISandboxNetworkProtocol](schemas.md#codersdkaisandboxnetworkprotocol)       | false    |              |             |
+| `» session_id`      | string(uuid)                                                                           | false    |              |             |
+
+#### Enumerated Values
+
+| Property   | Value(s)                        |
+|------------|---------------------------------|
+| `action`   | `allowed`, `denied`             |
+| `protocol` | `connect`, `http`, `sni`, `tcp` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update workspace autostart schedule by ID
 
 ### Code samples

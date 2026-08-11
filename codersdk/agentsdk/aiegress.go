@@ -103,30 +103,22 @@ func (c *Client) WatchAIEgressPolicy(ctx context.Context) (<-chan codersdk.AIEgr
 
 // AISandboxNetworkProtocol identifies how the egress proxy observed a
 // connection attempt.
-type AISandboxNetworkProtocol string
+type AISandboxNetworkProtocol = codersdk.AISandboxNetworkProtocol
 
 const (
-	// AISandboxNetworkProtocolConnect is an HTTP CONNECT request to the
-	// proxy (hostname supplied by the client).
-	AISandboxNetworkProtocolConnect AISandboxNetworkProtocol = "connect"
-	// AISandboxNetworkProtocolHTTP is a plain absolute-form HTTP request
-	// forwarded through the proxy.
-	AISandboxNetworkProtocolHTTP AISandboxNetworkProtocol = "http"
-	// AISandboxNetworkProtocolSNI is a transparently intercepted TLS
-	// connection whose hostname was read from the ClientHello SNI.
-	AISandboxNetworkProtocolSNI AISandboxNetworkProtocol = "sni"
-	// AISandboxNetworkProtocolTCP is a transparently intercepted
-	// connection with no readable hostname (matched by address only).
-	AISandboxNetworkProtocolTCP AISandboxNetworkProtocol = "tcp"
+	AISandboxNetworkProtocolConnect = codersdk.AISandboxNetworkProtocolConnect
+	AISandboxNetworkProtocolHTTP    = codersdk.AISandboxNetworkProtocolHTTP
+	AISandboxNetworkProtocolSNI     = codersdk.AISandboxNetworkProtocolSNI
+	AISandboxNetworkProtocolTCP     = codersdk.AISandboxNetworkProtocolTCP
 )
 
 // AISandboxNetworkEventAction is the proxy's policy decision for one
 // observed connection attempt.
-type AISandboxNetworkEventAction string
+type AISandboxNetworkEventAction = codersdk.AISandboxNetworkEventAction
 
 const (
-	AISandboxNetworkEventActionAllowed AISandboxNetworkEventAction = "allowed"
-	AISandboxNetworkEventActionDenied  AISandboxNetworkEventAction = "denied"
+	AISandboxNetworkEventActionAllowed = codersdk.AISandboxNetworkEventActionAllowed
+	AISandboxNetworkEventActionDenied  = codersdk.AISandboxNetworkEventActionDenied
 )
 
 // PostAISandboxSessionRequest opens (or idempotently re-asserts) a

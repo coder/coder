@@ -630,6 +630,55 @@ export const AISandboxEgressEnforcements: AISandboxEgressEnforcement[] = [
 	"none",
 ];
 
+// From codersdk/aiegresspolicy.go
+export type AISandboxNetworkEventAction = "allowed" | "denied";
+
+export const AISandboxNetworkEventActions: AISandboxNetworkEventAction[] = [
+	"allowed",
+	"denied",
+];
+
+// From codersdk/aiegresspolicy.go
+/**
+ * AISandboxNetworkEventView is one retained egress policy decision.
+ */
+export interface AISandboxNetworkEventView {
+	readonly session_id: string;
+	readonly occurred_at: string;
+	readonly protocol: AISandboxNetworkProtocol;
+	readonly host: string;
+	readonly port: number;
+	readonly action: AISandboxNetworkEventAction;
+	readonly policy_revision: number;
+}
+
+// From codersdk/aiegresspolicy.go
+export type AISandboxNetworkProtocol = "connect" | "http" | "sni" | "tcp";
+
+export const AISandboxNetworkProtocols: AISandboxNetworkProtocol[] = [
+	"connect",
+	"http",
+	"sni",
+	"tcp",
+];
+
+// From codersdk/aiegresspolicy.go
+/**
+ * AISandboxSession describes a retained AI confinement session.
+ */
+export interface AISandboxSession {
+	readonly id: string;
+	readonly workspace_id: string;
+	readonly reporter_agent_id: string;
+	readonly confined_agent_id: string;
+	readonly ai_agent_id: string;
+	readonly sponsor_user_id: string;
+	readonly egress_enforcement: AISandboxEgressEnforcement;
+	readonly started_at: string;
+	readonly ended_at?: string;
+	readonly created_at: string;
+}
+
 // From codersdk/aibridge.go
 /**
  * AISpendPeriodWindow is the [Start, End) window over which AI spend is

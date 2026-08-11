@@ -1953,6 +1953,8 @@ func New(options *Options) *API {
 				r.Delete("/favorite", api.deleteFavoriteWorkspace)
 				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
 				r.Get("/resolve-autostart", api.resolveAutostart)
+				r.Get("/ai-sandbox-sessions", api.workspaceAISandboxSessions)
+				r.Get("/ai-sandbox-sessions/{session}/network-events", api.workspaceAISandboxSessionNetworkEvents)
 				r.Route("/port-share", func(r chi.Router) {
 					r.Get("/", api.workspaceAgentPortShares)
 					r.Post("/", api.postWorkspaceAgentPortShare)

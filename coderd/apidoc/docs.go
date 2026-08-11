@@ -14047,6 +14047,102 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workspaces/{workspace}/ai-sandbox-sessions": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "List AI sandbox sessions",
+                "operationId": "list-ai-sandbox-sessions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AISandboxSession"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/workspaces/{workspace}/ai-sandbox-sessions/{session}/network-events": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "List AI sandbox session network events",
+                "operationId": "list-ai-sandbox-session-network-events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI sandbox session ID",
+                        "name": "session",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return events with database ID greater than after_id",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, 1 to 100. Defaults to 100.",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AISandboxNetworkEventView"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/workspaces/{workspace}/autostart": {
             "put": {
                 "consumes": [
@@ -15360,6 +15456,8 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "allowed",
+                "denied",
+                "allowed",
                 "denied"
             ],
             "x-enum-varnames": [
@@ -15370,6 +15468,10 @@ const docTemplate = `{
         "agentsdk.AISandboxNetworkProtocol": {
             "type": "string",
             "enum": [
+                "connect",
+                "http",
+                "sni",
+                "tcp",
                 "connect",
                 "http",
                 "sni",
@@ -16438,6 +16540,104 @@ const docTemplate = `{
                 "AISandboxEgressEnforcementAdvisory",
                 "AISandboxEgressEnforcementNone"
             ]
+        },
+        "codersdk.AISandboxNetworkEventAction": {
+            "type": "string",
+            "enum": [
+                "allowed",
+                "denied"
+            ],
+            "x-enum-varnames": [
+                "AISandboxNetworkEventActionAllowed",
+                "AISandboxNetworkEventActionDenied"
+            ]
+        },
+        "codersdk.AISandboxNetworkEventView": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/codersdk.AISandboxNetworkEventAction"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "occurred_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "policy_revision": {
+                    "type": "integer"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "protocol": {
+                    "$ref": "#/definitions/codersdk.AISandboxNetworkProtocol"
+                },
+                "session_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.AISandboxNetworkProtocol": {
+            "type": "string",
+            "enum": [
+                "connect",
+                "http",
+                "sni",
+                "tcp"
+            ],
+            "x-enum-varnames": [
+                "AISandboxNetworkProtocolConnect",
+                "AISandboxNetworkProtocolHTTP",
+                "AISandboxNetworkProtocolSNI",
+                "AISandboxNetworkProtocolTCP"
+            ]
+        },
+        "codersdk.AISandboxSession": {
+            "type": "object",
+            "properties": {
+                "ai_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "confined_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "egress_enforcement": {
+                    "$ref": "#/definitions/codersdk.AISandboxEgressEnforcement"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reporter_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "sponsor_user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
         },
         "codersdk.APIAllowListTarget": {
             "type": "object",

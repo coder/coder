@@ -1460,6 +1460,92 @@ None
 |------------------------------|
 | `advisory`, `forced`, `none` |
 
+## codersdk.AISandboxNetworkEventAction
+
+```json
+"allowed"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `allowed`, `denied` |
+
+## codersdk.AISandboxNetworkEventView
+
+```json
+{
+  "action": "allowed",
+  "host": "string",
+  "occurred_at": "2019-08-24T14:15:22Z",
+  "policy_revision": 0,
+  "port": 0,
+  "protocol": "connect",
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                         | Required | Restrictions | Description |
+|-------------------|------------------------------------------------------------------------------|----------|--------------|-------------|
+| `action`          | [codersdk.AISandboxNetworkEventAction](#codersdkaisandboxnetworkeventaction) | false    |              |             |
+| `host`            | string                                                                       | false    |              |             |
+| `occurred_at`     | string                                                                       | false    |              |             |
+| `policy_revision` | integer                                                                      | false    |              |             |
+| `port`            | integer                                                                      | false    |              |             |
+| `protocol`        | [codersdk.AISandboxNetworkProtocol](#codersdkaisandboxnetworkprotocol)       | false    |              |             |
+| `session_id`      | string                                                                       | false    |              |             |
+
+## codersdk.AISandboxNetworkProtocol
+
+```json
+"connect"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                        |
+|---------------------------------|
+| `connect`, `http`, `sni`, `tcp` |
+
+## codersdk.AISandboxSession
+
+```json
+{
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+  "confined_agent_id": "ae10a8ec-db68-4582-b5e7-68155935cc15",
+  "created_at": "2019-08-24T14:15:22Z",
+  "egress_enforcement": "forced",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "reporter_agent_id": "76d796c5-545e-4914-a1ae-f06b4c5f6986",
+  "sponsor_user_id": "0489048f-6235-4646-854e-7735d7c3e6e5",
+  "started_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                                       | Required | Restrictions | Description |
+|----------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `ai_agent_id`        | string                                                                     | false    |              |             |
+| `confined_agent_id`  | string                                                                     | false    |              |             |
+| `created_at`         | string                                                                     | false    |              |             |
+| `egress_enforcement` | [codersdk.AISandboxEgressEnforcement](#codersdkaisandboxegressenforcement) | false    |              |             |
+| `ended_at`           | string                                                                     | false    |              |             |
+| `id`                 | string                                                                     | false    |              |             |
+| `reporter_agent_id`  | string                                                                     | false    |              |             |
+| `sponsor_user_id`    | string                                                                     | false    |              |             |
+| `started_at`         | string                                                                     | false    |              |             |
+| `workspace_id`       | string                                                                     | false    |              |             |
+
 ## codersdk.APIAllowListTarget
 
 ```json

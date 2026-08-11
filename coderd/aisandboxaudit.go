@@ -21,7 +21,133 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-const maxAISandboxNetworkEvents = 1000
+const (
+	maxAISandboxNetworkEvents         = 1000
+	maxAISandboxNetworkEventsPageSize = 100
+)
+
+// @Summary List AI sandbox sessions
+// @ID list-ai-sandbox-sessions
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 200 {array} codersdk.AISandboxSession
+// @Router /api/v2/workspaces/{workspace}/ai-sandbox-sessions [get]
+func (api *API) workspaceAISandboxSessions(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspace := httpmw.WorkspaceParam(r)
+
+	sessions, err := api.Database.GetAISandboxSessionsByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("get AI sandbox sessions: %w", err))
+		return
+	}
+
+	response := make([]codersdk.AISandboxSession, 0, len(sessions))
+	for _, session := range sessions {
+		response = append(response, convertAISandboxSession(session))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+// @Summary List AI sandbox session network events
+// @ID list-ai-sandbox-session-network-events
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param session path string true "AI sandbox session ID" format(uuid)
+// @Param after_id query int false "Return events with database ID greater than after_id"
+// @Param limit query int false "Page size, 1 to 100. Defaults to 100."
+// @Success 200 {array} codersdk.AISandboxNetworkEventView
+// @Router /api/v2/workspaces/{workspace}/ai-sandbox-sessions/{session}/network-events [get]
+func (api *API) workspaceAISandboxSessionNetworkEvents(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspace := httpmw.WorkspaceParam(r)
+	sessionID, ok := httpmw.ParseUUIDParam(rw, r, "session")
+	if !ok {
+		return
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	afterID := parser.PositiveInt64(r.URL.Query(), 0, "after_id")
+	limit := parser.PositiveInt32(r.URL.Query(), maxAISandboxNetworkEventsPageSize, "limit")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	if limit < 1 || limit > maxAISandboxNetworkEventsPageSize {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid limit parameter (1-%d).", maxAISandboxNetworkEventsPageSize),
+		})
+		return
+	}
+
+	// Retained sessions are read internally so a session belonging to another
+	// workspace can be hidden before the workspace-authorized event query runs.
+	//nolint:gocritic
+	session, err := api.Database.GetAISandboxSessionByID(dbauthz.AsSystemRestricted(ctx), sessionID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, xerrors.Errorf("get AI sandbox session: %w", err))
+		return
+	}
+	if session.WorkspaceID != workspace.ID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	events, err := api.Database.GetAISandboxNetworkEventsBySessionIDPaged(ctx, database.GetAISandboxNetworkEventsBySessionIDPagedParams{
+		SessionID:   sessionID,
+		AfterID:     afterID,
+		WorkspaceID: workspace.ID,
+		LimitCount:  limit,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("get AI sandbox network events: %w", err))
+		return
+	}
+
+	response := make([]codersdk.AISandboxNetworkEventView, 0, len(events))
+	for _, event := range events {
+		response = append(response, codersdk.AISandboxNetworkEventView{
+			SessionID:      event.SessionID,
+			OccurredAt:     event.OccurredAt,
+			Protocol:       codersdk.AISandboxNetworkProtocol(event.Protocol),
+			Host:           event.Host,
+			Port:           int(event.Port),
+			Action:         codersdk.AISandboxNetworkEventAction(event.Action),
+			PolicyRevision: event.PolicyRevision,
+		})
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+func convertAISandboxSession(session database.AISandboxSession) codersdk.AISandboxSession {
+	var endedAt *time.Time
+	if session.EndedAt.Valid {
+		endedAt = &session.EndedAt.Time
+	}
+	return codersdk.AISandboxSession{
+		ID:                session.ID,
+		WorkspaceID:       session.WorkspaceID,
+		ReporterAgentID:   session.ReporterAgentID,
+		ConfinedAgentID:   session.ConfinedAgentID,
+		AIAgentID:         session.AIAgentID,
+		SponsorUserID:     session.SponsorUserID,
+		EgressEnforcement: codersdk.AISandboxEgressEnforcement(session.EgressEnforcement),
+		StartedAt:         session.StartedAt,
+		EndedAt:           endedAt,
+		CreatedAt:         session.CreatedAt,
+	}
+}
 
 // @Summary Report an AI sandbox session
 // @ID report-ai-sandbox-session
