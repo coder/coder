@@ -1,8 +1,9 @@
-import { CircleCheckBigIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
 import { type LinkProps, Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
+import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
 import { cn } from "#/utils/cn";
 
 export const Paywall = ({
@@ -13,8 +14,9 @@ export const Paywall = ({
 	return (
 		<div
 			className={cn(
+				"relative isolate overflow-hidden",
 				"flex flex-row items-center justify-center min-h-[280px] p-4 rounded-lg gap-8",
-				"border border-solid border-border-magenta bg-[linear-gradient(160deg,transparent,hsl(var(--surface-magenta)))]",
+				"border border-solid border-border-default bg-surface-primary",
 				className,
 			)}
 			{...props}
@@ -26,9 +28,20 @@ export const Paywall = ({
 
 export const PaywallContent: FC<React.ComponentProps<"div">> = ({
 	children,
+	className,
 	...props
 }) => {
-	return <div {...props}>{children}</div>;
+	return (
+		<div
+			className={cn(
+				"flex w-1/2 flex-col items-center justify-center px-6 text-center",
+				className,
+			)}
+			{...props}
+		>
+			{children}
+		</div>
+	);
 };
 
 export const PaywallHeading: FC<React.ComponentProps<"div">> = ({
@@ -38,7 +51,10 @@ export const PaywallHeading: FC<React.ComponentProps<"div">> = ({
 }) => {
 	return (
 		<div
-			className={cn("flex flex-row gap-4 items-center mb-6", className)}
+			className={cn(
+				"flex flex-row gap-4 items-center justify-center mb-6",
+				className,
+			)}
 			{...props}
 		>
 			{children}
@@ -110,6 +126,18 @@ export const PaywallSeparator: FC<React.ComponentProps<"hr">> = ({
 	);
 };
 
+export const PaywallSupergraphic: FC<React.ComponentProps<"div">> = ({
+	className,
+	...props
+}) => {
+	return (
+		<Supergraphic
+			className={cn("absolute inset-y-0 left-0 w-1/2 -z-10", className)}
+			{...props}
+		/>
+	);
+};
+
 export const PaywallStack: FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
@@ -117,7 +145,7 @@ export const PaywallStack: FC<React.ComponentProps<"div">> = ({
 }) => {
 	return (
 		<div
-			className={cn("flex flex-col items-start gap-6", className)}
+			className={cn("flex flex-1 flex-col items-start gap-6", className)}
 			{...props}
 		>
 			{children}
@@ -170,6 +198,7 @@ export const PaywallCTA: FC<React.ComponentProps<"a">> = ({
 				className={cn("mx-7", className)}
 				{...props}
 			>
+				<ArrowRightIcon aria-hidden="true" />
 				{children}
 			</a>
 		</Button>
@@ -213,9 +242,9 @@ const FeatureIcon: FC<React.ComponentProps<"svg">> = ({
 	...props
 }) => {
 	return (
-		<CircleCheckBigIcon
+		<CheckIcon
 			aria-hidden="true"
-			className={cn("size-icon-sm text-border-magenta", className)}
+			className={cn("size-icon-sm", className)}
 			{...props}
 		/>
 	);

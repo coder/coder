@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { PremiumBadge } from "#/components/Badges/Badges";
 import { cn } from "#/utils/cn";
 import {
 	Paywall,
@@ -13,6 +12,7 @@ import {
 	PaywallHeading,
 	PaywallSeparator,
 	PaywallStack,
+	PaywallSupergraphic,
 	PaywallTitle,
 } from "./Paywall";
 
@@ -24,11 +24,11 @@ const PREMIUM_FEATURES = [
 ];
 
 const PREMIUM_PAGE_PATH = "/deployment/premium";
+const PREMIUM_PRICING_LINK = "https://coder.com/pricing";
 
 type PaywallPremiumProps = React.ComponentProps<"div"> & {
 	message: string;
 	description: ReactNode;
-	documentationLink: string;
 	compact?: boolean;
 	/** Whether the viewer can reach the in-app Premium page. */
 	canViewPremium: boolean;
@@ -37,7 +37,6 @@ type PaywallPremiumProps = React.ComponentProps<"div"> & {
 const PaywallPremium = ({
 	message,
 	description,
-	documentationLink,
 	compact = false,
 	canViewPremium: canViewLicenses,
 	className,
@@ -51,12 +50,12 @@ const PaywallPremium = ({
 			)}
 			{...props}
 		>
+			<PaywallSupergraphic />
 			<PaywallContent>
 				<PaywallHeading className={cn(compact && "mb-[18px]")}>
 					<PaywallTitle className={cn(compact && "text-lg leading-none")}>
 						{message}
 					</PaywallTitle>
-					<PremiumBadge />
 				</PaywallHeading>
 				<PaywallDescription
 					className={cn(
@@ -66,7 +65,7 @@ const PaywallPremium = ({
 				>
 					{description}
 				</PaywallDescription>
-				<PaywallDocumentationLink href={documentationLink}>
+				<PaywallDocumentationLink href={PREMIUM_PRICING_LINK}>
 					Read the documentation
 				</PaywallDocumentationLink>
 			</PaywallContent>

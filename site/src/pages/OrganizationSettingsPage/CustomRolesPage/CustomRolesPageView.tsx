@@ -26,7 +26,6 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import type { Permissions } from "#/modules/permissions";
-import { docs } from "#/utils/docs";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
 
@@ -69,7 +68,6 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 				<PaywallPremium
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
-					documentationLink={docs("/admin/users/groups-roles")}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}

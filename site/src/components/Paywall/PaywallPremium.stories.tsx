@@ -9,8 +9,6 @@ const meta: Meta<typeof PaywallPremium> = {
 		message: "Workspace Proxies",
 		description:
 			"Workspace proxies provide low-latency connections for geo-distributed teams. You need a Premium license to use this feature.",
-		documentationLink:
-			"https://coder.com/docs/admin/networking/workspace-proxies",
 		canViewPremium: false,
 	},
 };

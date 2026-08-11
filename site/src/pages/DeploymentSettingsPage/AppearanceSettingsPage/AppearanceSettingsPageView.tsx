@@ -20,7 +20,6 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import type { Permissions } from "#/modules/permissions";
-import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
@@ -67,22 +66,17 @@ export const AppearanceSettingsPageView: FC<
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			<Badges>
-				{isEntitled ? (
-					isPremium ? (
-						<PremiumBadge />
-					) : (
-						<EnterpriseBadge />
-					)
-				) : (
+			{isEntitled ? (
+				<Badges>{isPremium ? <PremiumBadge /> : <EnterpriseBadge />}</Badges>
+			) : (
+				<div className="mb-4">
 					<PaywallPremium
 						message="Appearance"
 						description="With a Premium license, you can customize the appearance and branding of your deployment."
-						documentationLink={docs("/admin/setup/appearance")}
 						canViewPremium={permissions.viewAllLicenses}
 					/>
-				)}
-			</Badges>
+				</div>
+			)}
 
 			<Fieldset
 				title="Application name"
