@@ -108,6 +108,21 @@ func TestExpMcpServer(t *testing.T) {
 		assert.True(t, *annotations.IdempotentHint)
 		assert.False(t, *annotations.OpenWorldHint)
 
+		// Prompts reference chat tools, which are excluded by this
+		// allowlist, so none may be advertised.
+		stdin.WriteLine(`{"jsonrpc":"2.0","id":5,"method":"prompts/list"}`)
+		promptsOutput := stdout.ReadLine(ctx)
+		var promptsResponse struct {
+			Result struct {
+				Prompts []struct {
+					Name string `json:"name"`
+				} `json:"prompts"`
+			} `json:"result"`
+		}
+		err = json.Unmarshal([]byte(promptsOutput), &promptsResponse)
+		require.NoError(t, err)
+		require.Empty(t, promptsResponse.Result.Prompts, "no prompts should be advertised when their tools are excluded")
+
 		// Call the tool and ensure it works.
 		toolPayload := `{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_get_authenticated_user", "arguments": {}}}`
 		stdin.WriteLine(toolPayload)

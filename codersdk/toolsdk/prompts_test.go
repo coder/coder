@@ -18,6 +18,14 @@ func TestChatPrompts(t *testing.T) {
 			require.NotEmpty(t, prompt.Name)
 			require.NotEmpty(t, prompt.Description)
 			require.NotNil(t, prompt.Render)
+			require.NotEmpty(t, prompt.RequiredTools)
+			toolNames := make(map[string]bool, len(toolsdk.All))
+			for _, tool := range toolsdk.All {
+				toolNames[tool.Name] = true
+			}
+			for _, name := range prompt.RequiredTools {
+				require.True(t, toolNames[name], "prompt %q requires unknown tool %q", prompt.Name, name)
+			}
 			require.False(t, names[prompt.Name], "duplicate prompt name %q", prompt.Name)
 			names[prompt.Name] = true
 			for _, arg := range prompt.Arguments {
@@ -40,9 +48,9 @@ func TestChatPrompts(t *testing.T) {
 		text, err := toolsdk.AgentsDelegate.Render(map[string]string{"task": "Fix the flaky test."})
 		require.NoError(t, err)
 		require.Contains(t, text, "Fix the flaky test.")
-		require.Contains(t, text, toolsdk.ToolNameCreateChat)
-		require.Contains(t, text, toolsdk.ToolNameListChatModelConfigs)
-		require.Contains(t, text, toolsdk.ToolNameSendChatMessage)
+		for _, tool := range toolsdk.AgentsDelegate.RequiredTools {
+			require.Contains(t, text, tool)
+		}
 	})
 
 	t.Run("DelegateWithModelConfig", func(t *testing.T) {
@@ -67,7 +75,8 @@ func TestChatPrompts(t *testing.T) {
 		text, err := toolsdk.AgentsCheck.Render(map[string]string{"chat_id": "0bb52d1a-e239-4e7a-ae2a-5abbd7fbf9b5"})
 		require.NoError(t, err)
 		require.Contains(t, text, "0bb52d1a-e239-4e7a-ae2a-5abbd7fbf9b5")
-		require.Contains(t, text, toolsdk.ToolNameGetChat)
-		require.Contains(t, text, toolsdk.ToolNameGetChatMessages)
+		for _, tool := range toolsdk.AgentsCheck.RequiredTools {
+			require.Contains(t, text, tool)
+		}
 	})
 }

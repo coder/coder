@@ -26,6 +26,11 @@ type Prompt struct {
 	Description string
 	Arguments   []PromptArgument
 
+	// RequiredTools lists the tools the rendered prompt instructs the
+	// client to call. Servers with a restricted tool set should skip
+	// prompts whose required tools are unavailable.
+	RequiredTools []string
+
 	Render func(args map[string]string) (string, error)
 }
 
@@ -36,6 +41,13 @@ var AllPrompts = []Prompt{AgentsDelegate, AgentsCheck}
 var AgentsDelegate = Prompt{
 	Name:        PromptNameAgentsDelegate,
 	Description: "Delegate a coding task to a Coder Agents chat and monitor it to completion.",
+	RequiredTools: []string{
+		ToolNameCreateChat,
+		ToolNameGetChat,
+		ToolNameGetChatMessages,
+		ToolNameSendChatMessage,
+		ToolNameListChatModelConfigs,
+	},
 	Arguments: []PromptArgument{
 		{
 			Name:        "task",
@@ -78,6 +90,10 @@ Follow these steps:
 var AgentsCheck = Prompt{
 	Name:        PromptNameAgentsCheck,
 	Description: "Check the status and recent activity of an existing Coder Agents chat.",
+	RequiredTools: []string{
+		ToolNameGetChat,
+		ToolNameGetChatMessages,
+	},
 	Arguments: []PromptArgument{
 		{
 			Name:        "chat_id",
