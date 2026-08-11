@@ -2313,8 +2313,8 @@ WHERE chat_id = @chat_id::uuid
 -- runner_id IS NULL while worker_id is set. Stale ownership is no
 -- heartbeat row for (chat_id, runner_id), or one older than
 -- @stale_seconds by database time. Interrupting and requires_action
--- bypass admission. Other candidates interleave root and subagent FIFO
--- queues ordered by updated_at.
+-- candidates sort first. Remaining candidates interleave root and subagent
+-- FIFO queues ordered by updated_at.
 SELECT
     chats_expanded.*,
     chat_heartbeats.heartbeat_at AS current_heartbeat_at,
@@ -2844,7 +2844,7 @@ WHERE c.status = 'running'::chat_status
   );
 
 -- name: GetChatQueuedForCapacity :one
--- Pool fullness distinguishes capacity waits from ordinary worker pickup delay.
+-- Pool fullness distinguishes capacity waits from worker pickup delays.
 WITH active AS (
     SELECT
         COUNT(*) FILTER (WHERE a.parent_chat_id IS NULL)::bigint AS root_count,

@@ -40,10 +40,7 @@ func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &chatWorker{
-		server: server,
-		opts:   withDefaults,
-	}, nil
+	return &chatWorker{server: server, opts: withDefaults}, nil
 }
 
 // chatWorkerID returns this worker's configured worker ID.

@@ -18,16 +18,14 @@ const (
 	maxConcurrentSubagents  = int64(10)
 )
 
-// NewAgentCapacityLimiterFactory builds a limiter that evaluates current
-// entitlements and pool capacity for each acquisition.
+// NewAgentCapacityLimiterFactory builds limiters that evaluate entitlements
+// and pool capacity for each acquisition.
 func NewAgentCapacityLimiterFactory(set *entitlements.Set) osschatd.AgentCapacityLimiterFactory {
 	return func(heartbeatStaleSeconds int32) osschatd.AgentCapacityLimiter {
 		return newAdmission(set, heartbeatStaleSeconds)
 	}
 }
 
-// Admit acquires a transaction-scoped lock that remains held through the
-// ownership write, preventing replicas from over-admitting a pool.
 type admission struct {
 	entitlements     *entitlements.Set
 	staleSeconds     int32
@@ -47,8 +45,8 @@ func newAdmission(set *entitlements.Set, staleSeconds int32) *admission {
 	}
 }
 
-// Admit applies capacity only to running chats. Interrupting chats remain
-// acquirable for stop requests, while requires_action chats are idle.
+// Admit caps only running chats. Other runnable states remain acquirable for
+// interrupt and timeout handling.
 func (a *admission) Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error) {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
@@ -58,6 +56,8 @@ func (a *admission) Admit(ctx context.Context, store database.Store, chat databa
 	if chat.Status != database.ChatStatusRunning {
 		return true, nil
 	}
+	// The transaction lock remains held through the caller's ownership write,
+	// preventing replicas from over-admitting the pool.
 	if err := store.AcquireLock(ctx, database.LockIDChatCapacityAdmission); err != nil {
 		return false, err
 	}

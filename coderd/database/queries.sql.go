@@ -8614,7 +8614,7 @@ type GetChatQueuedForCapacityParams struct {
 	ChatID           uuid.UUID `db:"chat_id" json:"chat_id"`
 }
 
-// Pool fullness distinguishes capacity waits from ordinary worker pickup delay.
+// Pool fullness distinguishes capacity waits from worker pickup delays.
 func (q *sqlQuerier) GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, getChatQueuedForCapacity,
 		arg.StaleSeconds,
@@ -8986,8 +8986,8 @@ type GetChatWorkerAcquisitionCandidatesRow struct {
 // runner_id IS NULL while worker_id is set. Stale ownership is no
 // heartbeat row for (chat_id, runner_id), or one older than
 // @stale_seconds by database time. Interrupting and requires_action
-// bypass admission. Other candidates interleave root and subagent FIFO
-// queues ordered by updated_at.
+// candidates sort first. Remaining candidates interleave root and subagent
+// FIFO queues ordered by updated_at.
 func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.StaleSeconds, arg.LimitCount)
 	if err != nil {

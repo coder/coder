@@ -3184,7 +3184,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	p.streamPartsDialer = streamPartsDialerForServer(workerID, localStreamPartsDialer, cfg.StreamPartsDialer)
 	p.streamSyncPoller = newStreamSyncPoller(ctx, cfg.Database, clk, cfg.Logger.Named("chatstream"))
 	p.streamSyncPoller.Start()
-	agentCapacityLimiter := AgentCapacityLimiter(noopAgentCapacityLimiter{})
+	var agentCapacityLimiter AgentCapacityLimiter = noopAgentCapacityLimiter{}
 	var agentCapacityMetrics *capacityMetrics
 	if cfg.AgentCapacityLimiterFactory != nil {
 		if limiter := cfg.AgentCapacityLimiterFactory(int32(inFlightChatStaleAfter.Seconds())); limiter != nil {

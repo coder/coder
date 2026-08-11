@@ -481,7 +481,7 @@ type sqlcQuerier interface {
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
-	// Pool fullness distinguishes capacity waits from ordinary worker pickup delay.
+	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
 	// Returns the queue head (lowest position, then lowest id).
@@ -523,8 +523,8 @@ type sqlcQuerier interface {
 	// runner_id IS NULL while worker_id is set. Stale ownership is no
 	// heartbeat row for (chat_id, runner_id), or one older than
 	// @stale_seconds by database time. Interrupting and requires_action
-	// bypass admission. Other candidates interleave root and subagent FIFO
-	// queues ordered by updated_at.
+	// candidates sort first. Remaining candidates interleave root and subagent
+	// FIFO queues ordered by updated_at.
 	GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error)
 	// Returns the global TTL for chat workspaces as a Go duration string.
 	// Returns "0s" (disabled) when no value has been configured.

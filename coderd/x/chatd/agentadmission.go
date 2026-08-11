@@ -33,7 +33,6 @@ type AgentCapacityLimits struct {
 	Subagent int64
 }
 
-// noopAgentCapacityLimiter keeps capacity uncapped when no limiter is configured.
 type noopAgentCapacityLimiter struct{}
 
 func (noopAgentCapacityLimiter) Admit(context.Context, database.Store, database.Chat) (bool, error) {

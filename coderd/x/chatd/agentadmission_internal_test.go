@@ -180,7 +180,7 @@ func TestWorker_FullPoolDoesNotStarveOtherPool(t *testing.T) {
 	opts := testOptions(t, f, starter)
 	opts.AgentAdmission = &rootRefusingAdmission{}
 
-	// The root backlog hides the later subagent unless the query interleaves pools.
+	// A root backlog can hide a subagent unless acquisition interleaves the pools.
 	roots := make([]database.Chat, 0, 2*int(opts.AcquisitionBatchSize)+5)
 	for range cap(roots) {
 		roots = append(roots, f.createRunningChat(t))

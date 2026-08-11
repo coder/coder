@@ -273,7 +273,7 @@ type Options struct {
 	// Set by enterprise for HA deployments. Nil uses chatd's local
 	// in-process channel dialer.
 	ChatStreamPartsDialer chatd.StreamPartsDialer
-	// Enterprise builds set this to enforce deployment-wide chat capacity limits.
+	// Enterprise builds set the deployment-wide concurrent-agent limits here.
 	ChatAgentCapacityLimiterFactory chatd.AgentCapacityLimiterFactory
 	// ChatProviderAPIKeys overrides deployment-derived provider keys.
 	// Test harnesses use this to route chat models to local providers.
