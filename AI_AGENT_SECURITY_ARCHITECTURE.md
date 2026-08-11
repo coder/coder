@@ -418,20 +418,20 @@ creation. One delegation chain has one unbroken AI identity lineage.
 
 ### Decisions
 
-| Property                  | Decision                                                                                                                    |
-|---------------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| Workspace ownership       | Always the sponsoring human; no agent-owned workspaces in the current design                                                |
-| Identity binding          | `workspace_agents.ai_agent_id` is the single server-authoritative binding                                                   |
-| Binding shapes            | All agents bound in an AI-designated workspace, or only a bound child agent in a normal workspace                           |
-| Identity creation         | Mint only at a human-to-AI boundary; AI-created descendants reuse the requester's identity                                  |
-| Sandbox technology        | Pluggable runtime interface; coder/sandbox (libkrun microVM) is the flagship, but any backend must be supportable           |
-| Workspace agent placement | A child workspace agent runs inside a sandbox, preserving SSH, terminal, apps, and port forwarding through existing routing |
-| Authorization             | Sponsor's live subject intersected with the appropriate workspace-agent or scoped session-token profile                     |
-| Egress                    | Structural default-deny, SNI/CONNECT-level policy, and attributed auditing; not boundary-based                              |
-| Credentials               | MCP-first; per-agent `ai_credential_mode = none \| injected \| brokered`, default `none`                                    |
-| Human access              | Follows directly from workspace ownership; no ACL bridge or auto-grant machinery                                            |
-| Human-in-the-loop         | Designed for egress approvals, implemented post-PoC                                                                         |
-| Sandbox cardinality       | Designed for N sandboxed children per workspace, limited to 1 in the PoC                                                    |
+| Property                  | Decision                                                                                                                                                        |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Workspace ownership       | Always the sponsoring human; no agent-owned workspaces in the current design                                                                                    |
+| Identity binding          | `workspace_agents.ai_agent_id` is the single server-authoritative binding                                                                                       |
+| Binding shapes            | All agents bound in an AI-designated workspace, or only a bound child agent in a normal workspace                                                               |
+| Identity creation         | Mint only at a human-to-AI boundary; AI-created descendants reuse the requester's identity                                                                      |
+| Sandbox technology        | Arbitrary admin script contract exec'd by the parent agent; platform owns binding, proxy, and stripping; netns and coder/sandbox are reference implementations  |
+| Workspace agent placement | A child workspace agent runs inside a sandbox, preserving SSH, terminal, apps, and port forwarding through existing routing                                     |
+| Authorization             | Sponsor's live subject intersected with the appropriate workspace-agent or scoped session-token profile                                                         |
+| Egress                    | Template-settings policy object; two-phase delivery (fork-time bootstrap, live updates); supervisor is the sole consumer; SNI/CONNECT-level; not boundary-based |
+| Credentials               | MCP-first; per-agent `ai_credential_mode = none \| injected \| brokered`, default `none`                                                                        |
+| Human access              | Follows directly from workspace ownership; no ACL bridge or auto-grant machinery                                                                                |
+| Human-in-the-loop         | Designed for egress approvals, implemented post-PoC                                                                                                             |
+| Sandbox cardinality       | Designed for N sandboxed children per workspace, limited to 1 in the PoC                                                                                        |
 
 ### Binding and credential split
 
@@ -550,40 +550,83 @@ binary injection) with the sandbox runtime interface.
 building sandbox lifecycle on this API. This compatibility-review finding
 remains unfixed.
 
-#### Sandbox runtime interface: agent side
+#### Sandbox script contract
 
-Add a package such as `agent/aisandbox` defining:
+The platform does not prescribe sandbox technology. A template declares a
+`coder_ai_sandbox` resource carrying arbitrary admin-authored `create` and
+`destroy` scripts that the PARENT workspace agent execs, plus an
+`egress_enforcement` attestation (`forced | advisory | none`) and an
+`ai_credential_mode`. The resource exposes `subagent_id` so `coder_app`,
+`coder_env`, and `coder_script` can attach to the sandboxed child agent
+(the `coder_devcontainer.subagent_id` precedent).
 
-- **Capability discovery**: backends declare what they enforce
-  (`CanEnforceEgress`, `CanMountWorkspace`, `CanExec`, `CanSnapshot`, and
-  host requirements such as `/dev/kvm`). Coderd records declared
-  capabilities so degraded confinement is visible, never silent.
-- **Lifecycle**: create, start, stop, delete, and reconcile. Reconciliation
-  matters because sandboxes must survive agent restarts or fail loudly.
-- **Process operations**: exec, stream, signal, mounts, and environment
-  injection for the child agent (`CODER_AGENT_URL` and
-  `CODER_AGENT_TOKEN` of the AI-bound child).
-- **Network policy**: apply or update egress policy and emit audit events.
+The platform provides the script environment:
 
-Backends:
+| Variable                 | Meaning                                                                               |
+|--------------------------|---------------------------------------------------------------------------------------|
+| `CODER_AI_AGENT_URL`     | coderd URL for the child agent                                                        |
+| `CODER_AI_AGENT_TOKEN`   | The bound CHILD agent token. Binding is server-side; the script cannot mint or rebind |
+| `CODER_AI_SESSION_TOKEN` | Scoped AI session token for CLI tools inside the sandbox                              |
+| `CODER_EGRESS_PROXY`     | Parent-side proxy address; policy is managed dynamically (see egress section)         |
+| `CODER_SANDBOX_ID`       | Lifecycle correlation ID                                                              |
 
-| Backend                           | Isolation                     | Egress enforcement                                                                   | Status                                  |
-|-----------------------------------|-------------------------------|--------------------------------------------------------------------------------------|-----------------------------------------|
-| `microvm` (coder/sandbox lineage) | libkrun microVM, KVM required | Deny-by-default proxy and recorded DNS; per-sandbox MITM is possible with a guest CA | Flagship; needs hardening               |
-| `netns`                           | Linux network namespace       | SNI/CONNECT proxy, default-deny                                                      | PoC-buildable broadly; weaker than a VM |
-| `devcontainer` (retrofit)         | Container                     | None, and declares that limitation                                                   | Compatibility backend                   |
+The script's job: create the isolation boundary (docker, podman, microVM,
+anything), route its egress to the proxy, and launch the child agent inside
+with those variables. Illustrative docker-based `create` script:
+
+```bash
+#!/usr/bin/env bash
+docker run -d --name "sb-${CODER_SANDBOX_ID}" \
+  --network none \
+  -e CODER_AGENT_URL="$CODER_AI_AGENT_URL" \
+  -e CODER_AGENT_TOKEN="$CODER_AI_AGENT_TOKEN" \
+  -e CODER_SESSION_TOKEN="$CODER_AI_SESSION_TOKEN" \
+  -e HTTPS_PROXY="http://${CODER_EGRESS_PROXY}" \
+  -v /home/coder/project:/workspace \
+  ghcr.io/example/ai-sandbox:1.2 \
+  /opt/coder agent
+```
+
+**Platform-owned; the script cannot touch:** child `workspace_agents` row
+creation and `ai_agent_id` binding; the parent-side egress proxy, its
+policy, and its audit stream; credential stripping keyed on the binding
+(all three enforcement points plus owner-token suppression); health, which
+is the child agent's connection state; `destroy` runs on teardown; `create`
+re-runs on reconcile after agent restarts.
+
+**Attestation, not verification.** `egress_enforcement` is an admin
+attestation. A script that claims `forced` but leaks a side channel is
+undetectable at declaration time. This is consistent with the existing
+trust model, because template admins already fully control workspaces, and
+it is partially auditable post hoc: an attested-forced sandbox whose proxy
+sees no traffic while the AI is clearly active is an anomaly signal
+(a Vertical 3 input). It remains a downgrade from platform-enforced
+confinement; the doc states it plainly rather than implying the platform
+verifies scripts.
+
+#### Reference implementations
+
+Built-in confinement mechanisms are reference implementations invoked
+through the same script contract, not privileged code paths:
+
+| Reference             | Isolation                     | Notes                                                                               |
+|-----------------------|-------------------------------|-------------------------------------------------------------------------------------|
+| netns supervisor      | Linux network namespace       | Used for AI-designated whole-workspace confinement; also usable as a sandbox script |
+| coder/sandbox         | libkrun microVM, KVM required | Flagship reference; per-sandbox MITM possible with a guest CA                       |
+| devcontainer retrofit | Container                     | No egress enforcement; attests `none`                                               |
 
 #### coder/sandbox hardening list before production use
 
 Current state: approximately 19-commit prototype, `package main` plus
-`internal/`, Linux unverified at v0.1. Required work: extract an importable
-driver library; bind proxy listeners to VM-only addresses or authenticate
-them because `:0` currently listens on all interfaces without
-authentication; reconcile after daemon restart because VMs currently orphan
-their egress; confine bind mounts to a designated workspace subtree; preseed
-the pinned `msb` and libkrunfw runtime without unauthenticated first-use
-downloads; surface SDK resource limits for vCPU, memory, idle time, and
-maximum duration; add real KVM integration tests.
+`internal/`, Linux unverified at v0.1. Required work to harden it as the
+flagship reference implementation: extract an importable driver library or
+stable CLI; bind proxy listeners to VM-only addresses or authenticate them
+because `:0` currently listens on all interfaces without authentication;
+reconcile after daemon restart because VMs currently orphan their egress;
+confine bind mounts to a designated workspace subtree; preseed the pinned
+`msb` and libkrunfw runtime without unauthenticated first-use downloads;
+surface SDK resource limits for vCPU, memory, idle time, and maximum
+duration; add real KVM integration tests.
 
 ### Credential starvation is policy, not structure
 
@@ -654,9 +697,36 @@ runs inside it.
   Deployment-level transparent MITM is rejected because of CA distribution,
   key concentration, pinned clients, and mTLS.
 
-Policy is a first-class object: default-deny; implicit allows for the Coder
-control plane and AI Gateway; a template or administrator allowlist; and
-per-sandbox overrides bounded by the template envelope.
+#### Policy storage and delivery
+
+Egress policy lives in **template settings**, not in Terraform. It is a
+first-class, versioned object that administrators edit through the API and
+UI without a template push or workspace rebuild: default-deny; implicit
+allows for the Coder control plane (coderd, DERP) and AI Gateway; a
+template-level allowlist baseline; and per-workspace or per-sandbox
+overrides expressed as bounded deltas on the same object. Every write is
+audited (who changed which rule, when). The only writers are coderd
+actors: administrators today, human-in-the-loop approval flows later.
+Because the writer is always coderd and never the workspace, runtime rule
+WIDENING is permitted; that is what makes future egress approvals work
+without restarts.
+
+Delivery is one mechanism applied at two moments:
+
+1. **Fork-time bootstrap.** The supervisor fetches the policy over its
+   agent connection, materializes proxy rules, creates the network
+   namespace, and only then fork-execs the confined child. The child never
+   runs unconfined, even briefly. If the fetch fails, the child starts
+   deny-all and reports degraded status; it never starts unconfined.
+2. **Runtime updates.** Policy revisions are pushed over the existing
+   agent connection and applied atomically to the running supervisor
+   proxy. The namespace and child process are untouched: no restart, no
+   re-fork.
+
+**The supervisor is the sole policy consumer.** The confined child never
+fetches, holds, or sees policy; its only network path is the parent proxy.
+This is what makes live updates safe and preserves the invariant that
+nothing inside the workspace can influence its own disposition.
 
 #### Audit stream and retention
 
@@ -742,18 +812,19 @@ discovered hybrid: chatd or the parent agent may create sandbox instances
 dynamically, but only within the envelope.
 
 Envelope contents: direct human AI-workspace opt-in through
-`coder_ai_agent`; allowed sandbox backends and a capability floor such as
-"must enforce egress"; egress allowlist baseline; `ai_credential_mode`;
-resource caps; and mounts policy. Chat-created workspaces are designated by
-coderd regardless of the opt-in parameter. The server always applies the
-credential-denial and default-deny baselines; templates can only request
-capabilities and bounded exceptions.
+`coder_ai_agent`; an attestation floor (administrators can require that
+sandboxes declare `egress_enforcement = forced`); and `ai_credential_mode`.
+Egress rules do NOT live in the envelope or anywhere in Terraform; they
+live in template settings (see policy storage and delivery). Chat-created
+workspaces are designated by coderd regardless of the opt-in parameter.
+The server always applies the credential-denial and default-deny
+baselines; templates can only request capabilities and bounded exceptions.
 
 Provisioner-time child agents follow the `coder_devcontainer.subagent_id`
 precedent so `coder_app`, `coder_env`, and `coder_script` can attach to the
-sandboxed agent. This requires terraform-provider-coder changes through a
-new `coder_sandbox` resource or attributes and keeps the same explicit
-dependency flag as the V1 provider surface.
+sandboxed agent. This requires terraform-provider-coder changes through the
+new `coder_ai_sandbox` resource and `data.coder_ai_agent` source, and keeps
+the same explicit dependency flag as the V1 provider surface.
 
 ### Rejected alternative: agent-owned workspaces
 
@@ -826,7 +897,8 @@ Follow `.claude/docs/DATABASE.md` end-to-end for implementation: queries,
 4. **Binding is server-authoritative**: only coderd and provisioner data can
    set or interpret `workspace_agents.ai_agent_id` and
    `ai_credential_mode`. In-workspace input cannot unbind an agent or change
-   credential disposition.
+   credential disposition, and the confined child never consumes egress
+   policy; the supervisor is the sole policy consumer.
 5. **Credential separation**: the workspace agent token governs the daemon;
    the scoped AI session token governs in-workspace CLI actions. Neither can
    silently substitute for the other.
@@ -837,8 +909,10 @@ Follow `.claude/docs/DATABASE.md` end-to-end for implementation: queries,
 7. **Structural confinement**: every process spawned through the confined
    workspace agent, including SSH, terminal, and scripts, observes the same
    network policy.
-8. **Capability honesty**: a backend that cannot enforce egress records that
-   limitation and exposes it through API and UI.
+8. **Attestation honesty**: a sandbox's declared `egress_enforcement` is
+   recorded server-side and surfaced through API and UI. The platform does
+   not verify scripts; mismatch detection (an attested-forced sandbox whose
+   proxy sees no traffic during AI activity) is Vertical 3 work.
 9. **Durable attribution**: bound workspace-agent requests and background
    events record actor = agent and on_behalf_of = sponsor. Egress audit
    records survive identity cleanup.
@@ -867,29 +941,34 @@ it introduces.
    tool; reuse the requester's identity; bind every resulting workspace
    agent; implement direct human opt-in; suppress the owner session token;
    provide the scoped AI session token; add the 24-hour key renewal path.
-4. **Confinement foundation**: add the sandbox runtime interface,
-   capability recording, supervisor split, `netns` backend, SNI/CONNECT
-   proxy, relay-only tailnet default, sandbox records, and retained egress
-   audit stream. This makes both an AI-designated workspace and one
-   sandboxed child usable with the portable backend.
+4. **Confinement foundation**: add the sandbox script contract and
+   attestation recording, the supervisor split, the SNI/CONNECT proxy,
+   the template-settings egress policy object with two-phase delivery
+   (fork-time bootstrap plus live updates), relay-only tailnet default,
+   sandbox records, and the retained egress audit stream. Ship the netns
+   supervisor as the first reference implementation. This makes both an
+   AI-designated workspace and one sandboxed child usable.
 5. **Credential plane**: add `ai_credential_mode`, mode-specific exceptions
    on top of default stripping, two-keyed consent, grant-time audit, MCP and
    broker pointers, brokered Git HTTPS rewrite, and runtime observability.
-6. **MicroVM backend**: extract and harden coder/sandbox as a library, then
-   implement the `microvm` backend. This can begin after the runtime
-   interface stabilizes.
-7. **Terraform envelope**: add the provider resource or attributes for
-   sandbox declarations, credential mode, capabilities, policy, resources,
-   and mounts. Keep this dependency-flagged and merge only with a compatible
-   terraform-provider-coder surface.
+6. **MicroVM reference implementation**: extract and harden coder/sandbox
+   per its hardening list, then ship it as the flagship reference script.
+   This can begin after the script contract stabilizes.
+7. **Terraform surface**: add `coder_ai_sandbox` (create/destroy scripts,
+   `egress_enforcement`, `ai_credential_mode`, `subagent_id`) and
+   `data.coder_ai_agent` to terraform-provider-coder. No egress rules in
+   HCL. Keep this dependency-flagged and merge only with a compatible
+   provider release.
 8. **Governance completion**: split AI Gateway attribution and budget
    principals, then verify sponsor budget enforcement across chat,
    AI-designated workspace, and sandbox traffic.
 
 ### Non-goals: PoC and future work
 
-- Human-in-the-loop egress approvals. The policy engine should support an
-  approval API and UI later.
+- Human-in-the-loop egress approvals. Approvals become additional coderd
+  writers to the template-settings policy object (runtime widening is
+  already permitted), so no new delivery mechanism is needed; the approval
+  API and UI land later.
 - Per-credential dispositions, reduced-scope credential mint adapters such
   as GitHub App installation tokens and GitLab project tokens, dual-grant
   OAuth links, and credential refresh machinery beyond the required Coder
@@ -903,6 +982,104 @@ it introduces.
 - Boundary or Agent Firewall integration and migration.
 - True agent-owned workspaces unless the rejected alternative is revisited
   with a complete owner-consumer inventory.
+
+### Appendix: Terraform surface
+
+Three annotated examples. Status labels: EXISTS TODAY (works on the current
+branch), PROVIDER CHANGE (requires the dependency-flagged
+terraform-provider-coder work), SERVER-SIDE ONLY (deliberately not
+expressible in HCL). Egress rules appear in NO example: they live in
+template settings and are managed dynamically outside Terraform.
+
+#### Example 1: AI-designated workspace via direct human opt-in
+
+```hcl
+# EXISTS TODAY: the server detects this parameter; value "true" mints the
+# workspace-origin identity (V1) and, with V2, binds every agent,
+# suppresses the owner token, and enables confinement.
+data "coder_parameter" "coder_ai_agent" {
+  name    = "coder_ai_agent"
+  type    = "bool"
+  default = "false"
+  mutable = false
+}
+
+# PROVIDER CHANGE: reads the existing
+# CODER_WORKSPACE_AI_AGENT_SESSION_TOKEN provisioner export. Empty when
+# the workspace is not AI-designated.
+data "coder_ai_agent" "me" {}
+
+# Templates serving both normal and AI-designated workspaces select
+# whichever token is present. In an AI-designated workspace the owner
+# token is empty by suppression (SERVER-SIDE ONLY).
+locals {
+  session_token = (
+    data.coder_ai_agent.me.session_token != ""
+    ? data.coder_ai_agent.me.session_token
+    : data.coder_workspace_owner.me.session_token
+  )
+}
+
+resource "coder_agent" "main" {
+  os   = "linux"
+  arch = "amd64"
+
+  # PROVIDER CHANGE: stored on the workspace_agents row, like
+  # api_key_scope today. The server clamps it; "injected" additionally
+  # requires sponsor consent.
+  ai_credential_mode = "none"
+
+  env = {
+    CODER_SESSION_TOKEN = local.session_token
+    ANTHROPIC_BASE_URL  = "https://ai-gateway.example.com/anthropic"
+  }
+}
+```
+
+#### Example 2: sandboxed AI child in a normal human workspace
+
+```hcl
+# Ordinary parent agent: full owner credentials, untouched behavior.
+resource "coder_agent" "main" {
+  os   = "linux"
+  arch = "amd64"
+}
+
+# PROVIDER CHANGE: the sandbox script contract. The parent agent execs
+# these admin-authored scripts; the platform provides CODER_AI_AGENT_URL,
+# CODER_AI_AGENT_TOKEN (bound child token), CODER_AI_SESSION_TOKEN,
+# CODER_EGRESS_PROXY, and CODER_SANDBOX_ID to them. The ai_agent_id
+# binding itself is SERVER-SIDE ONLY.
+resource "coder_ai_sandbox" "ai" {
+  agent_id = coder_agent.main.id
+
+  create  = file("./sandbox-up.sh")
+  destroy = file("./sandbox-down.sh")
+
+  # Admin attestation, recorded server-side; not platform-verified.
+  egress_enforcement = "forced" # forced | advisory | none
+
+  ai_credential_mode = "brokered"
+}
+
+# Apps and env attach to the SANDBOXED child agent
+# (coder_devcontainer.subagent_id precedent).
+resource "coder_app" "sandbox_terminal" {
+  agent_id     = coder_ai_sandbox.ai.subagent_id
+  slug         = "ai-terminal"
+  display_name = "AI Sandbox"
+}
+```
+
+#### Example 3: chat-created workspaces
+
+No Terraform at all, by design. The chat tool forces AI designation
+SERVER-SIDE ONLY: identity reuse, per-agent binding, owner-token
+suppression, and confinement are applied to whatever template the chat
+selects, regardless of what the template declares (invariant 4). The only
+template-author obligation is compatibility: do not hard-depend on
+`data.coder_workspace_owner.me.session_token` being non-empty; use the
+fallback pattern from Example 1.
 
 ---
 
