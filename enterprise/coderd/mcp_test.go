@@ -1,13 +1,18 @@
 package coderd_test
 
 import (
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -135,4 +140,112 @@ func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 			requireMCPServerConfigRequestStatus(t, otherClient, test.method, test.path, test.body, wantStatus)
 		})
 	}
+
+	// Status alone would not catch a body-level existence leak: the whole
+	// disconnect response for a concealed config must be indistinguishable
+	// from disconnecting a nonexistent config ID.
+	t.Run("OAuthDisconnectBodyMatchesNonexistent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		hiddenResp, err := otherClient.MCPServerOAuth2DisconnectWithResponse(ctx, config.ID)
+		require.NoError(t, err)
+		missingResp, err := otherClient.MCPServerOAuth2DisconnectWithResponse(ctx, uuid.New())
+		require.NoError(t, err)
+		require.Equal(t, missingResp, hiddenResp)
+		require.False(t, hiddenResp.TokenRevoked)
+		require.Empty(t, hiddenResp.TokenRevocationError)
+	})
+}
+
+func TestMCPServerConfigsOAuth2CallbackTokenBinding(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.ScopedRoleOrgMember(secondOrg.ID))
+
+	newTokenServer := func(accessToken string) *httptest.Server {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w,
+				`{"access_token":%q,"token_type":"Bearer","expires_in":3600,"refresh_token":"refresh-%s"}`,
+				accessToken, accessToken,
+			)
+		}))
+		t.Cleanup(srv.Close)
+		return srv
+	}
+	createOAuthConfig := func(organizationID uuid.UUID, tokenURL string) codersdk.MCPServerConfig {
+		t.Helper()
+		config, err := client.CreateMCPServerConfig(ctx, organizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "Callback Binding",
+			Slug:           "callback-binding",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/callback-binding",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "client-" + organizationID.String(),
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: tokenURL,
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+		return config
+	}
+	completeCallback := func(config codersdk.MCPServerConfig) {
+		t.Helper()
+		state := "state-" + config.ID.String()
+		callbackURL, err := memberClient.URL.Parse(
+			"/api/experimental/mcp/servers/" + config.ID.String() + "/oauth2/callback",
+		)
+		require.NoError(t, err)
+		query := callbackURL.Query()
+		query.Set("code", "auth-code-"+config.ID.String())
+		query.Set("state", state)
+		callbackURL.RawQuery = query.Encode()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, callbackURL.String(), nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: memberClient.SessionToken()})
+		req.AddCookie(&http.Cookie{Name: "mcp_oauth2_state_" + config.ID.String(), Value: state})
+		res, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	}
+	tokenRow := func(configID uuid.UUID) database.MCPServerUserToken {
+		t.Helper()
+		//nolint:gocritic // Verifying persisted state requires system access.
+		row, err := db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: configID,
+			UserID:            member.ID,
+		})
+		require.NoError(t, err)
+		return row
+	}
+
+	// The same slug in both organizations proves tokens bind to the config
+	// ID, not the slug.
+	firstConfig := createOAuthConfig(firstUser.OrganizationID, newTokenServer("org-one-access-token").URL)
+	secondConfig := createOAuthConfig(secondOrg.ID, newTokenServer("org-two-access-token").URL)
+
+	completeCallback(firstConfig)
+	firstToken := tokenRow(firstConfig.ID)
+	require.Equal(t, "org-one-access-token", firstToken.AccessToken)
+
+	completeCallback(secondConfig)
+	firstToken = tokenRow(firstConfig.ID)
+	secondToken := tokenRow(secondConfig.ID)
+	require.Equal(t, "org-one-access-token", firstToken.AccessToken)
+	require.Equal(t, "org-two-access-token", secondToken.AccessToken)
+	require.NotEqual(t, firstToken.ID, secondToken.ID)
 }
