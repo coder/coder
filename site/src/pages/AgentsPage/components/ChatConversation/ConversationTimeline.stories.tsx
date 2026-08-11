@@ -10,7 +10,6 @@ import {
 	within,
 } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { withToaster } from "#/testHelpers/storybook";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -1336,241 +1335,25 @@ const iosDownloadStoryArgs: Story["args"] = buildStoryArgs(
 	}),
 );
 
-const setupIOSStandaloneDownload = (extras: Record<string, unknown>) => ({
-	open: spyOn(window, "open").mockReturnValue(null),
-	restoreNavigator: overrideNavigatorForIOSStandalone(extras),
-});
-
-const getIOSDownloadLink = (canvas: ReturnType<typeof within>) =>
-	canvas.getByRole("link", { name: "Download deployment-report.pdf" });
-
-const buildInlineDownloadStoryArgs = (
-	data: string,
-	name: string,
-): Story["args"] =>
-	buildStoryArgs({
-		...baseMessage,
-		id: 1,
-		role: "assistant",
-		content: [buildFilePart({ media_type: "image/png", data, name })],
-	});
-
-const getInlineDownloadLink = async (
-	canvas: ReturnType<typeof within>,
-	name: string,
-) => {
-	canvas.getByRole("button", { name: `View ${name}` }).focus();
-	return canvas.findByRole("link", { name: `Download ${name}` });
-};
-
 export const DownloadInIOSStandaloneSharesFile: Story = {
 	args: iosDownloadStoryArgs,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const share = fn().mockResolvedValue(undefined);
-		const { open, restoreNavigator } = setupIOSStandaloneDownload({
+		const restoreNavigator = overrideNavigatorForIOSStandalone({
 			share,
 			canShare: fn().mockReturnValue(true),
 		});
 		try {
-			await userEvent.click(getIOSDownloadLink(canvas));
+			await userEvent.click(
+				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+			);
 			await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
 			const shared: { files: File[] } = share.mock.calls[0][0];
 			expect(shared.files).toHaveLength(1);
 			expect(shared.files[0].name).toBe("deployment-report.pdf");
 			expect(shared.files[0].type).toBe("application/pdf");
 			expect(getAttachmentFetchCount("storybook-ios-share-report")).toBe(1);
-			expect(open).not.toHaveBeenCalled();
-		} finally {
-			restoreNavigator();
-		}
-	},
-};
-
-export const DownloadInIOSStandaloneRecoversExpiredActivation: Story = {
-	decorators: [withToaster],
-	args: iosDownloadStoryArgs,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const share = fn()
-			.mockRejectedValueOnce(
-				new DOMException("activation expired", "NotAllowedError"),
-			)
-			.mockResolvedValue(undefined);
-		const { open, restoreNavigator } = setupIOSStandaloneDownload({
-			share,
-			canShare: fn().mockReturnValue(true),
-		});
-		try {
-			await userEvent.click(getIOSDownloadLink(canvas));
-			// The toast renders in a portal outside the story canvas.
-			const saveButton = await screen.findByRole("button", { name: "Save" });
-			await userEvent.click(saveButton);
-			await waitFor(() => expect(share).toHaveBeenCalledTimes(2));
-			const shared: { files: File[] } = share.mock.calls[1][0];
-			expect(shared.files).toHaveLength(1);
-			expect(shared.files[0].name).toBe("deployment-report.pdf");
-			expect(open).not.toHaveBeenCalled();
-		} finally {
-			restoreNavigator();
-		}
-	},
-};
-
-export const DownloadInIOSStandaloneSuppressesDuplicateClicks: Story = {
-	args: iosDownloadStoryArgs,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const share = fn().mockResolvedValue(undefined);
-		const { restoreNavigator } = setupIOSStandaloneDownload({
-			share,
-			canShare: fn().mockReturnValue(true),
-		});
-		let releaseFetch = () => {};
-		const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
-			() =>
-				new Promise<Response>((resolve) => {
-					releaseFetch = () =>
-						resolve(
-							new Response("pdf-bytes", {
-								headers: { "Content-Type": "application/pdf" },
-							}),
-						);
-				}),
-		);
-		try {
-			const downloadLink = getIOSDownloadLink(canvas);
-			await userEvent.click(downloadLink);
-			expect(downloadLink).toHaveAttribute("aria-disabled", "true");
-			await userEvent.click(downloadLink);
-			expect(fetchSpy).toHaveBeenCalledTimes(1);
-			releaseFetch();
-			await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
-			await waitFor(() =>
-				expect(downloadLink).toHaveAttribute("aria-disabled", "false"),
-			);
-		} finally {
-			restoreNavigator();
-		}
-	},
-};
-
-export const DownloadInIOSStandaloneReportsPermanentShareFailure: Story = {
-	decorators: [withToaster],
-	args: iosDownloadStoryArgs,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const { open, restoreNavigator } = setupIOSStandaloneDownload({
-			share: fn().mockRejectedValue(
-				new DOMException("share failed", "DataError"),
-			),
-			canShare: fn().mockReturnValue(true),
-		});
-		try {
-			await userEvent.click(getIOSDownloadLink(canvas));
-			await screen.findByText("Couldn't download deployment-report.pdf");
-			expect(
-				screen.queryByRole("button", { name: "Save" }),
-			).not.toBeInTheDocument();
-			expect(open).not.toHaveBeenCalled();
-			await userEvent.click(screen.getByRole("button", { name: "Open" }));
-			expect(open).toHaveBeenCalledWith(
-				getChatFileURL("storybook-ios-share-report"),
-				"_blank",
-				"noopener",
-			);
-		} finally {
-			restoreNavigator();
-		}
-	},
-};
-
-const inlineAttachmentStoryArgs = buildInlineDownloadStoryArgs(
-	TEST_PNG_B64,
-	"inline-screenshot.png",
-);
-
-export const DownloadInIOSStandaloneShowsErrorForCorruptInlineAttachment: Story =
-	{
-		decorators: [withToaster],
-		args: buildInlineDownloadStoryArgs(
-			"not-valid-base64",
-			"corrupt-screenshot.png",
-		),
-		play: async ({ canvasElement }) => {
-			const canvas = within(canvasElement);
-			const share = fn().mockResolvedValue(undefined);
-			const { open, restoreNavigator } = setupIOSStandaloneDownload({
-				share,
-				canShare: fn().mockReturnValue(true),
-			});
-			try {
-				const downloadLink = await getInlineDownloadLink(
-					canvas,
-					"corrupt-screenshot.png",
-				);
-				await userEvent.click(downloadLink);
-				await screen.findByText("Couldn't download corrupt-screenshot.png");
-				await screen.findByText("The attachment data could not be decoded.");
-				expect(share).not.toHaveBeenCalled();
-				expect(open).not.toHaveBeenCalled();
-			} finally {
-				restoreNavigator();
-			}
-		},
-	};
-
-export const DownloadInIOSStandaloneOpensInlineAttachmentInTab: Story = {
-	args: inlineAttachmentStoryArgs,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const { open, restoreNavigator } = setupIOSStandaloneDownload({
-			share: undefined,
-			canShare: undefined,
-		});
-		const fetchSpy = spyOn(globalThis, "fetch");
-		try {
-			const downloadLink = await getInlineDownloadLink(
-				canvas,
-				"inline-screenshot.png",
-			);
-			await userEvent.click(downloadLink);
-			expect(open).toHaveBeenCalledTimes(1);
-			const [blobUrl, target, features] = open.mock.calls[0];
-			expect(blobUrl).toMatch(/^blob:/);
-			expect(target).toBe("_blank");
-			expect(features).toBe("noopener");
-			expect(fetchSpy).not.toHaveBeenCalled();
-		} finally {
-			restoreNavigator();
-		}
-	},
-};
-
-export const DownloadInIOSStandaloneStaysQuietOnDismissedShare: Story = {
-	decorators: [withToaster],
-	args: iosDownloadStoryArgs,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const share = fn().mockRejectedValue(
-			new DOMException("dismissed", "AbortError"),
-		);
-		const { open, restoreNavigator } = setupIOSStandaloneDownload({
-			share,
-			canShare: fn().mockReturnValue(true),
-		});
-		try {
-			await userEvent.click(getIOSDownloadLink(canvas));
-			await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
-			await waitFor(() => {
-				expect(
-					canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
-				).toHaveAttribute("aria-disabled", "false");
-			});
-			expect(
-				screen.queryByText("Couldn't download deployment-report.pdf"),
-			).not.toBeInTheDocument();
-			expect(open).not.toHaveBeenCalled();
 		} finally {
 			restoreNavigator();
 		}

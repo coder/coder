@@ -4,12 +4,7 @@ import {
 	FileIcon,
 	FileTextIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type MouseEvent as ReactMouseEvent,
-	type ReactNode,
-	useState,
-} from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -19,7 +14,6 @@ import {
 import { cn } from "#/utils/cn";
 import { useLatestAbortController } from "../../hooks/useLatestAbortController";
 import {
-	type AttachmentDownloadTarget,
 	type AttachmentFailure,
 	attachmentFailureFromError,
 	getChatFileURL,
@@ -180,61 +174,28 @@ const getAttachmentBadgeLabel = (
 	return extension === "file" ? "" : extension.toUpperCase();
 };
 
-const useAttachmentDownloadClick = (target: AttachmentDownloadTarget) => {
-	const [isPending, setIsPending] = useState(false);
-	// Prevents share sheets and error toasts from appearing after unmount.
-	const downloadRequest = useLatestAbortController();
-	const onClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
-		event.stopPropagation();
-		if (isPending) {
-			event.preventDefault();
-			return;
-		}
-		const controller = downloadRequest.start();
-		const pending = handleAttachmentDownloadClick(
-			event,
-			target,
-			controller.signal,
-		);
-		if (!pending) {
-			downloadRequest.clear(controller);
-			return;
-		}
-		setIsPending(true);
-		void pending.finally(() => {
-			if (downloadRequest.clear(controller)) {
-				setIsPending(false);
-			}
-		});
-	};
-	return { isPending, onClick };
-};
-
 const DownloadOverlay: FC<{
 	href: string;
 	displayName: string;
 	downloadName: string;
 	mediaType: string;
 }> = ({ href, displayName, downloadName, mediaType }) => {
-	const { isPending, onClick } = useAttachmentDownloadClick({
-		href,
-		fileName: downloadName,
-		mediaType,
-	});
 	return (
 		<a
 			href={href}
 			download={downloadName}
-			onClick={onClick}
+			onClick={(event) => {
+				event.stopPropagation();
+				void handleAttachmentDownloadClick(event, {
+					href,
+					fileName: downloadName,
+					mediaType,
+				});
+			}}
 			aria-label={`Download ${displayName}`}
-			aria-disabled={isPending}
 			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
 		>
-			{isPending ? (
-				<Spinner size="sm" loading className="size-3.5" />
-			) : (
-				<DownloadIcon aria-hidden="true" className="size-3.5" />
-			)}
+			<DownloadIcon aria-hidden="true" className="size-3.5" />
 		</a>
 	);
 };
@@ -614,19 +575,20 @@ const FileCard: FC<{
 	const displayName = getAttachmentDisplayName(block);
 	const downloadName = getAttachmentDownloadName(block);
 	const badgeLabel = getAttachmentBadgeLabel(block);
-	const { isPending, onClick } = useAttachmentDownloadClick({
-		href,
-		fileName: downloadName,
-		mediaType: block.media_type,
-	});
 
 	return (
 		<a
 			href={href}
 			download={downloadName}
-			onClick={onClick}
+			onClick={(event) => {
+				event.stopPropagation();
+				void handleAttachmentDownloadClick(event, {
+					href,
+					fileName: downloadName,
+					mediaType: block.media_type,
+				});
+			}}
 			aria-label={`Download ${displayName}`}
-			aria-disabled={isPending}
 			className="inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border-default bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary"
 		>
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
@@ -647,18 +609,10 @@ const FileCard: FC<{
 				</div>
 				<div className="text-xs text-content-secondary">Download file</div>
 			</div>
-			{isPending ? (
-				<Spinner
-					size="sm"
-					loading
-					className="size-4 shrink-0 text-content-secondary"
-				/>
-			) : (
-				<DownloadIcon
-					aria-hidden="true"
-					className="size-4 shrink-0 text-content-secondary"
-				/>
-			)}
+			<DownloadIcon
+				aria-hidden="true"
+				className="size-4 shrink-0 text-content-secondary"
+			/>
 		</a>
 	);
 };
