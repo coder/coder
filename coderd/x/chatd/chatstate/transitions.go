@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -683,19 +682,12 @@ type RequestCompactionResult struct {
 // from its existing running snapshot. Clearing ownership makes
 // ChatMachine.Update publish an ownership hint for worker acquisition.
 //
-// The generation attempt counter is reset only when the previous turn
-// exhausted the retry budget: this transition inserts no history, so
-// the history-change triggers cannot grant a fresh budget, and an
-// exhausted counter would make the retry gate refuse the compaction
-// turn's first transient failure. Sub-cap counters continue forward
-// instead of rewinding because message part buffer episodes are keyed
-// by (chat, history_version, generation_attempt) and closed episodes
-// are retained briefly; a rewind inside that window would collide.
-// At exhaustion the rewind is collision-free: retry backoff spacing
-// guarantees the earliest attempts' episodes expired long before the
-// budget ran out.
+// The compaction turn gets the same fresh history epoch a history
+// change would grant: a full retry budget regardless of how the
+// previous turn spent its own, and message part episode keys that
+// cannot collide with episodes the failed turn's replica retains.
 func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResult, error) {
-	chat, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
+	_, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
 	if err != nil {
 		return RequestCompactionResult{}, err
 	}
@@ -703,10 +695,8 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 	if err != nil {
 		return RequestCompactionResult{}, xerrors.Errorf("get db now: %w", err)
 	}
-	if chat.GenerationAttempt >= int64(chatretry.MaxAttempts) {
-		if err := tx.store.ResetChatGenerationAttempt(tx.ctx, tx.chatID); err != nil {
-			return RequestCompactionResult{}, xerrors.Errorf("reset generation attempt: %w", err)
-		}
+	if err := tx.store.AdvanceChatHistoryVersion(tx.ctx, tx.chatID); err != nil {
+		return RequestCompactionResult{}, xerrors.Errorf("advance history version: %w", err)
 	}
 	updated, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,

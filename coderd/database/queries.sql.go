@@ -6565,6 +6565,20 @@ func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal 
 	return items, nil
 }
 
+const advanceChatHistoryVersion = `-- name: AdvanceChatHistoryVersion :exec
+UPDATE chats
+SET history_version = snapshot_version, generation_attempt = 0, updated_at = NOW()
+WHERE id = $1::uuid
+`
+
+// Grants a turn that inserts no history the same fresh retry budget
+// and message part episode keys a history change would grant. The
+// sync_chat_retry_state trigger clears retry_state on the change.
+func (q *sqlQuerier) AdvanceChatHistoryVersion(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, advanceChatHistoryVersion, id)
+	return err
+}
+
 const archiveChatByID = `-- name: ArchiveChatByID :many
 WITH updated_chats AS (
     UPDATE chats
@@ -10851,21 +10865,6 @@ func (q *sqlQuerier) ReorderChatQueuedMessageToHead(ctx context.Context, arg Reo
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const resetChatGenerationAttempt = `-- name: ResetChatGenerationAttempt :exec
-UPDATE chats
-SET generation_attempt = 0, updated_at = NOW()
-WHERE id = $1::uuid
-  AND generation_attempt <> 0
-`
-
-// Resets generation_attempt so the next turn starts with a fresh
-// retry budget. The sync_chat_retry_state trigger clears retry_state
-// when the attempt value changes.
-func (q *sqlQuerier) ResetChatGenerationAttempt(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, resetChatGenerationAttempt, id)
-	return err
 }
 
 const setChatContextSnapshot = `-- name: SetChatContextSnapshot :exec

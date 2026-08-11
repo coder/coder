@@ -2624,14 +2624,13 @@ SET generation_attempt = generation_attempt + 1, updated_at = NOW()
 WHERE id = @id::uuid
 RETURNING generation_attempt;
 
--- name: ResetChatGenerationAttempt :exec
--- Resets generation_attempt so the next turn starts with a fresh
--- retry budget. The sync_chat_retry_state trigger clears retry_state
--- when the attempt value changes.
+-- name: AdvanceChatHistoryVersion :exec
+-- Grants a turn that inserts no history the same fresh retry budget
+-- and message part episode keys a history change would grant. The
+-- sync_chat_retry_state trigger clears retry_state on the change.
 UPDATE chats
-SET generation_attempt = 0, updated_at = NOW()
-WHERE id = @id::uuid
-  AND generation_attempt <> 0;
+SET history_version = snapshot_version, generation_attempt = 0, updated_at = NOW()
+WHERE id = @id::uuid;
 
 -- name: GetDatabaseNow :one
 -- Returns the current database timestamp. Used so transitions that

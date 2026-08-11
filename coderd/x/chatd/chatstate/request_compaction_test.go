@@ -213,22 +213,16 @@ func TestRequestCompaction_ClearedByNewTurn(t *testing.T) {
 		"EditMessage starts a new turn and must clear the marker")
 }
 
-// TestRequestCompaction_GenerationAttemptBudget verifies the retry
-// budget handling: an exhausted counter is reset so the compaction
-// turn is not refused its first transient retry, while a sub-cap
-// counter continues forward because rewinding would reuse message
-// part buffer episode keys still inside the closed-episode retention
-// window.
-func TestRequestCompaction_GenerationAttemptBudget(t *testing.T) {
+func TestRequestCompaction_FreshHistoryEpoch(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name        string
-		attempts    int
-		wantAttempt int64
+		name     string
+		attempts int
 	}{
-		{name: "exhausted budget resets", attempts: chatretry.MaxAttempts, wantAttempt: 0},
-		{name: "sub-cap budget continues forward", attempts: 3, wantAttempt: 3},
+		{name: "unspent budget", attempts: 0},
+		{name: "one below the cap", attempts: chatretry.MaxAttempts - 1},
+		{name: "exhausted budget", attempts: chatretry.MaxAttempts},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -240,6 +234,7 @@ func TestRequestCompaction_GenerationAttemptBudget(t *testing.T) {
 				_, err := f.DB.IncrementChatGenerationAttempt(ctx, seeded.chatID)
 				require.NoError(t, err)
 			}
+			before := f.readChat(ctx, t, seeded.chatID)
 
 			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
 			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -248,7 +243,10 @@ func TestRequestCompaction_GenerationAttemptBudget(t *testing.T) {
 			}))
 
 			chat := f.readChat(ctx, t, seeded.chatID)
-			require.Equal(t, tc.wantAttempt, chat.GenerationAttempt)
+			require.Zero(t, chat.GenerationAttempt)
+			require.Greater(t, chat.HistoryVersion, before.HistoryVersion,
+				"epoch must advance past every version the previous turn's episode keys used")
+			require.Equal(t, chat.SnapshotVersion, chat.HistoryVersion)
 		})
 	}
 }

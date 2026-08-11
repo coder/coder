@@ -788,8 +788,7 @@ func matrixCases() []transitionCaseSpec {
 		editMessageCase(chatstate.StateA0),
 		editMessageCase(chatstate.StateA1),
 
-		// RequestCompaction: sets the one-shot marker, clears
-		// last_error, and mutates no history or queue.
+		// RequestCompaction cases.
 		requestCompactionCase(chatstate.StateW, chatstate.StateR0),
 		requestCompactionCase(chatstate.StateE0, chatstate.StateR0),
 		requestCompactionCase(chatstate.StateE1, chatstate.StateR1),
@@ -1449,6 +1448,12 @@ func requestCompactionCase(from, want chatstate.ExecutionState) transitionCaseSp
 				"RequestCompaction sets compaction_requested_at")
 			require.False(t, after.LastError.Valid,
 				"RequestCompaction clears last_error")
+			require.Greater(t, after.HistoryVersion, base.historyVersion,
+				"RequestCompaction starts a fresh history epoch")
+			require.Equal(t, after.SnapshotVersion, after.HistoryVersion,
+				"RequestCompaction advances history_version to snapshot_version")
+			require.Zero(t, after.GenerationAttempt,
+				"RequestCompaction grants a fresh retry budget")
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
 				"RequestCompaction inserts no history messages")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),

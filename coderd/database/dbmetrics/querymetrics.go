@@ -145,6 +145,14 @@ func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) AdvanceChatHistoryVersion(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.AdvanceChatHistoryVersion(ctx, id)
+	m.queryLatencies.WithLabelValues("AdvanceChatHistoryVersion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AdvanceChatHistoryVersion").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.AllUserIDs(ctx, includeSystem)
@@ -4951,14 +4959,6 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToHead").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToHead").Inc()
 	return r0, r1
-}
-
-func (m queryMetricsStore) ResetChatGenerationAttempt(ctx context.Context, id uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.ResetChatGenerationAttempt(ctx, id)
-	m.queryLatencies.WithLabelValues("ResetChatGenerationAttempt").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResetChatGenerationAttempt").Inc()
-	return r0
 }
 
 func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
