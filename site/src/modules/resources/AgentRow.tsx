@@ -1,4 +1,5 @@
 import {
+	BotIcon,
 	CopyIcon,
 	EllipsisIcon,
 	InfoIcon,
@@ -422,6 +423,20 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<span className="block max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap text-base font-semibold text-content-primary">
 							{agent.name}
 						</span>
+						{agent.ai_agent_id && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Badge variant="purple" size="xs">
+										<BotIcon />
+										AI-bound
+									</Badge>
+								</TooltipTrigger>
+								<TooltipContent>
+									This agent acts as an AI identity. It receives no owner
+									credentials and its egress is policy controlled.
+								</TooltipContent>
+							</Tooltip>
+						)}
 					</div>
 					{agent.status === "connected" && (
 						<>

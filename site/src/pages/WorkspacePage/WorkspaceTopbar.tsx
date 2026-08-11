@@ -1,4 +1,9 @@
-import { ChevronLeftIcon, CircleDollarSignIcon, TrashIcon } from "lucide-react";
+import {
+	BotIcon,
+	ChevronLeftIcon,
+	CircleDollarSignIcon,
+	TrashIcon,
+} from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
@@ -6,6 +11,7 @@ import { workspaceQuota } from "#/api/queries/workspaceQuota";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Badge } from "#/components/Badge/Badge";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
 	Topbar,
@@ -231,6 +237,21 @@ export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
 						onUpdateWorkspace={handleUpdate}
 						onActivateWorkspace={handleDormantActivate}
 					/>
+
+					{workspace.ai_agent_id && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge variant="purple" size="sm">
+									<BotIcon />
+									AI
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent>
+								AI-designated workspace: agents run as a separate AI identity
+								with no owner credentials and default-deny egress.
+							</TooltipContent>
+						</Tooltip>
+					)}
 
 					<WorkspaceStatusIndicator workspace={workspace} />
 

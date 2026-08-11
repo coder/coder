@@ -346,3 +346,24 @@ export const TemplateInfoPopoverWithoutDisplayName: Story = {
 		});
 	},
 };
+
+export const AIDesignated: Story = {
+	args: {
+		workspace: {
+			...baseWorkspace,
+			ai_agent_id: "e6c0b0f6-8fd1-4a1e-9f0e-1f0b7b1f3a11",
+		},
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("AI badge explains the designation", async () => {
+			await userEvent.hover(canvas.getByText("AI"));
+			await waitFor(() =>
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					"no owner credentials",
+				),
+			);
+		});
+	},
+};

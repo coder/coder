@@ -597,3 +597,13 @@ export const LogsTabs: Story = {
 		await expect(canvas.getByText("install: pnpm install")).toBeVisible();
 	},
 };
+
+export const AIBound: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgentReady,
+			ai_agent_id: "e6c0b0f6-8fd1-4a1e-9f0e-1f0b7b1f3a11",
+		},
+		workspace: M.MockWorkspace,
+	},
+};
