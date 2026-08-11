@@ -72,9 +72,7 @@ const openRestartDialog = async (canvasElement: HTMLElement) => {
 export const RestartDialog: Story = {
 	play: async ({ canvasElement }) => {
 		const dialog = await openRestartDialog(canvasElement);
-		await waitFor(() =>
-			expect(dialog).toHaveTextContent(/delete non-persistent data/),
-		);
+		expect(dialog).toHaveTextContent(/delete non-persistent data/);
 		expect(dialog).toHaveTextContent(
 			/The workspace will start using the template's active version/,
 		);
@@ -90,10 +88,8 @@ export const RestartDialogOutdatedWorkspace: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const dialog = await openRestartDialog(canvasElement);
-		await waitFor(() =>
-			expect(dialog).toHaveTextContent(
-				/The workspace will start using the template's active version/,
-			),
+		expect(dialog).toHaveTextContent(
+			/The workspace will start using the template's active version/,
 		);
 	},
 };
