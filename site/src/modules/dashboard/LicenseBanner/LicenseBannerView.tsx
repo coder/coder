@@ -151,9 +151,6 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 	return (
 		<div
 			role={bannerRole(bannerVariant)}
-			// The muted/prominent distinction otherwise only reaches the DOM
-			// as a background class, which tests must not assert on.
-			data-variant={bannerVariant}
 			className={cn(bannerVariants({ variant: bannerVariant }))}
 		>
 			<div className="flex min-w-0 flex-1 items-start gap-2">
