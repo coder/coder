@@ -269,19 +269,32 @@ const (
 	OAuth2TokenEndpointAuthMethodNone              OAuth2TokenEndpointAuthMethod = "none"
 )
 
-// AllOAuth2TokenEndpointAuthMethods returns every accepted token endpoint auth
-// method. Valid() derives from it, so what registration accepts cannot drift
-// from what this function reports. Discovery metadata does not yet derive
-// from it: coderd/oauth2provider/metadata.go's
-// TokenEndpointAuthMethodsSupported is hardcoded to {client_secret_basic,
-// client_secret_post} and does not advertise "none", even though "none" is
-// accepted here. A follow-up PR wires the token endpoint to honor "none";
-// only once that lands should discovery advertise it too.
+// AllOAuth2TokenEndpointAuthMethods returns every token endpoint auth method
+// registration accepts. Valid() derives from it, so what registration
+// accepts cannot drift from what this function reports.
+//
+// Discovery does not advertise this list verbatim; see
+// AdvertisedOAuth2TokenEndpointAuthMethods for why.
 func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 	return []OAuth2TokenEndpointAuthMethod{
 		OAuth2TokenEndpointAuthMethodClientSecretBasic,
 		OAuth2TokenEndpointAuthMethodClientSecretPost,
 		OAuth2TokenEndpointAuthMethodNone,
+	}
+}
+
+// AdvertisedOAuth2TokenEndpointAuthMethods returns the token endpoint auth
+// methods safe to advertise in discovery metadata (RFC 8414
+// token_endpoint_auth_methods_supported). It excludes "none": registration
+// accepts "none" (see AllOAuth2TokenEndpointAuthMethods), but the token
+// endpoint still requires a client secret for every authorization_code
+// exchange, so advertising "none" would tell a conforming client the server
+// accepts an exchange it will reject. Once the token endpoint honors "none",
+// this should return the same set as AllOAuth2TokenEndpointAuthMethods.
+func AdvertisedOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
+	return []OAuth2TokenEndpointAuthMethod{
+		OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		OAuth2TokenEndpointAuthMethodClientSecretPost,
 	}
 }
 

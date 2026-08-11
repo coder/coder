@@ -118,10 +118,24 @@ Coder supports the following OAuth2 client authentication methods at the token e
 
 - `client_secret_basic` (recommended): HTTP Basic authentication (RFC 6749 §2.3.1). The username is `client_id` and the password is `client_secret`.
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
+- `none`: No client secret. The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1). Available only through [Dynamic Client Registration](#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
-Coder supports both methods for compatibility; existing integrations using `client_secret_post` do not need to change.
+Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
-If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request.
+Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restriction below before choosing one.
+
+If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
+
+> [!IMPORTANT]
+> Public clients must use one of:
+>
+> - `https://` to any host,
+> - `http://` with a loopback host (`localhost`, `127.0.0.1`, `[::1]`),
+> - a custom URI scheme (`myapp://callback`, `vscode://callback`), or
+> - the `urn:ietf:wg:oauth:2.0:oob` out-of-band URN.
+>
+> `http://` to a non-loopback host is rejected. Confidential clients have
+> the same restriction, except they also accept `.localhost` subdomains.
 
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
