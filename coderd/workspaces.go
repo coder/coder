@@ -2820,6 +2820,10 @@ func convertWorkspaces(
 		appStatusesByWorkspaceID[appStatus.WorkspaceID] = appStatus
 	}
 
+	var (
+		missingBuilds    int
+		missingTemplates int
+	)
 	apiWorkspaces := make([]codersdk.Workspace, 0, len(workspaces))
 	for _, workspace := range workspaces {
 		// If any data is missing from the workspace, just skip returning
@@ -2829,10 +2833,12 @@ func convertWorkspaces(
 		// fields?
 		build, exists := buildByWorkspaceID[workspace.ID]
 		if !exists {
+			missingBuilds++
 			continue
 		}
 		template, exists := templateByID[workspace.TemplateID]
 		if !exists {
+			missingTemplates++
 			continue
 		}
 		appStatus := appStatusesByWorkspaceID[workspace.ID]
@@ -2853,6 +2859,20 @@ func convertWorkspaces(
 
 		apiWorkspaces = append(apiWorkspaces, w)
 	}
+
+	// Dropped workspaces make the returned slice shorter than the rows it was
+	// built from, which callers cannot distinguish from an exhausted result
+	// set when the rows came from a limited query.
+	if dropped := len(workspaces) - len(apiWorkspaces); dropped > 0 {
+		logger.Warn(ctx, "dropped workspaces missing build or template data",
+			slog.F("requester_id", requesterID),
+			slog.F("rows", len(workspaces)),
+			slog.F("dropped", dropped),
+			slog.F("missing_builds", missingBuilds),
+			slog.F("missing_templates", missingTemplates),
+		)
+	}
+
 	return apiWorkspaces, nil
 }
 
