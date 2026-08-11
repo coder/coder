@@ -13,6 +13,7 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import { useTemplateBuilderEnabled } from "#/modules/templates/useTemplateBuilderEnabled";
 
 interface StarterTemplatePageViewProps {
 	starterTemplate?: TemplateExample;
@@ -23,6 +24,8 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 	starterTemplate,
 	error,
 }) => {
+	const templateBuilderEnabled = useTemplateBuilderEnabled();
+
 	if (error) {
 		return (
 			<Margins>
@@ -47,7 +50,13 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 							</a>
 						</Button>
 						<Button asChild size="sm">
-							<Link to={`/templates/new?exampleId=${starterTemplate.id}`}>
+							<Link
+								to={
+									templateBuilderEnabled
+										? "/templates/new/builder"
+										: `/templates/new?exampleId=${starterTemplate.id}`
+								}
+							>
 								<PlusIcon />
 								Use template
 							</Link>

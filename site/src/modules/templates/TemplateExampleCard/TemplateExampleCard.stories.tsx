@@ -1,14 +1,28 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { deploymentConfigQueryKey } from "#/api/queries/deployment";
 import { chromatic } from "#/testHelpers/chromatic";
 import {
+	MockDeploymentConfig,
 	MockTemplateExample,
 	MockTemplateExample2,
+	MockUserOwner,
 } from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { TemplateExampleCard } from "./TemplateExampleCard";
 
 const meta: Meta<typeof TemplateExampleCard> = {
 	title: "modules/templates/TemplateExampleCard",
-	parameters: { chromatic },
+	parameters: {
+		chromatic,
+		user: MockUserOwner,
+		queries: [
+			{
+				key: deploymentConfigQueryKey,
+				data: MockDeploymentConfig,
+			},
+		],
+	},
+	decorators: [withAuthProvider],
 	component: TemplateExampleCard,
 	args: {
 		example: MockTemplateExample,

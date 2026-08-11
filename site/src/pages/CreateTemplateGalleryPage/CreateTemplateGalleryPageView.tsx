@@ -15,6 +15,7 @@ import {
 	PageHeader,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import { useTemplateBuilderEnabled } from "#/modules/templates/useTemplateBuilderEnabled";
 import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
@@ -26,11 +27,20 @@ interface CreateTemplateGalleryPageViewProps {
 export const CreateTemplateGalleryPageView: FC<
 	CreateTemplateGalleryPageViewProps
 > = ({ starterTemplatesByTag, error }) => {
+	const templateBuilderEnabled = useTemplateBuilderEnabled();
+
 	return (
 		<Margins className="pb-12">
 			<PageHeader
 				actions={
 					<div className="flex flex-col items-end gap-2">
+						{templateBuilderEnabled && (
+							<Button asChild size="sm">
+								<RouterLink to="/templates/new/builder">
+									Use the template builder
+								</RouterLink>
+							</Button>
+						)}
 						<Button asChild size="sm" variant="outline">
 							<a
 								href="https://registry.coder.com/templates"

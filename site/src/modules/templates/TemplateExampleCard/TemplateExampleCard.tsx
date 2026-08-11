@@ -6,6 +6,7 @@ import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Pill } from "#/components/Pill/Pill";
 import { cn } from "#/utils/cn";
+import { useTemplateBuilderEnabled } from "../useTemplateBuilderEnabled";
 
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
 	example: TemplateExample;
@@ -18,6 +19,8 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 	className,
 	...divProps
 }) => {
+	const templateBuilderEnabled = useTemplateBuilderEnabled();
+
 	return (
 		<div
 			className={cn(
@@ -64,7 +67,13 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 
 			<div className="mt-auto flex flex-col items-center gap-3 pt-6">
 				<Button asChild className="w-full">
-					<RouterLink to={`/templates/new?exampleId=${example.id}`}>
+					<RouterLink
+						to={
+							templateBuilderEnabled
+								? "/templates/new/builder"
+								: `/templates/new?exampleId=${example.id}`
+						}
+					>
 						Use template
 					</RouterLink>
 				</Button>
