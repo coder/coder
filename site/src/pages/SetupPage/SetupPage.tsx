@@ -41,7 +41,7 @@ export const SetupPage: FC = () => {
 	// If the user is logged in, navigate to the app
 	if (isSignedIn) {
 		return setupRequired.current ? (
-			<Navigate to={setupCompleteRedirect} replace />
+			<Navigate to="/templates/new/builder" replace />
 		) : (
 			<Navigate to="/" state={{ isRedirect: true }} replace />
 		);
