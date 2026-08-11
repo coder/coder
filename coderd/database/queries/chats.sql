@@ -1660,8 +1660,8 @@ WHERE chat_id = @chat_id::uuid
 ORDER BY source ASC;
 
 -- name: LinkChatFilesAfterLock :one
--- LinkChatFilesAfterLock requires the caller to hold the chat row lock to
--- serialize cap checks. It returns the number of new links rejected by the cap.
+-- LinkChatFilesAfterLock requires the chat row lock.
+-- The lock serializes cap checks. The result counts rejected new links.
 WITH current AS (
     SELECT COUNT(*) AS cnt
     FROM chat_file_links

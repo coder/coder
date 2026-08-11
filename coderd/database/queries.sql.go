@@ -10490,8 +10490,8 @@ type LinkChatFilesAfterLockParams struct {
 	MaxFileLinks int32       `db:"max_file_links" json:"max_file_links"`
 }
 
-// LinkChatFilesAfterLock requires the caller to hold the chat row lock to
-// serialize cap checks. It returns the number of new links rejected by the cap.
+// LinkChatFilesAfterLock requires the chat row lock.
+// The lock serializes cap checks. The result counts rejected new links.
 func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error) {
 	row := q.db.QueryRowContext(ctx, linkChatFilesAfterLock, arg.ChatID, pq.Array(arg.FileIds), arg.MaxFileLinks)
 	var rejected_new_files int32

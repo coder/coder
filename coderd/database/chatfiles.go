@@ -32,7 +32,7 @@ func (q *sqlQuerier) LinkChatFiles(ctx context.Context, arg LinkChatFilesParams)
 }
 
 func (q *sqlQuerier) DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error) {
-	// Recheck each candidate because a link can commit while its row lock is pending.
+	// Recheck candidates because links may commit during row-lock waits.
 	var deleted int64
 	err := q.InTx(func(tx Store) error {
 		ids, err := tx.GetOldUnlinkedChatFileIDs(ctx, arg)

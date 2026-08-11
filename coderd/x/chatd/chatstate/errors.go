@@ -49,12 +49,10 @@ var (
 	// wraps this sentinel.
 	ErrMessageQueueFull = xerrors.New("chat message queue is full")
 
-	// ErrChatFileCapExceeded is returned by [LinkFiles] when new links would
-	// exceed a chat's attachment cap.
+	// ErrChatFileCapExceeded reports a [LinkFiles] cap rejection.
 	ErrChatFileCapExceeded = xerrors.New("chat attachment cap exceeded")
 
-	// ErrChatFileUnavailable is returned by [LinkFiles] when a referenced file
-	// does not exist.
+	// ErrChatFileUnavailable reports a missing file passed to [LinkFiles].
 	ErrChatFileUnavailable = xerrors.New("chat attachment unavailable")
 
 	// ErrToolResultDuplicate is returned by [Tx.CompleteRequiresAction]
