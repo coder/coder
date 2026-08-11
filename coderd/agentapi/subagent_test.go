@@ -959,6 +959,39 @@ func TestSubAgentAPI(t *testing.T) {
 			require.NoError(t, err)
 		})
 
+		t.Run("CannotDeleteSiblingParentsChild", func(t *testing.T) {
+			t.Parallel()
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+			user, agentOne := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agentOne)
+
+			agentTwo := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: agentOne.ResourceID,
+				Name:       "parent-agent-two",
+			})
+			childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ParentID:        uuid.NullUUID{Valid: true, UUID: agentTwo.ID},
+				ResourceID:      agentOne.ResourceID,
+				Name:            "child-agent-two",
+				Directory:       "/workspaces/wobble",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+
+			_, err := api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{
+				Id: childAgent.ID[:],
+			})
+			require.EqualError(t, err, "subagent does not belong to this parent agent")
+
+			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgent.ID)
+			require.NoError(t, err)
+		})
+
 		t.Run("CannotDeleteOtherAgentsChild", func(t *testing.T) {
 			t.Parallel()
 

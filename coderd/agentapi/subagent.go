@@ -338,6 +338,19 @@ func (a *SubAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.Delete
 		return nil, err
 	}
 
+	parentAgent, err := a.AgentFn(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get parent agent: %w", err)
+	}
+
+	subAgent, err := a.Database.GetWorkspaceAgentByID(ctx, subAgentID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace agent by id: %w", err)
+	}
+	if !subAgent.ParentID.Valid || subAgent.ParentID.UUID != parentAgent.ID {
+		return nil, xerrors.New("subagent does not belong to this parent agent")
+	}
+
 	if err := a.Database.DeleteWorkspaceSubAgentByID(ctx, subAgentID); err != nil {
 		return nil, err
 	}
