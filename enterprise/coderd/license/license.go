@@ -139,8 +139,6 @@ func Entitlements(
 }
 
 type FeatureArguments struct {
-	// Logger receives the causes behind operator-facing diagnostics whose
-	// published message is a stable text. The zero value discards them.
 	Logger                slog.Logger
 	ActiveUserCount       int64
 	ActiveAISeatCount     int64
@@ -603,8 +601,6 @@ func LicensesEntitlements(
 			entitlements.AddFeature(codersdk.FeatureAgentRuntimeHours, runtimeFeature)
 		}
 		if len(ignoredClaims) > 0 {
-			// The published warning is a stable text, so the details a
-			// support case needs go to the log.
 			featureArguments.Logger.Warn(ctx, "ignored unusable Coder Agent runtime hour claims in license",
 				slog.F("license_id", license.UUID),
 				slog.F("ignored_claims", ignoredClaims),
@@ -737,9 +733,8 @@ func LicensesEntitlements(
 		}
 		if ok {
 			agentLimit.Actual = &managedAgentCount
-			// Written back directly: the feature contest is already
-			// settled, so AddFeature's Compare must not get a chance to
-			// drop the write.
+			// Write directly rather than via AddFeature so its Compare
+			// cannot drop the update.
 			entitlements.Features[codersdk.FeatureManagedAgentLimit] = agentLimit
 
 			// Only issue warnings if the feature is enabled.
@@ -907,12 +902,10 @@ func LicensesEntitlements(
 	return entitlements, nil
 }
 
-// measureUsage runs one usage query over the feature's usage period and owns
-// the shared failure policy: a nil fn is a wiring bug and fails the whole
-// LicensesEntitlements call; a failure with a dead context fails the call
-// without logging; any other failure logs the cause and publishes the stable
-// unavailableText instead. It returns the measured value and true only on
-// success.
+// measureUsage runs fn over the feature's usage period. A nil fn or a
+// failure with a dead context fails the whole call; any other failure logs
+// the cause and publishes unavailableText instead. It returns the measured
+// value and true only on success.
 func measureUsage(
 	ctx context.Context,
 	entitlements *codersdk.Entitlements,
@@ -928,12 +921,11 @@ func measureUsage(
 	value, err := fn(ctx, usagePeriod.Start, usagePeriod.End)
 	switch {
 	case err != nil && ctx.Err() != nil:
-		// The computation's own context is dead, so abort the whole call
-		// without logging. Do not classify by error shape instead: Postgres
-		// raises SQLSTATE 57014 (query_canceled) for statement_timeout kills
-		// as well as client cancels, and aborting on those would fail every
-		// entitlements refresh on a deployment whose statement_timeout is
-		// shorter than a usage query.
+		// Do not classify cancellation by error shape instead of ctx.Err():
+		// Postgres raises SQLSTATE 57014 (query_canceled) for
+		// statement_timeout kills as well as client cancels, and aborting on
+		// those would fail every entitlements refresh on a deployment whose
+		// statement_timeout is shorter than a usage query.
 		return 0, false, xerrors.Errorf("get %s: %w", what, err)
 	case err != nil:
 		logger.Error(ctx, fmt.Sprintf("get %s for entitlements", what), slog.Error(err))
@@ -1066,26 +1058,15 @@ func agentRuntimeMsToHours(ms int64) int64 {
 // allocation claim; per-claim validity rules live on the Claim* constants
 // above.
 //
-// Unusable claims are dropped, never license-invalidating: rejecting a
-// signed license over a cosmetic threshold claim would drop the deployment
-// to unlicensed. ignoredClaims names each dropped claim (including the
-// feature name itself minted as a claim, the most plausible issuer mistake)
-// so the caller can warn and log instead of letting an incorrectly issued
-// license look healthy.
+// Unusable claims are dropped rather than invalidating the license, since
+// rejecting a signed license over a cosmetic claim would drop the deployment
+// to unlicensed. Each dropped claim is returned in ignoredClaims so the
+// caller can warn and log instead of letting an incorrectly issued license
+// look healthy.
 //
-// A zero allocation grants the feature disabled and drops both threshold
-// claims, but Actual is still measured and published. CODAGT-856 will make a
-// zero allocation force a concurrency-limited mode; that mode does not exist
-// yet.
-//
-// An AgentRuntimeHoursUnlimitedAllocation (-1) allocation grants the feature
-// enabled with a nil Limit, meaning unlimited. Threshold claims alongside it
-// have nothing to threshold against, so they are dropped with the warning,
-// keeping an incorrectly issued license visible. Note that
-// codersdk.Feature.Compare ranks a nil Limit below a set one, so on an exact
-// issued-at and expiry tie a metered license outranks an unlimited one; ties
-// never happen for separately issued licenses, so this edge is documented
-// rather than special-cased.
+// A zero allocation grants the feature disabled, but Actual is still
+// measured and published. CODAGT-856 will make a zero allocation force a
+// concurrency-limited mode; that mode does not exist yet.
 func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (feature codersdk.Feature, granted bool, ignoredClaims []string) {
 	if _, ok := features[codersdk.FeatureAgentRuntimeHours]; ok {
 		ignoredClaims = append(ignoredClaims, string(codersdk.FeatureAgentRuntimeHours))

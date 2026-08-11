@@ -5732,32 +5732,15 @@ export const LicenseAIGovernanceOverLimitWarningText =
 	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
 
 // From codersdk/licenses.go
-/**
- * LicenseAgentRuntimeHoursAllocationReachedWarningText is emitted once
- * the deployment reaches its runtime hour allocation. Placeholders are
- * whole hours: used, allocation.
- */
 export const LicenseAgentRuntimeHoursAllocationReachedWarningText =
 	"Your deployment has used %d of the %d Coder Agent runtime hours included in the current license term.";
 
 // From codersdk/licenses.go
-/**
- * LicenseAgentRuntimeHoursClaimsIgnoredWarningText is emitted when a
- * license carries unusable Coder Agent runtime hour claims (see
- * decodeAgentRuntimeHours in enterprise/coderd/license); the logs name
- * the license and the dropped claims. The dashboard renders the exact
- * text as a muted diagnostic without a sales link.
- */
 export const LicenseAgentRuntimeHoursClaimsIgnoredWarningText =
 	"A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued.";
 
 // From codersdk/licenses.go
 /**
- * LicenseAgentRuntimeHoursSoftLimitWarningText is emitted while runtime
- * usage is at or above the advisory soft limit but within the
- * allocation. Placeholders are whole hours: used, allocation, soft
- * limit.
- *
  * The dashboard's LicenseBanner matches this text's pre-placeholder
  * prefix to render it muted and without a sales link, so the license
  * warning texts must stay pairwise distinct before their first
@@ -5767,10 +5750,6 @@ export const LicenseAgentRuntimeHoursSoftLimitWarningText =
 	"Your deployment is approaching its Coder Agent runtime hours allocation: %d of the %d hours included in the current license term are used, at or above the advisory soft limit of %d hours.";
 
 // From codersdk/licenses.go
-/**
- * LicenseAgentRuntimeUsageUnavailableErrorText is the Coder Agent
- * runtime hours sibling of LicenseManagedAgentUsageUnavailableErrorText.
- */
 export const LicenseAgentRuntimeUsageUnavailableErrorText =
 	"Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details.";
 
@@ -5782,14 +5761,6 @@ export const LicenseManagedAgentLimitExceededWarningText =
 	"You have built more workspaces with managed agents than your license allows.";
 
 // From codersdk/licenses.go
-/**
- * LicenseManagedAgentUsageUnavailableErrorText is emitted when the
- * managed agent usage query fails while computing entitlements; the
- * cause is logged server-side. It travels in the entitlements Errors
- * channel so the alertable coderd_license_errors gauge counts
- * measurement failures, but the dashboard recognizes the exact text and
- * renders it as a muted diagnostic rather than a license error.
- */
 export const LicenseManagedAgentUsageUnavailableErrorText =
 	"Unable to determine managed agent usage. The reported count is unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details.";
 
@@ -6979,6 +6950,47 @@ export interface OrganizationSyncSettings {
 	 * for every user, regardless of their claims. This preserves legacy behavior.
 	 */
 	readonly organization_assign_default: boolean;
+}
+
+// From codersdk/groups.go
+/**
+ * PaginatedGroup is a group summary returned by the paginated groups endpoint.
+ * It deliberately omits the member roster (which the endpoint does not return)
+ * and exposes only the total member count. Fetch the roster via the group
+ * members endpoint.
+ */
+export interface PaginatedGroup {
+	readonly id: string;
+	readonly name: string;
+	readonly display_name: string;
+	readonly organization_id: string;
+	/**
+	 * TotalMemberCount is the number of members in the group, shown even when
+	 * the caller cannot read individual members. The roster itself is not
+	 * returned by this endpoint.
+	 */
+	readonly total_member_count: number;
+	readonly avatar_url: string;
+	readonly quota_allowance: number;
+	readonly source: GroupSource;
+	readonly organization_name: string;
+	readonly organization_display_name: string;
+}
+
+// From codersdk/groups.go
+/**
+ * PaginatedGroupsRequest are the filters for a paginated groups request.
+ * Groups only support free-text search, so unlike UsersRequest it exposes no
+ * key:value filters that the endpoint would reject.
+ */
+export interface PaginatedGroupsRequest extends Pagination {
+	readonly q?: string;
+}
+
+// From codersdk/groups.go
+export interface PaginatedGroupsResponse {
+	readonly groups: readonly PaginatedGroup[];
+	readonly count: number;
 }
 
 // From codersdk/organizations.go
@@ -10725,6 +10737,13 @@ export interface WorkspaceAgent {
 	readonly display_apps: readonly DisplayApp[];
 	readonly log_sources: readonly WorkspaceAgentLogSource[];
 	readonly scripts: readonly WorkspaceAgentScript[];
+	/**
+	 * Metadata is only populated on the workspaces list endpoint when the
+	 * request opts in with the include_agent_metadata search key, and it
+	 * only carries the requested keys. The description's script is always
+	 * empty here: it can be long, and list consumers want values.
+	 */
+	readonly metadata?: readonly WorkspaceAgentMetadata[];
 	/**
 	 * StartupScriptBehavior is a legacy field that is deprecated in favor
 	 * of the `coder_script` resource. It's only referenced by old clients.
