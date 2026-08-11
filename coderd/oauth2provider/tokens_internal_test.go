@@ -3,11 +3,13 @@ package oauth2provider
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -16,6 +18,16 @@ import (
 func parseScopes(scope string) []string {
 	return strings.Fields(strings.TrimSpace(scope))
 }
+
+// Named app fixtures for extractTokenRequest, whose behavior depends only on
+// the client type. Passing these rather than a zero-value app means the call
+// sites state which client type they mean instead of relying on the zero value
+// reading as confidential. IsPublic's handling of unset and unrecognized values
+// is pinned directly in database.TestOAuth2ProviderAppIsPublic.
+var (
+	confidentialApp = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypeConfidential}
+	publicApp       = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypePublic}
+)
 
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
 // to ensure RFC 6749 compliance where scopes are space-delimited
@@ -127,7 +139,7 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
 
 			// Verify no errors occurred
 			require.NoError(t, err, "extractTokenRequest should not return error for: %s", tc.description)
@@ -190,7 +202,7 @@ func TestExtractTokenParams_ScopesURLEncoded(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
 
 			// Verify no errors
 			require.NoError(t, err)
@@ -273,7 +285,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				Form:     form,
 			}
 
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
 
 			require.NoError(t, err, "extractTokenRequest should not error for: %s", tc.description)
 			require.Empty(t, validationErrs)
@@ -448,6 +460,98 @@ func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T
 	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
 
+// TestExtractTokenRequest_ClientSecretRequirement verifies that client_secret
+// is only required for the authorization_code grant when the app is
+// confidential. Public clients authenticate with PKCE alone. client_id is
+// always required, regardless of client type.
+func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		app  database.OAuth2ProviderApp
+		// clientID/clientSecret are omitted from the form entirely when
+		// empty, rather than sent as empty strings, to match how a real
+		// client request is built.
+		clientID       string
+		clientSecret   string
+		wantErrorField string // Empty means no validation error is expected.
+	}{
+		{
+			name:           "ConfidentialClientMissingSecretIsRejected",
+			app:            confidentialApp,
+			clientID:       "test-client",
+			wantErrorField: "client_secret",
+		},
+		{
+			name:         "ConfidentialClientWithSecretIsAccepted",
+			app:          confidentialApp,
+			clientID:     "test-client",
+			clientSecret: "test-secret",
+		},
+		{
+			name:     "PublicClientMissingSecretIsAccepted",
+			app:      publicApp,
+			clientID: "test-client",
+		},
+		{
+			// A public client that sends a secret anyway is accepted; the
+			// secret is simply never checked (RFC 6749 §2.3.1).
+			name:         "PublicClientWithSecretIsAccepted",
+			app:          publicApp,
+			clientID:     "test-client",
+			clientSecret: "unnecessary-secret",
+		},
+		{
+			name:           "PublicClientMissingClientIDIsRejected",
+			app:            publicApp,
+			wantErrorField: "client_id",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			callbackURL, err := url.Parse("http://localhost:3000/callback")
+			require.NoError(t, err)
+
+			form := url.Values{}
+			form.Set("grant_type", "authorization_code")
+			form.Set("code", "test-code")
+			// This test only exercises client_secret requirements, but
+			// code_verifier is validated unconditionally for this grant type,
+			// so use a value that satisfies the RFC 7636 §4.1 length floor.
+			form.Set("code_verifier", strings.Repeat("a", 43))
+			if tc.clientID != "" {
+				form.Set("client_id", tc.clientID)
+			}
+			if tc.clientSecret != "" {
+				form.Set("client_secret", tc.clientSecret)
+			}
+
+			req := &http.Request{
+				Method:   http.MethodPost,
+				PostForm: form,
+				Form:     form,
+			}
+
+			_, validationErrs, err := extractTokenRequest(req, callbackURL, tc.app)
+
+			if tc.wantErrorField == "" {
+				require.NoError(t, err)
+				require.Empty(t, validationErrs)
+				return
+			}
+
+			require.Error(t, err)
+			require.True(t, slices.ContainsFunc(validationErrs, func(v codersdk.ValidationError) bool {
+				return v.Field == tc.wantErrorField
+			}), "expected a validation error for field %q, got: %+v", tc.wantErrorField, validationErrs)
+		})
+	}
+}
+
 // TestRefreshTokenGrant_Scopes tests that scopes can be requested during refresh
 func TestRefreshTokenGrant_Scopes(t *testing.T) {
 	t.Parallel()
@@ -468,7 +572,7 @@ func TestRefreshTokenGrant_Scopes(t *testing.T) {
 		Form:     form,
 	}
 
-	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL, confidentialApp)
 
 	require.NoError(t, err)
 	require.Empty(t, validationErrs)

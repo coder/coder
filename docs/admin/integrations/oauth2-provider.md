@@ -223,12 +223,31 @@ confidential clients must include PKCE parameters:
 
 3. Include the code verifier in the token exchange (see [Client Authentication Methods](#client-authentication-methods)):
 
+   **Confidential client**
+
    ```sh
    curl -X POST \
      -u "$CLIENT_ID:$CLIENT_SECRET" \
      -H "Content-Type: application/x-www-form-urlencoded" \
      -d "grant_type=authorization_code" \
      -d "code=$AUTH_CODE" \
+     -d "code_verifier=$CODE_VERIFIER" \
+     -d "redirect_uri=https://yourapp.example.com/callback" \
+     "$CODER_URL/oauth2/tokens"
+   ```
+
+   **Public client (`token_endpoint_auth_method: none`)**
+
+   Send `client_id` in the form body and omit `client_secret` entirely. The code
+   verifier is the only client authentication, so it must be 43-128 characters
+   as RFC 7636 §4.1 requires; shorter values are rejected.
+
+   ```sh
+   curl -X POST \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "grant_type=authorization_code" \
+     -d "code=$AUTH_CODE" \
+     -d "client_id=$CLIENT_ID" \
      -d "code_verifier=$CODE_VERIFIER" \
      -d "redirect_uri=https://yourapp.example.com/callback" \
      "$CODER_URL/oauth2/tokens"
@@ -269,6 +288,17 @@ curl -X POST \
   -d "refresh_token=$REFRESH_TOKEN" \
   -d "client_id=$CLIENT_ID" \
   -d "client_secret=$CLIENT_SECRET" \
+  "$CODER_URL/oauth2/tokens"
+```
+
+**Option C: Public client (`none`)**
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=$REFRESH_TOKEN" \
+  -d "client_id=$CLIENT_ID" \
   "$CODER_URL/oauth2/tokens"
 ```
 
