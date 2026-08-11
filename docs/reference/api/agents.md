@@ -252,6 +252,126 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/ai-egress-policy/
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Report AI sandbox network events
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/ai-sandbox-network-events \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/v2/workspaceagents/me/ai-sandbox-network-events`
+
+> Body parameter
+
+```json
+{
+  "events": [
+    {
+      "action": "allowed",
+      "host": "string",
+      "occurred_at": "2019-08-24T14:15:22Z",
+      "policy_revision": 0,
+      "port": 0,
+      "protocol": "connect",
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                 | Required | Description               |
+|--------|------|------------------------------------------------------------------------------------------------------|----------|---------------------------|
+| `body` | body | [agentsdk.PatchAISandboxNetworkEventsRequest](schemas.md#agentsdkpatchaisandboxnetworkeventsrequest) | true     | AI sandbox network events |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Report an AI sandbox session
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/ai-sandbox-sessions \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/workspaceagents/me/ai-sandbox-sessions`
+
+> Body parameter
+
+```json
+{
+  "child_agent_id": "98b149b3-c6f8-4df8-9e63-f1ed5f164d3c",
+  "egress_enforcement": "forced",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "started_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                   | Required | Description        |
+|--------|------|----------------------------------------------------------------------------------------|----------|--------------------|
+| `body` | body | [agentsdk.PostAISandboxSessionRequest](schemas.md#agentsdkpostaisandboxsessionrequest) | true     | AI sandbox session |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Patch workspace agent app status
 
 ### Code samples

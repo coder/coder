@@ -1,5 +1,59 @@
 # Schemas
 
+## agentsdk.AISandboxNetworkEvent
+
+```json
+{
+  "action": "allowed",
+  "host": "string",
+  "occurred_at": "2019-08-24T14:15:22Z",
+  "policy_revision": 0,
+  "port": 0,
+  "protocol": "connect",
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                         | Required | Restrictions | Description                                                                                                                    |
+|-------------------|------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | [agentsdk.AISandboxNetworkEventAction](#agentsdkaisandboxnetworkeventaction) | false    |              |                                                                                                                                |
+| `host`            | string                                                                       | false    |              |                                                                                                                                |
+| `occurred_at`     | string                                                                       | false    |              |                                                                                                                                |
+| `policy_revision` | integer                                                                      | false    |              | Policy revision is the egress policy revision that produced this decision, or 0 while running the bootstrap deny-all fallback. |
+| `port`            | integer                                                                      | false    |              |                                                                                                                                |
+| `protocol`        | [agentsdk.AISandboxNetworkProtocol](#agentsdkaisandboxnetworkprotocol)       | false    |              |                                                                                                                                |
+| `session_id`      | string                                                                       | false    |              |                                                                                                                                |
+
+## agentsdk.AISandboxNetworkEventAction
+
+```json
+"allowed"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `allowed`, `denied` |
+
+## agentsdk.AISandboxNetworkProtocol
+
+```json
+"connect"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                        |
+|---------------------------------|
+| `connect`, `http`, `sni`, `tcp` |
+
 ## agentsdk.AWSInstanceIdentityToken
 
 ```json
@@ -126,6 +180,30 @@
 | `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
 | `output`     | string                                 | false    |              |             |
 
+## agentsdk.PatchAISandboxNetworkEventsRequest
+
+```json
+{
+  "events": [
+    {
+      "action": "allowed",
+      "host": "string",
+      "occurred_at": "2019-08-24T14:15:22Z",
+      "policy_revision": 0,
+      "port": 0,
+      "protocol": "connect",
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                                      | Required | Restrictions | Description |
+|----------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `events` | array of [agentsdk.AISandboxNetworkEvent](#agentsdkaisandboxnetworkevent) | false    |              |             |
+
 ## agentsdk.PatchAppStatus
 
 ```json
@@ -171,6 +249,28 @@
 |-----------------|---------------------------------------|----------|--------------|-------------|
 | `log_source_id` | string                                | false    |              |             |
 | `logs`          | array of [agentsdk.Log](#agentsdklog) | false    |              |             |
+
+## agentsdk.PostAISandboxSessionRequest
+
+```json
+{
+  "child_agent_id": "98b149b3-c6f8-4df8-9e63-f1ed5f164d3c",
+  "egress_enforcement": "forced",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "started_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                                       | Required | Restrictions | Description |
+|----------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `child_agent_id`     | string                                                                     | false    |              |             |
+| `egress_enforcement` | [codersdk.AISandboxEgressEnforcement](#codersdkaisandboxegressenforcement) | false    |              |             |
+| `ended_at`           | string                                                                     | false    |              |             |
+| `id`                 | string                                                                     | false    |              |             |
+| `started_at`         | string                                                                     | false    |              |             |
 
 ## agentsdk.PostLogSourceRequest
 
@@ -1345,6 +1445,20 @@ None
 | Value(s)                                                                                                |
 |---------------------------------------------------------------------------------------------------------|
 | `anthropic`, `azure`, `bedrock`, `copilot`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
+
+## codersdk.AISandboxEgressEnforcement
+
+```json
+"forced"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                     |
+|------------------------------|
+| `advisory`, `forced`, `none` |
 
 ## codersdk.APIAllowListTarget
 

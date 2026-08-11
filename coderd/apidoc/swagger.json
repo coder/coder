@@ -10742,6 +10742,72 @@
 				]
 			}
 		},
+		"/api/v2/workspaceagents/me/ai-sandbox-network-events": {
+			"patch": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Agents"],
+				"summary": "Report AI sandbox network events",
+				"operationId": "report-ai-sandbox-network-events",
+				"parameters": [
+					{
+						"description": "AI sandbox network events",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/agentsdk.PatchAISandboxNetworkEventsRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/workspaceagents/me/ai-sandbox-sessions": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Agents"],
+				"summary": "Report an AI sandbox session",
+				"operationId": "report-ai-sandbox-session",
+				"parameters": [
+					{
+						"description": "AI sandbox session",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/agentsdk.PostAISandboxSessionRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Response"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/workspaceagents/me/app-status": {
 			"patch": {
 				"consumes": ["application/json"],
@@ -13533,6 +13599,53 @@
 		}
 	},
 	"definitions": {
+		"agentsdk.AISandboxNetworkEvent": {
+			"type": "object",
+			"properties": {
+				"action": {
+					"$ref": "#/definitions/agentsdk.AISandboxNetworkEventAction"
+				},
+				"host": {
+					"type": "string"
+				},
+				"occurred_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"policy_revision": {
+					"description": "PolicyRevision is the egress policy revision that produced this\ndecision, or 0 while running the bootstrap deny-all fallback.",
+					"type": "integer"
+				},
+				"port": {
+					"type": "integer"
+				},
+				"protocol": {
+					"$ref": "#/definitions/agentsdk.AISandboxNetworkProtocol"
+				},
+				"session_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"agentsdk.AISandboxNetworkEventAction": {
+			"type": "string",
+			"enum": ["allowed", "denied"],
+			"x-enum-varnames": [
+				"AISandboxNetworkEventActionAllowed",
+				"AISandboxNetworkEventActionDenied"
+			]
+		},
+		"agentsdk.AISandboxNetworkProtocol": {
+			"type": "string",
+			"enum": ["connect", "http", "sni", "tcp"],
+			"x-enum-varnames": [
+				"AISandboxNetworkProtocolConnect",
+				"AISandboxNetworkProtocolHTTP",
+				"AISandboxNetworkProtocolSNI",
+				"AISandboxNetworkProtocolTCP"
+			]
+		},
 		"agentsdk.AWSInstanceIdentityToken": {
 			"type": "object",
 			"required": ["document", "signature"],
@@ -13640,6 +13753,17 @@
 				}
 			}
 		},
+		"agentsdk.PatchAISandboxNetworkEventsRequest": {
+			"type": "object",
+			"properties": {
+				"events": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/agentsdk.AISandboxNetworkEvent"
+					}
+				}
+			}
+		},
 		"agentsdk.PatchAppStatus": {
 			"type": "object",
 			"properties": {
@@ -13676,6 +13800,30 @@
 					"items": {
 						"$ref": "#/definitions/agentsdk.Log"
 					}
+				}
+			}
+		},
+		"agentsdk.PostAISandboxSessionRequest": {
+			"type": "object",
+			"properties": {
+				"child_agent_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"egress_enforcement": {
+					"$ref": "#/definitions/codersdk.AISandboxEgressEnforcement"
+				},
+				"ended_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"started_at": {
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},
@@ -14516,6 +14664,15 @@
 				"AIProviderTypeVercel",
 				"AIProviderTypeBedrock",
 				"AIProviderTypeCopilot"
+			]
+		},
+		"codersdk.AISandboxEgressEnforcement": {
+			"type": "string",
+			"enum": ["forced", "advisory", "none"],
+			"x-enum-varnames": [
+				"AISandboxEgressEnforcementForced",
+				"AISandboxEgressEnforcementAdvisory",
+				"AISandboxEgressEnforcementNone"
 			]
 		},
 		"codersdk.APIAllowListTarget": {

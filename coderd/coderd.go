@@ -1879,6 +1879,8 @@ func New(options *Options) *API {
 				})
 				r.Get("/ai-egress-policy", api.workspaceAgentAIEgressPolicy)
 				r.Get("/ai-egress-policy/watch", api.watchWorkspaceAgentAIEgressPolicy)
+				r.Post("/ai-sandbox-sessions", api.postAISandboxSession)
+				r.Patch("/ai-sandbox-network-events", api.patchAISandboxNetworkEvents)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
 				// Deprecated: Required to support legacy agents
