@@ -1155,6 +1155,53 @@
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 | `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
 
+## codersdk.AIEgressPolicy
+
+```json
+{
+  "revision": 0,
+  "rules": [
+    {
+      "host": "string",
+      "ports": [
+        0
+      ]
+    }
+  ],
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
+}
+```
+
+### Properties
+
+| Name          | Type                                                    | Required | Restrictions | Description                                                                                                      |
+|---------------|---------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------|
+| `revision`    | integer                                                 | false    |              |                                                                                                                  |
+| `rules`       | array of [codersdk.AIEgressRule](#codersdkaiegressrule) | false    |              |                                                                                                                  |
+| `template_id` | string                                                  | false    |              |                                                                                                                  |
+| `updated_at`  | string                                                  | false    |              |                                                                                                                  |
+| `updated_by`  | string                                                  | false    |              | Updated by is the coderd actor that wrote this revision. It is the nil UUID for the implicit revision-0 default. |
+
+## codersdk.AIEgressRule
+
+```json
+{
+  "host": "string",
+  "ports": [
+    0
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type             | Required | Restrictions | Description |
+|---------|------------------|----------|--------------|-------------|
+| `host`  | string           | false    |              |             |
+| `ports` | array of integer | false    |              |             |
+
 ## codersdk.AIGatewayKey
 
 ```json
@@ -13870,6 +13917,27 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-------|---------|----------|--------------|-------------|
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
+
+## codersdk.UpdateAIEgressPolicyRequest
+
+```json
+{
+  "rules": [
+    {
+      "host": "string",
+      "ports": [
+        0
+      ]
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                    | Required | Restrictions | Description |
+|---------|---------------------------------------------------------|----------|--------------|-------------|
+| `rules` | array of [codersdk.AIEgressRule](#codersdkaiegressrule) | false    |              |             |
 
 ## codersdk.UpdateAIProviderRequest
 

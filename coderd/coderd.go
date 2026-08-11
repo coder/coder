@@ -1662,6 +1662,8 @@ func New(options *Options) *API {
 				r.Get("/", api.template)
 				r.Delete("/", api.deleteTemplate)
 				r.Patch("/", api.patchTemplateMeta)
+				r.Get("/ai-egress-policy", api.templateAIEgressPolicy)
+				r.Put("/ai-egress-policy", api.putTemplateAIEgressPolicy)
 				r.Route("/versions", func(r chi.Router) {
 					r.Post("/archive", api.postArchiveTemplateVersions)
 					r.Get("/", api.templateVersionsByTemplate)
@@ -1875,6 +1877,8 @@ func New(options *Options) *API {
 					)
 					r.Get("/rpc", api.workspaceAgentRPC)
 				})
+				r.Get("/ai-egress-policy", api.workspaceAgentAIEgressPolicy)
+				r.Get("/ai-egress-policy/watch", api.watchWorkspaceAgentAIEgressPolicy)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
 				// Deprecated: Required to support legacy agents

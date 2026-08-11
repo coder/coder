@@ -185,6 +185,73 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace agent AI egress policy
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/ai-egress-policy \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/workspaceagents/me/ai-egress-policy`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "revision": 0,
+  "rules": [
+    {
+      "host": "string",
+      "ports": [
+        0
+      ]
+    }
+  ],
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIEgressPolicy](schemas.md#codersdkaiegresspolicy) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Watch workspace agent AI egress policy
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/ai-egress-policy/watch \
+  -H 'Accept: text/event-stream' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/workspaceagents/me/ai-egress-policy/watch`
+
+### Example responses
+
+> 200 Response
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIEgressPolicy](schemas.md#codersdkaiegresspolicy) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Patch workspace agent app status
 
 ### Code samples
