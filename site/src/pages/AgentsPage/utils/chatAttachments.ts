@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { isApiErrorResponse } from "#/api/errors";
+import { getErrorMessage, isApiErrorResponse } from "#/api/errors";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { decodeDataURL } from "./dataUrls";
 
@@ -89,16 +89,6 @@ type AttachmentDownloadTarget = {
 	mediaType: string;
 };
 
-const showDownloadFailure = (
-	fileName: string,
-	options: {
-		description?: string;
-		action?: { label: string; onClick: () => void };
-	},
-): void => {
-	toast.error(`Couldn't download ${fileName}`, options);
-};
-
 const fileFromDataURL = ({
 	href,
 	fileName,
@@ -120,7 +110,7 @@ const shareFileViaSheet = (file: File, fileName: string): Promise<void> =>
 		if (error instanceof DOMException && error.name === "NotAllowedError") {
 			// Fetching may outlast transient user activation. The toast action
 			// supplies a fresh gesture for the retry.
-			showDownloadFailure(fileName, {
+			toast.error(`Couldn't download ${fileName}`, {
 				description: "The file is ready to save.",
 				action: {
 					label: "Save",
@@ -129,8 +119,8 @@ const shareFileViaSheet = (file: File, fileName: string): Promise<void> =>
 			});
 			return;
 		}
-		showDownloadFailure(fileName, {
-			description: error instanceof Error ? error.message : undefined,
+		toast.error(`Couldn't download ${fileName}`, {
+			description: getErrorMessage(error, "Sharing failed."),
 		});
 	});
 
@@ -141,7 +131,7 @@ const shareAttachmentFile = async (
 	if (target.href.startsWith("data:")) {
 		const decoded = fileFromDataURL(target);
 		if (!decoded) {
-			showDownloadFailure(target.fileName, {
+			toast.error(`Couldn't download ${target.fileName}`, {
 				description: "The attachment data could not be decoded.",
 			});
 			return;
@@ -162,8 +152,8 @@ const shareAttachmentFile = async (
 				type: blob.type || target.mediaType || "application/octet-stream",
 			});
 		} catch (error) {
-			showDownloadFailure(target.fileName, {
-				description: error instanceof Error ? error.message : undefined,
+			toast.error(`Couldn't download ${target.fileName}`, {
+				description: getErrorMessage(error, "The file could not be fetched."),
 			});
 			return;
 		}

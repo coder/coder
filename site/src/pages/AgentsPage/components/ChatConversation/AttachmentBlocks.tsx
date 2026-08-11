@@ -57,6 +57,7 @@ const ATTACHMENT_FALLBACK_EXTENSIONS: Record<string, string> = {
 	"application/x-tar": "tar",
 	"application/xml": "xml",
 	"image/jpeg": "jpg",
+	"image/svg+xml": "svg",
 	"text/csv": "csv",
 	"text/markdown": "md",
 	"text/plain": "txt",
@@ -77,13 +78,6 @@ const getMediaTypeExtension = (mediaType: string): string | null => {
 		return mapped;
 	}
 	const [type, subtype = ""] = mediaType.split("/");
-	if (subtype.endsWith("+json")) {
-		return "json";
-	}
-	if (subtype.endsWith("+xml")) {
-		const base = subtype.slice(0, -"+xml".length);
-		return /^[a-z0-9]{1,8}$/i.test(base) ? base.toLowerCase() : "xml";
-	}
 	// Unmapped non-image subtypes are not assumed to be filename extensions.
 	return type === "image" && /^[a-z0-9]{1,8}$/i.test(subtype)
 		? subtype.toLowerCase()
