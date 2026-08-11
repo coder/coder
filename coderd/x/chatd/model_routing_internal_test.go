@@ -728,7 +728,10 @@ func TestResolveComputerUseModel_AIGatewayMissingAPIKeyID(t *testing.T) {
 	require.False(t, debugEnabled)
 	require.Empty(t, resolvedProvider)
 	require.Empty(t, resolvedModel)
-	require.Contains(t, err.Error(), `resolve computer use model for provider "openai" model "gpt-5.5"`)
+	require.Contains(t, err.Error(), fmt.Sprintf(
+		`resolve computer use model for provider "openai" model %q`,
+		chattool.ComputerUseOpenAIModelName,
+	))
 	require.Contains(t, err.Error(), "active turn API key ID")
 }
 

@@ -4785,6 +4785,10 @@ CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree 
 
 CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
 
+CREATE INDEX idx_chat_file_links_file_id ON chat_file_links USING btree (file_id);
+
+CREATE INDEX idx_chat_files_created_at ON chat_files USING btree (created_at);
+
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);

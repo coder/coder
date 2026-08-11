@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -341,6 +342,21 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			require.Nil(t, got)
 		})
 	}
+}
+
+func TestWriteChatFileErrorUnavailable(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	rec := httptest.NewRecorder()
+	handled := writeChatFileError(ctx, rec, xerrors.Errorf("link files: %w", chatstate.ErrChatFileUnavailable))
+	require.True(t, handled)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var response codersdk.Response
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&response))
+	require.Equal(t, "Chat attachment unavailable.", response.Message)
+	require.Equal(t, "An attachment is no longer available. Upload it again and retry.", response.Detail)
 }
 
 func TestRewriteChatStartWorkspaceManualUpdateResponse(t *testing.T) {
