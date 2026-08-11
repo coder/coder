@@ -661,10 +661,8 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 		messages,
 		nil,
 		resolvedModelCall{
-			model:    fallbackModel,
-			dbConfig: fallbackConfig,
-			// Mirrors titleChatSpec: derive with no requested effort so the
-			// config's default reasoning effort applies.
+			model:           fallbackModel,
+			dbConfig:        fallbackConfig,
 			providerOptions: chatprovider.ProviderOptionsForCall(fallbackModel, callConfig, nil),
 		},
 		modelBuildOptions{},

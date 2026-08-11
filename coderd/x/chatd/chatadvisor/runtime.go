@@ -11,9 +11,7 @@ import (
 // RuntimeConfig configures a single advisor runtime instance.
 type RuntimeConfig struct {
 	Model fantasy.LanguageModel
-	// CallTemplate is the prebuilt advisor call envelope. Each advisor run
-	// copies it, clones its provider options, and attaches the nested
-	// prompt.
+	// CallTemplate's provider options are cloned for each nested call.
 	CallTemplate    fantasy.Call
 	MaxUsesPerRun   int
 	MaxOutputTokens int64

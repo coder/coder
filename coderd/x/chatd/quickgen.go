@@ -136,19 +136,16 @@ var preferredTitleModels = []struct {
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
 
-// shortTextCandidate is one quickgen model candidate. provider and model
-// label debug runs: title flows use the route's provider type and configured
-// model name while the status-label flow uses the resolved identity.
+// Debug attribution uses configured identities for title calls and the
+// resolved identity for status-label calls.
 type shortTextCandidate struct {
 	provider string
 	model    string
 	resolved resolvedModelCall
 }
 
-// quickgenDebugSpec rebuilds a quickgen candidate's client with HTTP
-// recording after the caller verified debug is enabled. The client keeps the
-// candidate's model name, config options, and route; the wrap labels keep
-// the candidate's attribution.
+// quickgenDebugSpec preserves the candidate's route, client options, and
+// attribution labels while enabling HTTP recording.
 func quickgenDebugSpec(
 	chat database.Chat,
 	candidate shortTextCandidate,
@@ -513,7 +510,6 @@ func (p *Server) prepareQuickgenDebugCandidate(
 	return runCtx, debugModel, finishDebugRun
 }
 
-// quickgenPrompt pairs a system prompt with one user message.
 func quickgenPrompt(systemPrompt, userInput string) fantasy.Prompt {
 	return fantasy.Prompt{
 		{
@@ -1282,8 +1278,7 @@ func turnStatusLabelObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	})
 }
 
-// generateTurnStatusLabel produces a short turn status label using the
-// resolved chat-model call. Returns "" on any failure.
+// generateTurnStatusLabel returns an empty string if generation fails.
 func (p *Server) generateTurnStatusLabel(
 	ctx context.Context,
 	chat database.Chat,

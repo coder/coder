@@ -32,11 +32,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// The tests in this file lock the outgoing request shape of each LLM call
-// flow: which flows carry model-config provider options and which
-// deliberately omit them, plus token defaults. They guard the model-call
-// resolver refactor against silent behavior changes.
-
 func modelCallSentinelOptions(t *testing.T, user string) json.RawMessage {
 	t.Helper()
 	raw, err := json.Marshal(codersdk.ChatModelCallConfig{
@@ -119,8 +114,6 @@ func TestModelCallShapeStandardTurn(t *testing.T) {
 	require.NotNil(t, prepared.CallTemplate.MaxOutputTokens)
 	require.Equal(t, int64(32_000), *prepared.CallTemplate.MaxOutputTokens)
 
-	// The chat-model compaction summary call carries no provider options
-	// even when the model config has them, and it forbids tool use.
 	require.NotNil(t, prepared.Compaction)
 	require.Nil(t, prepared.Compaction.Options.SummaryCall.ProviderOptions)
 	require.NotNil(t, prepared.Compaction.Options.SummaryCall.ToolChoice)
@@ -288,8 +281,53 @@ func TestModelCallShapeChatSummaryOmitsProviderOptions(t *testing.T) {
 	require.Len(t, bodies, 1)
 	var raw map[string]any
 	require.NoError(t, json.Unmarshal(bodies[0], &raw))
-	// The summary call omits model-config provider options entirely.
 	require.NotContains(t, raw, "user")
+}
+
+// TestModelCallShapeProviderOptionPolicy locks the resolver's
+// provider-option policy handling and each flow's declared policy, so the
+// summary and status-label omission cannot silently regress.
+func TestModelCallShapeProviderOptionPolicy(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	providerID := uuid.New()
+	config := titleOverrideModelConfig("gpt-4o-mini", true)
+	config.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+	config.Options = modelCallSentinelOptions(t, "policy-sentinel")
+
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil).AnyTimes()
+
+	server := titleOverrideTestServer(db, logger)
+
+	spec := modelCallSpec{
+		purpose:         callPurposeStatusLabel,
+		chat:            chat,
+		config:          configSelection{mode: configExplicit, config: config},
+		providerOptions: providerOptionsOmit,
+		buildOptions:    modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	}
+	omitted, err := server.resolveModelCall(ctx, spec)
+	require.NoError(t, err)
+	require.Nil(t, omitted.providerOptions)
+
+	spec.providerOptions = providerOptionsDerive
+	derived, err := server.resolveModelCall(ctx, spec)
+	require.NoError(t, err)
+	require.NotNil(t, derived.providerOptions)
+
+	require.Equal(t, providerOptionsOmit, chatModelSpec(callPurposeSummary, chat, modelBuildOptions{}).providerOptions)
+	require.Equal(t, providerOptionsOmit, chatModelSpec(callPurposeStatusLabel, chat, modelBuildOptions{}).providerOptions)
+	require.Equal(t, providerOptionsDerive, standardTurnSpec(chat, modelBuildOptions{}).providerOptions)
+	require.Equal(t, providerOptionsDerive, titleChatSpec(chat, modelBuildOptions{}).providerOptions)
 }
 
 func TestModelCallShapeTurnStatusLabelEnvelope(t *testing.T) {
@@ -323,7 +361,6 @@ func TestModelCallShapeTurnStatusLabelEnvelope(t *testing.T) {
 		"All tests pass now.",
 		resolvedModelCall{
 			model:            chatprovider.NewModel(model, nil),
-			dbConfig:         database.ChatModelConfig{Options: modelCallSentinelOptions(t, "status-options-sentinel")},
 			resolvedProvider: fantasyopenai.Name,
 			resolvedModel:    "gpt-4o-mini",
 		},
@@ -339,8 +376,6 @@ func TestModelCallShapeTurnStatusLabelEnvelope(t *testing.T) {
 	defer callMu.Unlock()
 	require.Len(t, captured, 1)
 	call := captured[0]
-	// The status-label call omits model-config provider options even though
-	// the config JSON carries them.
 	require.Nil(t, call.ProviderOptions)
 	require.NotNil(t, call.MaxOutputTokens)
 	require.Equal(t, int64(64), *call.MaxOutputTokens)

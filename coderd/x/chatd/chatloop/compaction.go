@@ -94,8 +94,6 @@ type CompactionOptions struct {
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64
 
-	// Summary model identity and call envelope; see
-	// GenerateCompactionOptions.
 	ResolvedProvider string
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID

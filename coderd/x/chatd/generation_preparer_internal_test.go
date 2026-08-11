@@ -443,11 +443,11 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.Equal(t, "the answer is 42", result.FinalAssistantText)
 		require.Equal(t, lastUserID, result.TriggerMessageID)
 		require.Equal(t, tipID, result.HistoryTipMessageID)
-		require.NotNil(t, result.StatusLabel)
-		require.True(t, result.StatusLabel.model.Valid())
-		require.Equal(t, "openai", result.StatusLabel.resolvedProvider)
-		require.Equal(t, "gpt-4o-mini", result.StatusLabel.resolvedModel)
-		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabel.dbConfig.Options))
+		require.NotNil(t, result.StatusLabelCall)
+		require.True(t, result.StatusLabelCall.model.Valid())
+		require.Equal(t, "openai", result.StatusLabelCall.resolvedProvider)
+		require.Equal(t, "gpt-4o-mini", result.StatusLabelCall.resolvedModel)
+		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelCall.dbConfig.Options))
 	})
 
 	t.Run("NonWaitingReturnsEmpty", func(t *testing.T) {
@@ -483,8 +483,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
-		// A disabled AI provider makes model resolution fail, exercising the
-		// degraded path that still returns the re-derived text and IDs.
 		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 			Model:        "gpt-4o-mini",
@@ -521,7 +519,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.Equal(t, "the answer is 42", result.FinalAssistantText)
 		require.NotZero(t, result.TriggerMessageID)
 		require.NotZero(t, result.HistoryTipMessageID)
-		require.Nil(t, result.StatusLabel)
+		require.Nil(t, result.StatusLabelCall)
 	})
 }
 

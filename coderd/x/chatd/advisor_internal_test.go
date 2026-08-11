@@ -266,9 +266,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		require.Equal(t, fallbackCallConfig, gotCfg)
 	})
 
-	// Corrupt options JSON on a provider-linked config must still fall
-	// back softly, unlike route or client failures which hard-fail for
-	// linked providers. Guards the modelCallConfigParseError distinction.
 	t.Run("InvalidOptionsJSONWithLinkedProviderReturnsFallback", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)

@@ -183,8 +183,6 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	// still-over-limit metrics land on the same series.
 	require.Equal(t, override.resolvedProvider, resolved.ResolvedProvider)
 	require.Equal(t, override.resolvedModel, resolved.ResolvedModel)
-	// The summary call derives provider options from the override config,
-	// including the admin-resolved reasoning effort.
 	switch opts := override.providerOptions[fantasyopenai.Name].(type) {
 	case *fantasyopenai.ResponsesProviderOptions:
 		require.Equal(t, fantasyopenai.ReasoningEffort(effort), *opts.ReasoningEffort)

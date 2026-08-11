@@ -54,9 +54,7 @@ type generationPrepared struct {
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
 	ResolvedProvider string
 
-	ModelConfigID uuid.UUID
-	// CallTemplate is the resolver-built assistant call envelope; see
-	// chatloop.GenerateAssistantOptions.CallTemplate.
+	ModelConfigID        uuid.UUID
 	CallTemplate         fantasy.Call
 	ContextLimitFallback int64
 
@@ -960,9 +958,7 @@ func (s *taskStarter) generateCompaction(
 	compactionOpts := prepared.Compaction.Options
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
 	if override := prepared.Compaction.Override; override != nil {
-		// Errors are hard failures: a usable override that cannot be
-		// constructed must fail the generation visibly instead of silently
-		// compacting with the chat model.
+		// A usable override that fails to build is a hard generation failure.
 		overrideModel, err := s.server.resolveModelCall(ctx, compactionOverrideSpec(prepared.Chat, override.Config, prepared.ModelBuildOptions))
 		if err != nil {
 			return xerrors.Errorf("build compaction model override: %w", err)

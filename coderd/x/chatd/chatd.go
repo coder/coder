@@ -282,9 +282,8 @@ func (p *Server) resolveAdvisorModelOverride(
 
 	resolved, err := p.resolveModelCall(ctx, advisorOverrideSpec(chat, overrideConfig, modelOpts))
 	if err != nil {
-		// Corrupt options JSON always falls back so a bad admin edit cannot
-		// break every turn; route and client failures fall back only when
-		// the config has no linked provider.
+		// Malformed options always fall back; route and client errors are
+		// hard failures only when the config has a linked provider.
 		var parseErr modelCallConfigParseError
 		if overrideConfig.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
 			return resolvedModelCall{}, xerrors.Errorf("resolve advisor override model: %w", err)
@@ -3417,9 +3416,8 @@ func (p *Server) trackWorkspaceUsage(
 
 type runChatResult struct {
 	FinalAssistantText string
-	// StatusLabel is the resolved chat-model call used to generate the
-	// end-of-turn status label; nil when model resolution failed.
-	StatusLabel         *resolvedModelCall
+	// StatusLabelCall is nil when status-label model resolution failed.
+	StatusLabelCall     *resolvedModelCall
 	ModelBuildOptions   modelBuildOptions
 	TriggerMessageID    int64
 	HistoryTipMessageID int64
@@ -4540,7 +4538,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 	}
 
 	assistantText := strings.TrimSpace(runResult.FinalAssistantText)
-	if assistantText == "" || runResult.StatusLabel == nil {
+	if assistantText == "" || runResult.StatusLabelCall == nil {
 		return fallbackTurnStatusLabel(status)
 	}
 
@@ -4549,7 +4547,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 		chat,
 		status,
 		assistantText,
-		*runResult.StatusLabel,
+		*runResult.StatusLabelCall,
 		runResult.ModelBuildOptions,
 		logger,
 		p.existingDebugService(),

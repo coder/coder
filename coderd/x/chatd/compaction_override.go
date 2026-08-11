@@ -34,11 +34,7 @@ func readCompactionModelOverride(
 // the model client so metrics recorded before the client exists
 // (still-over-limit) attribute to the same model as the compact action's.
 type resolvedCompactionOverride struct {
-	Config database.ChatModelConfig
-	// ResolvedProvider and ResolvedModel match the built client's
-	// identity: ResolveModelWithProviderHint normalizes its hint, so the
-	// normalized provider name here and the route hint resolveModelCall
-	// uses at build time yield the same result.
+	Config           database.ChatModelConfig
 	ResolvedProvider string
 	ResolvedModel    string
 }

@@ -397,13 +397,10 @@ func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
 		return &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
 	}
 
-	configOptions := func(t *testing.T, useResponsesAPI *bool) json.RawMessage {
-		t.Helper()
-		raw, err := json.Marshal(codersdk.ChatModelCallConfig{
+	callConfig := func(useResponsesAPI *bool) codersdk.ChatModelCallConfig {
+		return codersdk.ChatModelCallConfig{
 			OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: useResponsesAPI},
-		})
-		require.NoError(t, err)
-		return raw
+		}
 	}
 
 	forceResponses := true
@@ -428,7 +425,7 @@ func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
 			server := newServer(t, paths)
 			provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
 			req := aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, tt.model)
-			req.ConfigOptions = configOptions(t, tt.override)
+			req.CallConfig = callConfig(tt.override)
 
 			model, err := server.newModel(
 				t.Context(),
@@ -715,7 +712,7 @@ func TestComputerUseModelCall_AIGatewayMissingAPIKeyID(t *testing.T) {
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 
-	spec := computerUseSpec(chat, modelProvider, modelName, codersdk.ChatModelCallConfig{}, modelBuildOptions{}) // no ActiveAPIKeyID
+	spec := computerUseSpec(chat, modelProvider, modelName, codersdk.ChatModelCallConfig{}, modelBuildOptions{})
 	route := aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai))
 	spec.routeOverride = &route
 	resolved, err := server.resolveModelCall(t.Context(), spec)

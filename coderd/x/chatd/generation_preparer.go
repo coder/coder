@@ -110,6 +110,9 @@ func (server *Server) prepareGeneration(
 	if err != nil {
 		return generationPrepared{}, err
 	}
+	// The chat config keeps driving compaction, sanitization, and debug
+	// attribution even when computer use swaps the resolved call below.
+	modelConfig := resolved.dbConfig
 
 	// Computer-use turns swap in a specialized model, so the substitution
 	// must happen before anything model-sensitive runs: file-part
@@ -138,14 +141,9 @@ func (server *Server) prepareGeneration(
 				cuErr,
 			)
 		}
-		// The chat model's config row keeps driving compaction, history
-		// sanitization, and debug attribution; only the client and its
-		// call identity are swapped.
-		cuResolved.dbConfig = resolved.dbConfig
 		resolved = cuResolved
 	}
 	model := resolved.model
-	modelConfig := resolved.dbConfig
 	callConfig := resolved.callConfig
 	modelRoute := resolved.route
 
@@ -840,8 +838,7 @@ func (server *Server) deriveFinalTurnRunResult(
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 	resolved, err := server.resolveModelCall(ctx, chatModelSpec(callPurposeStatusLabel, chat, modelOpts))
 	if err != nil {
-		// Return what we have; generateFinalTurnStatusLabel falls back to a
-		// generic label when StatusLabel is nil.
+		// Preserve the text and IDs for the generic-label fallback.
 		logger.Warn(ctx, "derive final turn status label: resolve model", slog.Error(err))
 		return runChatResult{
 			FinalAssistantText:  finalAssistantText,
@@ -852,7 +849,7 @@ func (server *Server) deriveFinalTurnRunResult(
 
 	return runChatResult{
 		FinalAssistantText:  finalAssistantText,
-		StatusLabel:         &resolved,
+		StatusLabelCall:     &resolved,
 		ModelBuildOptions:   modelOpts,
 		TriggerMessageID:    triggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,

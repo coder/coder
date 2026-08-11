@@ -215,9 +215,8 @@ type GenerateAssistantOptions struct {
 	Clock                quartz.Clock
 
 	ContextLimitFallback int64
-	// CallTemplate is the prebuilt call envelope (sampling fields, token
-	// cap, provider options). GenerateAssistant copies it and attaches the
-	// prepared prompt and tool definitions.
+	// CallTemplate is copied before GenerateAssistant attaches the prompt and
+	// tools.
 	CallTemplate fantasy.Call
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
@@ -313,10 +312,8 @@ type GenerateCompactionOptions struct {
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
 
-	// SummaryCall is the prebuilt summary-call envelope, carrying the
-	// tool-choice mode and summary-model provider options such as an
-	// override's reasoning effort. The summary prompt is attached before
-	// sending.
+	// SummaryCall is copied before GenerateCompaction attaches the summary
+	// prompt.
 	SummaryCall fantasy.Call
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
