@@ -294,9 +294,7 @@ export const AIGovernanceOverLimitGracePeriod: Story = {
 };
 
 // Each diagnostic pins role=status (not alert) and a suppressed sales
-// link. The "unavailable" message arrives on the errors channel; see the
-// LicenseManagedAgentUsageUnavailableErrorText doc for why. Background
-// mutedness is covered by the visual snapshot.
+// link. Background mutedness is covered by the visual snapshot.
 const playMutedDiagnostic =
 	(message: string): Story["play"] =>
 	async ({ canvasElement }) => {

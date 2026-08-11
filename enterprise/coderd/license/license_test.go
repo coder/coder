@@ -986,8 +986,7 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
-		// The failure surfaces its stable text without the raw cause,
-		// on the channel the codersdk constant docs prescribe.
+		// The failure surfaces its stable text without the raw cause.
 		require.Contains(t, entitlements.Errors, codersdk.LicenseManagedAgentUsageUnavailableErrorText)
 		for _, entry := range append(entitlements.Errors, entitlements.Warnings...) {
 			require.NotContains(t, entry, "kaboom")
@@ -1657,8 +1656,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			// A query failure is surfaced as a stable text in Errors (see
-			// the codersdk constant docs for the channel choice) and
+			// A query failure is surfaced as a stable text in Errors and
 			// leaves Actual unset without aborting the rest of the
 			// entitlements.
 			Name: "ManagedAgentLimit/QueryError",
