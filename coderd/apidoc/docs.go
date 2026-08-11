@@ -29996,6 +29996,9 @@ const docTemplate = `{
                 },
                 "error": {
                     "$ref": "#/definitions/workspacesdk.WatchError"
+                },
+                "job_log": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJobLog"
                 }
             }
         },

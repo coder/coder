@@ -19795,17 +19795,26 @@ None
     "details": "string",
     "message": "string",
     "retryable": true
+  },
+  "job_log": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "log_level": "trace",
+    "log_source": "provisioner_daemon",
+    "output": "string",
+    "stage": "string"
   }
 }
 ```
 
 ### Properties
 
-| Name           | Type                                                 | Required | Restrictions | Description |
-|----------------|------------------------------------------------------|----------|--------------|-------------|
-| `agent_update` | [workspacesdk.AgentUpdate](#workspacesdkagentupdate) | false    |              |             |
-| `build_update` | [workspacesdk.BuildUpdate](#workspacesdkbuildupdate) | false    |              |             |
-| `error`        | [workspacesdk.WatchError](#workspacesdkwatcherror)   | false    |              |             |
+| Name           | Type                                                     | Required | Restrictions | Description |
+|----------------|----------------------------------------------------------|----------|--------------|-------------|
+| `agent_update` | [workspacesdk.AgentUpdate](#workspacesdkagentupdate)     | false    |              |             |
+| `build_update` | [workspacesdk.BuildUpdate](#workspacesdkbuildupdate)     | false    |              |             |
+| `error`        | [workspacesdk.WatchError](#workspacesdkwatcherror)       | false    |              |             |
+| `job_log`      | [codersdk.ProvisionerJobLog](#codersdkprovisionerjoblog) | false    |              |             |
 
 ## workspacesdk.WatchError
 
