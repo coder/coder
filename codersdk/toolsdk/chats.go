@@ -129,8 +129,7 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 			if err != nil {
 				return ChatToolStatus{}, err
 			}
-			// A user's only membership can be removed by an admin, so an
-			// empty slice is reachable and indexing it would panic.
+			// Admins can remove a user's only organization membership.
 			if len(me.OrganizationIDs) == 0 {
 				return ChatToolStatus{}, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
 			}
@@ -212,14 +211,11 @@ type GetChatMessagesResponse struct {
 	// true. It is derived from the unfiltered API page, so it stays valid
 	// even when every message in this page was filtered out as non-text.
 	NextBeforeID int64 `json:"next_before_id,omitempty"`
-	// QueuedMessages holds prompts waiting for the current run to finish.
-	// The API returns them only on the initial page (no cursor).
+	// QueuedMessages is populated only on the initial page.
 	QueuedMessages []string `json:"queued_messages,omitempty"`
 }
 
-// userFacingText concatenates the user-facing text parts of a message.
-// Hook notices are user-facing per the SDK part contract, unlike hook
-// context, which is model-only.
+// Hook notices are user-facing per the SDK contract; hook context is model-only.
 func userFacingText(parts []codersdk.ChatMessagePart) string {
 	var texts []string
 	for _, part := range parts {
@@ -487,9 +483,8 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 		if err != nil {
 			return ListChatModelConfigsResponse{}, xerrors.Errorf("list chat model configs: %w", err)
 		}
-		// Admin model lists include configs backed by disabled providers.
-		// Filter them with provider state; non-admin lists are already
-		// filtered server-side.
+		// Admin model lists include disabled providers; non-admin lists are
+		// already filtered server-side.
 		var providerEnabled map[uuid.UUID]bool
 		providers, err := deps.coderClient.AIProviders(ctx)
 		switch {
@@ -499,11 +494,8 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 				providerEnabled[provider.ID] = provider.Enabled
 			}
 		case isForbiddenError(err):
-			// Deployment-config readers without AI provider read access
-			// (such as auditors) receive the unverifiable admin list, so
-			// fail closed instead of leaking provider-disabled configs.
-			// Only a confirmed 403 selects the member path, whose list
-			// the server already filtered.
+			// Deployment-config readers can receive the unfiltered admin list
+			// without provider access, so fail closed unless both requests return 403.
 			_, dcErr := deps.coderClient.DeploymentConfig(ctx)
 			switch {
 			case dcErr == nil:
@@ -519,9 +511,8 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 			if !config.Enabled {
 				continue
 			}
-			// A non-nil map is the authoritative provider set: absent IDs
-			// are soft-deleted providers whose configs stay listed by the
-			// admin endpoint, so exclude them along with disabled ones.
+			// A non-nil map is authoritative because soft-deleted providers are
+			// absent while their configs remain in the admin response.
 			if providerEnabled != nil && !providerEnabled[config.AIProviderID] {
 				continue
 			}

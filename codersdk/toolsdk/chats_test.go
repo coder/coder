@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// failPathTransport fails requests to one path and passes the rest through.
 type failPathTransport struct {
 	path string
 }
@@ -226,8 +225,6 @@ func TestChatTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusRunning, created.Status)
 
-		// While the run is blocked, a queued send must surface in the
-		// transcript's queued_messages rather than disappearing.
 		sent, err := testTool(t, toolsdk.SendChatMessage, tb, toolsdk.SendChatMessageArgs{
 			ChatID: created.ID,
 			Text:   "Queued while busy.",
@@ -247,9 +244,6 @@ func TestChatTools(t *testing.T) {
 	})
 
 	t.Run("ListChatModelConfigsMemberAndAuditor", func(t *testing.T) {
-		// A member cannot read providers but gets the server-filtered
-		// list; an auditor gets the unverifiable admin list and must
-		// fail closed rather than leak provider-disabled configs.
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		memberDeps, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
@@ -267,8 +261,6 @@ func TestChatTools(t *testing.T) {
 		_, err = testTool(t, toolsdk.ListChatModelConfigs, auditorDeps, toolsdk.NoArgs{})
 		require.ErrorContains(t, err, "missing AI provider read permission")
 
-		// A failing deployment-config probe must propagate, not fall
-		// through to the fail-open member path.
 		brokenProbeClient := codersdk.New(auditorClient.URL)
 		brokenProbeClient.SetSessionToken(auditorClient.SessionToken())
 		brokenProbeClient.HTTPClient = &http.Client{

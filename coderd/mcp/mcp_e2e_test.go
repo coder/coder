@@ -97,7 +97,6 @@ func TestMCPHTTP_E2E_ClientIntegration(t *testing.T) {
 	// Check for some basic tools that should be available
 	assert.Contains(t, foundTools, toolsdk.ToolNameGetAuthenticatedUser, "Should have authenticated user tool")
 
-	// The standard toolset should also expose the prompt templates.
 	prompts, err := mcpClient.ListPrompts(ctx, nil)
 	require.NoError(t, err)
 	var foundPrompts []string

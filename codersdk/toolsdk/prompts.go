@@ -19,16 +19,13 @@ type PromptArgument struct {
 	Required    bool
 }
 
-// Prompt is a user-selectable MCP prompt template, defined here so the
-// coderd-hosted and CLI MCP servers can adapt one shared definition into
-// their protocol types, mirroring how tools flow through All.
+// Prompt defines an MCP prompt shared by the HTTP and CLI servers.
 // See https://modelcontextprotocol.io/specification/2026-07-28/server/prompts.
 type Prompt struct {
 	Name        string
 	Description string
 	Arguments   []PromptArgument
 
-	// Render returns the user-message text for a prompts/get request.
 	Render func(args map[string]string) (string, error)
 }
 
