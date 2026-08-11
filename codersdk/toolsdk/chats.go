@@ -2,7 +2,9 @@ package toolsdk
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -14,6 +16,11 @@ import (
 )
 
 const chatIDDescription = "UUID of the chat."
+
+func isForbiddenError(err error) bool {
+	var sdkErr *codersdk.Error
+	return errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusForbidden
+}
 
 func parseChatID(chatID string) (uuid.UUID, error) {
 	if chatID == "" {
@@ -464,13 +471,25 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 		if err != nil {
 			return ListChatModelConfigsResponse{}, xerrors.Errorf("list chat model configs: %w", err)
 		}
-		// Admin model lists include configs backed by disabled providers. Filter
-		// them when provider state is available; non-admin lists are already filtered.
+		// Admin model lists include configs backed by disabled providers.
+		// Filter them with provider state; non-admin lists are already
+		// filtered server-side.
 		providerEnabled := map[uuid.UUID]bool{}
-		if providers, err := deps.coderClient.AIProviders(ctx); err == nil {
+		providers, err := deps.coderClient.AIProviders(ctx)
+		switch {
+		case err == nil:
 			for _, provider := range providers {
 				providerEnabled[provider.ID] = provider.Enabled
 			}
+		case isForbiddenError(err):
+			// Deployment-config readers without AI provider read access
+			// (such as auditors) receive the unverifiable admin list, so
+			// fail closed instead of leaking provider-disabled configs.
+			if _, dcErr := deps.coderClient.DeploymentConfig(ctx); dcErr == nil {
+				return ListChatModelConfigsResponse{}, xerrors.New("cannot verify provider availability for the admin model config list: missing AI provider read permission")
+			}
+		default:
+			return ListChatModelConfigsResponse{}, xerrors.Errorf("list AI providers: %w", err)
 		}
 		summaries := make([]ChatModelConfigSummary, 0, len(configs))
 		for _, config := range configs {

@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -28,7 +29,7 @@ func TestChatTools(t *testing.T) {
 		DeploymentValues:    coderdtest.DeploymentValues(t),
 		ChatProviderAPIKeys: &providerKeys,
 	})
-	coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 	defaultModelConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, "")
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
@@ -202,13 +203,33 @@ func TestChatTools(t *testing.T) {
 		coderdtest.WaitForChatSettled(ctx, t, api, uuid.MustParse(created.ID))
 	})
 
+	t.Run("ListChatModelConfigsMemberAndAuditor", func(t *testing.T) {
+		// A member cannot read providers but gets the server-filtered
+		// list; an auditor gets the unverifiable admin list and must
+		// fail closed rather than leak provider-disabled configs.
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberDeps, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, memberDeps, toolsdk.NoArgs{})
+		require.NoError(t, err)
+		var ids []string
+		for _, config := range result.ModelConfigs {
+			ids = append(ids, config.ID)
+		}
+		require.Contains(t, ids, defaultModelConfig.ID.String())
+
+		auditorClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleAuditor())
+		auditorDeps, err := toolsdk.NewDeps(auditorClient)
+		require.NoError(t, err)
+		_, err = testTool(t, toolsdk.ListChatModelConfigs, auditorDeps, toolsdk.NoArgs{})
+		require.ErrorContains(t, err, "missing AI provider read permission")
+	})
+
 	t.Run("CreateChatZeroOrgUser", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		firstUser, err := client.User(ctx, codersdk.Me)
-		require.NoError(t, err)
-		orphanClient, orphan := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationIDs[0])
-		require.NoError(t, client.DeleteOrganizationMember(ctx, firstUser.OrganizationIDs[0], orphan.ID.String()))
+		orphanClient, orphan := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		require.NoError(t, client.DeleteOrganizationMember(ctx, firstUser.OrganizationID, orphan.ID.String()))
 
 		orphanDeps, err := toolsdk.NewDeps(orphanClient)
 		require.NoError(t, err)
