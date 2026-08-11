@@ -2652,7 +2652,7 @@ CREATE TABLE oauth2_provider_apps (
     icon character varying(256) NOT NULL,
     callback_url text NOT NULL,
     redirect_uris text[],
-    client_type text DEFAULT 'confidential'::text,
+    client_type text DEFAULT 'confidential'::text NOT NULL,
     dynamically_registered boolean DEFAULT false,
     client_id_issued_at timestamp with time zone DEFAULT now(),
     client_secret_expires_at timestamp with time zone,
@@ -2670,7 +2670,8 @@ CREATE TABLE oauth2_provider_apps (
     software_id text,
     software_version text,
     registration_access_token bytea,
-    registration_client_uri text
+    registration_client_uri text,
+    CONSTRAINT oauth2_provider_apps_client_type_check CHECK ((client_type = ANY (ARRAY['confidential'::text, 'public'::text])))
 );
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
@@ -4775,6 +4776,10 @@ CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (
 CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree (lower(url)) WHERE ((url IS NOT NULL) AND (url <> ''::text));
 
 CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
+
+CREATE INDEX idx_chat_file_links_file_id ON chat_file_links USING btree (file_id);
+
+CREATE INDEX idx_chat_files_created_at ON chat_files USING btree (created_at);
 
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 

@@ -50,17 +50,16 @@ export const OrganizationMembersPageView: React.FC<
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
-			<SettingsHeader>
+			<SettingsHeader
+				actions={canEditMembers && <AddUsersDialog onSubmit={addMembers} />}
+			>
 				<SettingsHeaderTitle>Members</SettingsHeaderTitle>
 			</SettingsHeader>
 
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
-				<div className="flex flex-row justify-between">
-					<UsersFilter {...filterProps} />
-					{canEditMembers && <AddUsersDialog onSubmit={addMembers} />}
-				</div>
+				<UsersFilter {...filterProps} />
 				{!canViewMembers && (
 					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
 						<TriangleAlertIcon className="size-icon-sm" />
@@ -94,7 +93,7 @@ const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 
 	return (
 		<>
-			<Button size="lg" onClick={() => setAddUserDialogOpen(true)}>
+			<Button onClick={() => setAddUserDialogOpen(true)}>
 				<UserPlusIcon />
 				Add users
 			</Button>

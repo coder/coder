@@ -188,16 +188,6 @@ type sqlcQuerier interface {
 	// Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
 	// older than the cutoff are also purged.
 	DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error)
-	// TODO(cian): Add indexes on chats(archived, updated_at) and
-	// chat_files(created_at) for purge query performance.
-	// See: https://github.com/coder/internal/issues/1438
-	// Deletes chat files that are older than the given threshold and are
-	// not referenced by any chat that is still active or was archived
-	// within the same threshold window. This covers two cases:
-	// 1. Orphaned files not linked to any chat.
-	// 2. Files whose every referencing chat has been archived for longer
-	//    than the retention period.
-	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
 	// All chat-scoped child tables are removed via ON DELETE CASCADE.
@@ -231,6 +221,7 @@ type sqlcQuerier interface {
 	DeleteTailnetPeer(ctx context.Context, arg DeleteTailnetPeerParams) (DeleteTailnetPeerRow, error)
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error)
+	DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg DeleteUnlinkedChatFilesByIDsParams) (int64, error)
 	DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	DeleteUserAIProviderKey(ctx context.Context, arg DeleteUserAIProviderKeyParams) error
 	DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error
@@ -624,6 +615,7 @@ type sqlcQuerier interface {
 	GetGroupMembersCountByGroupIDs(ctx context.Context, arg GetGroupMembersCountByGroupIDsParams) ([]GetGroupMembersCountByGroupIDsRow, error)
 	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
+	GetGroupsByOrganizationIDPaginated(ctx context.Context, arg GetGroupsByOrganizationIDPaginatedParams) ([]GetGroupsByOrganizationIDPaginatedRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	// Returns the highest group AI budget across the groups the user belongs to,
 	// breaking ties by the earliest organization membership. Implements the
@@ -689,6 +681,8 @@ type sqlcQuerier interface {
 	// app_secret_id, since app_secret_id is NULL for public (secretless) clients
 	// and would silently exclude their tokens from this listing.
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
+	// Locks candidate rows against foreign-key inserts for the transaction.
+	GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
 	// Returns AI spend limits and aggregate spend for groups in @group_ids that
@@ -1206,15 +1200,9 @@ type sqlcQuerier interface {
 	// time. chatstate calls this in a single query so the staleness check
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
-	// LinkChatFiles inserts file associations into the chat_file_links
-	// join table with deduplication (ON CONFLICT DO NOTHING). The INSERT
-	// is conditional: it only proceeds when the total number of links
-	// (existing + genuinely new) does not exceed max_file_links. Returns
-	// the number of genuinely new file IDs that were NOT inserted due to
-	// the cap. A return value of 0 means all files were linked (or were
-	// already linked). A positive value means the cap blocked that many
-	// new links.
-	LinkChatFiles(ctx context.Context, arg LinkChatFilesParams) (int32, error)
+	// LinkChatFilesAfterLock requires the chat row lock.
+	// The lock serializes cap checks. The result counts rejected new links.
+	LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error)
 	ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error)
 	// Finds all unique AI Bridge interception telemetry summaries combinations
 	// (provider, model, client) in the given timeframe for telemetry reporting.
@@ -1291,6 +1279,7 @@ type sqlcQuerier interface {
 	// entry point ChatMachine.Update uses to acquire the row lock and
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
+	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
@@ -1394,10 +1383,6 @@ type sqlcQuerier interface {
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
 	TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error)
-	// Unarchives a chat (and its children). Stale file references are
-	// handled automatically by FK cascades on chat_file_links: when
-	// dbpurge deletes a chat_files row, the corresponding
-	// chat_file_links rows are cascade-deleted by PostgreSQL.
 	UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error
@@ -1611,6 +1596,9 @@ type sqlcQuerier interface {
 	// Upsert a batch of (provider, model) rows from a JSON array. Each element
 	// must have provider, model, and the four price fields; null prices are
 	// written as SQL NULL.
+	// A conflicting row is only rewritten when a price differs, so updated_at
+	// records when a price last changed. Prices are nullable and a NULL on
+	// either side counts as a difference.
 	UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)

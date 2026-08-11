@@ -16,7 +16,9 @@ import {
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	patchChatMessages,
+	replaceChatMessagesHistory,
 	updateInfiniteChatsCache,
+	upsertChatMessages,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
@@ -25,7 +27,6 @@ import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
-	chatMessagesEqualByValue,
 	chatQueuedMessagesEqualByID,
 	createChatStore,
 	isActiveChatStatus,
@@ -197,39 +198,7 @@ export const useChatStore = (
 			if (!chatID || messages.length === 0) {
 				return;
 			}
-			patchChatMessages(queryClient, chatID, (currentData) => {
-				if (!currentData?.pages?.length) {
-					return currentData;
-				}
-				const firstPage = currentData.pages[0];
-				const existingByID = new Map(firstPage.messages.map((m) => [m.id, m]));
-
-				let changed = false;
-				for (const msg of messages) {
-					const existing = existingByID.get(msg.id);
-					if (!existing || !chatMessagesEqualByValue(existing, msg)) {
-						changed = true;
-						existingByID.set(msg.id, msg);
-					}
-				}
-
-				if (!changed) {
-					return currentData;
-				}
-
-				// Sort descending to match the API page order
-				// (newest first).
-				const updatedMessages = Array.from(existingByID.values());
-				updatedMessages.sort((a, b) => b.id - a.id);
-
-				return {
-					...currentData,
-					pages: [
-						{ ...firstPage, messages: updatedMessages },
-						...currentData.pages.slice(1),
-					],
-				};
-			});
+			upsertChatMessages(queryClient, chatID, messages);
 			// Refresh the dedicated prompt-history cache when a user message arrives.
 			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
 			if (hasNewUserPrompt) {
@@ -245,18 +214,7 @@ export const useChatStore = (
 			if (!chatID) {
 				return;
 			}
-			patchChatMessages(queryClient, chatID, (currentData) => {
-				if (!currentData?.pages?.length) {
-					return currentData;
-				}
-				const firstPage = currentData.pages[0];
-				const updatedMessages = [...messages].sort((a, b) => b.id - a.id);
-				return {
-					...currentData,
-					pages: [{ ...firstPage, messages: updatedMessages, has_more: false }],
-					pageParams: currentData.pageParams.slice(0, 1),
-				};
-			});
+			replaceChatMessagesHistory(queryClient, chatID, messages);
 			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],

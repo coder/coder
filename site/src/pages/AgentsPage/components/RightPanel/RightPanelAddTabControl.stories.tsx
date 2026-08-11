@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceApp } from "#/api/typesGenerated";
+import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -20,6 +21,14 @@ const embeddableApp: WorkspaceApp = {
 	external: false,
 	hidden: false,
 	command: undefined,
+};
+
+const mockAgentBrowserApp: WorkspaceApp = {
+	...MockWorkspaceApp,
+	id: "agent-browser-app",
+	slug: AGENT_BROWSER_APP_SLUG,
+	display_name: "agent-browser",
+	health: "healthy",
 };
 
 const commandApp: WorkspaceApp = {
@@ -130,6 +139,25 @@ export const Default: Story = {
 		await expect(args.onOpenPort).toHaveBeenCalledWith(
 			expect.objectContaining({ port: 8080 }),
 		);
+	},
+};
+
+export const ExcludesAgentBrowserApp: Story = {
+	args: {
+		agent: {
+			...MockWorkspaceAgent,
+			apps: [embeddableApp, mockAgentBrowserApp],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Add panel"));
+
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Preview")).toBeInTheDocument();
+		});
+		expect(body.queryByText("agent-browser")).toBeNull();
 	},
 };
 

@@ -17,10 +17,10 @@ A background process runs approximately every 10 minutes to remove expired
 conversation data. Only archived conversations are eligible for deletion —
 active (non-archived) conversations are never purged.
 
-When an archived conversation exceeds the retention period, it is deleted along
-with its messages, diff statuses, and queued messages via cascade. Orphaned
-files (not referenced by any active or recently-archived conversation) are also
-deleted. Both operations run in batches of 1,000 rows per cycle.
+When an archived conversation exceeds the retention period, Coder deletes it along with its messages, diff statuses, and queued messages.
+Coder retains an attached file while any conversation references it, regardless of whether the conversation is active or archived.
+A file that exceeds the retention period becomes eligible for deletion only after no conversations reference it.
+Conversation and file cleanup operations run in batches of 1,000 rows per cycle.
 
 ## Configuration
 
@@ -37,13 +37,12 @@ PUT  /api/v2/chats/config/retention-days
 
 ## What gets deleted
 
-| Data                   | Condition                                                                                      | Cascade                                                       |
-|------------------------|------------------------------------------------------------------------------------------------|---------------------------------------------------------------|
-| Archived conversations | Archived longer than retention period                                                          | Messages, diff statuses, queued messages deleted via CASCADE. |
-| Conversation files     | Older than retention period AND not referenced by any active or recently-archived conversation | —                                                             |
+| Data                   | Condition                                                          | Cascade                                                       |
+|------------------------|--------------------------------------------------------------------|---------------------------------------------------------------|
+| Archived conversations | Archived longer than retention period                              | Messages, diff statuses, queued messages deleted via CASCADE. |
+| Conversation files     | Older than retention period and not referenced by any conversation | None                                                          |
 
 ## Unarchive safety
 
-If a user unarchives a conversation whose files were purged, stale file
-references are automatically cleaned up by FK cascades. The conversation
-remains usable but previously attached files are no longer available.
+Archiving a conversation does not make its attached files eligible for deletion.
+If you unarchive a conversation before Coder purges it, its attachments remain available, even when the files exceed the retention period.
