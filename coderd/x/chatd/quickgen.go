@@ -1096,9 +1096,10 @@ func boundTranscriptHeadTail(lines []string, maxRunes int) string {
 	return out.String()
 }
 
-// generateChatSummary generates a 1-3 sentence whole-chat summary from a
-// transcript. A blank or invalid result returns an error so callers preserve
-// any existing summary rather than clearing it.
+// generateChatSummary generates a whole-chat summary from a transcript as a
+// one-sentence headline plus 2-4 bullets, serialized to markdown by
+// formatChatSummaryMarkdown. A blank or invalid result returns an error so
+// callers preserve any existing summary rather than clearing it.
 func generateChatSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,

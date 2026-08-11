@@ -4726,7 +4726,7 @@ const (
 	// Subagent summaries reuse the final report instead of generating
 	// text, so their work timeout only covers two database round trips.
 	subagentReportSummaryTimeout = 15 * time.Second
-	// Bound the extracted report snippet near the 1-3 sentence
+	// Bound the extracted report snippet near the headline of the
 	// generated summaries that root chats get, so subagent and parent
 	// summary panels read the same.
 	subagentReportSummaryMaxRunes     = 300
