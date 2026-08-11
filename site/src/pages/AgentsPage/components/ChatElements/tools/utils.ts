@@ -469,7 +469,7 @@ export const getFileContentForViewer = (
  */
 const parseSingleFileDiff = (raw: string): FileDiffMetadata | null => {
 	if (!raw) return null;
-	return parseDiffString(stripSvnIndexHeaders(raw), false)[0] ?? null;
+	return parseDiffString(stripSvnIndexHeaders(raw))[0] ?? null;
 };
 
 /**
@@ -535,33 +535,35 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 
 /**
  * Builds a synthetic unified diff from edit pairs (normalized to
- * search/replace) for a single file. Each edit becomes a separate
- * `Diff.createPatch` call; the patches are concatenated and
- * parsed into a single FileDiffMetadata.
+ * search/replace) for a single file. The pairs are joined into one
+ * old/new text pair so the parsed FileDiffMetadata carries every edit
+ * in one consistent hunk set.
  */
 export const buildEditDiff = (
 	path: string,
 	edits: Array<{ search: string; replace: string }>,
 ): FileDiffMetadata | null => {
 	if (!edits.length) return null;
+	const kept = edits.filter((edit) => edit.search);
 
 	// Strip leading slash so the a/ and b/ prefixes don't
 	// produce a double-slash that confuses the diff parser.
 	const diffPath = path.startsWith("/") ? path.slice(1) : path;
 
-	const patches: string[] = [];
-	for (const edit of edits) {
-		if (!edit.search) continue;
-		patches.push(Diff.createPatch(diffPath, edit.search, edit.replace, "", ""));
-	}
-	if (!patches.length) {
-		// All edits were skipped (empty search). Produce a
-		// header-only patch so the parser still returns a file
-		// entry with zero hunks.
-		patches.push(`--- ${diffPath}\n+++ ${diffPath}\n`);
+	if (!kept.length) {
+		// All edits were skipped (empty search). An empty patch still
+		// parses to a file entry with zero hunks.
+		return parseSingleFileDiff(Diff.createPatch(diffPath, "", "", "", ""));
 	}
 
-	return parseSingleFileDiff(patches.join(""));
+	const patch = Diff.createPatch(
+		diffPath,
+		kept.map((edit) => edit.search).join("\n"),
+		kept.map((edit) => edit.replace).join("\n"),
+		"",
+		"",
+	);
+	return parseSingleFileDiff(patch);
 };
 
 /**

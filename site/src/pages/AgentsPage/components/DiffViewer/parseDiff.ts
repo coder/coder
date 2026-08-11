@@ -35,20 +35,18 @@ export function dedupeFilesByName(
  * Parses a unified or git diff string into per-file metadata; empty input
  * yields []. Each file is keyed by a hash of its own render inputs, so
  * unchanged files keep hitting the worker-pool highlight cache across
- * re-parses while changed files miss it. With `dedupe` (default), repeated
- * post-image paths collapse to their first occurrence; pass false for
- * single-file synthetic diffs where repeats are expected, not malformed.
+ * re-parses while changed files miss it. Repeated post-image paths
+ * collapse to their first occurrence.
  */
 export function parseDiffString(
 	diffString: string | undefined | null,
-	dedupe = true,
 ): FileDiffMetadata[] {
 	if (!diffString) return [];
 	const files = parsePatchFiles(diffString).flatMap((p) => p.files);
 	for (const file of files) {
 		stampCacheKey(file);
 	}
-	return dedupe ? dedupeFilesByName(files) : files;
+	return dedupeFilesByName(files);
 }
 
 /**

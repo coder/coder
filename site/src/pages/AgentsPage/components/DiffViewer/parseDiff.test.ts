@@ -1,6 +1,6 @@
 import { parsePatchFiles } from "@pierre/diffs";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { dedupeFilesByName, parseDiffString } from "./parseDiff";
+import { dedupeFilesByName, parseDiffString, stampCacheKey } from "./parseDiff";
 
 // Two `diff --git` sections for the same post-image path. `parsePatchFiles`
 // emits one FileDiffMetadata per section, so this is the exact shape that made
@@ -141,11 +141,26 @@ describe("parseDiffString", () => {
 		const fromOld = parseDiffString(renameBody("old.ts"));
 		const fromOther = parseDiffString(renameBody("other.ts"));
 
-		// Same post-image name and hunks; only the rename source differs.
 		expect(fromOld[0].name).toBe(fromOther[0].name);
 		expect(fromOld[0].prevName).toBe("old.ts");
 		expect(fromOther[0].prevName).toBe("other.ts");
 		expect(fromOld[0].cacheKey).not.toBe(fromOther[0].cacheKey);
+	});
+
+	it("keys diffs by lang when set", () => {
+		const body = [
+			"--- a.ts",
+			"+++ a.ts",
+			"@@ -1,1 +1,1 @@",
+			"-const x = 1;",
+			"+const x = 2;",
+		].join("\n");
+		const plain = parseDiffString(body);
+		const langSet = parseDiffString(body);
+		langSet[0].lang = "json";
+		stampCacheKey(langSet[0]);
+
+		expect(plain[0].cacheKey).not.toBe(langSet[0].cacheKey);
 	});
 
 	it("keeps an unchanged file's key stable when a sibling changes", () => {

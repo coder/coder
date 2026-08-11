@@ -805,6 +805,10 @@ describe("buildEditDiff", () => {
 			{ search: "const y = 3;", replace: "const y = 4;" },
 		]);
 		expect(diff).not.toBeNull();
+		// Every edit appears in the synthetic diff, not just the first.
+		const added = diff!.additionLines.join("");
+		expect(added).toContain("const x = 2;");
+		expect(added).toContain("const y = 4;");
 	});
 
 	it("does not emit console errors for multi-edit diffs", () => {
@@ -892,7 +896,8 @@ describe("buildEditDiff", () => {
 	it("restamps the cache key when stripNoNewline clears the flags", () => {
 		const diff = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
 		expect(diff).not.toBeNull();
-		// Force the no-EOF-newline flags so the strip path runs.
+		// Pin the flags so the test does not depend on jsdiff's
+		// no-newline marker emission for this fixture.
 		for (const hunk of diff!.hunks) {
 			hunk.noEOFCRDeletions = true;
 			hunk.noEOFCRAdditions = true;
