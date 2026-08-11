@@ -207,6 +207,18 @@ arguments, is defined in Coder's
 [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go). Refer to it for the
 current list, since the available tools can change between releases.
 
+## Available Prompts
+
+The MCP server also exposes
+[prompts](https://modelcontextprotocol.io/specification/2026-07-28/server/prompts)
+for common Coder Agents chat workflows. Clients that support prompts surface
+them for you to invoke, for example as slash commands:
+
+- `coder_agents_delegate`: delegate a coding task to a Coder Agents chat and
+  monitor it to completion
+- `coder_agents_check`: check the status and recent activity of an existing
+  Coder Agents chat
+
 ## Troubleshooting
 
 ### "Unauthorized" errors
