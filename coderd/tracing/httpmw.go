@@ -2,6 +2,7 @@ package tracing
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 
@@ -98,23 +99,18 @@ func sessionIDFromHeaders(h http.Header) string {
 }
 
 // validSessionID reports whether s is a 32-character lowercase hexadecimal
-// string, the encoding the RFC mandates for the 16-byte session ID. Only
-// lowercase is accepted so that case-sensitive searches correlate reliably.
-// Validating also guards against logging arbitrary client-controlled baggage
-// values.
+// string (a 16-byte value), the encoding the RFC mandates for the session ID.
+// Only lowercase is accepted so that case-sensitive searches correlate
+// reliably. Validating also guards against logging arbitrary client-controlled
+// baggage values.
 func validSessionID(s string) bool {
-	if len(s) != 32 {
+	b, err := hex.DecodeString(s)
+	if err != nil || len(b) != 16 {
 		return false
 	}
-	for _, c := range s {
-		switch {
-		case c >= '0' && c <= '9':
-		case c >= 'a' && c <= 'f':
-		default:
-			return false
-		}
-	}
-	return true
+	// hex.DecodeString also accepts upper-case, so require the canonical
+	// lowercase encoding.
+	return hex.EncodeToString(b) == s
 }
 
 // StartHTTPSpan starts a span, propagating inbound trace context and writing
