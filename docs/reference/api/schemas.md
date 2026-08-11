@@ -6298,6 +6298,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "swagger": {
       "enable": true
     },
+    "tasks_enabled": true,
     "telemetry": {
       "enable": true,
       "trace": true,
@@ -6925,6 +6926,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "swagger": {
     "enable": true
   },
+  "tasks_enabled": true,
   "telemetry": {
     "enable": true,
     "trace": true,
@@ -7061,6 +7063,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `strict_transport_security_options`            | array of string                                                                                      | false    |              |                                                                    |
 | `support`                                      | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
 | `swagger`                                      | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
+| `tasks_enabled`                                | boolean                                                                                              | false    |              |                                                                    |
 | `telemetry`                                    | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
 | `template_builder`                             | [codersdk.TemplateBuilderConfig](#codersdktemplatebuilderconfig)                                     | false    |              |                                                                    |
 | `terms_of_service_url`                         | string                                                                                               | false    |              |                                                                    |

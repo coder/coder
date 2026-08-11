@@ -9,6 +9,7 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
+import { useTasksEnabled } from "#/modules/tasks/useTasksEnabled";
 import { docs } from "#/utils/docs";
 
 const warnBoxClassName =
@@ -32,6 +33,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	const confirmId = useId();
 	const errorId = `${confirmId}-error`;
 	const orphanId = `${confirmId}-orphan`;
+	const tasksEnabled = useTasksEnabled();
 
 	const [userConfirmationText, setUserConfirmationText] = useState("");
 	const [orphanWorkspace, setOrphanWorkspace] =
@@ -62,7 +64,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		(workspace.latest_build.status === "failed" ||
 			workspace.latest_build.status === "canceled");
 
-	const hasTask = Boolean(workspace.task_id);
+	const hasTask = tasksEnabled && Boolean(workspace.task_id);
 
 	return (
 		<ConfirmDialog

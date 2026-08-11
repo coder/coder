@@ -10,6 +10,7 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
+import { useTasksEnabled } from "#/modules/tasks/useTasksEnabled";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
@@ -20,6 +21,8 @@ interface ManagedAgentsConsumptionProps {
 export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	managedAgentFeature,
 }) => {
+	const tasksEnabled = useTasksEnabled();
+
 	// If no feature is provided or it's disabled, show disabled state
 	if (!managedAgentFeature?.enabled) {
 		return (
@@ -98,17 +101,26 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 							even if AI tooling is involved.
 						</p>
 						<p>
-							Today,{" "}
-							<Link
-								href={docs("/ai-coder/tasks")}
-								target="_blank"
-								rel="noreferrer"
-							>
-								Coder Tasks (via UI, CLI, or API)
-							</Link>{" "}
-							is the only way to create agentic workspaces, but additional
-							protocols and APIs may be supported as standards emerge. Learn
-							more in{" "}
+							{tasksEnabled ? (
+								<>
+									Today,{" "}
+									<Link
+										href={docs("/ai-coder/tasks")}
+										target="_blank"
+										rel="noreferrer"
+									>
+										Coder Tasks (via UI, CLI, or API)
+									</Link>{" "}
+									is the only way to create agentic workspaces, but additional
+									protocols and APIs may be supported as standards emerge.
+								</>
+							) : (
+								<>
+									Additional protocols and APIs may be supported as standards
+									emerge.
+								</>
+							)}{" "}
+							Learn more in{" "}
 							<Link
 								href={docs("/ai-coder/ai-governance")}
 								target="_blank"

@@ -83,6 +83,7 @@ type Options struct {
 	Telemetry         telemetry.Reporter
 	Logger            slog.Logger
 	HideAITasks       bool
+	TasksEnabled      bool
 	AIGatewayEnabled  bool
 }
 
@@ -267,6 +268,7 @@ type htmlState struct {
 	Regions        string
 	DocsURL        string
 
+	TasksEnabled     string
 	TasksTabVisible  string
 	AIGatewayEnabled string
 	Permissions      string
@@ -517,7 +519,15 @@ func (h *Handler) populateHTMLState(
 		})
 	}
 	wg.Go(func() {
-		data, err := json.Marshal(!h.opts.HideAITasks)
+		data, err := json.Marshal(h.opts.TasksEnabled)
+		if err == nil {
+			state.TasksEnabled = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		// The Tasks tab is only shown when Tasks is enabled for the
+		// deployment and the operator has not additionally hidden it.
+		data, err := json.Marshal(h.opts.TasksEnabled && !h.opts.HideAITasks)
 		if err == nil {
 			state.TasksTabVisible = html.EscapeString(string(data))
 		}

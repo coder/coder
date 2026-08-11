@@ -307,21 +307,6 @@ This keeps planning turns focused on analysis and plan authoring rather than
 implementation. Once you click **Implement plan**, the next turn runs in normal
 mode again.
 
-## Comparison to Coder Tasks
-
-Coder Agents is a new approach that differs from
-[Coder Tasks](../tasks.md) in several ways:
-
-| Aspect              | Coder Agents                         | Coder Tasks                                                    |
-|---------------------|--------------------------------------|----------------------------------------------------------------|
-| Agent execution     | Runs in the control plane            | Runs inside the workspace                                      |
-| Agent harness       | Built-in, no installation needed     | Requires Claude Code, Codex, or similar installed in workspace |
-| API keys            | Stored in control plane only         | Injected into workspace environment                            |
-| Chat state          | Persisted in database                | Stored in workspace                                            |
-| Workspace selection | Automatic, based on task description | Manual, user selects template                                  |
-| Sub-agents          | Built-in parallel delegation         | Not supported                                                  |
-| Modern chat UI      | Native chat with diffs, queuing      | Terminal-based interface                                       |
-
 ## Product status
 
 Coder Agents is in Beta. The feature is under active development and

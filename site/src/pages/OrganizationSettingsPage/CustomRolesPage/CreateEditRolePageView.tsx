@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, useId, useState } from "react";
+import { type FC, useId, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
@@ -33,6 +33,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { useTasksEnabled } from "#/modules/tasks/useTasksEnabled";
 import { getFormHelpers, nameValidator } from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
@@ -197,10 +198,22 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 }) => {
 	const [checkedActions, setCheckActions] = useState(permissions);
 	const [showAllResources, setShowAllResources] = useState(allResources);
+	const tasksEnabled = useTasksEnabled();
 
-	const resourceActions = showAllResources
-		? RBACResourceActions
-		: filteredRBACResourceActions;
+	// `RBACResourceActions` is generated at module scope, so the `task` resource
+	// is removed here rather than at the constant to keep Tasks roles unsettable
+	// while Tasks is disabled.
+	const resourceActions = useMemo(() => {
+		const allActions = showAllResources
+			? RBACResourceActions
+			: filteredRBACResourceActions;
+		if (tasksEnabled) {
+			return allActions;
+		}
+		return Object.fromEntries(
+			Object.entries(allActions).filter(([resource]) => resource !== "task"),
+		);
+	}, [showAllResources, tasksEnabled]);
 
 	const handleActionCheckChange = async (name: string, checked: boolean) => {
 		const [resource_type, action] = name.split(":");

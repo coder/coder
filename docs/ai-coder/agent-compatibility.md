@@ -1,21 +1,14 @@
 # Agent compatibility
 
-> [!WARNING]
-> Starting June 2, 2026, Coder Tasks will move to a 12-month Extended Support Release (ESR) for Premium customers.
->
-> Tasks will be removed from new Coder releases beginning with v2.37 (September 1, 2026) and will only be available via the ESR during the support period.
->
-> We recommend transitioning to [Coder Agents](./agents/index.md), the long-term replacement.
-
-Coder Tasks works with a range of AI coding agents, each with different levels
-of support for preserving conversation context across pause and resume cycles.
-This page covers which agents support resume, what session data they store,
-and what to watch out for when configuring persistent storage.
+AI coding agents that run inside Coder workspaces differ in how well they
+preserve conversation context when a workspace stops and starts again. This
+page covers which agents restore a previous session, what session data they
+store, and what to watch out for when configuring persistent storage.
 
 ## Compatibility levels
 
-Agents with **full support** automatically resume the previous session when a
-task resumes. The conversation history, tool calls, and context are all
+Agents with **full support** automatically resume the previous session when the
+workspace restarts. The conversation history, tool calls, and context are all
 preserved, so the agent picks up exactly where it left off.
 
 Agents with **partial support** have resume wiring in the module but it is
@@ -51,7 +44,7 @@ UI.
 Every agent's session data lives under the home directory, so persisting the
 home directory with a volume mount is the simplest way to cover all agents at
 once. This also preserves the AgentAPI state file that Coder uses to stream chat
-content between the agent and the Tasks UI.
+content from the agent.
 
 See
 [Resource persistence](../admin/templates/extending-templates/resource-persistence.md)
@@ -60,7 +53,7 @@ for configuration patterns.
 ## Agent-specific notes
 
 **Claude Code**: Session files are JSONL and grow unbounded. Long-running
-tasks can accumulate multiple gigabytes of data in `~/.claude/projects/`.
+sessions can accumulate multiple gigabytes of data in `~/.claude/projects/`.
 Monitor disk usage and consider periodic cleanup.
 
 **Goose**: Sessions are stored in a SQLite database with WAL mode enabled. You
@@ -71,7 +64,7 @@ or the session database may become corrupted.
 existing module pins a specific CLI version. An authentication tarball is stored
 alongside session data; if it is lost, the agent must re-authenticate.
 
-**Gemini**: Session data can reach 400 MB for long-running tasks. You can set
+**Gemini**: Session data can reach 400 MB for long-running sessions. You can set
 the `general.sessionRetention` configuration value to control how long sessions
 are retained.
 
@@ -93,7 +86,5 @@ memory of previous conversations.
 
 ## Next steps
 
-- [Task lifecycle](./tasks-lifecycle.md) for how pause and resume work and
-  what your template needs.
-- [Set up Coder Tasks](./tasks.md) in your template.
 - [Build a custom agent](./custom-agents.md) with MCP support.
+- [Coder Agents](./agents/index.md) for the Coder-managed agent experience.

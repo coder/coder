@@ -605,6 +605,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "swagger": {
       "enable": true
     },
+    "tasks_enabled": true,
     "telemetry": {
       "enable": true,
       "trace": true,

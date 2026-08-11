@@ -732,6 +732,7 @@ type DeploymentValues struct {
 	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	TasksEnabled                            serpent.Bool                         `json:"tasks_enabled,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
@@ -4309,6 +4310,19 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.HideAITasks,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
+		},
+		{
+			Name:        "Enable Tasks",
+			Description: "Enable Coder Tasks. When unset, the Tasks routes are not registered, the Tasks UI and its URLs are unavailable, the task RBAC permissions are stripped from built-in roles, and the CLI task commands are hidden.",
+			Flag:        "enable-tasks",
+			Env:         "CODER_ENABLE_TASKS",
+			Default:     "false",
+			Value:       &c.TasksEnabled,
+			YAML:        "enableTasks",
+			// Hidden keeps Tasks out of the generated CLI and
+			// configuration reference documentation while the feature is
+			// withdrawn from the product.
+			Hidden: true,
 		},
 		// Chat Options
 		{

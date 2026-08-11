@@ -129,8 +129,7 @@ Refer to [VS Code](../user-guides/workspace-access/vscode.md).
 ### Coder Tasks
 
 An earlier interface for running coding agents such as Claude Code and Aider inside workspaces.
-Coder Tasks is deprecated: it moves to a 12-month Extended Support Release for Premium customers and is removed from new releases starting with v2.37, with [Coder Agents](#coder-agents) as the long-term replacement.
-Refer to [Coder Tasks](../ai-coder/tasks.md).
+Coder Tasks is deprecated and is no longer available in new releases, with [Coder Agents](#coder-agents) as the long-term replacement.
 
 ### `coder_agent`
 
@@ -165,7 +164,7 @@ Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/c
 
 ### Coding agent
 
-An AI agent that reads and writes code on a developer's behalf, such as Claude Code, run through Coder Tasks or Coder Agents.
+An AI agent that reads and writes code on a developer's behalf, such as Claude Code, run through Coder Agents or inside a workspace.
 Refer to [AI in Coder](../ai-coder/index.md).
 
 ### Community

@@ -1,13 +1,9 @@
 # Custom Agents
 
-> [!WARNING]
-> Starting June 2, 2026, Coder Tasks will move to a 12-month Extended Support Release (ESR) for Premium customers.
->
-> Tasks will be removed from new Coder releases beginning with v2.37 (September 1, 2026) and will only be available via the ESR during the support period.
->
-> We recommend transitioning to [Coder Agents](./agents/index.md), the long-term replacement.
+Custom agents beyond the ones listed in the [Coder registry](https://registry.coder.com/modules?search=tag%3Aagent) can be run inside Coder workspaces and report their activity back to Coder.
 
-Custom agents beyond the ones listed in the [Coder registry](https://registry.coder.com/modules?search=tag%3Aagent) can be used with Coder Tasks.
+> [!NOTE]
+> For the Coder-managed agent experience, see [Coder Agents](./agents/index.md).
 
 ## Prerequisites
 
@@ -38,14 +34,14 @@ any-custom-agent configure-mcp --name "coder" --command "coder exp mcp server"
 This will start the MCP server and report activity back to the Coder control plane on behalf of the coder_app resource.
 
 > [!NOTE]
-> See [this version of the Goose module](https://github.com/coder/registry/blob/release/coder/goose/v1.3.0/registry/coder/modules/goose/main.tf) source code for a real-world example of configuring reporting via MCP. Note that in addition to setting up reporting, you'll need to make your template [compatible with Tasks](./tasks.md#option-2-create-or-duplicate-your-own-template), which is not shown in the example.
+> See [this version of the Goose module](https://github.com/coder/registry/blob/release/coder/goose/v1.3.0/registry/coder/modules/goose/main.tf) source code for a real-world example of configuring reporting via MCP.
 
 ## Pause and resume
 
-Custom agents can support task pause and resume by enabling state
-persistence on the agentapi module. Set `enable_state_persistence = true`
-so that AgentAPI saves and restores conversation history across pause and
-resume cycles:
+Custom agents can preserve conversation history across pause and resume
+cycles by enabling state persistence on the agentapi module. Set
+`enable_state_persistence = true` so that AgentAPI saves and restores
+conversation history:
 
 ```tf
 module "agentapi" {
@@ -57,9 +53,13 @@ module "agentapi" {
 }
 ```
 
-Your template also needs persistent storage and a sufficient graceful
-shutdown timeout. See [Task lifecycle](./tasks-lifecycle.md) for the full
-requirements.
+Your template also needs persistent storage for the agent's session data and
+a graceful shutdown timeout long enough for the agent to flush that data to
+disk. See
+[Resource persistence](../admin/templates/extending-templates/resource-persistence.md)
+for configuration patterns, and
+[Agent compatibility](./agent-compatibility.md) for per-agent session data
+paths and storage requirements.
 
 ## Contributing
 

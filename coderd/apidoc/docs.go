@@ -20174,6 +20174,9 @@ const docTemplate = `{
                 "swagger": {
                     "$ref": "#/definitions/codersdk.SwaggerConfig"
                 },
+                "tasks_enabled": {
+                    "type": "boolean"
+                },
                 "telemetry": {
                     "$ref": "#/definitions/codersdk.TelemetryConfig"
                 },

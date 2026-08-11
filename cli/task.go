@@ -9,6 +9,11 @@ func (r *RootCmd) tasksCommand() *serpent.Command {
 		Use:     "task",
 		Aliases: []string{"tasks"},
 		Short:   "Manage tasks",
+		// Coder Tasks is hidden from the product. Hiding the command keeps
+		// it out of `coder --help` and out of the generated CLI reference
+		// docs, while leaving it usable on deployments that set
+		// CODER_ENABLE_TASKS.
+		Hidden: true,
 		Handler: func(i *serpent.Invocation) error {
 			return i.Command.HelpHandler(i)
 		},

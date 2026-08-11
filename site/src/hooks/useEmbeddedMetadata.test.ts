@@ -8,6 +8,7 @@ import {
 	MockExperiments,
 	MockOrganization,
 	MockPermissions,
+	MockTasksEnabled,
 	MockTasksTabVisible,
 	MockUserAppearanceSettings,
 	MockUserOwner,
@@ -45,6 +46,7 @@ const mockDataForTags = {
 	user: MockUserOwner,
 	userAppearance: MockUserAppearanceSettings,
 	regions: MockRegions,
+	"tasks-enabled": MockTasksEnabled,
 	"tasks-tab-visible": MockTasksTabVisible,
 	"ai-gateway-enabled": MockAIGatewayEnabled,
 	permissions: MockPermissions,
@@ -77,6 +79,10 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	userAppearance: {
+		available: false,
+		value: undefined,
+	},
+	"tasks-enabled": {
 		available: false,
 		value: undefined,
 	},
@@ -126,6 +132,10 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	userAppearance: {
 		available: true,
 		value: MockUserAppearanceSettings,
+	},
+	"tasks-enabled": {
+		available: true,
+		value: MockTasksEnabled,
 	},
 	"tasks-tab-visible": {
 		available: true,
