@@ -1093,12 +1093,32 @@ it introduces.
      have their own lifecycle owner, and the devcontainer reconciler
      deletes any listed child it does not track, which would reap a live
      sandbox on every agent restart.
-   - **Deviations and open gaps**: the parent-side sandbox controller
-     (executing `create`/`destroy` scripts, running the parent-side
-     proxy for the child, and reporting sessions with `ChildAgentID`)
-     did not land; the coderd surface it calls is complete, and
-     declarations are expected to arrive as `CODER_AI_SANDBOX_*` agent
-     environment variables until the Terraform surface exists. Relay-only
+   - **Sandbox controller (landed)**: `agent/confine.SandboxController`
+     completes the script contract. The interim declaration surface,
+     until the Terraform resource exists, is agent process environment:
+     `CODER_AI_SANDBOX_CREATE_SCRIPT` (required to enable),
+     `_DESTROY_SCRIPT` (optional), `_NAME` (reconciliation key, default
+     `sandbox`), `_EGRESS_ENFORCEMENT` (default `none`: the attestation
+     defaults to claiming nothing, and an invalid value refuses startup
+     rather than degrading the claim), and `_PROXY_ADDRESS` (default
+     parent loopback; isolation technologies that cannot reach parent
+     loopback, such as containers on a bridge network, must declare a
+     reachable address). The controller deletes stale same-parent
+     records under other names, creates or reconciles the sandbox,
+     starts the deny-all-bootstrapped proxy and policy watch BEFORE the
+     create script runs so the child never has a proxyless window,
+     posts the session with `ChildAgentID`, and executes the script
+     with the platform variables appended last and deduplicated so a
+     template environment cannot override `CODER_AI_AGENT_TOKEN` and
+     friends. `CODER_EGRESS_PROXY` is a bare host:port, matching the
+     example script that prepends the scheme. Create-script failure is
+     degraded, not fatal: the proxy and session stay up and health
+     remains the child's connection state. Teardown runs the destroy
+     script (without the possibly rotated session token), closes the
+     session with `EndedAt`, flushes events, and closes the proxy.
+     Covered by unit tests against a fake coderd and a Linux
+     integration test driving a real agent process end to end.
+   - **Deviations and open gaps**: relay-only
      tailnet (`BlockDirect`) for confined agents was evaluated and
      deliberately skipped: in a `forced` netns shape the namespace has no
      route for direct paths, so the flag would only suppress attempts
