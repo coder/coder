@@ -127,11 +127,10 @@ Public clients suit native, mobile, and CLI applications that cannot keep a secr
 If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
 
 > [!IMPORTANT]
-> Public clients must use a loopback redirect (`http://127.0.0.1:{port}/...`), a
-> reverse-domain custom scheme (`com.example.app://callback`), or the
-> out-of-band URN. Single-word custom schemes such as `vscode://` or
-> `jetbrains://` are rejected for public clients and are usable only by
-> confidential ones.
+> Public clients must use a loopback redirect (`http://127.0.0.1:{port}/...`),
+> a custom scheme (`myapp://callback`, `vscode://callback`), or the
+> out-of-band URN. `http` redirects to any other host are rejected for
+> public clients and are usable only by confidential ones.
 
 A client's type is fixed when it registers. An RFC 7592 update that would move a client between public and confidential is rejected with `invalid_client_metadata`, since the client either holds a secret that would stop being required or has none and no way to be issued one. Switching between `client_secret_basic` and `client_secret_post` is allowed, because both are confidential. To change type, register a new client.
 
