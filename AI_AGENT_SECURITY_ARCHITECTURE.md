@@ -1064,16 +1064,52 @@ it introduces.
      snapshots and no FKs, ingestion endpoints as described under "Audit
      stream and retention", and dbpurge retention (events by age,
      sessions only when ended and event-free).
-   - **Deviations and open gaps**: the sandbox script contract itself
-     (parent-agent `create`/`destroy` execution) did not land; the
-     session API already supports the sandboxed-child shape via
-     `ChildAgentID` with server-side parent verification. Relay-only
-     tailnet (`BlockDirect`) for confined agents is not yet applied.
-     There is no DNS relay in the netns yet, so direct DNS inside the
-     namespace times out (proxied traffic resolves at the proxy).
-     Degraded state is surfaced through the supervisor init log and a
-     best-effort external agent log entry; a first-class degraded agent
-     health field does not exist and reusing `start_error` would
+   - **Read surface and UI (follow-up)**: workspace-scoped reads
+     `GET /api/v2/workspaces/{workspace}/ai-sandbox-sessions` and
+     `.../{session}/network-events` (keyset paginated on the event row
+     ID, which is returned so clients can page), both authorized against
+     the workspace. `ai_agent_id` is exposed on the workspace and
+     workspace-agent API objects, annotated in `coder show`, and
+     surfaced in the UI as an AI badge on the workspace topbar, an
+     AI-bound badge on the agent row, and an egress activity section
+     listing sessions with their attestation and each allowed or denied
+     destination.
+   - **Sandbox lifecycle (landed)**: `ai_sandboxes` (migration 000570)
+     records a sandbox created by a parent agent from an admin
+     declaration, with the declaration name unique per parent while
+     live. Agent-authenticated `POST/GET/DELETE
+     /api/v2/workspaceagents/me/ai-sandboxes` create, list, and destroy
+     sandboxes. Create resolves the AI identity server-side (the
+     parent's own identity when the parent is AI-bound, otherwise the
+     workspace-origin identity through the now-exported
+     `aiagentidentity.ResolveWorkspaceOrigin`), inserts and binds the
+     child agent row, and mints the child agent token plus a
+     sandbox-scoped session token (`ai-sb-<sandbox id>`) in one
+     transaction. Re-posting the same name reconciles to the existing
+     sandbox and rotates the session token, because its plaintext cannot
+     be recovered. Delete soft-deletes the child row and revokes the
+     scoped token, so the child stops authenticating even if its process
+     survives. Sandbox children are excluded from `ListSubAgents`: they
+     have their own lifecycle owner, and the devcontainer reconciler
+     deletes any listed child it does not track, which would reap a live
+     sandbox on every agent restart.
+   - **Deviations and open gaps**: the parent-side sandbox controller
+     (executing `create`/`destroy` scripts, running the parent-side
+     proxy for the child, and reporting sessions with `ChildAgentID`)
+     did not land; the coderd surface it calls is complete, and
+     declarations are expected to arrive as `CODER_AI_SANDBOX_*` agent
+     environment variables until the Terraform surface exists. Relay-only
+     tailnet (`BlockDirect`) for confined agents was evaluated and
+     deliberately skipped: in a `forced` netns shape the namespace has no
+     route for direct paths, so the flag would only suppress attempts
+     that already cannot succeed, and tailnet peers are coordinated
+     through coderd rather than being an open exfiltration channel. In
+     `advisory` shapes it would add no guarantee the attestation does not
+     already disclaim. There is no DNS relay in the netns yet, so direct
+     DNS inside the namespace times out (proxied traffic resolves at the
+     proxy). Degraded state is surfaced through the supervisor init log
+     and a best-effort external agent log entry; a first-class degraded
+     agent health field does not exist and reusing `start_error` would
      mislead the UI. Confinement runs for any agent whose command opts
      in; server-side enforcement that an AI-designated workspace MUST
      run confined is future admission-control work.
