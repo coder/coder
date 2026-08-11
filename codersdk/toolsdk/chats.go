@@ -26,14 +26,12 @@ func parseChatID(chatID string) (uuid.UUID, error) {
 	return id, nil
 }
 
-// ChatToolFile is lightweight metadata about a file attached to a chat.
 type ChatToolFile struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	MimeType string `json:"mime_type"`
 }
 
-// ChatToolStatus is the chat state shared by the chat tools.
 type ChatToolStatus struct {
 	ID              string              `json:"id"`
 	Title           string              `json:"title"`
@@ -48,14 +46,12 @@ type ChatToolStatus struct {
 
 func chatToolStatus(deps Deps, chat codersdk.Chat) ChatToolStatus {
 	resp := ChatToolStatus{
-		ID:       chat.ID.String(),
-		Title:    chat.Title,
-		Status:   chat.Status,
-		Archived: chat.Archived,
-		URL:      fmt.Sprintf("%s/agents/%s", deps.ServerURL(), chat.ID),
-	}
-	if chat.LastError != nil {
-		resp.LastError = chat.LastError
+		ID:        chat.ID.String(),
+		Title:     chat.Title,
+		Status:    chat.Status,
+		Archived:  chat.Archived,
+		LastError: chat.LastError,
+		URL:       fmt.Sprintf("%s/agents/%s", deps.ServerURL(), chat.ID),
 	}
 	if chat.LastTurnSummary != nil {
 		resp.LastTurnSummary = *chat.LastTurnSummary
@@ -126,9 +122,6 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 			if err != nil {
 				return ChatToolStatus{}, err
 			}
-			if len(me.OrganizationIDs) == 0 {
-				return ChatToolStatus{}, xerrors.New("authenticated user belongs to no organization")
-			}
 			orgID = me.OrganizationIDs[0]
 		}
 		var modelConfigID *uuid.UUID
@@ -192,7 +185,6 @@ type GetChatMessagesArgs struct {
 	Limit  int    `json:"limit"`
 }
 
-// ChatToolMessage is a text-only view of a chat message.
 type ChatToolMessage struct {
 	ID        int64                    `json:"id"`
 	Role      codersdk.ChatMessageRole `json:"role"`
@@ -231,6 +223,9 @@ Only text content is returned; tool calls and other internal parts are omitted.`
 		if err != nil {
 			return GetChatMessagesResponse{}, err
 		}
+		if args.Limit < 0 || args.Limit > 200 {
+			return GetChatMessagesResponse{}, xerrors.New("limit must be between 1 and 200")
+		}
 		var opts *codersdk.ChatMessagesPaginationOptions
 		if args.Limit > 0 {
 			opts = &codersdk.ChatMessagesPaginationOptions{Limit: args.Limit}
@@ -268,9 +263,9 @@ Only text content is returned; tool calls and other internal parts are omitted.`
 }
 
 type SendChatMessageArgs struct {
-	ChatID       string `json:"chat_id"`
-	Text         string `json:"text"`
-	BusyBehavior string `json:"busy_behavior"`
+	ChatID       string                    `json:"chat_id"`
+	Text         string                    `json:"text"`
+	BusyBehavior codersdk.ChatBusyBehavior `json:"busy_behavior"`
 }
 
 type SendChatMessageResponse struct {
@@ -295,7 +290,10 @@ var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
 				"busy_behavior": map[string]any{
 					"type":        "string",
 					"description": "What to do when the chat is already processing: \"queue\" (default) processes the message after the current run, \"interrupt\" stops the current run first.",
-					"enum":        []string{"queue", "interrupt"},
+					"enum": []string{
+						string(codersdk.ChatBusyBehaviorQueue),
+						string(codersdk.ChatBusyBehaviorInterrupt),
+					},
 				},
 			},
 			Required: []string{"chat_id", "text"},
@@ -310,11 +308,11 @@ var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
 		if args.Text == "" {
 			return SendChatMessageResponse{}, xerrors.New("text is required")
 		}
-		busyBehavior := codersdk.ChatBusyBehaviorQueue
-		switch args.BusyBehavior {
-		case "", string(codersdk.ChatBusyBehaviorQueue):
-		case string(codersdk.ChatBusyBehaviorInterrupt):
-			busyBehavior = codersdk.ChatBusyBehaviorInterrupt
+		busyBehavior := args.BusyBehavior
+		switch busyBehavior {
+		case "":
+			busyBehavior = codersdk.ChatBusyBehaviorQueue
+		case codersdk.ChatBusyBehaviorQueue, codersdk.ChatBusyBehaviorInterrupt:
 		default:
 			return SendChatMessageResponse{}, xerrors.New(`busy_behavior must be "queue" or "interrupt"`)
 		}
@@ -404,7 +402,6 @@ var ArchiveChat = Tool[ArchiveChatArgs, codersdk.Response]{
 	},
 }
 
-// ChatModelConfigSummary describes one selectable chat model.
 type ChatModelConfigSummary struct {
 	ID          string `json:"id"`
 	Model       string `json:"model"`

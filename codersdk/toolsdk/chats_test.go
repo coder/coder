@@ -81,7 +81,6 @@ func TestChatTools(t *testing.T) {
 		require.Contains(t, texts, "user: Say hello.")
 		require.Contains(t, texts, "user: Say hello again.")
 		require.Contains(t, texts, "assistant: Hello from test server.")
-		// Chronological order: the initial prompt comes first.
 		require.Equal(t, "user: Say hello.", texts[0])
 
 		archived, err := testTool(t, toolsdk.ArchiveChat, tb, toolsdk.ArchiveChatArgs{ChatID: created.ID})
@@ -96,8 +95,7 @@ func TestChatTools(t *testing.T) {
 	t.Run("Interrupt", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// A provider that never answers the chat turn keeps the chat
-		// running so the interrupt has a deterministic target.
+		// Block the chat turn so the interrupt has a deterministic target.
 		release := make(chan struct{})
 		blockingURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 			if req.Stream {
@@ -136,8 +134,16 @@ func TestChatTools(t *testing.T) {
 		_, err = testTool(t, toolsdk.SendChatMessage, tb, toolsdk.SendChatMessageArgs{
 			ChatID:       uuid.NewString(),
 			Text:         "hi",
-			BusyBehavior: "bogus",
+			BusyBehavior: codersdk.ChatBusyBehavior("bogus"),
 		})
 		require.ErrorContains(t, err, "busy_behavior")
+
+		for _, limit := range []int{-1, 201} {
+			_, err = testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{
+				ChatID: uuid.NewString(),
+				Limit:  limit,
+			})
+			require.ErrorContains(t, err, "limit must be between 1 and 200")
+		}
 	})
 }
