@@ -145,26 +145,22 @@ func TestValidPKCEFormat(t *testing.T) {
 			expectValid: false,
 		},
 		{
-			name: "OneBelowMinLength",
-			// 42 characters, one short of the RFC 7636 §4.1 floor.
+			name:        "OneBelowMinLength",
 			verifier:    strings.Repeat("a", 42),
 			expectValid: false,
 		},
 		{
-			name: "AtMinLength",
-			// 43 characters, the RFC 7636 §4.1 floor.
+			name:        "AtMinLength",
 			verifier:    strings.Repeat("a", 43),
 			expectValid: true,
 		},
 		{
-			name: "AtMaxLength",
-			// 128 characters, the RFC 7636 §4.1 ceiling.
+			name:        "AtMaxLength",
 			verifier:    strings.Repeat("a", 128),
 			expectValid: true,
 		},
 		{
-			name: "OneAboveMaxLength",
-			// 129 characters, one past the RFC 7636 §4.1 ceiling.
+			name:        "OneAboveMaxLength",
 			verifier:    strings.Repeat("a", 129),
 			expectValid: false,
 		},

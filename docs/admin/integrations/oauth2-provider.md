@@ -185,8 +185,8 @@ confidential clients must include PKCE parameters:
 1. Generate a code verifier and challenge:
 
    ```sh
-   CODE_VERIFIER=$(openssl rand -base64 96 | tr -d "=+/" | cut -c1-128)
-   CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | openssl dgst -sha256 -binary | base64 | tr -d "=+/" | cut -c1-43)
+   CODE_VERIFIER=$(openssl rand -base64 96 | tr -d '\n' | tr '+/' '-_' | tr -d '=')
+   CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | openssl dgst -sha256 -binary | base64 | tr -d "=" | tr '+/' '-_')
    ```
 
 2. Include PKCE parameters in the authorization request:

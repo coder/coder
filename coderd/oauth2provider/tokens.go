@@ -330,7 +330,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// PKCE defends against) be replayed with different code_verifier guesses
 	// for the rest of its lifetime, unthrottled.
 	if !dbCode.CodeChallenge.Valid || dbCode.CodeChallenge.String == "" {
-		// Code was issued without a challenge — should not happen
+		// Code was issued without a challenge, which should not happen
 		// with authorize endpoint enforcement, but defend in depth.
 		revokeOAuth2CodeOnPKCEFailure(ctx, db, dbCode.ID)
 		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE

@@ -18,14 +18,13 @@ const (
 // directly, and a code_challenge because the S256 method that produces it
 // (base64url(SHA256(verifier))) always yields a string within these bounds.
 //
-// The length floor is the whole point. PKCE is the only client authentication
-// some clients have, and the challenge travels in the authorization request
-// URL while the code travels in the redirect, both of which land in browser
-// history, referrer headers, and proxy logs. An attacker holding those
+// The length floor matters because the challenge and code both travel
+// through the authorization URL and redirect, landing in browser history,
+// referrer headers, and proxy logs. An attacker who recovers either one
 // brute-forces the verifier offline at whatever entropy the client chose,
-// where no server-side rate limit applies. A client that sends a
-// one-character verifier has set a one-character password, and the server
-// should refuse it rather than accept whatever the client picked. The same
+// with no server-side rate limit to slow them down. A client secret also
+// authenticates the token request today, but public clients (#27873) will
+// rely on this bound alone, so it must hold on its own merit. The same
 // bound on code_challenge keeps a malformed value from being persisted
 // verbatim and failing late, at token exchange, instead of at the
 // authorization request where RFC 7636 §4.4.1 expects it to be rejected.
