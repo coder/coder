@@ -652,20 +652,15 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	require.True(t, ok)
 
 	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), "context-key-must-be-ignored")
-	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
-		ctx,
-		chat,
-		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)),
-		provider,
-		modelProvider,
-		modelName,
-		modelBuildOptions{ActiveAPIKeyID: apiKeyID},
-	)
+	spec := computerUseSpec(chat, modelProvider, modelName, codersdk.ChatModelCallConfig{}, modelBuildOptions{ActiveAPIKeyID: apiKeyID})
+	route := aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai))
+	spec.routeOverride = &route
+	resolved, err := server.resolveModelCall(ctx, spec)
 	require.NoError(t, err)
-	require.True(t, model.Valid())
-	require.False(t, debugEnabled)
-	require.EqualValues(t, codersdk.ChatComputerUseProviderOpenAI, resolvedProvider)
-	require.Equal(t, modelName, resolvedModel)
+	require.True(t, resolved.model.Valid())
+	require.False(t, resolved.debugEnabled)
+	require.EqualValues(t, codersdk.ChatComputerUseProviderOpenAI, resolved.resolvedProvider)
+	require.Equal(t, modelName, resolved.resolvedModel)
 	gotProvider, gotSource := factory.recorded()
 	require.Equal(t, "primary-openai", gotProvider)
 	require.Equal(t, aibridge.SourceAgents, gotSource)
@@ -674,7 +669,7 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 // The computer-use model is a hardcoded default with no config of its own, so
 // its transport must come from its own client rather than inheriting the chat
 // model's openai_config. Request preparation reads the same value back.
-func TestResolveComputerUseModel_TransportIndependentOfChatConfig(t *testing.T) {
+func TestComputerUseModelCall_TransportIndependentOfChatConfig(t *testing.T) {
 	t.Parallel()
 
 	providerID := uuid.New()
@@ -689,20 +684,14 @@ func TestResolveComputerUseModel_TransportIndependentOfChatConfig(t *testing.T) 
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 
-	//nolint:dogsled // Only the built model matters for the transport assertion.
-	model, _, _, _, err := server.resolveComputerUseModel(
-		t.Context(),
-		chat,
-		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)),
-		provider,
-		modelProvider,
-		modelName,
-		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
-	)
+	spec := computerUseSpec(chat, modelProvider, modelName, codersdk.ChatModelCallConfig{}, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+	route := aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai))
+	spec.routeOverride = &route
+	resolved, err := server.resolveModelCall(t.Context(), spec)
 	require.NoError(t, err)
 
 	wantTransport := chatopenai.TransportFor(modelProvider, modelName, nil)
-	require.Equal(t, wantTransport, model.Transport())
+	require.Equal(t, wantTransport, resolved.model.Transport())
 
 	// The assertion above only has teeth if an override could have changed the
 	// result for this model.
@@ -710,7 +699,7 @@ func TestResolveComputerUseModel_TransportIndependentOfChatConfig(t *testing.T) 
 	require.NotEqual(t, wantTransport, chatopenai.TransportFor(modelProvider, modelName, &opposite))
 }
 
-func TestResolveComputerUseModel_AIGatewayMissingAPIKeyID(t *testing.T) {
+func TestComputerUseModelCall_AIGatewayMissingAPIKeyID(t *testing.T) {
 	t.Parallel()
 
 	providerID := uuid.New()
@@ -726,24 +715,14 @@ func TestResolveComputerUseModel_AIGatewayMissingAPIKeyID(t *testing.T) {
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 
-	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
-		t.Context(),
-		chat,
-		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)),
-		provider,
-		modelProvider,
-		modelName,
-		modelBuildOptions{}, // no ActiveAPIKeyID
-	)
+	spec := computerUseSpec(chat, modelProvider, modelName, codersdk.ChatModelCallConfig{}, modelBuildOptions{}) // no ActiveAPIKeyID
+	route := aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai))
+	spec.routeOverride = &route
+	resolved, err := server.resolveModelCall(t.Context(), spec)
 	require.Error(t, err)
-	require.False(t, model.Valid())
-	require.False(t, debugEnabled)
-	require.Empty(t, resolvedProvider)
-	require.Empty(t, resolvedModel)
-	require.Contains(t, err.Error(), fmt.Sprintf(
-		`resolve computer use model for provider "openai" model %q`,
-		chattool.ComputerUseOpenAIModelName,
-	))
+	require.False(t, resolved.model.Valid())
+	require.False(t, resolved.debugEnabled)
+	require.Contains(t, err.Error(), "create model")
 	require.Contains(t, err.Error(), "active turn API key ID")
 }
 
