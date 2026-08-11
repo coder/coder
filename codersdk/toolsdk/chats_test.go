@@ -134,7 +134,6 @@ func TestChatTools(t *testing.T) {
 	t.Run("ListChatModelConfigsSkipsDisabledProviders", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Admin model lists include configs backed by disabled providers.
 		disabledProviderConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, chattest.OpenAI(t))
 		provider, err := client.UpdateAIProvider(ctx, disabledProviderConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
 			Enabled: ptr.Ref(false),
