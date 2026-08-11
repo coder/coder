@@ -541,7 +541,18 @@ func TestOAuth2ClientNameValidation(t *testing.T) {
 	}
 }
 
-// TestOAuth2ClientScopeValidation tests scope parameter validation
+// TestOAuth2ClientScopeValidation tests scope parameter validation at
+// registration time, which accepts any syntactically valid scope string.
+//
+// Registration performs no scope catalog validation, so the values below are
+// stored verbatim as the app's scope allowlist. Authorization is where the
+// catalog is enforced: a name outside rbac.IsExternalScope cannot be granted,
+// so an app registered with only such names can no longer complete an
+// authorization in either direction. Requesting one is rejected with
+// invalid_scope, and omitting scope entirely is rejected too, because the
+// allowlist filters to nothing. TestOAuth2AuthorizeDCRScopeCompatibility
+// covers both. Every non-empty scope below is in that position: none of read,
+// write, openid, profile, email, admin, or custom:scope is in the catalog.
 func TestOAuth2ClientScopeValidation(t *testing.T) {
 	t.Parallel()
 
@@ -596,9 +607,11 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "InvalidAdmin",
-			scope:       "admin",
-			expectError: false, // Admin scope should be allowed but validated during authorization
+			name:  "InvalidAdmin",
+			scope: "admin",
+			// Registration accepts it; authorization rejects it with
+			// invalid_scope, since "admin" is not a grantable scope name.
+			expectError: false,
 		},
 		{
 			name:        "ValidCustom",
