@@ -7,16 +7,11 @@ import type { ComponentPropsWithRef, ReactNode } from "react";
 import { type Components, defaultRehypePlugins, Streamdown } from "streamdown";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
-import {
-	type ChatUrlTransform,
-	ChatUrlTransformContext,
-	useChatUrlTransform,
-} from "../../context/ChatUrlTransformContext";
+import { useChatUrlTransform } from "../../context/ChatUrlTransformContext";
 import { MarkdownImage } from "./MarkdownImage";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
-	urlTransform?: ChatUrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
 	 * preprocessing (remend) and useTransition-based render
 	 * scheduling. Pass true only for live-streaming output. */
@@ -282,7 +277,6 @@ export const Response = ({
 	className,
 	children,
 	ref,
-	urlTransform,
 	streaming,
 	...props
 }: ResponseProps) => {
@@ -290,21 +284,6 @@ export const Response = ({
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
-
-	// Streamdown caches rendered blocks by content, so URLs must stay
-	// raw here and get rewritten at render time by MarkdownAnchor and
-	// ChatMarkdownImage, which read the transform from context.
-	const markdown = (
-		<Streamdown
-			controls={false}
-			components={components}
-			rehypePlugins={chatRehypePlugins}
-			mode={streaming ? "streaming" : "static"}
-			parseIncompleteMarkdown={streaming}
-		>
-			{children}
-		</Streamdown>
-	);
 
 	return (
 		<div
@@ -315,13 +294,19 @@ export const Response = ({
 			)}
 			{...props}
 		>
-			{urlTransform ? (
-				<ChatUrlTransformContext value={urlTransform}>
-					{markdown}
-				</ChatUrlTransformContext>
-			) : (
-				markdown
-			)}
+			{/* Streamdown caches rendered blocks by content, so URLs must
+			    stay raw here and get rewritten at render time by
+			    MarkdownAnchor and ChatMarkdownImage, which read the
+			    transform from context. */}
+			<Streamdown
+				controls={false}
+				components={components}
+				rehypePlugins={chatRehypePlugins}
+				mode={streaming ? "streaming" : "static"}
+				parseIncompleteMarkdown={streaming}
+			>
+				{children}
+			</Streamdown>
 		</div>
 	);
 };

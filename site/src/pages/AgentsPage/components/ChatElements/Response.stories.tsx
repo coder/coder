@@ -412,25 +412,6 @@ export const LocalhostImageRewrittenFromChatContext: Story = {
 	},
 };
 
-export const ExplicitUrlTransformWinsOverContext: Story = {
-	decorators: [
-		(Story) => (
-			<ChatUrlTransformContext value={chatUrlTransform}>
-				<Story />
-			</ChatUrlTransformContext>
-		),
-	],
-	args: {
-		children: "Open [the preview](http://localhost:3000/).",
-		urlTransform: () => "https://prop-wins.example.com/",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const preview = await canvas.findByRole("link", { name: "the preview" });
-		expect(preview).toHaveAttribute("href", "https://prop-wins.example.com/");
-	},
-};
-
 // Verifies that streaming mode closes incomplete inline markdown via
 // remend so the user never sees raw syntax during the reveal animation.
 export const StreamingInlineMarkdown: Story = {
