@@ -932,6 +932,66 @@ func TestPostChats(t *testing.T) {
 	})
 }
 
+// TestChats_ForceOnMCPServerEnforced is the endpoint-level regression
+// test for Cure53 CDM-02-010: a regular user who strips force_on MCP
+// server IDs from mcp_server_ids when creating a chat or sending a
+// message must not be able to exclude those servers.
+func TestChats_ForceOnMCPServerEnforced(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	// An admin marks an MCP server as Force On.
+	forced, err := client.Client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "Forced Server",
+		Slug:          "forced-server",
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/forced",
+		AuthType:      "none",
+		Availability:  "force_on",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.NoError(t, err)
+
+	// A regular member tampers with the request by clearing
+	// mcp_server_ids (Cure53 CDM-02-010 reproduction).
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "test message",
+		}},
+		MCPServerIDs: []uuid.UUID{},
+	})
+	require.NoError(t, err)
+	require.Contains(t, chat.MCPServerIDs, forced.ID,
+		"force_on MCP server must be enforced on chat creation")
+
+	// Sending a message with an emptied list must not remove the
+	// forced server either.
+	_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "second message",
+		}},
+		MCPServerIDs: &[]uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	chatResult, err := memberClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Contains(t, chatResult.MCPServerIDs, forced.ID,
+		"force_on MCP server must survive a tampered mcp_server_ids update")
+}
+
 func TestPostChats_ClientType(t *testing.T) {
 	t.Parallel()
 
