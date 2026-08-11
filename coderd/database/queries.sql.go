@@ -3811,6 +3811,263 @@ func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertU
 	return i, err
 }
 
+const deleteOldAISandboxNetworkEvents = `-- name: DeleteOldAISandboxNetworkEvents :execrows
+WITH old_events AS (
+	SELECT id
+	FROM ai_sandbox_network_events
+	WHERE occurred_at < $1::timestamptz
+	ORDER BY occurred_at ASC
+	LIMIT $2
+)
+DELETE FROM ai_sandbox_network_events
+USING old_events
+WHERE ai_sandbox_network_events.id = old_events.id
+`
+
+type DeleteOldAISandboxNetworkEventsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Deletes egress audit events older than the given time, bounded by a row
+// limit to avoid long-running transactions.
+func (q *sqlQuerier) DeleteOldAISandboxNetworkEvents(ctx context.Context, arg DeleteOldAISandboxNetworkEventsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldAISandboxNetworkEvents, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteOldAISandboxSessions = `-- name: DeleteOldAISandboxSessions :execrows
+WITH old_sessions AS (
+	SELECT s.id
+	FROM ai_sandbox_sessions s
+	WHERE s.ended_at IS NOT NULL
+	  AND s.ended_at < $1::timestamptz
+	  AND NOT EXISTS (
+	      SELECT 1 FROM ai_sandbox_network_events e WHERE e.session_id = s.id
+	  )
+	ORDER BY s.ended_at ASC
+	LIMIT $2
+)
+DELETE FROM ai_sandbox_sessions
+USING old_sessions
+WHERE ai_sandbox_sessions.id = old_sessions.id
+`
+
+type DeleteOldAISandboxSessionsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Deletes confinement sessions that ended before the given time and no
+// longer have any retained events.
+func (q *sqlQuerier) DeleteOldAISandboxSessions(ctx context.Context, arg DeleteOldAISandboxSessionsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldAISandboxSessions, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getAISandboxNetworkEventsBySessionID = `-- name: GetAISandboxNetworkEventsBySessionID :many
+SELECT id, session_id, occurred_at, protocol, host, port, action, policy_revision, ai_agent_id, sponsor_user_id, created_at FROM ai_sandbox_network_events
+WHERE session_id = $1
+ORDER BY occurred_at ASC, id ASC
+`
+
+func (q *sqlQuerier) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]AISandboxNetworkEvent, error) {
+	rows, err := q.db.QueryContext(ctx, getAISandboxNetworkEventsBySessionID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISandboxNetworkEvent
+	for rows.Next() {
+		var i AISandboxNetworkEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.OccurredAt,
+			&i.Protocol,
+			&i.Host,
+			&i.Port,
+			&i.Action,
+			&i.PolicyRevision,
+			&i.AIAgentID,
+			&i.SponsorUserID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAISandboxSessionByID = `-- name: GetAISandboxSessionByID :one
+SELECT id, workspace_id, reporter_agent_id, confined_agent_id, ai_agent_id, sponsor_user_id, egress_enforcement, started_at, ended_at, created_at FROM ai_sandbox_sessions WHERE id = $1
+`
+
+func (q *sqlQuerier) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (AISandboxSession, error) {
+	row := q.db.QueryRowContext(ctx, getAISandboxSessionByID, id)
+	var i AISandboxSession
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ReporterAgentID,
+		&i.ConfinedAgentID,
+		&i.AIAgentID,
+		&i.SponsorUserID,
+		&i.EgressEnforcement,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertAISandboxNetworkEvents = `-- name: InsertAISandboxNetworkEvents :execrows
+INSERT INTO ai_sandbox_network_events (
+	session_id,
+	occurred_at,
+	protocol,
+	host,
+	port,
+	action,
+	policy_revision,
+	ai_agent_id,
+	sponsor_user_id,
+	created_at
+)
+SELECT
+	unnest($1 :: uuid[]),
+	unnest($2 :: timestamptz[]),
+	unnest($3 :: text[]),
+	unnest($4 :: text[]),
+	unnest($5 :: int[]),
+	unnest($6 :: text[]),
+	unnest($7 :: bigint[]),
+	unnest($8 :: uuid[]),
+	unnest($9 :: uuid[]),
+	unnest($10 :: timestamptz[])
+`
+
+type InsertAISandboxNetworkEventsParams struct {
+	SessionID      []uuid.UUID `db:"session_id" json:"session_id"`
+	OccurredAt     []time.Time `db:"occurred_at" json:"occurred_at"`
+	Protocol       []string    `db:"protocol" json:"protocol"`
+	Host           []string    `db:"host" json:"host"`
+	Port           []int32     `db:"port" json:"port"`
+	Action         []string    `db:"action" json:"action"`
+	PolicyRevision []int64     `db:"policy_revision" json:"policy_revision"`
+	AIAgentID      []uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	SponsorUserID  []uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	CreatedAt      []time.Time `db:"created_at" json:"created_at"`
+}
+
+// Batch-inserts egress policy decisions. Attribution snapshots are copied
+// server-side from the owning session row onto every event.
+func (q *sqlQuerier) InsertAISandboxNetworkEvents(ctx context.Context, arg InsertAISandboxNetworkEventsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertAISandboxNetworkEvents,
+		pq.Array(arg.SessionID),
+		pq.Array(arg.OccurredAt),
+		pq.Array(arg.Protocol),
+		pq.Array(arg.Host),
+		pq.Array(arg.Port),
+		pq.Array(arg.Action),
+		pq.Array(arg.PolicyRevision),
+		pq.Array(arg.AIAgentID),
+		pq.Array(arg.SponsorUserID),
+		pq.Array(arg.CreatedAt),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertAISandboxSession = `-- name: UpsertAISandboxSession :one
+INSERT INTO ai_sandbox_sessions (
+	id,
+	workspace_id,
+	reporter_agent_id,
+	confined_agent_id,
+	ai_agent_id,
+	sponsor_user_id,
+	egress_enforcement,
+	started_at,
+	ended_at,
+	created_at
+) VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$9,
+	$10
+)
+ON CONFLICT (id) DO UPDATE SET
+	ended_at = EXCLUDED.ended_at
+RETURNING id, workspace_id, reporter_agent_id, confined_agent_id, ai_agent_id, sponsor_user_id, egress_enforcement, started_at, ended_at, created_at
+`
+
+type UpsertAISandboxSessionParams struct {
+	ID                uuid.UUID    `db:"id" json:"id"`
+	WorkspaceID       uuid.UUID    `db:"workspace_id" json:"workspace_id"`
+	ReporterAgentID   uuid.UUID    `db:"reporter_agent_id" json:"reporter_agent_id"`
+	ConfinedAgentID   uuid.UUID    `db:"confined_agent_id" json:"confined_agent_id"`
+	AIAgentID         uuid.UUID    `db:"ai_agent_id" json:"ai_agent_id"`
+	SponsorUserID     uuid.UUID    `db:"sponsor_user_id" json:"sponsor_user_id"`
+	EgressEnforcement string       `db:"egress_enforcement" json:"egress_enforcement"`
+	StartedAt         time.Time    `db:"started_at" json:"started_at"`
+	EndedAt           sql.NullTime `db:"ended_at" json:"ended_at"`
+	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
+}
+
+// Creates or idempotently re-asserts a confinement session. The reporting
+// supervisor generates the ID; on conflict only ended_at may change, so
+// attribution snapshots are immutable once recorded.
+func (q *sqlQuerier) UpsertAISandboxSession(ctx context.Context, arg UpsertAISandboxSessionParams) (AISandboxSession, error) {
+	row := q.db.QueryRowContext(ctx, upsertAISandboxSession,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.ReporterAgentID,
+		arg.ConfinedAgentID,
+		arg.AIAgentID,
+		arg.SponsorUserID,
+		arg.EgressEnforcement,
+		arg.StartedAt,
+		arg.EndedAt,
+		arg.CreatedAt,
+	)
+	var i AISandboxSession
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ReporterAgentID,
+		&i.ConfinedAgentID,
+		&i.AIAgentID,
+		&i.SponsorUserID,
+		&i.EgressEnforcement,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getActiveAISeatCount = `-- name: GetActiveAISeatCount :one
 SELECT
 	COUNT(*)

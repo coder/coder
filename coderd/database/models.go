@@ -4959,6 +4959,42 @@ type AIProviderKey struct {
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
+// Egress policy decisions observed by the supervisor-owned proxy for AI-bound execution. Attribution columns are server-resolved snapshots without foreign keys so audit history survives identity cleanup.
+type AISandboxNetworkEvent struct {
+	ID int64 `db:"id" json:"id"`
+	// Owning ai_sandbox_sessions.id. Not a foreign key; events must outlive session and identity cleanup.
+	SessionID  uuid.UUID `db:"session_id" json:"session_id"`
+	OccurredAt time.Time `db:"occurred_at" json:"occurred_at"`
+	Protocol   string    `db:"protocol" json:"protocol"`
+	Host       string    `db:"host" json:"host"`
+	Port       int32     `db:"port" json:"port"`
+	Action     string    `db:"action" json:"action"`
+	// Egress policy revision that produced the decision, or 0 while the supervisor runs the bootstrap deny-all fallback.
+	PolicyRevision int64     `db:"policy_revision" json:"policy_revision"`
+	AIAgentID      uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	SponsorUserID  uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
+// Confinement sessions reported by the supervisor-owned egress proxy for AI-bound execution. Attribution columns are server-resolved snapshots without foreign keys so audit history survives identity cleanup.
+type AISandboxSession struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	// Workspace agent that owns the egress proxy and reported this session. Not a foreign key; retained after agent deletion.
+	ReporterAgentID uuid.UUID `db:"reporter_agent_id" json:"reporter_agent_id"`
+	// AI-bound workspace agent being confined: equals reporter_agent_id for an AI-designated workspace, or the sandboxed child agent. Not a foreign key; retained after agent deletion.
+	ConfinedAgentID uuid.UUID `db:"confined_agent_id" json:"confined_agent_id"`
+	// AI agent identity snapshot. Not a foreign key to ai_agents; retained after identity revocation and cleanup.
+	AIAgentID uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	// Sponsoring human user snapshot. Not a foreign key to users; retained after user cleanup.
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	// Admin attestation of routing coverage (forced, advisory, or none). Recorded, not verified.
+	EgressEnforcement string       `db:"egress_enforcement" json:"egress_enforcement"`
+	StartedAt         time.Time    `db:"started_at" json:"started_at"`
+	EndedAt           sql.NullTime `db:"ended_at" json:"ended_at"`
+	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
+}
+
 type AISeatState struct {
 	UserID               uuid.UUID         `db:"user_id" json:"user_id"`
 	FirstUsedAt          time.Time         `db:"first_used_at" json:"first_used_at"`

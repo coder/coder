@@ -580,6 +580,35 @@ func (s *MethodTestSuite) TestBoundaryLogs() {
 	}))
 }
 
+func (s *MethodTestSuite) TestAISandboxAudit() {
+	s.Run("UpsertAISandboxSession", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpsertAISandboxSessionParams{}
+		dbm.EXPECT().UpsertAISandboxSession(gomock.Any(), arg).Return(database.AISandboxSession{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetAISandboxSessionByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetAISandboxSessionByID(gomock.Any(), uuid.Nil).Return(database.AISandboxSession{}, nil).AnyTimes()
+		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("InsertAISandboxNetworkEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAISandboxNetworkEventsParams{}
+		dbm.EXPECT().InsertAISandboxNetworkEvents(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetAISandboxNetworkEventsBySessionID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetAISandboxNetworkEventsBySessionID(gomock.Any(), uuid.Nil).Return([]database.AISandboxNetworkEvent{}, nil).AnyTimes()
+		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("DeleteOldAISandboxNetworkEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldAISandboxNetworkEvents(gomock.Any(), database.DeleteOldAISandboxNetworkEventsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldAISandboxNetworkEventsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("DeleteOldAISandboxSessions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldAISandboxSessions(gomock.Any(), database.DeleteOldAISandboxSessionsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldAISandboxSessionsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+}
+
 func (s *MethodTestSuite) TestConnectionLogs() {
 	s.Run("BatchUpsertConnectionLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.BatchUpsertConnectionLogsParams{}

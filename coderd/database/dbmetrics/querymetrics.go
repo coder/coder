@@ -673,6 +673,22 @@ func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeT
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteOldAISandboxNetworkEvents(ctx context.Context, arg database.DeleteOldAISandboxNetworkEventsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldAISandboxNetworkEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldAISandboxNetworkEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldAISandboxNetworkEvents").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteOldAISandboxSessions(ctx context.Context, arg database.DeleteOldAISandboxSessionsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldAISandboxSessions(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldAISandboxSessions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldAISandboxSessions").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg database.DeleteOldAuditLogConnectionEventsParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteOldAuditLogConnectionEvents(ctx, arg)
@@ -1238,6 +1254,22 @@ func (m queryMetricsStore) GetAIProviders(ctx context.Context, arg database.GetA
 	r0, r1 := m.s.GetAIProviders(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetAIProviders").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviders").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]database.AISandboxNetworkEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxNetworkEventsBySessionID(ctx, sessionID)
+	m.queryLatencies.WithLabelValues("GetAISandboxNetworkEventsBySessionID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxNetworkEventsBySessionID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (database.AISandboxSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxSessionByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAISandboxSessionByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxSessionByID").Inc()
 	return r0, r1
 }
 
@@ -4057,6 +4089,14 @@ func (m queryMetricsStore) InsertAIProviderKey(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAISandboxNetworkEvents(ctx context.Context, arg database.InsertAISandboxNetworkEventsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAISandboxNetworkEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAISandboxNetworkEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAISandboxNetworkEvents").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAPIKey(ctx, arg)
@@ -6223,6 +6263,14 @@ func (m queryMetricsStore) UpsertAIModelPrices(ctx context.Context, seed json.Ra
 	m.queryLatencies.WithLabelValues("UpsertAIModelPrices").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAIModelPrices").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpsertAISandboxSession(ctx context.Context, arg database.UpsertAISandboxSessionParams) (database.AISandboxSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertAISandboxSession(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertAISandboxSession").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAISandboxSession").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error) {

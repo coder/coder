@@ -1578,6 +1578,63 @@ COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-spe
 
 COMMENT ON COLUMN ai_providers.settings_key_id IS 'The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.';
 
+CREATE TABLE ai_sandbox_network_events (
+    id bigint NOT NULL,
+    session_id uuid NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    protocol text NOT NULL,
+    host text NOT NULL,
+    port integer NOT NULL,
+    action text NOT NULL,
+    policy_revision bigint DEFAULT 0 NOT NULL,
+    ai_agent_id uuid NOT NULL,
+    sponsor_user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_sandbox_network_events_action_check CHECK ((action = ANY (ARRAY['allowed'::text, 'denied'::text]))),
+    CONSTRAINT ai_sandbox_network_events_protocol_check CHECK ((protocol = ANY (ARRAY['connect'::text, 'http'::text, 'sni'::text, 'tcp'::text])))
+);
+
+COMMENT ON TABLE ai_sandbox_network_events IS 'Egress policy decisions observed by the supervisor-owned proxy for AI-bound execution. Attribution columns are server-resolved snapshots without foreign keys so audit history survives identity cleanup.';
+
+COMMENT ON COLUMN ai_sandbox_network_events.session_id IS 'Owning ai_sandbox_sessions.id. Not a foreign key; events must outlive session and identity cleanup.';
+
+COMMENT ON COLUMN ai_sandbox_network_events.policy_revision IS 'Egress policy revision that produced the decision, or 0 while the supervisor runs the bootstrap deny-all fallback.';
+
+ALTER TABLE ai_sandbox_network_events ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME ai_sandbox_network_events_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+CREATE TABLE ai_sandbox_sessions (
+    id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    reporter_agent_id uuid NOT NULL,
+    confined_agent_id uuid NOT NULL,
+    ai_agent_id uuid NOT NULL,
+    sponsor_user_id uuid NOT NULL,
+    egress_enforcement text NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_sandbox_sessions_egress_enforcement_check CHECK ((egress_enforcement = ANY (ARRAY['forced'::text, 'advisory'::text, 'none'::text])))
+);
+
+COMMENT ON TABLE ai_sandbox_sessions IS 'Confinement sessions reported by the supervisor-owned egress proxy for AI-bound execution. Attribution columns are server-resolved snapshots without foreign keys so audit history survives identity cleanup.';
+
+COMMENT ON COLUMN ai_sandbox_sessions.reporter_agent_id IS 'Workspace agent that owns the egress proxy and reported this session. Not a foreign key; retained after agent deletion.';
+
+COMMENT ON COLUMN ai_sandbox_sessions.confined_agent_id IS 'AI-bound workspace agent being confined: equals reporter_agent_id for an AI-designated workspace, or the sandboxed child agent. Not a foreign key; retained after agent deletion.';
+
+COMMENT ON COLUMN ai_sandbox_sessions.ai_agent_id IS 'AI agent identity snapshot. Not a foreign key to ai_agents; retained after identity revocation and cleanup.';
+
+COMMENT ON COLUMN ai_sandbox_sessions.sponsor_user_id IS 'Sponsoring human user snapshot. Not a foreign key to users; retained after user cleanup.';
+
+COMMENT ON COLUMN ai_sandbox_sessions.egress_enforcement IS 'Admin attestation of routing coverage (forced, advisory, or none). Recorded, not verified.';
+
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
     first_used_at timestamp with time zone NOT NULL,
@@ -4300,6 +4357,12 @@ ALTER TABLE ONLY ai_provider_keys
 ALTER TABLE ONLY ai_providers
     ADD CONSTRAINT ai_providers_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_sandbox_network_events
+    ADD CONSTRAINT ai_sandbox_network_events_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_sandbox_sessions
+    ADD CONSTRAINT ai_sandbox_sessions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
 
@@ -4733,6 +4796,14 @@ CREATE INDEX idx_ai_agents_owner ON ai_agents USING btree (owner_user_id);
 CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
 
 CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHERE (deleted = false);
+
+CREATE INDEX idx_ai_sandbox_network_events_occurred_at ON ai_sandbox_network_events USING btree (occurred_at);
+
+CREATE INDEX idx_ai_sandbox_network_events_session_id ON ai_sandbox_network_events USING btree (session_id);
+
+CREATE INDEX idx_ai_sandbox_sessions_ai_agent_id ON ai_sandbox_sessions USING btree (ai_agent_id);
+
+CREATE INDEX idx_ai_sandbox_sessions_started_at ON ai_sandbox_sessions USING btree (started_at);
 
 CREATE INDEX idx_ai_user_daily_spend_effective_group_id_day ON ai_user_daily_spend USING btree (effective_group_id, day);
 

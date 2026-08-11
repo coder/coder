@@ -2344,6 +2344,20 @@ func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.
 	return q.db.DeleteOldAIBridgeRecords(ctx, beforeTime)
 }
 
+func (q *querier) DeleteOldAISandboxNetworkEvents(ctx context.Context, arg database.DeleteOldAISandboxNetworkEventsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldAISandboxNetworkEvents(ctx, arg)
+}
+
+func (q *querier) DeleteOldAISandboxSessions(ctx context.Context, arg database.DeleteOldAISandboxSessionsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldAISandboxSessions(ctx, arg)
+}
+
 func (q *querier) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
 	// `ResourceSystem` is deprecated, but it doesn't make sense to add
 	// `policy.ActionDelete` to `ResourceAuditLog`, since this is the one and
@@ -2949,6 +2963,20 @@ func (q *querier) GetAIProviders(ctx context.Context, arg database.GetAIProvider
 		return nil, err
 	}
 	return q.db.GetAIProviders(ctx, arg)
+}
+
+func (q *querier) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]database.AISandboxNetworkEvent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAISandboxNetworkEventsBySessionID(ctx, sessionID)
+}
+
+func (q *querier) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (database.AISandboxSession, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AISandboxSession{}, err
+	}
+	return q.db.GetAISandboxSessionByID(ctx, id)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -5974,6 +6002,13 @@ func (q *querier) InsertAIProviderKey(ctx context.Context, arg database.InsertAI
 	return q.db.InsertAIProviderKey(ctx, arg)
 }
 
+func (q *querier) InsertAISandboxNetworkEvents(ctx context.Context, arg database.InsertAISandboxNetworkEventsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.InsertAISandboxNetworkEvents(ctx, arg)
+}
+
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	// TODO(Cian): ideally this would be encoded in the policy, but system users are just members and we
 	// don't currently have a capability to conditionally deny creating resources by owner ID in a role.
@@ -8843,6 +8878,13 @@ func (q *querier) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage)
 		return err
 	}
 	return q.db.UpsertAIModelPrices(ctx, seed)
+}
+
+func (q *querier) UpsertAISandboxSession(ctx context.Context, arg database.UpsertAISandboxSessionParams) (database.AISandboxSession, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AISandboxSession{}, err
+	}
+	return q.db.UpsertAISandboxSession(ctx, arg)
 }
 
 func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error) {

@@ -172,6 +172,12 @@ type sqlcQuerier interface {
 	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
 	// Cumulative count.
 	DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error)
+	// Deletes egress audit events older than the given time, bounded by a row
+	// limit to avoid long-running transactions.
+	DeleteOldAISandboxNetworkEvents(ctx context.Context, arg DeleteOldAISandboxNetworkEventsParams) (int64, error)
+	// Deletes confinement sessions that ended before the given time and no
+	// longer have any retained events.
+	DeleteOldAISandboxSessions(ctx context.Context, arg DeleteOldAISandboxSessionsParams) (int64, error)
 	DeleteOldAuditLogConnectionEvents(ctx context.Context, arg DeleteOldAuditLogConnectionEventsParams) error
 	// Deletes old audit logs based on retention policy, excluding deprecated
 	// connection events (connect, disconnect, open, close) which are handled
@@ -363,6 +369,8 @@ type sqlcQuerier interface {
 	// Returns AI provider rows. Soft-deleted and disabled rows are excluded
 	// unless include_deleted or include_disabled is set.
 	GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AIProvider, error)
+	GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]AISandboxNetworkEvent, error)
+	GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (AISandboxSession, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
@@ -1093,6 +1101,9 @@ type sqlcQuerier interface {
 	InsertAIGatewayKey(ctx context.Context, arg InsertAIGatewayKeyParams) (InsertAIGatewayKeyRow, error)
 	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AIProvider, error)
 	InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error)
+	// Batch-inserts egress policy decisions. Attribution snapshots are copied
+	// server-side from the owning session row onto every event.
+	InsertAISandboxNetworkEvents(ctx context.Context, arg InsertAISandboxNetworkEventsParams) (int64, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// Copies an agent's current context resources onto a single chat. Pair
 	// with DeleteChatContextResourcesByChatID (clear-then-copy, in a
@@ -1634,6 +1645,10 @@ type sqlcQuerier interface {
 	// must have provider, model, and the four price fields; null prices are
 	// written as SQL NULL.
 	UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error
+	// Creates or idempotently re-asserts a confinement session. The reporting
+	// supervisor generates the ID; on conflict only ended_at may change, so
+	// attribution snapshots are immutable once recorded.
+	UpsertAISandboxSession(ctx context.Context, arg UpsertAISandboxSessionParams) (AISandboxSession, error)
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)
 	UpsertAnnouncementBanners(ctx context.Context, value string) error

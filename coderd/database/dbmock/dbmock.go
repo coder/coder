@@ -1119,6 +1119,36 @@ func (mr *MockStoreMockRecorder) DeleteOldAIBridgeRecords(ctx, beforeTime any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAIBridgeRecords", reflect.TypeOf((*MockStore)(nil).DeleteOldAIBridgeRecords), ctx, beforeTime)
 }
 
+// DeleteOldAISandboxNetworkEvents mocks base method.
+func (m *MockStore) DeleteOldAISandboxNetworkEvents(ctx context.Context, arg database.DeleteOldAISandboxNetworkEventsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldAISandboxNetworkEvents", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldAISandboxNetworkEvents indicates an expected call of DeleteOldAISandboxNetworkEvents.
+func (mr *MockStoreMockRecorder) DeleteOldAISandboxNetworkEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAISandboxNetworkEvents", reflect.TypeOf((*MockStore)(nil).DeleteOldAISandboxNetworkEvents), ctx, arg)
+}
+
+// DeleteOldAISandboxSessions mocks base method.
+func (m *MockStore) DeleteOldAISandboxSessions(ctx context.Context, arg database.DeleteOldAISandboxSessionsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldAISandboxSessions", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldAISandboxSessions indicates an expected call of DeleteOldAISandboxSessions.
+func (mr *MockStoreMockRecorder) DeleteOldAISandboxSessions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAISandboxSessions", reflect.TypeOf((*MockStore)(nil).DeleteOldAISandboxSessions), ctx, arg)
+}
+
 // DeleteOldAuditLogConnectionEvents mocks base method.
 func (m *MockStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg database.DeleteOldAuditLogConnectionEventsParams) error {
 	m.ctrl.T.Helper()
@@ -2158,6 +2188,36 @@ func (m *MockStore) GetAIProviders(ctx context.Context, arg database.GetAIProvid
 func (mr *MockStoreMockRecorder) GetAIProviders(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviders", reflect.TypeOf((*MockStore)(nil).GetAIProviders), ctx, arg)
+}
+
+// GetAISandboxNetworkEventsBySessionID mocks base method.
+func (m *MockStore) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]database.AISandboxNetworkEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxNetworkEventsBySessionID", ctx, sessionID)
+	ret0, _ := ret[0].([]database.AISandboxNetworkEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxNetworkEventsBySessionID indicates an expected call of GetAISandboxNetworkEventsBySessionID.
+func (mr *MockStoreMockRecorder) GetAISandboxNetworkEventsBySessionID(ctx, sessionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxNetworkEventsBySessionID", reflect.TypeOf((*MockStore)(nil).GetAISandboxNetworkEventsBySessionID), ctx, sessionID)
+}
+
+// GetAISandboxSessionByID mocks base method.
+func (m *MockStore) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (database.AISandboxSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxSessionByID", ctx, id)
+	ret0, _ := ret[0].(database.AISandboxSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxSessionByID indicates an expected call of GetAISandboxSessionByID.
+func (mr *MockStoreMockRecorder) GetAISandboxSessionByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxSessionByID", reflect.TypeOf((*MockStore)(nil).GetAISandboxSessionByID), ctx, id)
 }
 
 // GetAPIKeyByID mocks base method.
@@ -7604,6 +7664,21 @@ func (mr *MockStoreMockRecorder) InsertAIProviderKey(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIProviderKey", reflect.TypeOf((*MockStore)(nil).InsertAIProviderKey), ctx, arg)
 }
 
+// InsertAISandboxNetworkEvents mocks base method.
+func (m *MockStore) InsertAISandboxNetworkEvents(ctx context.Context, arg database.InsertAISandboxNetworkEventsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAISandboxNetworkEvents", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAISandboxNetworkEvents indicates an expected call of InsertAISandboxNetworkEvents.
+func (mr *MockStoreMockRecorder) InsertAISandboxNetworkEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAISandboxNetworkEvents", reflect.TypeOf((*MockStore)(nil).InsertAISandboxNetworkEvents), ctx, arg)
+}
+
 // InsertAPIKey mocks base method.
 func (m *MockStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -11669,6 +11744,21 @@ func (m *MockStore) UpsertAIModelPrices(ctx context.Context, seed json.RawMessag
 func (mr *MockStoreMockRecorder) UpsertAIModelPrices(ctx, seed any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAIModelPrices", reflect.TypeOf((*MockStore)(nil).UpsertAIModelPrices), ctx, seed)
+}
+
+// UpsertAISandboxSession mocks base method.
+func (m *MockStore) UpsertAISandboxSession(ctx context.Context, arg database.UpsertAISandboxSessionParams) (database.AISandboxSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAISandboxSession", ctx, arg)
+	ret0, _ := ret[0].(database.AISandboxSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertAISandboxSession indicates an expected call of UpsertAISandboxSession.
+func (mr *MockStoreMockRecorder) UpsertAISandboxSession(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAISandboxSession", reflect.TypeOf((*MockStore)(nil).UpsertAISandboxSession), ctx, arg)
 }
 
 // UpsertAISeatState mocks base method.
