@@ -869,6 +869,20 @@ $$;
 
 COMMENT ON FUNCTION compute_notification_message_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being enqueued on the same day';
 
+CREATE FUNCTION default_mcp_server_config_acl() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.group_acl = '{}'::jsonb AND NEW.user_acl = '{}'::jsonb THEN
+        NEW.group_acl := jsonb_build_object(
+            NEW.organization_id::text,
+            jsonb_build_object('permissions', jsonb_build_array('read'))
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -5079,6 +5093,8 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
      JOIN workspace_builds wb ON ((wb.job_id = pj.id)))
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
   GROUP BY pj.id, wb.workspace_id;
+
+CREATE TRIGGER default_mcp_server_config_acl BEFORE INSERT ON mcp_server_configs FOR EACH ROW EXECUTE FUNCTION default_mcp_server_config_acl();
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
