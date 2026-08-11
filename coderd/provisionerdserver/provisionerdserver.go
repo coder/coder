@@ -2179,7 +2179,10 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			taskAppID    uuid.NullUUID
 			taskAgentID  uuid.NullUUID
 		)
-		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
+		// Agents and their apps are only inserted for start builds, so for
+		// other transitions the task is linked to the build without an app to
+		// avoid referencing rows that were never created.
+		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 && workspaceBuild.Transition == database.WorkspaceTransitionStart {
 			task := tasks[0]
 			if task == nil {
 				return xerrors.Errorf("update ai task: task is nil")
