@@ -490,14 +490,17 @@ describe("api.ts", () => {
 				});
 
 			const restart = API.restartWorkspace({ workspace: MockWorkspace });
+			// Attach the rejection handler before the deadline fires so the
+			// rejection is never unhandled.
+			const rejection = expect(restart).rejects.toThrow(
+				"The workspace stopped, but the server did not start it again.",
+			);
 
 			await vi.advanceTimersByTimeAsync(179_999);
 			expect(getWorkspaceBuilds.mock.calls[0][2]?.aborted).toBe(false);
 
 			await vi.advanceTimersByTimeAsync(1);
-			await expect(restart).rejects.toThrow(
-				"The workspace stopped, but the server did not start it again.",
-			);
+			await rejection;
 			expect(getWorkspaceBuilds.mock.calls[0][2]?.aborted).toBe(true);
 		});
 	});
