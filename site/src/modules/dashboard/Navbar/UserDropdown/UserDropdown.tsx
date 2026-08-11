@@ -14,11 +14,12 @@ import { getSeverity, type UsageSeverity } from "#/utils/budget";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 
-const severityBorderClasses = {
-	normal: "border-content-secondary",
-	warning: "border-content-warning",
-	exceeded: "border-content-destructive",
-} as const satisfies Record<UsageSeverity, string>;
+// The normal state keeps the standard avatar border. Elevated states use a
+// thicker border so the change is perceivable without relying on color alone.
+const severityBorderClasses: Partial<Record<UsageSeverity, string>> = {
+	warning: "border-2 border-content-warning",
+	exceeded: "border-2 border-content-destructive",
+};
 
 interface UserDropdownProps {
 	user: TypesGen.User;
