@@ -1,5 +1,27 @@
 # Schemas
 
+## agentsdk.AISandbox
+
+```json
+{
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+  "child_agent_id": "98b149b3-c6f8-4df8-9e63-f1ed5f164d3c",
+  "egress_enforcement": "forced",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                                       | Required | Restrictions | Description |
+|----------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `ai_agent_id`        | string                                                                     | false    |              |             |
+| `child_agent_id`     | string                                                                     | false    |              |             |
+| `egress_enforcement` | [codersdk.AISandboxEgressEnforcement](#codersdkaisandboxegressenforcement) | false    |              |             |
+| `id`                 | string                                                                     | false    |              |             |
+| `name`               | string                                                                     | false    |              |             |
+
 ## agentsdk.AISandboxNetworkEvent
 
 ```json
@@ -103,6 +125,46 @@
 | `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
 | `encoding`   | string | true     |              |                                                                                                                                                  |
 | `signature`  | string | true     |              |                                                                                                                                                  |
+
+## agentsdk.CreateAISandboxRequest
+
+```json
+{
+  "egress_enforcement": "forced",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                                       | Required | Restrictions | Description                                                                                            |
+|----------------------|----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `egress_enforcement` | [codersdk.AISandboxEgressEnforcement](#codersdkaisandboxegressenforcement) | false    |              | Egress enforcement is the admin attestation declared for this sandbox. It is recorded, never verified. |
+| `name`               | string                                                                     | false    |              |                                                                                                        |
+
+## agentsdk.CreateAISandboxResponse
+
+```json
+{
+  "agent_token": "string",
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+  "child_agent_id": "98b149b3-c6f8-4df8-9e63-f1ed5f164d3c",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "reconciled": true,
+  "session_token": "string"
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description                                                                                       |
+|------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `agent_token`    | string  | false    |              |                                                                                                   |
+| `ai_agent_id`    | string  | false    |              |                                                                                                   |
+| `child_agent_id` | string  | false    |              |                                                                                                   |
+| `id`             | string  | false    |              |                                                                                                   |
+| `reconciled`     | boolean | false    |              | Reconciled reports that an existing sandbox record was reused instead of a new one being created. |
+| `session_token`  | string  | false    |              |                                                                                                   |
 
 ## agentsdk.ExternalAuthResponse
 

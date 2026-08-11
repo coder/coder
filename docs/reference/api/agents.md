@@ -1495,3 +1495,155 @@ Status Code **200**
 | `level`  | `debug`, `error`, `info`, `trace`, `warn` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List AI sandboxes
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/workspaceagents/me/ai-sandboxes \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/ai-sandboxes`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+    "child_agent_id": "98b149b3-c6f8-4df8-9e63-f1ed5f164d3c",
+    "egress_enforcement": "forced",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                      |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [agentsdk.AISandbox](schemas.md#agentsdkaisandbox) |
+
+<h3 id="list-ai-sandboxes-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                   | Type                                                                                 | Required | Restrictions | Description |
+|------------------------|--------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`         | array                                                                                | false    |              |             |
+| `» ai_agent_id`        | string(uuid)                                                                         | false    |              |             |
+| `» child_agent_id`     | string(uuid)                                                                         | false    |              |             |
+| `» egress_enforcement` | [codersdk.AISandboxEgressEnforcement](schemas.md#codersdkaisandboxegressenforcement) | false    |              |             |
+| `» id`                 | string(uuid)                                                                         | false    |              |             |
+| `» name`               | string                                                                               | false    |              |             |
+
+#### Enumerated Values
+
+| Property             | Value(s)                     |
+|----------------------|------------------------------|
+| `egress_enforcement` | `advisory`, `forced`, `none` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create or reconcile an AI sandbox
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/workspaceagents/me/ai-sandboxes \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/me/ai-sandboxes`
+
+> Body parameter
+
+```json
+{
+  "egress_enforcement": "forced",
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                         | Required | Description         |
+|--------|------|------------------------------------------------------------------------------|----------|---------------------|
+| `body` | body | [agentsdk.CreateAISandboxRequest](schemas.md#agentsdkcreateaisandboxrequest) | true     | Sandbox declaration |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_token": "string",
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+  "child_agent_id": "98b149b3-c6f8-4df8-9e63-f1ed5f164d3c",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "reconciled": true,
+  "session_token": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                         |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.CreateAISandboxResponse](schemas.md#agentsdkcreateaisandboxresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete an AI sandbox
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X DELETE http://coder-server:8080/workspaceagents/me/ai-sandboxes/{sandbox} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /workspaceagents/me/ai-sandboxes/{sandbox}`
+
+### Parameters
+
+| Name      | In   | Type         | Required | Description   |
+|-----------|------|--------------|----------|---------------|
+| `sandbox` | path | string(uuid) | true     | AI sandbox ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

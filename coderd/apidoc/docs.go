@@ -15420,9 +15420,132 @@ const docTemplate = `{
                     }
                 ]
             }
+        },
+        "/workspaceagents/me/ai-sandboxes": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "List AI sandboxes",
+                "operationId": "list-ai-sandboxes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/agentsdk.AISandbox"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Create or reconcile an AI sandbox",
+                "operationId": "create-ai-sandbox",
+                "parameters": [
+                    {
+                        "description": "Sandbox declaration",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.CreateAISandboxRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.CreateAISandboxResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/workspaceagents/me/ai-sandboxes/{sandbox}": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Delete an AI sandbox",
+                "operationId": "delete-ai-sandbox",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI sandbox ID",
+                        "name": "sandbox",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
         }
     },
     "definitions": {
+        "agentsdk.AISandbox": {
+            "type": "object",
+            "properties": {
+                "ai_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "child_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "egress_enforcement": {
+                    "$ref": "#/definitions/codersdk.AISandboxEgressEnforcement"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "agentsdk.AISandboxNetworkEvent": {
             "type": "object",
             "properties": {
@@ -15526,6 +15649,49 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.CreateAISandboxRequest": {
+            "type": "object",
+            "properties": {
+                "egress_enforcement": {
+                    "description": "EgressEnforcement is the admin attestation declared for this\nsandbox. It is recorded, never verified.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AISandboxEgressEnforcement"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.CreateAISandboxResponse": {
+            "type": "object",
+            "properties": {
+                "agent_token": {
+                    "type": "string"
+                },
+                "ai_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "child_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reconciled": {
+                    "description": "Reconciled reports that an existing sandbox record was reused\ninstead of a new one being created.",
+                    "type": "boolean"
+                },
+                "session_token": {
                     "type": "string"
                 }
             }

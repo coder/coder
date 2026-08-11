@@ -74,6 +74,21 @@ func WorkspaceAgentIdentityProfile(workspaceID uuid.UUID) Profile {
 	}
 }
 
+// SandboxIdentityProfile is the scoped session key an AI sandbox's child
+// agent uses for in-workspace CLI actions. It carries the same
+// workspace-pinned ceiling as the workspace profile, but is named per
+// sandbox so it can be rotated and revoked with that sandbox's lifecycle
+// without disturbing the enclosing workspace's key.
+func SandboxIdentityProfile(workspaceID, sandboxID uuid.UUID) Profile {
+	if workspaceID == uuid.Nil || sandboxID == uuid.Nil {
+		panic("workspace and sandbox IDs must be non-nil, this is a developer error")
+	}
+
+	profile := WorkspaceAgentIdentityProfile(workspaceID)
+	profile.TokenName = "ai-sb-" + sandboxID.String()
+	return profile
+}
+
 func validateProfile(profile Profile) (Profile, error) {
 	if len(profile.Scopes) == 0 {
 		return Profile{}, xerrors.New("AI agent profile must include at least one scope")

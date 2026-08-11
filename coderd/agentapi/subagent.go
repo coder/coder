@@ -372,14 +372,33 @@ func (a *SubAgentAPI) ListSubAgents(ctx context.Context, _ *agentproto.ListSubAg
 		return nil, err
 	}
 
-	agents := make([]*agentproto.SubAgent, len(workspaceAgents))
+	// AI sandbox children are excluded: they are owned by the sandbox
+	// lifecycle (ai_sandboxes records plus the parent-side sandbox
+	// controller), not by this API's callers. The devcontainer reconciler
+	// deletes any listed child it does not track, which would destroy a
+	// live sandbox on every agent restart.
+	//nolint:gocritic // The exclusion is a server-side safety filter over the
+	// caller's own children, not user data the sub-agent subject may read.
+	sandboxes, err := a.Database.GetAISandboxesByParentAgentID(dbauthz.AsSystemRestricted(ctx), parentAgent.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get AI sandboxes: %w", err)
+	}
+	sandboxChildren := make(map[uuid.UUID]struct{}, len(sandboxes))
+	for _, sandbox := range sandboxes {
+		sandboxChildren[sandbox.ChildAgentID] = struct{}{}
+	}
 
-	for i, agent := range workspaceAgents {
-		agents[i] = &agentproto.SubAgent{
+	agents := make([]*agentproto.SubAgent, 0, len(workspaceAgents))
+
+	for _, agent := range workspaceAgents {
+		if _, ok := sandboxChildren[agent.ID]; ok {
+			continue
+		}
+		agents = append(agents, &agentproto.SubAgent{
 			Name:      agent.Name,
 			Id:        agent.ID[:],
 			AuthToken: agent.AuthToken[:],
-		}
+		})
 	}
 
 	return &agentproto.ListSubAgentsResponse{Agents: agents}, nil
