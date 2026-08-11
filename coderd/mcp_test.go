@@ -1621,9 +1621,9 @@ func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {
 			netip.MustParsePrefix("127.0.0.1/32"),
 		},
 	})
-	_ = coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client)
 
-	_, err = client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	_, err = client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:   "SSRF Attacker",
 		Slug:          "ssrf-attacker",
 		Transport:     "streamable_http",
@@ -1642,7 +1642,7 @@ func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {
 	require.EqualValues(t, 0, canaryHits.Load(), "internal canary must never be contacted via attacker redirect")
 
 	// The partially created config must have been cleaned up.
-	configs, err := client.MCPServerConfigs(ctx)
+	configs, err := client.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	for _, config := range configs {
 		require.NotEqual(t, "ssrf-attacker", config.Slug)

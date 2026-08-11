@@ -1311,7 +1311,7 @@ func TestChats_ForceOnMCPServerEnforced(t *testing.T) {
 	_ = createChatModelConfig(t, client)
 
 	// An admin marks an MCP server as Force On.
-	forced, err := client.Client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	forced, err := client.Client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:   "Forced Server",
 		Slug:          "forced-server",
 		Transport:     "streamable_http",

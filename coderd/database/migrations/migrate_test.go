@@ -2993,10 +2993,10 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 		"the backfill aligns the declaration to what is enforced, so the enforced value must be unchanged")
 }
 
-func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
+func TestMigration000568MCPServerConfigsOrganizationID(t *testing.T) {
 	t.Parallel()
 
-	const priorMigrationVersion = 566
+	const priorMigrationVersion = 567
 
 	sqlDB := testSQLDB(t)
 	next, err := migrations.Stepper(sqlDB)
@@ -3028,7 +3028,7 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 				id, name, display_name, description, icon, created_at, updated_at,
 				is_default, deleted, default_org_member_roles
 			) VALUES ($1, $2, $3, '', '', $4, $4, false, $5, '{}')
-		`, orgID, fmt.Sprintf("migration-567-org-%d", i), fmt.Sprintf("Migration 567 Org %d", i), now, orgID == deletedOrgID)
+		`, orgID, fmt.Sprintf("migration-568-org-%d", i), fmt.Sprintf("Migration 568 Org %d", i), now, orgID == deletedOrgID)
 		require.NoError(t, err)
 	}
 
@@ -3037,14 +3037,14 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 		INSERT INTO users (
 			id, username, email, hashed_password, created_at, updated_at,
 			status, rbac_roles, login_type
-		) VALUES ($1, 'migration-567-user', 'migration-567@example.com', ''::bytea, $2, $2, 'active', '{}', 'password')
+		) VALUES ($1, 'migration-568-user', 'migration-568@example.com', ''::bytea, $2, $2, 'active', '{}', 'password')
 	`, userID, now)
 	require.NoError(t, err)
 
-	const keyDigest = "migration-567-key"
+	const keyDigest = "migration-568-key"
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO dbcrypt_keys (number, active_key_digest, test)
-		VALUES (567000, $1, 'migration-567-test')
+		VALUES (568000, $1, 'migration-568-test')
 	`, keyDigest)
 	require.NoError(t, err)
 
@@ -3053,14 +3053,14 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO ai_providers (
 			id, type, name, display_name, enabled, base_url, created_at, updated_at
-		) VALUES ($1, 'openai', 'migration-567-provider', 'Migration 567 Provider', true, 'https://provider.example.com', $2, $2)
+		) VALUES ($1, 'openai', 'migration-568-provider', 'Migration 568 Provider', true, 'https://provider.example.com', $2, $2)
 	`, providerID, now)
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO chat_model_configs (
 			id, model, display_name, ai_provider_id, context_limit,
 			compression_threshold, created_at, updated_at
-		) VALUES ($1, 'migration-567-model', 'Migration 567 Model', $2, 128000, 70, $3, $3)
+		) VALUES ($1, 'migration-568-model', 'Migration 568 Model', $2, 128000, 70, $3, $3)
 	`, modelConfigID, providerID, now)
 	require.NoError(t, err)
 
@@ -3083,14 +3083,14 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 	}
 	keyID := sql.NullString{String: keyDigest, Valid: true}
 	configs := []configSeed{
-		{id: uuid.New(), slug: "migration-567-none", authType: "none", apiKeyHeader: "Authorization", customHeaders: "{}"},
+		{id: uuid.New(), slug: "migration-568-none", authType: "none", apiKeyHeader: "Authorization", customHeaders: "{}"},
 		// Leftover OAuth fields on a non-oauth2 config: the API stores
 		// them for any auth type, so copies must clear them too.
-		{id: uuid.New(), slug: "migration-567-api-key", authType: "api_key", apiKeyHeader: "X-API-Key", apiKeyValue: "api-key-ciphertext", apiKeyValueKeyID: keyID, customHeaders: "{}", oauth2ClientID: "leftover-client-id", oauth2ClientSecret: "leftover-secret-ciphertext", oauth2ClientSecretKeyID: keyID, oauth2TokenURL: "https://oauth.example.com/leftover-token"},
-		{id: uuid.New(), slug: "migration-567-custom-headers", authType: "custom_headers", apiKeyHeader: "Authorization", customHeaders: "custom-headers-ciphertext", customHeadersKeyID: keyID},
+		{id: uuid.New(), slug: "migration-568-api-key", authType: "api_key", apiKeyHeader: "X-API-Key", apiKeyValue: "api-key-ciphertext", apiKeyValueKeyID: keyID, customHeaders: "{}", oauth2ClientID: "leftover-client-id", oauth2ClientSecret: "leftover-secret-ciphertext", oauth2ClientSecretKeyID: keyID, oauth2TokenURL: "https://oauth.example.com/leftover-token"},
+		{id: uuid.New(), slug: "migration-568-custom-headers", authType: "custom_headers", apiKeyHeader: "Authorization", customHeaders: "custom-headers-ciphertext", customHeadersKeyID: keyID},
 		{
 			id:                      uuid.New(),
-			slug:                    "migration-567-oauth2",
+			slug:                    "migration-568-oauth2",
 			authType:                "oauth2",
 			oauth2ClientID:          "oauth-client-id",
 			oauth2ClientSecret:      "oauth-secret-ciphertext",
@@ -3121,7 +3121,7 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 				$19, $19, $20, $20
 			)
 		`,
-			config.id, "Migration 567 "+config.authType, config.slug, "migration 567 config", "https://mcp.example.com/"+config.slug, config.authType,
+			config.id, "Migration 568 "+config.authType, config.slug, "migration 568 config", "https://mcp.example.com/"+config.slug, config.authType,
 			config.oauth2ClientID, config.oauth2ClientSecret, config.oauth2ClientSecretKeyID,
 			config.oauth2AuthURL, config.oauth2TokenURL, config.oauth2RevocationURL, config.oauth2Scopes,
 			config.apiKeyHeader, config.apiKeyValue, config.apiKeyValueKeyID,
@@ -3160,13 +3160,13 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 				id, owner_id, organization_id, last_model_config_id, title,
 				mcp_server_ids, created_at, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-		`, chat.id, userID, chat.organizationID, modelConfigID, fmt.Sprintf("Migration 567 Chat %d", i), pq.Array(chat.configIDs), now)
+		`, chat.id, userID, chat.organizationID, modelConfigID, fmt.Sprintf("Migration 568 Chat %d", i), pq.Array(chat.configIDs), now)
 		require.NoError(t, err)
 	}
 
 	version, _, err := next()
 	require.NoError(t, err)
-	require.EqualValues(t, 567, version)
+	require.EqualValues(t, 568, version)
 
 	var totalConfigs int
 	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs`).Scan(&totalConfigs)
@@ -3310,7 +3310,7 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 		INSERT INTO chats (
 			id, owner_id, organization_id, last_model_config_id, title,
 			mcp_server_ids, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, 'Migration 567 stale write', $5, $6, $6)
+		) VALUES ($1, $2, $3, $4, 'Migration 568 stale write', $5, $6, $6)
 	`, staleWriteChatID, userID, liveOrgIDs[0], modelConfigID, pq.Array([]uuid.UUID{configs[1].id, configs[0].id}), now)
 	require.NoError(t, err)
 	require.Equal(t,
@@ -3323,7 +3323,7 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO mcp_server_configs (
 			id, organization_id, display_name, slug, url, auth_type
-		) VALUES ($1, $2, 'Default-only config', 'migration-567-default-only', 'https://mcp.example.com/default-only', 'none')
+		) VALUES ($1, $2, 'Default-only config', 'migration-568-default-only', 'https://mcp.example.com/default-only', 'none')
 	`, defaultOnlyConfigID, defaultOrgID)
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, `
@@ -3349,7 +3349,7 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO mcp_server_configs (
 			id, organization_id, display_name, slug, url, auth_type
-		) VALUES ($1, $2, 'Org-only config', 'migration-567-org-only', 'https://mcp.example.com/org-only', 'none')
+		) VALUES ($1, $2, 'Org-only config', 'migration-568-org-only', 'https://mcp.example.com/org-only', 'none')
 	`, orgOnlyConfigID, liveOrgIDs[0])
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, `
@@ -3357,7 +3357,7 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 	`, chats[1].id, orgOnlyConfigID)
 	require.NoError(t, err)
 
-	downSQL, err := os.ReadFile("000567_mcp_server_configs_organization_id.down.sql")
+	downSQL, err := os.ReadFile("000568_mcp_server_configs_organization_id.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
