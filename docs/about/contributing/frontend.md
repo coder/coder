@@ -182,14 +182,6 @@ Components should be atomic, reusable and free of business logic. Modules are
 similar to components except that they can be more complex and can contain
 business logic specific to the product.
 
-### MUI
-
-The codebase is currently using MUI v5. Please see the
-[official documentation](https://mui.com/material-ui/getting-started/). In
-general, favor building a custom component via MUI instead of plain React/HTML,
-as MUI's suite of components is thoroughly battle-tested and accessible right
-out of the box.
-
 ### Structure
 
 Each component and module gets its own folder. Module folders may group multiple

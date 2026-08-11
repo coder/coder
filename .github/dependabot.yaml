@@ -79,9 +79,6 @@ updates:
       xterm:
         patterns:
           - "@xterm*"
-      mui:
-        patterns:
-          - "@mui*"
       react:
         patterns:
           - "react"
