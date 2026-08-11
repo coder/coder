@@ -932,9 +932,10 @@ const (
 // codersdk.FeatureAgentRuntimeHours feature; see decodeAgentRuntimeHours.
 const (
 	// ClaimAgentRuntimeHoursAllocation is the purchased runtime-hour
-	// allocation for the license term. It becomes the feature's Limit. A
-	// negative allocation is ignored, in which case the license does not
-	// grant the feature.
+	// allocation for the license term. It becomes the feature's Limit.
+	// AgentRuntimeHoursUnlimitedAllocation (-1) is reserved to mean
+	// unlimited; any other negative allocation is ignored, in which case
+	// the license does not grant the feature.
 	ClaimAgentRuntimeHoursAllocation = "agent_runtime_hours_allocation"
 	// ClaimAgentRuntimeHoursLimitSoft is the advisory warning threshold. It
 	// becomes the feature's SoftLimit when 0 < soft < allocation and is
@@ -945,6 +946,12 @@ const (
 	// hard >= allocation, and is ignored otherwise.
 	ClaimAgentRuntimeHoursLimitHard = "agent_runtime_hours_limit_hard"
 )
+
+// AgentRuntimeHoursUnlimitedAllocation is the reserved
+// ClaimAgentRuntimeHoursAllocation value meaning the license grants
+// unlimited runtime hours. It decodes to an enabled feature with a nil
+// Limit. Mirrored in github.com/coder/license.
+const AgentRuntimeHoursUnlimitedAllocation int64 = -1
 
 var (
 	ValidMethods = []string{"EdDSA"}
@@ -991,6 +998,15 @@ func isAgentRuntimeHoursClaim(name codersdk.FeatureName) bool {
 // claims, but Actual is still measured and published. CODAGT-856 will make a
 // zero allocation force a concurrency-limited mode; that mode does not exist
 // yet.
+//
+// An AgentRuntimeHoursUnlimitedAllocation (-1) allocation grants the feature
+// enabled with a nil Limit, meaning unlimited. Threshold claims alongside it
+// have nothing to threshold against, so they are dropped with the warning,
+// keeping an incorrectly issued license visible. Note that
+// codersdk.Feature.Compare ranks a nil Limit below a set one, so on an exact
+// issued-at and expiry tie a metered license outranks an unlimited one; ties
+// never happen for separately issued licenses, so this edge is documented
+// rather than special-cased.
 func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (feature codersdk.Feature, granted bool, ignoredClaims []string) {
 	if _, ok := features[codersdk.FeatureAgentRuntimeHours]; ok {
 		ignoredClaims = append(ignoredClaims, string(codersdk.FeatureAgentRuntimeHours))
@@ -999,6 +1015,20 @@ func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement
 	allocation, allocOk := features[ClaimAgentRuntimeHoursAllocation]
 	soft, softOk := features[ClaimAgentRuntimeHoursLimitSoft]
 	hard, hardOk := features[ClaimAgentRuntimeHoursLimitHard]
+
+	if allocOk && allocation == AgentRuntimeHoursUnlimitedAllocation {
+		if softOk {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitSoft)
+		}
+		if hardOk {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitHard)
+		}
+		return codersdk.Feature{
+			Enabled:     true,
+			Entitlement: entitlement,
+			UsagePeriod: &usagePeriod,
+		}, true, ignoredClaims
+	}
 
 	if !allocOk || allocation < 0 {
 		if allocOk && allocation < 0 {
