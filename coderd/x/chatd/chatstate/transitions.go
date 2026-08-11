@@ -183,10 +183,7 @@ type executionStateUpdate struct {
 	LastError                pqtype.NullRawMessage
 	RequiresActionDeadlineAt sql.NullTime
 	CompactionRequestedAt    sql.NullTime
-	// GrantHistoryEpoch gives a turn that inserts no history the same
-	// fresh retry budget and message part episode keys a history
-	// change would grant.
-	GrantHistoryEpoch bool
+	GrantHistoryEpoch        bool
 }
 
 func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error) {
