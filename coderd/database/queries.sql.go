@@ -6135,7 +6135,7 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
-const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
+const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :one
 UPDATE
     chat_model_configs
 SET
@@ -6144,11 +6144,31 @@ SET
     updated_at = NOW()
 WHERE
     id = $1::uuid
+    AND deleted = FALSE
+RETURNING id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
 `
 
-func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatModelConfigByID, id)
-	return err
+func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, deleteChatModelConfigByID, id)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+	)
+	return i, err
 }
 
 const deleteChatModelConfigsByAIProviderID = `-- name: DeleteChatModelConfigsByAIProviderID :exec

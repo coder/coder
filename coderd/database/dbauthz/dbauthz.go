@@ -2217,9 +2217,9 @@ func (q *querier) DeleteChatDebugDataByChatID(ctx context.Context, arg database.
 	return q.db.DeleteChatDebugDataByChatID(ctx, arg)
 }
 
-func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
+		return database.ChatModelConfig{}, err
 	}
 	return q.db.DeleteChatModelConfigByID(ctx, id)
 }

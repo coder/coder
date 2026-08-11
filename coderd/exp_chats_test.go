@@ -443,80 +443,91 @@ func (s *lockSwitchChatPlanModeInstructionsStore) GetChatPlanModeInstructions(ct
 	return instructions, err
 }
 
-// failNextUpdateChatModelConfigStore shares its failure state across InTx
-// wrappers so tests can force a specific in-transaction model-config update to
-// return sql.ErrNoRows.
-type failNextUpdateChatModelConfigStore struct {
+// chatModelConfigHookStore forces a specific in-transaction chat model config
+// operation to behave abnormally. Each hook targets one ID and consumes
+// itself on first match. The single-consume gate uses atomic.Pointer so a
+// concurrent InTx wrapper cannot race with the arming goroutine.
+type chatModelConfigHookStore struct {
 	database.Store
 
-	failNextUpdateChatModelConfig   *atomic.Bool
-	failNextUpdateChatModelConfigID uuid.UUID
+	inTx bool
+
+	failNextUpdate      *atomic.Pointer[uuid.UUID]
+	vanishAtLockedRead  *atomic.Pointer[uuid.UUID]
+	mutateAtLockedRead  *atomic.Pointer[uuid.UUID]
+	mutateAtLockedModel string
 }
 
-func newFailNextUpdateChatModelConfigStore(store database.Store) *failNextUpdateChatModelConfigStore {
-	return &failNextUpdateChatModelConfigStore{
-		Store:                         store,
-		failNextUpdateChatModelConfig: &atomic.Bool{},
+func newChatModelConfigHookStore(store database.Store) *chatModelConfigHookStore {
+	return &chatModelConfigHookStore{
+		Store:              store,
+		failNextUpdate:     &atomic.Pointer[uuid.UUID]{},
+		vanishAtLockedRead: &atomic.Pointer[uuid.UUID]{},
+		mutateAtLockedRead: &atomic.Pointer[uuid.UUID]{},
 	}
 }
 
-func (s *failNextUpdateChatModelConfigStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+func (s *chatModelConfigHookStore) armFailNextUpdate(id uuid.UUID) {
+	s.failNextUpdate.Store(&id)
+}
+
+func (s *chatModelConfigHookStore) armVanishAtLockedRead(id uuid.UUID) {
+	s.vanishAtLockedRead.Store(&id)
+}
+
+func (s *chatModelConfigHookStore) armMutateAtLockedRead(id uuid.UUID, model string) {
+	s.mutateAtLockedModel = model
+	s.mutateAtLockedRead.Store(&id)
+}
+
+func (s *chatModelConfigHookStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
-		return function(&failNextUpdateChatModelConfigStore{
-			Store:                           tx,
-			failNextUpdateChatModelConfig:   s.failNextUpdateChatModelConfig,
-			failNextUpdateChatModelConfigID: s.failNextUpdateChatModelConfigID,
+		return function(&chatModelConfigHookStore{
+			Store:               tx,
+			inTx:                true,
+			failNextUpdate:      s.failNextUpdate,
+			vanishAtLockedRead:  s.vanishAtLockedRead,
+			mutateAtLockedRead:  s.mutateAtLockedRead,
+			mutateAtLockedModel: s.mutateAtLockedModel,
 		})
 	}, txOpts)
 }
 
-func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
+func consumeChatModelConfigHook(hook *atomic.Pointer[uuid.UUID], id uuid.UUID) bool {
+	target := hook.Load()
+	if target == nil || *target != id {
+		return false
+	}
+	return hook.CompareAndSwap(target, nil)
+}
+
+func (s *chatModelConfigHookStore) UpdateChatModelConfig(
 	ctx context.Context,
 	arg database.UpdateChatModelConfigParams,
 ) (database.ChatModelConfig, error) {
-	if arg.ID == s.failNextUpdateChatModelConfigID &&
-		s.failNextUpdateChatModelConfig.CompareAndSwap(true, false) {
+	if consumeChatModelConfigHook(s.failNextUpdate, arg.ID) {
 		return database.ChatModelConfig{}, sql.ErrNoRows
 	}
 	return s.Store.UpdateChatModelConfig(ctx, arg)
 }
 
-// vanishInTxChatModelConfigStore makes a model-config read return
-// sql.ErrNoRows only inside a transaction, so a handler's pre-transaction
-// read succeeds while its locked re-read observes the row as already gone.
-type vanishInTxChatModelConfigStore struct {
-	database.Store
-
-	inTx                        bool
-	vanishInTxChatModelConfig   *atomic.Bool
-	vanishInTxChatModelConfigID uuid.UUID
-}
-
-func newVanishInTxChatModelConfigStore(store database.Store) *vanishInTxChatModelConfigStore {
-	return &vanishInTxChatModelConfigStore{
-		Store:                     store,
-		vanishInTxChatModelConfig: &atomic.Bool{},
-	}
-}
-
-func (s *vanishInTxChatModelConfigStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
-	return s.Store.InTx(func(tx database.Store) error {
-		return function(&vanishInTxChatModelConfigStore{
-			Store:                       tx,
-			inTx:                        true,
-			vanishInTxChatModelConfig:   s.vanishInTxChatModelConfig,
-			vanishInTxChatModelConfigID: s.vanishInTxChatModelConfigID,
-		})
-	}, txOpts)
-}
-
-func (s *vanishInTxChatModelConfigStore) GetChatModelConfigByID(
+func (s *chatModelConfigHookStore) GetChatModelConfigByID(
 	ctx context.Context,
 	id uuid.UUID,
 ) (database.ChatModelConfig, error) {
-	if s.inTx && id == s.vanishInTxChatModelConfigID &&
-		s.vanishInTxChatModelConfig.CompareAndSwap(true, false) {
+	if s.inTx && consumeChatModelConfigHook(s.vanishAtLockedRead, id) {
 		return database.ChatModelConfig{}, sql.ErrNoRows
+	}
+	if s.inTx {
+		target := s.mutateAtLockedRead.Load()
+		if target != nil && *target == id && s.mutateAtLockedRead.CompareAndSwap(target, nil) {
+			row, err := s.Store.GetChatModelConfigByID(ctx, id)
+			if err != nil {
+				return row, err
+			}
+			row.Model = s.mutateAtLockedModel
+			return row, nil
+		}
 	}
 	return s.Store.GetChatModelConfigByID(ctx, id)
 }
@@ -5168,7 +5179,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		store := newChatModelConfigHookStore(rawDB)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
@@ -5179,8 +5190,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		store.failNextUpdateChatModelConfigID = modelConfig.ID
-		store.failNextUpdateChatModelConfig.Store(true)
+		store.armFailNextUpdate(modelConfig.ID)
 
 		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			DisplayName: "missing in tx",
@@ -5193,7 +5203,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextUpdateChatModelConfigStore(rawDB)
+		store := newChatModelConfigHookStore(rawDB)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
@@ -5216,8 +5226,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		store.failNextUpdateChatModelConfigID = candidateConfig.ID
-		store.failNextUpdateChatModelConfig.Store(true)
+		store.armFailNextUpdate(candidateConfig.ID)
 
 		_, err = client.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			IsDefault: ptr.Ref(false),
@@ -5255,15 +5264,14 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.Equal(t, "Context limit must be greater than zero.", sdkErr.Message)
 	})
 
-	// The handler re-reads the target inside the write transaction. A row
-	// that disappears between the pre-read and the locked read is a miss,
-	// not a silent no-op update.
-	t.Run("NotFoundWhenTargetRowDisappearsBeforeUpdate", func(t *testing.T) {
+	// A row that disappears between the pre-read and the locked read must
+	// 404, not silently no-op the update.
+	t.Run("NotFoundWhenTargetRowDisappearsAtLockedRead", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newVanishInTxChatModelConfigStore(rawDB)
+		store := newChatModelConfigHookStore(rawDB)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
@@ -5274,13 +5282,117 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		store.vanishInTxChatModelConfigID = modelConfig.ID
-		store.vanishInTxChatModelConfig.Store(true)
+		store.armVanishAtLockedRead(modelConfig.ID)
 
 		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			DisplayName: "vanished before update",
 		})
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	// Swapping Model at the locked read to a sentinel forces the response
+	// to carry the sentinel when the merge reads the locked row.
+	t.Run("MergesFromLockedCopy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newChatModelConfigHookStore(rawDB)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const sentinel = "locked-copy-sentinel-model"
+		store.armMutateAtLockedRead(modelConfig.ID, sentinel)
+
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "only-display-name",
+		})
+		require.NoError(t, err)
+		require.Equal(t, sentinel, updated.Model)
+		require.Equal(t, "only-display-name", updated.DisplayName)
+	})
+
+	// The generic "provider is not configured" fallback for the stored
+	// provider hides the real cause; report the disabled state instead.
+	t.Run("StoredProviderDisabledOnModelOnlyUpdate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		disabled := false
+		_, err := client.UpdateAIProvider(ctx, modelConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: &disabled,
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Model: "gpt-4o-different",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusPreconditionFailed)
+		require.Equal(t, "AI provider is disabled.", sdkErr.Message)
+	})
+
+	t.Run("CompressionThresholdOutOfRange", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			CompressionThreshold: ptr.Ref(int32(150)),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid compression threshold.", sdkErr.Message)
+	})
+
+	t.Run("CompressionThresholdInRange", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			CompressionThreshold: ptr.Ref(int32(55)),
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(55), updated.CompressionThreshold)
+	})
+
+	t.Run("ModelConfigUpdated", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref("high"),
+					Max:     ptr.Ref("high"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.ModelConfig)
+		require.NotNil(t, updated.ModelConfig.ReasoningEffort)
+		require.NotNil(t, updated.ModelConfig.ReasoningEffort.Default)
+		require.Equal(t, "high", *updated.ModelConfig.ReasoningEffort.Default)
 	})
 
 	t.Run("InvalidModelConfigID", func(t *testing.T) {
@@ -5393,16 +5505,14 @@ func TestDeleteChatModelConfig(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	// Deleting a row that disappears between the pre-read and the locked
-	// re-read reports a miss. DeleteChatModelConfigByID is an unguarded
-	// UPDATE, so without the locked read the request would report success
-	// for a row it did not delete.
-	t.Run("NotFoundWhenTargetRowDisappearsInTx", func(t *testing.T) {
+	// The DELETE query guards on `deleted = FALSE` and returns
+	// sql.ErrNoRows for a miss; the locked re-read maps that to 404.
+	t.Run("NotFoundWhenTargetRowDisappearsAtLockedRead", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newVanishInTxChatModelConfigStore(rawDB)
+		store := newChatModelConfigHookStore(rawDB)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
@@ -5413,8 +5523,7 @@ func TestDeleteChatModelConfig(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		store.vanishInTxChatModelConfigID = modelConfig.ID
-		store.vanishInTxChatModelConfig.Store(true)
+		store.armVanishAtLockedRead(modelConfig.ID)
 
 		err := client.DeleteChatModelConfig(ctx, modelConfig.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -12699,10 +12808,11 @@ func seedChatWithDeletedModelConfig(
 		Title:             "chat without model config",
 	})
 	seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
-	require.NoError(t, db.DeleteChatModelConfigByID(
+	_, err := db.DeleteChatModelConfigByID(
 		dbauthz.AsSystemRestricted(ctx),
 		modelConfig.ID,
-	))
+	)
+	require.NoError(t, err)
 	return chat
 }
 

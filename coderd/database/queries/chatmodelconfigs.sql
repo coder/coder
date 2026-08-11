@@ -123,7 +123,7 @@ WHERE
     is_default = TRUE
     AND deleted = FALSE;
 
--- name: DeleteChatModelConfigByID :exec
+-- name: DeleteChatModelConfigByID :one
 UPDATE
     chat_model_configs
 SET
@@ -131,7 +131,9 @@ SET
     deleted_at = NOW(),
     updated_at = NOW()
 WHERE
-    id = @id::uuid;
+    id = @id::uuid
+    AND deleted = FALSE
+RETURNING *;
 
 -- name: DeleteChatModelConfigsByAIProviderID :exec
 UPDATE
