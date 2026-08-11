@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -19,10 +20,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/confine"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -232,6 +235,148 @@ func TestWorkspaceAgent(t *testing.T) {
 				strings.Contains(logStr, "debug address is empty, disabling debug server")
 		}, testutil.WaitLong, testutil.IntervalMedium)
 	})
+}
+
+func TestWorkspaceAgent_AISandbox(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("AI sandbox controller integration requires Linux")
+	}
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	tempDir := t.TempDir()
+	logDir := filepath.Join(tempDir, "logs")
+	require.NoError(t, os.MkdirAll(logDir, 0o755))
+	envFile := filepath.Join(tempDir, "sandbox.env")
+	destroyMarker := filepath.Join(tempDir, "destroyed")
+	createScript := filepath.Join(tempDir, "create-sandbox")
+	destroyScript := filepath.Join(tempDir, "destroy-sandbox")
+	require.NoError(t, os.WriteFile(createScript, []byte(fmt.Sprintf("#!/bin/sh\nenv > %q\n", envFile)), 0o600))
+	require.NoError(t, os.Chmod(createScript, 0o700))
+	require.NoError(t, os.WriteFile(destroyScript, []byte(fmt.Sprintf("#!/bin/sh\nprintf destroyed > %q\n", destroyMarker)), 0o600))
+	require.NoError(t, os.Chmod(destroyScript, 0o700))
+
+	processLog, err := os.Create(filepath.Join(tempDir, "process.log"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = processLog.Close()
+	})
+	//nolint:gosec // Arguments contain only test-controlled values and coderdtest credentials.
+	cmd := exec.CommandContext(context.Background(), "go", "run", "./cmd/coder",
+		"agent",
+		"--auth", "token",
+		"--agent-token", workspace.AgentToken,
+		"--agent-url", client.URL.String(),
+		"--log-dir", logDir,
+		"--log-human", "",
+		"--pprof-address", "",
+		"--prometheus-address", "",
+		"--debug-address", "",
+		"--socket-server-enabled=false",
+		"--devcontainers-enable=false",
+	)
+	cmd.Dir = ".."
+	configureProcessGroup(cmd)
+	cmd.Env = append(os.Environ(),
+		confine.EnvAISandboxCreateScript+"="+createScript,
+		confine.EnvAISandboxDestroyScript+"="+destroyScript,
+		confine.EnvAISandboxEgressEnforcement+"=advisory",
+	)
+	cmd.Stdout = processLog
+	cmd.Stderr = processLog
+	require.NoError(t, cmd.Start())
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	stopped := false
+	t.Cleanup(func() {
+		if stopped {
+			return
+		}
+		_ = interruptProcessGroup(cmd)
+		select {
+		case <-done:
+		case <-time.After(testutil.WaitMedium):
+			_ = killProcessGroup(cmd)
+			<-done
+		}
+	})
+
+	var sandboxes []database.AISandbox
+	eventuallyCtx := testutil.Context(t, testutil.WaitSuperLong)
+	require.True(t, testutil.Eventually(eventuallyCtx, t, func(ctx context.Context) bool {
+		var err error
+		sandboxes, err = db.GetAISandboxesByWorkspaceID(dbauthz.AsSystemRestricted(ctx), workspace.Workspace.ID)
+		return err == nil && len(sandboxes) == 1
+	}, testutil.IntervalFast))
+	sandbox := sandboxes[0]
+
+	child, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(eventuallyCtx), sandbox.ChildAgentID)
+	require.NoError(t, err)
+	require.True(t, child.AIAgentID.Valid)
+	require.Equal(t, sandbox.AIAgentID, child.AIAgentID.UUID)
+
+	var environment map[string]string
+	require.True(t, testutil.Eventually(eventuallyCtx, t, func(context.Context) bool {
+		contents, err := os.ReadFile(envFile)
+		if err != nil {
+			return false
+		}
+		environment = parseAgentEnvironment(string(contents))
+		return true
+	}, testutil.IntervalFast))
+	require.Equal(t, client.URL.String(), environment[confine.EnvAIAgentURL])
+	require.NotEmpty(t, environment[confine.EnvAIAgentToken])
+	require.NotEmpty(t, environment[confine.EnvAISessionToken])
+	require.Equal(t, sandbox.ID.String(), environment[confine.EnvSandboxID])
+	_, _, err = net.SplitHostPort(environment[confine.EnvEgressProxy])
+	require.NoError(t, err)
+
+	var sessions []codersdk.AISandboxSession
+	require.True(t, testutil.Eventually(eventuallyCtx, t, func(ctx context.Context) bool {
+		var err error
+		sessions, err = client.WorkspaceAISandboxSessions(ctx, workspace.Workspace.ID)
+		return err == nil && len(sessions) == 1
+	}, testutil.IntervalFast))
+	require.Equal(t, sandbox.ChildAgentID, sessions[0].ConfinedAgentID)
+	require.Nil(t, sessions[0].EndedAt)
+
+	require.NoError(t, interruptProcessGroup(cmd))
+	shutdownCtx := testutil.Context(t, testutil.WaitSuperLong)
+	select {
+	case <-done:
+		stopped = true
+	case <-shutdownCtx.Done():
+		require.NoError(t, shutdownCtx.Err(), "agent process did not stop")
+	}
+
+	closedCtx := testutil.Context(t, testutil.WaitLong)
+	require.True(t, testutil.Eventually(closedCtx, t, func(ctx context.Context) bool {
+		marker, err := os.ReadFile(destroyMarker)
+		if err != nil || string(marker) != "destroyed" {
+			return false
+		}
+		sessions, err = client.WorkspaceAISandboxSessions(ctx, workspace.Workspace.ID)
+		return err == nil && len(sessions) == 1 && sessions[0].EndedAt != nil
+	}, testutil.IntervalFast))
+}
+
+func parseAgentEnvironment(contents string) map[string]string {
+	environment := make(map[string]string)
+	for line := range strings.Lines(contents) {
+		key, value, ok := strings.Cut(strings.TrimSuffix(line, "\n"), "=")
+		if ok {
+			environment[key] = value
+		}
+	}
+	return environment
 }
 
 func TestWorkspaceAgent_ConfineProxy(t *testing.T) {

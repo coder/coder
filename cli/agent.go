@@ -250,6 +250,50 @@ func workspaceAgent() *serpent.Command {
 			if err != nil {
 				return err
 			}
+			execer, err := agentexec.NewExecer()
+			if err != nil {
+				return xerrors.Errorf("create agent execer: %w", err)
+			}
+
+			// This is the interim declaration surface until the Terraform
+			// coder_ai_sandbox resource is available.
+			if _, ok := os.LookupEnv(confine.EnvAISandboxCreateScript); ok {
+				declaration, err := confine.SandboxDeclarationFromEnv(os.LookupEnv)
+				if err != nil {
+					return xerrors.Errorf("parse AI sandbox declaration: %w", err)
+				}
+				sandboxLogger := logger.Named("ai-sandbox")
+				controller, err := confine.NewSandboxController(confine.SandboxControllerOptions{
+					Declaration: declaration,
+					Client:      client,
+					Logger:      sandboxLogger,
+					LogDir:      logDir,
+					AccessURL:   client.SDK.URL,
+					Execer:      execer,
+				})
+				if err != nil {
+					return xerrors.Errorf("create AI sandbox controller: %w", err)
+				}
+
+				sandboxCtx, sandboxCancel := context.WithCancel(ctx)
+				sandboxDone := make(chan struct{})
+				go func() {
+					defer close(sandboxDone)
+					if err := controller.Run(sandboxCtx); err != nil {
+						sandboxLogger.Error(context.Background(), "ai sandbox controller failed", slog.Error(err))
+					}
+				}()
+				defer func() {
+					sandboxCancel()
+					timer := time.NewTimer(90 * time.Second)
+					defer timer.Stop()
+					select {
+					case <-sandboxDone:
+					case <-timer.C:
+						sandboxLogger.Warn(context.Background(), "timed out waiting for AI sandbox shutdown")
+					}
+				}()
+			}
 
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
@@ -311,11 +355,6 @@ func workspaceAgent() *serpent.Command {
 					slog.F("enabled", enabled),
 					slog.F("os", runtime.GOOS),
 				)
-			}
-
-			execer, err := agentexec.NewExecer()
-			if err != nil {
-				return xerrors.Errorf("create agent execer: %w", err)
 			}
 
 			if devcontainers {
