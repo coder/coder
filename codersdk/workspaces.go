@@ -633,7 +633,7 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 }
 
 // WorkspacePageSize is the number of rows AllWorkspaces requests per page.
-const WorkspacePageSize = 100
+const WorkspacePageSize = MaxPaginationLimit
 
 // AllWorkspaces requests successive pages of workspaces matching the filter and
 // returns every row. Limit and Offset on the filter are ignored.

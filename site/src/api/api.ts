@@ -48,7 +48,7 @@ export const SessionTokenCookie = "coder_session_token";
 /**
  * WORKSPACE_PAGE_SIZE is the number of rows getAllWorkspaces requests per page.
  */
-export const WORKSPACE_PAGE_SIZE = 100;
+export const WORKSPACE_PAGE_SIZE = TypesGen.MaxPaginationLimit;
 
 /**
  * @param agentId
@@ -672,6 +672,32 @@ class ApiMethods {
 			await this.axios.get<TypesGen.PaginatedMembersResponse>(url);
 
 		return response.data;
+	};
+
+	/**
+	 * Requests successive pages of organization members until the offset reaches
+	 * the total the server reports.
+	 *
+	 * @param organization Can be the organization's ID or name
+	 */
+	getAllOrganizationMembers = async (
+		organization: string,
+		options: Omit<TypesGen.UsersRequest, "limit" | "offset"> = {},
+	): Promise<TypesGen.PaginatedMembersResponse> => {
+		const members: TypesGen.OrganizationMemberWithUserData[] = [];
+		let count = 0;
+		let offset = 0;
+		do {
+			const page = await this.getOrganizationPaginatedMembers(organization, {
+				...options,
+				limit: TypesGen.MaxPaginationLimit,
+				offset,
+			});
+			members.push(...page.members);
+			count = page.count;
+			offset += TypesGen.MaxPaginationLimit;
+		} while (offset < count);
+		return { members, count };
 	};
 
 	/**

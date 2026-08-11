@@ -5952,6 +5952,14 @@ export const MaxChatFileIDs = 50;
  */
 export const MaxChatFileSizeBytes = 10485760;
 
+// From codersdk/pagination.go
+/**
+ * MaxPaginationLimit is the largest page size the server accepts. An omitted
+ * limit resolves to this value. A limit that is set must be a positive integer
+ * no greater than this, so the resulting query is always bounded.
+ */
+export const MaxPaginationLimit = 100;
+
 // From codersdk/usersecretsimport.go
 /**
  * MaxSecretsFileBytes bounds the raw size of a secrets file before parsing.
@@ -6985,10 +6993,10 @@ export interface Pagination {
 	readonly after_id?: string;
 	/**
 	 * Limit sets the maximum number of results returned in a single page.
-	 * When set, it must be a positive integer no greater than the server's
-	 * maximum page size, otherwise the request is rejected. A value of 0
+	 * When set, it must be a positive integer no greater than
+	 * MaxPaginationLimit, otherwise the request is rejected. A value of 0
 	 * omits the query parameter entirely, and the server resolves the page
-	 * size to its maximum.
+	 * size to MaxPaginationLimit.
 	 */
 	readonly limit?: number;
 	/**
@@ -11346,6 +11354,12 @@ export interface WorkspaceHealth {
 export interface WorkspaceOptions {
 	readonly include_deleted?: boolean;
 }
+
+// From codersdk/workspaces.go
+/**
+ * WorkspacePageSize is the number of rows AllWorkspaces requests per page.
+ */
+export const WorkspacePageSize = 100;
 
 // From codersdk/workspaceproxy.go
 export interface WorkspaceProxy extends Region {

@@ -93,6 +93,30 @@ export const organizationMembers = (id: string, req: UsersRequest) => {
 	};
 };
 
+type AllOrganizationMembersRequest = Omit<UsersRequest, "limit" | "offset">;
+
+export const allOrganizationMembersKey = (
+	id: string,
+	req: AllOrganizationMembersRequest,
+) => ["organization", id, "members", { ...req, all: true }];
+
+/**
+ * Creates a query configuration that fetches every page of an organization's
+ * members. Prefer a server-side search filter and a single page when the caller
+ * can express one.
+ *
+ * @param id - The unique identifier of the organization
+ */
+export const allOrganizationMembers = (
+	id: string,
+	req: AllOrganizationMembersRequest = {},
+) => {
+	return {
+		queryFn: () => API.getAllOrganizationMembers(id, req),
+		queryKey: allOrganizationMembersKey(id, req),
+	};
+};
+
 export const paginatedOrganizationMembers = (
 	id: string,
 	searchParams: URLSearchParams,

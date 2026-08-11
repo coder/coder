@@ -1,7 +1,7 @@
 import { type FC, useId, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import { organizationMembers } from "#/api/queries/organizations";
+import { allOrganizationMembers } from "#/api/queries/organizations";
 import { users, workspaceAvailableUsers } from "#/api/queries/users";
 import type {
 	MinimalUser,
@@ -79,7 +79,7 @@ export const MemberAutocomplete: FC<MemberAutocompleteProps> = ({
 	const [filter, setFilter] = useState<string>();
 
 	const membersQuery = useQuery({
-		...organizationMembers(organizationId, { limit: 0 }),
+		...allOrganizationMembers(organizationId),
 		enabled: filter !== undefined,
 		placeholderData: keepPreviousData,
 	});

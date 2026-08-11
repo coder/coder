@@ -266,7 +266,7 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	eg.Go(func() error {
 		var (
 			offset int
-			limit  = 200
+			limit  = codersdk.MaxPaginationLimit
 			all    []codersdk.Workspace
 			count  int
 		)

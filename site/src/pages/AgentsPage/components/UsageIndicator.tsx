@@ -69,7 +69,8 @@ export const UsageIndicator: FC = () => {
 	const workspacesQuery = useQuery({
 		...workspaces({
 			q: `owner:me organization:${organizationName}`,
-			limit: 0,
+			// Only the count is read, so request the smallest valid page.
+			limit: 1,
 		}),
 		enabled: hasWorkspaceQuotaUsage && organizationName !== "",
 	});
