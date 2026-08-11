@@ -24,7 +24,13 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 
 	const { limit, soft_limit: softLimit, actual } = feature;
 
-	if (limit === undefined || limit < 0) {
+	// An enabled feature with the limit omitted is the unlimited
+	// allocation: the license grants unlimited runtime hours and carries no
+	// thresholds, so the bar renders full and neutral like
+	// SeatUsageBarCard's allowUnlimited state.
+	const isUnlimited = limit === undefined;
+
+	if (!isUnlimited && limit < 0) {
 		return (
 			<section className="border border-solid rounded">
 				<div className="p-4">
@@ -34,22 +40,33 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		);
 	}
 
+	const meteredLimit = limit ?? 0;
 	const usedHours = actual ?? 0;
 	// The backend warns with >= for both thresholds, so "reached" (not
-	// "exceeded") flips the bar color.
-	const reachedAllocation = actual !== undefined && usedHours >= limit;
+	// "exceeded") flips the bar color. An unlimited allocation has no
+	// thresholds to reach.
+	const reachedAllocation =
+		!isUnlimited && actual !== undefined && usedHours >= meteredLimit;
 	const reachedSoftLimit =
-		!reachedAllocation && softLimit !== undefined && usedHours >= softLimit;
-	const usagePercentage =
-		limit > 0 ? Math.min((usedHours / limit) * 100, 100) : 0;
+		!isUnlimited &&
+		!reachedAllocation &&
+		softLimit !== undefined &&
+		usedHours >= softLimit;
+	const usagePercentage = isUnlimited
+		? 100
+		: meteredLimit > 0
+			? Math.min((usedHours / meteredLimit) * 100, 100)
+			: 0;
 
 	const usedLabel =
 		actual === undefined ? "\u2014" : usedHours.toLocaleString("en-US");
-	const limitLabel = limit.toLocaleString("en-US");
+	const limitLabel = isUnlimited
+		? "Unlimited"
+		: meteredLimit.toLocaleString("en-US");
 
 	const softLimitPercent =
-		softLimit !== undefined && limit > 0
-			? Math.round((softLimit / limit) * 100)
+		!isUnlimited && softLimit !== undefined && meteredLimit > 0
+			? Math.round((softLimit / meteredLimit) * 100)
 			: undefined;
 
 	let tooltip: string;

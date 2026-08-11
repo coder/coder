@@ -159,11 +159,42 @@ export const Disabled: Story = {
 	},
 };
 
+// An enabled feature with the limit omitted means the license grants
+// unlimited runtime hours: the bar renders full and neutral with no
+// threshold copy in the tooltip, mirroring SeatUsageBarCard's unlimited
+// state.
+export const Unlimited: Story = {
+	args: {
+		feature: {
+			enabled: true,
+			entitlement: "entitled",
+			actual: 1200,
+		} satisfies Feature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("1,200")).toBeInTheDocument();
+		await expect(canvas.getByText("Unlimited")).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Invalid license usage limits"),
+		).not.toBeInTheDocument();
+		const body = await hoverInfoIcon(canvasElement);
+		await expectTooltipText(
+			body,
+			/^Total time agents have been working across all workspaces this license\.$/,
+		);
+	},
+};
+
 export const ErrorInvalidLimit: Story = {
 	args: {
 		feature: {
 			enabled: true,
 			entitlement: "entitled",
+			// A negative limit can only come from a decoding bug: the
+			// claim-level unlimited sentinel decodes to an omitted limit,
+			// never a negative one.
+			limit: -100,
 			actual: 100,
 		} satisfies Feature,
 	},
