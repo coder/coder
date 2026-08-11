@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/connectionlog"
@@ -3755,6 +3756,99 @@ func TestReinit(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
 	})
+}
+
+func TestWorkspaceAgentAIBindingCredentialStarvation(t *testing.T) {
+	t.Parallel()
+
+	providerID := "ai-binding-" + uuid.NewString()
+	accessToken := uuid.NewString()
+	secretValue := uuid.NewString()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ExternalAuthConfigs: []*externalauth.Config{
+			fakeExternalAuthConfig(providerID, accessToken, regexp.MustCompile(`.*`)),
+		},
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:  owner.UserID,
+		Name:    "ai-binding-secret",
+		Value:   secretValue,
+		EnvName: "AI_BINDING_SECRET",
+	})
+	dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+		ProviderID:       providerID,
+		UserID:           owner.UserID,
+		OAuthAccessToken: accessToken,
+		OAuthExpiry:      dbtime.Now().Add(24 * time.Hour),
+	})
+
+	newWorkspaceAgent := func(t *testing.T) dbfake.WorkspaceResponse {
+		t.Helper()
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        owner.UserID,
+		}).WithAgent().Do()
+	}
+	unbound := newWorkspaceAgent(t)
+	bound := newWorkspaceAgent(t)
+
+	agentUser, _, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        owner.UserID,
+		OrganizationID: owner.OrganizationID,
+		OriginType:     database.AIAgentOriginWorkspace,
+		OriginID:       uuid.New(),
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateWorkspaceAgentAIAgentID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentAIAgentIDParams{
+		ID:        bound.Agents[0].ID,
+		AIAgentID: uuid.NullUUID{UUID: agentUser.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	unboundClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(unbound.AgentToken))
+	boundClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(bound.AgentToken))
+
+	manifestSecrets := func(t *testing.T, agentClient *agentsdk.Client) []agentsdk.WorkspaceSecret {
+		t.Helper()
+		conn, err := agentClient.ConnectRPC(ctx)
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, conn.Close())
+		}()
+
+		manifest, err := agentproto.NewDRPCAgentClient(conn).GetManifest(ctx, &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+		return agentsdk.SecretsFromProto(manifest.Secrets)
+	}
+
+	unboundSecrets := manifestSecrets(t, unboundClient)
+	require.Len(t, unboundSecrets, 1)
+	require.Equal(t, secretValue, string(unboundSecrets[0].Value))
+	require.Empty(t, manifestSecrets(t, boundClient))
+
+	resp, err := unboundClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{ID: providerID})
+	require.NoError(t, err)
+	require.Equal(t, accessToken, resp.AccessToken)
+
+	_, err = boundClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{ID: providerID})
+	require.Error(t, err)
+	var externalAuthErr *codersdk.Error
+	require.ErrorAs(t, err, &externalAuthErr)
+	require.Equal(t, http.StatusForbidden, externalAuthErr.StatusCode())
+	require.Contains(t, externalAuthErr.Message, "MCP gateway")
+
+	key, err := unboundClient.GitSSHKey(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, key.PrivateKey)
+
+	_, err = boundClient.GitSSHKey(ctx)
+	require.Error(t, err)
+	var gitSSHKeyErr *codersdk.Error
+	require.ErrorAs(t, err, &gitSSHKeyErr)
+	require.Equal(t, http.StatusForbidden, gitSSHKeyErr.StatusCode())
 }
 
 type pubsubReinitSpy struct {
