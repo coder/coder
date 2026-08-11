@@ -1,0 +1,76 @@
+# TEMPORARY reproduction workflow for coder/internal#1630 (Linear CODAGT-879).
+# Reproduces the Windows test-go-pg flake where an `Install Go mise tools`
+# step without `shell: bash` runs under the default PowerShell shell, which
+# silently skips the install on a mise cache miss. A later bash step then
+# fails with `mtimehash: command not found` (exit 127).
+#
+# Delete this file before merging any fix PR.
+name: repro-mtimehash
+on:
+  push:
+    branches:
+      - windows-test-7eec
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-windows-2022-16' || 'windows-2022' }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go Paths
+        uses: ./.github/actions/setup-go-paths
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
+          # Disabling the CI cache emulates the mise cache miss that made the
+          # flake intermittent: mtimehash must actually be installed by the
+          # `Install Go mise tools` step below for later steps to find it.
+          use-cache: "false"
+
+      # Pre-#27483 variant of the step: no `shell: bash`, so this runs under
+      # the runner's default PowerShell shell on Windows.
+      - name: Install Go mise tools (default shell, pre-27483)
+        id: install-pwsh
+        continue-on-error: true
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/slsyy/mtimehash/cmd/mtimehash
+
+      - name: Verify reproduction
+        shell: bash
+        env:
+          INSTALL_OUTCOME: ${{ steps.install-pwsh.outcome }}
+        run: |
+          echo "default-shell install step outcome: ${INSTALL_OUTCOME}"
+          if command -v mtimehash; then
+            echo "::error::mtimehash is present; the failure did not reproduce"
+            exit 1
+          fi
+          code=0
+          find . -type f ! -path ./.git/\*\* | head -n 5 | mtimehash || code=$?
+          echo "mtimehash pipeline exit code: ${code}"
+          if [[ "${code}" -ne 127 ]]; then
+            echo "::error::expected exit 127 (command not found), got ${code}"
+            exit 1
+          fi
+          echo "REPRODUCED: mtimehash missing after default-shell install (exit 127)"
+
+      # Fixed variant of the step, as merged in #27483.
+      - name: Install Go mise tools (shell bash, post-27483)
+        shell: bash
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/slsyy/mtimehash/cmd/mtimehash
+
+      - name: Verify fix
+        shell: bash
+        run: |
+          command -v mtimehash
+          find . -type f ! -path ./.git/\*\* | head -n 100 | mtimehash
+          echo "FIX VERIFIED: mtimehash installed and runs when install uses shell: bash"
