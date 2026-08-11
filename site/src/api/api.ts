@@ -1276,11 +1276,9 @@ class ApiMethods {
 		username: string,
 		workspaceName: string,
 		buildNumber: number,
-		signal?: AbortSignal,
 	): Promise<TypesGen.WorkspaceBuild> => {
 		const response = await this.axios.get<TypesGen.WorkspaceBuild>(
 			`/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
-			{ signal },
 		);
 
 		return response.data;
@@ -1318,6 +1316,7 @@ class ApiMethods {
 	private waitForRestartBuild = async (
 		stopBuild: TypesGen.WorkspaceBuild,
 	): Promise<TypesGen.WorkspaceBuild> => {
+		const childBuildNumber = stopBuild.build_number + 1;
 		// The server orchestrator may create the child build up to ~2 minutes
 		// after the stop succeeds (30s backup poll plus up to 3 attempts spaced
 		// 30s apart), so the deadline must outlast that retry lifecycle.
@@ -1326,19 +1325,22 @@ class ApiMethods {
 		try {
 			while (!controller.signal.aborted) {
 				try {
-					return await this.getWorkspaceBuildByNumber(
-						stopBuild.workspace_owner_name,
-						stopBuild.workspace_name,
-						stopBuild.build_number + 1,
+					const builds = await this.getWorkspaceBuilds(
+						stopBuild.workspace_id,
+						{ limit: 5 },
 						controller.signal,
 					);
+					const childBuild = builds.find(
+						(build) => build.build_number === childBuildNumber,
+					);
+					if (childBuild) {
+						return childBuild;
+					}
 				} catch (error) {
 					if (controller.signal.aborted) {
 						break;
 					}
-					if (!isAxiosError(error) || error.response?.status !== 404) {
-						throw error;
-					}
+					throw error;
 				}
 				await delay(1000);
 			}
@@ -1830,9 +1832,11 @@ class ApiMethods {
 	getWorkspaceBuilds = async (
 		workspaceId: string,
 		req?: TypesGen.WorkspaceBuildsRequest,
+		signal?: AbortSignal,
 	) => {
 		const response = await this.axios.get<TypesGen.WorkspaceBuild[]>(
 			getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
+			{ signal },
 		);
 
 		return response.data;

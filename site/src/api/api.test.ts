@@ -391,26 +391,20 @@ describe("api.ts", () => {
 		const buildParameters: TypesGen.WorkspaceBuildParameter[] = [
 			{ name: "region", value: "us-east" },
 		];
-		const notFoundError = {
-			isAxiosError: true,
-			response: { status: 404 },
-		};
-
-		it("forwards an abort signal when fetching a workspace build", async () => {
+		it("forwards an abort signal when listing workspace builds", async () => {
 			const controller = new AbortController();
 			const get = vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
-				data: childBuild,
+				data: [childBuild],
 			});
 
-			await API.getWorkspaceBuildByNumber(
-				childBuild.workspace_owner_name,
-				childBuild.workspace_name,
-				childBuild.build_number,
+			await API.getWorkspaceBuilds(
+				stopBuild.workspace_id,
+				undefined,
 				controller.signal,
 			);
 
 			expect(get).toHaveBeenCalledWith(
-				`/api/v2/users/${childBuild.workspace_owner_name}/workspace/${childBuild.workspace_name}/builds/${childBuild.build_number}`,
+				`/api/v2/workspaces/${stopBuild.workspace_id}/builds`,
 				{ signal: controller.signal },
 			);
 		});
@@ -422,7 +416,7 @@ describe("api.ts", () => {
 			vi.spyOn(API, "waitForBuild")
 				.mockResolvedValueOnce(MockProvisionerJob)
 				.mockResolvedValueOnce(MockProvisionerJob);
-			vi.spyOn(API, "getWorkspaceBuildByNumber").mockResolvedValue(childBuild);
+			vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([childBuild]);
 			const startWorkspace = vi.spyOn(API, "startWorkspace");
 
 			await API.restartWorkspace({
@@ -448,14 +442,11 @@ describe("api.ts", () => {
 				...MockProvisionerJob,
 				status: "canceled",
 			});
-			const getWorkspaceBuildByNumber = vi.spyOn(
-				API,
-				"getWorkspaceBuildByNumber",
-			);
+			const getWorkspaceBuilds = vi.spyOn(API, "getWorkspaceBuilds");
 
 			await API.restartWorkspace({ workspace: MockWorkspace });
 
-			expect(getWorkspaceBuildByNumber).not.toHaveBeenCalled();
+			expect(getWorkspaceBuilds).not.toHaveBeenCalled();
 		});
 
 		it("waits for the server-created child build after the stop succeeds", async () => {
@@ -465,20 +456,19 @@ describe("api.ts", () => {
 				.spyOn(API, "waitForBuild")
 				.mockResolvedValueOnce(MockProvisionerJob)
 				.mockResolvedValueOnce(MockProvisionerJob);
-			const getWorkspaceBuildByNumber = vi
-				.spyOn(API, "getWorkspaceBuildByNumber")
-				.mockRejectedValueOnce(notFoundError)
-				.mockResolvedValue(childBuild);
+			const getWorkspaceBuilds = vi
+				.spyOn(API, "getWorkspaceBuilds")
+				.mockResolvedValueOnce([stopBuild])
+				.mockResolvedValue([childBuild, stopBuild]);
 
 			const restart = API.restartWorkspace({ workspace: MockWorkspace });
 			await vi.advanceTimersByTimeAsync(1000);
 			await restart;
 
-			expect(getWorkspaceBuildByNumber).toHaveBeenCalledTimes(2);
-			expect(getWorkspaceBuildByNumber).toHaveBeenCalledWith(
-				stopBuild.workspace_owner_name,
-				stopBuild.workspace_name,
-				stopBuild.build_number + 1,
+			expect(getWorkspaceBuilds).toHaveBeenCalledTimes(2);
+			expect(getWorkspaceBuilds).toHaveBeenCalledWith(
+				stopBuild.workspace_id,
+				{ limit: 5 },
 				expect.any(AbortSignal),
 			);
 			expect(waitForBuild).toHaveBeenNthCalledWith(1, stopBuild);
@@ -489,28 +479,26 @@ describe("api.ts", () => {
 			vi.useFakeTimers();
 			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(stopBuild);
 			vi.spyOn(API, "waitForBuild").mockResolvedValue(MockProvisionerJob);
-			const getWorkspaceBuildByNumber = vi
-				.spyOn(API, "getWorkspaceBuildByNumber")
-				.mockImplementation(
-					(_username, _workspaceName, _buildNumber, signal) => {
-						return new Promise((_, reject) => {
-							signal?.addEventListener("abort", () =>
-								reject(new Error("canceled")),
-							);
-						});
-					},
-				);
+			const getWorkspaceBuilds = vi
+				.spyOn(API, "getWorkspaceBuilds")
+				.mockImplementation((_workspaceId, _req, signal) => {
+					return new Promise((_, reject) => {
+						signal?.addEventListener("abort", () =>
+							reject(new Error("canceled")),
+						);
+					});
+				});
 
 			const restart = API.restartWorkspace({ workspace: MockWorkspace });
 
 			await vi.advanceTimersByTimeAsync(179_999);
-			expect(getWorkspaceBuildByNumber.mock.calls[0][3]?.aborted).toBe(false);
+			expect(getWorkspaceBuilds.mock.calls[0][2]?.aborted).toBe(false);
 
 			await vi.advanceTimersByTimeAsync(1);
 			await expect(restart).rejects.toThrow(
 				"The workspace stopped, but the server did not start it again.",
 			);
-			expect(getWorkspaceBuildByNumber.mock.calls[0][3]?.aborted).toBe(true);
+			expect(getWorkspaceBuilds.mock.calls[0][2]?.aborted).toBe(true);
 		});
 	});
 
