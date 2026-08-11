@@ -605,8 +605,15 @@ jobs:
         # Normalize file modification timestamps so that go test can use the
         # cache from the previous CI run. See https://github.com/golang/go/issues/58571
         # for more details.
+        #
+        # mtimehash only optimizes cache hits, so a missing binary must not
+        # fail the job before any tests run (coder/internal#1630).
         run: |
-          find . -type f ! -path ./.git/\*\* | mtimehash
+          if command -v mtimehash >/dev/null 2>&1; then
+            find . -type f ! -path ./.git/\*\* | mtimehash
+          else
+            echo "::warning::mtimehash not found; skipping file timestamp normalization (Go test cache may be cold)"
+          fi
           find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
 
       - name: Normalize Terraform Path for Caching
