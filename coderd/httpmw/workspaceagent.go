@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -109,17 +110,65 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				return
 			}
 
-			subject, _, err := UserRBACSubject(
+			subjectUserID := row.WorkspaceTable.OwnerID
+			blockUserData := row.WorkspaceAgent.APIKeyScope == database.AgentKeyScopeEnumNoUserData
+			var identity *aiagentidentity.ResolvedIdentity
+			if row.WorkspaceAgent.AIAgentID.Valid {
+				if row.WorkspaceAgent.AIAgentID.UUID == uuid.Nil {
+					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+						Message: "Workspace agent not authorized.",
+						Detail:  "AI agent identity is invalid or has been revoked.",
+					})
+					return
+				}
+
+				resolved, resolveErr := aiagentidentity.Resolve(ctx, opts.DB, row.WorkspaceAgent.AIAgentID.UUID)
+				if resolveErr != nil {
+					if errors.Is(resolveErr, aiagentidentity.ErrNotAIAgent) ||
+						errors.Is(resolveErr, aiagentidentity.ErrAIAgentDeleted) ||
+						errors.Is(resolveErr, sql.ErrNoRows) {
+						httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+							Message: "Workspace agent not authorized.",
+							Detail:  "AI agent identity is invalid or has been revoked.",
+						})
+						return
+					}
+					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+						Message: "Internal error resolving workspace agent identity.",
+						Detail:  resolveErr.Error(),
+					})
+					return
+				}
+				if resolved.AgentUser.Deleted || resolved.AgentUser.Status != database.UserStatusActive {
+					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+						Message: "Workspace agent not authorized.",
+						Detail:  "AI agent user is not active.",
+					})
+					return
+				}
+				if resolved.OwnerUser.Kind != database.UserKindHuman || resolved.OwnerUser.Deleted || resolved.OwnerUser.Status != database.UserStatusActive {
+					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+						Message: "Workspace agent not authorized.",
+						Detail:  "AI agent owner is not active.",
+					})
+					return
+				}
+				subjectUserID = resolved.OwnerUser.ID
+				blockUserData = true
+				identity = &resolved
+			}
+
+			subject, userStatus, err := UserRBACSubject(
 				ctx,
 				opts.DB,
-				row.WorkspaceTable.OwnerID,
+				subjectUserID,
 				rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
 					WorkspaceID:   row.WorkspaceTable.ID,
 					OwnerID:       row.WorkspaceTable.OwnerID,
 					TemplateID:    row.WorkspaceTable.TemplateID,
 					VersionID:     row.WorkspaceBuild.TemplateVersionID,
 					TaskID:        row.TaskID,
-					BlockUserData: row.WorkspaceAgent.APIKeyScope == database.AgentKeyScopeEnumNoUserData,
+					BlockUserData: blockUserData,
 				}),
 			)
 			if err != nil {
@@ -128,6 +177,18 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 					Detail:  err.Error(),
 				})
 				return
+			}
+			if identity != nil {
+				if userStatus != database.UserStatusActive {
+					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+						Message: "Workspace agent not authorized.",
+						Detail:  "AI agent owner is not active.",
+					})
+					return
+				}
+				subject.Type = rbac.SubjectTypeAIAgent
+				subject.FriendlyName = identity.AgentUser.Username
+				ctx = aiagentidentity.WithActor(ctx, identity.Actor)
 			}
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)
