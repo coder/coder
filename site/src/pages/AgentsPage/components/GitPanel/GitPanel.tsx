@@ -226,11 +226,36 @@ export const GitPanel: FC<GitPanelProps> = ({
 		spinTimerRef.current = setTimeout(() => setSpinning(false), 1000);
 	};
 
+	// Reconcile a stale `view` inline so a repo removal never renders
+	// as "No changes" for a frame before the effect above updates.
+	// When nothing else is available, the remote view falls through;
+	// RemoteContent handles its own empty/loading state.
+	const effectiveView: GitView =
+		view.type === "remote"
+			? showRemoteTab
+				? view
+				: localRepos.length > 0
+					? { type: "local", repoRoot: localRepos[0] }
+					: view
+			: localRepos.includes(view.repoRoot)
+				? view
+				: showRemoteTab
+					? { type: "remote" }
+					: localRepos.length > 0
+						? { type: "local", repoRoot: localRepos[0] }
+						: { type: "remote" };
+
+	const showPrTitleRow = effectiveView.type === "remote" && prTab && prTitle;
+
 	const prTitleRef = useRef<HTMLSpanElement>(null);
 	const [isPrTitleTruncated, setIsPrTitleTruncated] = useState(false);
+	// Keyed on `showPrTitleRow` (not `prTitle`) so the observer
+	// reattaches when the title span remounts after switching away
+	// from the PR view and back. Its truthy value is the title, so
+	// title changes still re-run the effect.
 	useEffect(() => {
 		const el = prTitleRef.current;
-		if (!el || !prTitle) {
+		if (!el || !showPrTitleRow) {
 			setIsPrTitleTruncated(false);
 			return;
 		}
@@ -241,7 +266,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		const observer = new ResizeObserver(check);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [prTitle]);
+	}, [showPrTitleRow]);
 
 	const remoteHeadBranch = remoteDiffStats?.head_branch;
 	const remoteItem: ViewItem | null = showRemoteTab
@@ -291,25 +316,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 		...localItems,
 	];
 
-	// Reconcile a stale `view` inline so a repo removal never renders
-	// as "No changes" for a frame before the effect above updates.
-	// When nothing else is available, the remote view falls through;
-	// RemoteContent handles its own empty/loading state.
-	const effectiveView: GitView =
-		view.type === "remote"
-			? showRemoteTab
-				? view
-				: localRepos.length > 0
-					? { type: "local", repoRoot: localRepos[0] }
-					: view
-			: localRepos.includes(view.repoRoot)
-				? view
-				: showRemoteTab
-					? { type: "remote" }
-					: localRepos.length > 0
-						? { type: "local", repoRoot: localRepos[0] }
-						: { type: "remote" };
-
 	const activeItem: ViewItem | undefined =
 		effectiveView.type === "remote"
 			? (remoteItem ?? undefined)
@@ -325,8 +331,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 			setView({ type: "local", repoRoot: item.repoRoot });
 		}
 	};
-
-	const showPrTitleRow = effectiveView.type === "remote" && prTab && prTitle;
 
 	return (
 		<div className="flex h-full flex-col">
