@@ -12,14 +12,7 @@ import {
 	RefreshCwIcon,
 	RowsIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type RefObject,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type {
 	ChatDiffStatus,
@@ -138,7 +131,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const prState = remoteDiffStats?.pull_request_state;
 	const prDraft = remoteDiffStats?.pull_request_draft;
 
-	const repoStats = useMemo(() => {
+	// Compute per-repo diff stats from unified diffs. The React
+	// Compiler memoizes these derivations.
+	const repoStats = (() => {
 		const stats = new Map<string, DiffStats>();
 		for (const [root, repo] of repositories.entries()) {
 			if (!repo.unified_diff) continue;
@@ -156,11 +151,11 @@ export const GitPanel: FC<GitPanelProps> = ({
 			}
 		}
 		return stats;
-	}, [repositories]);
+	})();
 
 	// Union of currently-dirty and ever-dirty repos (still known to
 	// the watcher) so a clean-revert does not hide the entry.
-	const localRepos = useMemo(() => {
+	const localRepos = (() => {
 		const roots = new Set<string>(repoStats.keys());
 		if (everDirty) {
 			for (const root of everDirty) {
@@ -170,7 +165,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 			}
 		}
 		return Array.from(roots).sort((a, b) => a.localeCompare(b));
-	}, [repoStats, everDirty, repositories]);
+	})();
 
 	// Default to the first local repo when nothing has been pushed
 	// upstream yet, so the panel opens on the diff the user just made.
