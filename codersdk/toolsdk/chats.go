@@ -212,7 +212,7 @@ var GetChatMessages = Tool[GetChatMessagesArgs, GetChatMessagesResponse]{
 		Name: ToolNameGetChatMessages,
 		Description: `Get the newest messages of a Coder Agents chat in chronological order.
 
-Only text content is returned; tool calls and other internal parts are omitted. When has_more is true, pass next_before_id as before_id to page through older messages.`,
+Only user-facing text content is returned (including lifecycle hook notices); tool calls and other internal parts are omitted. When has_more is true, pass next_before_id as before_id to page through older messages.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
@@ -261,7 +261,11 @@ Only text content is returned; tool calls and other internal parts are omitted. 
 			msg := resp.Messages[i]
 			var texts []string
 			for _, part := range msg.Content {
-				if part.Type == codersdk.ChatMessagePartTypeText && part.Text != "" {
+				// Hook notices are user-facing per the SDK part contract,
+				// unlike hook context, which is model-only.
+				isUserFacingText := part.Type == codersdk.ChatMessagePartTypeText ||
+					part.Type == codersdk.ChatMessagePartTypeHookNotice
+				if isUserFacingText && part.Text != "" {
 					texts = append(texts, part.Text)
 				}
 			}

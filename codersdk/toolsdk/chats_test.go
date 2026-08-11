@@ -87,6 +87,25 @@ func TestChatTools(t *testing.T) {
 		require.Contains(t, texts, "assistant: Hello from test server.")
 		require.Equal(t, "user: Say hello.", texts[0])
 
+		hookNoticeContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+			Type: codersdk.ChatMessagePartTypeHookNotice,
+			Text: "Command denied by policy.",
+		}})
+		require.NoError(t, err)
+		dbgen.ChatMessage(t, api.Database, database.ChatMessage{
+			ChatID:        chatID,
+			ModelConfigID: uuid.NullUUID{UUID: defaultModelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleUser,
+			Content:       hookNoticeContent,
+		})
+		withNotice, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{ChatID: created.ID})
+		require.NoError(t, err)
+		var noticeTexts []string
+		for _, msg := range withNotice.Messages {
+			noticeTexts = append(noticeTexts, msg.Text)
+		}
+		require.Contains(t, noticeTexts, "Command denied by policy.")
+
 		// A tool-call-only message filters to an empty page, so the
 		// cursor must come from the unfiltered API page.
 		toolCallContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
