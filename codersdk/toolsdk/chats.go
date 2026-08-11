@@ -122,6 +122,11 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 			if err != nil {
 				return ChatToolStatus{}, err
 			}
+			// A user's only membership can be removed by an admin, so an
+			// empty slice is reachable and indexing it would panic.
+			if len(me.OrganizationIDs) == 0 {
+				return ChatToolStatus{}, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
+			}
 			orgID = me.OrganizationIDs[0]
 		}
 		var modelConfigID *uuid.UUID

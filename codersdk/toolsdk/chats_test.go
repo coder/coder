@@ -183,6 +183,20 @@ func TestChatTools(t *testing.T) {
 		coderdtest.WaitForChatSettled(ctx, t, api, uuid.MustParse(created.ID))
 	})
 
+	t.Run("CreateChatZeroOrgUser", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		firstUser, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		orphanClient, orphan := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationIDs[0])
+		require.NoError(t, client.DeleteOrganizationMember(ctx, firstUser.OrganizationIDs[0], orphan.ID.String()))
+
+		orphanDeps, err := toolsdk.NewDeps(orphanClient)
+		require.NoError(t, err)
+		_, err = testTool(t, toolsdk.CreateChat, orphanDeps, toolsdk.CreateChatArgs{Prompt: "hi"})
+		require.ErrorContains(t, err, "belongs to no organization")
+	})
+
 	t.Run("Validation", func(t *testing.T) {
 		_, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{})
 		require.ErrorContains(t, err, "prompt is required")
