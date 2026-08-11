@@ -1,6 +1,4 @@
----
-title: Feature stages
----
+# Feature stages
 
 Some Coder features are released in feature stages before they are generally
 available.
