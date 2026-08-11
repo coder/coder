@@ -1,4 +1,6 @@
-# Workspaces
+---
+title: Manage workspaces
+---
 
 A workspace is the environment that a developer works in. Developers in a team
 each work from their own workspace and can use

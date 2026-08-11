@@ -1,4 +1,6 @@
-# MCP
+---
+title: MCP
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is
@@ -71,7 +73,7 @@ If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have `CODER
 
 ### Troubleshooting
 
-- **Too many tools**: should you receive an error like `Invalid 'tools': array too long. Expected an array with maximum length 128, but got an array with length 132 instead`, you can reduce the number by filtering out tools using the allow/deny patterns documented in the [MCP](#mcp) section.
+- **Too many tools**: should you receive an error like `Invalid 'tools': array too long. Expected an array with maximum length 128, but got an array with length 132 instead`, you can reduce the number by filtering out tools using the allow/deny patterns documented above.
 
 - **Coder MCP tools not being injected**: in order for Coder MCP tools to be injected, the internal MCP server needs to be active. Follow the instructions in the [MCP Server](../mcp-server.md) page to enable it and ensure `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS` is set to `true`.
 

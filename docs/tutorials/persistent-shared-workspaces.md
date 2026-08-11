@@ -1,4 +1,6 @@
-# Persistent Shared Workspaces with Service Accounts
+---
+title: Persistent Shared Workspaces with Service Accounts
+---
 
 > [!NOTE]
 > This guide requires a

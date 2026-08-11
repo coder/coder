@@ -1,4 +1,6 @@
-# Install Coder via Docker
+---
+title: Install Coder via Docker
+---
 
 You can install and run Coder using the official Docker images published on
 [GitHub Container Registry](https://github.com/coder/coder/pkgs/container/coder).

@@ -1,4 +1,6 @@
-# Installing Coder
+---
+title: Install the Coder CLI
+---
 
 A single CLI (`coder`) is used for both the Coder server and the client.
 

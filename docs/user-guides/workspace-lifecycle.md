@@ -1,4 +1,6 @@
-# Workspace lifecycle
+---
+title: Workspace lifecycle
+---
 
 Workspaces are flexible, reproducible, and isolated units of compute. Workspaces
 are created via Terraform, managed through the Coder control plane, accessed

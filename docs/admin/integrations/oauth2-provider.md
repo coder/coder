@@ -1,4 +1,6 @@
-# OAuth2 Provider (Experimental)
+---
+title: OAuth2 Provider (Experimental)
+---
 
 > [!WARNING]
 > The OAuth2 provider functionality is currently **experimental and unstable**. This feature:

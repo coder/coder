@@ -1,4 +1,6 @@
-# Troubleshooting templates
+---
+title: Troubleshooting templates
+---
 
 Occasionally, you may run into scenarios where a workspace is created, but the
 agent is either not connected or the

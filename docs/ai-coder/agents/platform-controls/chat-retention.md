@@ -1,4 +1,6 @@
-# Conversation Data Retention
+---
+title: Conversation Data Retention
+---
 
 Coder Agents automatically cleans up old conversation data to manage database
 growth. Archived conversations and their associated files are periodically

@@ -1,4 +1,6 @@
-# Scale Tests and Utilities
+---
+title: Scale Tests and Utilities
+---
 
 We scale-test Coder with a built-in utility that can
 be used in your environment for insights into how Coder scales with your

@@ -1,4 +1,6 @@
-# Alternate install methods
+---
+title: Alternate install methods
+---
 
 Coder has a number of alternate unofficial installation methods. Contributions are
 welcome!

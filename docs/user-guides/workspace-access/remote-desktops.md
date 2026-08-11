@@ -1,4 +1,6 @@
-# Remote Desktops
+---
+title: Remote Desktops
+---
 
 ## RDP
 

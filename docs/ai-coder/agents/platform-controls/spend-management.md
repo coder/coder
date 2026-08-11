@@ -1,4 +1,6 @@
-# Spend management (Premium)
+---
+title: Spend management (Premium)
+---
 
 Coder controls agent spend with AI Gateway budgets, and surfaces the resulting spend to both admins and users.
 

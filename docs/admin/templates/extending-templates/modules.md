@@ -1,4 +1,6 @@
-# Reusing template code
+---
+title: Reusing template code
+---
 
 To reuse code across different Coder templates, such as common scripts or
 resource definitions, we suggest using

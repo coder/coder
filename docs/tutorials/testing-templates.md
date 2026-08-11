@@ -1,4 +1,6 @@
-# Test and Publish Coder Templates Through CI/CD
+---
+title: Test and Publish Coder Templates Through CI/CD
+---
 
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">

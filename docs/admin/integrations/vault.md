@@ -1,4 +1,6 @@
-# Integrating HashiCorp Vault with Coder
+---
+title: Integrating HashiCorp Vault with Coder
+---
 
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">

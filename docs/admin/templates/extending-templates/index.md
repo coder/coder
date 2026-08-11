@@ -1,4 +1,6 @@
-# Extending templates
+---
+title: Extending templates
+---
 
 There are a variety of Coder-native features to extend the configuration of your
 development environments. Many of the following features are defined in your

@@ -1,4 +1,6 @@
-# Parameters
+---
+title: Parameters
+---
 
 A template can prompt the user for additional information when creating
 workspaces with
