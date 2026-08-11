@@ -306,8 +306,3 @@ While plan mode is active:
 This keeps planning turns focused on analysis and plan authoring rather than
 implementation. Once you click **Implement plan**, the next turn runs in normal
 mode again.
-
-## Product status
-
-Coder Agents is in Beta. The feature is under active development and
-available for evaluation.
