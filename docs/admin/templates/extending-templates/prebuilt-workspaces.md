@@ -265,11 +265,15 @@ Because unclaimed prebuilt workspaces are owned by the `prebuilds` user, you can
 1. Configure quotas for any group that includes this user.
 1. Set appropriate limits to balance prebuilt workspace availability with resource constraints.
 
-When prebuilt workspaces are configured for an organization, Coder creates a "prebuilds" group in that organization and adds the prebuilds user to it. This group has a default quota allowance of 0, which you should adjust based on your needs:
+When prebuilt workspaces are configured for an organization, Coder creates a `coderprebuiltworkspaces` group in that organization and adds the `prebuilds` user to it.
+This group has a default quota allowance of 0, which you should adjust based on your needs:
 
-- **Set a quota allowance** on the "prebuilds" group to control how many prebuilt workspaces can be provisioned
-- **Monitor usage** to ensure the quota is appropriate for your desired number of prebuilt instances
-- **Adjust as needed** based on your template costs and desired prebuilt workspace pool size
+- **Set a quota allowance** on the `coderprebuiltworkspaces` group to control how many prebuilt workspaces can be provisioned.
+- **Monitor usage** to ensure the quota is appropriate for your desired number of prebuilt instances.
+- **Adjust as needed** based on your template costs and desired prebuilt workspace pool size.
+
+The `prebuilds` user is a system user, so it does not appear in the group's member list in the Coder dashboard or API, even though it is a member.
+To set or verify the quota, use the group's **Quota Allowance** setting.
 
 If a quota is exceeded, the prebuilt workspace will fail provisioning the same way other workspaces do.
 
