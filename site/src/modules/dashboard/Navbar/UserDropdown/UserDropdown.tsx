@@ -1,3 +1,4 @@
+import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { meAISpend } from "#/api/queries/users";
@@ -9,16 +10,33 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { getSeverity, type UsageSeverity } from "#/utils/budget";
+import { cn } from "#/utils/cn";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 
 // The normal state keeps the standard avatar border. Elevated states use a
-// thicker border so the change is perceivable without relying on color alone.
-const severityBorderClasses: Partial<Record<UsageSeverity, string>> = {
-	warning: "border-2 border-content-warning",
-	exceeded: "border-2 border-content-destructive",
+// thicker border plus a corner badge with an icon so the change is
+// perceivable without relying on color alone.
+const severityIndicators: Partial<
+	Record<UsageSeverity, { border: string; badge: string; label: string }>
+> = {
+	warning: {
+		border: "border-2 border-content-warning",
+		badge: "bg-content-warning",
+		label: "AI spend is nearing its limit",
+	},
+	exceeded: {
+		border: "border-2 border-content-destructive",
+		badge: "bg-content-destructive",
+		label: "AI spend limit exceeded",
+	},
 };
 
 interface UserDropdownProps {
@@ -59,22 +77,40 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 		spend && spend.spendLimit !== null
 			? getSeverity(spend.currentSpend, spend.spendLimit)
 			: "normal";
+	const indicator = spend ? severityIndicators[severity] : undefined;
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<button
-					type="button"
-					className="bg-transparent border-0 cursor-pointer p-0"
-				>
-					<Avatar
-						fallback={user.username}
-						src={user.avatar_url}
-						size="lg"
-						className={spend ? severityBorderClasses[severity] : undefined}
-					/>
-				</button>
-			</DropdownMenuTrigger>
+			<Tooltip>
+				<DropdownMenuTrigger asChild>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							className="relative bg-transparent border-0 cursor-pointer p-0"
+						>
+							<Avatar
+								fallback={user.username}
+								src={user.avatar_url}
+								size="lg"
+								className={indicator?.border}
+							/>
+							{indicator && (
+								<span
+									className={cn(
+										"absolute -bottom-1 -right-1 flex size-4 items-center justify-center",
+										"rounded-full text-surface-primary",
+										indicator.badge,
+									)}
+								>
+									<TriangleAlertIcon aria-hidden className="size-2.5" />
+									<span className="sr-only">{indicator.label}</span>
+								</span>
+							)}
+						</button>
+					</TooltipTrigger>
+				</DropdownMenuTrigger>
+				{indicator && <TooltipContent>{indicator.label}</TooltipContent>}
+			</Tooltip>
 
 			<DropdownMenuContent align="end" className="min-w-auto w-[260px]">
 				<UserDropdownContent
