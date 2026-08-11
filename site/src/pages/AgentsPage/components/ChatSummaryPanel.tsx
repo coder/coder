@@ -32,6 +32,11 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	} else if (chatData) {
 		content = (
 			<ChatSummary
+				// Switching chats swaps this panel's props instead of remounting it,
+				// and a cached chat resolves synchronously, so without a key the
+				// previous chat's expanded state would carry over to a summary that
+				// may not even overflow.
+				key={chatId}
 				summary={chatData.summary}
 				isSubagent={Boolean(chatData.parent_chat_id)}
 				createdAt={chatData.created_at}

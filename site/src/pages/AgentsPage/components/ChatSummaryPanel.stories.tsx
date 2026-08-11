@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
-import { expect, spyOn, waitFor, within } from "storybook/test";
+import { type FC, useState } from "react";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -8,6 +8,17 @@ import { withDashboardProvider } from "#/testHelpers/storybook";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
 const ROOT_CHAT_ID = "root-chat-id";
+const OTHER_CHAT_ID = "other-chat-id";
+
+const LONG_SUMMARY = [
+	"Audited the whole chat pipeline and shipped a batch of fixes.",
+	"",
+	...Array.from(
+		{ length: 12 },
+		(_, i) =>
+			`- Reviewed subsystem number ${i + 1} and applied the corresponding fix so the behaviour matches the specification`,
+	),
+].join("\n");
 
 const mockCost: TypesGen.ChatCost = {
 	chat_id: MockChat.id,
@@ -161,5 +172,74 @@ export const GatewayUnavailable: Story = {
 		});
 		expect(canvas.queryByText("Cost:")).not.toBeInTheDocument();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
+	},
+};
+
+// Navigating between chats swaps `chatId` on the existing panel instead of
+// remounting it, so the disclosure state must not carry over. Without a reset
+// the next chat renders fully expanded behind a "Show less" button, even when
+// its own summary fits.
+export const ExpansionResetsBetweenChats: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockImplementation(async (chatId) => ({
+			...MockChat,
+			id: chatId,
+			summary: chatId === MockChat.id ? LONG_SUMMARY : "A summary that fits.",
+		}));
+		spyOn(API.experimental, "getChatCost").mockResolvedValue(mockCost);
+	},
+	render: (args) => {
+		const [chatId, setChatId] = useState(MockChat.id);
+		return (
+			<div className="flex h-full min-h-0 flex-col">
+				<button
+					type="button"
+					onClick={() =>
+						setChatId((id) =>
+							id === MockChat.id ? OTHER_CHAT_ID : MockChat.id,
+						)
+					}
+				>
+					Switch chat
+				</button>
+				<ChatSummaryPanel {...args} chatId={chatId} />
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const switchChat = canvas.getByRole("button", { name: "Switch chat" });
+		const expand = async () => {
+			const showMore = await canvas.findByRole("button", {
+				name: "Show more",
+			});
+			await userEvent.click(showMore);
+			await expect(
+				canvas.getByRole("button", { name: "Show less" }),
+			).toBeInTheDocument();
+		};
+
+		// Warm both chats in the query cache first. While a chat is still
+		// uncached the panel renders nothing, which unmounts the summary and
+		// resets the disclosure state as a side effect. Once cached, the data is
+		// returned synchronously and the panel keeps the same summary instance
+		// across the switch, which is where the state can leak.
+		await expand();
+		await userEvent.click(switchChat);
+		await waitFor(async () => {
+			await expect(canvas.getByText("A summary that fits.")).toBeVisible();
+		});
+		await userEvent.click(switchChat);
+
+		await expand();
+		await userEvent.click(switchChat);
+		await waitFor(async () => {
+			await expect(canvas.getByText("A summary that fits.")).toBeVisible();
+		});
+
+		// The switched-to summary fits, so it must not offer to collapse.
+		await expect(
+			canvas.queryByRole("button", { name: "Show less" }),
+		).not.toBeInTheDocument();
 	},
 };
