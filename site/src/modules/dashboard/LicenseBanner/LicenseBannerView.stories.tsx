@@ -314,9 +314,6 @@ export const AgentRuntimeHoursSoftLimit: Story = {
 		await expect(banner).toHaveTextContent(
 			"Your deployment is approaching its Coder Agent runtime hours allocation: 90 of the 100 hours included in the current license term are used, at or above the advisory soft limit of 80 hours.",
 		);
-		// The operator is inside their allocation with nothing owed, so no
-		// sales call-to-action is rendered. The advisory renders in the
-		// muted variant, which the visual snapshot covers.
 		await expect(
 			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
 		).not.toBeInTheDocument();
@@ -346,8 +343,6 @@ export const AgentRuntimeHoursAllocationReached: Story = {
 	},
 };
 
-// Each diagnostic pins role=status (not alert) and a suppressed sales
-// link. Background mutedness is covered by the visual snapshot.
 const playMutedDiagnostic =
 	(message: string): Story["play"] =>
 	async ({ canvasElement }) => {
