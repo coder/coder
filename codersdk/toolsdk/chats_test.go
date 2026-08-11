@@ -8,7 +8,10 @@ import (
 
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
@@ -84,22 +87,40 @@ func TestChatTools(t *testing.T) {
 		require.Contains(t, texts, "assistant: Hello from test server.")
 		require.Equal(t, "user: Say hello.", texts[0])
 
+		// A tool-call-only message filters to an empty page, so the
+		// cursor must come from the unfiltered API page.
+		toolCallContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "call-1",
+			ToolName:   "execute",
+		}})
+		require.NoError(t, err)
+		toolCallMsg := dbgen.ChatMessage(t, api.Database, database.ChatMessage{
+			ChatID:        chatID,
+			ModelConfigID: uuid.NullUUID{UUID: defaultModelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			Content:       toolCallContent,
+		})
+
 		firstPage, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{
 			ChatID: created.ID,
 			Limit:  1,
 		})
 		require.NoError(t, err)
 		require.True(t, firstPage.HasMore)
-		require.Len(t, firstPage.Messages, 1)
+		require.Empty(t, firstPage.Messages)
+		require.Equal(t, toolCallMsg.ID, firstPage.NextBeforeID)
 		olderPage, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{
 			ChatID:   created.ID,
-			BeforeID: firstPage.Messages[0].ID,
+			BeforeID: firstPage.NextBeforeID,
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, olderPage.Messages)
 		for _, msg := range olderPage.Messages {
-			require.Less(t, msg.ID, firstPage.Messages[0].ID)
+			require.Less(t, msg.ID, firstPage.NextBeforeID)
 		}
+		require.False(t, olderPage.HasMore)
+		require.Zero(t, olderPage.NextBeforeID)
 
 		archived, err := testTool(t, toolsdk.ArchiveChat, tb, toolsdk.ArchiveChatArgs{ChatID: created.ID})
 		require.NoError(t, err)

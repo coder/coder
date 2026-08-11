@@ -196,6 +196,10 @@ type ChatToolMessage struct {
 type GetChatMessagesResponse struct {
 	Messages []ChatToolMessage `json:"messages"`
 	HasMore  bool              `json:"has_more"`
+	// NextBeforeID is the cursor for the next older page when HasMore is
+	// true. It is derived from the unfiltered API page, so it stays valid
+	// even when every message in this page was filtered out as non-text.
+	NextBeforeID int64 `json:"next_before_id,omitempty"`
 }
 
 var GetChatMessages = Tool[GetChatMessagesArgs, GetChatMessagesResponse]{
@@ -203,7 +207,7 @@ var GetChatMessages = Tool[GetChatMessagesArgs, GetChatMessagesResponse]{
 		Name: ToolNameGetChatMessages,
 		Description: `Get the newest messages of a Coder Agents chat in chronological order.
 
-Only text content is returned; tool calls and other internal parts are omitted. When has_more is true, pass the smallest returned message id as before_id to page through older messages.`,
+Only text content is returned; tool calls and other internal parts are omitted. When has_more is true, pass next_before_id as before_id to page through older messages.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
@@ -266,9 +270,19 @@ Only text content is returned; tool calls and other internal parts are omitted. 
 				Text:      strings.Join(texts, "\n"),
 			})
 		}
+		var nextBeforeID int64
+		if resp.HasMore && len(resp.Messages) > 0 {
+			nextBeforeID = resp.Messages[0].ID
+			for _, msg := range resp.Messages {
+				if msg.ID < nextBeforeID {
+					nextBeforeID = msg.ID
+				}
+			}
+		}
 		return GetChatMessagesResponse{
-			Messages: messages,
-			HasMore:  resp.HasMore,
+			Messages:     messages,
+			HasMore:      resp.HasMore,
+			NextBeforeID: nextBeforeID,
 		}, nil
 	},
 }
