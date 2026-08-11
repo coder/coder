@@ -1,26 +1,34 @@
-// fetchNextPage in @tanstack/query-core 5.82.0 (upstream
-// TanStack/query#3579) snapshots state.data.pages when the fetch
-// starts and settles with snapshot + new page, discarding every
-// setQueryData made in between. While a per-chat pagination epoch is
-// open, cache writes are applied immediately and recorded in the
-// epoch buffer; when the epoch closes, the buffered writes replay in
-// order against the settled cache. Background refetches instead use
-// the cancel convention (cancelChatListRefetches); a pagination fetch
-// is user-requested, so it must settle rather than be cancelled.
+// While the user scrolls up, we fetch an older page of messages. A
+// WebSocket update can arrive mid-fetch. We write it into the cache
+// right away, but when the page fetch finishes, the library overwrites
+// the whole cache with what it saw when the fetch started, plus the
+// new page, and our update is lost. (fetchNextPage in
+// @tanstack/query-core 5.82.0; upstream TanStack/query#3579.)
+//
+// The fix: while a page fetch is in flight, keep a list of every such
+// write, one list per chat. When the fetch finishes, apply the list
+// again on top of what the fetch wrote. The list is called an epoch.
+//
+// Background refetches are handled differently: they get cancelled
+// (cancelChatListRefetches). A page fetch is user-requested, so it is
+// allowed to finish instead.
 
 type PaginationEpochState<TWrite> = {
+	// Page fetches in flight for this chat.
 	refCount: number;
+	// Identifies this epoch, so a close from an earlier epoch is ignored.
 	generation: number;
+	// Writes to re-apply after the last fetch finishes.
 	buffer: TWrite[];
 };
 
-// Refcounted because a cancelled fetchNextPage still settles: only
-// the close that drains the refcount replays. The generation token
-// makes a stale close a no-op.
 export const createPaginationEpochManager = <TWrite>() => {
 	const epochs = new Map<string, PaginationEpochState<TWrite>>();
 	let generationCounter = 0;
+
 	return {
+		// A page fetch is starting. If one is already in flight for this
+		// chat, just count it; otherwise start a fresh list of writes.
 		open: (chatID: string): number => {
 			const epoch = epochs.get(chatID);
 			if (epoch) {
@@ -31,10 +39,17 @@ export const createPaginationEpochManager = <TWrite>() => {
 			epochs.set(chatID, { refCount: 1, generation, buffer: [] });
 			return generation;
 		},
-		// No-op when no epoch is open for the chat.
+
+		// Add a write to the list for the in-flight fetch. If no fetch is
+		// in flight, nothing can clobber the write, so this is a no-op.
 		record: (chatID: string, write: TWrite): void => {
 			epochs.get(chatID)?.buffer.push(write);
 		},
+
+		// A page fetch finished. Calling fetchNextPage again mid-fetch
+		// cancels the first fetch, but both calls still finish, so only
+		// the last fetch standing hands the list back for re-application.
+		// A stale generation (an epoch long gone) is ignored.
 		close: (
 			chatID: string,
 			generation: number,

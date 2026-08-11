@@ -8,10 +8,6 @@ import {
 
 const infiniteChatsTestKey = chatListKey(toChatListParams());
 
-// Typed here, not at the useInfiniteQuery call sites, so the setups
-// exercise the real initialPageParam type instead of an assertion.
-const initialMessagePageParam: number | undefined = undefined;
-
 type InfiniteData = {
 	pages: TypesGen.Chat[][];
 	pageParams: unknown[];
@@ -1155,9 +1151,13 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
+				// Typed constant, not an inline literal, so useInfiniteQuery
+				// infers the page parameter as number | undefined without an
+				// assertion.
+				const initialPageParam: number | undefined = undefined;
 				const messagesQuery = useInfiniteQuery({
 					queryKey: chatMessagesKey(chatID),
-					initialPageParam: initialMessagePageParam,
+					initialPageParam,
 					// The deferred promise holds the page fetch so the settle
 					// cannot race ahead of the mid-flight durable write.
 					queryFn: () => deferred.promise,
@@ -1293,9 +1293,13 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
+				// Typed constant, not an inline literal, so useInfiniteQuery
+				// infers the page parameter as number | undefined without an
+				// assertion.
+				const initialPageParam: number | undefined = undefined;
 				const messagesQuery = useInfiniteQuery({
 					queryKey: chatMessagesKey(chatID),
-					initialPageParam: initialMessagePageParam,
+					initialPageParam,
 					queryFn: () => deferred.promise,
 					getNextPageParam: (lastPage: TypesGen.ChatMessagesResponse) =>
 						lastPage.has_more && lastPage.messages.length > 0
