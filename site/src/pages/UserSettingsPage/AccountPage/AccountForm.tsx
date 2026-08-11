@@ -22,6 +22,11 @@ interface AccountFormProps {
 	editable: boolean;
 	email: string;
 	isLoading: boolean;
+	/**
+	 * Controls whether the name field explains how templates read the value.
+	 * The explanation only makes sense to users who can use workspaces.
+	 */
+	showTemplateNameHelperText: boolean;
 	initialValues: UpdateUserProfileRequest;
 	onSubmit: (values: UpdateUserProfileRequest) => void;
 	updateProfileError?: unknown;
@@ -33,6 +38,7 @@ export const AccountForm: FC<AccountFormProps> = ({
 	editable,
 	email,
 	isLoading,
+	showTemplateNameHelperText,
 	onSubmit,
 	initialValues,
 	updateProfileError,
@@ -71,8 +77,9 @@ export const AccountForm: FC<AccountFormProps> = ({
 				<FormField
 					field={{
 						...getFieldHelpers("name"),
-						helperText:
-							'The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.',
+						helperText: showTemplateNameHelperText
+							? 'The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.'
+							: "The human-readable name is optional.",
 					}}
 					autoComplete="name"
 					className="w-full"

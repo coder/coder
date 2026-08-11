@@ -32,6 +32,7 @@ import {
 	canViewAdminSettings,
 } from "./AdminSettings";
 import { sortProxiesByLatency } from "./proxyUtils";
+import { RestrictedNavItem } from "./RestrictedNavItem";
 
 const itemStyles = {
 	default: "px-9 h-10 no-underline",
@@ -42,6 +43,7 @@ const itemStyles = {
 type MobileMenuProps = {
 	proxyContextValue?: ProxyContextValue;
 	adminPermissions: AdminSettingsPermissions;
+	canViewWorkspaces: boolean;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
@@ -51,6 +53,7 @@ type MobileMenuProps = {
 export const MobileMenu: FC<MobileMenuProps> = ({
 	adminPermissions,
 	proxyContextValue,
+	canViewWorkspaces,
 	user,
 	supportLinks,
 	onSignOut,
@@ -76,17 +79,37 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				className="w-screen border-0 border-b border-solid p-0 py-2"
 				sideOffset={17}
 			>
-				<DropdownMenuItem asChild className={itemStyles.default}>
-					<Link to="/workspaces">Workspaces</Link>
-				</DropdownMenuItem>
-				<DropdownMenuItem asChild className={itemStyles.default}>
-					<Link to="/templates">Templates</Link>
-				</DropdownMenuItem>
-				<DropdownMenuItem asChild className={itemStyles.default}>
-					<Link to="/agents">Agents</Link>
-				</DropdownMenuItem>
-				<DropdownMenuSeparator />
-				<ProxySettingsSub proxyContextValue={proxyContextValue} />
+				{canViewWorkspaces ? (
+					<>
+						<DropdownMenuItem asChild className={itemStyles.default}>
+							<Link to="/workspaces">Workspaces</Link>
+						</DropdownMenuItem>
+						<DropdownMenuItem asChild className={itemStyles.default}>
+							<Link to="/templates">Templates</Link>
+						</DropdownMenuItem>
+						<DropdownMenuItem asChild className={itemStyles.default}>
+							<Link to="/agents">Agents</Link>
+						</DropdownMenuItem>
+					</>
+				) : (
+					<>
+						{["Workspaces", "Templates", "Agents"].map((label) => (
+							<DropdownMenuItem
+								key={label}
+								className={itemStyles.default}
+								onSelect={(event) => event.preventDefault()}
+							>
+								<RestrictedNavItem tabIndex={-1}>{label}</RestrictedNavItem>
+							</DropdownMenuItem>
+						))}
+					</>
+				)}
+				{canViewWorkspaces && (
+					<>
+						<DropdownMenuSeparator />
+						<ProxySettingsSub proxyContextValue={proxyContextValue} />
+					</>
+				)}
 
 				{canViewAdminSettings(adminPermissions) && (
 					<>

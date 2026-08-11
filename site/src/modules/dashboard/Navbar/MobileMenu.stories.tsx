@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
@@ -40,6 +40,7 @@ const meta: Meta<typeof MobileMenu> = {
 		supportLinks: MockSupportLinks,
 		onSignOut: fn(),
 		isDefaultOpen: true,
+		canViewWorkspaces: true,
 		adminPermissions: {
 			canViewDeployment: true,
 			canViewOrganizations: true,
@@ -91,6 +92,25 @@ export const Member: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},
+	},
+};
+
+export const WithoutWorkspaceAccess: Story = {
+	args: {
+		user: MockUserMember,
+		adminPermissions: {},
+		canViewWorkspaces: false,
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await body.findByText("Workspaces");
+
+		expect(
+			body.queryByRole("link", { name: "Workspaces" }),
+		).not.toBeInTheDocument();
+		expect(
+			body.queryByRole("menuitem", { name: /workspace proxy settings/i }),
+		).not.toBeInTheDocument();
 	},
 };
 

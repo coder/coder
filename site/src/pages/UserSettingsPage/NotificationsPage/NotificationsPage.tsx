@@ -283,6 +283,7 @@ function canSeeNotificationGroup(
 			return permissions.createUser;
 		case "Workspace Events":
 		case "Task Events":
+			return permissions.viewWorkspaces;
 		case "Chat Events":
 		case "Custom Events":
 		case "AI Cost Control Events":

@@ -31,6 +31,7 @@ export const Navbar: React.FC = () => {
 		permissions.viewAIGatewayKeys ||
 		permissions.editDeploymentConfig;
 	const canCreateChat = permissions.createChat;
+	const canViewWorkspaces = permissions.viewWorkspaces;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
 	for (const link of appearance.support_links ?? []) {
@@ -54,6 +55,7 @@ export const Navbar: React.FC = () => {
 				canViewHealth,
 			}}
 			canCreateChat={canCreateChat}
+			canViewWorkspaces={canViewWorkspaces}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

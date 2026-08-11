@@ -23,6 +23,14 @@
 		},
 		"action": "create"
 	},
+	"viewWorkspaces": {
+		"object": {
+			"resource_type": "workspace",
+			"any_org": true,
+			"owner_id": "me"
+		},
+		"action": "read"
+	},
 	"updateTemplates": {
 		"object": { "resource_type": "template" },
 		"action": "update"

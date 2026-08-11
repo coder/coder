@@ -23,6 +23,7 @@ import {
 import { AdminSettingsDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
+import { RestrictedNavItem } from "./RestrictedNavItem";
 import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
@@ -33,6 +34,7 @@ interface NavbarViewProps {
 	onSignOut: () => void;
 	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
+	canViewWorkspaces: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
@@ -49,6 +51,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	onSignOut,
 	adminPermissions,
 	canCreateChat,
+	canViewWorkspaces,
 	proxyContextValue,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
@@ -73,7 +76,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 							: undefined,
 			}}
 		>
-			<NavLink to="/workspaces">
+			<NavLink to={canViewWorkspaces ? "/workspaces" : "/settings/account"}>
 				<ProductLogo className="h-7" />
 			</NavLink>
 
@@ -81,6 +84,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				className="ml-4 hidden md:flex"
 				user={user}
 				canCreateChat={canCreateChat}
+				canViewWorkspaces={canViewWorkspaces}
 			/>
 
 			{prerelease && buildInfo?.version && (
@@ -111,7 +115,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					</div>
 				))}
 
-				{proxyContextValue && (
+				{proxyContextValue && canViewWorkspaces && (
 					<div className="hidden md:block">
 						<ProxyMenu proxyContextValue={proxyContextValue} />
 					</div>
@@ -146,6 +150,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					<MobileMenu
 						proxyContextValue={proxyContextValue}
 						adminPermissions={adminPermissions}
+						canViewWorkspaces={canViewWorkspaces}
 						user={user}
 						supportLinks={supportLinks}
 						onSignOut={onSignOut}
@@ -160,52 +165,76 @@ interface NavItemsProps {
 	className?: string;
 	user: TypesGen.User;
 	canCreateChat: boolean;
+	canViewWorkspaces: boolean;
 }
 
-const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
+const NavItems: FC<NavItemsProps> = ({
+	className,
+	user,
+	canCreateChat,
+	canViewWorkspaces,
+}) => {
 	const location = useLocation();
 
 	return (
 		<nav className={cn("flex items-center gap-4 h-full", className)}>
-			<NavLink
-				className={({ isActive }) => {
-					if (location.pathname.startsWith("/@")) {
-						isActive = true;
-					}
-					return cn(linkStyles.default, { [linkStyles.active]: isActive });
-				}}
-				to="/workspaces"
-			>
-				Workspaces
-			</NavLink>
-			<NavLink
-				className={({ isActive }) => {
-					return cn(linkStyles.default, { [linkStyles.active]: isActive });
-				}}
-				to="/templates"
-			>
-				Templates
-			</NavLink>
-			<TasksNavItem user={user} />
-			{canCreateChat && (
+			{canViewWorkspaces ? (
+				<NavLink
+					className={({ isActive }) => {
+						if (location.pathname.startsWith("/@")) {
+							isActive = true;
+						}
+						return cn(linkStyles.default, { [linkStyles.active]: isActive });
+					}}
+					to="/workspaces"
+				>
+					Workspaces
+				</NavLink>
+			) : (
+				<RestrictedNavItem className={linkStyles.default}>
+					Workspaces
+				</RestrictedNavItem>
+			)}
+			{canViewWorkspaces ? (
 				<NavLink
 					className={({ isActive }) => {
 						return cn(linkStyles.default, { [linkStyles.active]: isActive });
 					}}
-					to="/agents"
+					to="/templates"
 				>
-					Agents
+					Templates
 				</NavLink>
+			) : (
+				<RestrictedNavItem className={linkStyles.default}>
+					Templates
+				</RestrictedNavItem>
 			)}
+			<TasksNavItem user={user} canViewWorkspaces={canViewWorkspaces} />
+			{canCreateChat &&
+				(canViewWorkspaces ? (
+					<NavLink
+						className={({ isActive }) => {
+							return cn(linkStyles.default, { [linkStyles.active]: isActive });
+						}}
+						to="/agents"
+					>
+						Agents
+					</NavLink>
+				) : (
+					<RestrictedNavItem className={linkStyles.default}>
+						Agents
+					</RestrictedNavItem>
+				))}
 		</nav>
 	);
 };
 
 type TasksNavItemProps = {
 	user: TypesGen.User;
+	canViewWorkspaces: boolean;
 };
 
-const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
+const TasksNavItem: FC<TasksNavItemProps> = ({ user, canViewWorkspaces }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const canSeeTasks = Boolean(
 		metadata["tasks-tab-visible"].value ||
@@ -219,7 +248,7 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 		queryKey: ["tasks", filter],
 		queryFn: () => API.getTasks(filter),
 		refetchInterval: 1_000 * 60,
-		enabled: canSeeTasks,
+		enabled: canSeeTasks && canViewWorkspaces,
 		refetchOnWindowFocus: true,
 		initialData: [],
 		select: (data) =>
@@ -228,6 +257,14 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 
 	if (!canSeeTasks) {
 		return null;
+	}
+
+	if (!canViewWorkspaces) {
+		return (
+			<RestrictedNavItem className={linkStyles.default}>
+				Tasks
+			</RestrictedNavItem>
+		);
 	}
 
 	return (

@@ -36,6 +36,7 @@ const AccountPage: FC = () => {
 				<AccountForm
 					editable={permissions?.updateUsers ?? false}
 					email={me.email}
+					showTemplateNameHelperText={permissions.viewWorkspaces}
 					updateProfileError={updateProfileError}
 					isLoading={isUpdatingProfile}
 					initialValues={{

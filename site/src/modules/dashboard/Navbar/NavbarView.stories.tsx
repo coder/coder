@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
 import {
 	MockBuildInfo,
@@ -40,6 +40,7 @@ const meta: Meta<typeof NavbarView> = {
 			canViewHealth: true,
 		},
 		canCreateChat: true,
+		canViewWorkspaces: true,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
@@ -119,6 +120,28 @@ export const ForMemberWithAgentsAccess: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: true,
+	},
+};
+
+export const WithoutWorkspaceAccess: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
+	args: {
+		user: MockUserMember,
+		adminPermissions: {},
+		canCreateChat: true,
+		canViewWorkspaces: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		for (const label of ["Workspaces", "Templates", "Tasks", "Agents"]) {
+			expect(
+				canvas.queryByRole("link", { name: label }),
+			).not.toBeInTheDocument();
+		}
+
+		await userEvent.hover(canvas.getByText("Workspaces"));
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
 	},
 };
 
