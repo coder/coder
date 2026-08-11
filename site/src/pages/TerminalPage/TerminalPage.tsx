@@ -28,6 +28,7 @@ import { WorkspaceTerminalAlerts } from "#/modules/terminal/WorkspaceTerminalAle
 import themes from "#/theme";
 import { pageTitle } from "#/utils/page";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
+import { generateConnectionSessionId } from "#/utils/random";
 import { getMatchingAgentOrFirst } from "#/utils/workspace";
 import { TerminalCommandConsentDialog } from "./TerminalCommandConsentDialog";
 
@@ -53,7 +54,7 @@ const TerminalPage: FC = () => {
 	// The session ID correlates all logs, requests, and telemetry for this
 	// terminal session. Unlike the reconnection token, it is not persisted in
 	// the URL: a new page load (including a reload) is a new session.
-	const [sessionId] = useState(() => uuidv4());
+	const [sessionId] = useState(() => generateConnectionSessionId());
 	const command = searchParams.get("command") || undefined;
 	const appSlug = searchParams.get("app") || undefined;
 	const containerName = searchParams.get("container") || undefined;
