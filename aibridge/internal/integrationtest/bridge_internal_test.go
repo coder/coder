@@ -837,6 +837,41 @@ func TestOpenAIChatCompletions(t *testing.T) {
 		}
 	})
 
+	t.Run("streaming cumulative usage with injected tool", func(t *testing.T) {
+		t.Parallel()
+
+		bridgeServer, mockMCP, resp := setupInjectedToolTest(
+			t,
+			fixtures.OaiChatStreamingCumulativeUsageInjectedTool,
+			true,
+			defaultTracer,
+			pathOpenAIChatCompletions,
+			nil,
+		)
+		defer resp.Body.Close()
+
+		sp := aibridge.NewSSEParser()
+		require.NoError(t, sp.Parse(resp.Body))
+
+		var finalUsage gjson.Result
+		events := sp.MessageEvents()
+		for i := len(events) - 1; i >= 0; i-- {
+			if usage := gjson.Get(events[i].Data, "usage"); usage.Exists() {
+				finalUsage = usage
+				break
+			}
+		}
+
+		require.True(t, finalUsage.Exists())
+		require.EqualValues(t, 6000, finalUsage.Get("prompt_tokens").Int())
+		require.EqualValues(t, 30, finalUsage.Get("completion_tokens").Int())
+		require.EqualValues(t, 6030, finalUsage.Get("total_tokens").Int())
+		require.EqualValues(t, 12000, bridgeServer.Recorder.TotalInputTokens())
+		require.EqualValues(t, 60, bridgeServer.Recorder.TotalOutputTokens())
+		require.Len(t, mockMCP.getCallsByTool(mockToolName), 1)
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+	})
+
 	t.Run("streaming injected tool call edge cases", func(t *testing.T) {
 		t.Parallel()
 

@@ -624,6 +624,7 @@ type sqlcQuerier interface {
 	GetGroupMembersCountByGroupIDs(ctx context.Context, arg GetGroupMembersCountByGroupIDsParams) ([]GetGroupMembersCountByGroupIDsRow, error)
 	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
+	GetGroupsByOrganizationIDPaginated(ctx context.Context, arg GetGroupsByOrganizationIDPaginatedParams) ([]GetGroupsByOrganizationIDPaginatedRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	// Returns the highest group AI budget across the groups the user belongs to,
 	// breaking ties by the earliest organization membership. Implements the
@@ -1168,12 +1169,8 @@ type sqlcQuerier interface {
 	InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error
 	InsertTemplateVersionVariable(ctx context.Context, arg InsertTemplateVersionVariableParams) (TemplateVersionVariable, error)
 	InsertTemplateVersionWorkspaceTag(ctx context.Context, arg InsertTemplateVersionWorkspaceTagParams) (TemplateVersionWorkspaceTag, error)
-	// Duplicate events are ignored intentionally to allow for multiple replicas
-	// to publish heartbeat events. The (id) arbiter scopes that tolerance to
-	// exact re-inserts of the same event: a duplicate hb_agent_runtime_v1
-	// bucket under a different id raises on idx_usage_events_agent_runtime
-	// instead, which generateBucket in enterprise/coderd/usage/generator.go
-	// handles.
+	// Duplicate events are ignored intentionally to allow for multiple replicas to
+	// publish heartbeat events.
 	InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
 	// InsertUserGroupsByID adds a user to all provided groups, if they exist.
@@ -1615,6 +1612,9 @@ type sqlcQuerier interface {
 	// Upsert a batch of (provider, model) rows from a JSON array. Each element
 	// must have provider, model, and the four price fields; null prices are
 	// written as SQL NULL.
+	// A conflicting row is only rewritten when a price differs, so updated_at
+	// records when a price last changed. Prices are nullable and a NULL on
+	// either side counts as a difference.
 	UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)
