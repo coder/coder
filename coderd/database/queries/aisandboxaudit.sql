@@ -32,6 +32,11 @@ RETURNING *;
 -- name: GetAISandboxSessionByID :one
 SELECT * FROM ai_sandbox_sessions WHERE id = @id;
 
+-- name: GetAISandboxSessionsByWorkspaceID :many
+SELECT * FROM ai_sandbox_sessions
+WHERE workspace_id = @workspace_id
+ORDER BY started_at DESC;
+
 -- name: InsertAISandboxNetworkEvents :execrows
 -- Batch-inserts egress policy decisions. Attribution snapshots are copied
 -- server-side from the owning session row onto every event.
@@ -63,6 +68,19 @@ SELECT
 SELECT * FROM ai_sandbox_network_events
 WHERE session_id = @session_id
 ORDER BY occurred_at ASC, id ASC;
+
+-- name: GetAISandboxNetworkEventsBySessionIDPaged :many
+SELECT e.* FROM ai_sandbox_network_events e
+WHERE e.session_id = @session_id
+  AND e.id > @after_id
+  AND EXISTS (
+      SELECT 1
+      FROM ai_sandbox_sessions s
+      WHERE s.id = e.session_id
+        AND s.workspace_id = @workspace_id
+  )
+ORDER BY e.id ASC
+LIMIT @limit_count;
 
 -- name: DeleteOldAISandboxNetworkEvents :execrows
 -- Deletes egress audit events older than the given time, bounded by a row

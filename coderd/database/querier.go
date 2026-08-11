@@ -370,7 +370,9 @@ type sqlcQuerier interface {
 	// unless include_deleted or include_disabled is set.
 	GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AIProvider, error)
 	GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]AISandboxNetworkEvent, error)
+	GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsBySessionIDPagedParams) ([]AISandboxNetworkEvent, error)
 	GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (AISandboxSession, error)
+	GetAISandboxSessionsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]AISandboxSession, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)

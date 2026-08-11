@@ -2205,6 +2205,21 @@ func (mr *MockStoreMockRecorder) GetAISandboxNetworkEventsBySessionID(ctx, sessi
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxNetworkEventsBySessionID", reflect.TypeOf((*MockStore)(nil).GetAISandboxNetworkEventsBySessionID), ctx, sessionID)
 }
 
+// GetAISandboxNetworkEventsBySessionIDPaged mocks base method.
+func (m *MockStore) GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context, arg database.GetAISandboxNetworkEventsBySessionIDPagedParams) ([]database.AISandboxNetworkEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxNetworkEventsBySessionIDPaged", ctx, arg)
+	ret0, _ := ret[0].([]database.AISandboxNetworkEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxNetworkEventsBySessionIDPaged indicates an expected call of GetAISandboxNetworkEventsBySessionIDPaged.
+func (mr *MockStoreMockRecorder) GetAISandboxNetworkEventsBySessionIDPaged(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxNetworkEventsBySessionIDPaged", reflect.TypeOf((*MockStore)(nil).GetAISandboxNetworkEventsBySessionIDPaged), ctx, arg)
+}
+
 // GetAISandboxSessionByID mocks base method.
 func (m *MockStore) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (database.AISandboxSession, error) {
 	m.ctrl.T.Helper()
@@ -2218,6 +2233,21 @@ func (m *MockStore) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (
 func (mr *MockStoreMockRecorder) GetAISandboxSessionByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxSessionByID", reflect.TypeOf((*MockStore)(nil).GetAISandboxSessionByID), ctx, id)
+}
+
+// GetAISandboxSessionsByWorkspaceID mocks base method.
+func (m *MockStore) GetAISandboxSessionsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.AISandboxSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxSessionsByWorkspaceID", ctx, workspaceID)
+	ret0, _ := ret[0].([]database.AISandboxSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxSessionsByWorkspaceID indicates an expected call of GetAISandboxSessionsByWorkspaceID.
+func (mr *MockStoreMockRecorder) GetAISandboxSessionsByWorkspaceID(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxSessionsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetAISandboxSessionsByWorkspaceID), ctx, workspaceID)
 }
 
 // GetAPIKeyByID mocks base method.

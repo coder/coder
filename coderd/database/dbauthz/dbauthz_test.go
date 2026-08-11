@@ -590,6 +590,12 @@ func (s *MethodTestSuite) TestAISandboxAudit() {
 		dbm.EXPECT().GetAISandboxSessionByID(gomock.Any(), uuid.Nil).Return(database.AISandboxSession{}, nil).AnyTimes()
 		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetAISandboxSessionsByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		workspace := testutil.Fake(s.T(), faker, database.Workspace{})
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil).AnyTimes()
+		dbm.EXPECT().GetAISandboxSessionsByWorkspaceID(gomock.Any(), workspace.ID).Return([]database.AISandboxSession{}, nil).AnyTimes()
+		check.Args(workspace.ID).Asserts(workspace, policy.ActionRead)
+	}))
 	s.Run("InsertAISandboxNetworkEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertAISandboxNetworkEventsParams{}
 		dbm.EXPECT().InsertAISandboxNetworkEvents(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
@@ -598,6 +604,13 @@ func (s *MethodTestSuite) TestAISandboxAudit() {
 	s.Run("GetAISandboxNetworkEventsBySessionID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetAISandboxNetworkEventsBySessionID(gomock.Any(), uuid.Nil).Return([]database.AISandboxNetworkEvent{}, nil).AnyTimes()
 		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetAISandboxNetworkEventsBySessionIDPaged", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		workspace := testutil.Fake(s.T(), faker, database.Workspace{})
+		arg := database.GetAISandboxNetworkEventsBySessionIDPagedParams{WorkspaceID: workspace.ID}
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil).AnyTimes()
+		dbm.EXPECT().GetAISandboxNetworkEventsBySessionIDPaged(gomock.Any(), arg).Return([]database.AISandboxNetworkEvent{}, nil).AnyTimes()
+		check.Args(arg).Asserts(workspace, policy.ActionRead)
 	}))
 	s.Run("DeleteOldAISandboxNetworkEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().DeleteOldAISandboxNetworkEvents(gomock.Any(), database.DeleteOldAISandboxNetworkEventsParams{}).Return(int64(0), nil).AnyTimes()

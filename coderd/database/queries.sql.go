@@ -3912,6 +3912,67 @@ func (q *sqlQuerier) GetAISandboxNetworkEventsBySessionID(ctx context.Context, s
 	return items, nil
 }
 
+const getAISandboxNetworkEventsBySessionIDPaged = `-- name: GetAISandboxNetworkEventsBySessionIDPaged :many
+SELECT e.id, e.session_id, e.occurred_at, e.protocol, e.host, e.port, e.action, e.policy_revision, e.ai_agent_id, e.sponsor_user_id, e.created_at FROM ai_sandbox_network_events e
+WHERE e.session_id = $1
+  AND e.id > $2
+  AND EXISTS (
+      SELECT 1
+      FROM ai_sandbox_sessions s
+      WHERE s.id = e.session_id
+        AND s.workspace_id = $3
+  )
+ORDER BY e.id ASC
+LIMIT $4
+`
+
+type GetAISandboxNetworkEventsBySessionIDPagedParams struct {
+	SessionID   uuid.UUID `db:"session_id" json:"session_id"`
+	AfterID     int64     `db:"after_id" json:"after_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	LimitCount  int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsBySessionIDPagedParams) ([]AISandboxNetworkEvent, error) {
+	rows, err := q.db.QueryContext(ctx, getAISandboxNetworkEventsBySessionIDPaged,
+		arg.SessionID,
+		arg.AfterID,
+		arg.WorkspaceID,
+		arg.LimitCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISandboxNetworkEvent
+	for rows.Next() {
+		var i AISandboxNetworkEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.OccurredAt,
+			&i.Protocol,
+			&i.Host,
+			&i.Port,
+			&i.Action,
+			&i.PolicyRevision,
+			&i.AIAgentID,
+			&i.SponsorUserID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAISandboxSessionByID = `-- name: GetAISandboxSessionByID :one
 SELECT id, workspace_id, reporter_agent_id, confined_agent_id, ai_agent_id, sponsor_user_id, egress_enforcement, started_at, ended_at, created_at FROM ai_sandbox_sessions WHERE id = $1
 `
@@ -3932,6 +3993,46 @@ func (q *sqlQuerier) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) 
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getAISandboxSessionsByWorkspaceID = `-- name: GetAISandboxSessionsByWorkspaceID :many
+SELECT id, workspace_id, reporter_agent_id, confined_agent_id, ai_agent_id, sponsor_user_id, egress_enforcement, started_at, ended_at, created_at FROM ai_sandbox_sessions
+WHERE workspace_id = $1
+ORDER BY started_at DESC
+`
+
+func (q *sqlQuerier) GetAISandboxSessionsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]AISandboxSession, error) {
+	rows, err := q.db.QueryContext(ctx, getAISandboxSessionsByWorkspaceID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISandboxSession
+	for rows.Next() {
+		var i AISandboxSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ReporterAgentID,
+			&i.ConfinedAgentID,
+			&i.AIAgentID,
+			&i.SponsorUserID,
+			&i.EgressEnforcement,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertAISandboxNetworkEvents = `-- name: InsertAISandboxNetworkEvents :execrows

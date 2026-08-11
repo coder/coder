@@ -2972,11 +2972,33 @@ func (q *querier) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sess
 	return q.db.GetAISandboxNetworkEventsBySessionID(ctx, sessionID)
 }
 
+func (q *querier) GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context, arg database.GetAISandboxNetworkEventsBySessionIDPagedParams) ([]database.AISandboxNetworkEvent, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+		return nil, err
+	}
+	return q.db.GetAISandboxNetworkEventsBySessionIDPaged(ctx, arg)
+}
+
 func (q *querier) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (database.AISandboxSession, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.AISandboxSession{}, err
 	}
 	return q.db.GetAISandboxSessionByID(ctx, id)
+}
+
+func (q *querier) GetAISandboxSessionsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.AISandboxSession, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+		return nil, err
+	}
+	return q.db.GetAISandboxSessionsByWorkspaceID(ctx, workspaceID)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {

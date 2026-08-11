@@ -1265,11 +1265,27 @@ func (m queryMetricsStore) GetAISandboxNetworkEventsBySessionID(ctx context.Cont
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context, arg database.GetAISandboxNetworkEventsBySessionIDPagedParams) ([]database.AISandboxNetworkEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxNetworkEventsBySessionIDPaged(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAISandboxNetworkEventsBySessionIDPaged").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxNetworkEventsBySessionIDPaged").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (database.AISandboxSession, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAISandboxSessionByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetAISandboxSessionByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxSessionByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAISandboxSessionsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.AISandboxSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxSessionsByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("GetAISandboxSessionsByWorkspaceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxSessionsByWorkspaceID").Inc()
 	return r0, r1
 }
 
