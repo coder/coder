@@ -124,6 +124,21 @@ func sessionIDFromQueryString(q url.Values) string {
 	return id
 }
 
+// SessionIDMiddleware reads the client_session_id baggage member from the
+// request and adds it to the log context so downstream request logs can be
+// correlated by session. Unlike Middleware, it does not create spans, emit
+// telemetry, or gate on route patterns. It is intended for the agent, per the
+// connection-log RFC, which for now only requires the session ID on the log
+// context.
+func SessionIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if sessionID := sessionIDFromHeaders(r.Header); sessionID != "" {
+			r = r.WithContext(slog.With(r.Context(), slog.F("client_session_id", sessionID)))
+		}
+		next.ServeHTTP(rw, r)
+	})
+}
+
 // validSessionID reports whether s is a 32-character lowercase hexadecimal
 // string (a 16-byte value), the encoding the RFC mandates for the session ID.
 // Only lowercase is accepted so that case-sensitive searches correlate

@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -341,6 +342,113 @@ func (r *startNameRecorder) OnStart(_ context.Context, s sdktrace.ReadWriteSpan)
 func (*startNameRecorder) OnEnd(sdktrace.ReadOnlySpan)      {}
 func (*startNameRecorder) Shutdown(context.Context) error   { return nil }
 func (*startNameRecorder) ForceFlush(context.Context) error { return nil }
+
+func Test_SessionIDMiddleware(t *testing.T) {
+	t.Parallel()
+
+	// downstreamFields runs a request through SessionIDMiddleware and returns
+	// the fields a downstream handler logs using the request context.
+	downstreamFields := func(t *testing.T, header string) []slog.Field {
+		t.Helper()
+
+		sink := testutil.NewFakeSink(t)
+		logger := sink.Logger()
+
+		handler := tracing.SessionIDMiddleware(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			logger.Info(r.Context(), "downstream handler invoked")
+			rw.WriteHeader(http.StatusNoContent)
+		}))
+
+		r := httptest.NewRequest(http.MethodGet, "/api/v0/foo", nil)
+		if header != "" {
+			r.Header.Set("baggage", header)
+		}
+		handler.ServeHTTP(httptest.NewRecorder(), r)
+
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "downstream handler invoked"
+		})
+		require.Len(t, entries, 1)
+		return entries[0].Fields
+	}
+
+	fieldValue := func(fields []slog.Field, name string) (any, bool) {
+		for _, f := range fields {
+			if f.Name == name {
+				return f.Value, true
+			}
+		}
+		return nil, false
+	}
+
+	t.Run("ValidBaggage", func(t *testing.T) {
+		t.Parallel()
+
+		val, ok := fieldValue(downstreamFields(t, tracing.SessionIDBaggageKey+"="+testSessionID), "client_session_id")
+		require.True(t, ok, "client_session_id should be on the log context")
+		require.Equal(t, testSessionID, val)
+	})
+
+	t.Run("NoBaggage", func(t *testing.T) {
+		t.Parallel()
+
+		_, ok := fieldValue(downstreamFields(t, ""), "client_session_id")
+		require.False(t, ok, "client_session_id should be absent when no baggage is sent")
+	})
+
+	t.Run("MalformedBaggage", func(t *testing.T) {
+		t.Parallel()
+
+		_, ok := fieldValue(downstreamFields(t, tracing.SessionIDBaggageKey+"=not-a-valid-session-id"), "client_session_id")
+		require.False(t, ok, "malformed client_session_id should be ignored")
+	})
+
+	t.Run("UppercaseRejected", func(t *testing.T) {
+		t.Parallel()
+
+		upper := strings.ToUpper(testSessionID)
+		_, ok := fieldValue(downstreamFields(t, tracing.SessionIDBaggageKey+"="+upper), "client_session_id")
+		require.False(t, ok, "uppercase client_session_id should be rejected")
+	})
+}
+
+// Test_SessionIDMiddleware_AccessLog verifies that, wired in the same order as
+// the agent middleware stack, the client_session_id lands on loggermw's request
+// completion log line, not just on downstream handler logs.
+func Test_SessionIDMiddleware_AccessLog(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+
+	// StatusWriterMiddleware is required by loggermw; SessionIDMiddleware runs
+	// before loggermw so the field is on the request context when the access
+	// log is emitted. This mirrors agent/api.go.
+	handler := tracing.StatusWriterMiddleware(
+		tracing.SessionIDMiddleware(
+			loggermw.Logger(sink.Logger(), nil)(
+				http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+					rw.WriteHeader(http.StatusNoContent)
+				}),
+			),
+		),
+	)
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v0/foo", nil)
+	r.Header.Set("baggage", tracing.SessionIDBaggageKey+"="+testSessionID)
+	handler.ServeHTTP(httptest.NewRecorder(), r)
+
+	entries := sink.Entries()
+	require.Len(t, entries, 1)
+
+	var found bool
+	for _, f := range entries[0].Fields {
+		if f.Name == "client_session_id" {
+			found = true
+			require.Equal(t, testSessionID, f.Value)
+		}
+	}
+	require.True(t, found, "client_session_id should be on the request access log")
+}
 
 func Test_Middleware(t *testing.T) {
 	t.Parallel()
