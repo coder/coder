@@ -9,6 +9,7 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { cn } from "#/utils/cn";
+import { LinkifiedText } from "../LinkifiedText";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -302,7 +303,9 @@ const QuestionStep: FC<QuestionStepProps> = ({
 						{questionHeader}
 					</span>
 					<span aria-hidden="true">Asking: </span>
-					<span>{questionText}</span>
+					<span>
+						<LinkifiedText text={questionText} />
+					</span>
 				</p>
 			</div>
 			<div className="rounded-md border border-solid border-border-default px-3 py-1">
@@ -362,7 +365,9 @@ const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
 				className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]"
 			>
 				<span aria-hidden="true">Asked: </span>
-				<span>{getQuestionText(question)}</span>
+				<span>
+					<LinkifiedText text={getQuestionText(question)} />
+				</span>
 			</p>
 		</div>
 	);

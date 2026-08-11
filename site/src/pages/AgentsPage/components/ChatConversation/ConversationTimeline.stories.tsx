@@ -10,6 +10,7 @@ import {
 	within,
 } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatUrlTransformContext } from "../../context/ChatUrlTransformContext";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -466,10 +467,19 @@ export const SystemMessageWithoutHookNotice: Story = {
 };
 
 export const LifecycleHookNoticeOnUserMessage: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext
+				value={(url) =>
+					url.replace("http://localhost:3000", "https://proxy.example.com")
+				}
+			>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
 	args: {
 		...defaultArgs,
-		urlTransform: (url) =>
-			url.replace("http://localhost:3000", "https://proxy.example.com"),
 		parsedMessages: buildMessages([
 			{
 				...baseMessage,
