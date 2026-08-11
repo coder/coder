@@ -5714,3 +5714,39 @@ export const MockCreateAIGatewayKeyResponse: TypesGen.CreateAIGatewayKeyResponse
 		key_prefix: "K3mNp7qRs2T",
 		created_at: "2024-05-28T12:00:00Z",
 	};
+
+export const MockAISandboxSession: TypesGen.AISandboxSession = {
+	id: "1f2e3d4c-5b6a-7980-9182-a3b4c5d6e7f8",
+	workspace_id: MockWorkspace.id,
+	reporter_agent_id: MockWorkspaceAgent.id,
+	confined_agent_id: MockWorkspaceAgent.id,
+	ai_agent_id: "d8c7b6a5-4938-2716-8594-a3b2c1d0e9f8",
+	sponsor_user_id: MockUserOwner.id,
+	egress_enforcement: "forced",
+	started_at: "2024-05-28T12:00:00Z",
+	created_at: "2024-05-28T12:00:00Z",
+};
+
+export const MockAISandboxNetworkEvents: TypesGen.AISandboxNetworkEventView[] =
+	[
+		{
+			id: 1,
+			session_id: MockAISandboxSession.id,
+			occurred_at: "2024-05-28T12:00:05Z",
+			protocol: "connect",
+			host: "github.com",
+			port: 443,
+			action: "allowed",
+			policy_revision: 3,
+		},
+		{
+			id: 2,
+			session_id: MockAISandboxSession.id,
+			occurred_at: "2024-05-28T12:00:09Z",
+			protocol: "sni",
+			host: "pastebin.example.com",
+			port: 443,
+			action: "denied",
+			policy_revision: 3,
+		},
+	];

@@ -1259,6 +1259,32 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getWorkspaceAISandboxSessions = async (
+		workspaceId: string,
+	): Promise<TypesGen.AISandboxSession[]> => {
+		const response = await this.axios.get<TypesGen.AISandboxSession[]>(
+			`/api/v2/workspaces/${workspaceId}/ai-sandbox-sessions`,
+		);
+
+		return response.data;
+	};
+
+	// Network events are keyset paginated by their numeric id: pass the last
+	// received id as afterId to fetch the next page.
+	getAISandboxSessionNetworkEvents = async (
+		workspaceId: string,
+		sessionId: string,
+		afterId = 0,
+		limit = 100,
+	): Promise<TypesGen.AISandboxNetworkEventView[]> => {
+		const response = await this.axios.get<TypesGen.AISandboxNetworkEventView[]>(
+			`/api/v2/workspaces/${workspaceId}/ai-sandbox-sessions/${sessionId}/network-events`,
+			{ params: { after_id: afterId, limit } },
+		);
+
+		return response.data;
+	};
+
 	getWorkspaceByOwnerAndName = async (
 		username: string,
 		workspaceName: string,

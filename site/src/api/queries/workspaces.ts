@@ -9,6 +9,7 @@ import type {
 import { API, type DeleteWorkspaceOptions } from "#/api/api";
 import { DetailedError, isApiValidationError } from "#/api/errors";
 import type {
+	AISandboxNetworkEventView,
 	CreateWorkspaceRequest,
 	ProvisionerLogLevel,
 	UsageAppName,
@@ -59,6 +60,44 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
 			API.getWorkspaceByOwnerAndName(owner, name, {
 				include_deleted: true,
 			}),
+	};
+};
+
+const workspaceAISandboxSessionsKey = (workspaceId: string) =>
+	["workspace", workspaceId, "aiSandboxSessions"] as const;
+
+export const workspaceAISandboxSessions = (workspaceId: string) => {
+	return {
+		queryKey: workspaceAISandboxSessionsKey(workspaceId),
+		queryFn: () => API.getWorkspaceAISandboxSessions(workspaceId),
+	};
+};
+
+const aiSandboxSessionNetworkEventsKey = (
+	workspaceId: string,
+	sessionId: string,
+) =>
+	[
+		"workspace",
+		workspaceId,
+		"aiSandboxSessions",
+		sessionId,
+		"networkEvents",
+	] as const;
+
+// Events are keyset paginated on their numeric row id, so each page's last
+// id is the next page's cursor. An empty page means the trail is exhausted.
+export const infiniteAISandboxSessionNetworkEvents = (
+	workspaceId: string,
+	sessionId: string,
+) => {
+	return {
+		queryKey: aiSandboxSessionNetworkEventsKey(workspaceId, sessionId),
+		queryFn: ({ pageParam }: { pageParam: number }) =>
+			API.getAISandboxSessionNetworkEvents(workspaceId, sessionId, pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage: AISandboxNetworkEventView[]) =>
+			lastPage.length > 0 ? lastPage[lastPage.length - 1].id : undefined,
 	};
 };
 

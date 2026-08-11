@@ -13,6 +13,7 @@ import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { WorkspaceAIEgressActivity } from "./WorkspaceAIEgressActivity";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	getActiveTransitionStats,
@@ -240,6 +241,10 @@ export const Workspace: FC<WorkspaceProps> = ({
 										</div>
 									)}
 								</section>
+							)}
+
+							{workspace.ai_agent_id && (
+								<WorkspaceAIEgressActivity workspaceId={workspace.id} />
 							)}
 
 							<WorkspaceTimings
