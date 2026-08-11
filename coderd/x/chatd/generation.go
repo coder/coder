@@ -54,9 +54,10 @@ type generationPrepared struct {
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
 	ResolvedProvider string
 
-	ModelConfigID        uuid.UUID
-	ModelConfig          codersdk.ChatModelCallConfig
-	ProviderOptions      fantasy.ProviderOptions
+	ModelConfigID uuid.UUID
+	// CallTemplate is the resolver-built assistant call envelope; see
+	// chatloop.GenerateAssistantOptions.CallTemplate.
+	CallTemplate         fantasy.Call
 	ContextLimitFallback int64
 
 	DynamicToolNames   map[string]bool
@@ -733,8 +734,7 @@ func (s *taskStarter) generateAssistant(
 		ActiveTools:          prepared.ActiveTools,
 		ProviderTools:        prepared.ProviderTools,
 		ContextLimitFallback: prepared.ContextLimitFallback,
-		ModelConfig:          prepared.ModelConfig,
-		ProviderOptions:      prepared.ProviderOptions,
+		CallTemplate:         prepared.CallTemplate,
 		PublishMessagePart:   attempt.publish,
 		OnModelStreamStart:   attempt.startModelInvocation,
 		Logger:               s.opts.Logger,
@@ -975,7 +975,7 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
-		compactionOpts.ProviderOptions = overrideModel.providerOptions
+		compactionOpts.SummaryCall = overrideModel.newCall(compactionSummaryOverrides(false))
 		compactionOpts.Messages = sanitizeCompactionPrompt(
 			ctx,
 			logger,

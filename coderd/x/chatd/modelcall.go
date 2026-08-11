@@ -441,6 +441,53 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	return out, nil
 }
 
+// callOverrides carries the few envelope deviations flows need beyond the
+// resolved call config.
+type callOverrides struct {
+	// toolChoice forces the provider tool-choice mode.
+	toolChoice *fantasy.ToolChoice
+	// bare drops the sampling and token fields. Compaction summary calls
+	// historically send only prompt, tool choice, and provider options.
+	bare bool
+	// omitProviderOptions drops the resolved provider options. The
+	// chat-model compaction summary historically sends none.
+	omitProviderOptions bool
+}
+
+// compactionSummaryOverrides is the envelope both compaction summary paths
+// share: a bare call that forbids tool use.
+func compactionSummaryOverrides(omitProviderOptions bool) callOverrides {
+	toolChoiceNone := fantasy.ToolChoiceNone
+	return callOverrides{
+		bare:                true,
+		toolChoice:          &toolChoiceNone,
+		omitProviderOptions: omitProviderOptions,
+	}
+}
+
+// newCall builds the fantasy.Call template for one model call. Prompt and
+// tools stay caller-owned: downstream packages copy the template and attach
+// them before sending (see chatloop.GenerateAssistantOptions.CallTemplate).
+func (r resolvedModelCall) newCall(o callOverrides) fantasy.Call {
+	call := fantasy.Call{
+		ToolChoice:      o.toolChoice,
+		ProviderOptions: r.providerOptions,
+	}
+	if o.omitProviderOptions {
+		call.ProviderOptions = nil
+	}
+	if o.bare {
+		return call
+	}
+	call.MaxOutputTokens = r.callConfig.MaxOutputTokens
+	call.Temperature = r.callConfig.Temperature
+	call.TopP = r.callConfig.TopP
+	call.TopK = r.callConfig.TopK
+	call.PresencePenalty = r.callConfig.PresencePenalty
+	call.FrequencyPenalty = r.callConfig.FrequencyPenalty
+	return call
+}
+
 // deriveProviderOptions converts a call config into per-call provider
 // options for this resolved model. resolveModelCall derives from the spec's
 // parsed config; callers that mutate the call config after resolution

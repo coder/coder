@@ -356,16 +356,14 @@ func (p *Server) newAdvisorRuntime(
 		maxOutputTokens = defaultAdvisorMaxOutputTokens
 	}
 
-	advisorCallConfig := advisor.callConfig
-	advisorCallConfig.MaxOutputTokens = ptr.Ref(maxOutputTokens)
+	advisor.callConfig.MaxOutputTokens = ptr.Ref(maxOutputTokens)
 	// The override resolver pins an explicit advisor effort into the model
 	// config. Fallback models keep their configured default effort.
-	providerOptions := advisor.deriveProviderOptions(advisorCallConfig, nil)
+	advisor.providerOptions = advisor.deriveProviderOptions(advisor.callConfig, nil)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
 		Model:           advisor.model.LanguageModel(),
-		ModelConfig:     advisorCallConfig,
-		ProviderOptions: providerOptions,
+		CallTemplate:    advisor.newCall(callOverrides{}),
 		MaxUsesPerRun:   maxUsesPerRun,
 		MaxOutputTokens: maxOutputTokens,
 	})

@@ -111,18 +111,20 @@ func TestModelCallShapeStandardTurn(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
 
-	providerOptions, ok := prepared.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.ProviderOptions[fantasyopenai.Name])
+	providerOptions, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
 	require.NotNil(t, providerOptions.User)
 	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
 
-	require.NotNil(t, prepared.ModelConfig.MaxOutputTokens)
-	require.Equal(t, int64(32_000), *prepared.ModelConfig.MaxOutputTokens)
+	require.NotNil(t, prepared.CallTemplate.MaxOutputTokens)
+	require.Equal(t, int64(32_000), *prepared.CallTemplate.MaxOutputTokens)
 
 	// The chat-model compaction summary call carries no provider options
-	// even when the model config has them.
+	// even when the model config has them, and it forbids tool use.
 	require.NotNil(t, prepared.Compaction)
-	require.Nil(t, prepared.Compaction.Options.ProviderOptions)
+	require.Nil(t, prepared.Compaction.Options.SummaryCall.ProviderOptions)
+	require.NotNil(t, prepared.Compaction.Options.SummaryCall.ToolChoice)
+	require.Equal(t, fantasy.ToolChoiceNone, *prepared.Compaction.Options.SummaryCall.ToolChoice)
 }
 
 func TestModelCallShapeManualTitleCarriesProviderOptions(t *testing.T) {

@@ -687,6 +687,7 @@ func (server *Server) prepareGeneration(
 		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
+		SummaryCall:          resolved.newCall(compactionSummaryOverrides(true)),
 	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
@@ -711,8 +712,7 @@ func (server *Server) prepareGeneration(
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
 		ModelConfigID:        modelConfig.ID,
-		ModelConfig:          callConfig,
-		ProviderOptions:      resolved.providerOptions,
+		CallTemplate:         resolved.newCall(callOverrides{}),
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
 		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),

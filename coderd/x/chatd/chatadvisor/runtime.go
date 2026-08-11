@@ -6,15 +6,15 @@ import (
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // RuntimeConfig configures a single advisor runtime instance.
 type RuntimeConfig struct {
-	Model           fantasy.LanguageModel
-	ModelConfig     codersdk.ChatModelCallConfig
-	ProviderOptions fantasy.ProviderOptions
+	Model fantasy.LanguageModel
+	// CallTemplate is the prebuilt advisor call envelope. Each advisor run
+	// copies it, clones its provider options, and attaches the nested
+	// prompt.
+	CallTemplate    fantasy.Call
 	MaxUsesPerRun   int
 	MaxOutputTokens int64
 }
@@ -44,19 +44,19 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if cfg.MaxOutputTokens <= 0 {
 		return nil, xerrors.New("advisor max output tokens must be positive")
 	}
-	if cfg.ModelConfig.MaxOutputTokens != nil &&
-		*cfg.ModelConfig.MaxOutputTokens != cfg.MaxOutputTokens {
+	if cfg.CallTemplate.MaxOutputTokens != nil &&
+		*cfg.CallTemplate.MaxOutputTokens != cfg.MaxOutputTokens {
 		return nil, xerrors.Errorf(
-			"advisor model_config.max_output_tokens (%d) must match runtime max output tokens (%d)",
-			*cfg.ModelConfig.MaxOutputTokens,
+			"advisor call template max output tokens (%d) must match runtime max output tokens (%d)",
+			*cfg.CallTemplate.MaxOutputTokens,
 			cfg.MaxOutputTokens,
 		)
 	}
 
 	normalized := cfg
-	normalized.ProviderOptions = cloneProviderOptions(cfg.ProviderOptions)
+	normalized.CallTemplate.ProviderOptions = cloneProviderOptions(cfg.CallTemplate.ProviderOptions)
 	maxOutputTokens := cfg.MaxOutputTokens
-	normalized.ModelConfig.MaxOutputTokens = &maxOutputTokens
+	normalized.CallTemplate.MaxOutputTokens = &maxOutputTokens
 
 	return &Runtime{cfg: normalized}, nil
 }
@@ -134,7 +134,7 @@ func (rt *Runtime) ProviderOptions() fantasy.ProviderOptions {
 	if rt == nil {
 		return nil
 	}
-	return rt.cfg.ProviderOptions
+	return rt.cfg.CallTemplate.ProviderOptions
 }
 
 func (rt *Runtime) tryAcquire() bool {
