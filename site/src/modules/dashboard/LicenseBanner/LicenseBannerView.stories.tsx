@@ -62,6 +62,10 @@ export const TwoWarnings: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("status")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("Your license limits have been exceeded"),
+		).toBeInTheDocument();
 		await expect(
 			canvas.queryByRole("button", { name: "Show more" }),
 		).not.toBeInTheDocument();
@@ -244,11 +248,6 @@ const renderLicenseBannerWithAIGovernance = ({
 		},
 	});
 
-// Without the data-variant assertions, every story would keep passing with
-// the muted/prominent classifier disabled.
-const mutedVariant = "warning";
-const prominentVariant = "warningProminent";
-
 export const AIGovernanceNearLimit: Story = {
 	render: () =>
 		renderLicenseBannerWithAIGovernance({
@@ -262,9 +261,6 @@ export const AIGovernanceNearLimit: Story = {
 		await expect(banner).toHaveTextContent(
 			"You have used 95% of your AI Governance add-on seats.",
 		);
-		// Pins the AI Governance near-limit branch of isMutedWarning,
-		// independently of the runtime soft-limit branch below.
-		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		await expect(
 			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
 		).toHaveAttribute("href", "mailto:sales@coder.com");
@@ -318,11 +314,9 @@ export const AgentRuntimeHoursSoftLimit: Story = {
 		await expect(banner).toHaveTextContent(
 			"Your deployment is approaching its Coder Agent runtime hours allocation: 90 of the 100 hours included in the current license term are used, at or above the advisory soft limit of 80 hours.",
 		);
-		// The advisory soft-limit warning renders in the muted variant,
-		// unlike the allocation-reached warning below.
-		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		// The operator is inside their allocation with nothing owed, so no
-		// sales call-to-action is rendered.
+		// sales call-to-action is rendered. The advisory renders in the
+		// muted variant, which the visual snapshot covers.
 		await expect(
 			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
 		).not.toBeInTheDocument();
@@ -346,24 +340,22 @@ export const AgentRuntimeHoursAllocationReached: Story = {
 		await expect(banner).toHaveTextContent(
 			"Your deployment has used 100 of the 100 Coder Agent runtime hours included in the current license term.",
 		);
-		await expect(banner).toHaveAttribute("data-variant", prominentVariant);
 		await expect(
 			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
 		).toHaveAttribute("href", "mailto:sales@coder.com");
 	},
 };
 
-// Each entry of the frontend's diagnosticMessages set is pinned on both
-// properties the set drives: the muted variant and the suppressed sales
-// link. The "unavailable" pair arrives on the errors channel; see the
-// LicenseManagedAgentUsageUnavailableErrorText doc for why.
+// Each diagnostic pins role=status (not alert) and a suppressed sales
+// link. The "unavailable" message arrives on the errors channel; see the
+// LicenseManagedAgentUsageUnavailableErrorText doc for why. Background
+// mutedness is covered by the visual snapshot.
 const playMutedDiagnostic =
 	(message: string): Story["play"] =>
 	async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByRole("status");
 		await expect(banner).toHaveTextContent(message);
-		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
 		await expect(
 			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
 		).not.toBeInTheDocument();
@@ -405,8 +397,7 @@ export const UsageDiagnosticsOnlyHeading: Story = {
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const banner = canvas.getByRole("status");
-		await expect(banner).toHaveAttribute("data-variant", mutedVariant);
+		await expect(canvas.getByRole("status")).toBeInTheDocument();
 		await expect(canvas.getByText("License notices")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText("Your license limits have been exceeded"),
