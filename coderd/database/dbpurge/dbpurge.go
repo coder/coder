@@ -33,6 +33,10 @@ const (
 	boundaryLogsBatchSize = 10000
 	// Batch size for boundary session deletion.
 	boundarySessionsBatchSize = 10000
+	// Batch size for AI sandbox network event deletion.
+	aiSandboxNetworkEventsBatchSize = 10000
+	// Batch size for AI sandbox session deletion.
+	aiSandboxSessionsBatchSize = 10000
 	// Telemetry heartbeats are used to deduplicate events across replicas. We
 	// don't need to persist heartbeat rows for longer than 24 hours, as they
 	// are only used for deduplication across replicas. The time needs to be
@@ -285,7 +289,12 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		var purgedBoundaryLogs, purgedBoundarySessions int64
+		var (
+			purgedBoundaryLogs           int64
+			purgedBoundarySessions       int64
+			purgedAISandboxNetworkEvents int64
+			purgedAISandboxSessions      int64
+		)
 		boundaryLogsRetention := i.vals.Retention.BoundaryLogs.Value()
 		if boundaryLogsRetention > 0 {
 			deleteBoundaryLogsBefore := start.Add(-boundaryLogsRetention)
@@ -302,6 +311,20 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			})
 			if err != nil {
 				return xerrors.Errorf("failed to delete old boundary sessions: %w", err)
+			}
+			purgedAISandboxNetworkEvents, err = tx.DeleteOldAISandboxNetworkEvents(ctx, database.DeleteOldAISandboxNetworkEventsParams{
+				BeforeTime: deleteBoundaryLogsBefore,
+				LimitCount: aiSandboxNetworkEventsBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old AI sandbox network events: %w", err)
+			}
+			purgedAISandboxSessions, err = tx.DeleteOldAISandboxSessions(ctx, database.DeleteOldAISandboxSessionsParams{
+				BeforeTime: deleteBoundaryLogsBefore,
+				LimitCount: aiSandboxSessionsBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old AI sandbox sessions: %w", err)
 			}
 		}
 
@@ -362,6 +385,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("audit_logs", purgedAuditLogs),
 			slog.F("boundary_logs", purgedBoundaryLogs),
 			slog.F("boundary_sessions", purgedBoundarySessions),
+			slog.F("ai_sandbox_network_events", purgedAISandboxNetworkEvents),
+			slog.F("ai_sandbox_sessions", purgedAISandboxSessions),
 			slog.F("workspace_build_orchestrations", purgedWorkspaceBuildOrchestrations),
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
@@ -378,6 +403,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
 			i.recordsPurged.WithLabelValues("boundary_logs").Add(float64(purgedBoundaryLogs))
 			i.recordsPurged.WithLabelValues("boundary_sessions").Add(float64(purgedBoundarySessions))
+			i.recordsPurged.WithLabelValues("ai_sandbox_network_events").Add(float64(purgedAISandboxNetworkEvents))
+			i.recordsPurged.WithLabelValues("ai_sandbox_sessions").Add(float64(purgedAISandboxSessions))
 			i.recordsPurged.WithLabelValues("workspace_build_orchestrations").Add(float64(purgedWorkspaceBuildOrchestrations))
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
 			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))

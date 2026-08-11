@@ -2084,6 +2084,98 @@ func TestDeleteOldBoundarySessions(t *testing.T) {
 	}
 }
 
+func TestDeleteOldAISandboxAuditRecords(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 90 * 24 * time.Hour
+	oldTime := now.Add(-retentionPeriod).Add(-24 * time.Hour)
+	recentTime := now.Add(-15 * 24 * time.Hour)
+
+	clk := quartz.NewMock(t)
+	clk.Set(now).MustWait(ctx)
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	insertSession := func(endedAt sql.NullTime) database.AISandboxSession {
+		session, err := db.UpsertAISandboxSession(ctx, database.UpsertAISandboxSessionParams{
+			ID:                uuid.New(),
+			WorkspaceID:       uuid.New(),
+			ReporterAgentID:   uuid.New(),
+			ConfinedAgentID:   uuid.New(),
+			AIAgentID:         uuid.New(),
+			SponsorUserID:     uuid.New(),
+			EgressEnforcement: "forced",
+			StartedAt:         oldTime,
+			EndedAt:           endedAt,
+			CreatedAt:         oldTime,
+		})
+		require.NoError(t, err)
+		return session
+	}
+	insertEvent := func(session database.AISandboxSession, occurredAt time.Time) {
+		_, err := db.InsertAISandboxNetworkEvents(ctx, database.InsertAISandboxNetworkEventsParams{
+			SessionID:      []uuid.UUID{session.ID},
+			OccurredAt:     []time.Time{occurredAt},
+			Protocol:       []string{"connect"},
+			Host:           []string{"example.com"},
+			Port:           []int32{443},
+			Action:         []string{"allowed"},
+			PolicyRevision: []int64{1},
+			AIAgentID:      []uuid.UUID{session.AIAgentID},
+			SponsorUserID:  []uuid.UUID{session.SponsorUserID},
+			CreatedAt:      []time.Time{occurredAt},
+		})
+		require.NoError(t, err)
+	}
+
+	expiredSession := insertSession(sql.NullTime{Time: oldTime, Valid: true})
+	insertEvent(expiredSession, oldTime)
+
+	recentSession := insertSession(sql.NullTime{Time: recentTime, Valid: true})
+	insertEvent(recentSession, recentTime)
+
+	unendedSession := insertSession(sql.NullTime{})
+	insertEvent(unendedSession, oldTime)
+
+	survivingEventSession := insertSession(sql.NullTime{Time: oldTime, Valid: true})
+	insertEvent(survivingEventSession, recentTime)
+
+	done := awaitDoTick(ctx, t, clk)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+		Retention: codersdk.RetentionConfig{
+			BoundaryLogs: serpent.Duration(retentionPeriod),
+		},
+	}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+	defer closer.Close()
+	testutil.TryReceive(ctx, t, done)
+
+	_, err := db.GetAISandboxSessionByID(ctx, expiredSession.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	for _, sessionID := range []uuid.UUID{recentSession.ID, unendedSession.ID, survivingEventSession.ID} {
+		_, err := db.GetAISandboxSessionByID(ctx, sessionID)
+		require.NoError(t, err)
+	}
+
+	expiredEvents, err := db.GetAISandboxNetworkEventsBySessionID(ctx, expiredSession.ID)
+	require.NoError(t, err)
+	require.Empty(t, expiredEvents)
+
+	recentEvents, err := db.GetAISandboxNetworkEventsBySessionID(ctx, recentSession.ID)
+	require.NoError(t, err)
+	require.Len(t, recentEvents, 1)
+
+	unendedEvents, err := db.GetAISandboxNetworkEventsBySessionID(ctx, unendedSession.ID)
+	require.NoError(t, err)
+	require.Empty(t, unendedEvents)
+
+	survivingEvents, err := db.GetAISandboxNetworkEventsBySessionID(ctx, survivingEventSession.ID)
+	require.NoError(t, err)
+	require.Len(t, survivingEvents, 1)
+}
+
 func TestDeleteExpiredAPIKeys(t *testing.T) {
 	t.Parallel()
 
