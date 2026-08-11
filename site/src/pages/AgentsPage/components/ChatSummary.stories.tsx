@@ -1,13 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ChatSummary } from "./ChatSummary";
+
+const MARKDOWN_SUMMARY = [
+	"Investigated the flaky CI job in `coderd/x/chatd` and landed a fix.",
+	"",
+	"- Traced the failure to a cache-layer race in `chatd.go`",
+	"- Added a regression test covering the race",
+	"- Opened PR #26649",
+].join("\n");
 
 const meta: Meta<typeof ChatSummary> = {
 	title: "pages/AgentsPage/ChatSummary",
 	component: ChatSummary,
 	args: {
-		summary:
-			"Investigated the flaky CI job, traced it to a race in the cache layer, and added a regression test.",
+		summary: MARKDOWN_SUMMARY,
 		createdAt: "2024-05-01T12:00:00Z",
 		updatedAt: "2024-05-02T15:30:00Z",
 		costMicros: 1_250_000,
@@ -36,6 +43,83 @@ export const WithSummary: Story = {
 		await expect(canvas.queryByText(/12:00|15:30/)).not.toBeInTheDocument();
 		// formatCostMicros is locale-pinned to en-US, so this is deterministic.
 		await expect(canvas.getByText("$1.25")).toBeInTheDocument();
+	},
+};
+
+export const HeadlineAndBullets: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Investigated the flaky CI job/),
+		).toBeInTheDocument();
+
+		const list = canvas.getByRole("list");
+		await expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+
+		// Identifiers wrapped in backticks render as inline code, not literal
+		// backticks.
+		await expect(canvas.getByText("chatd.go")).toBeInTheDocument();
+		await expect(canvas.queryByText(/`/)).not.toBeInTheDocument();
+
+		// Short content fits the bound, so no toggle is offered.
+		await expect(
+			canvas.queryByRole("button", { name: "Show more" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+// Summaries generated before the structured format are plain prose. They must
+// still render, since there is no backfill.
+export const LegacyProseSummary: Story = {
+	args: {
+		summary:
+			"Investigated the flaky CI job, traced it to a race in the cache layer, and added a regression test.",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/traced it to a race in the cache layer/),
+		).toBeInTheDocument();
+		await expect(canvas.queryByRole("list")).not.toBeInTheDocument();
+	},
+};
+
+// A legacy prose summary that happens to start with "1. " parses as an ordered
+// list. `ol` is allowlisted so the items keep a list parent instead of
+// rendering as orphan `li` elements.
+export const LegacyOrderedList: Story = {
+	args: { summary: "1. Fixed the race\n2. Added a test" },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const list = canvas.getByRole("list");
+		await expect(list.tagName).toBe("OL");
+		await expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+	},
+};
+
+export const LongSummaryExpands: Story = {
+	args: {
+		summary: [
+			"Audited the whole chat pipeline and shipped a batch of fixes.",
+			"",
+			...Array.from(
+				{ length: 12 },
+				(_, i) =>
+					`- Reviewed subsystem number ${i + 1} and applied the corresponding fix so the behaviour matches the specification`,
+			),
+		].join("\n"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const showMore = await canvas.findByRole("button", { name: "Show more" });
+		await userEvent.click(showMore);
+
+		await waitFor(async () => {
+			await expect(
+				canvas.getByRole("button", { name: "Show less" }),
+			).toBeInTheDocument();
+		});
 	},
 };
 

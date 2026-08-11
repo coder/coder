@@ -71,17 +71,24 @@ type Story = StoryObj<typeof ChatSummaryPanel>;
 export const WithSummary: Story = {
 	beforeEach: () =>
 		mockRequests({
-			summary:
-				"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
+			summary: [
+				"Investigated the flaky CI job and landed a fix.",
+				"",
+				"- Traced it to a cache-layer race in `chatd.go`",
+				"- Added a regression test covering the race",
+			].join("\n"),
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
 			expect(
-				canvas.getByText(/traced it to a cache-layer race/),
+				canvas.getByText(/Traced it to a cache-layer race/),
 			).toBeInTheDocument();
 			expect(canvas.getByText("$1.25")).toBeInTheDocument();
 		});
+		expect(
+			within(canvas.getByRole("list")).getAllByRole("listitem"),
+		).toHaveLength(2);
 	},
 };
 

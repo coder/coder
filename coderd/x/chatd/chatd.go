@@ -4948,7 +4948,10 @@ func (p *Server) storeSubagentReportSummary(
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return
 	}
-	summary := subagentReportSummarySnippet(report)
+	// Subagent summaries are extracted from an existing report rather than
+	// generated, so they have no bullets; the serializer keeps the headline
+	// as-is and only adds structure when bullets exist.
+	summary := formatChatSummaryMarkdown(subagentReportSummarySnippet(report), nil)
 	if summary == "" {
 		return
 	}
