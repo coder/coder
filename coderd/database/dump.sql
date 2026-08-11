@@ -1635,6 +1635,25 @@ COMMENT ON COLUMN ai_sandbox_sessions.sponsor_user_id IS 'Sponsoring human user 
 
 COMMENT ON COLUMN ai_sandbox_sessions.egress_enforcement IS 'Admin attestation of routing coverage (forced, advisory, or none). Recorded, not verified.';
 
+CREATE TABLE ai_sandboxes (
+    id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    parent_agent_id uuid NOT NULL,
+    child_agent_id uuid NOT NULL,
+    ai_agent_id uuid NOT NULL,
+    name text NOT NULL,
+    egress_enforcement text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    CONSTRAINT ai_sandboxes_egress_enforcement_check CHECK ((egress_enforcement = ANY (ARRAY['forced'::text, 'advisory'::text, 'none'::text])))
+);
+
+COMMENT ON TABLE ai_sandboxes IS 'Lifecycle records for AI sandboxes created by a parent workspace agent from an admin-authored script declaration. Distinct from ai_sandbox_sessions, which are egress audit records.';
+
+COMMENT ON COLUMN ai_sandboxes.name IS 'Declaration name, unique per parent agent while not deleted, so a restarted parent reconciles to the existing sandbox instead of creating a duplicate.';
+
+COMMENT ON COLUMN ai_sandboxes.egress_enforcement IS 'Admin attestation of routing coverage declared for this sandbox. Recorded, not verified.';
+
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
     first_used_at timestamp with time zone NOT NULL,
@@ -4363,6 +4382,9 @@ ALTER TABLE ONLY ai_sandbox_network_events
 ALTER TABLE ONLY ai_sandbox_sessions
     ADD CONSTRAINT ai_sandbox_sessions_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_sandboxes
+    ADD CONSTRAINT ai_sandboxes_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
 
@@ -4804,6 +4826,12 @@ CREATE INDEX idx_ai_sandbox_network_events_session_id ON ai_sandbox_network_even
 CREATE INDEX idx_ai_sandbox_sessions_ai_agent_id ON ai_sandbox_sessions USING btree (ai_agent_id);
 
 CREATE INDEX idx_ai_sandbox_sessions_started_at ON ai_sandbox_sessions USING btree (started_at);
+
+CREATE INDEX idx_ai_sandboxes_child_agent_id ON ai_sandboxes USING btree (child_agent_id);
+
+CREATE UNIQUE INDEX idx_ai_sandboxes_parent_name ON ai_sandboxes USING btree (parent_agent_id, name) WHERE (NOT deleted);
+
+CREATE INDEX idx_ai_sandboxes_workspace_id ON ai_sandboxes USING btree (workspace_id);
 
 CREATE INDEX idx_ai_user_daily_spend_effective_group_id_day ON ai_user_daily_spend USING btree (effective_group_id, day);
 
@@ -5251,6 +5279,18 @@ ALTER TABLE ONLY ai_provider_keys
 
 ALTER TABLE ONLY ai_providers
     ADD CONSTRAINT ai_providers_settings_key_id_fkey FOREIGN KEY (settings_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY ai_sandboxes
+    ADD CONSTRAINT ai_sandboxes_ai_agent_id_fkey FOREIGN KEY (ai_agent_id) REFERENCES ai_agents(user_id);
+
+ALTER TABLE ONLY ai_sandboxes
+    ADD CONSTRAINT ai_sandboxes_child_agent_id_fkey FOREIGN KEY (child_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_sandboxes
+    ADD CONSTRAINT ai_sandboxes_parent_agent_id_fkey FOREIGN KEY (parent_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_sandboxes
+    ADD CONSTRAINT ai_sandboxes_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

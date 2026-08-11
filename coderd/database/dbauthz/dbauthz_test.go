@@ -622,6 +622,37 @@ func (s *MethodTestSuite) TestAISandboxAudit() {
 	}))
 }
 
+func (s *MethodTestSuite) TestAISandboxes() {
+	s.Run("InsertAISandbox", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAISandboxParams{}
+		dbm.EXPECT().InsertAISandbox(gomock.Any(), arg).Return(database.AISandbox{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetAISandboxByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetAISandboxByID(gomock.Any(), uuid.Nil).Return(database.AISandbox{}, nil).AnyTimes()
+		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetAISandboxByParentAgentAndName", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAISandboxByParentAgentAndNameParams{}
+		dbm.EXPECT().GetAISandboxByParentAgentAndName(gomock.Any(), arg).Return(database.AISandbox{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetAISandboxesByParentAgentID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetAISandboxesByParentAgentID(gomock.Any(), uuid.Nil).Return([]database.AISandbox{}, nil).AnyTimes()
+		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetAISandboxesByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetAISandboxesByWorkspaceID(gomock.Any(), ws.ID).Return([]database.AISandbox{}, nil).AnyTimes()
+		check.Args(ws.ID).Asserts(ws, policy.ActionRead)
+	}))
+	s.Run("SoftDeleteAISandbox", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().SoftDeleteAISandbox(gomock.Any(), uuid.Nil).Return(nil).AnyTimes()
+		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+}
+
 func (s *MethodTestSuite) TestConnectionLogs() {
 	s.Run("BatchUpsertConnectionLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.BatchUpsertConnectionLogsParams{}

@@ -4959,6 +4959,21 @@ type AIProviderKey struct {
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
+// Lifecycle records for AI sandboxes created by a parent workspace agent from an admin-authored script declaration. Distinct from ai_sandbox_sessions, which are egress audit records.
+type AISandbox struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	WorkspaceID   uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	ParentAgentID uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
+	ChildAgentID  uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	// Declaration name, unique per parent agent while not deleted, so a restarted parent reconciles to the existing sandbox instead of creating a duplicate.
+	Name string `db:"name" json:"name"`
+	// Admin attestation of routing coverage declared for this sandbox. Recorded, not verified.
+	EgressEnforcement string    `db:"egress_enforcement" json:"egress_enforcement"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	Deleted           bool      `db:"deleted" json:"deleted"`
+}
+
 // Egress policy decisions observed by the supervisor-owned proxy for AI-bound execution. Attribution columns are server-resolved snapshots without foreign keys so audit history survives identity cleanup.
 type AISandboxNetworkEvent struct {
 	ID int64 `db:"id" json:"id"`

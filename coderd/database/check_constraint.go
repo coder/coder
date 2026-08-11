@@ -17,6 +17,7 @@ const (
 	CheckAISandboxNetworkEventsActionCheck                   CheckConstraint = "ai_sandbox_network_events_action_check"                    // ai_sandbox_network_events
 	CheckAISandboxNetworkEventsProtocolCheck                 CheckConstraint = "ai_sandbox_network_events_protocol_check"                  // ai_sandbox_network_events
 	CheckAISandboxSessionsEgressEnforcementCheck             CheckConstraint = "ai_sandbox_sessions_egress_enforcement_check"              // ai_sandbox_sessions
+	CheckAISandboxesEgressEnforcementCheck                   CheckConstraint = "ai_sandboxes_egress_enforcement_check"                     // ai_sandboxes
 	CheckAIUserDailySpendSpendMicrosCheck                    CheckConstraint = "ai_user_daily_spend_spend_micros_check"                    // ai_user_daily_spend
 	CheckAibridgeTokenUsagesCacheReadPriceMicrosCheck        CheckConstraint = "aibridge_token_usages_cache_read_price_micros_check"       // aibridge_token_usages
 	CheckAibridgeTokenUsagesCacheWritePriceMicrosCheck       CheckConstraint = "aibridge_token_usages_cache_write_price_micros_check"      // aibridge_token_usages

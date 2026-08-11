@@ -369,10 +369,14 @@ type sqlcQuerier interface {
 	// Returns AI provider rows. Soft-deleted and disabled rows are excluded
 	// unless include_deleted or include_disabled is set.
 	GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AIProvider, error)
+	GetAISandboxByID(ctx context.Context, id uuid.UUID) (AISandbox, error)
+	GetAISandboxByParentAgentAndName(ctx context.Context, arg GetAISandboxByParentAgentAndNameParams) (AISandbox, error)
 	GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]AISandboxNetworkEvent, error)
 	GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsBySessionIDPagedParams) ([]AISandboxNetworkEvent, error)
 	GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (AISandboxSession, error)
 	GetAISandboxSessionsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]AISandboxSession, error)
+	GetAISandboxesByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]AISandbox, error)
+	GetAISandboxesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]AISandbox, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
@@ -1103,6 +1107,7 @@ type sqlcQuerier interface {
 	InsertAIGatewayKey(ctx context.Context, arg InsertAIGatewayKeyParams) (InsertAIGatewayKeyRow, error)
 	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AIProvider, error)
 	InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error)
+	InsertAISandbox(ctx context.Context, arg InsertAISandboxParams) (AISandbox, error)
 	// Batch-inserts egress policy decisions. Attribution snapshots are copied
 	// server-side from the owning session row onto every event.
 	InsertAISandboxNetworkEvents(ctx context.Context, arg InsertAISandboxNetworkEventsParams) (int64, error)
@@ -1374,6 +1379,9 @@ type sqlcQuerier interface {
 	// identity (the designation is server-authoritative and must be stable
 	// across rebuilds). See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2.
 	SetWorkspaceAIAgentID(ctx context.Context, arg SetWorkspaceAIAgentIDParams) (WorkspaceTable, error)
+	// Marks a sandbox destroyed. The child agent row is soft-deleted and its
+	// keys revoked separately so the record survives for correlation.
+	SoftDeleteAISandbox(ctx context.Context, id uuid.UUID) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error

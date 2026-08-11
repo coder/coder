@@ -4169,6 +4169,206 @@ func (q *sqlQuerier) UpsertAISandboxSession(ctx context.Context, arg UpsertAISan
 	return i, err
 }
 
+const getAISandboxByID = `-- name: GetAISandboxByID :one
+SELECT id, workspace_id, parent_agent_id, child_agent_id, ai_agent_id, name, egress_enforcement, created_at, deleted FROM ai_sandboxes WHERE id = $1
+`
+
+func (q *sqlQuerier) GetAISandboxByID(ctx context.Context, id uuid.UUID) (AISandbox, error) {
+	row := q.db.QueryRowContext(ctx, getAISandboxByID, id)
+	var i AISandbox
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ParentAgentID,
+		&i.ChildAgentID,
+		&i.AIAgentID,
+		&i.Name,
+		&i.EgressEnforcement,
+		&i.CreatedAt,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const getAISandboxByParentAgentAndName = `-- name: GetAISandboxByParentAgentAndName :one
+SELECT id, workspace_id, parent_agent_id, child_agent_id, ai_agent_id, name, egress_enforcement, created_at, deleted FROM ai_sandboxes
+WHERE parent_agent_id = $1
+  AND name = $2
+  AND NOT deleted
+`
+
+type GetAISandboxByParentAgentAndNameParams struct {
+	ParentAgentID uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
+	Name          string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetAISandboxByParentAgentAndName(ctx context.Context, arg GetAISandboxByParentAgentAndNameParams) (AISandbox, error) {
+	row := q.db.QueryRowContext(ctx, getAISandboxByParentAgentAndName, arg.ParentAgentID, arg.Name)
+	var i AISandbox
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ParentAgentID,
+		&i.ChildAgentID,
+		&i.AIAgentID,
+		&i.Name,
+		&i.EgressEnforcement,
+		&i.CreatedAt,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const getAISandboxesByParentAgentID = `-- name: GetAISandboxesByParentAgentID :many
+SELECT id, workspace_id, parent_agent_id, child_agent_id, ai_agent_id, name, egress_enforcement, created_at, deleted FROM ai_sandboxes
+WHERE parent_agent_id = $1
+  AND NOT deleted
+ORDER BY created_at ASC
+`
+
+func (q *sqlQuerier) GetAISandboxesByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]AISandbox, error) {
+	rows, err := q.db.QueryContext(ctx, getAISandboxesByParentAgentID, parentAgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISandbox
+	for rows.Next() {
+		var i AISandbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ParentAgentID,
+			&i.ChildAgentID,
+			&i.AIAgentID,
+			&i.Name,
+			&i.EgressEnforcement,
+			&i.CreatedAt,
+			&i.Deleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAISandboxesByWorkspaceID = `-- name: GetAISandboxesByWorkspaceID :many
+SELECT id, workspace_id, parent_agent_id, child_agent_id, ai_agent_id, name, egress_enforcement, created_at, deleted FROM ai_sandboxes
+WHERE workspace_id = $1
+  AND NOT deleted
+ORDER BY created_at ASC
+`
+
+func (q *sqlQuerier) GetAISandboxesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]AISandbox, error) {
+	rows, err := q.db.QueryContext(ctx, getAISandboxesByWorkspaceID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISandbox
+	for rows.Next() {
+		var i AISandbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ParentAgentID,
+			&i.ChildAgentID,
+			&i.AIAgentID,
+			&i.Name,
+			&i.EgressEnforcement,
+			&i.CreatedAt,
+			&i.Deleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertAISandbox = `-- name: InsertAISandbox :one
+INSERT INTO ai_sandboxes (
+	id,
+	workspace_id,
+	parent_agent_id,
+	child_agent_id,
+	ai_agent_id,
+	name,
+	egress_enforcement,
+	created_at
+) VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8
+) RETURNING id, workspace_id, parent_agent_id, child_agent_id, ai_agent_id, name, egress_enforcement, created_at, deleted
+`
+
+type InsertAISandboxParams struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	WorkspaceID       uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	ParentAgentID     uuid.UUID `db:"parent_agent_id" json:"parent_agent_id"`
+	ChildAgentID      uuid.UUID `db:"child_agent_id" json:"child_agent_id"`
+	AIAgentID         uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	Name              string    `db:"name" json:"name"`
+	EgressEnforcement string    `db:"egress_enforcement" json:"egress_enforcement"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAISandbox(ctx context.Context, arg InsertAISandboxParams) (AISandbox, error) {
+	row := q.db.QueryRowContext(ctx, insertAISandbox,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.ParentAgentID,
+		arg.ChildAgentID,
+		arg.AIAgentID,
+		arg.Name,
+		arg.EgressEnforcement,
+		arg.CreatedAt,
+	)
+	var i AISandbox
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ParentAgentID,
+		&i.ChildAgentID,
+		&i.AIAgentID,
+		&i.Name,
+		&i.EgressEnforcement,
+		&i.CreatedAt,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const softDeleteAISandbox = `-- name: SoftDeleteAISandbox :exec
+UPDATE ai_sandboxes SET deleted = true WHERE id = $1
+`
+
+// Marks a sandbox destroyed. The child agent row is soft-deleted and its
+// keys revoked separately so the record survives for correlation.
+func (q *sqlQuerier) SoftDeleteAISandbox(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, softDeleteAISandbox, id)
+	return err
+}
+
 const getActiveAISeatCount = `-- name: GetActiveAISeatCount :one
 SELECT
 	COUNT(*)

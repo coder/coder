@@ -2965,6 +2965,20 @@ func (q *querier) GetAIProviders(ctx context.Context, arg database.GetAIProvider
 	return q.db.GetAIProviders(ctx, arg)
 }
 
+func (q *querier) GetAISandboxByID(ctx context.Context, id uuid.UUID) (database.AISandbox, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AISandbox{}, err
+	}
+	return q.db.GetAISandboxByID(ctx, id)
+}
+
+func (q *querier) GetAISandboxByParentAgentAndName(ctx context.Context, arg database.GetAISandboxByParentAgentAndNameParams) (database.AISandbox, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AISandbox{}, err
+	}
+	return q.db.GetAISandboxByParentAgentAndName(ctx, arg)
+}
+
 func (q *querier) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]database.AISandboxNetworkEvent, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -2999,6 +3013,26 @@ func (q *querier) GetAISandboxSessionsByWorkspaceID(ctx context.Context, workspa
 		return nil, err
 	}
 	return q.db.GetAISandboxSessionsByWorkspaceID(ctx, workspaceID)
+}
+
+func (q *querier) GetAISandboxesByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.AISandbox, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAISandboxesByParentAgentID(ctx, parentAgentID)
+}
+
+// GetAISandboxesByWorkspaceID authorizes against the workspace because it
+// backs owner and admin facing reads, unlike the agent-facing lookups above.
+func (q *querier) GetAISandboxesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.AISandbox, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+		return nil, err
+	}
+	return q.db.GetAISandboxesByWorkspaceID(ctx, workspaceID)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -6024,6 +6058,13 @@ func (q *querier) InsertAIProviderKey(ctx context.Context, arg database.InsertAI
 	return q.db.InsertAIProviderKey(ctx, arg)
 }
 
+func (q *querier) InsertAISandbox(ctx context.Context, arg database.InsertAISandboxParams) (database.AISandbox, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AISandbox{}, err
+	}
+	return q.db.InsertAISandbox(ctx, arg)
+}
+
 func (q *querier) InsertAISandboxNetworkEvents(ctx context.Context, arg database.InsertAISandboxNetworkEventsParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return 0, err
@@ -7205,6 +7246,13 @@ func (q *querier) SetWorkspaceAIAgentID(ctx context.Context, arg database.SetWor
 		return database.WorkspaceTable{}, err
 	}
 	return q.db.SetWorkspaceAIAgentID(ctx, arg)
+}
+
+func (q *querier) SoftDeleteAISandbox(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.SoftDeleteAISandbox(ctx, id)
 }
 
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {

@@ -2190,6 +2190,36 @@ func (mr *MockStoreMockRecorder) GetAIProviders(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviders", reflect.TypeOf((*MockStore)(nil).GetAIProviders), ctx, arg)
 }
 
+// GetAISandboxByID mocks base method.
+func (m *MockStore) GetAISandboxByID(ctx context.Context, id uuid.UUID) (database.AISandbox, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxByID", ctx, id)
+	ret0, _ := ret[0].(database.AISandbox)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxByID indicates an expected call of GetAISandboxByID.
+func (mr *MockStoreMockRecorder) GetAISandboxByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxByID", reflect.TypeOf((*MockStore)(nil).GetAISandboxByID), ctx, id)
+}
+
+// GetAISandboxByParentAgentAndName mocks base method.
+func (m *MockStore) GetAISandboxByParentAgentAndName(ctx context.Context, arg database.GetAISandboxByParentAgentAndNameParams) (database.AISandbox, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxByParentAgentAndName", ctx, arg)
+	ret0, _ := ret[0].(database.AISandbox)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxByParentAgentAndName indicates an expected call of GetAISandboxByParentAgentAndName.
+func (mr *MockStoreMockRecorder) GetAISandboxByParentAgentAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxByParentAgentAndName", reflect.TypeOf((*MockStore)(nil).GetAISandboxByParentAgentAndName), ctx, arg)
+}
+
 // GetAISandboxNetworkEventsBySessionID mocks base method.
 func (m *MockStore) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]database.AISandboxNetworkEvent, error) {
 	m.ctrl.T.Helper()
@@ -2248,6 +2278,36 @@ func (m *MockStore) GetAISandboxSessionsByWorkspaceID(ctx context.Context, works
 func (mr *MockStoreMockRecorder) GetAISandboxSessionsByWorkspaceID(ctx, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxSessionsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetAISandboxSessionsByWorkspaceID), ctx, workspaceID)
+}
+
+// GetAISandboxesByParentAgentID mocks base method.
+func (m *MockStore) GetAISandboxesByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.AISandbox, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxesByParentAgentID", ctx, parentAgentID)
+	ret0, _ := ret[0].([]database.AISandbox)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxesByParentAgentID indicates an expected call of GetAISandboxesByParentAgentID.
+func (mr *MockStoreMockRecorder) GetAISandboxesByParentAgentID(ctx, parentAgentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxesByParentAgentID", reflect.TypeOf((*MockStore)(nil).GetAISandboxesByParentAgentID), ctx, parentAgentID)
+}
+
+// GetAISandboxesByWorkspaceID mocks base method.
+func (m *MockStore) GetAISandboxesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.AISandbox, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxesByWorkspaceID", ctx, workspaceID)
+	ret0, _ := ret[0].([]database.AISandbox)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxesByWorkspaceID indicates an expected call of GetAISandboxesByWorkspaceID.
+func (mr *MockStoreMockRecorder) GetAISandboxesByWorkspaceID(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxesByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetAISandboxesByWorkspaceID), ctx, workspaceID)
 }
 
 // GetAPIKeyByID mocks base method.
@@ -7694,6 +7754,21 @@ func (mr *MockStoreMockRecorder) InsertAIProviderKey(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIProviderKey", reflect.TypeOf((*MockStore)(nil).InsertAIProviderKey), ctx, arg)
 }
 
+// InsertAISandbox mocks base method.
+func (m *MockStore) InsertAISandbox(ctx context.Context, arg database.InsertAISandboxParams) (database.AISandbox, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAISandbox", ctx, arg)
+	ret0, _ := ret[0].(database.AISandbox)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAISandbox indicates an expected call of InsertAISandbox.
+func (mr *MockStoreMockRecorder) InsertAISandbox(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAISandbox", reflect.TypeOf((*MockStore)(nil).InsertAISandbox), ctx, arg)
+}
+
 // InsertAISandboxNetworkEvents mocks base method.
 func (m *MockStore) InsertAISandboxNetworkEvents(ctx context.Context, arg database.InsertAISandboxNetworkEventsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -9636,6 +9711,20 @@ func (m *MockStore) SetWorkspaceAIAgentID(ctx context.Context, arg database.SetW
 func (mr *MockStoreMockRecorder) SetWorkspaceAIAgentID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWorkspaceAIAgentID", reflect.TypeOf((*MockStore)(nil).SetWorkspaceAIAgentID), ctx, arg)
+}
+
+// SoftDeleteAISandbox mocks base method.
+func (m *MockStore) SoftDeleteAISandbox(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SoftDeleteAISandbox", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SoftDeleteAISandbox indicates an expected call of SoftDeleteAISandbox.
+func (mr *MockStoreMockRecorder) SoftDeleteAISandbox(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteAISandbox", reflect.TypeOf((*MockStore)(nil).SoftDeleteAISandbox), ctx, id)
 }
 
 // SoftDeleteChatMessageByID mocks base method.

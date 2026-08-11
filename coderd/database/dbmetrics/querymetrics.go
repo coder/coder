@@ -1257,6 +1257,22 @@ func (m queryMetricsStore) GetAIProviders(ctx context.Context, arg database.GetA
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAISandboxByID(ctx context.Context, id uuid.UUID) (database.AISandbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAISandboxByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAISandboxByParentAgentAndName(ctx context.Context, arg database.GetAISandboxByParentAgentAndNameParams) (database.AISandbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxByParentAgentAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAISandboxByParentAgentAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxByParentAgentAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]database.AISandboxNetworkEvent, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAISandboxNetworkEventsBySessionID(ctx, sessionID)
@@ -1286,6 +1302,22 @@ func (m queryMetricsStore) GetAISandboxSessionsByWorkspaceID(ctx context.Context
 	r0, r1 := m.s.GetAISandboxSessionsByWorkspaceID(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("GetAISandboxSessionsByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxSessionsByWorkspaceID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAISandboxesByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]database.AISandbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxesByParentAgentID(ctx, parentAgentID)
+	m.queryLatencies.WithLabelValues("GetAISandboxesByParentAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxesByParentAgentID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAISandboxesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.AISandbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxesByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("GetAISandboxesByWorkspaceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxesByWorkspaceID").Inc()
 	return r0, r1
 }
 
@@ -4105,6 +4137,14 @@ func (m queryMetricsStore) InsertAIProviderKey(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAISandbox(ctx context.Context, arg database.InsertAISandboxParams) (database.AISandbox, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAISandbox(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAISandbox").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAISandbox").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAISandboxNetworkEvents(ctx context.Context, arg database.InsertAISandboxNetworkEventsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAISandboxNetworkEvents(ctx, arg)
@@ -5103,6 +5143,14 @@ func (m queryMetricsStore) SetWorkspaceAIAgentID(ctx context.Context, arg databa
 	m.queryLatencies.WithLabelValues("SetWorkspaceAIAgentID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetWorkspaceAIAgentID").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) SoftDeleteAISandbox(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.SoftDeleteAISandbox(ctx, id)
+	m.queryLatencies.WithLabelValues("SoftDeleteAISandbox").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteAISandbox").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
