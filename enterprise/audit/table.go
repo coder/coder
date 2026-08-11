@@ -509,18 +509,18 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"description":                 ActionTrack,
 		"icon_url":                    ActionTrack,
 		"transport":                   ActionTrack,
-		"url":                         ActionSecret, // May embed credentials in userinfo or query; show change, never contents.
+		"url":                         ActionSecret, // May embed credentials in userinfo or query
 		"auth_type":                   ActionTrack,
 		"oauth2_client_id":            ActionTrack,
-		"oauth2_client_secret":        ActionSecret, // Credential; show change, never contents.
+		"oauth2_client_secret":        ActionSecret,
 		"oauth2_client_secret_key_id": ActionIgnore, // dbcrypt bookkeeping.
-		"oauth2_auth_url":             ActionSecret, // May embed credentials in userinfo or query; show change, never contents.
-		"oauth2_token_url":            ActionSecret, // May embed credentials in userinfo or query; show change, never contents.
+		"oauth2_auth_url":             ActionSecret, // May embed credentials in userinfo or query
+		"oauth2_token_url":            ActionSecret, // May embed credentials in userinfo or query
 		"oauth2_scopes":               ActionTrack,
 		"api_key_header":              ActionTrack,
-		"api_key_value":               ActionSecret, // Credential; show change, never contents.
+		"api_key_value":               ActionSecret,
 		"api_key_value_key_id":        ActionIgnore, // dbcrypt bookkeeping.
-		"custom_headers":              ActionSecret, // May contain credentials; show change, never contents.
+		"custom_headers":              ActionSecret, // May contain credentials
 		"custom_headers_key_id":       ActionIgnore, // dbcrypt bookkeeping.
 		"tool_allow_list":             ActionTrack,
 		"tool_deny_list":              ActionTrack,
@@ -528,13 +528,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"enabled":                     ActionTrack,
 		"created_by":                  ActionTrack,
 		"updated_by":                  ActionTrack,
-		"created_at":                  ActionIgnore, // Never changes.
-		"updated_at":                  ActionIgnore, // Bumped on every mutation.
+		"created_at":                  ActionIgnore,
+		"updated_at":                  ActionIgnore,
 		"model_intent":                ActionTrack,
 		"allow_in_plan_mode":          ActionTrack,
 		"forward_coder_headers":       ActionTrack,
-		"oauth2_revocation_url":       ActionSecret, // May embed credentials in userinfo or query; show change, never contents.
-		"organization_id":             ActionIgnore, // Never changes after creation; carried by the audit log's organization ID.
+		"oauth2_revocation_url":       ActionSecret, // May embed credentials in userinfo or query
+		"organization_id":             ActionIgnore,
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,

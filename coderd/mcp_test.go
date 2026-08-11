@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -29,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -136,6 +138,35 @@ func TestMCPServerConfigLegacyRoutesRemoved(t *testing.T) {
 		require.NoError(t, err)
 		res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode, path)
+	}
+}
+
+func TestMCPServerConfigDisplayNameValidation(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:  "   ",
+		Slug:         "whitespace-name",
+		Transport:    "streamable_http",
+		URL:          "https://mcp.example.com",
+		AuthType:     "none",
+		Availability: "default_off",
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	config := createMCPServerConfig(t, client, firstUser.OrganizationID, "display-name-validation", true)
+	for _, name := range []string{"", "   "} {
+		_, err := client.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+			DisplayName: ptr.Ref(name),
+		})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	}
 }
 
@@ -418,6 +449,87 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.Empty(t, mAudit.AuditLogs())
 	})
 
+	t.Run("CreateAuditedWhenDiscoveryUpdateFails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		db, ps := dbtestutil.NewDB(t)
+		store := &failingMCPServerConfigUpdateStore{Store: db}
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+			Auditor:             mAudit,
+			Database:            store,
+			Pubsub:              ps,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"]
+				}`))
+			case "/register":
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "update-failure-client-id",
+					"client_secret": "update-failure-client-secret"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/v1/mcp":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `",
+					"authorization_servers": ["` + authServer.URL + `"]
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		// The inserted row must still be audited when the post-discovery update fails.
+		store.fail.Store(true)
+		mAudit.ResetLogs()
+		_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:  "Audit Update Failure",
+			Slug:         "audit-update-failure",
+			Transport:    "streamable_http",
+			URL:          mcpServer.URL + "/v1/mcp",
+			AuthType:     "oauth2",
+			Availability: "default_on",
+			Enabled:      true,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+
+		configs, err := client.MCPServerConfigs(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.Equal(t, database.AuditActionCreate, logs[0].Action)
+		require.Equal(t, configs[0].ID, logs[0].ResourceID)
+	})
+
 	t.Run("DeletedResourceMarked", func(t *testing.T) {
 		t.Parallel()
 
@@ -508,6 +620,21 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
 		require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
 	})
+}
+
+// failingMCPServerConfigUpdateStore fails config updates once armed,
+// outdating the discovery flow's post-insert credential update.
+type failingMCPServerConfigUpdateStore struct {
+	database.Store
+
+	fail atomic.Bool
+}
+
+func (s *failingMCPServerConfigUpdateStore) UpdateMCPServerConfig(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.MCPServerConfig, error) {
+	if s.fail.Load() {
+		return database.MCPServerConfig{}, xerrors.New("injected update failure")
+	}
+	return s.Store.UpdateMCPServerConfig(ctx, arg)
 }
 
 // staleMCPServerConfigReadStore corrupts plain config reads once armed,

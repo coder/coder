@@ -272,6 +272,14 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The struct tag accepts whitespace-only names, which trim to "".
+	if strings.TrimSpace(req.DisplayName) == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Display name is required.",
+		})
+		return
+	}
+
 	if trimmed := strings.TrimSpace(req.OAuth2RevocationURL); trimmed != "" {
 		if err := mcpclient.ValidateRevocationEndpoint(trimmed); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -578,6 +586,13 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateMCPServerConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.DisplayName != nil && strings.TrimSpace(*req.DisplayName) == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Display name cannot be empty.",
+		})
 		return
 	}
 

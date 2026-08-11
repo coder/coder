@@ -616,6 +616,8 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		// Chats are surfaced at /agents/{id}. They are owner-scoped but
 		// not username-scoped in the URL like workspaces or tasks.
 		return fmt.Sprintf("/agents/%s", alog.AuditLog.ResourceID)
+	case database.ResourceTypeMCPServerConfig:
+		return fmt.Sprintf("/ai/settings/mcp-servers/%s", alog.AuditLog.ResourceID)
 	case database.ResourceTypeUserSecret:
 		// TODO(PLAT-102): point at the user secrets management page once
 		// it ships. Until then, the audit row links nowhere.

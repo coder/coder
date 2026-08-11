@@ -155,11 +155,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// filter but not the primary resource identifier.
 		return typed.ID.String()[:8]
 	case database.MCPServerConfig:
-		if typed.DisplayName != "" {
-			return typed.DisplayName
-		}
-		// The full ID equals resource_id, so the label is exactly filterable.
-		return typed.ID.String()
+		return typed.DisplayName
 	case database.UserSecret:
 		return typed.Name
 	case database.UserSkill:
