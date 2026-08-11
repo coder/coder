@@ -579,10 +579,10 @@ export const buildEditDiff = (
 
 	const lines = [`--- ${diffPath}`, `+++ ${diffPath}`];
 	for (const hunk of hunks) {
-		const oldLines = hunk.lines.filter((l) => l[0] !== "+").length;
-		const newLines = hunk.lines.filter((l) => l[0] !== "-").length;
+		// jsdiff's counts exclude the \ No newline pragma; recomputing
+		// from the line prefixes would count it as a source line.
 		lines.push(
-			`@@ -${hunk.oldStart},${oldLines} +${hunk.newStart},${newLines} @@`,
+			`@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`,
 		);
 		lines.push(...hunk.lines);
 	}

@@ -858,6 +858,15 @@ describe("buildEditDiff", () => {
 		expect(diff).not.toBeNull();
 	});
 
+	it("does not count the no-newline pragma in hunk headers", () => {
+		const diff = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
+		expect(diff).not.toBeNull();
+		// One-line replacement: the header must be 1/1, not 2/2 with the
+		// \ No newline pragma counted as a source line.
+		expect(diff!.hunks[0].deletionCount).toBe(1);
+		expect(diff!.hunks[0].additionCount).toBe(1);
+	});
+
 	it("does not manufacture blank lines at edit seams", () => {
 		// search ends in a newline, replace does not; a deletion edit
 		// sits beside a normal one. Neither may inject a blank line.
