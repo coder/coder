@@ -5087,6 +5087,80 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`            | string  | true     |              |             |
 | `quota_allowance` | integer | false    |              |             |
 
+## codersdk.CreateMCPServerConfigRequest
+
+```json
+{
+  "allow_in_plan_mode": true,
+  "api_key_header": "string",
+  "api_key_value": "string",
+  "auth_type": "none",
+  "availability": "force_on",
+  "custom_headers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "description": "string",
+  "display_name": "string",
+  "enabled": true,
+  "forward_coder_headers": true,
+  "icon_url": "string",
+  "model_intent": true,
+  "oauth2_auth_url": "string",
+  "oauth2_client_id": "string",
+  "oauth2_client_secret": "string",
+  "oauth2_revocation_url": "string",
+  "oauth2_scopes": "string",
+  "oauth2_token_url": "string",
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "transport": "streamable_http",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description                                                                                                            |
+|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                        |
+| `api_key_header`        | string          | false    |              |                                                                                                                        |
+| `api_key_value`         | string          | false    |              |                                                                                                                        |
+| `auth_type`             | string          | true     |              |                                                                                                                        |
+| `availability`          | string          | true     |              |                                                                                                                        |
+| `custom_headers`        | object          | false    |              |                                                                                                                        |
+| » `[any property]`      | string          | false    |              |                                                                                                                        |
+| `description`           | string          | false    |              |                                                                                                                        |
+| `display_name`          | string          | true     |              |                                                                                                                        |
+| `enabled`               | boolean         | false    |              |                                                                                                                        |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.   |
+| `icon_url`              | string          | false    |              |                                                                                                                        |
+| `model_intent`          | boolean         | false    |              |                                                                                                                        |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                        |
+| `oauth2_client_id`      | string          | false    |              |                                                                                                                        |
+| `oauth2_client_secret`  | string          | false    |              |                                                                                                                        |
+| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted. |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                        |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                        |
+| `slug`                  | string          | true     |              |                                                                                                                        |
+| `tool_allow_list`       | array of string | false    |              |                                                                                                                        |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                        |
+| `transport`             | string          | true     |              |                                                                                                                        |
+| `url`                   | string          | true     |              |                                                                                                                        |
+
+#### Enumerated Values
+
+| Property       | Value(s)                                                   |
+|----------------|------------------------------------------------------------|
+| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
+| `availability` | `default_off`, `default_on`, `force_on`                    |
+| `transport`    | `sse`, `streamable_http`                                   |
+
 ## codersdk.CreateOrganizationRequest
 
 ```json
@@ -8697,6 +8771,94 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name            | Type   | Required | Restrictions | Description |
 |-----------------|--------|----------|--------------|-------------|
 | `session_token` | string | true     |              |             |
+
+## codersdk.MCPServerConfig
+
+```json
+{
+  "allow_in_plan_mode": true,
+  "api_key_header": "string",
+  "auth_connected": true,
+  "auth_type": "string",
+  "availability": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "display_name": "string",
+  "enabled": true,
+  "forward_coder_headers": true,
+  "has_api_key": true,
+  "has_custom_headers": true,
+  "has_oauth2_secret": true,
+  "icon_url": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model_intent": true,
+  "oauth2_auth_url": "string",
+  "oauth2_client_id": "string",
+  "oauth2_revocation_url": "string",
+  "oauth2_scopes": "string",
+  "oauth2_token_url": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "transport": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                                                          |
+|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `api_key_header`        | string          | false    |              | Api key header key fields (only populated for admins).                                                                                                                                                                                                                                               |
+| `auth_connected`        | boolean         | false    |              | Per-user state (populated for non-admin requests).                                                                                                                                                                                                                                                   |
+| `auth_type`             | string          | false    |              | "none", "oauth2", "api_key", "custom_headers", "user_oidc"                                                                                                                                                                                                                                           |
+| `availability`          | string          | false    |              | Availability policy set by admin.                                                                                                                                                                                                                                                                    |
+| `created_at`            | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `description`           | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `display_name`          | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `enabled`               | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers forwards the same Coder identity headers we send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this MCP server on every request. Off by default to avoid leaking chat identity to third-party servers. |
+| `has_api_key`           | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_custom_headers`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_oauth2_secret`     | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `icon_url`              | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `id`                    | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_client_id`      | string          | false    |              | Oauth2 client ID fields (only populated for admins).                                                                                                                                                                                                                                                 |
+| `oauth2_revocation_url` | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `organization_id`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `slug`                  | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `tool_allow_list`       | array of string | false    |              | Tool governance.                                                                                                                                                                                                                                                                                     |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `transport`             | string          | false    |              | "streamable_http" or "sse"                                                                                                                                                                                                                                                                           |
+| `updated_at`            | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `url`                   | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+
+## codersdk.MCPServerOAuth2DisconnectResponse
+
+```json
+{
+  "token_revocation_error": "string",
+  "token_revoked": true
+}
+```
+
+### Properties
+
+| Name                     | Type    | Required | Restrictions | Description |
+|--------------------------|---------|----------|--------------|-------------|
+| `token_revocation_error` | string  | false    |              |             |
+| `token_revoked`          | boolean | false    |              |             |
 
 ## codersdk.MatchedProvisioners
 
@@ -14088,6 +14250,80 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `current` | boolean | false    |              | Current indicates whether the server version is the same as the latest. |
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
+
+## codersdk.UpdateMCPServerConfigRequest
+
+```json
+{
+  "allow_in_plan_mode": true,
+  "api_key_header": "string",
+  "api_key_value": "string",
+  "auth_type": "none",
+  "availability": "force_on",
+  "custom_headers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "description": "string",
+  "display_name": "string",
+  "enabled": true,
+  "forward_coder_headers": true,
+  "icon_url": "string",
+  "model_intent": true,
+  "oauth2_auth_url": "string",
+  "oauth2_client_id": "string",
+  "oauth2_client_secret": "string",
+  "oauth2_revocation_url": "string",
+  "oauth2_scopes": "string",
+  "oauth2_token_url": "string",
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "transport": "streamable_http",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description                                                                                                             |
+|-------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                         |
+| `api_key_header`        | string          | false    |              |                                                                                                                         |
+| `api_key_value`         | string          | false    |              |                                                                                                                         |
+| `auth_type`             | string          | false    |              |                                                                                                                         |
+| `availability`          | string          | false    |              |                                                                                                                         |
+| `custom_headers`        | object          | false    |              |                                                                                                                         |
+| » `[any property]`      | string          | false    |              |                                                                                                                         |
+| `description`           | string          | false    |              |                                                                                                                         |
+| `display_name`          | string          | false    |              |                                                                                                                         |
+| `enabled`               | boolean         | false    |              |                                                                                                                         |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when set, updates whether Coder identity headers are forwarded on every outgoing MCP request.     |
+| `icon_url`              | string          | false    |              |                                                                                                                         |
+| `model_intent`          | boolean         | false    |              |                                                                                                                         |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                         |
+| `oauth2_client_id`      | string          | false    |              |                                                                                                                         |
+| `oauth2_client_secret`  | string          | false    |              |                                                                                                                         |
+| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it. |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                         |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                         |
+| `slug`                  | string          | false    |              |                                                                                                                         |
+| `tool_allow_list`       | array of string | false    |              |                                                                                                                         |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                         |
+| `transport`             | string          | false    |              |                                                                                                                         |
+| `url`                   | string          | false    |              |                                                                                                                         |
+
+#### Enumerated Values
+
+| Property       | Value(s)                                                   |
+|----------------|------------------------------------------------------------|
+| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
+| `availability` | `default_off`, `default_on`, `force_on`                    |
+| `transport`    | `sse`, `streamable_http`                                   |
 
 ## codersdk.UpdateOrganizationRequest
 
