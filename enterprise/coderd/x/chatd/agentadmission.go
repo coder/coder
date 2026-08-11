@@ -82,15 +82,14 @@ func (a *admission) Limits() (osschatd.AgentCapacityLimits, bool) {
 	}, !a.uncapped()
 }
 
-// Missing runtime-hour limit or usage data fails open because license decoding
-// does not populate Actual.
+// Runtime-hour allocation does not enforce caps; the hard limit does.
 func (a *admission) uncapped() bool {
 	f, ok := a.entitlements.Feature(codersdk.FeatureAgentRuntimeHours)
 	if !ok || !f.Enabled {
 		return false
 	}
-	if f.Limit == nil || f.Actual == nil {
+	if f.HardLimit == nil || f.Actual == nil {
 		return true
 	}
-	return *f.Actual < *f.Limit
+	return *f.Actual < *f.HardLimit
 }

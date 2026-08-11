@@ -277,11 +277,65 @@ func TestAdmission_LicensedBypass(t *testing.T) {
 			admit: true,
 		},
 		{
-			name: "ExhaustedHours",
+			name: "AtAllocationWithoutHardLimit",
 			feature: &codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
 				Enabled:     true,
 				Limit:       ptr.Ref(int64(100)),
+				Actual:      ptr.Ref(int64(100)),
+			},
+			admit: true,
+		},
+		{
+			name: "OverAllocationWithoutHardLimit",
+			feature: &codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(100)),
+				Actual:      ptr.Ref(int64(150)),
+			},
+			admit: true,
+		},
+		{
+			name: "BelowHardLimit",
+			feature: &codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(100)),
+				HardLimit:   ptr.Ref(int64(120)),
+				Actual:      ptr.Ref(int64(119)),
+			},
+			admit: true,
+		},
+		{
+			name: "AtHardLimit",
+			feature: &codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(100)),
+				HardLimit:   ptr.Ref(int64(120)),
+				Actual:      ptr.Ref(int64(120)),
+			},
+			admit: false,
+		},
+		{
+			name: "AboveHardLimit",
+			feature: &codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(100)),
+				HardLimit:   ptr.Ref(int64(120)),
+				Actual:      ptr.Ref(int64(121)),
+			},
+			admit: false,
+		},
+		{
+			name: "HardLimitEqualsAllocation",
+			feature: &codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(100)),
+				HardLimit:   ptr.Ref(int64(100)),
 				Actual:      ptr.Ref(int64(100)),
 			},
 			admit: false,
