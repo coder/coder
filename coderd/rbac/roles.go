@@ -344,7 +344,6 @@ type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 	NoWorkspaceSharing   bool
 	NoChatSharing        bool
-	NoTasks              bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
@@ -380,19 +379,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceType: ResourceChat.Type,
 			Action:       policy.ActionShare,
 		})
-	}
-	if opts.NoTasks {
-		// Tasks are hidden from the deployment, so no built-in role
-		// grants any task action. The negations apply to every role,
-		// including owner, so a task permission cannot be reached
-		// through a custom role either.
-		for _, action := range ResourceTask.AvailableActions() {
-			denyPermissions = append(denyPermissions, Permission{
-				Negate:       true,
-				ResourceType: ResourceTask.Type,
-				Action:       action,
-			})
-		}
 	}
 
 	ownerWorkspaceActions := ResourceWorkspace.AvailableActions()

@@ -400,7 +400,6 @@ func New(options *Options) *API {
 		NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
 		NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
 		NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
-		NoTasks:              !bool(options.DeploymentValues.EnableAITasks),
 	}
 	if roleOptions != (rbac.RoleOptions{}) {
 		rbac.ReloadBuiltinRoles(&roleOptions)
