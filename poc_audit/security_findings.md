@@ -199,21 +199,22 @@ place to be recorded, which is the precondition for section 5.
 
 ### Problem
 
-**P7. `workspace_agent` is not wired into the audit machinery at all.** There
-are zero mentions in `coderd/audit/diff.go` and zero in
+**P7. There is at present no auditability of credential events.**
+
+`workspace_agent` is not wired into the mechanism currently called `audit_logs`
+at all, with zero mentions in `coderd/audit/diff.go` and zero in
 `enterprise/audit/table.go`, despite the `resource_type` enum already
 containing a `workspace_agent` value.
 
 Combined with P5, this means that credential events are neither representable
-nor auditable today. Neither half is sufficient alone: a lifecycle table with
-no audit coverage records state without provenance, and audit coverage with no
-lifecycle table has nothing to record.
+nor recordable today. Neither half is sufficient alone: a lifecycle table with
+no coverage records state without provenance, and coverage with no lifecycle
+table has nothing to record.
 
 ### Solution
 
-**Treat credential issuance, rotation, and revocation as auditable events**
-under `poc_audit/audit_approach.md`, once section 4 has given them somewhere
-to live.
+**Treat credential issuance, rotation, and revocation as auditable events in
+the audit system described by `poc_audit/audit_approach.md`.**
 
 Which subset is actually audited remains a design choice, per that document.
 But these are unambiguously persistent state changes, and a credential whose
@@ -243,9 +244,11 @@ as outcomes rather than as implementations.
    one credential may be valid at once, so rotation can overlap. No credential
    may be valid, so revocation is a state rather than an absence. Uniqueness
    is enforced by the schema, not assumed by a query.
-5. **Credential lifecycle events are auditable.** Issuance, rotation, and
-   revocation are persistent state changes and are treated as such, referring
-   to credentials by identifier and never by value.
+5. **Credential lifecycle events are auditable**, in the sense given by
+   `poc_audit/audit_approach.md` rather than by the existing mechanism of the
+   same name. Issuance, rotation, and revocation are persistent state changes
+   and are treated as such, referring to credentials by identifier and never by
+   value.
 
 ## Origin
 
