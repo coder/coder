@@ -17,6 +17,7 @@ const meta: Meta<typeof BuildLogsDrawer> = {
 	args: {
 		open: true,
 		onClose: fn(),
+		onFillVariables: fn(),
 	},
 };
 
@@ -43,7 +44,8 @@ export const CloseWithEscape: Story = {
 };
 
 // When opened from a button outside the drawer, focus must return to that
-// button on close instead of falling back to the document body.
+// button on close instead of falling back to the document body. The parent
+// owns this via `onCloseAutoFocus`.
 export const RestoresFocusToOpener: Story = {
 	render: () => {
 		const [open, setOpen] = useState(false);
@@ -56,10 +58,13 @@ export const RestoresFocusToOpener: Story = {
 				<BuildLogsDrawer
 					open={open}
 					onClose={() => setOpen(false)}
-					openerRef={openerRef}
+					onFillVariables={fn()}
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						openerRef.current?.focus();
+					}}
 					error={undefined}
 					templateVersion={undefined}
-					variablesSectionRef={{ current: null }}
 				/>
 			</>
 		);

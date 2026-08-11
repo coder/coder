@@ -1,5 +1,5 @@
 import { TriangleAlertIcon, XIcon } from "lucide-react";
-import { type FC, useRef } from "react";
+import type { FC } from "react";
 import { JobError } from "#/api/queries/templates";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -20,27 +20,27 @@ type BuildLogsDrawerProps = {
 	error: unknown;
 	open: boolean;
 	onClose: () => void;
+	/** Invoked when the user opts to fill the missing template variables. */
+	onFillVariables: () => void;
 	/**
-	 * The element that opened the drawer. Focus returns here on close because,
-	 * unlike a `DrawerTrigger`, the opener lives outside the drawer's tree.
+	 * Forwarded to the drawer's `onCloseAutoFocus`. The drawer has no trigger,
+	 * so the parent owns where focus lands on close (e.g. the opener button).
 	 */
-	openerRef?: React.RefObject<HTMLElement | null>;
+	onCloseAutoFocus?: React.ComponentProps<
+		typeof DrawerContent
+	>["onCloseAutoFocus"];
 	templateVersion: TemplateVersion | undefined;
-	variablesSectionRef: React.RefObject<HTMLDivElement | null>;
 };
 
 export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	templateVersion,
 	error,
-	variablesSectionRef,
 	open,
 	onClose,
-	openerRef,
+	onFillVariables,
+	onCloseAutoFocus,
 }) => {
 	const logs = useWatchVersionLogs(templateVersion);
-	// Set when a close should keep focus on the variables input (the "Fill
-	// variables" flow) rather than returning it to the opener.
-	const preserveVariablesFocusRef = useRef(false);
 
 	const isMissingVariables =
 		error instanceof JobError &&
@@ -63,23 +63,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 		>
 			<DrawerContent
 				className="!w-[min(800px,100%)] !max-w-full"
-				onCloseAutoFocus={(event) => {
-					// Radix focuses a DrawerTrigger on close by default, but this drawer
-					// has none, so restore focus to the opener (or the variables input
-					// for the "Fill variables" flow) to avoid dropping keyboard users on
-					// the document body.
-					if (preserveVariablesFocusRef.current) {
-						preserveVariablesFocusRef.current = false;
-						event.preventDefault();
-						variablesSectionRef.current?.querySelector("input")?.focus();
-						return;
-					}
-					const opener = openerRef?.current;
-					if (opener?.isConnected) {
-						event.preventDefault();
-						opener.focus();
-					}
-				}}
+				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<div className="flex h-full flex-col">
 					<header
@@ -98,15 +82,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 					</header>
 
 					{isMissingVariables ? (
-						<MissingVariablesBanner
-							onFillVariables={() => {
-								variablesSectionRef.current?.scrollIntoView({
-									behavior: "smooth",
-								});
-								preserveVariablesFocusRef.current = true;
-								onClose();
-							}}
-						/>
+						<MissingVariablesBanner onFillVariables={onFillVariables} />
 					) : (
 						<>
 							{(matchingProvisioners === 0 || !hasLogs) && (
