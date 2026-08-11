@@ -1784,7 +1784,7 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 		CodeChallengeMethod: seed.CodeChallengeMethod,
 		StateHash:           seed.StateHash,
 		RedirectUri:         seed.RedirectUri,
-		Scope:               seed.Scope,
+		Scope:               takeFirst(seed.Scope, database.OAuth2ScopeUnrestricted),
 	})
 	require.NoError(t, err, "insert oauth2 app code")
 	return code
@@ -1806,7 +1806,7 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
 		UserID:      takeFirst(seed.UserID, uuid.New()),
 		Audience:    seed.Audience,
-		Scope:       seed.Scope,
+		Scope:       takeFirst(seed.Scope, database.OAuth2ScopeUnrestricted),
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token

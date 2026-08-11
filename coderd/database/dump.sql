@@ -2597,7 +2597,8 @@ CREATE TABLE oauth2_provider_app_codes (
     code_challenge_method text,
     state_hash text,
     redirect_uri text,
-    scope text
+    scope text NOT NULL,
+    CONSTRAINT oauth2_provider_app_codes_scope_not_empty CHECK ((scope <> ''::text))
 );
 
 COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';
@@ -2612,7 +2613,7 @@ COMMENT ON COLUMN oauth2_provider_app_codes.state_hash IS 'SHA-256 hash of the O
 
 COMMENT ON COLUMN oauth2_provider_app_codes.redirect_uri IS 'The redirect_uri provided during authorization, to be verified during token exchange (RFC 6749 §4.1.3).';
 
-COMMENT ON COLUMN oauth2_provider_app_codes.scope IS 'Space-separated scope negotiated at authorization time. NULL means no scope was recorded and the exchanged token is unrestricted.';
+COMMENT ON COLUMN oauth2_provider_app_codes.scope IS 'Space-separated scope negotiated at authorization time, drawn from the api_key_scope vocabulary. Always set; coder:all records an unrestricted grant.';
 
 CREATE TABLE oauth2_provider_app_secrets (
     id uuid NOT NULL,
@@ -2637,7 +2638,8 @@ CREATE TABLE oauth2_provider_app_tokens (
     audience text,
     user_id uuid NOT NULL,
     app_id uuid NOT NULL,
-    scope text
+    scope text NOT NULL,
+    CONSTRAINT oauth2_provider_app_tokens_scope_not_empty CHECK ((scope <> ''::text))
 );
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
@@ -2648,7 +2650,7 @@ COMMENT ON COLUMN oauth2_provider_app_tokens.user_id IS 'Denormalized user ID fo
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.app_id IS 'Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.';
 
-COMMENT ON COLUMN oauth2_provider_app_tokens.scope IS 'Space-separated scope granted to this token. A refresh may narrow this but never widen it. NULL means no scope was recorded and the token is unrestricted.';
+COMMENT ON COLUMN oauth2_provider_app_tokens.scope IS 'Space-separated scope granted to this token, drawn from the api_key_scope vocabulary. Always set; coder:all records an unrestricted grant. Later phases will narrow this on refresh and never widen it.';
 
 CREATE TABLE oauth2_provider_apps (
     id uuid NOT NULL,
