@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
@@ -83,6 +84,23 @@ func TestChatTools(t *testing.T) {
 		require.Contains(t, texts, "assistant: Hello from test server.")
 		require.Equal(t, "user: Say hello.", texts[0])
 
+		firstPage, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{
+			ChatID: created.ID,
+			Limit:  1,
+		})
+		require.NoError(t, err)
+		require.True(t, firstPage.HasMore)
+		require.Len(t, firstPage.Messages, 1)
+		olderPage, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{
+			ChatID:   created.ID,
+			BeforeID: firstPage.Messages[0].ID,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, olderPage.Messages)
+		for _, msg := range olderPage.Messages {
+			require.Less(t, msg.ID, firstPage.Messages[0].ID)
+		}
+
 		archived, err := testTool(t, toolsdk.ArchiveChat, tb, toolsdk.ArchiveChatArgs{ChatID: created.ID})
 		require.NoError(t, err)
 		require.NotEmpty(t, archived.Message)
@@ -90,6 +108,27 @@ func TestChatTools(t *testing.T) {
 		got, err = testTool(t, toolsdk.GetChat, tb, toolsdk.GetChatArgs{ChatID: created.ID})
 		require.NoError(t, err)
 		require.True(t, got.Archived)
+	})
+
+	t.Run("ListChatModelConfigsSkipsDisabledProviders", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Admin model lists include configs backed by disabled providers.
+		disabledProviderConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, chattest.OpenAI(t))
+		provider, err := client.UpdateAIProvider(ctx, disabledProviderConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+		require.False(t, provider.Enabled)
+
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.NoArgs{})
+		require.NoError(t, err)
+		var ids []string
+		for _, config := range result.ModelConfigs {
+			ids = append(ids, config.ID)
+		}
+		require.NotContains(t, ids, disabledProviderConfig.ID.String())
+		require.Contains(t, ids, defaultModelConfig.ID.String())
 	})
 
 	t.Run("Interrupt", func(t *testing.T) {

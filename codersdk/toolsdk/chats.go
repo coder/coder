@@ -181,8 +181,9 @@ var GetChat = Tool[GetChatArgs, ChatToolStatus]{
 }
 
 type GetChatMessagesArgs struct {
-	ChatID string `json:"chat_id"`
-	Limit  int    `json:"limit"`
+	ChatID   string `json:"chat_id"`
+	Limit    int    `json:"limit"`
+	BeforeID int64  `json:"before_id"`
 }
 
 type ChatToolMessage struct {
@@ -202,7 +203,7 @@ var GetChatMessages = Tool[GetChatMessagesArgs, GetChatMessagesResponse]{
 		Name: ToolNameGetChatMessages,
 		Description: `Get the newest messages of a Coder Agents chat in chronological order.
 
-Only text content is returned; tool calls and other internal parts are omitted.`,
+Only text content is returned; tool calls and other internal parts are omitted. When has_more is true, pass the smallest returned message id as before_id to page through older messages.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
@@ -212,6 +213,10 @@ Only text content is returned; tool calls and other internal parts are omitted.`
 				"limit": map[string]any{
 					"type":        "integer",
 					"description": "Maximum number of messages to fetch, from newest to oldest (1-200, default 50).",
+				},
+				"before_id": map[string]any{
+					"type":        "integer",
+					"description": "Only fetch messages with an id lower than this cursor. Omit to fetch the newest messages.",
 				},
 			},
 			Required: []string{"chat_id"},
@@ -226,9 +231,15 @@ Only text content is returned; tool calls and other internal parts are omitted.`
 		if args.Limit < 0 || args.Limit > 200 {
 			return GetChatMessagesResponse{}, xerrors.New("limit must be between 1 and 200")
 		}
+		if args.BeforeID < 0 {
+			return GetChatMessagesResponse{}, xerrors.New("before_id must be a positive message id")
+		}
 		var opts *codersdk.ChatMessagesPaginationOptions
-		if args.Limit > 0 {
-			opts = &codersdk.ChatMessagesPaginationOptions{Limit: args.Limit}
+		if args.Limit > 0 || args.BeforeID > 0 {
+			opts = &codersdk.ChatMessagesPaginationOptions{
+				Limit:    args.Limit,
+				BeforeID: args.BeforeID,
+			}
 		}
 		resp, err := codersdk.NewExperimentalClient(deps.coderClient).GetChatMessages(ctx, chatID, opts)
 		if err != nil {
@@ -415,8 +426,10 @@ type ListChatModelConfigsResponse struct {
 
 var ListChatModelConfigs = Tool[NoArgs, ListChatModelConfigsResponse]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameListChatModelConfigs,
-		Description: `List the enabled chat models available for Coder Agents chats. Use a model config ID with coder_create_chat to pick a model.`,
+		Name: ToolNameListChatModelConfigs,
+		Description: `List the enabled chat models available for Coder Agents chats. Use a model config ID with coder_create_chat to pick a model.
+
+Per-user provider credentials are validated when creating a chat, so coder_create_chat can still reject a listed model with an explanatory error.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{},
 			Required:   []string{},
@@ -428,9 +441,20 @@ var ListChatModelConfigs = Tool[NoArgs, ListChatModelConfigsResponse]{
 		if err != nil {
 			return ListChatModelConfigsResponse{}, xerrors.Errorf("list chat model configs: %w", err)
 		}
+		// Admin model lists include configs backed by disabled providers. Filter
+		// them when provider state is available; non-admin lists are already filtered.
+		providerEnabled := map[uuid.UUID]bool{}
+		if providers, err := deps.coderClient.AIProviders(ctx); err == nil {
+			for _, provider := range providers {
+				providerEnabled[provider.ID] = provider.Enabled
+			}
+		}
 		summaries := make([]ChatModelConfigSummary, 0, len(configs))
 		for _, config := range configs {
 			if !config.Enabled {
+				continue
+			}
+			if enabled, ok := providerEnabled[config.AIProviderID]; ok && !enabled {
 				continue
 			}
 			summaries = append(summaries, ChatModelConfigSummary{
