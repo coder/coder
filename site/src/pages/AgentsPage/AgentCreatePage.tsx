@@ -13,7 +13,7 @@ import {
 	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
-import { workspaces } from "#/api/queries/workspaces";
+import { allWorkspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -55,7 +55,7 @@ const AgentCreatePage: FC = () => {
 	);
 	const preferencesQuery = useQuery(preferenceSettings());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
-	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
+	const workspacesQuery = useQuery(allWorkspaces({ q: "owner:me" }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);

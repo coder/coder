@@ -632,6 +632,34 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 	return wres, ReadBodyAsJSON(res, &wres)
 }
 
+// WorkspacePageSize is the number of rows AllWorkspaces requests per page.
+const WorkspacePageSize = 100
+
+// AllWorkspaces requests successive pages of workspaces matching the filter and
+// returns every row. Limit and Offset on the filter are ignored.
+//
+// The offset advances by the requested page size rather than by the number of
+// rows received. The endpoint applies its limit in SQL and then drops
+// workspaces whose build or template the caller cannot read, so a page shorter
+// than the page size does not mean the result set is exhausted. Count is the
+// total before the limit and offset are applied.
+func (c *Client) AllWorkspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
+	filter.Limit = WorkspacePageSize
+	filter.Offset = 0
+	var all []Workspace
+	for {
+		page, err := c.Workspaces(ctx, filter)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page.Workspaces...)
+		filter.Offset += WorkspacePageSize
+		if filter.Offset >= page.Count {
+			return all, nil
+		}
+	}
+}
+
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
 func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceOptions) (Workspace, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, func(r *http.Request) {

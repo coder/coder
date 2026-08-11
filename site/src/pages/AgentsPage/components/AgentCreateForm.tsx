@@ -382,11 +382,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// Filter workspaces by the selected organization. We use
 	// client-side filtering of the full "owner:me" fetch rather
 	// than re-querying with an org filter because it avoids
-	// extra loading/error states on org change. The full list is
-	// already small (user's own workspaces) and limit: 0
-	// guarantees completeness. If workspace counts grow large
-	// enough to warrant pagination, this should switch to a
-	// server-side organization:<name> query filter.
+	// extra loading/error states on org change. The list is
+	// fetched page by page until exhausted, so it is complete.
+	// If workspace counts grow large enough that paging is
+	// costly, this should switch to a server-side
+	// organization:<name> query filter.
 	const filteredWorkspaces =
 		showOrganizations && selectedOrg
 			? workspaceOptions.filter((ws) => ws.organization_id === selectedOrg.id)

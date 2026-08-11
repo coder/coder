@@ -46,6 +46,11 @@ import * as TypesGen from "./typesGenerated";
 export const SessionTokenCookie = "coder_session_token";
 
 /**
+ * WORKSPACE_PAGE_SIZE is the number of rows getAllWorkspaces requests per page.
+ */
+export const WORKSPACE_PAGE_SIZE = 100;
+
+/**
  * @param agentId
  * @returns {OneWayWebSocket} A OneWayWebSocket that emits Server-Sent Events.
  */
@@ -1257,6 +1262,32 @@ class ApiMethods {
 		const url = getURLWithSearchParams("/api/v2/workspaces", req);
 		const response = await this.axios.get<TypesGen.WorkspacesResponse>(url);
 		return response.data;
+	};
+
+	/**
+	 * Requests successive pages of workspaces until the offset reaches the total
+	 * the server reports. The offset advances by the page size rather than by the
+	 * number of rows received: the endpoint applies its limit in SQL and then
+	 * drops workspaces whose build or template the caller cannot read, so a short
+	 * page does not mean the result set is exhausted.
+	 */
+	getAllWorkspaces = async (
+		req: Omit<TypesGen.WorkspacesRequest, "limit" | "offset"> = {},
+	): Promise<TypesGen.WorkspacesResponse> => {
+		const workspaces: TypesGen.Workspace[] = [];
+		let count = 0;
+		let offset = 0;
+		do {
+			const page = await this.getWorkspaces({
+				...req,
+				limit: WORKSPACE_PAGE_SIZE,
+				offset,
+			});
+			workspaces.push(...page.workspaces);
+			count = page.count;
+			offset += WORKSPACE_PAGE_SIZE;
+		} while (offset < count);
+		return { workspaces, count };
 	};
 
 	getWorkspaceByOwnerAndName = async (

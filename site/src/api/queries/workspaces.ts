@@ -229,6 +229,24 @@ export function workspaces(req: WorkspacesRequest = {}) {
 	} as const satisfies QueryOptions<WorkspacesResponse>;
 }
 
+type AllWorkspacesRequest = Omit<WorkspacesRequest, "limit" | "offset">;
+
+export function allWorkspacesKey(req: AllWorkspacesRequest = {}) {
+	// The `all` marker keeps this distinct from the single-page key for the same
+	// filter. The key stays two segments long with an object at the end so it is
+	// still matched by invalidateWorkspaceListQueries.
+	return [...workspacesQueryKeyPrefix, { ...req, all: true }] as const;
+}
+
+// allWorkspaces fetches every page of the filtered result set. Prefer a
+// server-side filter and a single page when the caller can express one.
+export function allWorkspaces(req: AllWorkspacesRequest = {}) {
+	return {
+		queryKey: allWorkspacesKey(req),
+		queryFn: () => API.getAllWorkspaces(req),
+	} as const satisfies QueryOptions<WorkspacesResponse>;
+}
+
 const isWorkspacesListQuery = (query: {
 	queryKey: readonly unknown[];
 }): boolean => {

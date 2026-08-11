@@ -551,8 +551,6 @@ func (r *prebuildTemplateCleanupRunner) Run(ctx context.Context, _ string, _ io.
 // caught in the cleanup. If template is non-empty only workspaces for that
 // template are returned.
 func getScaletestPrebuildWorkspaces(ctx context.Context, client *codersdk.Client, template string) ([]codersdk.Workspace, error) {
-	const pageSize = 100
-
 	templates, err := getScaletestPrebuildsTemplates(ctx, client, template)
 	if err != nil {
 		return nil, xerrors.Errorf("list scaletest prebuild templates: %w", err)
@@ -562,27 +560,16 @@ func getScaletestPrebuildWorkspaces(ctx context.Context, client *codersdk.Client
 	var result []codersdk.Workspace
 
 	for _, tmpl := range templates {
-		for page := 0; ; page++ {
-			resp, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-				Template: tmpl.Name,
-				Offset:   page * pageSize,
-				Limit:    pageSize,
-			})
-			if err != nil {
-				return nil, xerrors.Errorf("list workspaces for template %q (page %d): %w", tmpl.Name, page, err)
-			}
-			for _, ws := range resp.Workspaces {
-				if _, ok := seen[ws.ID]; !ok {
-					seen[ws.ID] = struct{}{}
-					result = append(result, ws)
-				}
-			}
-			// The endpoint applies its limit in SQL and then drops rows whose build
-			// or template the caller cannot read, so a page shorter than pageSize
-			// does not mean the result set is exhausted. Count is the total before
-			// the limit and offset are applied.
-			if (page+1)*pageSize >= resp.Count {
-				break
+		workspaces, err := client.AllWorkspaces(ctx, codersdk.WorkspaceFilter{
+			Template: tmpl.Name,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("list workspaces for template %q: %w", tmpl.Name, err)
+		}
+		for _, ws := range workspaces {
+			if _, ok := seen[ws.ID]; !ok {
+				seen[ws.ID] = struct{}{}
+				result = append(result, ws)
 			}
 		}
 	}
@@ -2223,8 +2210,6 @@ func (r *runnableTraceWrapper) GetMetrics() map[string]any {
 
 func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner, template string) ([]codersdk.Workspace, int, error) {
 	var (
-		pageNumber = 0
-		limit      = 100
 		workspaces []codersdk.Workspace
 		skipped    int
 	)
@@ -2240,40 +2225,24 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner,
 	}
 	noOwnerAccess := dv.Values != nil && dv.Values.DisableOwnerWorkspaceExec.Value()
 
-	for {
-		page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Name:     "scaletest-",
-			Template: template,
-			Owner:    owner,
-			Offset:   pageNumber * limit,
-			Limit:    limit,
-		})
-		if err != nil {
-			return nil, 0, xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
-		}
+	all, err := client.AllWorkspaces(ctx, codersdk.WorkspaceFilter{
+		Name:     "scaletest-",
+		Template: template,
+		Owner:    owner,
+	})
+	if err != nil {
+		return nil, 0, xerrors.Errorf("fetch scaletest workspaces: %w", err)
+	}
 
-		pageNumber++
-
-		pageWorkspaces := make([]codersdk.Workspace, 0, len(page.Workspaces))
-		for _, w := range page.Workspaces {
-			if !loadtestutil.IsScaleTestWorkspace(w.Name, w.OwnerName) {
-				continue
-			}
-			if noOwnerAccess && w.OwnerID != me.ID {
-				skipped++
-				continue
-			}
-			pageWorkspaces = append(pageWorkspaces, w)
+	for _, w := range all {
+		if !loadtestutil.IsScaleTestWorkspace(w.Name, w.OwnerName) {
+			continue
 		}
-		workspaces = append(workspaces, pageWorkspaces...)
-
-		// The endpoint applies its limit in SQL and then drops rows whose build or
-		// template the caller cannot read, so a short or empty page does not mean
-		// the result set is exhausted. Count is the total before the limit and
-		// offset are applied.
-		if pageNumber*limit >= page.Count {
-			break
+		if noOwnerAccess && w.OwnerID != me.ID {
+			skipped++
+			continue
 		}
+		workspaces = append(workspaces, w)
 	}
 	return workspaces, skipped, nil
 }
