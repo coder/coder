@@ -164,7 +164,11 @@ const WorkspaceSchedulePage: FC = () => {
 			<ConfirmDialog
 				open={isConfirmingApply}
 				title="Restart workspace?"
-				description="Would you like to restart your workspace now to apply your new autostop setting, or let it apply after your next workspace start?"
+				description={
+					workspace.outdated
+						? "Would you like to restart your workspace now to apply your new autostop setting, or let it apply after your next workspace start? Restarting now will also update the workspace to the template's latest active version."
+						: "Would you like to restart your workspace now to apply your new autostop setting, or let it apply after your next workspace start?"
+				}
 				confirmText="Restart"
 				cancelText="Apply later"
 				hideCancel={false}
