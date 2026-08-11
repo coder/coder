@@ -149,6 +149,35 @@ export const ChangingAutostopValueShowsRestartDialog: Story = {
 	},
 };
 
+const outdatedWorkspace: Workspace = { ...MockWorkspace, outdated: true };
+
+export const RestartDialogWarnsAboutTemplateUpdate: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(outdatedWorkspace),
+		queries: workspaceQueries(outdatedWorkspace),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			outdatedWorkspace,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+		const ttlInput = await canvas.findByLabelText(
+			"Time until shutdown (hours)",
+		);
+		await user.clear(ttlInput);
+		await user.type(ttlInput, "4");
+		await user.click(await canvas.findByRole("button", { name: /save/i }));
+		await body.findByText("Restart workspace?");
+		await body.findByText(
+			/Restarting now will also update the workspace to the template's latest active version/,
+		);
+	},
+};
+
 export const DisablingAutostopSkipsRestartDialog: Story = {
 	parameters: {
 		reactRouter: workspaceRouterParameters(MockWorkspace),

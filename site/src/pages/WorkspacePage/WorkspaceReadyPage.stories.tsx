@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import { buildInfoKey } from "#/api/queries/buildInfo";
+import { templateVersion } from "#/api/queries/templates";
+import { agentListeningPorts } from "#/api/queries/workspaces";
 import * as Mocks from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -28,16 +31,14 @@ const meta: Meta<typeof WorkspaceReadyPage> = {
 	},
 	parameters: {
 		queries: [
-			{ key: ["buildInfo"], data: Mocks.MockBuildInfo },
+			{ key: buildInfoKey, data: Mocks.MockBuildInfo },
 			{
-				key: ["portForward", Mocks.MockWorkspaceAgent.id],
+				key: agentListeningPorts(Mocks.MockWorkspaceAgent.id).queryKey,
 				data: Mocks.MockListeningPortsResponse,
 			},
 			{
-				key: [
-					"templateVersion",
-					Mocks.MockWorkspace.template_active_version_id,
-				],
+				key: templateVersion(Mocks.MockWorkspace.template_active_version_id)
+					.queryKey,
 				data: Mocks.MockTemplateVersion,
 			},
 		],
