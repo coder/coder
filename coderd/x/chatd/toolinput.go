@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"encoding/json"
+	"errors"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
@@ -30,7 +31,7 @@ func partitionAmbiguousToolCalls(
 			continue
 		}
 		if err := validateBuiltinToolInput(prepared, toolCall.ToolName, []byte(toolCall.Input)); err != nil {
-			rejected = append(rejected, ambiguousToolResult(toolCall, err))
+			rejected = append(rejected, invalidInputToolResult(toolCall, err))
 			continue
 		}
 		allowed = append(allowed, toolCall)
@@ -70,7 +71,7 @@ func validateBuiltinToolInput(prepared generationPrepared, toolName string, inpu
 		if info.Name != toolName {
 			continue
 		}
-		return toolschema.ValidateUnambiguous(info.Parameters, input)
+		return toolschema.Validate(info.Parameters, input)
 	}
 	return nil
 }
@@ -89,9 +90,16 @@ func malformedToolResult(toolCall fantasy.ToolCallContent) fantasy.ToolResultCon
 	}
 }
 
-func ambiguousToolResult(toolCall fantasy.ToolCallContent, err error) fantasy.ToolResultContent {
+// invalidInputToolResult picks retry advice matching the validation failure,
+// because the ambiguous-key advice would misdirect a model that
+// double-encoded a structured argument.
+func invalidInputToolResult(toolCall fantasy.ToolCallContent, err error) fantasy.ToolResultContent {
 	message := "This tool call was not executed because its input is ambiguous: " + err.Error() +
 		". Retry with the exact property names from the tool schema, each key used once."
+	if _, ok := errors.AsType[*toolschema.StringifiedError](err); ok {
+		message = "This tool call was not executed because " + err.Error() +
+			". Retry with the value provided as JSON directly, not wrapped in a string."
+	}
 	return fantasy.ToolResultContent{
 		ToolCallID: toolCall.ToolCallID,
 		ToolName:   toolCall.ToolName,

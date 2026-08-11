@@ -90,6 +90,40 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 	})
 }
 
+// TestPartitionStringifiedToolCallInput pins the retry advice for the
+// double-encoding failure mode: the ambiguous-key advice would misdirect the
+// model, and letting the decoder report it yields an unactionable Go
+// unmarshal error.
+func TestPartitionStringifiedToolCallInput(t *testing.T) {
+	t.Parallel()
+
+	type input struct {
+		URLs []string `json:"urls"`
+	}
+	tool := fantasy.NewAgentTool("fetch_many", "",
+		func(context.Context, input, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.ToolResponse{}, nil
+		})
+	prepared := generationPrepared{
+		Tools:            []fantasy.AgentTool{tool},
+		BuiltinToolNames: map[string]bool{"fetch_many": true},
+	}
+	stringified := fantasy.ToolCallContent{
+		ToolCallID: "call_stringified",
+		ToolName:   "fetch_many",
+		Input:      `{"urls":"[\"https://example.test\"]"}`,
+	}
+
+	allowed, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{stringified})
+	require.Empty(t, allowed)
+	require.Len(t, rejected, 1)
+	result, ok := rejected[0].Result.(fantasy.ToolResultOutputContentError)
+	require.True(t, ok)
+	require.ErrorContains(t, result.Error,
+		`input property "urls" is a string, but the schema declares an array`)
+	require.ErrorContains(t, result.Error, "not wrapped in a string")
+}
+
 func TestValidateOverriddenToolInputs(t *testing.T) {
 	t.Parallel()
 

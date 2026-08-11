@@ -1,10 +1,12 @@
 // Package toolschema rejects tool inputs whose object keys the Go decoder
-// and a case-sensitive reader resolve differently.
+// and a case-sensitive reader resolve differently, and inputs that
+// double-encode a structured property as a string.
 package toolschema
 
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -12,21 +14,38 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// StringifiedError reports a property whose schema declares an array or
+// object but whose value is a string, the double-encoding mistake some
+// models make. The Go decoder rejects such a value with an unmarshal error
+// naming internal Go types, so it is caught here where the message can tell
+// the model how to correct the call.
+type StringifiedError struct {
+	Path       string
+	SchemaType string
+}
+
+func (e *StringifiedError) Error() string {
+	return fmt.Sprintf("input property %q is a string, but the schema declares an %s", e.Path, e.SchemaType)
+}
+
 // freeFormPropertyName is the property name fantasy generates for
 // map[string]T inputs. Its keys are data, so they are checked against the
 // value schema behind this name rather than against a fixed property set.
 const freeFormPropertyName = "*"
 
-// ValidateUnambiguous reports an error when input holds an object key that
+// Validate reports an error when input holds an object key that
 // encoding/json folds into a declared property but a case-sensitive reader
 // treats as distinct, or when one object repeats a key. Either lets code
 // inspecting the raw input read one value while the tool executes another.
+// It also reports a StringifiedError when a declared array or object
+// property carries a string, which the tool decoder would reject with a
+// less actionable message.
 //
 // properties is a fantasy ToolInfo.Parameters map, keyed by property name.
 // Keys matching no property are ignored because a generated struct decoder
 // drops them. A tool with a hand-written decoder that reads undeclared keys
 // has to reject ambiguous spellings of those keys itself.
-func ValidateUnambiguous(properties map[string]any, input []byte) error {
+func Validate(properties map[string]any, input []byte) error {
 	decoder := json.NewDecoder(bytes.NewReader(input))
 	token, err := decoder.Token()
 	// Input that does not parse here does not decode for the tool either,
@@ -90,6 +109,14 @@ func validateValue(schema map[string]any, decoder *json.Decoder, token json.Toke
 			if err := validateValue(items, decoder, next, path+"[]"); err != nil {
 				return err
 			}
+		}
+	}
+	if _, isString := token.(string); isString {
+		// Only string values are flagged: they are how models double-encode
+		// structures, and other scalar mismatches have not needed a better
+		// message than the decoder's.
+		if schemaType, _ := schema["type"].(string); schemaType == "array" || schemaType == "object" {
+			return &StringifiedError{Path: path, SchemaType: schemaType}
 		}
 	}
 	return nil

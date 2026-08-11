@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/toolschema"
 )
 
-func TestValidateUnambiguous(t *testing.T) {
+func TestValidate(t *testing.T) {
 	t.Parallel()
 
 	readFile := chattool.ReadFile(chattool.ReadFileOptions{})
@@ -79,6 +79,29 @@ func TestValidateUnambiguous(t *testing.T) {
 			input: `{"path":"/allowed","xyzzy":"b"}`,
 		},
 		{
+			name:    "array property double-encoded as a string",
+			tool:    editFiles,
+			input:   `{"files":"[{\"path\":\"foo.go\",\"edits\":[]}]"}`,
+			wantErr: `input property "files" is a string, but the schema declares an array`,
+		},
+		{
+			name:    "nested array property double-encoded as a string",
+			tool:    editFiles,
+			input:   `{"files":[{"path":"a","edits":"[{\"old_text\":\"x\",\"new_text\":\"y\"}]"}]}`,
+			wantErr: `input property "files[].edits" is a string, but the schema declares an array`,
+		},
+		{
+			name:    "object property double-encoded as a string",
+			tool:    createWorkspace,
+			input:   `{"template_id":"t","parameters":"{\"foo\":\"1\"}"}`,
+			wantErr: `input property "parameters" is a string, but the schema declares an object`,
+		},
+		{
+			name:  "non-string scalar for an array property",
+			tool:  editFiles,
+			input: `{"files":3}`,
+		},
+		{
 			name:  "exact keys",
 			tool:  editFiles,
 			input: `{"files":[{"path":"a","edits":[{"old_text":"x","new_text":"y","replace_all":true}]}]}`,
@@ -98,7 +121,7 @@ func TestValidateUnambiguous(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := toolschema.ValidateUnambiguous(tt.tool.Info().Parameters, []byte(tt.input))
+			err := toolschema.Validate(tt.tool.Info().Parameters, []byte(tt.input))
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 				return
