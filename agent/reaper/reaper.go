@@ -21,6 +21,14 @@ func WithExecArgs(args ...string) Option {
 	}
 }
 
+// WithEnv specifies the environment for the fork-exec child. By default the
+// child inherits os.Environ().
+func WithEnv(env []string) Option {
+	return func(o *options) {
+		o.Env = env
+	}
+}
+
 // WithPIDCallback sets the channel that reaped child process PIDs are pushed
 // onto.
 func WithPIDCallback(ch reap.PidCh) Option {
@@ -75,6 +83,7 @@ func WithReapLock(mu *sync.RWMutex) Option {
 
 type options struct {
 	ExecArgs      []string
+	Env           []string
 	PIDs          reap.PidCh
 	CatchSignals  []os.Signal
 	Logger        slog.Logger

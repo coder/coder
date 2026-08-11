@@ -164,6 +164,28 @@ func TestForkReapExitCodes(t *testing.T) {
 	}
 }
 
+func TestForkReapEnv(t *testing.T) {
+	t.Parallel()
+	if testutil.InCI() {
+		t.Skip("Detected CI, skipping reaper tests")
+	}
+	if !runSubprocess(t) {
+		return
+	}
+
+	var reapLock sync.RWMutex
+	opts := append([]reaper.Option{
+		reaper.WithExecArgs("/bin/sh", "-c", `test "$CODER_REAPER_TEST_ENV" = confined`),
+		reaper.WithEnv([]string{"CODER_REAPER_TEST_ENV=confined"}),
+		reaper.WithReapLock(&reapLock),
+	}, withDone(t)...)
+	reapLock.RLock()
+	exitCode, err := reaper.ForkReap(opts...)
+	reapLock.RUnlock()
+	require.NoError(t, err)
+	require.Equal(t, 0, exitCode)
+}
+
 // TestReapInterrupt verifies that ForkReap forwards caught signals
 // to the child process. The test sends SIGINT to its own process
 // and checks that the child receives it. Running in a subprocess

@@ -63,6 +63,7 @@ func startSignalForwarding(logger slog.Logger, pid int, sigs []os.Signal) {
 func ForkReap(opt ...Option) (int, error) {
 	opts := &options{
 		ExecArgs: os.Args,
+		Env:      os.Environ(),
 	}
 
 	for _, o := range opt {
@@ -83,7 +84,7 @@ func ForkReap(opt ...Option) (int, error) {
 
 	pattrs := &syscall.ProcAttr{
 		Dir: pwd,
-		Env: os.Environ(),
+		Env: opts.Env,
 		Sys: &syscall.SysProcAttr{
 			Setsid: true,
 		},
