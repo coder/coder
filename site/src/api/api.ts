@@ -1346,7 +1346,9 @@ class ApiMethods {
 			clearTimeout(timeoutId);
 		}
 		throw new Error(
-			"The workspace stopped but the follow-up start build was not created.",
+			"The workspace stopped, but the server did not start it again. " +
+				"This can happen when the current build parameters are no longer valid for the template. " +
+				"Start the workspace manually from the workspace page.",
 		);
 	};
 

@@ -508,7 +508,7 @@ describe("api.ts", () => {
 
 			await vi.advanceTimersByTimeAsync(1);
 			await expect(restart).rejects.toThrow(
-				"The workspace stopped but the follow-up start build was not created.",
+				"The workspace stopped, but the server did not start it again.",
 			);
 			expect(getWorkspaceBuildByNumber.mock.calls[0][3]?.aborted).toBe(true);
 		});
