@@ -45,10 +45,17 @@ const replayChatCacheWrites = (
 	writes: readonly ChatCacheWrite[],
 ): void => {
 	for (const write of writes) {
-		if (write.kind === "replace") {
-			replaceChatMessagesHistory(queryClient, chatID, write.messages);
-		} else {
-			upsertChatMessages(queryClient, chatID, write.messages);
+		switch (write.kind) {
+			case "replace":
+				replaceChatMessagesHistory(queryClient, chatID, write.messages);
+				break;
+			case "upsert":
+				upsertChatMessages(queryClient, chatID, write.messages);
+				break;
+			default: {
+				const _exhaustive: never = write.kind;
+				throw new Error(`unhandled chat cache write kind: ${write.kind}`);
+			}
 		}
 	}
 };
