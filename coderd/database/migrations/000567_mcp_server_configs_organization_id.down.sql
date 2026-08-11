@@ -1,3 +1,8 @@
+-- Drop the remap trigger before the chat update below: it would rewrite the
+-- restored default-organization IDs back to the per-organization copies.
+DROP TRIGGER IF EXISTS remap_chat_mcp_server_ids ON chats;
+DROP FUNCTION IF EXISTS remap_chat_mcp_server_ids_to_chat_org();
+
 CREATE TEMP TABLE mcp_server_config_restore_map (
     config_id UUID PRIMARY KEY,
     default_config_id UUID NOT NULL

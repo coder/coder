@@ -123,3 +123,47 @@ ALTER TABLE mcp_server_configs
 
 CREATE INDEX idx_mcp_server_configs_organization_id
     ON mcp_server_configs (organization_id);
+
+-- Rolling-upgrade compatibility: replicas running pre-organization-scoping
+-- code resolve configs globally and can persist another organization's config
+-- ID into a chat. Remap such writes to the chat organization's same-slug
+-- config, dropping IDs with no counterpart. Remove once those replicas are gone.
+CREATE FUNCTION remap_chat_mcp_server_ids_to_chat_org()
+    RETURNS TRIGGER AS
+$$
+BEGIN
+    IF NEW.mcp_server_ids IS NULL OR cardinality(NEW.mcp_server_ids) = 0 THEN
+        RETURN NEW;
+    END IF;
+    SELECT COALESCE(
+        array_agg(
+            CASE
+                WHEN config.id IS NULL OR config.organization_id = NEW.organization_id
+                    THEN item.config_id
+                ELSE same_org_config.id
+            END
+            ORDER BY item.position
+        ) FILTER (
+            WHERE config.id IS NULL
+                OR config.organization_id = NEW.organization_id
+                OR same_org_config.id IS NOT NULL
+        ),
+        '{}'::uuid[]
+    )
+    INTO NEW.mcp_server_ids
+    FROM unnest(NEW.mcp_server_ids) WITH ORDINALITY AS item(config_id, position)
+    LEFT JOIN mcp_server_configs AS config ON config.id = item.config_id
+    LEFT JOIN mcp_server_configs AS same_org_config
+        ON config.organization_id != NEW.organization_id
+        AND same_org_config.organization_id = NEW.organization_id
+        AND same_org_config.slug = config.slug;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER remap_chat_mcp_server_ids
+    BEFORE INSERT OR UPDATE OF mcp_server_ids ON chats FOR EACH ROW
+    EXECUTE PROCEDURE remap_chat_mcp_server_ids_to_chat_org();
+
+COMMENT ON TRIGGER remap_chat_mcp_server_ids ON chats IS
+    'Rolling-upgrade compatibility: remaps config IDs written by pre-organization-scoping replicas to the chat organization''s same-slug config.';

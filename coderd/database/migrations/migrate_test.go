@@ -3292,6 +3292,63 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 		require.Equal(t, remap(chat.organizationID, chat.configIDs), getChatIDs(t, chat.id))
 	}
 
+	remapTriggerExists := func(t *testing.T) bool {
+		t.Helper()
+		var exists bool
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'remap_chat_mcp_server_ids')
+		`).Scan(&exists)
+		require.NoError(t, err)
+		return exists
+	}
+	require.True(t, remapTriggerExists(t))
+
+	// Simulate a rolling upgrade: a replica still running pre-migration code
+	// resolves configs globally and writes default-organization IDs into
+	// another organization's chat. The trigger remaps them to the same-slug
+	// copies in the chat's organization.
+	staleWriteChatID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chats (
+			id, owner_id, organization_id, last_model_config_id, title,
+			mcp_server_ids, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, 'Migration 567 stale write', $5, $6, $6)
+	`, staleWriteChatID, userID, liveOrgIDs[0], modelConfigID, pq.Array([]uuid.UUID{configs[1].id, configs[0].id}), now)
+	require.NoError(t, err)
+	require.Equal(t,
+		[]uuid.UUID{copiedIDs[liveOrgIDs[0]][configs[1].id], copiedIDs[liveOrgIDs[0]][configs[0].id]},
+		getChatIDs(t, staleWriteChatID))
+
+	// Same for updates. A default-organization config with no same-slug
+	// counterpart in the chat's organization is dropped instead.
+	defaultOnlyConfigID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO mcp_server_configs (
+			id, organization_id, display_name, slug, url, auth_type
+		) VALUES ($1, $2, 'Default-only config', 'migration-567-default-only', 'https://mcp.example.com/default-only', 'none')
+	`, defaultOnlyConfigID, defaultOrgID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
+	`, staleWriteChatID, pq.Array([]uuid.UUID{configs[2].id, defaultOnlyConfigID}))
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{copiedIDs[liveOrgIDs[0]][configs[2].id]}, getChatIDs(t, staleWriteChatID))
+
+	// Writes that already reference the chat organization's configs pass
+	// through unchanged.
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
+	`, chats[0].id, pq.Array(chats[0].configIDs))
+	require.NoError(t, err)
+	require.Equal(t, chats[0].configIDs, getChatIDs(t, chats[0].id))
+
+	// Remove the simulation rows so the down-migration assertions below see
+	// the original state.
+	_, err = sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, staleWriteChatID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `DELETE FROM mcp_server_configs WHERE id = $1`, defaultOnlyConfigID)
+	require.NoError(t, err)
+
 	orgOnlyConfigID := uuid.New()
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO mcp_server_configs (
@@ -3321,4 +3378,6 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 	`).Scan(&danglingIDs)
 	require.NoError(t, err)
 	require.Zero(t, danglingIDs)
+
+	require.False(t, remapTriggerExists(t))
 }
