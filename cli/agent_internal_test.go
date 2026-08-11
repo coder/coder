@@ -7,6 +7,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestConfinedAgentArgs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "equals form",
+			args: []string{"coder", "agent", "--confine=proxy", "--agent-token", "token"},
+			want: []string{"coder", "agent", "--agent-token", "token", "--no-reap"},
+		},
+		{
+			name: "separate form",
+			args: []string{"coder", "agent", "--confine", "netns", "--agent-token", "token"},
+			want: []string{"coder", "agent", "--agent-token", "token", "--no-reap"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, confinedAgentArgs(tt.args))
+		})
+	}
+}
+
 func Test_extractPort(t *testing.T) {
 	t.Parallel()
 

@@ -1,14 +1,19 @@
 package cli_test
 
 import (
+	"bufio"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -227,6 +232,93 @@ func TestWorkspaceAgent(t *testing.T) {
 				strings.Contains(logStr, "debug address is empty, disabling debug server")
 		}, testutil.WaitLong, testutil.IntervalMedium)
 	})
+}
+
+func TestWorkspaceAgent_ConfineProxy(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("agent confinement requires Linux")
+	}
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	logDir := t.TempDir()
+	processLog, err := os.Create(filepath.Join(logDir, "process.log"))
+	require.NoError(t, err)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:gosec // Arguments contain only test-controlled values and coderdtest credentials.
+	cmd := exec.CommandContext(ctx, "go", "run", "./cmd/coder",
+		"agent",
+		"--auth", "token",
+		"--agent-token", workspace.AgentToken,
+		"--agent-url", client.URL.String(),
+		"--confine", "proxy",
+		"--log-dir", logDir,
+		"--log-human", "",
+		"--pprof-address", "",
+		"--prometheus-address", "",
+		"--debug-address", "",
+		"--socket-server-enabled=false",
+		"--devcontainers-enable=false",
+	)
+	cmd.Dir = ".."
+	cmd.Stdout = processLog
+	cmd.Stderr = processLog
+	require.NoError(t, cmd.Start())
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	t.Cleanup(func() {
+		_ = cmd.Process.Signal(os.Interrupt)
+		select {
+		case <-done:
+		case <-time.After(testutil.WaitMedium):
+			_ = cmd.Process.Kill()
+			<-done
+		}
+		_ = processLog.Close()
+	})
+
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.Workspace.ID).
+		MatchResources(matchAgentWithVersion).Wait()
+
+	var proxyAddress string
+	proxyPattern := regexp.MustCompile(`http://127\.0\.0\.1:[0-9]+`)
+	initLogPath := filepath.Join(logDir, "coder-agent-init.log")
+	require.Eventually(t, func() bool {
+		logContent, err := os.ReadFile(initLogPath)
+		if err != nil {
+			return false
+		}
+		for _, line := range strings.Split(string(logContent), "\n") {
+			if !strings.Contains(line, "ai egress proxy started") {
+				continue
+			}
+			proxyURL := proxyPattern.FindString(line)
+			if proxyURL == "" {
+				return false
+			}
+			proxyAddress = strings.TrimPrefix(proxyURL, "http://")
+			return strings.Contains(string(logContent), "AI egress policy fetch failed; started deny-all (degraded)")
+		}
+		return false
+	}, testutil.WaitLong, testutil.IntervalMedium)
+
+	conn, err := (&net.Dialer{}).DialContext(testutil.Context(t, testutil.WaitShort), "tcp", proxyAddress)
+	require.NoError(t, err)
+	defer conn.Close()
+	_, err = fmt.Fprint(conn, "CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n")
+	require.NoError(t, err)
+	response, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodConnect})
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusForbidden, response.StatusCode)
 }
 
 func matchAgentWithVersion(rs []codersdk.WorkspaceResource) bool {

@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
+	"github.com/coder/coder/v2/agent/confine"
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -64,6 +65,7 @@ func workspaceAgent() *serpent.Command {
 		socketServerEnabled             bool
 		socketPath                      string
 		agentFirewallLogProxySocketPath string
+		confineMode                     string
 	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
@@ -122,9 +124,36 @@ func workspaceAgent() *serpent.Command {
 				return xerrors.Errorf("add stackdriver sink: %w", err)
 			}
 
-			// Spawn a reaper so that we don't accumulate a ton
-			// of zombie processes.
-			if reaper.IsInitProcess() && !noReap && isLinux {
+			createAgentClient := func(logger slog.Logger) (*agentsdk.Client, error) {
+				client, err := agentAuth.CreateClient()
+				if err != nil {
+					return nil, xerrors.Errorf("create agent client: %w", err)
+				}
+				client.SDK.SetLogger(logger)
+				// Set a reasonable timeout so requests cannot hang forever. The
+				// timeout remains long enough for startup script payloads.
+				client.SDK.HTTPClient.Timeout = 30 * time.Second
+				headerTransport, err := headerTransport(ctx, &agentAuth.agentURL, agentHeader, agentHeaderCommand)
+				if err != nil {
+					return nil, xerrors.Errorf("configure header transport: %w", err)
+				}
+				headerTransport.Transport = client.SDK.HTTPClient.Transport
+				client.SDK.HTTPClient.Transport = headerTransport
+				return client, nil
+			}
+
+			switch confine.Mode(confineMode) {
+			case "", confine.ModeNetNS, confine.ModeProxy:
+			default:
+				return xerrors.Errorf("invalid --confine value %q, expected netns or proxy", confineMode)
+			}
+			if confineMode != "" && !isLinux {
+				return xerrors.Errorf("agent confinement mode %q requires Linux", confineMode)
+			}
+
+			// Spawn a reaper so that we don't accumulate a ton of zombie processes.
+			// Explicit confinement promotes the same parent slot outside PID 1.
+			if isLinux && (confineMode != "" || (reaper.IsInitProcess() && !noReap)) {
 				logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
@@ -135,26 +164,53 @@ func workspaceAgent() *serpent.Command {
 
 				sinks = append(sinks, sloghuman.Sink(logWriter))
 				logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
-				logger = logger.Named("reaper")
+				if confineMode == "" {
+					logger = logger.Named("reaper")
+					logger.Info(ctx, "spawning reaper process")
+					// Do not start a reaper on the child process. It's important
+					// to do this else we fork bomb ourselves.
+					//nolint:gocritic
+					args := append(os.Args, "--no-reap")
+					exitCode, err := reaper.ForkReap(
+						reaper.WithExecArgs(args...),
+						reaper.WithCatchSignals(StopSignals...),
+						reaper.WithLogger(logger),
+					)
+					if err != nil {
+						logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
+						return xerrors.Errorf("fork reap: %w", err)
+					}
 
-				logger.Info(ctx, "spawning reaper process")
-				// Do not start a reaper on the child process. It's important
-				// to do this else we fork bomb ourselves.
-				//nolint:gocritic
-				args := append(os.Args, "--no-reap")
-				exitCode, err := reaper.ForkReap(
-					reaper.WithExecArgs(args...),
-					reaper.WithCatchSignals(StopSignals...),
-					reaper.WithLogger(logger),
-				)
-				if err != nil {
-					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
-					return xerrors.Errorf("fork reap: %w", err)
+					logger.Info(ctx, "child process exited, propagating exit code",
+						slog.F("exit_code", exitCode),
+					)
+					return ExitError(exitCode, nil)
 				}
 
-				logger.Info(ctx, "child process exited, propagating exit code",
-					slog.F("exit_code", exitCode),
-				)
+				logger = logger.Named("confine")
+				client, err := createAgentClient(logger)
+				if err != nil {
+					return err
+				}
+				supervisor, err := confine.NewSupervisor(confine.SupervisorOptions{
+					Mode:         confine.Mode(confineMode),
+					Client:       client,
+					Logger:       logger,
+					AccessURL:    &agentAuth.agentURL,
+					ExecArgs:     confinedAgentArgs(os.Args),
+					Env:          os.Environ(),
+					CatchSignals: StopSignals,
+				})
+				if err != nil {
+					return xerrors.Errorf("create confinement supervisor: %w", err)
+				}
+				logger.Info(ctx, "spawning confined agent", slog.F("mode", confineMode))
+				exitCode, err := supervisor.Run(ctx)
+				if err != nil {
+					logger.Error(ctx, "confined agent supervisor failed", slog.Error(err))
+					return xerrors.Errorf("run confinement supervisor: %w", err)
+				}
+				logger.Info(ctx, "confined child exited, propagating exit code", slog.F("exit_code", exitCode))
 				return ExitError(exitCode, nil)
 			}
 
@@ -190,24 +246,10 @@ func workspaceAgent() *serpent.Command {
 				slog.F("auth", agentAuth.agentAuth),
 				slog.F("version", version),
 			)
-			client, err := agentAuth.CreateClient()
+			client, err := createAgentClient(logger)
 			if err != nil {
-				return xerrors.Errorf("create agent client: %w", err)
+				return err
 			}
-			client.SDK.SetLogger(logger)
-			// Set a reasonable timeout so requests can't hang forever!
-			// The timeout needs to be reasonably long, because requests
-			// with large payloads can take a bit. e.g. startup scripts
-			// may take a while to insert.
-			client.SDK.HTTPClient.Timeout = 30 * time.Second
-			// Attach header transport so we process --agent-header and
-			// --agent-header-command flags
-			headerTransport, err := headerTransport(ctx, &agentAuth.agentURL, agentHeader, agentHeaderCommand)
-			if err != nil {
-				return xerrors.Errorf("configure header transport: %w", err)
-			}
-			headerTransport.Transport = client.SDK.HTTPClient.Transport
-			client.SDK.HTTPClient.Transport = headerTransport
 
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
@@ -247,6 +289,13 @@ func workspaceAgent() *serpent.Command {
 
 			environmentVariables := map[string]string{
 				"GIT_ASKPASS": executablePath,
+			}
+			if proxyURL := os.Getenv(confine.EnvAgentEgressProxyURL); proxyURL != "" {
+				for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"} {
+					environmentVariables[key] = proxyURL
+				}
+				environmentVariables["NO_PROXY"] = "localhost,127.0.0.1,::1"
+				environmentVariables[confine.EnvEgressProxy] = proxyURL
 			}
 
 			enabled := os.Getenv(agentexec.EnvProcPrioMgmt)
@@ -444,6 +493,12 @@ func workspaceAgent() *serpent.Command {
 			Value:       serpent.BoolOf(&noReap),
 		},
 		{
+			Flag:        "confine",
+			Env:         "CODER_AGENT_CONFINE",
+			Description: "Confine agent egress using netns or proxy mode.",
+			Value:       serpent.StringOf(&confineMode),
+		},
+		{
 			Flag: "ssh-max-timeout",
 			// tcpip.KeepaliveIdleOption = 72h + 1min (forwardTCPSockOpts() in tailnet/conn.go)
 			Default:     "72h",
@@ -575,6 +630,20 @@ func workspaceAgent() *serpent.Command {
 	}
 	agentAuth.AttachOptions(cmd, false)
 	return cmd
+}
+
+func confinedAgentArgs(args []string) []string {
+	result := make([]string, 0, len(args)+1)
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--confine":
+			i++
+		case strings.HasPrefix(args[i], "--confine="):
+		default:
+			result = append(result, args[i])
+		}
+	}
+	return append(result, "--no-reap")
 }
 
 func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {

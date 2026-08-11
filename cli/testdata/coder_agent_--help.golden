@@ -53,6 +53,9 @@ OPTIONS:
       --block-reverse-port-forwarding bool, $CODER_AGENT_BLOCK_REVERSE_PORT_FORWARDING (default: false)
           Block reverse port forwarding through the SSH server (ssh -R).
 
+      --confine string, $CODER_AGENT_CONFINE
+          Confine agent egress using netns or proxy mode.
+
       --debug-address string, $CODER_AGENT_DEBUG_ADDRESS (default: 127.0.0.1:2113)
           The bind address to serve a debug HTTP server.
 
