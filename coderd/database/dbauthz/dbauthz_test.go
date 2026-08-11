@@ -360,11 +360,11 @@ func (s *MethodTestSuite) TestAPIKey() {
 		dbm.EXPECT().DeleteAPIKeyByID(gomock.Any(), key.ID).Return(nil).AnyTimes()
 		check.Args(key.ID).Asserts(key, policy.ActionDelete).Returns()
 	}))
-	s.Run("DeleteAPIKeyByIDReturningID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("DeleteAPIKeyByIDReturningRow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{})
 		dbm.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
-		dbm.EXPECT().DeleteAPIKeyByIDReturningID(gomock.Any(), key.ID).Return(key.ID, nil).AnyTimes()
-		check.Args(key.ID).Asserts(key, policy.ActionDelete).Returns(key.ID)
+		dbm.EXPECT().DeleteAPIKeyByIDReturningRow(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
+		check.Args(key.ID).Asserts(key, policy.ActionDelete).Returns(key)
 	}))
 	s.Run("DeleteExpiredAPIKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		args := database.DeleteExpiredAPIKeysParams{
@@ -6008,14 +6008,14 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		})
 		check.Args(code.ID).Asserts(code, policy.ActionDelete)
 	}))
-	s.Run("DeleteOAuth2ProviderAppCodeByIDReturningID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteOAuth2ProviderAppCodeByIDReturningRow", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		code := dbgen.OAuth2ProviderAppCode(s.T(), db, database.OAuth2ProviderAppCode{
 			AppID:  app.ID,
 			UserID: user.ID,
 		})
-		check.Args(code.ID).Asserts(code, policy.ActionDelete).Returns(code.ID)
+		check.Args(code.ID).Asserts(code, policy.ActionDelete).Returns(code)
 	}))
 	s.Run("DeleteOAuth2ProviderAppCodesByAppAndUserID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)

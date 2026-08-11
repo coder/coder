@@ -18881,3 +18881,53 @@ func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
 			"empty scope must be rejected, got %v", err)
 	})
 }
+
+func TestSingleUseDeleteByIDReturningRow(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// These deletes are the arbiter of single use: the first caller gets the
+	// row, and every later caller gets sql.ErrNoRows because the row is gone.
+	// Converting either query back to :exec, or adding a soft delete, would
+	// break that guarantee silently.
+	t.Run("OAuth2ProviderAppCode", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+		code := dbgen.OAuth2ProviderAppCode(t, db, database.OAuth2ProviderAppCode{
+			AppID:  app.ID,
+			UserID: user.ID,
+		})
+
+		// RETURNING * hands back the whole row, so a caller reads the
+		// redeemed code's negotiated scope from the delete itself rather
+		// than trusting an earlier read.
+		deleted, err := db.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, code.ID)
+		require.NoError(t, err)
+		require.Equal(t, code, deleted)
+
+		_, err = db.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, code.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("APIKey", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+		deleted, err := db.DeleteAPIKeyByIDReturningRow(ctx, key.ID)
+		require.NoError(t, err)
+		require.Equal(t, key, deleted)
+
+		_, err = db.DeleteAPIKeyByIDReturningRow(ctx, key.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+}

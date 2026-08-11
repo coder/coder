@@ -158,10 +158,12 @@ INSERT INTO oauth2_provider_app_codes (
 -- name: DeleteOAuth2ProviderAppCodeByID :exec
 DELETE FROM oauth2_provider_app_codes WHERE id = $1;
 
--- name: DeleteOAuth2ProviderAppCodeByIDReturningID :one
--- Returns sql.ErrNoRows when the code was already redeemed, which lets a
--- caller enforce single use by racing this delete instead of reading first.
-DELETE FROM oauth2_provider_app_codes WHERE id = $1 RETURNING id;
+-- name: DeleteOAuth2ProviderAppCodeByIDReturningRow :one
+-- Returns sql.ErrNoRows when the code is already gone, which lets a caller
+-- enforce single use by racing this delete instead of reading first. Returns
+-- the whole row so a caller reads the redeemed code's negotiated scope from
+-- the same atomic delete rather than trusting an earlier read.
+DELETE FROM oauth2_provider_app_codes WHERE id = $1 RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppCodesByAppAndUserID :exec
 DELETE FROM oauth2_provider_app_codes WHERE app_id = $1 AND user_id = $2;
