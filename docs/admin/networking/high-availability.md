@@ -1,4 +1,6 @@
-# High Availability
+---
+title: High Availability
+---
 
 High Availability (HA) mode solves for horizontal scalability and automatic
 failover within a single region. When in HA mode, Coder continues using a single

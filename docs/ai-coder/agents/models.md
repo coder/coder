@@ -1,4 +1,6 @@
-# Models
+---
+title: Models
+---
 
 Administrators configure LLM providers from **Admin settings** > **AI** and
 Coder Agents models from **Admin settings** > **AI** > **Models**. Providers,

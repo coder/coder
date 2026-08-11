@@ -1,4 +1,6 @@
-# Releases
+---
+title: Releases
+---
 
 Coder releases are cut directly from main in our
 [GitHub](https://github.com/coder/coder) on the first Tuesday of each month.

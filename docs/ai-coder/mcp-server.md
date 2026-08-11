@@ -1,4 +1,6 @@
-# MCP Server
+---
+title: MCP Server
+---
 
 Coder includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/)
 (MCP) server that provides AI assistants with tools and context about your Coder

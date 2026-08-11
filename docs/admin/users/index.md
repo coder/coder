@@ -1,4 +1,6 @@
-# Users
+---
+title: Users
+---
 
 By default, Coder is accessible via password authentication. For production
 deployments, we recommend using an SSO authentication provider with multi-factor
