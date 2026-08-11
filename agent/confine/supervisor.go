@@ -156,6 +156,11 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 		}()
 	}
 
+	s.options.Logger.Info(ctx, "ai egress proxy started",
+		slog.F("proxy_url", "http://"+proxy.Addr().String()),
+		slog.F("forced", forced),
+	)
+
 	runCtx, stop := context.WithCancel(ctx)
 	defer stop()
 	go s.watchPolicy(runCtx, engine)
