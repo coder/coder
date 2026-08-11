@@ -18,7 +18,6 @@ import { ChatSearchResults } from "./ChatSearchResults";
 import {
 	buildChatSearchQuery,
 	CHAT_SEARCH_FILTER_KEYS,
-	CHAT_SEARCH_KNOWN_FILTER_KEYS,
 	type ChatSearchFilterKey,
 	extractTypedFilters,
 	isValidChatSearchFilterValue,
@@ -172,14 +171,10 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	const currentQuery = buildChatSearchQuery(queryFilters, queryFreeText);
 	const hasActiveSearch =
 		queryFilters.length > 0 || queryFreeText.trim() !== "";
-	const querySnapshot = JSON.stringify(currentQuery);
-	const debouncedQuerySnapshot = useDebouncedValue(
-		querySnapshot,
-		SEARCH_DEBOUNCE_MS,
-	);
-	const debouncedQueryResult: ReturnType<typeof buildChatSearchQuery> =
-		JSON.parse(debouncedQuerySnapshot);
-	const { query: debouncedQuery, hasSearchText } = debouncedQueryResult;
+	// Keep the debounced value primitive. An object would reset the debounce when
+	// its identity changes on each render.
+	const debouncedQuery = useDebouncedValue(currentQuery, SEARCH_DEBOUNCE_MS);
+	const hasSearchText = /[\p{L}\p{N}]/u.test(queryFreeText.replaceAll('"', ""));
 	const hasQuery = hasActiveSearch && debouncedQuery !== undefined;
 
 	const searchQuery = useQuery({
@@ -300,11 +295,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			event.currentTarget.selectionStart === freeText.length &&
 			event.currentTarget.selectionEnd === freeText.length
 		) {
-			const extracted = extractTypedFilters(
-				freeText,
-				CHAT_SEARCH_KNOWN_FILTER_KEYS,
-				filters,
-			);
+			const extracted = extractTypedFilters(freeText, filters);
 			if (extracted.consumed) {
 				event.preventDefault();
 				setFilters((previous) => {

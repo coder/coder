@@ -1,59 +1,33 @@
 import { describe, expect, it } from "vitest";
-import {
-	buildChatSearchQuery,
-	CHAT_SEARCH_KNOWN_FILTER_KEYS,
-	extractTypedFilters,
-} from "./searchQuery";
-
-const knownKeys = CHAT_SEARCH_KNOWN_FILTER_KEYS;
+import { buildChatSearchQuery, extractTypedFilters } from "./searchQuery";
 
 describe("buildChatSearchQuery", () => {
 	it("returns no query for empty input", () => {
-		expect(buildChatSearchQuery([], "")).toEqual({
-			query: undefined,
-			hasSearchText: false,
-		});
-		expect(buildChatSearchQuery([], "   ")).toEqual({
-			query: undefined,
-			hasSearchText: false,
-		});
+		expect(buildChatSearchQuery([], "")).toBe(undefined);
+		expect(buildChatSearchQuery([], "   ")).toBe(undefined);
 	});
 
 	it("wraps free text in one FTS token", () => {
-		expect(buildChatSearchQuery([], "Fix")).toEqual({
-			query: 'search:"Fix"',
-			hasSearchText: true,
-		});
-		expect(buildChatSearchQuery([], "fix auth middleware")).toEqual({
-			query: 'search:"fix auth middleware"',
-			hasSearchText: true,
-		});
-		expect(buildChatSearchQuery([], "fix:lint")).toEqual({
-			query: 'search:"fix:lint"',
-			hasSearchText: true,
-		});
-		expect(buildChatSearchQuery([], "http://example.com")).toEqual({
-			query: 'search:"http://example.com"',
-			hasSearchText: true,
-		});
+		expect(buildChatSearchQuery([], "Fix")).toBe('search:"Fix"');
+		expect(buildChatSearchQuery([], "fix auth middleware")).toBe(
+			'search:"fix auth middleware"',
+		);
+		expect(buildChatSearchQuery([], "fix:lint")).toBe('search:"fix:lint"');
+		expect(buildChatSearchQuery([], "http://example.com")).toBe(
+			'search:"http://example.com"',
+		);
 	});
 
 	it("combines structured filters with free text", () => {
 		expect(
 			buildChatSearchQuery([{ key: "has_unread", value: "true" }], "fix auth"),
-		).toEqual({
-			query: 'has_unread:true search:"fix auth"',
-			hasSearchText: true,
-		});
+		).toBe('has_unread:true search:"fix auth"');
 	});
 
 	it("normalizes structured filter values", () => {
 		expect(
 			buildChatSearchQuery([{ key: "pr_status", value: "open merged" }], ""),
-		).toEqual({
-			query: "pr_status:open,merged",
-			hasSearchText: false,
-		});
+		).toBe("pr_status:open,merged");
 		for (const value of [
 			"open, merged",
 			"open merged",
@@ -61,17 +35,13 @@ describe("buildChatSearchQuery", () => {
 			"  open  ,  merged  ",
 			",,open,,,   merged,,",
 		]) {
-			expect(buildChatSearchQuery([{ key: "pr_status", value }], "")).toEqual({
-				query: "pr_status:open,merged",
-				hasSearchText: false,
-			});
+			expect(buildChatSearchQuery([{ key: "pr_status", value }], "")).toBe(
+				"pr_status:open,merged",
+			);
 		}
 		expect(
 			buildChatSearchQuery([{ key: "pr_status", value: ",,  ," }], ""),
-		).toEqual({
-			query: undefined,
-			hasSearchText: false,
-		});
+		).toBe(undefined);
 		expect(
 			buildChatSearchQuery(
 				[
@@ -82,45 +52,27 @@ describe("buildChatSearchQuery", () => {
 				],
 				"",
 			),
-		).toEqual({
-			query: 'diff_url:"https://github.com/coder/coder/pull/26016"',
-			hasSearchText: false,
-		});
+		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
 	});
 
 	it("emits no-lexeme text without marking it searchable", () => {
 		for (const input of ["???", "___", ":-)", "!!!"]) {
-			expect(buildChatSearchQuery([], input)).toEqual({
-				query: `search:"${input}"`,
-				hasSearchText: false,
-			});
+			expect(buildChatSearchQuery([], input)).toBe(`search:"${input}"`);
 		}
-		expect(buildChatSearchQuery([], '"')).toEqual({
-			query: 'search:" "',
-			hasSearchText: false,
-		});
+		expect(buildChatSearchQuery([], '"')).toBe('search:" "');
 		// OR/AND/NOT are lexemes under the simple config (operators only between
 		// operands), so a lone operator word is searchable in any casing.
 		for (const input of ["or", "OR", "Or", "AND", "NOT"]) {
-			expect(buildChatSearchQuery([], input)).toEqual({
-				query: `search:"${input}"`,
-				hasSearchText: true,
-			});
+			expect(buildChatSearchQuery([], input)).toBe(`search:"${input}"`);
 		}
 
 		expect(
 			buildChatSearchQuery([{ key: "has_unread", value: "true" }], "???"),
-		).toEqual({
-			query: 'has_unread:true search:"???"',
-			hasSearchText: false,
-		});
+		).toBe('has_unread:true search:"???"');
 	});
 
 	it("emits Unicode letters as searchable text", () => {
-		expect(buildChatSearchQuery([], "日本語")).toEqual({
-			query: 'search:"日本語"',
-			hasSearchText: true,
-		});
+		expect(buildChatSearchQuery([], "日本語")).toBe('search:"日本語"');
 	});
 
 	it("does not emit invalid structured filters", () => {
@@ -131,65 +83,50 @@ describe("buildChatSearchQuery", () => {
 			{ key: "diff_url", value: "ftp://example.com/x" },
 			{ key: "diff_url", value: "https:///pull/1" },
 		]) {
-			expect(buildChatSearchQuery([filter], "")).toEqual({
-				query: undefined,
-				hasSearchText: false,
-			});
+			expect(buildChatSearchQuery([filter], "")).toBe(undefined);
 		}
 	});
 
 	it("skips filters whose sanitized value is empty", () => {
 		for (const key of ["pr_status", "diff_url"]) {
 			for (const value of ['"', '""']) {
-				expect(buildChatSearchQuery([{ key, value }], "")).toEqual({
-					query: undefined,
-					hasSearchText: false,
-				});
+				expect(buildChatSearchQuery([{ key, value }], "")).toBe(undefined);
 			}
 		}
 	});
 
 	it("strips embedded quotes and trims before wrapping", () => {
-		expect(buildChatSearchQuery([], '  Fix "auth" middleware  ')).toEqual({
-			query: 'search:"Fix auth middleware"',
-			hasSearchText: true,
-		});
+		expect(buildChatSearchQuery([], '  Fix "auth" middleware  ')).toBe(
+			'search:"Fix auth middleware"',
+		);
 	});
 
 	it("preserves OR and negation while flattening quoted phrases", () => {
-		expect(buildChatSearchQuery([], '"fix race" OR deadlock -timeout')).toEqual(
-			{
-				query: 'search:"fix race OR deadlock -timeout"',
-				hasSearchText: true,
-			},
+		expect(buildChatSearchQuery([], '"fix race" OR deadlock -timeout')).toBe(
+			'search:"fix race OR deadlock -timeout"',
 		);
 	});
 
 	it("never parses free text as structured filters", () => {
 		for (const text of ["title:auth", "search:fix", "pr:12", "foo:bar"]) {
-			expect(buildChatSearchQuery([], text)).toEqual({
-				query: `search:"${text}"`,
-				hasSearchText: true,
-			});
+			expect(buildChatSearchQuery([], text)).toBe(`search:"${text}"`);
 		}
 	});
 });
 
 describe("extractTypedFilters", () => {
 	it("extracts leading, middle, and trailing filters", () => {
-		expect(extractTypedFilters("has_unread:true fix", knownKeys, [])).toEqual({
+		expect(extractTypedFilters("has_unread:true fix", [])).toEqual({
 			filters: [{ key: "has_unread", value: "true" }],
 			remainingText: "fix",
 			consumed: true,
 		});
-		expect(
-			extractTypedFilters("fix has_unread:true auth", knownKeys, []),
-		).toEqual({
+		expect(extractTypedFilters("fix has_unread:true auth", [])).toEqual({
 			filters: [{ key: "has_unread", value: "true" }],
 			remainingText: "fix auth",
 			consumed: true,
 		});
-		expect(extractTypedFilters("fix has_unread:true", knownKeys, [])).toEqual({
+		expect(extractTypedFilters("fix has_unread:true", [])).toEqual({
 			filters: [{ key: "has_unread", value: "true" }],
 			remainingText: "fix",
 			consumed: true,
@@ -197,9 +134,7 @@ describe("extractTypedFilters", () => {
 	});
 
 	it("returns multiple recognized filters", () => {
-		expect(
-			extractTypedFilters("has_unread:true archived:false", knownKeys, []),
-		).toEqual({
+		expect(extractTypedFilters("has_unread:true archived:false", [])).toEqual({
 			filters: [
 				{ key: "has_unread", value: "true" },
 				{ key: "archived", value: "false" },
@@ -210,9 +145,7 @@ describe("extractTypedFilters", () => {
 	});
 
 	it("extracts complete quoted multi-word values", () => {
-		expect(
-			extractTypedFilters('pr_status:"open merged"', knownKeys, []),
-		).toEqual({
+		expect(extractTypedFilters('pr_status:"open merged"', [])).toEqual({
 			filters: [{ key: "pr_status", value: "open,merged" }],
 			remainingText: "",
 			consumed: true,
@@ -220,23 +153,17 @@ describe("extractTypedFilters", () => {
 	});
 
 	it("merges whitespace-separated PR status continuations", () => {
-		expect(
-			extractTypedFilters("pr_status:open, merged", knownKeys, []),
-		).toEqual({
+		expect(extractTypedFilters("pr_status:open, merged", [])).toEqual({
 			filters: [{ key: "pr_status", value: "open,merged" }],
 			remainingText: "",
 			consumed: true,
 		});
-		expect(extractTypedFilters("pr_status:open,merged", knownKeys, [])).toEqual(
-			{
-				filters: [{ key: "pr_status", value: "open,merged" }],
-				remainingText: "",
-				consumed: true,
-			},
-		);
-		expect(
-			extractTypedFilters("pr_status:open, merged, closed", knownKeys, []),
-		).toEqual({
+		expect(extractTypedFilters("pr_status:open,merged", [])).toEqual({
+			filters: [{ key: "pr_status", value: "open,merged" }],
+			remainingText: "",
+			consumed: true,
+		});
+		expect(extractTypedFilters("pr_status:open, merged, closed", [])).toEqual({
 			filters: [{ key: "pr_status", value: "open,merged,closed" }],
 			remainingText: "",
 			consumed: true,
@@ -244,14 +171,12 @@ describe("extractTypedFilters", () => {
 	});
 
 	it("leaves invalid or incomplete PR status continuations as text", () => {
-		expect(extractTypedFilters("pr_status:open, bogus", knownKeys, [])).toEqual(
-			{
-				filters: [],
-				remainingText: "pr_status:open, bogus",
-				consumed: false,
-			},
-		);
-		expect(extractTypedFilters("pr_status:open,", knownKeys, [])).toEqual({
+		expect(extractTypedFilters("pr_status:open, bogus", [])).toEqual({
+			filters: [],
+			remainingText: "pr_status:open, bogus",
+			consumed: false,
+		});
+		expect(extractTypedFilters("pr_status:open,", [])).toEqual({
 			filters: [],
 			remainingText: "pr_status:open,",
 			consumed: false,
@@ -259,7 +184,7 @@ describe("extractTypedFilters", () => {
 	});
 
 	it("does not consume an unbalanced quoted value", () => {
-		expect(extractTypedFilters('pr_status:"open', knownKeys, [])).toEqual({
+		expect(extractTypedFilters('pr_status:"open', [])).toEqual({
 			filters: [],
 			remainingText: 'pr_status:"open',
 			consumed: false,
@@ -268,7 +193,7 @@ describe("extractTypedFilters", () => {
 
 	it("returns active key replacements", () => {
 		expect(
-			extractTypedFilters("has_unread:false", knownKeys, [
+			extractTypedFilters("has_unread:false", [
 				{ key: "has_unread", value: "true" },
 			]),
 		).toEqual({
@@ -280,7 +205,7 @@ describe("extractTypedFilters", () => {
 
 	it("can consume an unchanged active value without returning a replacement", () => {
 		expect(
-			extractTypedFilters("has_unread:true", knownKeys, [
+			extractTypedFilters("has_unread:true", [
 				{ key: "has_unread", value: "true" },
 			]),
 		).toEqual({
@@ -291,13 +216,13 @@ describe("extractTypedFilters", () => {
 	});
 
 	it("uses the last value for duplicate keys in the same input", () => {
-		expect(
-			extractTypedFilters("has_unread:true has_unread:false", knownKeys, []),
-		).toEqual({
-			filters: [{ key: "has_unread", value: "false" }],
-			remainingText: "",
-			consumed: true,
-		});
+		expect(extractTypedFilters("has_unread:true has_unread:false", [])).toEqual(
+			{
+				filters: [{ key: "has_unread", value: "false" }],
+				remainingText: "",
+				consumed: true,
+			},
+		);
 	});
 
 	it("leaves unknown, incomplete, empty, and invalid filter-like text unchanged", () => {
@@ -317,7 +242,7 @@ describe("extractTypedFilters", () => {
 			"http://example.com",
 			"fix:lint",
 		]) {
-			expect(extractTypedFilters(text, knownKeys, [])).toEqual({
+			expect(extractTypedFilters(text, [])).toEqual({
 				filters: [],
 				remainingText: text,
 				consumed: false,
@@ -326,20 +251,15 @@ describe("extractTypedFilters", () => {
 	});
 
 	it("keeps invalid recognized filters as literal search text", () => {
-		const extracted = extractTypedFilters("pr_status:banana", knownKeys, []);
-		expect(buildChatSearchQuery([], extracted.remainingText)).toEqual({
-			query: 'search:"pr_status:banana"',
-			hasSearchText: true,
-		});
+		const extracted = extractTypedFilters("pr_status:banana", []);
+		expect(buildChatSearchQuery([], extracted.remainingText)).toBe(
+			'search:"pr_status:banana"',
+		);
 	});
 
 	it("keeps everything after the first colon in diff URLs", () => {
 		expect(
-			extractTypedFilters(
-				"diff_url:https://github.com/coder/coder/pull/1",
-				knownKeys,
-				[],
-			),
+			extractTypedFilters("diff_url:https://github.com/coder/coder/pull/1", []),
 		).toEqual({
 			filters: [
 				{
@@ -353,7 +273,7 @@ describe("extractTypedFilters", () => {
 	});
 
 	it("normalizes recognized key casing", () => {
-		expect(extractTypedFilters("Has_Unread:true", knownKeys, [])).toEqual({
+		expect(extractTypedFilters("Has_Unread:true", [])).toEqual({
 			filters: [{ key: "has_unread", value: "true" }],
 			remainingText: "",
 			consumed: true,

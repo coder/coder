@@ -9,7 +9,7 @@ export const CHAT_SEARCH_FILTER_KEYS = [
 
 export type ChatSearchFilterKey = (typeof CHAT_SEARCH_FILTER_KEYS)[number];
 
-export const CHAT_SEARCH_KNOWN_FILTER_KEYS: ReadonlySet<string> = new Set(
+const CHAT_SEARCH_KNOWN_FILTER_KEYS: ReadonlySet<string> = new Set(
 	CHAT_SEARCH_FILTER_KEYS,
 );
 
@@ -36,13 +36,9 @@ const normalizeChatSearchFilterValue = (key: string, value: string): string => {
 	}
 	if (key === "pr_status") {
 		return sanitizedValue
-			.toLowerCase()
 			.split(/[\s,]+/)
 			.filter(Boolean)
 			.join(",");
-	}
-	if (key === "has_unread" || key === "archived") {
-		return sanitizedValue.toLowerCase();
 	}
 	return sanitizedValue;
 };
@@ -67,10 +63,12 @@ const isValidDiffURL = (value: string): boolean => {
 const CHAT_SEARCH_FILTER_VALIDATORS: Readonly<
 	Record<ChatSearchFilterKey, (value: string) => boolean>
 > = {
-	has_unread: (value) => value === "true" || value === "false",
-	archived: (value) => value === "true" || value === "false",
+	has_unread: (value) => /^(true|false)$/i.test(value),
+	archived: (value) => /^(true|false)$/i.test(value),
 	pr_status: (value) =>
-		value.split(",").every((status) => validPRStatuses.has(status)),
+		value
+			.split(",")
+			.every((status) => validPRStatuses.has(status.toLowerCase())),
 	diff_url: isValidDiffURL,
 };
 
@@ -102,7 +100,7 @@ const formatChatSearchFilterToken = (key: string, value: string): string => {
 export const buildChatSearchQuery = (
 	filters: readonly SearchFilter[],
 	freeText: string,
-): { query: string | undefined; hasSearchText: boolean } => {
+): string | undefined => {
 	const parts: string[] = [];
 
 	for (const filter of filters) {
@@ -115,11 +113,6 @@ export const buildChatSearchQuery = (
 	}
 
 	const text = sanitizeChatSearchValue(freeText).trim();
-	// Operator words (OR/AND/NOT) count as searchable text; they only act as
-	// operators between operands.
-	const hasSearchText = text
-		.split(/\s+/)
-		.some((token) => /[\p{L}\p{N}]/u.test(token));
 	if (freeText.trim() !== "") {
 		// The wrapper quotes make the value one token for the backend parser and
 		// are stripped before FTS, so OR and -negation stay live but typed phrase
@@ -130,10 +123,7 @@ export const buildChatSearchQuery = (
 		parts.push(`search:"${text === "" ? " " : text}"`);
 	}
 
-	return {
-		query: parts.length > 0 ? parts.join(" ") : undefined,
-		hasSearchText,
-	};
+	return parts.length > 0 ? parts.join(" ") : undefined;
 };
 
 type SearchInputToken = {
@@ -169,12 +159,6 @@ const splitSearchInput = (input: string): SearchInputToken[] => {
 	return tokens;
 };
 
-const stripSurroundingQuotes = (value: string): string => {
-	return value.startsWith('"') && value.endsWith('"')
-		? value.slice(1, -1)
-		: value;
-};
-
 /**
  * Extracts recognized filters from typed text. Unbalanced-quoted and invalid
  * tokens pass through unchanged. `consumed` is true if any filter token was
@@ -183,7 +167,6 @@ const stripSurroundingQuotes = (value: string): string => {
  */
 export const extractTypedFilters = (
 	text: string,
-	knownKeys: ReadonlySet<string>,
 	activeFilters: readonly SearchFilter[],
 ): {
 	filters: SearchFilter[];
@@ -220,9 +203,10 @@ export const extractTypedFilters = (
 		}
 
 		const key = token.value.slice(0, colonIndex).toLowerCase();
-		let value = stripSurroundingQuotes(
-			token.value.slice(colonIndex + 1),
-		).trim();
+		let value = token.value
+			.slice(colonIndex + 1)
+			.replace(/^"|"$/g, "")
+			.trim();
 		const candidateTokens = [token.value];
 		let nextTokenIndex = tokenIndex + 1;
 		if (key === "pr_status" && value.endsWith(",")) {
@@ -235,7 +219,7 @@ export const extractTypedFilters = (
 		}
 
 		if (
-			!knownKeys.has(key) ||
+			!CHAT_SEARCH_KNOWN_FILTER_KEYS.has(key) ||
 			value.endsWith(",") ||
 			!isValidChatSearchFilterValue(key, value)
 		) {
