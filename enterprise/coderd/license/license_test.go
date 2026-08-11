@@ -2616,6 +2616,66 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 		}
 	})
 
+	// When an unlimited and a metered license are minted with identical
+	// issued-at and expiry claims, the unlimited grant must win the tie,
+	// regardless of load order.
+	t.Run("UnlimitedOutranksMeteredOnTie", func(t *testing.T) {
+		t.Parallel()
+
+		// JWT NumericDate claims have second granularity, so truncate to
+		// keep the round-tripped issued-at values identical.
+		iat := time.Now().Add(-time.Minute).Truncate(time.Second)
+		nbf := iat
+		exp := iat.Add(time.Hour).Truncate(time.Second)
+		unlimited := database.License{
+			ID:         1,
+			UploadedAt: time.Now(),
+			Exp:        exp,
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				IssuedAt:  iat,
+				NotBefore: nbf,
+				ExpiresAt: exp,
+				Features: license.Features{
+					license.ClaimAgentRuntimeHoursAllocation: license.AgentRuntimeHoursUnlimitedAllocation,
+				},
+			}),
+		}
+		metered := database.License{
+			ID:         2,
+			UploadedAt: time.Now(),
+			Exp:        exp,
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				IssuedAt:  iat,
+				NotBefore: nbf,
+				ExpiresAt: exp,
+				Features: license.Features{
+					license.ClaimAgentRuntimeHoursAllocation: 100,
+					license.ClaimAgentRuntimeHoursLimitSoft:  80,
+					license.ClaimAgentRuntimeHoursLimitHard:  120,
+				},
+			}),
+		}
+
+		for _, order := range [][]database.License{
+			{unlimited, metered},
+			{metered, unlimited},
+		} {
+			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), order, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{})
+			require.NoError(t, err)
+
+			feature, ok := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+			require.True(t, ok, "feature %s not found", codersdk.FeatureAgentRuntimeHours)
+			require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+			require.True(t, feature.Enabled)
+			require.Nil(t, feature.Limit)
+			require.Nil(t, feature.SoftLimit)
+			require.Nil(t, feature.HardLimit)
+			require.NotNil(t, feature.UsagePeriod)
+		}
+	})
+
 	// A newer license without soft/hard limits must fully replace an older
 	// license that carried them; the limits must not merge across licenses.
 	t.Run("SoftHardRideAlongWithWinner", func(t *testing.T) {
