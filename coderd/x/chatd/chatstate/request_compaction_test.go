@@ -213,13 +213,13 @@ func TestRequestCompaction_ClearedByNewTurn(t *testing.T) {
 }
 
 // TestRequestCompaction_RejectedWhenBusyOrArchived pins the matrix
-// boundaries callers rely on for 409 mapping: only W admits the
-// transition.
+// boundaries callers rely on for 409 mapping: only W, E0, and E1
+// admit the transition.
 func TestRequestCompaction_RejectedWhenBusyOrArchived(t *testing.T) {
 	t.Parallel()
 
 	for _, from := range []chatstate.ExecutionState{
-		chatstate.StateR0, chatstate.StateE0, chatstate.StateXW,
+		chatstate.StateR0, chatstate.StateXW,
 	} {
 		t.Run(string(from), func(t *testing.T) {
 			t.Parallel()

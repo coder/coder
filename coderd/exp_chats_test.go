@@ -9289,6 +9289,35 @@ func TestCompactChat(t *testing.T) {
 		require.False(t, persisted.CompactionRequestedAt.Valid)
 	})
 
+	t.Run("FromErrorState", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		chat := seedCompactableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusError,
+			LastError: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`{"message":"context overflow"}`),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+
+		// Response snapshot only: a worker may already be mutating
+		// the persisted row.
+		compacted, err := client.CompactChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, compacted.ID)
+		require.Equal(t, codersdk.ChatStatusRunning, compacted.Status)
+		require.Nil(t, compacted.LastError,
+			"compaction from the error state clears last_error")
+	})
+
 	t.Run("Busy", func(t *testing.T) {
 		t.Parallel()
 
@@ -9310,6 +9339,7 @@ func TestCompactChat(t *testing.T) {
 		_, err = client.CompactChat(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
 		require.Contains(t, sdkErr.Message, "Cannot compact the chat in its current state")
+		require.Contains(t, sdkErr.Detail, "Compaction is not available while the chat is generating.")
 	})
 
 	t.Run("Archived", func(t *testing.T) {

@@ -676,12 +676,13 @@ type RequestCompactionResult struct {
 	Chat database.Chat
 }
 
-// RequestCompaction records a manual compaction request and hands ownership
-// off to a worker. The transition changes no history, so the previous runner
-// cannot detect the work from its existing running snapshot. Clearing ownership
-// makes ChatMachine.Update publish an ownership hint for worker acquisition.
+// RequestCompaction records a manual compaction request, clears any
+// prior error, and hands ownership off to a worker. The transition
+// changes no history, so the previous runner cannot detect the work
+// from its existing running snapshot. Clearing ownership makes
+// ChatMachine.Update publish an ownership hint for worker acquisition.
 func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResult, error) {
-	chat, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
+	_, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
 	if err != nil {
 		return RequestCompactionResult{}, err
 	}
@@ -694,7 +695,7 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 		Archived:                 false,
 		WorkerID:                 uuid.NullUUID{},
 		RunnerID:                 uuid.NullUUID{},
-		LastError:                chat.LastError,
+		LastError:                pqtype.NullRawMessage{},
 		RequiresActionDeadlineAt: sql.NullTime{},
 		CompactionRequestedAt:    sql.NullTime{Time: now, Valid: true},
 	})
