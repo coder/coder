@@ -62,7 +62,7 @@ func (r *RootCmd) templatePull() *serpent.Command {
 			{
 				// Determine the latest template version and compare with the
 				// active version. If they aren't the same, warn the user.
-				versions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+				versions, err := allTemplateVersions(ctx, client, codersdk.TemplateVersionsByTemplateRequest{
 					TemplateID: template.ID,
 				})
 				if err != nil {

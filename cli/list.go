@@ -178,3 +178,7 @@ func QueryConvertWorkspaces[T any](ctx context.Context, client *codersdk.Client,
 	}
 	return converted, nil
 }
+
+// pageLimit is the number of rows requested per page when the CLI fetches a
+// list endpoint to exhaustion.
+const pageLimit = codersdk.MaxPaginationLimit
