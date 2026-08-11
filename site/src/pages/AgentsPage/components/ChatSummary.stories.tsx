@@ -123,6 +123,39 @@ export const LinksRenderAsPlainText: Story = {
 	},
 };
 
+// The generation prompt preserves identifiers and wraps them in backticks, so
+// a single token can be wider than the panel. It has to wrap, because the
+// collapsed bound only reveals its toggle for vertical overflow.
+export const LongIdentifierWraps: Story = {
+	args: {
+		summary:
+			"Fixed `TestValidateGeneratedChatSummaryHeadlineExceedsBothTheRuneAndSentenceCaps` in `coderd/x/chatd/summarygen_internal_test.go`.",
+	},
+	// Narrower than the panel's 360px minimum, so the identifier cannot fit on
+	// one line.
+	decorators: [
+		(Story) => (
+			<div data-testid="summary-column" className="w-[300px]">
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const column = canvas.getByTestId("summary-column");
+		const identifier = canvas.getByText(
+			"TestValidateGeneratedChatSummaryHeadlineExceedsBothTheRuneAndSentenceCaps",
+		);
+
+		// The identifier has no natural break opportunity, so without a
+		// word-breaking rule it renders on one line and escapes the column,
+		// where overflow-hidden clips it with no toggle to reveal it.
+		await expect(identifier.getBoundingClientRect().right).toBeLessThanOrEqual(
+			column.getBoundingClientRect().right + 1,
+		);
+	},
+};
+
 // A cache update can replace the summary in place, without remounting the
 // panel, so the overflow toggle has to re-evaluate on new content.
 export const SummaryReplacedInPlace: Story = {

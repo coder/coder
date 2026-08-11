@@ -150,7 +150,11 @@ const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => {
 		<div className="flex flex-col items-start gap-1">
 			<div
 				ref={clampRef}
-				className={`overflow-hidden font-sans text-sm font-normal leading-6 text-content-primary ${
+				// Identifiers are preserved verbatim and can exceed the panel width
+				// with no natural break opportunity. Breaking anywhere keeps them
+				// inside the column, which horizontal clipping would otherwise hide
+				// with no way to reveal it.
+				className={`w-full overflow-hidden break-words font-sans text-sm font-normal leading-6 text-content-primary [overflow-wrap:anywhere] ${
 					isExpanded ? "" : "max-h-48"
 				}`}
 			>
