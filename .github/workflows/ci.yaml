@@ -49,7 +49,7 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -141,7 +141,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -311,7 +311,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -401,7 +401,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-8' || 'ubuntu-24.04' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -431,7 +431,7 @@ jobs:
     if: ${{ !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -486,7 +486,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -527,7 +527,7 @@ jobs:
     # `make test` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
     # some of the preceding steps are slow.
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -537,7 +537,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -662,11 +662,12 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # Our macOS runners have 8 cores.
-          # Even though this parallelism seems high, we've observed relatively low flakiness in the past.
-          # See https://github.com/coder/coder/pull/21091#discussion_r2609891540.
+          # Our macOS runners have 8 cores. test-parallelism-tests matches
+          # Linux's rather than the previous 16, to rule out scheduler
+          # contention as a contributor to the macOS test-go-pg timeouts
+          # tracked in coder/internal#1365.
           test-parallelism-packages: "8"
-          test-parallelism-tests: "16"
+          test-parallelism-tests: "8"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
@@ -737,10 +738,10 @@ jobs:
     # `make test` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
     # some of the preceding steps are slow.
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -808,10 +809,14 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    timeout-minutes: 25
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-race` to ensure we receive a trace of running goroutines.
+    # Setting this to the timeout +5m should work quite well even if
+    # some of the preceding steps are slow.
+    timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -892,7 +897,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -921,7 +926,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -959,7 +964,7 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -1078,7 +1083,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         name: Install dependencies
         with:
           run_install: true
@@ -1107,7 +1112,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -1172,7 +1177,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -1211,7 +1216,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -1264,7 +1269,7 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -1275,7 +1280,7 @@ jobs:
           persist-credentials: false
 
       - name: GHCR Login
-        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1315,7 +1320,7 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: "zulu"
           java-version: "11.0"
@@ -1494,7 +1499,7 @@ jobs:
         id: attest_main
         if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.main_digest != ''
         continue-on-error: true
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.main_digest }}
@@ -1504,7 +1509,7 @@ jobs:
         id: attest_latest
         if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.latest_digest != ''
         continue-on-error: true
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
@@ -1514,7 +1519,7 @@ jobs:
         id: attest_version
         if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.version_digest != ''
         continue-on-error: true
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.version_digest }}
@@ -1631,7 +1636,7 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 

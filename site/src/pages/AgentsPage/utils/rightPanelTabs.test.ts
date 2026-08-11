@@ -4,6 +4,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "#/api/typesGenerated";
+import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -130,6 +131,28 @@ describe("right-panel tab validation", () => {
 			label: "Command",
 			agentId: "agent-1",
 			appId: "command-app",
+		};
+
+		const validated = validateUserRightPanelTabs([appTab], {
+			workspace,
+			workspaceAgent: workspace.latest_build.resources[0].agents?.[0],
+			wildcardHostname: "*.apps.example.com",
+		});
+
+		expect(validated).toEqual([]);
+	});
+
+	it("drops agent-browser app tabs in favor of the built-in Browser tab", () => {
+		const browserApp = buildApp("browser-app", {
+			slug: AGENT_BROWSER_APP_SLUG,
+		});
+		const workspace = buildWorkspace([buildAgent("agent-1", [browserApp])]);
+		const appTab: UserRightPanelTab = {
+			id: "browser-app-tab",
+			kind: "workspace_app",
+			label: "agent-browser",
+			agentId: "agent-1",
+			appId: "browser-app",
 		};
 
 		const validated = validateUserRightPanelTabs([appTab], {

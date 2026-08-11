@@ -736,7 +736,7 @@ export const UserMessageWithExpiredImage: Story = {
 		// copy survives any operator-chosen retention window.
 		await hoverAndExpectTooltip(
 			expiredTile,
-			/deleted after the retention window/i,
+			/kept while any chat references them/i,
 		);
 	},
 };
@@ -1057,7 +1057,7 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 
 		await hoverAndExpectTooltip(
 			expiredTile,
-			/deleted after the retention window/i,
+			/kept while any chat references them/i,
 		);
 	},
 };
