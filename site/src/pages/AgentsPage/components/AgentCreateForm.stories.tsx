@@ -10,7 +10,7 @@ import {
 } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
@@ -570,8 +570,8 @@ export const WithWorkspaces: Story = {
 		await userEvent.click(
 			body.getByText("Attach workspace").closest("button")!,
 		);
-		// Wait for the workspace combobox dropdown to appear so
-		// Chromatic captures it.
+		// Wait for the workspace combobox dropdown to appear so snapshot tests
+		// capture it.
 		await body.findByPlaceholderText("Search workspaces...");
 	},
 };
@@ -787,32 +787,6 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 		const parsed = JSON.parse(stored!);
 		expect(parsed).toHaveLength(1);
 		expect(parsed[0].fileId).toBe("persisted-file-1");
-	},
-};
-
-export const UsageLimitExceeded: Story = {
-	args: {
-		...defaultArgs,
-		createError: Object.assign(
-			new Error("Request failed with status code 409"),
-			{
-				isAxiosError: true,
-				response: {
-					status: 409,
-					statusText: "Conflict",
-					data: {
-						message: "Chat usage limit exceeded.",
-						spent_micros: 900_000,
-						limit_micros: 500_000,
-						resets_at: "2026-03-16T00:00:00Z",
-					},
-					headers: {},
-					config: {},
-				},
-				config: {},
-				toJSON: () => ({}),
-			},
-		),
 	},
 };
 

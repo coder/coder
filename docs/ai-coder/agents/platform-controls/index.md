@@ -63,10 +63,10 @@ plan sections, approval checkpoints, or review workflows.
 
 This setting is available under **AI Settings** > **Coder Agents** > **Instructions**. Developers do not edit it directly.
 
-The same value is exposed over the experimental chat configuration API:
+The same value is exposed over the chat configuration API:
 
-- `GET /api/experimental/chats/config/plan-mode-instructions`
-- `PUT /api/experimental/chats/config/plan-mode-instructions`
+- `GET /api/v2/chats/config/plan-mode-instructions`
+- `PUT /api/v2/chats/config/plan-mode-instructions`
 
 ### Template routing
 
@@ -79,14 +79,12 @@ Python backend services in the payments repo" — platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
-Administrators can also restrict which templates are available to agents
-using the template allowlist at **Agents** > **Settings** >
-**Manage Agents** > **Templates**. When the allowlist is configured, the
-agent can only see and provision workspaces from the selected templates.
-When the allowlist is empty, all templates are available. This is separate
-from what developers see when manually creating workspaces, so you can apply
-stricter policies to agent-created workspaces without affecting the manual
-workspace experience.
+Administrators can also restrict which templates are available to agents at **Agents** > **Settings** > **Manage Agents** > **Templates**.
+Use the switch for each template in the list.
+The same control is available on each individual template's settings page as **Allow Coder Agents to create workspaces using this template**.
+Templates allow agents by default.
+When you disable the control, the agent cannot read the template or provision workspaces from it.
+This is separate from what developers observe when manually creating workspaces, so you can apply stricter policies to agent-created workspaces without affecting the manual workspace experience.
 
 See [Template Optimization](./template-optimization.md) for best practices on writing
 discoverable descriptions, restricting template visibility, configuring network
@@ -116,12 +114,15 @@ none, if the template does not define any).
 
 ### Spend management
 
-Administrators can set spend limits to cap LLM usage per user within a rolling
-time period, with per-user and per-group overrides. The cost tracking dashboard
-provides visibility into per-user spending, token consumption, and per-model
-breakdowns.
+AI Gateway budgets cap each user's AI spend, including Coder Agents chats, over a monthly period.
+Coder sets budgets per group, and the deployment policy selects the group with the largest spend limit when a user belongs to several budgeted groups.
+A per-user override takes priority over all group budgets.
 
-See [Spend Management](./usage-insights.md) for details.
+Budgets are the only spend cap for Coder Agents chats.
+Chats no longer enforce a separate limit of their own, and existing native limit values are not migrated to budgets.
+Budget controls in the Coder UI, the group budget endpoints, and the AI spend status endpoints all require a license that includes AI Gateway.
+
+Refer to [Spend management](./spend-management.md) for details.
 
 ### Git providers
 
@@ -158,10 +159,8 @@ For chat debug logging (not experiment-gated), see [Chat debug logging](./chat-d
 
 ## Where we are headed
 
-The controls above cover providers, models, system prompts, templates, MCP
-servers, usage limits, and data retention. We are continuing to invest in platform controls
-based on what we hear from customers deploying agents in regulated and
-enterprise environments.
+The controls above cover providers, models, system prompts, templates, MCP servers, AI Gateway budgets, and data retention.
+We are continuing to invest in platform controls based on what feedback we get from customers deploying agents in regulated and enterprise environments.
 
 ### Infrastructure-level enforcement
 

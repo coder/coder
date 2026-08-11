@@ -1,11 +1,8 @@
 package chatopenai_test
 
 import (
-	"context"
 	"testing"
 
-	"charm.land/fantasy"
-	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 
@@ -44,7 +41,7 @@ func TestProviderOptionsFromChatConfigLegacy(t *testing.T) {
 	}
 
 	got := chatopenai.ProviderOptionsFromChatConfig(
-		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-3.5-turbo-instruct"},
+		chatopenai.TransportChatCompletions,
 		options,
 	)
 
@@ -96,7 +93,7 @@ func TestProviderOptionsFromChatConfigResponses(t *testing.T) {
 	}
 
 	got := chatopenai.ProviderOptionsFromChatConfig(
-		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4.1"},
+		chatopenai.TransportResponses,
 		options,
 	)
 
@@ -240,45 +237,6 @@ func TestEnsureResponseIncludes(t *testing.T) {
 	}
 }
 
-func TestUsesResponsesOptions(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		model fantasy.LanguageModel
-		want  bool
-	}{
-		{name: "Nil"},
-		{
-			name:  "OpenAIResponsesModel",
-			model: fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4.1"},
-			want:  true,
-		},
-		{
-			name:  "AzureResponsesModel",
-			model: fakeLanguageModel{provider: fantasyazure.Name, model: "gpt-4.1"},
-			want:  true,
-		},
-		{
-			name:  "OpenAINonResponsesModel",
-			model: fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-3.5-turbo-instruct"},
-		},
-		{
-			name:  "NonOpenAIProvider",
-			model: fakeLanguageModel{provider: "other", model: "gpt-4.1"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := chatopenai.UsesResponsesOptions(tt.model)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestServiceTierFromChat(t *testing.T) {
 	t.Parallel()
 
@@ -292,7 +250,8 @@ func TestServiceTierFromChat(t *testing.T) {
 		{name: "Auto", value: ptr(" auto "), want: ptr(fantasyopenai.ServiceTierAuto)},
 		{name: "FlexCase", value: ptr(" FLEX "), want: ptr(fantasyopenai.ServiceTierFlex)},
 		{name: "Priority", value: ptr("priority"), want: ptr(fantasyopenai.ServiceTierPriority)},
-		{name: "DefaultUnsupported", value: ptr("default")},
+		{name: "Default", value: ptr("default"), want: ptr(fantasyopenai.ServiceTier("default"))},
+		{name: "ScaleCase", value: ptr(" Scale "), want: ptr(fantasyopenai.ServiceTier("scale"))},
 		{name: "Invalid", value: ptr("fast")},
 	}
 
@@ -422,33 +381,4 @@ func requireTextVerbosityPointerValue(
 
 func ptr[T any](value T) *T {
 	return &value
-}
-
-type fakeLanguageModel struct {
-	provider string
-	model    string
-}
-
-func (fakeLanguageModel) Generate(context.Context, fantasy.Call) (*fantasy.Response, error) {
-	panic("not implemented")
-}
-
-func (fakeLanguageModel) Stream(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-	panic("not implemented")
-}
-
-func (fakeLanguageModel) GenerateObject(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-	panic("not implemented")
-}
-
-func (fakeLanguageModel) StreamObject(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
-	panic("not implemented")
-}
-
-func (f fakeLanguageModel) Provider() string {
-	return f.provider
-}
-
-func (f fakeLanguageModel) Model() string {
-	return f.model
 }

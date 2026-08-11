@@ -47,6 +47,11 @@ const (
 	// maxAISpendExportPeriod bounds an explicit AI spend export window to at
 	// most 31 days, matching the maximum length of the monthly default period.
 	maxAISpendExportPeriod = 31 * 24 * time.Hour
+	// aiBridgeSessionNetworkCallsLimit caps the per-session network call list
+	// returned with session threads. The header count still reflects the full
+	// summary total, so the UI surfaces truncation when a session exceeds this.
+	// Sessions past the cap need pagination to see the remainder.
+	aiBridgeSessionNetworkCallsLimit = 1000
 )
 
 // errInvalidCursor is returned when a pagination cursor does not
@@ -369,6 +374,8 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		toolUsages    []database.AIBridgeToolUsage
 		userPrompts   []database.AIBridgeUserPrompt
 		modelThoughts []database.AIBridgeModelThought
+		topDomains    []database.GetAIBridgeSessionTopDomainsRow
+		networkCalls  []database.BoundaryLog
 	)
 	err = api.Database.InTx(func(db database.Store) error {
 		// Validate cursor IDs before querying threads. The SQL
@@ -435,6 +442,29 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 			return xerrors.Errorf("list model thoughts: %w", err)
 		}
 
+		// Aggregate the session's top network destination. Scoped by session
+		// ID (not the page) so the summary reflects the whole session. The
+		// summary card renders only the single most-contacted domain plus a
+		// "+N more" count derived from NetworkDomainCount, so we fetch one row.
+		topDomains, err = db.GetAIBridgeSessionTopDomains(ctx, database.GetAIBridgeSessionTopDomainsParams{
+			SessionID: sessionIDParam,
+			Limit:     1,
+		})
+		if err != nil {
+			return xerrors.Errorf("get session top domains: %w", err)
+		}
+
+		// List the session's individual network calls. Scoped by session ID
+		// (not the page) so the list reflects the whole session, consistent
+		// with the network call summary.
+		networkCalls, err = db.ListAIBridgeSessionNetworkCalls(ctx, database.ListAIBridgeSessionNetworkCallsParams{
+			SessionID: sessionIDParam,
+			Limit:     aiBridgeSessionNetworkCallsLimit,
+		})
+		if err != nil {
+			return xerrors.Errorf("list session network calls: %w", err)
+		}
+
 		return nil
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead,
@@ -456,7 +486,16 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	resp := db2sdk.AIBridgeSessionThreads(session, threadRows, tokenUsages, toolUsages, userPrompts, modelThoughts)
+	resp := db2sdk.AIBridgeSessionThreads(db2sdk.AIBridgeSessionThreadsParams{
+		Session:       session,
+		Interceptions: threadRows,
+		TokenUsages:   tokenUsages,
+		ToolUsages:    toolUsages,
+		UserPrompts:   userPrompts,
+		ModelThoughts: modelThoughts,
+		TopDomains:    topDomains,
+		NetworkCalls:  networkCalls,
+	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }

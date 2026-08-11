@@ -1,18 +1,29 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessage, ChatQueuedMessage } from "#/api/typesGenerated";
+import type {
+	ChatMessage,
+	ChatQueuedMessage,
+	Workspace,
+	WorkspaceApp,
+} from "#/api/typesGenerated";
 import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
-import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
+import {
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceApp,
+} from "#/testHelpers/entities";
 import {
 	buildInactiveChatQueueReconciliation,
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
 	getWorkspaceOptionsWithLinkedWorkspace,
+	isWatchedWorkspaceViewUnchanged,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
@@ -237,7 +248,7 @@ describe("runPromoteQueuedMessage", () => {
 
 		const promote = vi.fn(async (_id: number) => undefined);
 		const clearChatErrorReason = vi.fn();
-		const handleUsageLimitError = vi.fn();
+		const onError = vi.fn();
 
 		await runPromoteQueuedMessage({
 			id: b.id,
@@ -245,7 +256,7 @@ describe("runPromoteQueuedMessage", () => {
 			promoteQueuedMessage: promote,
 			agentId: "chat-1",
 			clearChatErrorReason,
-			handleUsageLimitError,
+			onError,
 		});
 
 		expect(promote).toHaveBeenCalledWith(b.id);
@@ -268,7 +279,7 @@ describe("runPromoteQueuedMessage", () => {
 			throw apiError;
 		});
 		const clearChatErrorReason = vi.fn();
-		const handleUsageLimitError = vi.fn();
+		const onError = vi.fn();
 
 		await expect(
 			runPromoteQueuedMessage({
@@ -277,11 +288,11 @@ describe("runPromoteQueuedMessage", () => {
 				promoteQueuedMessage: promote,
 				agentId: "chat-1",
 				clearChatErrorReason,
-				handleUsageLimitError,
+				onError,
 			}),
 		).rejects.toBe(apiError);
 
-		expect(handleUsageLimitError).toHaveBeenCalledWith(apiError);
+		expect(onError).toHaveBeenCalledWith(apiError);
 
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
@@ -1391,5 +1402,62 @@ describe("sidebar tab persistence", () => {
 			expect(getPersistedSidebarTabId("chat-a")).toBeNull();
 			expect(getPersistedSidebarTabId("chat-b")).toBe("desktop");
 		});
+	});
+});
+
+describe("isWatchedWorkspaceViewUnchanged", () => {
+	const cloneWithApps = (apps: WorkspaceApp[]): Workspace => ({
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspace.latest_build,
+			resources: MockWorkspace.latest_build.resources.map((resource) => ({
+				...resource,
+				agents: resource.agents?.map((agent) =>
+					agent.id === MockWorkspaceAgent.id ? { ...agent, apps } : agent,
+				),
+			})),
+		},
+	});
+
+	it("is true for a fresh payload with only unwatched changes", () => {
+		const next: Workspace = {
+			...MockWorkspace,
+			last_used_at: "2024-01-01T00:00:00Z",
+		};
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(true);
+	});
+
+	it("is false when a bound-agent app changes health", () => {
+		const next = cloneWithApps([{ ...MockWorkspaceApp, health: "healthy" }]);
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(false);
+	});
+
+	it("is false when the bound agent gains an app", () => {
+		const next = cloneWithApps([
+			MockWorkspaceApp,
+			{ ...MockWorkspaceApp, id: "second-app", slug: "second-app" },
+		]);
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(false);
 	});
 });

@@ -22,12 +22,18 @@ type SelectionSummaryProps = {
 	currentStep: number;
 	selectedTemplate?: SelectedTemplate;
 	selectedModules?: SelectedModule[];
+	/**
+	 * Jump to a specific module's configuration section. The consumer
+	 * switches to the module settings step and scrolls the module into view.
+	 */
+	onNavigateModule: (moduleId: string) => void;
 };
 
 export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	currentStep,
 	selectedTemplate,
 	selectedModules,
+	onNavigateModule,
 }) => {
 	const variant = (step: number) => {
 		if (currentStep === step) return "current";
@@ -49,7 +55,10 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 				<VariantContext.Provider value={variant(2)}>
 					<StepIndicator step={2}>Modules</StepIndicator>
 					{selectedModules ? (
-						<ModuleSelection modules={selectedModules} />
+						<ModuleSelection
+							modules={selectedModules}
+							onSelectModule={onNavigateModule}
+						/>
 					) : (
 						<StepDivider />
 					)}
@@ -154,23 +163,32 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 
 type ModuleSelectionProps = {
 	modules: SelectedModule[];
+	onSelectModule: (moduleId: string) => void;
 };
 
-const ModuleSelection: React.FC<ModuleSelectionProps> = ({ modules }) => {
+const ModuleSelection: React.FC<ModuleSelectionProps> = ({
+	modules,
+	onSelectModule,
+}) => {
 	return (
 		<StepDivider className="max-h-72 overflow-y-auto">
 			{modules.map((module) => (
-				<div
+				<button
 					key={module.id}
-					className="group flex items-start justify-between p-1 mb-1 rounded-sm"
+					type="button"
+					onClick={() => onSelectModule(module.id)}
+					aria-label={`Configure ${module.name}`}
+					className={cn(
+						"flex items-start w-full text-left p-1 mb-1 rounded-sm bg-transparent border-0 cursor-pointer",
+						"text-sm text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
+						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
+					)}
 				>
 					<div className="h-[1lh] content-center">
 						<Avatar src={module.iconUrl} size="sm" variant="icon" />
 					</div>
-					<span className="flex-1 ml-2 text-content-secondary">
-						{module.name}
-					</span>
-				</div>
+					<span className="flex-1 ml-2">{module.name}</span>
+				</button>
 			))}
 		</StepDivider>
 	);

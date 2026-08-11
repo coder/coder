@@ -203,7 +203,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	const hasQuery = hasActiveSearch && normalizedQuery !== undefined;
 
 	const searchQuery = useQuery({
-		...chatSearch(normalizedQuery ?? ""),
+		...chatSearch({ q: normalizedQuery ?? "" }),
 		enabled: open && hasQuery,
 		placeholderData: keepPreviousData,
 	});

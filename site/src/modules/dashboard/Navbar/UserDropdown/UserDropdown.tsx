@@ -50,6 +50,8 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 			? {
 					currentSpend: data.current_spend_micros,
 					spendLimit: data.effective_budget?.spend_limit_micros ?? null,
+					periodStart: data.period_start,
+					periodEnd: data.period_end,
 				}
 			: null;
 	const severity =

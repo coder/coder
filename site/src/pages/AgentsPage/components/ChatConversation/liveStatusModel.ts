@@ -1,5 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import type { ChatDetailError } from "./chatError";
 import { getErrorTitle } from "./chatStatusHelpers";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 

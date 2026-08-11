@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import type { ChatDetailError } from "./chatError";
 import { deriveLiveStatus } from "./liveStatusModel";
 import { buildReconnectState, buildRetryState } from "./storyFixtures";
 import type { StreamState } from "./types";

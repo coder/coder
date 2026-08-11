@@ -169,7 +169,7 @@ AI GATEWAY OPTIONS:
           this option seeds provider configuration at startup only exactly once.
           It will not be used in service runtime. The AWS Bedrock API region to
           use. Constructs a base URL to use for the AWS Bedrock API in the form
-          of 'https://bedrock-runtime.<region>.amazonaws.com'.
+          of `https://bedrock-runtime.<region>.amazonaws.com`.
 
       --ai-gateway-bedrock-small-fastmodel string, $CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
           Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,

@@ -16,7 +16,8 @@ func TestValidSessionID(t *testing.T) {
 		valid bool
 	}{
 		{"LowerHex", "0123456789abcdef0123456789abcdef", true},
-		{"UpperHex", "0123456789ABCDEF0123456789ABCDEF", true},
+		{"UpperHex", "0123456789ABCDEF0123456789ABCDEF", false},
+		{"MixedCase", "0123456789abcdef0123456789ABCDEF", false},
 		{"Empty", "", false},
 		{"TooShort", "0123456789abcdef0123456789abcde", false},
 		{"TooLong", "0123456789abcdef0123456789abcdef0", false},

@@ -404,7 +404,7 @@ func (c *agentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgent
 	}
 
 	var resp codersdk.WorkspaceAgentListeningPortsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 // Netcheck returns a network check report from the workspace agent.
@@ -421,7 +421,7 @@ func (c *agentConn) Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport
 	}
 
 	var resp healthsdk.AgentNetcheckReport
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 // DebugMagicsock makes a request to the workspace agent's magicsock debug endpoint.
@@ -607,7 +607,7 @@ func (c *agentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgent
 		return codersdk.WorkspaceAgentListContainersResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp codersdk.WorkspaceAgentListContainersResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error) {
@@ -820,7 +820,7 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 	}
 
 	var result DesktopActionResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeAgentJSON(resp, &result); err != nil {
 		return DesktopActionResponse{}, xerrors.Errorf("decode action response: %w", err)
 	}
 	return result, nil
@@ -898,7 +898,7 @@ func (c *agentConn) RecreateDevcontainer(ctx context.Context, devcontainerID str
 		return codersdk.Response{}, codersdk.ReadBodyAsError(res)
 	}
 	var m codersdk.Response
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+	if err := decodeAgentJSON(res, &m); err != nil {
 		return codersdk.Response{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return m, nil
@@ -1017,7 +1017,7 @@ func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSRespo
 	}
 
 	var m LSResponse
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+	if err := decodeAgentJSON(res, &m); err != nil {
 		return LSResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return m, nil
@@ -1046,7 +1046,7 @@ func (c *agentConn) ResolvePath(ctx context.Context, path string) (string, error
 	}
 
 	var m ResolvePathResponse
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+	if err := decodeAgentJSON(res, &m); err != nil {
 		return "", xerrors.Errorf("decode response body: %w", err)
 	}
 	return m.ResolvedPath, nil
@@ -1076,7 +1076,7 @@ func (c *agentConn) ReadFileLines(ctx context.Context, path string, offset, limi
 	}
 
 	var resp ReadFileLinesResponse
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+	if err := decodeAgentJSON(res, &resp); err != nil {
 		return ReadFileLinesResponse{}, xerrors.Errorf("decode response: %w", err)
 	}
 	return resp, nil
@@ -1127,7 +1127,7 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 	}
 
 	var m codersdk.Response
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+	if err := decodeAgentJSON(res, &m); err != nil {
 		return xerrors.Errorf("decode response body: %w", err)
 	}
 	return nil
@@ -1277,7 +1277,7 @@ func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (
 		return StartProcessResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp StartProcessResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 // ListProcesses returns information about tracked processes on the agent.
@@ -1293,7 +1293,7 @@ func (c *agentConn) ListProcesses(ctx context.Context) (ListProcessesResponse, e
 		return ListProcessesResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ListProcessesResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 // ContextConfig returns the resolved context configuration from
@@ -1310,7 +1310,7 @@ func (c *agentConn) ContextConfig(ctx context.Context) (ContextConfigResponse, e
 		return ContextConfigResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ContextConfigResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 // CallMCPTool proxies a tool call to an MCP server running in
@@ -1327,7 +1327,7 @@ func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (Ca
 		return CallMCPToolResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp CallMCPToolResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 // ProcessOutput returns the output of a tracked process on the agent.
@@ -1347,7 +1347,7 @@ func (c *agentConn) ProcessOutput(ctx context.Context, id string, opts *ProcessO
 		return ProcessOutputResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ProcessOutputResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 // SignalProcess sends a signal to a tracked process on the agent.
@@ -1363,7 +1363,7 @@ func (c *agentConn) SignalProcess(ctx context.Context, id string, signal string)
 		return codersdk.ReadBodyAsError(res)
 	}
 	var m codersdk.Response
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+	if err := decodeAgentJSON(res, &m); err != nil {
 		return xerrors.Errorf("decode response body: %w", err)
 	}
 	return nil
@@ -1386,7 +1386,7 @@ func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileE
 	}
 
 	var resp FileEditResponse
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+	if err := decodeAgentJSON(res, &resp); err != nil {
 		return FileEditResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return resp, nil
@@ -1443,6 +1443,17 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 	}
 
 	return c.apiClient(ctx).Do(req)
+}
+
+// decodeAgentJSON decodes an agent-direct HTTP response body. Agent
+// endpoints are served by the workspace agent over tailnet, not the
+// Coder control plane, so no reverse proxy or SSO portal can intercept
+// the response and codersdk.ReadBodyAsJSON's proxy/SSO-oriented error
+// guidance would be misleading here.
+//
+//nolint:gocritic // See doc comment.
+func decodeAgentJSON(res *http.Response, v any) error {
+	return json.NewDecoder(res.Body).Decode(v)
 }
 
 // apiClient returns an HTTP client that can be used to make

@@ -28,11 +28,22 @@ import (
 
 const (
 	maxConcurrentDispatches = 256
-	maxResponseBodyBytes    = 1_048_576
-	maxModelContextBytes    = 16_384
-	capacityWaitLimit       = 250 * time.Millisecond
-	retryBackoff            = 250 * time.Millisecond
-	clockSkewLeeway         = 30 * time.Second
+	// Keep capacity reachable by work that a chat already admitted.
+	maxAdmissionDispatches = 192
+	maxResponseBodyBytes   = 1_048_576
+	maxModelContextBytes   = 16_384
+	capacityWaitLimit      = 250 * time.Millisecond
+	retryBackoff           = 250 * time.Millisecond
+	clockSkewLeeway        = 30 * time.Second
+)
+
+// CapacityClass selects which share of dispatch capacity an event draws from.
+type CapacityClass int
+
+const (
+	CapacityClassUnset CapacityClass = iota
+	CapacityClassAdmission
+	CapacityClassGeneration
 )
 
 // Result classifies the terminal outcome of a dispatch attempt.
@@ -53,7 +64,8 @@ const (
 type Event struct {
 	Type agenthooks.EventType
 	agenthooks.ChatRef
-	Data any
+	Data     any
+	Capacity CapacityClass
 }
 
 // Error preserves the attempt ID and failure class.
@@ -90,13 +102,16 @@ type Dispatcher struct {
 	deploymentID string
 	userAgent    string
 	semaphore    chan struct{}
+	admission    chan struct{}
 	metrics      *metrics
 }
 
 // validateHookURL requires HTTPS because hook traffic carries sensitive data
-// and authorization tokens, and responses can control execution. Plain HTTP
-// is allowed only for loopback development consumers.
-func validateHookURL(raw string) error {
+// and authorization tokens, and responses can control execution. Loopback HTTP
+// is allowed by default; allowInsecure permits HTTP for any host.
+//
+//nolint:revive // allowInsecure is operator configuration, not caller control coupling.
+func validateHookURL(raw string, allowInsecure bool) error {
 	if raw == "" {
 		return nil
 	}
@@ -124,6 +139,9 @@ func validateHookURL(raw string) error {
 		if host == "" {
 			return xerrors.New("chat hook URL must include a host")
 		}
+		if allowInsecure {
+			return nil
+		}
 		if host == "localhost" {
 			return nil
 		}
@@ -142,6 +160,7 @@ func New(
 	logger slog.Logger,
 	client *http.Client,
 	hookURL string,
+	allowInsecureURL bool,
 	secret string,
 	timeout time.Duration,
 	deploymentID string,
@@ -161,12 +180,13 @@ func New(
 		logger:       logger.Named("chat_hook_dispatcher"),
 		client:       client,
 		hookURL:      hookURL,
-		hookURLErr:   validateHookURL(hookURL),
+		hookURLErr:   validateHookURL(hookURL, allowInsecureURL),
 		secret:       []byte(secret),
 		timeout:      timeout,
 		deploymentID: deploymentID,
 		userAgent:    "coderd-agenthooks/" + coderVersion,
 		semaphore:    make(chan struct{}, maxConcurrentDispatches),
+		admission:    make(chan struct{}, maxAdmissionDispatches),
 		metrics:      newMetrics(reg),
 	}
 }
@@ -187,25 +207,21 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 		return agenthooks.Response{}, uuid.Nil, xerrors.Errorf("chat hook URL rejected: %w", d.hookURLErr)
 	}
 
+	switch event.Capacity {
+	case CapacityClassAdmission, CapacityClassGeneration:
+	default:
+		return agenthooks.Response{}, uuid.Nil, xerrors.Errorf("dispatch event %q has no capacity class", event.Type)
+	}
+
 	startedAt := time.Now()
 	dispatchID := uuid.New()
-	wait := max(min(d.timeout, capacityWaitLimit), 0)
-	capacityTimer := time.NewTimer(wait)
-	defer capacityTimer.Stop()
+	capacityDeadline := startedAt.Add(max(min(d.timeout, capacityWaitLimit), 0))
 
-	// The capacity wait runs against its own timer rather than a dispatch
-	// deadline, so a timeout shorter than capacityWaitLimit cannot make the
-	// over-capacity and caller-cancellation cases race.
-	select {
-	case d.semaphore <- struct{}{}:
-		defer func() { <-d.semaphore }()
-	case <-ctx.Done():
-		outcome := dispatchOutcome{result: ResultTimeout, err: ctx.Err()}
-		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
-	case <-capacityTimer.C:
-		outcome := dispatchOutcome{result: ResultOverCapacity, err: context.DeadlineExceeded}
-		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
+	release, refused, ok := d.acquireCapacity(ctx, event.Capacity, capacityDeadline)
+	if !ok {
+		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, refused)
 	}
+	defer release()
 
 	// Both post attempts share whatever remains of the configured timeout so
 	// that waiting for capacity cannot extend the dispatch past it.
@@ -217,6 +233,55 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 		return agenthooks.Response{}, dispatchID, err
 	}
 	return outcome.response, dispatchID, nil
+}
+
+// Admission acquires its gate before the shared pool so queued admission
+// dispatches cannot occupy the reserved capacity.
+func (d *Dispatcher) acquireCapacity(
+	ctx context.Context,
+	capacity CapacityClass,
+	deadline time.Time,
+) (release func(), outcome dispatchOutcome, ok bool) {
+	if capacity == CapacityClassAdmission {
+		releaseAdmission, refused, admitted := acquire(ctx, d.admission, deadline)
+		if !admitted {
+			return nil, refused, false
+		}
+		releaseShared, refused, acquired := acquire(ctx, d.semaphore, deadline)
+		if !acquired {
+			releaseAdmission()
+			return nil, refused, false
+		}
+		return func() {
+			releaseShared()
+			releaseAdmission()
+		}, dispatchOutcome{}, true
+	}
+	return acquire(ctx, d.semaphore, deadline)
+}
+
+// Check the deadline before select because select randomly chooses among ready
+// cases, including a free slot and an expired timer.
+func acquire(
+	ctx context.Context,
+	pool chan struct{},
+	deadline time.Time,
+) (release func(), outcome dispatchOutcome, ok bool) {
+	overCapacity := dispatchOutcome{result: ResultOverCapacity, err: context.DeadlineExceeded}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return nil, overCapacity, false
+	}
+	timer := time.NewTimer(remaining)
+	defer timer.Stop()
+	select {
+	case pool <- struct{}{}:
+		return func() { <-pool }, dispatchOutcome{}, true
+	case <-ctx.Done():
+		return nil, dispatchOutcome{result: ResultTimeout, err: ctx.Err()}, false
+	case <-timer.C:
+		return nil, overCapacity, false
+	}
 }
 
 func (d *Dispatcher) finish(

@@ -1293,10 +1293,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// strip the root-only orchestration guidance from their prompt.
 	deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
 
-	if limitErr := p.checkUsageLimit(ctx, p.db, parent.OwnerID, uuid.NullUUID{UUID: parent.OrganizationID, Valid: true}); limitErr != nil {
-		return database.Chat{}, limitErr
-	}
-
 	// Review before persistence so spawned chats cannot bypass prompt policy.
 	childChatID := uuid.New()
 	var promptResult *chathooks.Result
@@ -1313,7 +1309,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
 			RootChatID:   uuid.NullUUID{UUID: rootChatID, Valid: true},
 			TurnID:       &mintedTurnID,
-		}, promptMessage, agenthooks.EventUserPromptSubmit)
+		}, promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassGeneration)
 		if err != nil {
 			return database.Chat{}, chathooks.UserPromptDenial(err)
 		}

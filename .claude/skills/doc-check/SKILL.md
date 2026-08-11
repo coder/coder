@@ -58,6 +58,10 @@ writing them.
   below.
 - **Renames or moves**: See [Renames and moves require redirects](#renames-and-moves-require-redirects)
   below.
+- **Terminology and the glossary**: Does the change introduce, rename, or
+  deprecate a Coder product or feature name? If so,
+  `docs/reference/glossary.md` needs a matching entry. See
+  [Glossary and terminology](#glossary-and-terminology) below.
 
 ## What not to comment on
 
@@ -125,6 +129,24 @@ a separate repo, not in this one. When a doc page is renamed or moved:
 
 Do not create a `docs/_redirects` file in this repo; that format isn't
 processed by coder.com.
+
+### Glossary and terminology
+
+The [glossary](../../../docs/reference/glossary.md) defines Coder-specific
+product and feature names, including collisions like the several senses of
+"agent". It drifts when the product's vocabulary changes and the page
+doesn't. Flag a glossary update when a change:
+
+- Adds a Coder product or feature name that isn't in the glossary yet.
+- Renames one. The entry should keep the former name (for example,
+  "previously named ...").
+- Deprecates one. The entry should say so and name the replacement.
+
+This is the canonical rule in
+[Structural rules](../../../docs/.style/content-guidelines.md#structural-rules);
+the content guidelines govern. Don't flag generic lowercase concepts or
+internal-only identifiers with no user-facing surface; they don't earn a
+glossary entry.
 
 ## Coder-specific patterns
 

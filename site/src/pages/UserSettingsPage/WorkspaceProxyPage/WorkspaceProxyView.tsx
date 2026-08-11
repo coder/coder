@@ -18,6 +18,7 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ProxyRow } from "./WorkspaceProxyRow";
 
@@ -30,6 +31,7 @@ interface WorkspaceProxyViewProps {
 	preferredProxy?: Region;
 	selectProxyError?: unknown;
 	showPaywall: boolean;
+	permissions: Permissions;
 }
 
 export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
@@ -40,6 +42,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	hasLoaded,
 	selectProxyError,
 	showPaywall,
+	permissions,
 }) => {
 	return (
 		<div className="flex flex-col gap-4">
@@ -62,6 +65,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 					message="Workspace Proxies"
 					description="Workspace proxies provide low-latency connections for geo-distributed teams. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/networking/workspace-proxies")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (
 				<>

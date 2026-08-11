@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useRef } from "react";
+import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -11,17 +12,19 @@ import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatDiffContentsKey,
-	chatKey,
+	chatEntityKey,
+	chatListKey,
 	chatMessagesKey,
 	chatModelConfigs,
 	chatModelsKey,
 	chatPromptsKey,
-	chatsKey,
-	mcpServerConfigsKey,
+	mcpServersKey,
+	toChatListParams,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	MockChat,
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
@@ -32,6 +35,7 @@ import {
 	MockOrganizationMember2,
 	MockUserOwner,
 	MockWorkspace,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -270,7 +274,7 @@ const buildQueries = (
 		diff_status: diffStatus,
 	};
 	return [
-		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
+		{ key: chatEntityKey(CHAT_ID), data: chatWithDiffStatus },
 		{
 			key: chatMessagesKey(CHAT_ID),
 			data: { pages: [messagesData], pageParams: [undefined] },
@@ -281,7 +285,10 @@ const buildQueries = (
 				prompts: extractPromptsFromMessages(messagesData.messages),
 			} satisfies TypesGen.ChatPromptsResponse,
 		},
-		{ key: chatsKey, data: [chatWithDiffStatus] },
+		{
+			key: chatListKey(toChatListParams()),
+			data: { pages: [[chatWithDiffStatus]], pageParams: [0] },
+		},
 		{
 			key: chatDiffContentsKey(CHAT_ID),
 			data: {
@@ -296,7 +303,7 @@ const buildQueries = (
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
-		{ key: mcpServerConfigsKey, data: [] },
+		{ key: mcpServersKey, data: [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
 				action: "share",
@@ -305,6 +312,11 @@ const buildQueries = (
 		}),
 	];
 };
+
+const withoutQuery = (
+	queries: ReturnType<typeof buildQueries>,
+	queryKey: readonly unknown[],
+) => queries.filter(({ key }) => hashKey(key) !== hashKey(queryKey));
 
 // ---------------------------------------------------------------------------
 // Every-tool showcase: a single completed assistant turn that exercises
@@ -2240,6 +2252,84 @@ export const StreamedReasoning: Story = {
 // This made the stories render empty chats and fail interaction
 // tests in both local and CI environments.
 
+const mockNewestMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 30,
+	role: "assistant",
+	content: [{ type: "text", text: "Newest message" }],
+};
+
+const mockOlderRevision: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 20,
+	role: "assistant",
+	content: [{ type: "text", text: "Old revision" }],
+};
+
+const mockFreshRevision: TypesGen.ChatMessage = {
+	...mockOlderRevision,
+	content: [{ type: "text", text: "Fresh revision" }],
+};
+
+export const DurableUpdateFansOutToOlderPage: Story = {
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					{
+						id: CHAT_ID,
+						...baseChatFields,
+						title: "Fan-out chat",
+						status: "waiting",
+					},
+					{ messages: [], queued_messages: [], has_more: false },
+				),
+				chatMessagesKey(CHAT_ID),
+			),
+			{
+				key: chatMessagesKey(CHAT_ID),
+				data: {
+					pages: [
+						{
+							messages: [mockNewestMessage],
+							queued_messages: [],
+							has_more: true,
+						},
+						{
+							messages: [mockOlderRevision],
+							queued_messages: [],
+							has_more: false,
+						},
+					],
+					pageParams: [undefined, 30],
+				},
+			},
+		],
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						{
+							type: "message",
+							chat_id: CHAT_ID,
+							message: mockFreshRevision,
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Fresh revision")).toBeVisible();
+		await waitFor(() => {
+			expect(canvas.getAllByText("Fresh revision")).toHaveLength(1);
+		});
+		expect(canvas.queryByText("Old revision")).not.toBeInTheDocument();
+	},
+};
+
 /**
  * Live agent turn with streaming reasoning and a back-to-back flurry of
  * in-progress file tool calls. The persisted history establishes context
@@ -2983,7 +3073,7 @@ export const SendResponseAfterChatSwitch: Story = {
 				{ messages: [], queued_messages: [], has_more: false },
 				{ diffUrl: undefined },
 			),
-			{ key: chatKey(SWITCHED_CHAT_ID), data: switchedChat },
+			{ key: chatEntityKey(SWITCHED_CHAT_ID), data: switchedChat },
 			{
 				key: chatMessagesKey(SWITCHED_CHAT_ID),
 				data: {
@@ -3056,6 +3146,119 @@ export const SendResponseAfterChatSwitch: Story = {
 				canvas.queryByTestId("live-activity-slot"),
 			).not.toBeInTheDocument();
 		});
+	},
+};
+
+const mockErrorChat: TypesGen.Chat = {
+	...MockChat,
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Failing chat",
+};
+
+const mockServerError = {
+	...mockApiError({ message: "Internal server error." }),
+	status: 500,
+};
+
+export const DetailQueryError: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatEntityKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue(mockServerError);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", { name: "Try again" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const InitialMessagesError: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatMessagesKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatMessages").mockRejectedValue(
+			mockServerError,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+	},
+};
+
+export const ErrorRetryRecovers: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatEntityKey(CHAT_ID),
+		),
+	},
+	beforeEach: ({ parameters }) => {
+		const getChatSpy = spyOn(API.experimental, "getChat")
+			.mockRejectedValueOnce(mockServerError)
+			.mockResolvedValue(mockErrorChat);
+		parameters.getChatCallsForChat = () =>
+			getChatSpy.mock.calls.filter(([chatId]) => chatId === CHAT_ID).length;
+	},
+	play: async ({ canvasElement, parameters }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+		await waitFor(() => {
+			expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
+		});
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+		expect(parameters.getChatCallsForChat()).toBeGreaterThanOrEqual(2);
+	},
+};
+
+export const ChatNotFound: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatEntityKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue({
+			...mockApiError({ message: "Chat not found." }),
+			status: 404,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Chat not found")).toBeVisible();
+		expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
 	},
 };
 
