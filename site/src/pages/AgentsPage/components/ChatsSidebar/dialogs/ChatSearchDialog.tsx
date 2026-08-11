@@ -18,10 +18,10 @@ import { ChatSearchResults } from "./ChatSearchResults";
 import {
 	buildChatSearchQuery,
 	CHAT_SEARCH_FILTER_KEYS,
+	CHAT_SEARCH_KNOWN_FILTER_KEYS,
 	type ChatSearchFilterKey,
 	extractTypedFilters,
 	isValidChatSearchFilterValue,
-	KNOWN_FILTER_KEYS,
 } from "./searchQuery";
 
 // Filter definitions. Filters with a defaultValue are inserted as complete
@@ -177,9 +177,9 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		querySnapshot,
 		SEARCH_DEBOUNCE_MS,
 	);
-	const debouncedQueryInput: ReturnType<typeof buildChatSearchQuery> =
+	const debouncedQueryResult: ReturnType<typeof buildChatSearchQuery> =
 		JSON.parse(debouncedQuerySnapshot);
-	const { query: debouncedQuery, hasSearchText } = debouncedQueryInput;
+	const { query: debouncedQuery, hasSearchText } = debouncedQueryResult;
 	const hasQuery = hasActiveSearch && debouncedQuery !== undefined;
 
 	const searchQuery = useQuery({
@@ -302,7 +302,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		) {
 			const extracted = extractTypedFilters(
 				freeText,
-				KNOWN_FILTER_KEYS,
+				CHAT_SEARCH_KNOWN_FILTER_KEYS,
 				filters,
 			);
 			if (extracted.consumed) {

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildChatSearchQuery,
+	CHAT_SEARCH_KNOWN_FILTER_KEYS,
 	extractTypedFilters,
-	KNOWN_FILTER_KEYS,
 } from "./searchQuery";
 
-const knownKeys = KNOWN_FILTER_KEYS;
+const knownKeys = CHAT_SEARCH_KNOWN_FILTER_KEYS;
 
 describe("buildChatSearchQuery", () => {
 	it("returns no query for empty input", () => {
@@ -89,7 +89,7 @@ describe("buildChatSearchQuery", () => {
 	});
 
 	it("emits no-lexeme text without marking it searchable", () => {
-		for (const input of ["???", "___", ":-)", "!!!", "OR"]) {
+		for (const input of ["???", "___", ":-)", "!!!"]) {
 			expect(buildChatSearchQuery([], input)).toEqual({
 				query: `search:"${input}"`,
 				hasSearchText: false,
@@ -99,10 +99,14 @@ describe("buildChatSearchQuery", () => {
 			query: undefined,
 			hasSearchText: false,
 		});
-		expect(buildChatSearchQuery([], "or")).toEqual({
-			query: 'search:"or"',
-			hasSearchText: true,
-		});
+		// OR/AND/NOT are lexemes under the simple config (operators only between
+		// operands), so a lone operator word is searchable in any casing.
+		for (const input of ["or", "OR", "Or", "AND", "NOT"]) {
+			expect(buildChatSearchQuery([], input)).toEqual({
+				query: `search:"${input}"`,
+				hasSearchText: true,
+			});
+		}
 
 		expect(
 			buildChatSearchQuery([{ key: "has_unread", value: "true" }], "???"),

@@ -9,12 +9,12 @@ export const CHAT_SEARCH_FILTER_KEYS = [
 
 export type ChatSearchFilterKey = (typeof CHAT_SEARCH_FILTER_KEYS)[number];
 
-export const KNOWN_FILTER_KEYS: ReadonlySet<string> = new Set(
+export const CHAT_SEARCH_KNOWN_FILTER_KEYS: ReadonlySet<string> = new Set(
 	CHAT_SEARCH_FILTER_KEYS,
 );
 
 const isChatSearchFilterKey = (key: string): key is ChatSearchFilterKey =>
-	KNOWN_FILTER_KEYS.has(key);
+	CHAT_SEARCH_KNOWN_FILTER_KEYS.has(key);
 
 // The backend toggles its quoted state on every `"` and has no escape handling.
 // Stripping embedded quotes keeps the wrapper token well-formed.
@@ -115,9 +115,12 @@ export const buildChatSearchQuery = (
 	}
 
 	const text = sanitizeChatSearchValue(freeText).trim();
+	// A token with any letter or number is a searchable word under the 'simple'
+	// config, including OR/AND/NOT in any casing (they are operators only
+	// between operands). Only punctuation/symbol-only input has no lexemes.
 	const hasSearchText = text
 		.split(/\s+/)
-		.some((token) => token !== "OR" && /[\p{L}\p{N}]/u.test(token));
+		.some((token) => /[\p{L}\p{N}]/u.test(token));
 	if (text !== "") {
 		// Quotes make the complete search value one backend token. OR and
 		// -negation remain live; quoted phrases are flattened to AND-of-words
