@@ -166,16 +166,10 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 	go s.watchPolicy(runCtx, engine)
 	go batcher.Run(runCtx, eventFlushPeriod)
 
-	startedAt := time.Now()
 	enforcement := codersdk.AISandboxEgressEnforcementAdvisory
 	if forced {
 		enforcement = codersdk.AISandboxEgressEnforcementForced
 	}
-	s.postSession(agentsdk.PostAISandboxSessionRequest{
-		ID:                sessionID,
-		EgressEnforcement: enforcement,
-		StartedAt:         startedAt,
-	})
 
 	proxyURL := "http://" + proxy.Addr().String()
 	childEnv := childEnvironment(s.options.Env, proxyURL, enforcement)
@@ -184,21 +178,53 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 		childArgs = netns.execArgs(childArgs)
 	}
 
+	var startedAt time.Time
+	childStarted := make(chan struct{})
+	sessionTriggered := make(chan struct{})
+	sessionAbort := make(chan struct{})
+	sessionReported := make(chan struct{})
+	go func() {
+		defer close(sessionReported)
+		select {
+		case <-childStarted:
+			close(sessionTriggered)
+			s.postSession(agentsdk.PostAISandboxSessionRequest{
+				ID:                sessionID,
+				EgressEnforcement: enforcement,
+				StartedAt:         startedAt,
+			})
+		case <-sessionAbort:
+		}
+	}()
+
+	childDidStart := false
 	exitCode, forkErr := reaper.ForkReap(
 		reaper.WithExecArgs(childArgs...),
 		reaper.WithEnv(childEnv),
+		reaper.WithStartCallback(func(_ int) {
+			startedAt = time.Now()
+			childDidStart = true
+			close(childStarted)
+			<-sessionTriggered
+		}),
 		reaper.WithCatchSignals(s.options.CatchSignals...),
 		reaper.WithLogger(s.options.Logger),
 	)
+	if !childDidStart {
+		close(sessionAbort)
+	}
+	<-sessionReported
 	stop()
 	batcher.Flush()
-	endedAt := time.Now()
-	s.postSession(agentsdk.PostAISandboxSessionRequest{
-		ID:                sessionID,
-		EgressEnforcement: enforcement,
-		StartedAt:         startedAt,
-		EndedAt:           &endedAt,
-	})
+	if childDidStart {
+		endedAt := time.Now()
+		s.postSession(agentsdk.PostAISandboxSessionRequest{
+			ID:                sessionID,
+			EgressEnforcement: enforcement,
+			StartedAt:         startedAt,
+			EndedAt:           &endedAt,
+		})
+	}
 	return exitCode, forkErr
 }
 
@@ -230,7 +256,9 @@ func (s *Supervisor) watchPolicy(ctx context.Context, engine *PolicyEngine) {
 		for policy := range policies {
 			engine.Update(policy)
 		}
-		_ = closer.Close()
+		if closer != nil {
+			_ = closer.Close()
+		}
 		if !waitBackoff(ctx, backoff) {
 			return
 		}
