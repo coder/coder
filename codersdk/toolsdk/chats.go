@@ -212,6 +212,24 @@ type GetChatMessagesResponse struct {
 	// true. It is derived from the unfiltered API page, so it stays valid
 	// even when every message in this page was filtered out as non-text.
 	NextBeforeID int64 `json:"next_before_id,omitempty"`
+	// QueuedMessages holds prompts waiting for the current run to finish.
+	// The API returns them only on the initial page (no cursor).
+	QueuedMessages []string `json:"queued_messages,omitempty"`
+}
+
+// userFacingText concatenates the user-facing text parts of a message.
+// Hook notices are user-facing per the SDK part contract, unlike hook
+// context, which is model-only.
+func userFacingText(parts []codersdk.ChatMessagePart) string {
+	var texts []string
+	for _, part := range parts {
+		isUserFacingText := part.Type == codersdk.ChatMessagePartTypeText ||
+			part.Type == codersdk.ChatMessagePartTypeHookNotice
+		if isUserFacingText && part.Text != "" {
+			texts = append(texts, part.Text)
+		}
+	}
+	return strings.Join(texts, "\n")
 }
 
 var GetChatMessages = Tool[GetChatMessagesArgs, GetChatMessagesResponse]{
@@ -219,7 +237,7 @@ var GetChatMessages = Tool[GetChatMessagesArgs, GetChatMessagesResponse]{
 		Name: ToolNameGetChatMessages,
 		Description: `Get the newest messages of a Coder Agents chat in chronological order.
 
-Only user-facing text content is returned (including lifecycle hook notices); tool calls and other internal parts are omitted. When has_more is true, pass next_before_id as before_id to page through older messages.`,
+Only user-facing text content is returned (including lifecycle hook notices); tool calls and other internal parts are omitted. Prompts still queued behind a busy chat appear in queued_messages. When has_more is true, pass next_before_id as before_id to page through older messages.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
@@ -266,25 +284,22 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 		messages := make([]ChatToolMessage, 0, len(resp.Messages))
 		for i := len(resp.Messages) - 1; i >= 0; i-- {
 			msg := resp.Messages[i]
-			var texts []string
-			for _, part := range msg.Content {
-				// Hook notices are user-facing per the SDK part contract,
-				// unlike hook context, which is model-only.
-				isUserFacingText := part.Type == codersdk.ChatMessagePartTypeText ||
-					part.Type == codersdk.ChatMessagePartTypeHookNotice
-				if isUserFacingText && part.Text != "" {
-					texts = append(texts, part.Text)
-				}
-			}
-			if len(texts) == 0 {
+			text := userFacingText(msg.Content)
+			if text == "" {
 				continue
 			}
 			messages = append(messages, ChatToolMessage{
 				ID:        msg.ID,
 				Role:      msg.Role,
 				CreatedAt: msg.CreatedAt,
-				Text:      strings.Join(texts, "\n"),
+				Text:      text,
 			})
+		}
+		var queued []string
+		for _, msg := range resp.QueuedMessages {
+			if text := userFacingText(msg.Content); text != "" {
+				queued = append(queued, text)
+			}
 		}
 		var nextBeforeID int64
 		if resp.HasMore && len(resp.Messages) > 0 {
@@ -296,9 +311,10 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 			}
 		}
 		return GetChatMessagesResponse{
-			Messages:     messages,
-			HasMore:      resp.HasMore,
-			NextBeforeID: nextBeforeID,
+			Messages:       messages,
+			HasMore:        resp.HasMore,
+			NextBeforeID:   nextBeforeID,
+			QueuedMessages: queued,
 		}, nil
 	},
 }
@@ -485,8 +501,14 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 			// Deployment-config readers without AI provider read access
 			// (such as auditors) receive the unverifiable admin list, so
 			// fail closed instead of leaking provider-disabled configs.
-			if _, dcErr := deps.coderClient.DeploymentConfig(ctx); dcErr == nil {
+			// Only a confirmed 403 selects the member path, whose list
+			// the server already filtered.
+			_, dcErr := deps.coderClient.DeploymentConfig(ctx)
+			switch {
+			case dcErr == nil:
 				return ListChatModelConfigsResponse{}, xerrors.New("cannot verify provider availability for the admin model config list: missing AI provider read permission")
+			case !isForbiddenError(dcErr):
+				return ListChatModelConfigsResponse{}, xerrors.Errorf("verify deployment config access: %w", dcErr)
 			}
 		default:
 			return ListChatModelConfigsResponse{}, xerrors.Errorf("list AI providers: %w", err)

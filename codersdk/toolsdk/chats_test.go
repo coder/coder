@@ -1,10 +1,12 @@
 package toolsdk_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -18,6 +20,18 @@ import (
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// failPathTransport fails requests to one path and passes the rest through.
+type failPathTransport struct {
+	path string
+}
+
+func (t *failPathTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Path == t.path {
+		return nil, xerrors.New("transport down")
+	}
+	return http.DefaultTransport.RoundTrip(req)
+}
 
 // Chat tools need a chat-enabled coderd (provider keys, a default model
 // config, and an AI bridge daemon), so they are tested separately from
@@ -195,6 +209,18 @@ func TestChatTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusRunning, created.Status)
 
+		// While the run is blocked, a queued send must surface in the
+		// transcript's queued_messages rather than disappearing.
+		sent, err := testTool(t, toolsdk.SendChatMessage, tb, toolsdk.SendChatMessageArgs{
+			ChatID: created.ID,
+			Text:   "Queued while busy.",
+		})
+		require.NoError(t, err)
+		require.True(t, sent.Queued)
+		transcript, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{ChatID: created.ID})
+		require.NoError(t, err)
+		require.Contains(t, transcript.QueuedMessages, "Queued while busy.")
+
 		interrupted, err := testTool(t, toolsdk.InterruptChat, tb, toolsdk.InterruptChatArgs{ChatID: created.ID})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusInterrupting, interrupted.Status)
@@ -223,6 +249,19 @@ func TestChatTools(t *testing.T) {
 		require.NoError(t, err)
 		_, err = testTool(t, toolsdk.ListChatModelConfigs, auditorDeps, toolsdk.NoArgs{})
 		require.ErrorContains(t, err, "missing AI provider read permission")
+
+		// A failing deployment-config probe must propagate, not fall
+		// through to the fail-open member path.
+		brokenProbeClient := codersdk.New(auditorClient.URL)
+		brokenProbeClient.SetSessionToken(auditorClient.SessionToken())
+		brokenProbeClient.HTTPClient = &http.Client{
+			Transport: &failPathTransport{path: "/api/v2/deployment/config"},
+		}
+		t.Cleanup(brokenProbeClient.HTTPClient.CloseIdleConnections)
+		brokenProbeDeps, err := toolsdk.NewDeps(brokenProbeClient)
+		require.NoError(t, err)
+		_, err = testTool(t, toolsdk.ListChatModelConfigs, brokenProbeDeps, toolsdk.NoArgs{})
+		require.ErrorContains(t, err, "verify deployment config access")
 	})
 
 	t.Run("CreateChatZeroOrgUser", func(t *testing.T) {
