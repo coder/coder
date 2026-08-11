@@ -4,6 +4,7 @@ import {
 	useCallback,
 	useEffect,
 	useReducer,
+	useRef,
 } from "react";
 
 import { useQuery } from "react-query";
@@ -179,6 +180,69 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		});
 	};
 
+	// Maps module id -> its config section node, populated by
+	// ModuleSettingsStep via callback refs. Used to scroll a module into
+	// view without relying on DOM ids.
+	const moduleRefs = useRef(new Map<string, HTMLDivElement>());
+
+	const registerModuleRef = useCallback(
+		(moduleId: string, node: HTMLDivElement | null) => {
+			if (node) {
+				moduleRefs.current.set(moduleId, node);
+			} else {
+				moduleRefs.current.delete(moduleId);
+			}
+		},
+		[],
+	);
+
+	// Holds the module a sidebar click wants to scroll to, so the scroll can
+	// happen after the module-settings step has rendered.
+	const pendingModuleScrollRef = useRef<string | null>(null);
+
+	const scrollModuleIntoView = (moduleId: string) => {
+		moduleRefs.current.get(moduleId)?.scrollIntoView({ behavior: "smooth" });
+	};
+
+	// Sidebar module rows call this to jump to a module's configuration.
+	const navigateToModule = (moduleId: string) => {
+		const settingsIndex = WIZARD_STEPS.findIndex(
+			(s) => s.id === "module-settings",
+		);
+		const settingsVisible =
+			settingsIndex >= 0 && !WIZARD_STEPS[settingsIndex].shouldSkip(state);
+
+		// If module-settings is skipped (no configurable vars) there is no
+		// card to scroll to, so the click is a no-op.
+		if (!settingsVisible) {
+			return;
+		}
+
+		if (currentStep.id === "module-settings") {
+			scrollModuleIntoView(moduleId);
+			return;
+		}
+		// Remember the target and scroll once the step has rendered.
+		pendingModuleScrollRef.current = moduleId;
+		navigateToStep(settingsIndex);
+	};
+
+	// Runs after the scroll-reset effect above (declared earlier, so it fires
+	// first). Scrolls the requested module into view once module-settings
+	// has rendered.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: run on step change
+	useEffect(() => {
+		if (currentStep.id !== "module-settings") {
+			return;
+		}
+		const moduleId = pendingModuleScrollRef.current;
+		if (!moduleId) {
+			return;
+		}
+		pendingModuleScrollRef.current = null;
+		requestAnimationFrame(() => scrollModuleIntoView(moduleId));
+	}, [currentStep.id]);
+
 	if (isCreating) {
 		return <BuildingTemplateLoader />;
 	}
@@ -213,6 +277,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							createError,
 							handleProvisionerStatusChange,
 							handleDeselectModule,
+							registerModuleRef,
 						)}
 					</div>
 
@@ -237,6 +302,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				<div className="w-64 shrink-0 hidden md:block sticky top-[72px] self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
+						onNavigateModule={navigateToModule}
 						selectedTemplate={
 							state.selectedBase
 								? {
@@ -265,6 +331,7 @@ function renderStepContent(
 	createError: Error | null,
 	onProvisionerStatusChange: (value: boolean | undefined) => void,
 	onRemoveModule: (moduleId: string) => void,
+	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void,
 ): ReactNode {
 	switch (stepId) {
 		case "base-infra":
@@ -311,6 +378,7 @@ function renderStepContent(
 						})
 					}
 					onRemoveModule={onRemoveModule}
+					registerModuleRef={registerModuleRef}
 				/>
 			);
 		case "customizations":

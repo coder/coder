@@ -1814,7 +1814,7 @@ Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this opti
 | Environment | <code>$CODER_AI_GATEWAY_BEDROCK_REGION</code> |
 | YAML        | <code>ai_gateway.bedrock_region</code>        |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.
 
 ### --ai-gateway-bedrock-access-key
 

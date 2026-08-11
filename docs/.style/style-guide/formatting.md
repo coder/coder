@@ -27,17 +27,28 @@ What doesn't get its own line:
 - Source inside fenced code blocks, where the language's own conventions apply.
 - Table rows, which are governed by `markdown-table-formatter`.
 
+The examples show Markdown source, not rendered output, because the convention governs how the source lines are laid out.
+
 **Do**:
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```md
+The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```
 
 **Don't** (mid-sentence clause breaks):
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```md
+The Coder agent connects to the workspace,
+opens a Tailscale tunnel,
+and forwards SSH and IDE traffic over the tunnel.
+```
 
 **Don't** (fixed column wrap):
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```md
+The Coder agent connects to the workspace, opens a Tailscale
+tunnel, and forwards SSH and IDE traffic over the tunnel.
+```
 
 Both **Don't** versions add noise to the source and produce diff churn on small edits.
 

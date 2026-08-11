@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -19,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -405,5 +407,45 @@ func TestRewriteChatStartWorkspaceManualUpdateResponse(t *testing.T) {
 			require.Equal(t, tt.wantDetail, got.Detail)
 			require.Equal(t, tt.resp.Validations, got.Validations)
 		})
+	}
+}
+
+// Every ChatModelCallConfig field must classify a config as non-zero when set,
+// or unmarshalChatModelCallConfig hides it from API responses while the stored
+// value stays active. Fails when a new field is added without a sample here.
+func TestIsZeroChatModelCallConfigCoversEveryField(t *testing.T) {
+	t.Parallel()
+
+	sampled := codersdk.ChatModelCallConfig{
+		MaxOutputTokens:  ptr.Ref(int64(4096)),
+		Temperature:      ptr.Ref(0.7),
+		TopP:             ptr.Ref(0.9),
+		TopK:             ptr.Ref(int64(40)),
+		PresencePenalty:  ptr.Ref(0.1),
+		FrequencyPenalty: ptr.Ref(0.2),
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+			Default: ptr.Ref("medium"),
+		},
+		OpenAIConfig: &codersdk.ChatModelOpenAIConfig{
+			UseResponsesAPI: ptr.Ref(true),
+		},
+		ProviderOptions: &codersdk.ChatModelProviderOptions{
+			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{},
+		},
+	}
+
+	require.True(t, isZeroChatModelCallConfig(nil))
+	require.True(t, isZeroChatModelCallConfig(&codersdk.ChatModelCallConfig{}))
+
+	sampledValue := reflect.ValueOf(sampled)
+	for i := 0; i < sampledValue.NumField(); i++ {
+		field := sampledValue.Type().Field(i)
+		require.Falsef(t, sampledValue.Field(i).IsZero(),
+			"field %s needs a non-zero sample value", field.Name)
+
+		config := &codersdk.ChatModelCallConfig{}
+		reflect.ValueOf(config).Elem().Field(i).Set(sampledValue.Field(i))
+		require.Falsef(t, isZeroChatModelCallConfig(config),
+			"isZeroChatModelCallConfig ignores field %s", field.Name)
 	}
 }

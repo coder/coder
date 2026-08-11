@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
 const meta: Meta<typeof ExternalAuthSettingsPageView> = {
@@ -38,4 +39,24 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
 export default meta;
 type Story = StoryObj<typeof ExternalAuthSettingsPageView>;
 
-export const Page: Story = {};
+export const Page: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const notice = canvas.getByRole("alert");
+		await expect(within(notice).getByText("Premium")).toBeVisible();
+		await expect(
+			within(notice).getByRole("link", {
+				name: "Read the External Authentication documentation",
+			}),
+		).toBeVisible();
+	},
+};
+
+export const Empty: Story = {
+	args: {
+		config: {
+			external_auth: [],
+		},
+	},
+};

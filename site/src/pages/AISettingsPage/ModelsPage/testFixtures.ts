@@ -106,6 +106,20 @@ export const MockBedrockProviderState: ProviderState = {
 	modelConfigs: [mockBedrockClaude],
 };
 
+export const MockAzureProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-azure",
+	provider: "azure",
+	label: "Azure OpenAI",
+	providerConfig: {
+		...MockOpenAIProviderConfig,
+		id: "prov-azure",
+		provider: "azure",
+		display_name: "Azure OpenAI",
+	},
+	modelConfigs: [],
+};
+
 const MockDisabledProviderConfig: ChatProviderConfig = {
 	...MockOpenAIProviderConfig,
 	id: "prov-openai-disabled",

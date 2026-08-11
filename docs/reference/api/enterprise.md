@@ -2317,6 +2317,77 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get groups by organization (paginated)
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginated-groups \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/paginated-groups`
+
+Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
+which authorizes each group individually via its ACL, this endpoint requires
+organization-wide group read permission and does no per-group filtering. It is
+therefore not a drop-in replacement: callers without org-wide group read receive
+an error rather than a filtered subset.
+
+The `q` parameter uses the shared filter syntax. Bare terms (including multi-word)
+perform a free-text search over group name and display name. `search:` is the only
+accepted key and unknown keys return 400. Because group display names may contain
+colons, a value with a colon must be quoted, e.g. `search:"team: frontend"`; an
+unquoted colon fails with `Query element "team:" cannot start or end with ':'`.
+
+This endpoint returns group summaries without the member roster: each group
+carries only `total_member_count` and no `members` field. Callers that need the
+roster use the group members endpoint (GET /groups/{group}/members).
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description                                                 |
+|----------------|-------|--------------|----------|-------------------------------------------------------------|
+| `organization` | path  | string       | true     | Organization ID or name                                     |
+| `q`            | query | string       | false    | Search query (see description for syntax and colon-quoting) |
+| `limit`        | query | integer      | false    | Page limit                                                  |
+| `offset`       | query | integer      | false    | Page offset                                                 |
+| `after_id`     | query | string(uuid) | false    | After ID                                                    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "source": "user",
+      "total_member_count": 0
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                         |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.PaginatedGroupsResponse](schemas.md#codersdkpaginatedgroupsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Serve provisioner daemon
 
 ### Code samples
@@ -5182,7 +5253,7 @@ curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/Users \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `GET /scim/v2/Users`
@@ -5204,7 +5275,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X POST http://coder-server:8080/scim/v2/Users \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `POST /scim/v2/Users`
@@ -5294,7 +5365,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/Users/{id} \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `GET /scim/v2/Users/{id}`
@@ -5322,7 +5393,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `PUT /scim/v2/Users/{id}`
@@ -5414,7 +5485,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
-  -H 'Authorizaiton: API_KEY'
+  -H 'Authorization: API_KEY'
 ```
 
 `PATCH /scim/v2/Users/{id}`

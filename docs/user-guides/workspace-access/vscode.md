@@ -148,7 +148,7 @@ Web or using the workspace's terminal.
    files into the newly created folder.
 
    ```dockerfile
-   FROM codercom/enterprise-base:ubuntu
+   FROM codercom/example-base:ubuntu
 
    # Run below commands as root user
    USER root

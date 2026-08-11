@@ -872,85 +872,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().SoftDeleteContextFileMessages(gomock.Any(), chat.ID).Return(nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
-	s.Run("GetChatCostPerChat", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetChatCostPerChatParams{
-			OwnerID:   uuid.New(),
-			StartDate: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:   time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
-		}
-		rows := []database.GetChatCostPerChatRow{{
-			RootChatID:        uuid.New(),
-			ChatTitle:         "chat-cost",
-			TotalCostMicros:   123,
-			MessageCount:      4,
-			TotalInputTokens:  55,
-			TotalOutputTokens: 89,
-		}}
-		dbm.EXPECT().GetChatCostPerChat(gomock.Any(), arg).Return(rows, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization(), policy.ActionRead).Returns(rows)
-	}))
-	s.Run("GetChatCostPerModel", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetChatCostPerModelParams{
-			OwnerID:   uuid.New(),
-			StartDate: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:   time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
-		}
-		rows := []database.GetChatCostPerModelRow{{
-			ModelConfigID:     uuid.New(),
-			DisplayName:       "GPT 4.1",
-			Provider:          "openai",
-			Model:             "gpt-4.1",
-			TotalCostMicros:   456,
-			MessageCount:      7,
-			TotalInputTokens:  144,
-			TotalOutputTokens: 233,
-		}}
-		dbm.EXPECT().GetChatCostPerModel(gomock.Any(), arg).Return(rows, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization(), policy.ActionRead).Returns(rows)
-	}))
-	s.Run("GetChatCostPerUser", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetChatCostPerUserParams{
-			PageOffset: 0,
-			PageLimit:  25,
-			StartDate:  time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:    time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
-			Username:   "cost-user",
-		}
-		rows := []database.GetChatCostPerUserRow{{
-			UserID:            uuid.New(),
-			Username:          "cost-user",
-			Name:              "Cost User",
-			AvatarURL:         "https://example.com/avatar.png",
-			TotalCostMicros:   789,
-			MessageCount:      11,
-			ChatCount:         3,
-			TotalInputTokens:  377,
-			TotalOutputTokens: 610,
-			TotalCount:        1,
-		}}
-		dbm.EXPECT().GetChatCostPerUser(gomock.Any(), arg).Return(rows, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(rows)
-	}))
-	s.Run("GetChatCostSummary", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetChatCostSummaryParams{
-			OwnerID:   uuid.New(),
-			StartDate: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:   time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
-		}
-		row := database.GetChatCostSummaryRow{
-			TotalCostMicros:                  987,
-			PricedMessageCount:               12,
-			UnpricedMessagesHavingUsageCount: 2,
-			TotalInputTokens:                 400,
-			TotalOutputTokens:                800,
-		}
-		dbm.EXPECT().GetChatCostSummary(gomock.Any(), arg).Return(row, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization(), policy.ActionRead).Returns(row)
-	}))
-	s.Run("CountEnabledModelsWithoutPricing", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().CountEnabledModelsWithoutPricing(gomock.Any()).Return(int64(3), nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(int64(3))
-	}))
 	s.Run("GetChatDiffStatusByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		diffStatus := testutil.Fake(s.T(), faker, database.ChatDiffStatus{ChatID: chat.ID})
@@ -1074,13 +995,6 @@ func (s *MethodTestSuite) TestChats() {
 		row := database.GetAIBridgeChatCostRow{TotalCostMicros: 1000, RequestCount: 2}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), chat.ID).Return(row, nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(row)
-	}))
-	s.Run("GetChatModelUsageCostByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		row := database.GetChatModelUsageCostByChatIDRow{ChatID: chat.ID, TotalCostMicros: 1000, PricedMessageCount: 2}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetChatModelUsageCostByChatID(gomock.Any(), chat.ID).Return(row, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(row)
 	}))
 	s.Run("GetChatMessagesByChatIDAscPaginated", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -1243,10 +1157,6 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetChatPlanModeInstructions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatPlanModeInstructions(gomock.Any()).Return("", nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
-	s.Run("GetChatTemplateAllowlist", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetChatTemplateAllowlist(gomock.Any()).Return("", nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
 	}))
 	s.Run("GetChatWorkspaceTTL", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatWorkspaceTTL(gomock.Any()).Return("1h", nil).AnyTimes()
@@ -1680,159 +1590,9 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatPlanModeInstructions(gomock.Any(), "").Return(nil).AnyTimes()
 		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("UpsertChatTemplateAllowlist", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UpsertChatTemplateAllowlist(gomock.Any(), "").Return(nil).AnyTimes()
-		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
 	s.Run("UpsertChatWorkspaceTTL", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertChatWorkspaceTTL(gomock.Any(), "1h").Return(nil).AnyTimes()
 		check.Args("1h").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
-	s.Run("GetUserChatSpendInPeriod", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetUserChatSpendInPeriodParams{
-			UserID:         uuid.New(),
-			OrganizationID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
-
-			StartTime: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-			EndTime:   time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
-		}
-		spend := int64(123)
-		dbm.EXPECT().GetUserChatSpendInPeriod(gomock.Any(), arg).Return(spend, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.UserID.String()), policy.ActionRead).Returns(spend)
-	}))
-	s.Run("GetUserGroupSpendLimit", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetUserGroupSpendLimitParams{
-			UserID:         uuid.New(),
-			OrganizationID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		}
-		limit := int64(456)
-		dbm.EXPECT().GetUserGroupSpendLimit(gomock.Any(), arg).Return(limit, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.UserID.String()), policy.ActionRead).Returns(limit)
-	}))
-
-	s.Run("ResolveUserChatSpendLimit", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.ResolveUserChatSpendLimitParams{
-			UserID:         uuid.New(),
-			OrganizationID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		}
-		row := database.ResolveUserChatSpendLimitRow{EffectiveLimitMicros: 789, LimitSource: "group"}
-		dbm.EXPECT().ResolveUserChatSpendLimit(gomock.Any(), arg).Return(row, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.UserID.String()), policy.ActionRead).Returns(row)
-	}))
-
-	s.Run("GetChatUsageLimitConfig", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		now := dbtime.Now()
-		config := database.ChatUsageLimitConfig{
-			ID:                 1,
-			Singleton:          true,
-			Enabled:            true,
-			DefaultLimitMicros: 1_000_000,
-			Period:             "monthly",
-			CreatedAt:          now,
-			UpdatedAt:          now,
-		}
-		dbm.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(config, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(config)
-	}))
-	s.Run("GetChatUsageLimitGroupOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		groupID := uuid.New()
-		override := database.GetChatUsageLimitGroupOverrideRow{
-			GroupID:          groupID,
-			SpendLimitMicros: sql.NullInt64{Int64: 2_000_000, Valid: true},
-		}
-		dbm.EXPECT().GetChatUsageLimitGroupOverride(gomock.Any(), groupID).Return(override, nil).AnyTimes()
-		check.Args(groupID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(override)
-	}))
-	s.Run("GetChatUsageLimitUserOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		userID := uuid.New()
-		override := database.GetChatUsageLimitUserOverrideRow{
-			UserID:           userID,
-			SpendLimitMicros: sql.NullInt64{Int64: 3_000_000, Valid: true},
-		}
-		dbm.EXPECT().GetChatUsageLimitUserOverride(gomock.Any(), userID).Return(override, nil).AnyTimes()
-		check.Args(userID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(override)
-	}))
-	s.Run("ListChatUsageLimitGroupOverrides", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		overrides := []database.ListChatUsageLimitGroupOverridesRow{{
-			GroupID:          uuid.New(),
-			GroupName:        "group-name",
-			GroupDisplayName: "Group Name",
-			GroupAvatarUrl:   "https://example.com/group.png",
-			SpendLimitMicros: sql.NullInt64{Int64: 4_000_000, Valid: true},
-			MemberCount:      5,
-		}}
-		dbm.EXPECT().ListChatUsageLimitGroupOverrides(gomock.Any()).Return(overrides, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(overrides)
-	}))
-	s.Run("ListChatUsageLimitOverrides", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		overrides := []database.ListChatUsageLimitOverridesRow{{
-			UserID:           uuid.New(),
-			Username:         "usage-limit-user",
-			Name:             "Usage Limit User",
-			AvatarURL:        "https://example.com/avatar.png",
-			SpendLimitMicros: sql.NullInt64{Int64: 5_000_000, Valid: true},
-		}}
-		dbm.EXPECT().ListChatUsageLimitOverrides(gomock.Any()).Return(overrides, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(overrides)
-	}))
-	s.Run("UpsertChatUsageLimitConfig", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		now := dbtime.Now()
-		arg := database.UpsertChatUsageLimitConfigParams{
-			Enabled:            true,
-			DefaultLimitMicros: 6_000_000,
-			Period:             "monthly",
-		}
-		config := database.ChatUsageLimitConfig{
-			ID:                 1,
-			Singleton:          true,
-			Enabled:            arg.Enabled,
-			DefaultLimitMicros: arg.DefaultLimitMicros,
-			Period:             arg.Period,
-			CreatedAt:          now,
-			UpdatedAt:          now,
-		}
-		dbm.EXPECT().UpsertChatUsageLimitConfig(gomock.Any(), arg).Return(config, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
-	}))
-	s.Run("UpsertChatUsageLimitGroupOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.UpsertChatUsageLimitGroupOverrideParams{
-			SpendLimitMicros: 7_000_000,
-			GroupID:          uuid.New(),
-		}
-		override := database.UpsertChatUsageLimitGroupOverrideRow{
-			GroupID:          arg.GroupID,
-			Name:             "group",
-			DisplayName:      "Group",
-			AvatarURL:        "",
-			SpendLimitMicros: sql.NullInt64{Int64: arg.SpendLimitMicros, Valid: true},
-		}
-		dbm.EXPECT().UpsertChatUsageLimitGroupOverride(gomock.Any(), arg).Return(override, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(override)
-	}))
-	s.Run("UpsertChatUsageLimitUserOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.UpsertChatUsageLimitUserOverrideParams{
-			SpendLimitMicros: 8_000_000,
-			UserID:           uuid.New(),
-		}
-		override := database.UpsertChatUsageLimitUserOverrideRow{
-			UserID:           arg.UserID,
-			Username:         "user",
-			Name:             "User",
-			AvatarURL:        "",
-			SpendLimitMicros: sql.NullInt64{Int64: arg.SpendLimitMicros, Valid: true},
-		}
-		dbm.EXPECT().UpsertChatUsageLimitUserOverride(gomock.Any(), arg).Return(override, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(override)
-	}))
-	s.Run("DeleteChatUsageLimitGroupOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		groupID := uuid.New()
-		dbm.EXPECT().DeleteChatUsageLimitGroupOverride(gomock.Any(), groupID).Return(nil).AnyTimes()
-		check.Args(groupID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
-	s.Run("DeleteChatUsageLimitUserOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		userID := uuid.New()
-		dbm.EXPECT().DeleteChatUsageLimitUserOverride(gomock.Any(), userID).Return(nil).AnyTimes()
-		check.Args(userID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("CleanupDeletedMCPServerIDsFromChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().CleanupDeletedMCPServerIDsFromChats(gomock.Any()).Return(nil).AnyTimes()
@@ -2592,6 +2352,19 @@ func (s *MethodTestSuite) TestOrganization() {
 		dbm.EXPECT().OrganizationMembers(gomock.Any(), gomock.AssignableToTypeOf(database.OrganizationMembersParams{})).Return([]database.OrganizationMembersRow{{OrganizationMember: mem}}, nil).AnyTimes()
 
 		check.Args(arg).Asserts(mem, policy.ActionRead)
+	}))
+	s.Run("GetGroupsByOrganizationIDPaginated", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		g := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		arg := database.GetGroupsByOrganizationIDPaginatedParams{OrganizationID: o.ID, LimitOpt: 0}
+		rows := []database.GetGroupsByOrganizationIDPaginatedRow{{
+			Group:                   g,
+			OrganizationName:        o.Name,
+			OrganizationDisplayName: o.DisplayName,
+			Count:                   1,
+		}}
+		dbm.EXPECT().GetGroupsByOrganizationIDPaginated(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead).Returns(rows)
 	}))
 	s.Run("PaginatedOrganizationMembers", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		o := testutil.Fake(s.T(), faker, database.Organization{})
@@ -6044,7 +5817,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		})
 		for i := 0; i < 5; i++ {
 			_ = dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
-				AppSecretID: secret.ID,
+				AppID:       app.ID,
+				AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 				APIKeyID:    key.ID,
 				UserID:      user.ID,
 				HashPrefix:  []byte(fmt.Sprintf("%d", i)),
@@ -6061,7 +5835,11 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		})
 	}))
 	s.Run("InsertOAuth2ProviderApp", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertOAuth2ProviderAppParams{}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
+		// client_type is NOT NULL with a CHECK for the two canonical values, and
+		// the insert always sends the column, so the zero value cannot be used.
+		check.Args(database.InsertOAuth2ProviderAppParams{
+			ClientType: "confidential",
+		}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -6252,7 +6030,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppID: app.ID,
 		})
 		check.Args(database.InsertOAuth2ProviderAppTokenParams{
-			AppSecretID: secret.ID,
+			AppID:       app.ID,
+			AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 			APIKeyID:    key.ID,
 			UserID:      user.ID,
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionCreate)
@@ -6267,7 +6046,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppID: app.ID,
 		})
 		token := dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
-			AppSecretID: secret.ID,
+			AppID:       app.ID,
+			AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 			APIKeyID:    key.ID,
 			UserID:      user.ID,
 		})
@@ -6283,7 +6063,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppID: app.ID,
 		})
 		token := dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
-			AppSecretID: secret.ID,
+			AppID:       app.ID,
+			AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 			APIKeyID:    key.ID,
 			UserID:      user.ID,
 		})
@@ -6301,7 +6082,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 		})
 		for i := 0; i < 5; i++ {
 			_ = dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
-				AppSecretID: secret.ID,
+				AppID:       app.ID,
+				AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 				APIKeyID:    key.ID,
 				UserID:      user.ID,
 				HashPrefix:  []byte(fmt.Sprintf("%d", i)),
@@ -6973,6 +6755,12 @@ func (s *MethodTestSuite) TestAIBridge() {
 		params := database.GetAIBridgeSessionTopDomainsParams{SessionID: "sess", Limit: 5}
 		db.EXPECT().GetAIBridgeSessionTopDomains(gomock.Any(), params).Return([]database.GetAIBridgeSessionTopDomainsRow{}, nil).AnyTimes()
 		check.Args(params).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.GetAIBridgeSessionTopDomainsRow{})
+	}))
+
+	s.Run("ListAIBridgeSessionNetworkCalls", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListAIBridgeSessionNetworkCallsParams{SessionID: "sess", Limit: 1000}
+		db.EXPECT().ListAIBridgeSessionNetworkCalls(gomock.Any(), params).Return([]database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.BoundaryLog{})
 	}))
 
 	s.Run("ListAIBridgeTokenUsagesByInterceptionIDs", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

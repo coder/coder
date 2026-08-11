@@ -1,6 +1,6 @@
 import { type FC, useState } from "react";
 import { Button } from "#/components/Button/Button";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { FormSection, HorizontalForm } from "#/components/Form/Form";
 
 type DeleteOrganizationSectionProps = {

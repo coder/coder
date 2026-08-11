@@ -78,7 +78,7 @@ func (c *Client) TemplateBuilderBases(ctx context.Context) (TemplateBuilderBases
 		return TemplateBuilderBasesResponse{}, ReadBodyAsError(res)
 	}
 	var resp TemplateBuilderBasesResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // TemplateBuilderModules returns the list of modules available for a given
@@ -98,7 +98,7 @@ func (c *Client) TemplateBuilderModules(ctx context.Context, base string) (Templ
 		return TemplateBuilderModulesResponse{}, ReadBodyAsError(res)
 	}
 	var resp TemplateBuilderModulesResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // TemplateBuilderComposeRequest is the request body for
@@ -196,5 +196,5 @@ func (c *Client) TemplateBuilderCreateTemplate(ctx context.Context, req Template
 		return TemplateBuilderCreateTemplateResponse{}, ReadBodyAsError(res)
 	}
 	var resp TemplateBuilderCreateTemplateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }

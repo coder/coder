@@ -126,6 +126,15 @@ Specify a duration workspaces may be inactive prior to being moved to the dorman
 
 Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to "Dormancy Auto-Deletion" in the UI.
 
+### --agents-allowed
+
+|         |                   |
+|---------|-------------------|
+| Type    | <code>bool</code> |
+| Default | <code>true</code> |
+
+Allow Coder Agents to create workspaces using this template.
+
 ### --allow-user-cancel-workspace-jobs
 
 |         |                   |

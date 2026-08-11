@@ -691,6 +691,20 @@
   "models": [
     "string"
   ],
+  "network_call_logs": [
+    {
+      "allowed": true,
+      "captured_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0,
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ],
   "network_calls": {
     "blocked": 0,
     "total": 0
@@ -785,24 +799,25 @@
 
 ### Properties
 
-| Name                   | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                           |
-|------------------------|------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `ended_at`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `id`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `initiator`            | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                       |
-| `metadata`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| » `[any property]`     | any                                                                                      | false    |              |                                                                                                                                                                                                                                       |
-| `models`               | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
-| `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
-| `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                       |
-| `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.          |
-| `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
-| `started_at`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
-| `threads`              | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                              | false    |              |                                                                                                                                                                                                                                       |
-| `token_usage_summary`  | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage)   | false    |              |                                                                                                                                                                                                                                       |
+| Name                   | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                           |
+|------------------------|------------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `ended_at`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `id`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `initiator`            | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `metadata`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| » `[any property]`     | any                                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `models`               | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `network_call_logs`    | array of [codersdk.AgentFirewallLog](#codersdkagentfirewalllog)                          | false    |              | Network call logs is the chronological list of individual network calls made during the session, holding the earliest calls up to a server-side cap. NetworkCalls remains authoritative for whole-session totals, so a shorter list than NetworkCalls.Total means the list was truncated. Empty when the session did not pass through Agent Firewall. |
+| `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled".                                                                                                                 |
+| `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.                                                                                                                          |
+| `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `started_at`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `threads`              | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                              | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `token_usage_summary`  | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage)   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 
 ## codersdk.AIBridgeSessionThreadsTokenUsage
 
@@ -1067,6 +1082,7 @@
   "chat": {
     "acquire_batch_size": 0,
     "debug_logging_enabled": true,
+    "hook_allow_insecure": true,
     "hook_enabled": true,
     "hook_secret": "string",
     "hook_timeout": 0,
@@ -2440,6 +2456,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "acquire_batch_size": 0,
   "debug_logging_enabled": true,
+  "hook_allow_insecure": true,
   "hook_enabled": true,
   "hook_secret": "string",
   "hook_timeout": 0,
@@ -2465,6 +2482,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------|----------------------------|----------|--------------|-------------|
 | `acquire_batch_size`    | integer                    | false    |              |             |
 | `debug_logging_enabled` | boolean                    | false    |              |             |
+| `hook_allow_insecure`   | boolean                    | false    |              |             |
 | `hook_enabled`          | boolean                    | false    |              |             |
 | `hook_secret`           | string                     | false    |              |             |
 | `hook_timeout`          | integer                    | false    |              |             |
@@ -2581,7 +2599,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name          | Type   | Required | Restrictions | Description                                                                                                       |
 |---------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
 | `description` | string | false    |              | Description is the tool's human-readable summary; may be empty.                                                   |
-| `name`        | string | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it. |
+| `name`        | string | false    |              | Name is the tool name with the `<server>__` prefix the agent adds stripped, so it reads as the server exposes it. |
 
 ## codersdk.ChatCost
 
@@ -2869,6 +2887,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -2964,6 +2983,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "valid": true
   },
   "file_name": "string",
+  "hook_rewritten": true,
   "is_error": true,
   "is_media": true,
   "mcp_server_config_id": {
@@ -3020,6 +3040,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_id`                      | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `hook_rewritten`               | boolean                                                      | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
 | `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3133,6 +3154,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -3215,6 +3237,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -3444,6 +3467,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -3609,6 +3633,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -3689,6 +3714,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "file_name": "string",
+      "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
       "mcp_server_config_id": {
@@ -3757,6 +3783,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -3874,6 +3901,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "valid": true
     },
     "file_name": "string",
+    "hook_rewritten": true,
     "is_error": true,
     "is_media": true,
     "mcp_server_config_id": {
@@ -4575,6 +4603,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -4656,6 +4685,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -4738,6 +4768,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -5027,6 +5058,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -5064,6 +5096,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
 |---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `activity_bump_ms`                    | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                             |
+| `agents_allowed`                      | boolean                                                                        | false    |              | Agents allowed controls whether Coder Agents can create workspaces using this template. Defaults to true.                                                                                                                                                                                                           |
 | `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
 | `allow_user_autostop`                 | boolean                                                                        | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
 | `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. *bool as the default value is "true".                                                                                                                                                                                                                             |
@@ -5893,6 +5926,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "chat": {
         "acquire_batch_size": 0,
         "debug_logging_enabled": true,
+        "hook_allow_insecure": true,
         "hook_enabled": true,
         "hook_secret": "string",
         "hook_timeout": 0,
@@ -6519,6 +6553,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "chat": {
       "acquire_batch_size": 0,
       "debug_logging_enabled": true,
+      "hook_allow_insecure": true,
       "hook_enabled": true,
       "hook_secret": "string",
       "hook_timeout": 0,
@@ -7274,6 +7309,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "valid": true
         },
         "file_name": "string",
+        "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": {
@@ -7355,6 +7391,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "valid": true
           },
           "file_name": "string",
+          "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": {
@@ -7503,9 +7540,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                             |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                  |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -9741,6 +9778,67 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 | » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
 | `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
 
+## codersdk.PaginatedGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                         | Required | Restrictions | Description                                                                                                                                                              |
+|-----------------------------|----------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                       | false    |              |                                                                                                                                                                          |
+| `display_name`              | string                                       | false    |              |                                                                                                                                                                          |
+| `id`                        | string                                       | false    |              |                                                                                                                                                                          |
+| `name`                      | string                                       | false    |              |                                                                                                                                                                          |
+| `organization_display_name` | string                                       | false    |              |                                                                                                                                                                          |
+| `organization_id`           | string                                       | false    |              |                                                                                                                                                                          |
+| `organization_name`         | string                                       | false    |              |                                                                                                                                                                          |
+| `quota_allowance`           | integer                                      | false    |              |                                                                                                                                                                          |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource) | false    |              |                                                                                                                                                                          |
+| `total_member_count`        | integer                                      | false    |              | Total member count is the number of members in the group, shown even when the caller cannot read individual members. The roster itself is not returned by this endpoint. |
+
+## codersdk.PaginatedGroupsResponse
+
+```json
+{
+  "count": 0,
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "source": "user",
+      "total_member_count": 0
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                        | Required | Restrictions | Description |
+|----------|-------------------------------------------------------------|----------|--------------|-------------|
+| `count`  | integer                                                     | false    |              |             |
+| `groups` | array of [codersdk.PaginatedGroup](#codersdkpaginatedgroup) | false    |              |             |
+
 ## codersdk.PaginatedMembersResponse
 
 ```json
@@ -10155,6 +10253,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -11507,6 +11622,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -12284,6 +12416,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -12345,6 +12478,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 | `active_user_count`                | integer                                                                        | false    |              | Active user count is set to -1 when loading.                                                                                                                                                    |
 | `active_version_id`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `activity_bump_ms`                 | integer                                                                        | false    |              |                                                                                                                                                                                                 |
+| `agents_allowed`                   | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `allow_user_autostart`             | boolean                                                                        | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.                         |
 | `allow_user_autostop`              | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
@@ -12748,6 +12882,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "active_user_count": 0,
     "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
     "activity_bump_ms": 0,
+    "agents_allowed": true,
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
@@ -13942,6 +14077,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "activity_bump_ms": 0,
+  "agents_allowed": true,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -13982,6 +14118,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name                               | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                        |
 |------------------------------------|--------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `activity_bump_ms`                 | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                                                                                            |
+| `agents_allowed`                   | boolean                                                                        | false    |              | Agents allowed controls whether Coder Agents can create workspaces using this template. If omitted, the current value is preserved.                                                                                                                                                                                                                                                |
 | `allow_user_autostart`             | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `allow_user_autostop`              | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -15201,6 +15338,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             ],
             "logs_length": 0,
             "logs_overflowed": true,
+            "metadata": [
+              {
+                "description": {
+                  "display_name": "string",
+                  "interval": 0,
+                  "key": "string",
+                  "script": "string",
+                  "timeout": 0
+                },
+                "result": {
+                  "age": 0,
+                  "collected_at": "2019-08-24T14:15:22Z",
+                  "error": "string",
+                  "value": "string"
+                }
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "parent_id": {
@@ -15486,6 +15640,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "logs_length": 0,
   "logs_overflowed": true,
+  "metadata": [
+    {
+      "description": {
+        "display_name": "string",
+        "interval": 0,
+        "key": "string",
+        "script": "string",
+        "timeout": 0
+      },
+      "result": {
+        "age": 0,
+        "collected_at": "2019-08-24T14:15:22Z",
+        "error": "string",
+        "value": "string"
+      }
+    }
+  ],
   "name": "string",
   "operating_system": "string",
   "parent_id": {
@@ -15524,43 +15695,44 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                                                         | Required | Restrictions | Description                                                                                                                                                                  |
-|------------------------------|----------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_version`                | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                      | false    |              |                                                                                                                                                                              |
-| `architecture`               | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `connection_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                              |
-| `created_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                              |
-| `environment_variables`      | object                                                                                       | false    |              |                                                                                                                                                                              |
-| » `[any property]`           | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `expanded_directory`         | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `first_connected_at`         | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `health`                     | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                      |
-| `id`                         | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `instance_id`                | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `last_connected_at`          | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `latency`                    | object                                                                                       | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                          |
-| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                              |
-| `lifecycle_state`            | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                              |
-| `log_sources`                | array of [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource)                | false    |              |                                                                                                                                                                              |
-| `logs_length`                | integer                                                                                      | false    |              |                                                                                                                                                                              |
-| `logs_overflowed`            | boolean                                                                                      | false    |              |                                                                                                                                                                              |
-| `name`                       | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `operating_system`           | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `parent_id`                  | [uuid.NullUUID](#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                              |
-| `ready_at`                   | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `resource_id`                | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                      | false    |              |                                                                                                                                                                              |
-| `started_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future! |
-| `status`                     | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                              |
-| `subsystems`                 | array of [codersdk.AgentSubsystem](#codersdkagentsubsystem)                                  | false    |              |                                                                                                                                                                              |
-| `troubleshooting_url`        | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `updated_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
-| `version`                    | string                                                                                       | false    |              |                                                                                                                                                                              |
+| Name                         | Type                                                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                            |
+|------------------------------|----------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_version`                | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                      | false    |              |                                                                                                                                                                                                                                                                        |
+| `architecture`               | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `connection_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                                                                                                                        |
+| `created_at`                 | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                                                                                                                        |
+| `environment_variables`      | object                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| » `[any property]`           | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `expanded_directory`         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `first_connected_at`         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `health`                     | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                                                                                                                |
+| `id`                         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `instance_id`                | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `last_connected_at`          | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `latency`                    | object                                                                                       | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                                                                                    |
+| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                                                                                                                        |
+| `lifecycle_state`            | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                                                                                                                        |
+| `log_sources`                | array of [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource)                | false    |              |                                                                                                                                                                                                                                                                        |
+| `logs_length`                | integer                                                                                      | false    |              |                                                                                                                                                                                                                                                                        |
+| `logs_overflowed`            | boolean                                                                                      | false    |              |                                                                                                                                                                                                                                                                        |
+| `metadata`                   | array of [codersdk.WorkspaceAgentMetadata](#codersdkworkspaceagentmetadata)                  | false    |              | Metadata is only populated on the workspaces list endpoint when the request opts in with the include_agent_metadata search key, and it only carries the requested keys. The description's script is always empty here: it can be long, and list consumers want values. |
+| `name`                       | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `operating_system`           | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `parent_id`                  | [uuid.NullUUID](#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                                        |
+| `ready_at`                   | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `resource_id`                | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                      | false    |              |                                                                                                                                                                                                                                                                        |
+| `started_at`                 | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                                           |
+| `status`                     | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                                                                                                                        |
+| `subsystems`                 | array of [codersdk.AgentSubsystem](#codersdkagentsubsystem)                                  | false    |              |                                                                                                                                                                                                                                                                        |
+| `troubleshooting_url`        | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `updated_at`                 | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `version`                    | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 
 ## codersdk.WorkspaceAgentContainer
 
@@ -15962,6 +16134,75 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `icon`               | string | false    |              |             |
 | `id`                 | string | false    |              |             |
 | `workspace_agent_id` | string | false    |              |             |
+
+## codersdk.WorkspaceAgentMetadata
+
+```json
+{
+  "description": {
+    "display_name": "string",
+    "interval": 0,
+    "key": "string",
+    "script": "string",
+    "timeout": 0
+  },
+  "result": {
+    "age": 0,
+    "collected_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "value": "string"
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                                                                     | Required | Restrictions | Description |
+|---------------|------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `description` | [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |             |
+| `result`      | [codersdk.WorkspaceAgentMetadataResult](#codersdkworkspaceagentmetadataresult)           | false    |              |             |
+
+## codersdk.WorkspaceAgentMetadataDescription
+
+```json
+{
+  "display_name": "string",
+  "interval": 0,
+  "key": "string",
+  "script": "string",
+  "timeout": 0
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `display_name` | string  | false    |              |             |
+| `interval`     | integer | false    |              |             |
+| `key`          | string  | false    |              |             |
+| `script`       | string  | false    |              |             |
+| `timeout`      | integer | false    |              |             |
+
+## codersdk.WorkspaceAgentMetadataResult
+
+```json
+{
+  "age": 0,
+  "collected_at": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                                                                             |
+|----------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `age`          | integer | false    |              | Age is the number of seconds since the metadata was collected. It is provided in addition to CollectedAt to protect against clock skew. |
+| `collected_at` | string  | false    |              |                                                                                                                                         |
+| `error`        | string  | false    |              |                                                                                                                                         |
+| `value`        | string  | false    |              |                                                                                                                                         |
 
 ## codersdk.WorkspaceAgentPortShare
 
@@ -16446,6 +16687,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ],
           "logs_length": 0,
           "logs_overflowed": true,
+          "metadata": [
+            {
+              "description": {
+                "display_name": "string",
+                "interval": 0,
+                "key": "string",
+                "script": "string",
+                "timeout": 0
+              },
+              "result": {
+                "age": 0,
+                "collected_at": "2019-08-24T14:15:22Z",
+                "error": "string",
+                "value": "string"
+              }
+            }
+          ],
           "name": "string",
           "operating_system": "string",
           "parent_id": {
@@ -16916,6 +17174,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ],
       "logs_length": 0,
       "logs_overflowed": true,
+      "metadata": [
+        {
+          "description": {
+            "display_name": "string",
+            "interval": 0,
+            "key": "string",
+            "script": "string",
+            "timeout": 0
+          },
+          "result": {
+            "age": 0,
+            "collected_at": "2019-08-24T14:15:22Z",
+            "error": "string",
+            "value": "string"
+          }
+        }
+      ],
       "name": "string",
       "operating_system": "string",
       "parent_id": {
@@ -17266,6 +17541,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 ],
                 "logs_length": 0,
                 "logs_overflowed": true,
+                "metadata": [
+                  {
+                    "description": {},
+                    "result": {}
+                  }
+                ],
                 "name": "string",
                 "operating_system": "string",
                 "parent_id": {

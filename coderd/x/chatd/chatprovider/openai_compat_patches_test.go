@@ -67,10 +67,11 @@ func generateOpenAICompatRequest(t *testing.T, baseURL string, modelID string) m
 		chatprovider.UserAgent(),
 		nil,
 		&http.Client{Transport: transport},
+		nil,
 	)
 	require.NoError(t, err)
 
-	_, err = model.Generate(t.Context(), fantasy.Call{
+	_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{
 		Prompt: geminiOpenAICompatToolPrompt(),
 	})
 	require.NoError(t, err)

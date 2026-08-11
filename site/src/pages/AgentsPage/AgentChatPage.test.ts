@@ -237,7 +237,7 @@ describe("runPromoteQueuedMessage", () => {
 
 		const promote = vi.fn(async (_id: number) => undefined);
 		const clearChatErrorReason = vi.fn();
-		const handleUsageLimitError = vi.fn();
+		const onError = vi.fn();
 
 		await runPromoteQueuedMessage({
 			id: b.id,
@@ -245,7 +245,7 @@ describe("runPromoteQueuedMessage", () => {
 			promoteQueuedMessage: promote,
 			agentId: "chat-1",
 			clearChatErrorReason,
-			handleUsageLimitError,
+			onError,
 		});
 
 		expect(promote).toHaveBeenCalledWith(b.id);
@@ -268,7 +268,7 @@ describe("runPromoteQueuedMessage", () => {
 			throw apiError;
 		});
 		const clearChatErrorReason = vi.fn();
-		const handleUsageLimitError = vi.fn();
+		const onError = vi.fn();
 
 		await expect(
 			runPromoteQueuedMessage({
@@ -277,11 +277,11 @@ describe("runPromoteQueuedMessage", () => {
 				promoteQueuedMessage: promote,
 				agentId: "chat-1",
 				clearChatErrorReason,
-				handleUsageLimitError,
+				onError,
 			}),
 		).rejects.toBe(apiError);
 
-		expect(handleUsageLimitError).toHaveBeenCalledWith(apiError);
+		expect(onError).toHaveBeenCalledWith(apiError);
 
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);

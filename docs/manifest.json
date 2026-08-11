@@ -424,6 +424,11 @@
 							"state": ["premium"]
 						},
 						{
+							"title": "Configuration Reference",
+							"description": "Searchable list of every Coder server setting with its environment variable, CLI flag, and YAML key",
+							"path": "./admin/setup/configuration-reference.md"
+						},
+						{
 							"title": "Telemetry",
 							"description": "Learn what usage telemetry Coder collects, why it is collected, and how to opt out.",
 							"path": "./admin/setup/telemetry.md"
@@ -1079,10 +1084,10 @@
 									"state": ["beta"]
 								},
 								{
-									"title": "Spend Management",
-									"description": "Set spend limits and track AI costs for Coder Agents with admin-only controls.",
-									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
-									"state": ["beta"]
+									"title": "Spend management",
+									"description": "Cap Coder Agents spend with AI Gateway budgets and track the resulting spend.",
+									"path": "./ai-coder/agents/platform-controls/spend-management.md",
+									"state": ["premium"]
 								},
 								{
 									"title": "Git Providers",
@@ -1570,6 +1575,11 @@
 			"path": "./reference/index.md",
 			"icon_path": "./images/icons/notes.svg",
 			"children": [
+				{
+					"title": "Glossary",
+					"description": "Definitions of Coder terms and product names",
+					"path": "./reference/glossary.md"
+				},
 				{
 					"title": "REST API",
 					"description": "Reference for the Coder REST API, including endpoints, authentication, and schemas.",

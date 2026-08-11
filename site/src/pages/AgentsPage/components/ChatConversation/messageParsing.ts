@@ -170,6 +170,7 @@ export const mergeTools = (
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
 			parsedCommands: call.parsedCommands,
+			hookRewritten: call.hookRewritten,
 		});
 	}
 
@@ -224,6 +225,7 @@ export const parseMessageContent = (
 					args: part.args,
 					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
+					hookRewritten: part.hook_rewritten,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;

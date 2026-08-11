@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import type { SerpentGroup } from "#/api/typesGenerated";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
@@ -45,6 +46,7 @@ const meta: Meta<typeof ObservabilitySettingsPageView> = {
 			},
 		],
 		featureAuditLogEnabled: true,
+		isPremium: false,
 	},
 };
 
@@ -53,4 +55,39 @@ type Story = StoryObj<typeof ObservabilitySettingsPageView>;
 
 export const Page: Story = {};
 
-export const Premium: Story = { args: { isPremium: true } };
+export const OSS: Story = {
+	args: { featureAuditLogEnabled: false, isPremium: false },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const alert = canvas.getByRole("alert");
+		await expect(alert).toBeVisible();
+		await expect(within(alert).getByText("Premium")).toBeVisible();
+		await expect(
+			within(alert).getByRole("link", {
+				name: "Read the Audit Logs documentation",
+			}),
+		).toBeVisible();
+		await expect(canvas.queryByText("Enterprise")).not.toBeInTheDocument();
+	},
+};
+
+export const Premium: Story = {
+	args: { featureAuditLogEnabled: true, isPremium: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		await expect(canvas.getByText("Premium")).toBeVisible();
+	},
+};
+
+export const EnterpriseAuditLogs: Story = {
+	args: { featureAuditLogEnabled: true, isPremium: false },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		await expect(canvas.getByText("Enterprise")).toBeVisible();
+	},
+};

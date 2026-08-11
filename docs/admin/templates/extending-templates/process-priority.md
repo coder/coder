@@ -71,7 +71,7 @@ resource "kubernetes_deployment" "workspace" {
       spec {
         container {
           name  = "dev"
-          image = "codercom/enterprise-base:ubuntu"
+          image = "codercom/example-base:ubuntu"
 
           env {
             name  = "CODER_AGENT_TOKEN"
