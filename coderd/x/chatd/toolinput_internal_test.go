@@ -90,10 +90,6 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 	})
 }
 
-// TestPartitionStringifiedToolCallInput pins the retry advice for the
-// double-encoding failure mode: the ambiguous-key advice would misdirect the
-// model, and letting the decoder report it yields an unactionable Go
-// unmarshal error.
 func TestPartitionStringifiedToolCallInput(t *testing.T) {
 	t.Parallel()
 

@@ -90,9 +90,8 @@ func malformedToolResult(toolCall fantasy.ToolCallContent) fantasy.ToolResultCon
 	}
 }
 
-// invalidInputToolResult picks retry advice matching the validation failure,
-// because the ambiguous-key advice would misdirect a model that
-// double-encoded a structured argument.
+// Ambiguous-key guidance misdirects models that double-encode structured
+// arguments.
 func invalidInputToolResult(toolCall fantasy.ToolCallContent, err error) fantasy.ToolResultContent {
 	message := "This tool call was not executed because its input is ambiguous: " + err.Error() +
 		". Retry with the exact property names from the tool schema, each key used once."

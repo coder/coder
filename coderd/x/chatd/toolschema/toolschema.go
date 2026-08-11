@@ -14,11 +14,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// StringifiedError reports a property whose schema declares an array or
-// object but whose value is a string, the double-encoding mistake some
-// models make. The Go decoder rejects such a value with an unmarshal error
-// naming internal Go types, so it is caught here where the message can tell
-// the model how to correct the call.
+// StringifiedError reports a string value for a property whose schema declares
+// an array or object, so callers can provide double-encoding retry advice.
 type StringifiedError struct {
 	Path       string
 	SchemaType string
@@ -37,9 +34,8 @@ const freeFormPropertyName = "*"
 // encoding/json folds into a declared property but a case-sensitive reader
 // treats as distinct, or when one object repeats a key. Either lets code
 // inspecting the raw input read one value while the tool executes another.
-// It also reports a StringifiedError when a declared array or object
-// property carries a string, which the tool decoder would reject with a
-// less actionable message.
+// It also reports StringifiedError for a string value whose schema declares
+// an array or object.
 //
 // properties is a fantasy ToolInfo.Parameters map, keyed by property name.
 // Keys matching no property are ignored because a generated struct decoder
@@ -112,9 +108,8 @@ func validateValue(schema map[string]any, decoder *json.Decoder, token json.Toke
 		}
 	}
 	if _, isString := token.(string); isString {
-		// Only string values are flagged: they are how models double-encode
-		// structures, and other scalar mismatches have not needed a better
-		// message than the decoder's.
+		// String values can be double-encoded structures. Other scalar mismatches
+		// are left to the tool decoder.
 		if schemaType, _ := schema["type"].(string); schemaType == "array" || schemaType == "object" {
 			return &StringifiedError{Path: path, SchemaType: schemaType}
 		}
