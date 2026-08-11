@@ -28,8 +28,6 @@ import {
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 
-// A deployment that just finished setup has no templates, so the first user is
-// handed off to the template builder instead of an empty dashboard.
 export const setupCompleteRedirect = "/templates/new/builder";
 
 const usernameValidator = nameValidator("Username");

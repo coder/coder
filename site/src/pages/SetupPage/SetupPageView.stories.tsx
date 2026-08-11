@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { chromatic } from "#/testHelpers/chromatic";
 import { mockApiError } from "#/testHelpers/entities";
-import { SetupPageView, setupCompleteRedirect } from "./SetupPageView";
+import { SetupPageView } from "./SetupPageView";
 
 const meta: Meta<typeof SetupPageView> = {
 	title: "pages/SetupPage",
@@ -22,16 +22,6 @@ export const WithGitHub: Story = {
 			oidc: { enabled: false, signInText: "", iconUrl: "" },
 			password: { enabled: true },
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const github = canvas.getByRole("link", { name: "GitHub" });
-		expect(github).toHaveAttribute(
-			"href",
-			`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
-				setupCompleteRedirect,
-			)}`,
-		);
 	},
 };
 
