@@ -173,6 +173,26 @@ func Test_Middleware_SessionID(t *testing.T) {
 		require.False(t, ok, "malformed session_id should be ignored")
 		require.NotContains(t, tp.span.attributes(), attribute.String("session_id", "not-a-valid-session-id"))
 	})
+
+	// FieldNamesMatchBaggageKey pins the baggage key, the log field name, and
+	// the span attribute name to the same value. slog field names must be
+	// snake_case string literals, so the log field and span attribute cannot
+	// reference SessionIDBaggageKey directly; this test guards against the
+	// three drifting apart and silently breaking log/trace correlation.
+	t.Run("FieldNamesMatchBaggageKey", func(t *testing.T) {
+		t.Parallel()
+
+		require.Equal(t, "session_id", tracing.SessionIDBaggageKey)
+
+		tp := &recordingTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
+		fields := requestFields(t, tp, tracing.SessionIDBaggageKey+"="+testSessionID)
+
+		_, ok := fieldValue(fields, tracing.SessionIDBaggageKey)
+		require.True(t, ok, "log field name must match the baggage key")
+		require.Contains(t, tp.span.attributes(),
+			attribute.String(tracing.SessionIDBaggageKey, testSessionID),
+			"span attribute name must match the baggage key")
+	})
 }
 
 func Test_Middleware(t *testing.T) {
