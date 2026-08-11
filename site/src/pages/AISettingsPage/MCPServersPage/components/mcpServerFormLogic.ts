@@ -1,5 +1,4 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { isDeploymentIconPath } from "#/utils/externalImageSources";
 
 export const SECRET_PLACEHOLDER = "••••••••••••••••";
 
@@ -114,16 +113,11 @@ export const buildInitialMCPServerFormValues = (
 export const canSubmitMCPServerForm = (
 	values: MCPServerFormValues,
 	isDisabled: boolean,
-): boolean => {
-	const iconURL = values.iconURL.trim();
-	return (
-		!isDisabled &&
-		values.displayName.trim() !== "" &&
-		values.slug.trim() !== "" &&
-		values.url.trim() !== "" &&
-		(iconURL === "" || isDeploymentIconPath(iconURL))
-	);
-};
+): boolean =>
+	!isDisabled &&
+	values.displayName.trim() !== "" &&
+	values.slug.trim() !== "" &&
+	values.url.trim() !== "";
 
 export const buildCreateMCPServerConfigRequest = (
 	values: MCPServerFormValues,

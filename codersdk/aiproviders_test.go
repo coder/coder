@@ -214,48 +214,6 @@ func TestAIProviderRequest_ValidateRoleARN(t *testing.T) {
 	}
 }
 
-func TestAIProviderRequest_ValidateIcon(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name    string
-		icon    string
-		wantErr bool
-	}{
-		{name: "empty is allowed", icon: "", wantErr: false},
-		{name: "relative path", icon: "/icon/anthropic.svg", wantErr: false},
-		{name: "external https", icon: "https://attacker.example.com/icon.png", wantErr: true},
-		{name: "protocol relative", icon: "//attacker.example.com/icon.png", wantErr: true},
-		{name: "javascript scheme", icon: "javascript:alert(1)", wantErr: true},
-	}
-
-	hasIconError := func(vs []codersdk.ValidationError) bool {
-		for _, v := range vs {
-			if v.Field == "icon" {
-				return true
-			}
-		}
-		return false
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			create := codersdk.CreateAIProviderRequest{
-				Type:    codersdk.AIProviderTypeAnthropic,
-				Name:    "anthropic",
-				BaseURL: "https://api.anthropic.com/",
-				Icon:    tc.icon,
-			}
-			require.Equal(t, tc.wantErr, hasIconError(create.Validate()))
-
-			update := codersdk.UpdateAIProviderRequest{Icon: &tc.icon}
-			require.Equal(t, tc.wantErr, hasIconError(update.Validate()))
-		})
-	}
-}
-
 func TestAIProviderRequest_ValidateBedrockProtocol(t *testing.T) {
 	t.Parallel()
 

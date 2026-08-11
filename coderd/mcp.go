@@ -243,18 +243,6 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// The icon is rendered as an <img> for every user who sees this
-	// server, so external URLs would leak viewer IPs to the icon host.
-	if err := codersdk.IconURLValid(strings.TrimSpace(req.IconURL)); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid icon URL.",
-			Validations: []codersdk.ValidationError{
-				{Field: "icon_url", Detail: err.Error()},
-			},
-		})
-		return
-	}
-
 	// Validate auth-type-dependent fields.
 	switch req.AuthType {
 	case "oauth2":
@@ -624,20 +612,6 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-		}
-	}
-
-	// The icon is rendered as an <img> for every user who sees this
-	// server, so external URLs would leak viewer IPs to the icon host.
-	if req.IconURL != nil {
-		if err := codersdk.IconURLValid(strings.TrimSpace(*req.IconURL)); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid icon URL.",
-				Validations: []codersdk.ValidationError{
-					{Field: "icon_url", Detail: err.Error()},
-				},
-			})
-			return
 		}
 	}
 

@@ -18,7 +18,6 @@ import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
-import { isExternalImageSource } from "#/utils/externalImageSources";
 import { pageTitle } from "#/utils/page";
 import { ProviderForm } from "../components/ProviderForm";
 import { getProviderIcon } from "../components/ProviderIcon";
@@ -147,13 +146,8 @@ const UpdateProviderPageView: React.FC = () => {
 					<Avatar
 						variant="icon"
 						size="lg"
-						// External custom icons fall back to the built-in provider
-						// icon so rendering this page never discloses the viewer's
-						// IP to the icon host (Cure53 CDM-02-006).
 						src={
-							provider.icon && !isExternalImageSource(provider.icon)
-								? provider.icon
-								: getProviderIcon(getProviderDisplayType(provider))
+							provider.icon || getProviderIcon(getProviderDisplayType(provider))
 						}
 					/>
 					<SettingsHeaderTitle>

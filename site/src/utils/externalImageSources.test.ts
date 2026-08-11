@@ -1,6 +1,5 @@
 import {
 	externalImageHost,
-	isDeploymentIconPath,
 	isExternalImageSource,
 } from "./externalImageSources";
 
@@ -27,23 +26,6 @@ describe("isExternalImageSource", () => {
 		["ftp://attacker.example.com/img.png", true],
 	])("isExternalImageSource(%j) === %j", (src, expected) => {
 		expect(isExternalImageSource(src)).toBe(expected);
-	});
-});
-
-describe("isDeploymentIconPath", () => {
-	it.each([
-		["", false],
-		["/emojis/1f4bb.png", true],
-		["/icon/aws.svg", true],
-		["/icon/aws.svg?v=2", true],
-		["https://example.com/icon.png", false],
-		["//example.com/icon.png", false],
-		["/\\example.com/icon.png", false],
-		["javascript:alert(1)", false],
-		["data:image/png;base64,xxx", false],
-		["icon/aws.svg", false],
-	])("isDeploymentIconPath(%j) === %j", (value, expected) => {
-		expect(isDeploymentIconPath(value)).toBe(expected);
 	});
 });
 

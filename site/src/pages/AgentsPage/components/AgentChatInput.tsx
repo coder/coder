@@ -59,7 +59,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import { isExternalImageSource } from "#/utils/externalImageSources";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -333,11 +332,7 @@ const ToolBadge: FC<{
 	const isForceOn = badge.server.availability === "force_on";
 	return (
 		<span className={badgeCls}>
-			{/* External icon URLs fall back to the generic icon so the
-			    badge never discloses the viewer's IP to the icon host
-			    (Cure53 CDM-02-006). */}
-			{badge.server.icon_url &&
-			!isExternalImageSource(badge.server.icon_url) ? (
+			{badge.server.icon_url ? (
 				<ExternalImage
 					src={badge.server.icon_url}
 					alt=""
@@ -1428,11 +1423,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 															key={server.id}
 															className="flex items-center gap-1.5 px-1 py-1.5"
 														>
-															{/* External icon URLs fall back to the generic icon
-															    so the picker never discloses the viewer's IP to
-															    the icon host (Cure53 CDM-02-006). */}
-															{server.icon_url &&
-															!isExternalImageSource(server.icon_url) ? (
+															{server.icon_url ? (
 																<ExternalImage
 																	src={server.icon_url}
 																	alt=""

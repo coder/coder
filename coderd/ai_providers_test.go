@@ -90,7 +90,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 			Type:        codersdk.AIProviderTypeAnthropic,
 			Name:        "primary-anthropic",
 			DisplayName: "Primary Anthropic",
-			Icon:        "/icon/anthropic.svg",
+			Icon:        "https://example.com/anthropic.svg",
 			Enabled:     true,
 			BaseURL:     "https://api.anthropic.com/",
 			Settings: codersdk.AIProviderSettings{
@@ -132,7 +132,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 		// Update.
 		newDisplay := "Updated Display"
-		newIcon := "/emojis/1f99c.png"
+		newIcon := "🦜"
 		newURL := "https://api.anthropic.com/v1"
 		disabled := false
 		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{

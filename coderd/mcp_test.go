@@ -54,7 +54,7 @@ func createMCPServerConfig(t testing.TB, client *codersdk.Client, slug string, e
 		DisplayName:   "Test Server " + slug,
 		Slug:          slug,
 		Description:   "A test MCP server.",
-		IconURL:       "/emojis/1f916.png",
+		IconURL:       "https://example.com/icon.png",
 		Transport:     "streamable_http",
 		URL:           "https://mcp.example.com/" + slug,
 		AuthType:      "none",
@@ -80,7 +80,7 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 		DisplayName:        "My MCP Server",
 		Slug:               "my-mcp-server",
 		Description:        "Integration test server.",
-		IconURL:            "/emojis/1f916.png",
+		IconURL:            "https://example.com/icon.png",
 		Transport:          "streamable_http",
 		URL:                "https://mcp.example.com/v1",
 		AuthType:           "oauth2",
@@ -169,75 +169,6 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	configs, err = client.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Empty(t, configs)
-}
-
-// TestMCPServerConfigIconURLValidation ensures icon URLs are
-// restricted to deployment-relative paths. External icon URLs would
-// leak viewer IPs to the icon host when the icon is rendered for
-// other users (Cure53 CDM-02-006).
-func TestMCPServerConfigIconURLValidation(t *testing.T) {
-	t.Parallel()
-
-	requireIconURLValidationError := func(t *testing.T, err error) {
-		t.Helper()
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "icon_url", sdkErr.Validations[0].Field)
-	}
-
-	t.Run("CreateRejectsExternalURL", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		for _, icon := range []string{
-			"https://attacker.example.com/icon.png",
-			"//attacker.example.com/icon.png",
-			"javascript:alert(1)",
-		} {
-			_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
-				DisplayName:   "Bad Icon",
-				Slug:          "bad-icon",
-				IconURL:       icon,
-				Transport:     "streamable_http",
-				URL:           "https://mcp.example.com/v1",
-				AuthType:      "none",
-				Availability:  "default_on",
-				Enabled:       true,
-				ToolAllowList: []string{},
-				ToolDenyList:  []string{},
-			})
-			requireIconURLValidationError(t, err)
-		}
-	})
-
-	t.Run("UpdateRejectsExternalURL", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newMCPClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		created := createMCPServerConfig(t, client, "update-icon", true)
-
-		externalIcon := "https://attacker.example.com/icon.png"
-		_, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
-			IconURL: &externalIcon,
-		})
-		requireIconURLValidationError(t, err)
-
-		// A relative icon path is accepted.
-		relativeIcon := "/icon/mcp.svg"
-		updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
-			IconURL: &relativeIcon,
-		})
-		require.NoError(t, err)
-		require.Equal(t, relativeIcon, updated.IconURL)
-	})
 }
 
 func TestMCPServerConfigsNonAdmin(t *testing.T) {

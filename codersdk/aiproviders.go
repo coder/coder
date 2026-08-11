@@ -253,7 +253,6 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		})
 	}
 	validations = append(validations, validateAIProviderName(req.Name)...)
-	validations = append(validations, validateAIProviderIcon(req.Icon)...)
 	validations = append(validations, validateRequiredAIProviderBaseURL(req.BaseURL)...)
 	validations = append(validations, validateAIProviderAPIKeys(req.APIKeys)...)
 	if req.Settings.Bedrock != nil &&
@@ -331,9 +330,6 @@ type AIProviderKeyMutation struct {
 // should reject empty patches with IsEmpty before invoking Validate.
 func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	var validations []ValidationError
-	if req.Icon != nil {
-		validations = append(validations, validateAIProviderIcon(*req.Icon)...)
-	}
 	if req.BaseURL != nil {
 		validations = append(validations, validateRequiredAIProviderBaseURL(*req.BaseURL)...)
 	}
@@ -372,17 +368,6 @@ func validateAIProviderName(name string) []ValidationError {
 		})
 	}
 	return validations
-}
-
-// validateAIProviderIcon rejects non-relative icon references. The
-// icon is rendered as an <img> for every user who can pick a model
-// from this provider, so an external URL would leak viewer IPs to
-// the icon host (Cure53 CDM-02-006).
-func validateAIProviderIcon(icon string) []ValidationError {
-	if err := IconURLValid(icon); err != nil {
-		return []ValidationError{{Field: "icon", Detail: err.Error()}}
-	}
-	return nil
 }
 
 func validateAIProviderBedrockProtocol(protocol AIProviderBedrockProtocol) []ValidationError {

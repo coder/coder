@@ -16,12 +16,12 @@ This is an admin-only feature accessible at **AI Settings** > **Coder Agents** >
 
 ### Identity
 
-| Field          | Required | Description                                                                                                                                                                     |
-|----------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `display_name` | Yes      | Human-readable name shown to users in chat.                                                                                                                                     |
-| `slug`         | Yes      | URL-safe unique identifier, auto-generated from display name.                                                                                                                   |
-| `description`  | No       | Brief summary of what the server provides.                                                                                                                                      |
-| `icon_url`     | No       | Deployment-relative path to an icon displayed alongside the server name, such as `/icon/aws.svg` or an emoji from the picker (`/emojis/1f4bb.png`). External URLs are rejected. |
+| Field          | Required | Description                                                   |
+|----------------|----------|---------------------------------------------------------------|
+| `display_name` | Yes      | Human-readable name shown to users in chat.                   |
+| `slug`         | Yes      | URL-safe unique identifier, auto-generated from display name. |
+| `description`  | No       | Brief summary of what the server provides.                    |
+| `icon_url`     | No       | Emoji or image URL displayed alongside the server name.       |
 
 ### Connection
 

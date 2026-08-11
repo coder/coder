@@ -17,7 +17,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import { isExternalImageSource } from "#/utils/externalImageSources";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -54,15 +53,11 @@ const MCPIcon: FC<{ iconUrl: string; name: string; className?: string }> = ({
 	name,
 	className,
 }) => {
-	// External icon URLs fall back to the generic icon so viewing the
-	// picker never discloses the viewer's IP to the icon host
-	// (Cure53 CDM-02-006).
-	const icon =
-		iconUrl && !isExternalImageSource(iconUrl) ? (
-			<ExternalImage src={iconUrl} alt={`${name} icon`} className="size-3/5" />
-		) : (
-			<ServerIcon className="size-3/5 text-content-secondary" />
-		);
+	const icon = iconUrl ? (
+		<ExternalImage src={iconUrl} alt={`${name} icon`} className="size-3/5" />
+	) : (
+		<ServerIcon className="size-3/5 text-content-secondary" />
+	);
 
 	return (
 		<div

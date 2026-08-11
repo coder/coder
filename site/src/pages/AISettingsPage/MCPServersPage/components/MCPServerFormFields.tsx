@@ -15,7 +15,6 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { isDeploymentIconPath } from "#/utils/externalImageSources";
 import { MCPServerAuthSection } from "./MCPServerAuthSection";
 import { MCPServerBehaviorSection } from "./MCPServerBehaviorSection";
 import { CollapsibleSection, Field } from "./MCPServerFormFieldPrimitives";
@@ -164,13 +163,6 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 								}
 								disabled={isDisabled}
 							/>
-							{form.values.iconURL.trim() !== "" &&
-								!isDeploymentIconPath(form.values.iconURL.trim()) && (
-									<p className="m-0 text-xs text-content-destructive">
-										Icon must be a path on this deployment, like /icon/aws.svg,
-										or an emoji from the picker.
-									</p>
-								)}
 						</Field>
 					</CollapsibleSection>
 

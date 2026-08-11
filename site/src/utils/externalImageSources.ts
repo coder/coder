@@ -38,26 +38,6 @@ export const isExternalImageSource = (src: string): boolean => {
 	}
 };
 
-/**
- * Returns true when `value` is a deployment-relative icon path such
- * as "/icon/aws.svg". Mirrors codersdk.IconURLValid; the server
- * remains authoritative.
- */
-export const isDeploymentIconPath = (value: string): boolean => {
-	if (
-		value.includes("\\") ||
-		!value.startsWith("/") ||
-		value.startsWith("//")
-	) {
-		return false;
-	}
-	try {
-		return new URL(value, location.origin).origin === location.origin;
-	} catch {
-		return false;
-	}
-};
-
 /** Hostname shown in the consent placeholder, if determinable. */
 export const externalImageHost = (src: string): string | undefined => {
 	try {

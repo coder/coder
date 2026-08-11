@@ -42,27 +42,6 @@ describe("mcpServerFormLogic", () => {
 		expect(canSubmitMCPServerForm(validValues(), true)).toBe(false);
 	});
 
-	it("rejects external icon URLs before submitting", () => {
-		expect(
-			canSubmitMCPServerForm(
-				validValues({ iconURL: "/emojis/1f4bb.png" }),
-				false,
-			),
-		).toBe(true);
-		expect(
-			canSubmitMCPServerForm(
-				validValues({ iconURL: "https://attacker.example.com/icon.png" }),
-				false,
-			),
-		).toBe(false);
-		expect(
-			canSubmitMCPServerForm(
-				validValues({ iconURL: "//attacker.example.com/icon.png" }),
-				false,
-			),
-		).toBe(false);
-	});
-
 	it("does not send placeholder OAuth2 secrets unless the value changes", () => {
 		const unchanged = buildCreateMCPServerConfigRequest(
 			validValues({

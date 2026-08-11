@@ -26,7 +26,6 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { docs } from "#/utils/docs";
-import { isDeploymentIconPath } from "#/utils/externalImageSources";
 import { getFormHelpers } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
 
@@ -151,16 +150,6 @@ const baseUrlPlaceholders: Partial<Record<AIProviderType, string>> = {
 	"openai-compat": "https://provider.example.com/v1",
 };
 
-// Mirrors the server-side rule (codersdk.IconURLValid).
-const iconSchema = Yup.string().test(
-	"deployment-icon-path",
-	"Icon must be a path on this deployment, like /icon/openai.svg, or an emoji from the picker.",
-	(value) => {
-		const icon = (value ?? "").trim();
-		return icon === "" || isDeploymentIconPath(icon);
-	},
-);
-
 const makeOpenAiAnthropicSchema = (editing: boolean) =>
 	Yup.object({
 		type: Yup.string()
@@ -176,7 +165,7 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
-		icon: iconSchema,
+		icon: Yup.string(),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
@@ -207,7 +196,7 @@ const makeBedrockSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
-		icon: iconSchema,
+		icon: Yup.string(),
 		protocol: Yup.string()
 			.oneOf(["invoke-model", "mantle"] as const)
 			.required(),
@@ -267,7 +256,7 @@ const makeCopilotSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
-		icon: iconSchema,
+		icon: Yup.string(),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
@@ -412,11 +401,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				onChange={(event) => handleIconChange(event.target.value)}
 				onPickEmoji={handleIconChange}
 			/>
-			{form.errors.icon && (
-				<div className="text-xs text-content-destructive">
-					{form.errors.icon}
-				</div>
-			)}
 		</div>
 	);
 
