@@ -1,5 +1,5 @@
 import { TriangleAlertIcon, XIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useRef } from "react";
 import { JobError } from "#/api/queries/templates";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -20,6 +20,11 @@ type BuildLogsDrawerProps = {
 	error: unknown;
 	open: boolean;
 	onClose: () => void;
+	/**
+	 * The element that opened the drawer. Focus returns here on close because,
+	 * unlike a `DrawerTrigger`, the opener lives outside the drawer's tree.
+	 */
+	openerRef?: React.RefObject<HTMLElement | null>;
 	templateVersion: TemplateVersion | undefined;
 	variablesSectionRef: React.RefObject<HTMLDivElement | null>;
 };
@@ -30,8 +35,12 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	variablesSectionRef,
 	open,
 	onClose,
+	openerRef,
 }) => {
 	const logs = useWatchVersionLogs(templateVersion);
+	// Set when a close should keep focus on the variables input (the "Fill
+	// variables" flow) rather than returning it to the opener.
+	const preserveVariablesFocusRef = useRef(false);
 
 	const isMissingVariables =
 		error instanceof JobError &&
@@ -52,7 +61,26 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 			}}
 			direction="right"
 		>
-			<DrawerContent className="!w-[min(800px,100%)] !max-w-full">
+			<DrawerContent
+				className="!w-[min(800px,100%)] !max-w-full"
+				onCloseAutoFocus={(event) => {
+					// Radix focuses a DrawerTrigger on close by default, but this drawer
+					// has none, so restore focus to the opener (or the variables input
+					// for the "Fill variables" flow) to avoid dropping keyboard users on
+					// the document body.
+					if (preserveVariablesFocusRef.current) {
+						preserveVariablesFocusRef.current = false;
+						event.preventDefault();
+						variablesSectionRef.current?.querySelector("input")?.focus();
+						return;
+					}
+					const opener = openerRef?.current;
+					if (opener?.isConnected) {
+						event.preventDefault();
+						opener.focus();
+					}
+				}}
+			>
 				<div className="flex h-full flex-col">
 					<header
 						className="flex items-center justify-between border-b border-border px-6 bg-surface-secondary"
@@ -75,9 +103,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 								variablesSectionRef.current?.scrollIntoView({
 									behavior: "smooth",
 								});
-								const firstVariableInput =
-									variablesSectionRef.current?.querySelector("input");
-								firstVariableInput?.focus();
+								preserveVariablesFocusRef.current = true;
 								onClose();
 							}}
 						/>

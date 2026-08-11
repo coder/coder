@@ -20,10 +20,22 @@ const CreateTemplatePage: FC = () => {
 	const [templateVersion, setTemplateVersion] = useState<TemplateVersion>();
 	const createTemplateMutation = useMutation(createTemplate());
 	const variablesSectionRef = useRef<HTMLDivElement>(null);
+	// Remember what had focus when the drawer opened so it can be restored on
+	// close. The drawer is opened from buttons outside its tree, so Radix has no
+	// trigger to fall back to.
+	const buildLogsOpenerRef = useRef<HTMLElement | null>(null);
+
+	const openBuildLogs = () => {
+		buildLogsOpenerRef.current =
+			document.activeElement instanceof HTMLElement
+				? document.activeElement
+				: null;
+		setIsBuildLogsOpen(true);
+	};
 
 	const pageViewProps: CreateTemplatePageViewProps = {
 		onCreateTemplate: async (options) => {
-			setIsBuildLogsOpen(true);
+			openBuildLogs();
 			const template = await createTemplateMutation.mutateAsync({
 				...options,
 				onCreateVersion: setTemplateVersion,
@@ -36,7 +48,7 @@ const CreateTemplatePage: FC = () => {
 				{ state: { justCreated: true } },
 			);
 		},
-		onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
+		onOpenBuildLogsDrawer: openBuildLogs,
 		error: createTemplateMutation.error,
 		isCreating: createTemplateMutation.isPending,
 		variablesSectionRef,
@@ -60,6 +72,7 @@ const CreateTemplatePage: FC = () => {
 				error={createTemplateMutation.error}
 				open={isBuildLogsOpen}
 				onClose={() => setIsBuildLogsOpen(false)}
+				openerRef={buildLogsOpenerRef}
 				templateVersion={templateVersion}
 				variablesSectionRef={variablesSectionRef}
 			/>

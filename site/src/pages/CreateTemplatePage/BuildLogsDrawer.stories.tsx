@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, screen, userEvent, waitFor } from "storybook/test";
+import { useRef, useState } from "react";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { JobError } from "#/api/queries/templates";
+import { Button } from "#/components/Button/Button";
 import {
 	MockProvisionerJob,
 	MockTemplateVersion,
@@ -37,6 +39,42 @@ export const CloseWithEscape: Story = {
 	play: async ({ args }) => {
 		await userEvent.keyboard("{Escape}");
 		await waitFor(() => expect(args.onClose).toHaveBeenCalled());
+	},
+};
+
+// When opened from a button outside the drawer, focus must return to that
+// button on close instead of falling back to the document body.
+export const RestoresFocusToOpener: Story = {
+	render: () => {
+		const [open, setOpen] = useState(false);
+		const openerRef = useRef<HTMLButtonElement>(null);
+		return (
+			<>
+				<Button ref={openerRef} onClick={() => setOpen(true)}>
+					Show build logs
+				</Button>
+				<BuildLogsDrawer
+					open={open}
+					onClose={() => setOpen(false)}
+					openerRef={openerRef}
+					error={undefined}
+					templateVersion={undefined}
+					variablesSectionRef={{ current: null }}
+				/>
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const opener = canvas.getByRole("button", { name: "Show build logs" });
+		await userEvent.click(opener);
+		await waitFor(() =>
+			expect(screen.getByText("Creating template...")).toBeInTheDocument(),
+		);
+		await userEvent.click(
+			screen.getByRole("button", { name: "Close build logs" }),
+		);
+		await waitFor(() => expect(opener).toHaveFocus());
 	},
 };
 
