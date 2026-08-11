@@ -158,6 +158,67 @@ func TestOAuth2InvalidPKCE(t *testing.T) {
 	)
 }
 
+// TestOAuth2PKCEFailureConsumesCode verifies that a code_verifier that fails
+// the PKCE hash comparison consumes the authorization code (RFC 6749 §10.5:
+// codes are single-use). Without this, a leaked code could be replayed with
+// unlimited further code_verifier guesses for the rest of its lifetime.
+func TestOAuth2PKCEFailureConsumesCode(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: false,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	app, clientSecret := oauth2providertest.CreateTestOAuth2App(t, client)
+	t.Cleanup(func() {
+		oauth2providertest.CleanupOAuth2App(t, client, app.ID)
+	})
+
+	codeVerifier, codeChallenge := oauth2providertest.GeneratePKCE(t)
+	state := oauth2providertest.GenerateState(t)
+
+	authParams := oauth2providertest.AuthorizeParams{
+		ClientID:            app.ID.String(),
+		ResponseType:        "code",
+		RedirectURI:         oauth2providertest.TestRedirectURI,
+		State:               state,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: "S256",
+	}
+
+	code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), authParams)
+	require.NotEmpty(t, code, "should receive authorization code")
+
+	// Attempt the exchange with a well-formed but wrong verifier. This fails
+	// the PKCE hash comparison (invalid_grant) and must consume the code.
+	failedParams := oauth2providertest.TokenExchangeParams{
+		GrantType:    "authorization_code",
+		Code:         code,
+		ClientID:     app.ID.String(),
+		ClientSecret: clientSecret,
+		CodeVerifier: oauth2providertest.InvalidCodeVerifier,
+		RedirectURI:  oauth2providertest.TestRedirectURI,
+	}
+	oauth2providertest.PerformTokenExchangeExpectingError(
+		t, client.URL.String(), failedParams, oauth2providertest.OAuth2ErrorTypes.InvalidGrant,
+	)
+
+	// The correct verifier can no longer redeem the code: the failed PKCE
+	// comparison above already consumed it.
+	retryParams := oauth2providertest.TokenExchangeParams{
+		GrantType:    "authorization_code",
+		Code:         code,
+		ClientID:     app.ID.String(),
+		ClientSecret: clientSecret,
+		CodeVerifier: codeVerifier,
+		RedirectURI:  oauth2providertest.TestRedirectURI,
+	}
+	oauth2providertest.PerformTokenExchangeExpectingError(
+		t, client.URL.String(), retryParams, oauth2providertest.OAuth2ErrorTypes.InvalidGrant,
+	)
+}
+
 // TestOAuth2MalformedCodeVerifierIsRejected verifies that a code_verifier
 // below the RFC 7636 §4.1 length floor is rejected as invalid_request,
 // distinct from a well-formed verifier that fails the PKCE hash comparison

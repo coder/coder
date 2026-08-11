@@ -13,12 +13,14 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -234,6 +236,22 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 	}
 }
 
+// revokeOAuth2CodeOnPKCEFailure deletes a code that failed PKCE verification
+// so it cannot be replayed with further code_verifier guesses (RFC 6749
+// §10.5). Deletion failure does not change the response returned to the
+// caller: surfacing it as a different error would let a caller distinguish
+// "delete succeeded" from "delete failed," defeating the point of revoking
+// the code in the first place. It is instead noted on the request's log line
+// so operators can see it happened.
+func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeID uuid.UUID) {
+	//nolint:gocritic // OAuth2 system context, no authenticated user during token exchange
+	if err := db.DeleteOAuth2ProviderAppCodeByID(dbauthz.AsSystemOAuth2(ctx), codeID); err != nil {
+		if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
+			rlogger.WithFields(slog.F("oauth2_pkce_failure_code_revoke_error", err.Error()))
+		}
+	}
+}
+
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
 	// Validate the client secret.
 	secret, err := ParseFormattedSecret(req.ClientSecret)
@@ -306,12 +324,19 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// req.CodeVerifier is guaranteed to meet RFC 7636 §4.1's bounds here; a
 	// mismatch below is a wrong-but-well-formed verifier, RFC 7636 §4.6's
 	// invalid_grant case.
+	//
+	// RFC 6749 §10.5 requires codes to be single-use. A code that survives a
+	// failed PKCE check would otherwise let a leaked code (the exact threat
+	// PKCE defends against) be replayed with different code_verifier guesses
+	// for the rest of its lifetime, unthrottled.
 	if !dbCode.CodeChallenge.Valid || dbCode.CodeChallenge.String == "" {
 		// Code was issued without a challenge — should not happen
 		// with authorize endpoint enforcement, but defend in depth.
+		revokeOAuth2CodeOnPKCEFailure(ctx, db, dbCode.ID)
 		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
 	}
 	if !VerifyPKCE(dbCode.CodeChallenge.String, req.CodeVerifier) {
+		revokeOAuth2CodeOnPKCEFailure(ctx, db, dbCode.ID)
 		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
 	}
 
