@@ -2624,6 +2624,15 @@ SET generation_attempt = generation_attempt + 1, updated_at = NOW()
 WHERE id = @id::uuid
 RETURNING generation_attempt;
 
+-- name: ResetChatGenerationAttempt :exec
+-- Resets generation_attempt so the next turn starts with a fresh
+-- retry budget. The sync_chat_retry_state trigger clears retry_state
+-- when the attempt value changes.
+UPDATE chats
+SET generation_attempt = 0, updated_at = NOW()
+WHERE id = @id::uuid
+  AND generation_attempt <> 0;
+
 -- name: GetDatabaseNow :one
 -- Returns the current database timestamp. Used so transitions that
 -- record deadlines or heartbeats rely on a clock that is consistent

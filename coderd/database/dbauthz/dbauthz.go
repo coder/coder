@@ -7045,6 +7045,17 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
 }
 
+func (q *querier) ResetChatGenerationAttempt(ctx context.Context, id uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.ResetChatGenerationAttempt(ctx, id)
+}
+
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err

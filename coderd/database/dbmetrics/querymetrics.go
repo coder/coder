@@ -4953,6 +4953,14 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	return r0, r1
 }
 
+func (m queryMetricsStore) ResetChatGenerationAttempt(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ResetChatGenerationAttempt(ctx, id)
+	m.queryLatencies.WithLabelValues("ResetChatGenerationAttempt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResetChatGenerationAttempt").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	start := time.Now()
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)

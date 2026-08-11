@@ -9355,6 +9355,20 @@ func (mr *MockStoreMockRecorder) ReorderChatQueuedMessageToHead(ctx, arg any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderChatQueuedMessageToHead", reflect.TypeOf((*MockStore)(nil).ReorderChatQueuedMessageToHead), ctx, arg)
 }
 
+// ResetChatGenerationAttempt mocks base method.
+func (m *MockStore) ResetChatGenerationAttempt(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetChatGenerationAttempt", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetChatGenerationAttempt indicates an expected call of ResetChatGenerationAttempt.
+func (mr *MockStoreMockRecorder) ResetChatGenerationAttempt(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetChatGenerationAttempt", reflect.TypeOf((*MockStore)(nil).ResetChatGenerationAttempt), ctx, id)
+}
+
 // RevokeDBCryptKey mocks base method.
 func (m *MockStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	m.ctrl.T.Helper()

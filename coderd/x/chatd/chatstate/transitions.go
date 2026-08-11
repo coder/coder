@@ -681,6 +681,11 @@ type RequestCompactionResult struct {
 // changes no history, so the previous runner cannot detect the work
 // from its existing running snapshot. Clearing ownership makes
 // ChatMachine.Update publish an ownership hint for worker acquisition.
+//
+// The generation attempt counter is reset so the compaction turn gets
+// a fresh retry budget: history-change triggers normally reset it, but
+// this transition inserts no history, and a chat that errored after
+// exhausting retries would otherwise inherit the spent budget.
 func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResult, error) {
 	_, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
 	if err != nil {
@@ -689,6 +694,9 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 	now, err := tx.store.GetDatabaseNow(tx.ctx)
 	if err != nil {
 		return RequestCompactionResult{}, xerrors.Errorf("get db now: %w", err)
+	}
+	if err := tx.store.ResetChatGenerationAttempt(tx.ctx, tx.chatID); err != nil {
+		return RequestCompactionResult{}, xerrors.Errorf("reset generation attempt: %w", err)
 	}
 	updated, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,

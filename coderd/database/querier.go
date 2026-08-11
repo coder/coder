@@ -1331,6 +1331,10 @@ type sqlcQuerier interface {
 	// Sets the target queued message's position to one less than the
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
+	// Resets generation_attempt so the next turn starts with a fresh
+	// retry budget. The sync_chat_retry_state trigger clears retry_state
+	// when the attempt value changes.
+	ResetChatGenerationAttempt(ctx context.Context, id uuid.UUID) error
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct

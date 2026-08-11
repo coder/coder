@@ -212,6 +212,31 @@ func TestRequestCompaction_ClearedByNewTurn(t *testing.T) {
 		"EditMessage starts a new turn and must clear the marker")
 }
 
+// TestRequestCompaction_ResetsGenerationAttempt verifies a chat that
+// errored with a spent retry budget gets a fresh one. The transition
+// inserts no history, so the history-change trigger cannot reset the
+// counter and the transition must do it explicitly.
+func TestRequestCompaction_ResetsGenerationAttempt(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	seeded := seedState(t, f, chatstate.StateE0)
+	for range 3 {
+		_, err := f.DB.IncrementChatGenerationAttempt(ctx, seeded.chatID)
+		require.NoError(t, err)
+	}
+
+	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
+		return err
+	}))
+
+	chat := f.readChat(ctx, t, seeded.chatID)
+	require.Zero(t, chat.GenerationAttempt,
+		"RequestCompaction must reset the generation attempt counter")
+}
+
 // TestRequestCompaction_RejectedWhenBusyOrArchived pins the matrix
 // boundaries callers rely on for 409 mapping: only W, E0, and E1
 // admit the transition.

@@ -1269,6 +1269,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().IncrementChatGenerationAttempt(gomock.Any(), chat.ID).Return(int64(7), nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(int64(7))
 	}))
+	s.Run("ResetChatGenerationAttempt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ResetChatGenerationAttempt(gomock.Any(), chat.ID).Return(nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate)
+	}))
 	s.Run("UpdateChatRetryState", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatRetryStateParams{ID: chat.ID, RetryState: []byte(`{"attempt":1}`)}

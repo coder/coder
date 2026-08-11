@@ -10853,6 +10853,21 @@ func (q *sqlQuerier) ReorderChatQueuedMessageToHead(ctx context.Context, arg Reo
 	return result.RowsAffected()
 }
 
+const resetChatGenerationAttempt = `-- name: ResetChatGenerationAttempt :exec
+UPDATE chats
+SET generation_attempt = 0, updated_at = NOW()
+WHERE id = $1::uuid
+  AND generation_attempt <> 0
+`
+
+// Resets generation_attempt so the next turn starts with a fresh
+// retry budget. The sync_chat_retry_state trigger clears retry_state
+// when the attempt value changes.
+func (q *sqlQuerier) ResetChatGenerationAttempt(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, resetChatGenerationAttempt, id)
+	return err
+}
+
 const setChatContextSnapshot = `-- name: SetChatContextSnapshot :exec
 UPDATE chats
 SET
