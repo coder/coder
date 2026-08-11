@@ -88,6 +88,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     {
       "agents": [
         {
+          "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
           "api_version": "string",
           "apps": [
             {
@@ -348,6 +349,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     {
       "agents": [
         {
+          "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
           "api_version": "string",
           "apps": [
             {
@@ -726,6 +728,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
   {
     "agents": [
       {
+        "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
         "api_version": "string",
         "apps": [
           {
@@ -894,6 +897,7 @@ Status Code **200**
 |---------------------------------|--------------------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`                  | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
+| `»» ai_agent_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» apps`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1109,6 +1113,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     {
       "agents": [
         {
+          "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
           "api_version": "string",
           "apps": [
             {
@@ -1480,6 +1485,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {
@@ -1711,6 +1717,7 @@ Status Code **200**
 | `» reason`                       | [codersdk.BuildReason](schemas.md#codersdkbuildreason)                                                 | false    |              |                                                                                                                                                                                                                                                                        |
 | `» resources`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» ai_agent_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» apps`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1978,6 +1985,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     {
       "agents": [
         {
+          "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
           "api_version": "string",
           "apps": [
             {

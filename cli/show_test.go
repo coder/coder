@@ -132,12 +132,14 @@ func TestShowDevcontainers_Golden(t *testing.T) {
 
 	testCases := []struct {
 		name           string
+		aiBound        bool
 		showDetails    bool
 		devcontainers  []codersdk.WorkspaceAgentDevcontainer
 		listeningPorts map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse
 	}{
 		{
-			name: "running_devcontainer_with_agent",
+			name:    "running_devcontainer_with_agent",
+			aiBound: true,
 			devcontainers: []codersdk.WorkspaceAgentDevcontainer{
 				{
 					ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
@@ -427,6 +429,9 @@ func TestShowDevcontainers_Golden(t *testing.T) {
 				Status:          codersdk.WorkspaceAgentConnected,
 				Health:          codersdk.WorkspaceAgentHealth{Healthy: true},
 				Version:         "v2.15.0",
+			}
+			if tc.aiBound {
+				mainAgent.AIAgentID = new(uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"))
 			}
 			allAgents = append(allAgents, mainAgent)
 

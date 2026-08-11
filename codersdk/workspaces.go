@@ -29,10 +29,11 @@ const (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID        uuid.UUID `json:"id" format:"uuid"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
-	OwnerID   uuid.UUID `json:"owner_id" format:"uuid"`
+	ID        uuid.UUID  `json:"id" format:"uuid"`
+	AIAgentID *uuid.UUID `json:"ai_agent_id,omitempty" format:"uuid"`
+	CreatedAt time.Time  `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time  `json:"updated_at" format:"date-time"`
+	OwnerID   uuid.UUID  `json:"owner_id" format:"uuid"`
 	// OwnerName is the username of the owner of the workspace.
 	OwnerName                            string              `json:"owner_name"`
 	OwnerAvatarURL                       string              `json:"owner_avatar_url"`

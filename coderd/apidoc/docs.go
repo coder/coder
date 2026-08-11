@@ -27659,6 +27659,10 @@ const docTemplate = `{
         "codersdk.Workspace": {
             "type": "object",
             "properties": {
+                "ai_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "allow_renames": {
                     "type": "boolean"
                 },
@@ -27816,6 +27820,10 @@ const docTemplate = `{
         "codersdk.WorkspaceAgent": {
             "type": "object",
             "properties": {
+                "ai_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "api_version": {
                     "type": "string"
                 },

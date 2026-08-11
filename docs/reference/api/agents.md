@@ -729,6 +729,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
 
 ```json
 {
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
   "api_version": "string",
   "apps": [
     {

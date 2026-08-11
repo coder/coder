@@ -10681,6 +10681,7 @@ export interface WebsocketReport extends BaseReport {
  */
 export interface Workspace {
 	readonly id: string;
+	readonly ai_agent_id?: string;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly owner_id: string;
@@ -10752,6 +10753,7 @@ export interface WorkspaceACL {
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgent {
 	readonly id: string;
+	readonly ai_agent_id?: string;
 	readonly parent_id: string | null;
 	readonly created_at: string;
 	readonly updated_at: string;

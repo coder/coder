@@ -53,6 +53,7 @@ of the template will be used.
 
 ```json
 {
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
   "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
@@ -143,6 +144,7 @@ of the template will be used.
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {
@@ -436,6 +438,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ```json
 {
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
   "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
@@ -526,6 +529,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {
@@ -786,6 +790,7 @@ of the template will be used.
 
 ```json
 {
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
   "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
@@ -876,6 +881,7 @@ of the template will be used.
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {
@@ -1114,6 +1120,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
   "count": 0,
   "workspaces": [
     {
+      "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
       "allow_renames": true,
       "automatic_updates": "always",
       "autostart_schedule": "string",
@@ -1204,6 +1211,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           {
             "agents": [
               {
+                "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
                 "api_version": "string",
                 "apps": [
                   {
@@ -1412,6 +1420,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ```json
 {
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
   "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
@@ -1502,6 +1511,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {
@@ -2190,6 +2200,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 
 ```json
 {
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
   "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
@@ -2280,6 +2291,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {

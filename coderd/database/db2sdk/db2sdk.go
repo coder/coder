@@ -548,6 +548,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                       dbAgent.ID,
+		AIAgentID:                nullUUIDPtr(dbAgent.AIAgentID),
 		ParentID:                 dbAgent.ParentID,
 		CreatedAt:                dbAgent.CreatedAt,
 		UpdatedAt:                dbAgent.UpdatedAt,

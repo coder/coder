@@ -2890,6 +2890,11 @@ func convertWorkspace(
 		nextStartAt = &workspace.NextStartAt.Time
 	}
 
+	var aiAgentID *uuid.UUID
+	if workspace.AIAgentID.Valid {
+		aiAgentID = &workspace.AIAgentID.UUID
+	}
+
 	failingAgents := []uuid.UUID{}
 	for _, resource := range workspaceBuild.Resources {
 		for _, agent := range resource.Agents {
@@ -2923,6 +2928,7 @@ func convertWorkspace(
 
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
+		AIAgentID:                            aiAgentID,
 		CreatedAt:                            workspace.CreatedAt,
 		UpdatedAt:                            workspace.UpdatedAt,
 		OwnerID:                              workspace.OwnerID,

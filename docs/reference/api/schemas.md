@@ -10452,6 +10452,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {
@@ -11821,6 +11822,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {
@@ -15468,6 +15470,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
   "allow_renames": true,
   "automatic_updates": "always",
   "autostart_schedule": "string",
@@ -15558,6 +15561,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {
@@ -15762,6 +15766,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                                        | Type                                                                    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                 |
 |---------------------------------------------|-------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_agent_id`                               | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `allow_renames`                             | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `automatic_updates`                         | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `autostart_schedule`                        | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
@@ -15860,6 +15865,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
   "api_version": "string",
   "apps": [
     {
@@ -15999,6 +16005,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                            |
 |------------------------------|----------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_agent_id`                | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `api_version`                | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                      | false    |              |                                                                                                                                                                                                                                                                        |
 | `architecture`               | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
@@ -16907,6 +16914,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "agents": [
         {
+          "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
           "api_version": "string",
           "apps": [
             {
@@ -17394,6 +17402,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agents": [
     {
+      "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
       "api_version": "string",
       "apps": [
         {
@@ -17688,6 +17697,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "count": 0,
   "workspaces": [
     {
+      "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
       "allow_renames": true,
       "automatic_updates": "always",
       "autostart_schedule": "string",
@@ -17778,6 +17788,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           {
             "agents": [
               {
+                "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
                 "api_version": "string",
                 "apps": [
                   {

@@ -453,6 +453,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {
@@ -716,6 +717,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/resume \
       {
         "agents": [
           {
+            "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
             "api_version": "string",
             "apps": [
               {

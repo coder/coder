@@ -119,9 +119,13 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 }
 
 func renderAgentRow(agent codersdk.WorkspaceAgent, index, totalAgents int, options WorkspaceResourcesOptions) table.Row {
+	agentName := agent.Name
+	if agent.AIAgentID != nil {
+		agentName += " (ai-bound)"
+	}
 	row := table.Row{
 		// These tree from a resource!
-		fmt.Sprintf("%s─ %s (%s, %s)", renderPipe(index, totalAgents), agent.Name, agent.OperatingSystem, agent.Architecture),
+		fmt.Sprintf("%s─ %s (%s, %s)", renderPipe(index, totalAgents), agentName, agent.OperatingSystem, agent.Architecture),
 	}
 	if !options.HideAgentState {
 		var agentStatus, agentHealth, agentVersion string

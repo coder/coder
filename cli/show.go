@@ -45,11 +45,15 @@ func (r *RootCmd) show() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
+			workspaceName := workspace.Name
+			if workspace.AIAgentID != nil {
+				workspaceName += " (AI-designated)"
+			}
 			options := cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspace.Name,
 				ServerVersion: buildInfo.Version,
 				ShowDetails:   details,
-				Title:         fmt.Sprintf("%s/%s (%s since %s) %s:%s", workspace.OwnerName, workspace.Name, workspace.LatestBuild.Status, time.Since(workspace.LatestBuild.CreatedAt).Round(time.Second).String(), workspace.TemplateName, workspace.LatestBuild.TemplateVersionName),
+				Title:         fmt.Sprintf("%s/%s (%s since %s) %s:%s", workspace.OwnerName, workspaceName, workspace.LatestBuild.Status, time.Since(workspace.LatestBuild.CreatedAt).Round(time.Second).String(), workspace.TemplateName, workspace.LatestBuild.TemplateVersionName),
 			}
 			if workspace.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
 				// Get listening ports for each agent.
