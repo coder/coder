@@ -6421,7 +6421,6 @@ type WebpushSubscription struct {
 	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
 }
 
-// Joins in the display name information such as username, avatar, and organization name.
 type Workspace struct {
 	ID                      uuid.UUID               `db:"id" json:"id"`
 	CreatedAt               time.Time               `db:"created_at" json:"created_at"`
@@ -6441,6 +6440,7 @@ type Workspace struct {
 	NextStartAt             sql.NullTime            `db:"next_start_at" json:"next_start_at"`
 	GroupACL                WorkspaceACL            `db:"group_acl" json:"group_acl"`
 	UserACL                 WorkspaceACL            `db:"user_acl" json:"user_acl"`
+	AIAgentID               uuid.NullUUID           `db:"ai_agent_id" json:"ai_agent_id"`
 	OwnerAvatarUrl          string                  `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string                  `db:"owner_username" json:"owner_username"`
 	OwnerName               string                  `db:"owner_name" json:"owner_name"`
@@ -6930,8 +6930,9 @@ type WorkspaceTable struct {
 	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
 	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 	// Favorite is true if the workspace owner has favorited the workspace.
-	Favorite    bool         `db:"favorite" json:"favorite"`
-	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
-	GroupACL    WorkspaceACL `db:"group_acl" json:"group_acl"`
-	UserACL     WorkspaceACL `db:"user_acl" json:"user_acl"`
+	Favorite    bool          `db:"favorite" json:"favorite"`
+	NextStartAt sql.NullTime  `db:"next_start_at" json:"next_start_at"`
+	GroupACL    WorkspaceACL  `db:"group_acl" json:"group_acl"`
+	UserACL     WorkspaceACL  `db:"user_acl" json:"user_acl"`
+	AIAgentID   uuid.NullUUID `db:"ai_agent_id" json:"ai_agent_id"`
 }

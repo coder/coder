@@ -3129,6 +3129,7 @@ CREATE TABLE workspaces (
     next_start_at timestamp with time zone,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    ai_agent_id uuid,
     CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
@@ -4228,6 +4229,7 @@ CREATE VIEW workspaces_expanded AS
     workspaces.next_start_at,
     workspaces.group_acl,
     workspaces.user_acl,
+    workspaces.ai_agent_id,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
     visible_users.name AS owner_name,
@@ -4251,8 +4253,6 @@ CREATE VIEW workspaces_expanded AS
      JOIN organizations ON ((workspaces.organization_id = organizations.id)))
      JOIN templates ON ((workspaces.template_id = templates.id)))
      LEFT JOIN tasks ON ((workspaces.id = tasks.workspace_id)));
-
-COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
 ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_messages_id_seq'::regclass);
 
@@ -5029,6 +5029,8 @@ CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (
 
 CREATE INDEX workspace_template_id_idx ON workspaces USING btree (template_id) WHERE (deleted = false);
 
+CREATE INDEX workspaces_ai_agent_id_idx ON workspaces USING btree (ai_agent_id);
+
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE OR REPLACE VIEW provisioner_job_stats AS
@@ -5612,6 +5614,9 @@ ALTER TABLE ONLY workspace_resource_metadata
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspaces
+    ADD CONSTRAINT workspaces_ai_agent_id_fkey FOREIGN KEY (ai_agent_id) REFERENCES ai_agents(user_id);
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT;

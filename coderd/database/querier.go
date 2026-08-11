@@ -1354,6 +1354,11 @@ type sqlcQuerier interface {
 	// refresh endpoint. Does not bump updated_at: context pinning is
 	// background state and must not reorder chat lists.
 	SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error
+	// Sets the AI designation marker on a workspace. Idempotent for the same
+	// identity; refuses to silently replace an existing marker with a different
+	// identity (the designation is server-authoritative and must be stable
+	// across rebuilds). See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2.
+	SetWorkspaceAIAgentID(ctx context.Context, arg SetWorkspaceAIAgentIDParams) (WorkspaceTable, error)
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error

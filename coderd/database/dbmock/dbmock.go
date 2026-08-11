@@ -9488,6 +9488,21 @@ func (mr *MockStoreMockRecorder) SetChatContextSnapshot(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatContextSnapshot", reflect.TypeOf((*MockStore)(nil).SetChatContextSnapshot), ctx, arg)
 }
 
+// SetWorkspaceAIAgentID mocks base method.
+func (m *MockStore) SetWorkspaceAIAgentID(ctx context.Context, arg database.SetWorkspaceAIAgentIDParams) (database.WorkspaceTable, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWorkspaceAIAgentID", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceTable)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetWorkspaceAIAgentID indicates an expected call of SetWorkspaceAIAgentID.
+func (mr *MockStoreMockRecorder) SetWorkspaceAIAgentID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWorkspaceAIAgentID", reflect.TypeOf((*MockStore)(nil).SetWorkspaceAIAgentID), ctx, arg)
+}
+
 // SoftDeleteChatMessageByID mocks base method.
 func (m *MockStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	m.ctrl.T.Helper()

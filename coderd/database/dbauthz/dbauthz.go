@@ -7118,6 +7118,16 @@ func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetCh
 	return q.db.SetChatContextSnapshot(ctx, arg)
 }
 
+func (q *querier) SetWorkspaceAIAgentID(ctx context.Context, arg database.SetWorkspaceAIAgentIDParams) (database.WorkspaceTable, error) {
+	// The AI designation marker is server-authoritative: only coderd may set
+	// it, never anything running inside a workspace.
+	// See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2 (invariant 4).
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceTable{}, err
+	}
+	return q.db.SetWorkspaceAIAgentID(ctx, arg)
+}
+
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	msg, err := q.db.GetChatMessageByID(ctx, id)
 	if err != nil {

@@ -195,6 +195,9 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"next_start_at":      ActionTrack,
 		"group_acl":          ActionTrack,
 		"user_acl":           ActionTrack,
+		// The AI designation marker is server-authoritative and security
+		// relevant: track changes to it.
+		"ai_agent_id": ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                         ActionIgnore,

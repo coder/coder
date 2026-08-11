@@ -5076,6 +5076,18 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().UpdateWorkspaceAgentConnectionByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateWorkspaceAgentAIAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		arg := database.UpdateWorkspaceAgentAIAgentIDParams{ID: agt.ID, AIAgentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		dbm.EXPECT().UpdateWorkspaceAgentAIAgentID(gomock.Any(), arg).Return(agt, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(agt)
+	}))
+	s.Run("SetWorkspaceAIAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.WorkspaceTable{})
+		arg := database.SetWorkspaceAIAgentIDParams{ID: ws.ID, AIAgentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		dbm.EXPECT().SetWorkspaceAIAgentID(gomock.Any(), arg).Return(ws, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(ws)
+	}))
 	s.Run("SoftDeletePriorWorkspaceAgents", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.SoftDeletePriorWorkspaceAgentsParams{
 			WorkspaceID:    uuid.New(),

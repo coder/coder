@@ -5025,6 +5025,14 @@ func (m queryMetricsStore) SetChatContextSnapshot(ctx context.Context, arg datab
 	return r0
 }
 
+func (m queryMetricsStore) SetWorkspaceAIAgentID(ctx context.Context, arg database.SetWorkspaceAIAgentIDParams) (database.WorkspaceTable, error) {
+	start := time.Now()
+	r0, r1 := m.s.SetWorkspaceAIAgentID(ctx, arg)
+	m.queryLatencies.WithLabelValues("SetWorkspaceAIAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetWorkspaceAIAgentID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	start := time.Now()
 	r0 := m.s.SoftDeleteChatMessageByID(ctx, id)

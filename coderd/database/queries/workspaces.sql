@@ -441,6 +441,7 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- next_start_at
 		'{}'::jsonb, -- group_acl
 		'{}'::jsonb, -- user_acl
+		'00000000-0000-0000-0000-000000000000'::uuid, -- ai_agent_id
 		'', -- owner_avatar_url
 		'', -- owner_username
 		'', -- owner_name
@@ -529,6 +530,17 @@ FROM
 	filtered_workspaces_order_with_summary fwos
 CROSS JOIN
 	total_count tc;
+
+-- name: SetWorkspaceAIAgentID :one
+-- Sets the AI designation marker on a workspace. Idempotent for the same
+-- identity; refuses to silently replace an existing marker with a different
+-- identity (the designation is server-authoritative and must be stable
+-- across rebuilds). See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2.
+UPDATE workspaces
+SET ai_agent_id = @ai_agent_id
+WHERE id = @id
+	AND (ai_agent_id IS NULL OR ai_agent_id = @ai_agent_id)
+RETURNING *;
 
 -- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
