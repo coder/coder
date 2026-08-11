@@ -4,14 +4,12 @@ import {
 } from "#/hooks/useEmbeddedMetadata";
 
 // The `ai-tasks-enabled` metadata mirrors the CODER_ENABLE_AI_TASKS deployment
-// value and is the master switch for every Coder Tasks surface. It is only
-// embedded by the Go server, so it is always missing when the frontend is
-// served by Vite or Storybook. Those environments fall back to enabled so local
-// development and stories keep rendering Tasks.
+// value and is the master switch for every Coder Tasks surface. The Go server
+// always embeds it, so a missing value means the frontend is being served by
+// Vite, Storybook, or a test runner. Those environments fall back to enabled so
+// local development and stories keep rendering Tasks.
 function isEnabled(value: boolean | undefined): boolean {
-	return Boolean(
-		value || process.env.NODE_ENV === "development" || process.env.STORYBOOK,
-	);
+	return value ?? true;
 }
 
 export function useAITasksEnabled(): boolean {

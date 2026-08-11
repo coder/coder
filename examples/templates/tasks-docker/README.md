@@ -9,7 +9,7 @@ maintainer_github: coder
 
 # Run Coder Tasks on Docker
 
-This is an example template for running [Coder Tasks](https://coder.com/docs/ai-coder/tasks), Claude Code, along with a [real world application](https://realworld-docs.netlify.app/).
+This is an example template for running Coder Tasks, Claude Code, along with a [real world application](https://realworld-docs.netlify.app/).
 
 ![Tasks](../../.images/tasks-screenshot.png)
 

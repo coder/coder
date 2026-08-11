@@ -103,16 +103,9 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 						<p>
 							{aiTasksEnabled ? (
 								<>
-									Today,{" "}
-									<Link
-										href={docs("/ai-coder/tasks")}
-										target="_blank"
-										rel="noreferrer"
-									>
-										Coder Tasks (via UI, CLI, or API)
-									</Link>{" "}
-									is the only way to create agentic workspaces, but additional
-									protocols and APIs may be supported as standards emerge.
+									Today, Coder Tasks (via UI, CLI, or API) is the only way to
+									create agentic workspaces, but additional protocols and APIs
+									may be supported as standards emerge.
 								</>
 							) : (
 								<>
