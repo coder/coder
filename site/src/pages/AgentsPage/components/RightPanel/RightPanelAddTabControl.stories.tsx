@@ -23,7 +23,7 @@ const embeddableApp: WorkspaceApp = {
 	command: undefined,
 };
 
-const agentBrowserApp: WorkspaceApp = {
+const mockAgentBrowserApp: WorkspaceApp = {
 	...MockWorkspaceApp,
 	id: "agent-browser-app",
 	slug: AGENT_BROWSER_APP_SLUG,
@@ -146,7 +146,7 @@ export const ExcludesAgentBrowserApp: Story = {
 	args: {
 		agent: {
 			...MockWorkspaceAgent,
-			apps: [embeddableApp, agentBrowserApp],
+			apps: [embeddableApp, mockAgentBrowserApp],
 		},
 	},
 	play: async ({ canvasElement }) => {

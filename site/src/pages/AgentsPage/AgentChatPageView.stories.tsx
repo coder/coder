@@ -1680,7 +1680,7 @@ export const PreservesUnavailableSidebarTab: Story = {
 	},
 };
 
-const agentBrowserApp: TypesGen.WorkspaceApp = {
+const mockAgentBrowserApp: TypesGen.WorkspaceApp = {
 	...MockWorkspaceApp,
 	id: "agent-browser-app",
 	slug: AGENT_BROWSER_APP_SLUG,
@@ -1688,9 +1688,9 @@ const agentBrowserApp: TypesGen.WorkspaceApp = {
 	health: "healthy",
 };
 
-const agentWithBrowserApp: TypesGen.WorkspaceAgent = {
+const mockAgentWithBrowserApp: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
-	apps: [...MockWorkspaceAgent.apps, agentBrowserApp],
+	apps: [...MockWorkspaceAgent.apps, mockAgentBrowserApp],
 };
 
 export const BrowserTabForHealthyAgentBrowserApp: Story = {
@@ -1698,7 +1698,7 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 		<StoryAgentChatPageView
 			showSidebarPanel
 			workspace={MockWorkspace}
-			workspaceAgent={agentWithBrowserApp}
+			workspaceAgent={mockAgentWithBrowserApp}
 			sshCommand="ssh coder.workspace"
 		/>
 	),
@@ -1730,7 +1730,7 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 			workspace={MockWorkspace}
 			workspaceAgent={{
 				...MockWorkspaceAgent,
-				apps: [{ ...agentBrowserApp, health: "disabled" }],
+				apps: [{ ...mockAgentBrowserApp, health: "disabled" }],
 			}}
 			sshCommand="ssh coder.workspace"
 		/>
@@ -1755,7 +1755,7 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 			workspace={MockWorkspace}
 			workspaceAgent={{
 				...MockWorkspaceAgent,
-				apps: [{ ...agentBrowserApp, health: "unhealthy" }],
+				apps: [{ ...mockAgentBrowserApp, health: "unhealthy" }],
 			}}
 			sshCommand="ssh coder.workspace"
 		/>
@@ -1782,7 +1782,7 @@ export const NoBrowserTabForAppOnNonBoundAgent: Story = {
 							agents: [
 								MockWorkspaceAgent,
 								{
-									...agentWithBrowserApp,
+									...mockAgentWithBrowserApp,
 									id: "other-agent",
 									name: "other-agent",
 								},
