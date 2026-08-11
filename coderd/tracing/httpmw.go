@@ -97,9 +97,11 @@ func sessionIDFromHeaders(h http.Header) string {
 	return id
 }
 
-// validSessionID reports whether s is a 32-character hexadecimal string, the
-// encoding the RFC mandates for the 16-byte session ID. Validating guards
-// against logging arbitrary client-controlled baggage values.
+// validSessionID reports whether s is a 32-character lowercase hexadecimal
+// string, the encoding the RFC mandates for the 16-byte session ID. Only
+// lowercase is accepted so that case-sensitive searches correlate reliably.
+// Validating also guards against logging arbitrary client-controlled baggage
+// values.
 func validSessionID(s string) bool {
 	if len(s) != 32 {
 		return false
@@ -108,7 +110,6 @@ func validSessionID(s string) bool {
 		switch {
 		case c >= '0' && c <= '9':
 		case c >= 'a' && c <= 'f':
-		case c >= 'A' && c <= 'F':
 		default:
 			return false
 		}
