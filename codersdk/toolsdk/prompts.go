@@ -26,9 +26,10 @@ type Prompt struct {
 	Description string
 	Arguments   []PromptArgument
 
-	// RequiredTools lists the tools the rendered prompt instructs the
-	// client to call. Servers with a restricted tool set should skip
-	// prompts whose required tools are unavailable.
+	// RequiredTools lists the tools the rendered workflow cannot run
+	// without; optional suggestions are excluded. Servers with a
+	// restricted tool set should skip prompts whose required tools are
+	// unavailable.
 	RequiredTools []string
 
 	Render func(args map[string]string) (string, error)
@@ -46,7 +47,6 @@ var AgentsDelegate = Prompt{
 		ToolNameGetChat,
 		ToolNameGetChatMessages,
 		ToolNameSendChatMessage,
-		ToolNameListChatModelConfigs,
 	},
 	Arguments: []PromptArgument{
 		{
