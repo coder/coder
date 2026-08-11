@@ -182,6 +182,13 @@ PKCE is **required** for all OAuth2 authorization code flows. Coder enforces
 PKCE in compliance with the OAuth 2.1 specification. Both public and
 confidential clients must include PKCE parameters:
 
+> [!NOTE]
+> `code_verifier` and `code_challenge` must each be 43-128 characters from
+> the unreserved character set `[A-Za-z0-9-._~]` (RFC 7636 §4.1). A value
+> outside these bounds is rejected with an `invalid_request` error, at the
+> token endpoint for `code_verifier` and at the authorization endpoint for
+> `code_challenge`.
+
 1. Generate a code verifier and challenge:
 
    ```sh
