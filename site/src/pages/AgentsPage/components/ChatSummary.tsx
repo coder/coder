@@ -1,7 +1,6 @@
 import {
 	type FC,
 	type ReactNode,
-	useCallback,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -107,72 +106,85 @@ interface ChatSummaryBodyProps {
  * actually overflows. `max-height` is used instead of `line-clamp` because
  * `line-clamp` relies on `display: -webkit-box`, which clamps unreliably once
  * the content contains nested block children such as `<ul><li>`.
+ *
+ * Overflow is measured on the clamped box but observed on an inner unclamped
+ * element, so both panel resizes and in-place summary updates re-evaluate the
+ * toggle.
  */
 const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => {
+	const clampRef = useRef<HTMLDivElement>(null);
 	const contentRef = useRef<HTMLDivElement>(null);
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [isOverflowing, setIsOverflowing] = useState(false);
 
-	const measure = useCallback(() => {
-		const content = contentRef.current;
-		if (!content) {
-			return;
-		}
-		// Measure against the collapsed bound, which only applies while
-		// collapsed; once expanded the box grows and would always measure as
-		// fitting, hiding the "Show less" affordance.
-		setIsOverflowing(content.scrollHeight > content.clientHeight);
-	}, []);
-
 	useLayoutEffect(() => {
+		// Overflow only needs measuring while collapsed. Skipping the expanded
+		// state preserves the verdict computed while collapsed, so the toggle
+		// stays visible; collapsing reruns this effect and remeasures.
 		if (isExpanded) {
 			return;
 		}
-		measure();
-
+		const clamp = clampRef.current;
 		const content = contentRef.current;
-		if (!content || typeof ResizeObserver === "undefined") {
+		if (!clamp || !content) {
 			return;
 		}
-		// The right panel is resizable, and the observer fires immediately on
-		// observe(), so this also covers a summary swap that changes the box
-		// height. A swap that leaves the height pinned to the clamp cannot
-		// change the overflow verdict, so no summary dependency is needed.
+		const measure = () =>
+			setIsOverflowing(clamp.scrollHeight > clamp.clientHeight);
+		measure();
+
+		if (typeof ResizeObserver === "undefined") {
+			return;
+		}
+		// Observe the inner element rather than the clamped one. The clamped box
+		// stops growing at its max height, so a summary that arrives via a cache
+		// update while the box is already pinned there would resize nothing and
+		// stay clipped with no toggle. The inner element is unclamped, so its
+		// height tracks the content and its width tracks the resizable panel.
 		const observer = new ResizeObserver(measure);
 		observer.observe(content);
 		return () => observer.disconnect();
-	}, [measure, isExpanded]);
+	}, [isExpanded]);
 
 	return (
 		<div className="flex flex-col items-start gap-1">
 			<div
-				ref={contentRef}
+				ref={clampRef}
 				className={`overflow-hidden font-sans text-sm font-normal leading-6 text-content-primary ${
 					isExpanded ? "" : "max-h-48"
 				}`}
 			>
-				<InlineMarkdown
-					// `ol` is allowed alongside `ul` so a legacy prose summary that
-					// happens to start with "1. " still nests its items in a list;
-					// disallowing it emits `li` elements with no list parent.
-					allowedElements={["ul", "ol", "li"]}
-					components={{
-						// InlineMarkdown renders `p` as a bare fragment, which would
-						// run the headline straight into the bullet list.
-						p: ({ children }) => <p className="m-0 text-pretty">{children}</p>,
-						ul: ({ children }) => (
-							<ul className={`${LIST_CLASSES} list-disc`}>{children}</ul>
-						),
-						ol: ({ children }) => (
-							<ol className={`${LIST_CLASSES} list-decimal`}>{children}</ol>
-						),
-						li: ({ children }) => (
-							<li className="m-0 text-pretty">{children}</li>
-						),
-					}}
-				>
-					{summary}
-				</InlineMarkdown>
+				<div ref={contentRef}>
+					<InlineMarkdown
+						// `ol` is allowed alongside `ul` so a legacy prose summary that
+						// happens to start with "1. " still nests its items in a list;
+						// disallowing it emits `li` elements with no list parent.
+						allowedElements={["ul", "ol", "li"]}
+						components={{
+							// InlineMarkdown renders `p` as a bare fragment, which would
+							// run the headline straight into the bullet list.
+							p: ({ children }) => (
+								<p className="m-0 text-pretty">{children}</p>
+							),
+							ul: ({ children }) => (
+								<ul className={`${LIST_CLASSES} list-disc`}>{children}</ul>
+							),
+							ol: ({ children }) => (
+								<ol className={`${LIST_CLASSES} list-decimal`}>{children}</ol>
+							),
+							li: ({ children }) => (
+								<li className="m-0 text-pretty">{children}</li>
+							),
+							// Render link text without an anchor. Clipping below the
+							// collapsed bound is visual only, so a mounted anchor would
+							// stay reachable by keyboard and screen readers while
+							// invisible. Summaries are generated text, not navigation.
+							a: ({ children }) => <>{children}</>,
+						}}
+					>
+						{summary}
+					</InlineMarkdown>
+				</div>
 			</div>
 
 			{(isOverflowing || isExpanded) && (

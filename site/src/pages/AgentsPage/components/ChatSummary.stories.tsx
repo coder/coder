@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ChatSummary } from "./ChatSummary";
 
@@ -8,6 +9,16 @@ const MARKDOWN_SUMMARY = [
 	"- Traced the failure to a cache-layer race in `chatd.go`",
 	"- Added a regression test covering the race",
 	"- Opened PR #26649",
+].join("\n");
+
+const LONG_SUMMARY = [
+	"Audited the whole chat pipeline and shipped a batch of fixes.",
+	"",
+	...Array.from(
+		{ length: 12 },
+		(_, i) =>
+			`- Reviewed subsystem number ${i + 1} and applied the corresponding fix so the behaviour matches the specification`,
+	),
 ].join("\n");
 
 const meta: Meta<typeof ChatSummary> = {
@@ -97,18 +108,55 @@ export const LegacyOrderedList: Story = {
 	},
 };
 
-export const LongSummaryExpands: Story = {
+// Links are rendered as plain text. `overflow-hidden` clips the collapsed
+// content visually only, so a mounted anchor below the bound would still be
+// reachable by keyboard and screen readers while invisible.
+export const LinksRenderAsPlainText: Story = {
 	args: {
-		summary: [
-			"Audited the whole chat pipeline and shipped a batch of fixes.",
-			"",
-			...Array.from(
-				{ length: 12 },
-				(_, i) =>
-					`- Reviewed subsystem number ${i + 1} and applied the corresponding fix so the behaviour matches the specification`,
-			),
-		].join("\n"),
+		summary:
+			"Investigated the failure in [PR #26649](https://example.com/pr) and fixed it.",
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/PR #26649/)).toBeInTheDocument();
+		await expect(canvas.queryByRole("link")).not.toBeInTheDocument();
+	},
+};
+
+// A cache update can replace the summary in place, without remounting the
+// panel, so the overflow toggle has to re-evaluate on new content.
+export const SummaryReplacedInPlace: Story = {
+	render: (args) => {
+		const [summary, setSummary] = useState(MARKDOWN_SUMMARY);
+		return (
+			<div className="flex flex-col gap-2">
+				<button type="button" onClick={() => setSummary(LONG_SUMMARY)}>
+					Simulate update
+				</button>
+				<ChatSummary {...args} summary={summary} />
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("button", { name: "Show more" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Simulate update" }),
+		);
+
+		await waitFor(async () => {
+			await expect(
+				canvas.getByRole("button", { name: "Show more" }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const LongSummaryExpands: Story = {
+	args: { summary: LONG_SUMMARY },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
