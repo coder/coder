@@ -44,11 +44,11 @@ organization's servers; other organizations are managed through the API.
 
 #### Availability policies
 
-| Policy        | Behavior                                               |
-|---------------|--------------------------------------------------------|
-| `force_on`    | Always injected into every chat. Users cannot opt out. |
-| `default_on`  | Pre-selected in new chats. Users can opt out.          |
-| `default_off` | Available in the server list but users must opt in.    |
+| Policy        | Behavior                                                                          |
+|---------------|-----------------------------------------------------------------------------------|
+| `force_on`    | Injected into every chat whose owner has ACL access to the server. No opting out. |
+| `default_on`  | Pre-selected in new chats. Users can opt out.                                     |
+| `default_off` | Available in the server list but users must opt in.                               |
 
 ## Authentication
 

@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1203,19 +1204,34 @@ type PromoteQueuedResult struct {
 	PromotedMessage database.ChatMessage
 }
 
+// forcedMCPServerConfigsForOwner returns the enabled Force On MCP
+// server configs in the organization whose ACL grants the chat owner
+// read access. Force On must not widen access beyond the server's
+// ACL, so the query runs as the owner and the dbauthz post-filter
+// drops servers the owner cannot see.
+func forcedMCPServerConfigsForOwner(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID) ([]database.MCPServerConfig, error) {
+	owner, _, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return nil, xerrors.Errorf("load chat owner authorization: %w", err)
+	}
+	forced, err := store.GetForcedMCPServerConfigsByOrganization(dbauthz.As(ctx, owner), organizationID)
+	if err != nil {
+		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+	}
+	return forced, nil
+}
+
 // enforceForcedMCPServerIDs appends the ID of every enabled Force On
-// MCP server config in the chat's organization missing from ids. Force
-// On availability is a server-side policy: callers must not be able to
-// exclude such servers by stripping IDs from a request (Cure53
-// CDM-02-010). The forced set is read with daemon scope because
-// regular users cannot read MCP server configs directly.
-func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, organizationID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
-	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
-	forced, err := store.GetForcedMCPServerConfigsByOrganization(dbauthz.AsChatd(ctx), organizationID)
+// MCP server config the chat owner can read that is missing from ids.
+// Force On availability is a server-side policy: callers must not be
+// able to exclude such servers by stripping IDs from a request (Cure53
+// CDM-02-010).
+func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
+	forced, err := forcedMCPServerConfigsForOwner(ctx, store, organizationID, ownerID)
 	if err != nil {
 		// Fail closed: proceeding without the forced set would
 		// silently bypass a security policy.
-		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+		return nil, err
 	}
 	merged := slices.Clone(ids)
 	if merged == nil {
@@ -1258,7 +1274,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// Force On MCP servers are enforced server-side so a caller
 	// cannot exclude them by stripping IDs from the request
 	// (Cure53 CDM-02-010).
-	enforcedMCPServerIDs, err := enforceForcedMCPServerIDs(ctx, p.db, opts.OrganizationID, opts.MCPServerIDs)
+	enforcedMCPServerIDs, err := enforceForcedMCPServerIDs(ctx, p.db, opts.OrganizationID, opts.OwnerID, opts.MCPServerIDs)
 	if err != nil {
 		return database.Chat{}, err
 	}
@@ -1516,7 +1532,7 @@ func (p *Server) SendMessage(
 				// Force On MCP servers are enforced server-side so a
 				// caller cannot remove them by tampering with the
 				// update (Cure53 CDM-02-010).
-				enforcedIDs, enforceErr := enforceForcedMCPServerIDs(ctx, store, lockedChat.OrganizationID, *requestedMCPServerIDs)
+				enforcedIDs, enforceErr := enforceForcedMCPServerIDs(ctx, store, lockedChat.OrganizationID, lockedChat.OwnerID, *requestedMCPServerIDs)
 				if enforceErr != nil {
 					return enforceErr
 				}

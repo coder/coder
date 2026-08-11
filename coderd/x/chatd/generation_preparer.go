@@ -26,14 +26,14 @@ import (
 )
 
 // effectiveMCPServerConfigs loads the MCP server configs for a turn:
-// the chat's stored selection plus every enabled Force On config.
-// Force On inclusion is enforced at generation time, not just at
-// write time, so chats persisted before enforcement existed (or
-// before an admin marked a server Force On) cannot dodge the policy
-// (Cure53 CDM-02-010). Explore chats are exempt: their spawn-time
-// snapshot is immutable by design and must never widen after spawn;
-// Force On servers reach the snapshot through the parent chat's
-// enforced ID list.
+// the chat's stored selection plus every enabled Force On config the
+// chat owner can read. Force On inclusion is enforced at generation
+// time, not just at write time, so chats persisted before enforcement
+// existed (or before an admin marked a server Force On) cannot dodge
+// the policy (Cure53 CDM-02-010). Explore chats are exempt: their
+// spawn-time snapshot is immutable by design and must never widen
+// after spawn; Force On servers reach the snapshot through the parent
+// chat's enforced ID list.
 func (server *Server) effectiveMCPServerConfigs(
 	ctx context.Context,
 	logger slog.Logger,
@@ -54,11 +54,11 @@ func (server *Server) effectiveMCPServerConfigs(
 	if isExploreSubagentMode(chat.Mode) {
 		return configs, nil
 	}
-	forced, err := server.db.GetForcedMCPServerConfigsByOrganization(ctx, chat.OrganizationID)
+	forced, err := forcedMCPServerConfigsForOwner(ctx, server.db, chat.OrganizationID, chat.OwnerID)
 	if err != nil {
 		// Fail closed: running the turn without the forced set would
 		// silently bypass a security policy.
-		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+		return nil, err
 	}
 	seen := make(map[uuid.UUID]struct{}, len(configs))
 	for _, cfg := range configs {
