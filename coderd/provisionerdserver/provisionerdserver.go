@@ -3389,18 +3389,38 @@ func (s *server) deleteAIAgentSessionToken(ctx context.Context, agent database.A
 }
 
 // revokeAIAgentSessionTokens is the stop/delete-transition counterpart of
-// regenerateAIAgentSessionToken. It is best-effort against a missing
-// identity: workspaces that never opted in have nothing to revoke.
+// regenerateAIAgentSessionToken. It must resolve the same identity the mint
+// path used: the workspace-pinned token belongs to the designation marker
+// identity, which for a chat-created workspace is a CHAT identity and has no
+// workspace-origin row. Resolving by origin alone would leave that token
+// live until expiry. Workspaces that predate the marker fall back to the
+// workspace-origin identity. Missing identities are not an error: a
+// workspace that never opted in has nothing to revoke.
 func (s *server) revokeAIAgentSessionTokens(ctx context.Context, workspace database.Workspace) error {
-	agent, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   workspace.ID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return xerrors.Errorf("get AI agent by origin: %w", err)
+	var agent database.AIAgent
+	if workspace.AIAgentID.Valid {
+		found, err := s.Database.GetAIAgentByUserID(ctx, workspace.AIAgentID.UUID)
+		if errors.Is(err, sql.ErrNoRows) {
+			// The marker identity is already revoked, which deletes its
+			// keys, so there is nothing left to revoke here.
+			return nil
+		}
+		if err != nil {
+			return xerrors.Errorf("get designated AI agent: %w", err)
+		}
+		agent = found
+	} else {
+		found, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+			OriginType: database.AIAgentOriginWorkspace,
+			OriginID:   workspace.ID,
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return xerrors.Errorf("get AI agent by origin: %w", err)
+		}
+		agent = found
 	}
 	profile := aiagentidentity.WorkspaceAgentIdentityProfile(workspace.ID)
 	return s.deleteAIAgentSessionToken(ctx, agent, profile.TokenName)

@@ -6052,3 +6052,121 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
+
+// TestAcquireJob_AIAgentSessionTokenChatDesignated covers the chat-created
+// designation shape, where the marker identity is a CHAT identity and the
+// workspace has no workspace-origin identity at all. The scoped token is
+// minted for the marker identity, so revocation must resolve the marker
+// rather than the origin; otherwise a stop build leaves a live workspace
+// key behind until it expires.
+func TestAcquireJob_AIAgentSessionTokenChatDesignated(t *testing.T) {
+	t.Parallel()
+
+	srv, db, ps, pd := setup(t, false, nil)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	user := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: pd.OrganizationID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: pd.OrganizationID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		CreatedBy:      user.ID,
+	})
+	file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: pd.OrganizationID,
+		CreatedBy:      user.ID,
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		JobID:          uuid.New(),
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     template.ID,
+		OwnerID:        user.ID,
+		OrganizationID: pd.OrganizationID,
+	})
+
+	// A chat identity designates the workspace, exactly as chatCreateWorkspace
+	// does. dbgen.Workspace ignores AIAgentID, so set the marker explicitly.
+	_, chatAgent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        user.ID,
+		OrganizationID: pd.OrganizationID,
+		OriginType:     database.AIAgentOriginChat,
+		OriginID:       uuid.New(),
+	})
+	require.NoError(t, err)
+	_, err = db.SetWorkspaceAIAgentID(ctx, database.SetWorkspaceAIAgentIDParams{
+		ID:        workspace.ID,
+		AIAgentID: uuid.NullUUID{UUID: chatAgent.UserID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	buildNumber := int32(0)
+	acquireBuild := func(t *testing.T, transition database.WorkspaceTransition) *sdkproto.Metadata {
+		t.Helper()
+		buildNumber++
+		buildID := uuid.New()
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			OrganizationID: pd.OrganizationID,
+			InitiatorID:    user.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         file.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: buildID,
+			})),
+			Tags: pd.Tags,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                buildID,
+			WorkspaceID:       workspace.ID,
+			BuildNumber:       buildNumber,
+			JobID:             job.ID,
+			TemplateVersionID: version.ID,
+			Transition:        transition,
+			Reason:            database.BuildReasonInitiator,
+			InitiatorID:       user.ID,
+		})
+		acquired, err := srv.AcquireJob(ctx, nil)
+		require.NoError(t, err)
+		workspaceBuild, ok := acquired.Type.(*proto.AcquiredJob_WorkspaceBuild_)
+		require.True(t, ok, "expected workspace build job")
+		return workspaceBuild.WorkspaceBuild.Metadata
+	}
+
+	// The start build mints the scoped token for the CHAT identity and
+	// suppresses the owner token.
+	metadata := acquireBuild(t, database.WorkspaceTransitionStart)
+	token := metadata.GetWorkspaceAiAgentSessionToken()
+	require.NotEmpty(t, token)
+	require.Empty(t, metadata.GetWorkspaceOwnerSessionToken())
+
+	keyID := strings.Split(token, "-")[0]
+	key, err := db.GetAPIKeyByID(ctx, keyID)
+	require.NoError(t, err)
+	require.Equal(t, chatAgent.UserID, key.UserID,
+		"the scoped token belongs to the chat marker identity")
+
+	// No workspace-origin identity exists for this workspace: resolving
+	// revocation by origin alone would find nothing to revoke.
+	_, err = db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+		OriginType: database.AIAgentOriginWorkspace,
+		OriginID:   workspace.ID,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// The stop build must still revoke the chat identity's workspace key.
+	metadata = acquireBuild(t, database.WorkspaceTransitionStop)
+	require.Empty(t, metadata.GetWorkspaceAiAgentSessionToken())
+	_, err = db.GetAPIKeyByID(ctx, keyID)
+	require.ErrorIs(t, err, sql.ErrNoRows,
+		"stop must revoke the chat-designated workspace key")
+
+	// The identity itself survives for reuse on restart.
+	survivor, err := db.GetAIAgentByUserID(ctx, chatAgent.UserID)
+	require.NoError(t, err)
+	require.False(t, survivor.Deleted)
+}
