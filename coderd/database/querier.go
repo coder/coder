@@ -1160,12 +1160,8 @@ type sqlcQuerier interface {
 	InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error
 	InsertTemplateVersionVariable(ctx context.Context, arg InsertTemplateVersionVariableParams) (TemplateVersionVariable, error)
 	InsertTemplateVersionWorkspaceTag(ctx context.Context, arg InsertTemplateVersionWorkspaceTagParams) (TemplateVersionWorkspaceTag, error)
-	// Duplicate events are ignored intentionally to allow for multiple replicas
-	// to publish heartbeat events. The (id) arbiter scopes that tolerance to
-	// exact re-inserts of the same event: a duplicate hb_agent_runtime_v1
-	// bucket under a different id raises on idx_usage_events_agent_runtime
-	// instead, which generateBucket in enterprise/coderd/usage/generator.go
-	// handles.
+	// Duplicate events are ignored intentionally to allow for multiple replicas to
+	// publish heartbeat events.
 	InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
 	// InsertUserGroupsByID adds a user to all provided groups, if they exist.
