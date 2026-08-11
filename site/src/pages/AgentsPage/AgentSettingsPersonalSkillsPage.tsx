@@ -96,10 +96,6 @@ const exportPersonalSkillsArchive = async (
 const AgentSettingsPersonalSkillsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const [dialogState, setDialogState] = useState<DialogState>(null);
-	const [downloadingSkillName, setDownloadingSkillName] = useState<
-		string | undefined
-	>(undefined);
-	const [isExportingAll, setIsExportingAll] = useState(false);
 	const skillsQuery = useQuery(userSkills());
 	const skills = skillsQuery.data ?? [];
 	const existingNames = skills.map((skill) =>
@@ -186,38 +182,31 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 	const fetchSkillContent = (name: string): Promise<string> =>
 		queryClient.fetchQuery(userSkill(name)).then((skill) => skill.content);
 
-	const handleDownload = async (skill: UserSkillMetadata) => {
-		if (downloadingSkillName) {
-			return;
-		}
-		setDownloadingSkillName(skill.name);
-		try {
-			await downloadPersonalSkillFile(skill.name, fetchSkillContent);
-		} catch (error) {
+	const downloadMutation = useMutation({
+		mutationFn: (name: string) =>
+			downloadPersonalSkillFile(name, fetchSkillContent),
+		onError: (error) => {
 			toast.error(
 				getErrorMessage(error, "Failed to download personal skill."),
 				{
 					description: getErrorDetail(error),
 				},
 			);
-		}
-		setDownloadingSkillName(undefined);
-	};
+		},
+	});
 
-	const handleExportAll = async () => {
-		if (isExportingAll || skills.length === 0) {
-			return;
-		}
-		setIsExportingAll(true);
-		try {
-			await exportPersonalSkillsArchive(skills, fetchSkillContent);
-		} catch (error) {
+	const exportAllMutation = useMutation({
+		mutationFn: () => exportPersonalSkillsArchive(skills, fetchSkillContent),
+		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to export personal skills."), {
 				description: getErrorDetail(error),
 			});
-		}
-		setIsExportingAll(false);
-	};
+		},
+	});
+
+	const downloadingSkillName = downloadMutation.isPending
+		? downloadMutation.variables
+		: undefined;
 
 	let editInitialValues: PersonalSkillFormValues | undefined;
 	let editLoadError: unknown = editSkillQuery.error;
@@ -346,13 +335,13 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 				setDialogState({ type: "delete", skill });
 			}}
 			onDownload={(skill) => {
-				void handleDownload(skill);
+				downloadMutation.mutate(skill.name);
 			}}
 			onExportAll={() => {
-				void handleExportAll();
+				exportAllMutation.mutate();
 			}}
 			downloadingSkillName={downloadingSkillName}
-			isExportingAll={isExportingAll}
+			isExportingAll={exportAllMutation.isPending}
 			editorState={editorState}
 			deleteState={deleteState}
 		/>
