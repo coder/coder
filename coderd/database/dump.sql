@@ -1364,13 +1364,11 @@ BEGIN
     IF NEW.mcp_server_ids IS NULL OR cardinality(NEW.mcp_server_ids) = 0 THEN
         RETURN NEW;
     END IF;
+    -- same_org_config.id is non-NULL only for the foreign, remappable case,
+    -- so COALESCE keeps missing and same-org IDs as written.
     SELECT COALESCE(
         array_agg(
-            CASE
-                WHEN config.id IS NULL OR config.organization_id = NEW.organization_id
-                    THEN item.config_id
-                ELSE same_org_config.id
-            END
+            COALESCE(same_org_config.id, item.config_id)
             ORDER BY item.position
         ) FILTER (
             WHERE config.id IS NULL

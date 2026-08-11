@@ -3303,10 +3303,8 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 	}
 	require.True(t, remapTriggerExists(t))
 
-	// Simulate a rolling upgrade: a replica still running pre-migration code
-	// resolves configs globally and writes default-organization IDs into
-	// another organization's chat. The trigger remaps them to the same-slug
-	// copies in the chat's organization.
+	// Verify the compatibility trigger remaps stale cross-organization
+	// writes to same-slug configs in the chat's organization.
 	staleWriteChatID := uuid.New()
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO chats (
@@ -3319,8 +3317,8 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 		[]uuid.UUID{copiedIDs[liveOrgIDs[0]][configs[1].id], copiedIDs[liveOrgIDs[0]][configs[0].id]},
 		getChatIDs(t, staleWriteChatID))
 
-	// Same for updates. A default-organization config with no same-slug
-	// counterpart in the chat's organization is dropped instead.
+	// A config with no same-slug counterpart in the chat's organization is
+	// dropped instead of remapped.
 	defaultOnlyConfigID := uuid.New()
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO mcp_server_configs (
@@ -3334,8 +3332,6 @@ func TestMigration000567MCPServerConfigsOrganizationID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{copiedIDs[liveOrgIDs[0]][configs[2].id]}, getChatIDs(t, staleWriteChatID))
 
-	// Writes that already reference the chat organization's configs pass
-	// through unchanged.
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
 	`, chats[0].id, pq.Array(chats[0].configIDs))

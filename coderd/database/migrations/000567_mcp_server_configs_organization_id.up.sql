@@ -124,10 +124,9 @@ ALTER TABLE mcp_server_configs
 CREATE INDEX idx_mcp_server_configs_organization_id
     ON mcp_server_configs (organization_id);
 
--- Rolling-upgrade compatibility: replicas running pre-organization-scoping
--- code resolve configs globally and can persist another organization's config
--- ID into a chat. Remap such writes to the chat organization's same-slug
--- config, dropping IDs with no counterpart. Remove once those replicas are gone.
+-- Pre-scoping replicas resolve configs globally and can write another org's
+-- config ID into a chat during a rolling upgrade. Remap to the same-slug
+-- local config (dropping unmappable IDs); remove once those replicas are gone.
 CREATE FUNCTION remap_chat_mcp_server_ids_to_chat_org()
     RETURNS TRIGGER AS
 $$
@@ -135,13 +134,11 @@ BEGIN
     IF NEW.mcp_server_ids IS NULL OR cardinality(NEW.mcp_server_ids) = 0 THEN
         RETURN NEW;
     END IF;
+    -- same_org_config.id is non-NULL only for the foreign, remappable case,
+    -- so COALESCE keeps missing and same-org IDs as written.
     SELECT COALESCE(
         array_agg(
-            CASE
-                WHEN config.id IS NULL OR config.organization_id = NEW.organization_id
-                    THEN item.config_id
-                ELSE same_org_config.id
-            END
+            COALESCE(same_org_config.id, item.config_id)
             ORDER BY item.position
         ) FILTER (
             WHERE config.id IS NULL
