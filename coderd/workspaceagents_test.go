@@ -3772,12 +3772,14 @@ func TestWorkspaceAgentAIBindingCredentialStarvation(t *testing.T) {
 		},
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
-	dbgen.UserSecret(t, db, database.UserSecret{
-		UserID:  owner.UserID,
+	// Created through the API: dbgen's system-restricted context cannot
+	// create user secrets (user_secret:create is owner-scoped).
+	_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
 		Name:    "ai-binding-secret",
 		Value:   secretValue,
 		EnvName: "AI_BINDING_SECRET",
 	})
+	require.NoError(t, err)
 	dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 		ProviderID:       providerID,
 		UserID:           owner.UserID,
