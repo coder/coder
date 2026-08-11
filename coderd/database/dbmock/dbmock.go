@@ -849,11 +849,12 @@ func (mr *MockStoreMockRecorder) DeleteChatDebugDataByChatID(ctx, arg any) *gomo
 }
 
 // DeleteChatModelConfigByID mocks base method.
-func (m *MockStore) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
+func (m *MockStore) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteChatModelConfigByID", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.ChatModelConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteChatModelConfigByID indicates an expected call of DeleteChatModelConfigByID.
