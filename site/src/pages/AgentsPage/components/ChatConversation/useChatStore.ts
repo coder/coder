@@ -388,6 +388,13 @@ export const useChatStore = (
 		let historyResetPending = false;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
+		// ID of the current server-side stream connection, taken from
+		// the stream_connected event the server sends first on every
+		// connection (including reconnects). Included in error reports
+		// so they can be correlated with server logs, which carry the
+		// same stream ID.
+		let serverStreamID: string | undefined;
+
 		const shouldApplyMessagePart = (): boolean => {
 			const currentStatus = store.getSnapshot().chatStatus;
 			return currentStatus !== "pending" && currentStatus !== "waiting";
@@ -457,6 +464,7 @@ export const useChatStore = (
 						new Error("chat stream frame parsed to a falsy value"),
 					{
 						chatId: chatID,
+						streamId: serverStreamID ?? "unknown",
 						frameSnippet: frameText,
 						frameLength: String(frameText.length),
 					},
@@ -496,6 +504,10 @@ export const useChatStore = (
 			// are notified exactly once at the end, not per event.
 			store.batch(() => {
 				for (const streamEvent of streamEvents) {
+					if (streamEvent.type === "stream_connected") {
+						serverStreamID = streamEvent.stream_connected?.stream_id;
+						continue;
+					}
 					if (streamEvent.type === "message_part") {
 						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 							continue;

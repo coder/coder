@@ -8305,6 +8305,44 @@ func TestPatchChatMessage(t *testing.T) {
 func TestStreamChat(t *testing.T) {
 	t.Parallel()
 
+	t.Run("StreamConnectedFirst", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "stream connected initial message",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		defer closer.Close()
+
+		// The stream_connected event must be the very first event on
+		// every connection so clients always know the stream ID before
+		// anything can go wrong.
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "timed out waiting for first stream event")
+		case event, ok := <-events:
+			require.True(t, ok, "stream closed before first event")
+			require.Equal(t, codersdk.ChatStreamEventTypeStreamConnected, event.Type)
+			require.Equal(t, chat.ID, event.ChatID)
+			require.NotNil(t, event.StreamConnected)
+			require.NotEqual(t, uuid.Nil, event.StreamConnected.StreamID)
+		}
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 

@@ -2655,6 +2655,9 @@ Experimental: this endpoint is subject to change.
   "status": {
     "status": "waiting"
   },
+  "stream_connected": {
+    "stream_id": "173fd1b7-72c4-44c4-9244-55a0a167a352"
+  },
   "type": "message_part"
 }
 ```

@@ -17714,6 +17714,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatStreamConnected": {
+            "type": "object",
+            "properties": {
+                "stream_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.ChatStreamEvent": {
             "type": "object",
             "properties": {
@@ -17745,6 +17754,9 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStreamStatus"
                 },
+                "stream_connected": {
+                    "$ref": "#/definitions/codersdk.ChatStreamConnected"
+                },
                 "type": {
                     "$ref": "#/definitions/codersdk.ChatStreamEventType"
                 }
@@ -17761,7 +17773,8 @@ const docTemplate = `{
                 "retry",
                 "action_required",
                 "preview_reset",
-                "history_reset"
+                "history_reset",
+                "stream_connected"
             ],
             "x-enum-varnames": [
                 "ChatStreamEventTypeMessagePart",
@@ -17772,7 +17785,8 @@ const docTemplate = `{
                 "ChatStreamEventTypeRetry",
                 "ChatStreamEventTypeActionRequired",
                 "ChatStreamEventTypePreviewReset",
-                "ChatStreamEventTypeHistoryReset"
+                "ChatStreamEventTypeHistoryReset",
+                "ChatStreamEventTypeStreamConnected"
             ]
         },
         "codersdk.ChatStreamMessagePart": {

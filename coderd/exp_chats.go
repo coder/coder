@@ -3564,7 +3564,15 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
-	logger := api.Logger.Named("chat_streamer").With(slog.F("chat_id", chatID))
+	// streamID identifies this stream connection. It is logged with every
+	// server-side stream log line and sent to the client as the first
+	// stream event so client error reports can be correlated with server
+	// logs for the exact connection.
+	streamID := uuid.New()
+	logger := api.Logger.Named("chat_streamer").With(
+		slog.F("chat_id", chatID),
+		slog.F("stream_id", streamID),
+	)
 
 	if !api.requireChatDaemon(ctx, rw) {
 		return
@@ -3630,6 +3638,16 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 		return encoder.Encode(batch)
+	}
+
+	logger.Debug(ctx, "chat stream connected")
+	if err := sendChatStreamBatch([]codersdk.ChatStreamEvent{{
+		Type:            codersdk.ChatStreamEventTypeStreamConnected,
+		ChatID:          chatID,
+		StreamConnected: &codersdk.ChatStreamConnected{StreamID: streamID},
+	}}); err != nil {
+		logger.Debug(ctx, "failed to send chat stream connected event", slog.Error(err))
+		return
 	}
 
 	drainChatStreamBatch := func(

@@ -15963,6 +15963,15 @@
 				}
 			}
 		},
+		"codersdk.ChatStreamConnected": {
+			"type": "object",
+			"properties": {
+				"stream_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
 		"codersdk.ChatStreamEvent": {
 			"type": "object",
 			"properties": {
@@ -15994,6 +16003,9 @@
 				"status": {
 					"$ref": "#/definitions/codersdk.ChatStreamStatus"
 				},
+				"stream_connected": {
+					"$ref": "#/definitions/codersdk.ChatStreamConnected"
+				},
 				"type": {
 					"$ref": "#/definitions/codersdk.ChatStreamEventType"
 				}
@@ -16010,7 +16022,8 @@
 				"retry",
 				"action_required",
 				"preview_reset",
-				"history_reset"
+				"history_reset",
+				"stream_connected"
 			],
 			"x-enum-varnames": [
 				"ChatStreamEventTypeMessagePart",
@@ -16021,7 +16034,8 @@
 				"ChatStreamEventTypeRetry",
 				"ChatStreamEventTypeActionRequired",
 				"ChatStreamEventTypePreviewReset",
-				"ChatStreamEventTypeHistoryReset"
+				"ChatStreamEventTypeHistoryReset",
+				"ChatStreamEventTypeStreamConnected"
 			]
 		},
 		"codersdk.ChatStreamMessagePart": {
