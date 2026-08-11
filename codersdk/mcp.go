@@ -107,7 +107,6 @@ type MCPServerConfig struct {
 type MCPServerConfigRole string
 
 const (
-	// MCPServerConfigRoleRead lets the principal see and use the config.
 	MCPServerConfigRoleRead MCPServerConfigRole = "read"
 	// MCPServerConfigRoleDeleted removes the principal's ACL entry when
 	// used in an update request.
