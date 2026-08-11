@@ -13,7 +13,7 @@ import {
 	InputGroupAddon,
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -70,7 +70,7 @@ export const AppearanceSettingsPageView: FC<
 				<Badges>{isPremium ? <PremiumBadge /> : <EnterpriseBadge />}</Badges>
 			) : (
 				<div className="mb-4">
-					<PaywallPremium
+					<PaywallSmall
 						message="Appearance"
 						description="With a Premium license, you can customize the appearance and branding of your deployment."
 						canViewPremium={permissions.viewAllLicenses}

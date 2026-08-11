@@ -10,7 +10,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
@@ -65,7 +65,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	return (
 		<div className="flex flex-col gap-8">
 			{!isCustomRolesEnabled && (
-				<PaywallPremium
+				<PaywallSmall
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
 					canViewPremium={permissions.viewAllLicenses}

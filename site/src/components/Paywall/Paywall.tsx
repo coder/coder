@@ -1,10 +1,31 @@
-import { ArrowRightIcon, CheckIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon, ExternalLinkIcon } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
 import { type LinkProps, Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
 import { cn } from "#/utils/cn";
+
+export const PREMIUM_FEATURES = [
+	"High availability & workspace proxies",
+	"Multi-org & role-based access control",
+	"24x7 global support with SLA",
+	"Unlimited Git & external auth integrations",
+];
+
+export const PREMIUM_PAGE_PATH = "/deployment/premium";
+export const PREMIUM_PRICING_LINK = "https://coder.com/pricing";
+export const PREMIUM_DEFAULT_DESCRIPTION =
+	"You need a Premium license to use this feature.";
+export const PREMIUM_DEFAULT_HERO = "Get Access with Coder Premium";
+
+export type PaywallProps = React.ComponentProps<"div"> & {
+	message: string;
+	description?: string;
+	compact?: boolean;
+	canViewPremium: boolean;
+	features?: string[];
+};
 
 export const Paywall = ({
 	className,
@@ -106,23 +127,8 @@ export const PaywallDocumentationLink: FC<React.ComponentProps<"a">> = ({
 			className={cn("text-content-link font-medium", className)}
 			{...props}
 		>
-			{children}
+			{children} <ExternalLinkIcon className="size-icon-xs" />
 		</a>
-	);
-};
-
-export const PaywallSeparator: FC<React.ComponentProps<"hr">> = ({
-	className,
-	...props
-}) => {
-	return (
-		<hr
-			className={cn(
-				"w-0 h-[220px] border-0 border-l border-highlight-magenta/50 ml-2 mr-0",
-				className,
-			)}
-			{...props}
-		/>
 	);
 };
 
@@ -213,6 +219,7 @@ export const PaywallCTALink: FC<LinkProps> = ({
 	return (
 		<Button asChild>
 			<RouterLink className={cn("mx-7", className)} {...props}>
+				<ArrowRightIcon aria-hidden="true" />
 				{children}
 			</RouterLink>
 		</Button>

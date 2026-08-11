@@ -62,7 +62,6 @@ const expectPaywallContent = async (canvasElement: HTMLElement) => {
 	await expect(
 		canvas.getByRole("heading", { name: "Black Lotus" }),
 	).toBeVisible();
-	await expect(canvas.getByText("Premium")).toBeVisible();
 	await expect(
 		canvas.getByText(/Adds 3 mana of any single color/),
 	).toBeVisible();

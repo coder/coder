@@ -1,0 +1,82 @@
+import { cn } from "#/utils/cn";
+import {
+	Paywall,
+	PaywallContent,
+	PaywallCTALink,
+	PaywallDescription,
+	PaywallDocumentationLink,
+	PaywallFeature,
+	PaywallFeatures,
+	PaywallGuidance,
+	PaywallHeading,
+	type PaywallProps,
+	PaywallStack,
+	PaywallSupergraphic,
+	PaywallTitle,
+	PREMIUM_DEFAULT_HERO,
+	PREMIUM_FEATURES,
+	PREMIUM_PAGE_PATH,
+	PREMIUM_PRICING_LINK,
+} from "./Paywall";
+
+const PaywallSmall = ({
+	description,
+	compact = false,
+	canViewPremium,
+	className,
+	features = PREMIUM_FEATURES,
+	...props
+}: PaywallProps) => {
+	return (
+		<Paywall
+			className={cn(
+				compact && "max-w-[770px] py-4 px-[36px] gap-[18px] min-h-[230px]",
+				className,
+			)}
+			{...props}
+		>
+			<PaywallSupergraphic className="bg-[length:auto_140%] bg-[position:50%_50%]" />
+			<PaywallContent className="items-start text-left">
+				<PaywallHeading className={cn(compact && "justify-start mb-[18px]")}>
+					<PaywallTitle className={cn(compact && "text-lg leading-none")}>
+						{PREMIUM_DEFAULT_HERO}
+					</PaywallTitle>
+				</PaywallHeading>
+				<PaywallDescription
+					className={cn(
+						compact &&
+							"text-sm max-w-[360px] mt-2 mb-3.5 leading-relaxed text-content-secondary",
+					)}
+				>
+					{description}
+				</PaywallDescription>
+				<PaywallDocumentationLink href={PREMIUM_PRICING_LINK}>
+					Learn more about premium
+				</PaywallDocumentationLink>
+			</PaywallContent>
+			<PaywallStack className={cn(compact && "gap-4")}>
+				<PaywallFeatures className={cn(compact && "pr-0")}>
+					{features.map((feature) => (
+						<PaywallFeature
+							className={cn(compact && "text-[13px] leading-tight")}
+							key={feature}
+						>
+							{feature}
+						</PaywallFeature>
+					))}
+				</PaywallFeatures>
+				{canViewPremium ? (
+					<PaywallCTALink to={PREMIUM_PAGE_PATH}>
+						Start trial for free
+					</PaywallCTALink>
+				) : (
+					<PaywallGuidance>
+						Contact your deployment administrator for Premium.
+					</PaywallGuidance>
+				)}
+			</PaywallStack>
+		</Paywall>
+	);
+};
+
+export { PaywallSmall };

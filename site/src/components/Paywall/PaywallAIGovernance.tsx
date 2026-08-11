@@ -9,7 +9,6 @@ import {
 	PaywallFeature,
 	PaywallFeatures,
 	PaywallHeading,
-	PaywallSeparator,
 	PaywallStack,
 	PaywallTitle,
 } from "./Paywall";
@@ -31,7 +30,6 @@ const PaywallAIGovernance = () => {
 					Learn about AI Governance
 				</PaywallDocumentationLink>
 			</PaywallContent>
-			<PaywallSeparator />
 			<PaywallStack>
 				<PaywallFeatures>
 					<PaywallFeature>Auditable history of user prompts</PaywallFeature>

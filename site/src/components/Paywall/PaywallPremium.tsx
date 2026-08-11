@@ -1,97 +1,75 @@
-import type { ReactNode } from "react";
+import { ExternalLinkIcon } from "lucide-react";
+import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
 import { cn } from "#/utils/cn";
 import {
-	Paywall,
-	PaywallContent,
 	PaywallCTALink,
-	PaywallDescription,
-	PaywallDocumentationLink,
 	PaywallFeature,
 	PaywallFeatures,
 	PaywallGuidance,
-	PaywallHeading,
-	PaywallSeparator,
-	PaywallStack,
-	PaywallSupergraphic,
+	type PaywallProps,
 	PaywallTitle,
+	PREMIUM_DEFAULT_DESCRIPTION,
+	PREMIUM_DEFAULT_HERO,
+	PREMIUM_FEATURES,
+	PREMIUM_PAGE_PATH,
+	PREMIUM_PRICING_LINK,
 } from "./Paywall";
 
-const PREMIUM_FEATURES = [
-	"High availability & workspace proxies",
-	"Multi-org & role-based access control",
-	"24x7 global support with SLA",
-	"Unlimited Git & external auth integrations",
-];
-
-const PREMIUM_PAGE_PATH = "/deployment/premium";
-const PREMIUM_PRICING_LINK = "https://coder.com/pricing";
-
-type PaywallPremiumProps = React.ComponentProps<"div"> & {
-	message: string;
-	description: ReactNode;
-	compact?: boolean;
-	/** Whether the viewer can reach the in-app Premium page. */
-	canViewPremium: boolean;
-};
+const DEFAULT_HERO_SUBTITLE = "Start a 30-day trial today.";
 
 const PaywallPremium = ({
 	message,
-	description,
-	compact = false,
-	canViewPremium: canViewLicenses,
+	description = PREMIUM_DEFAULT_DESCRIPTION,
+	canViewPremium,
 	className,
+	features = PREMIUM_FEATURES,
 	...props
-}: PaywallPremiumProps) => {
+}: PaywallProps) => {
 	return (
-		<Paywall
+		<div
 			className={cn(
-				compact && "max-w-[770px] py-4 px-[36px] gap-[18px] min-h-[230px]",
+				"rounded-lg border border-solid border-border-default bg-surface-primary p-2",
 				className,
 			)}
 			{...props}
 		>
-			<PaywallSupergraphic />
-			<PaywallContent>
-				<PaywallHeading className={cn(compact && "mb-[18px]")}>
-					<PaywallTitle className={cn(compact && "text-lg leading-none")}>
-						{message}
-					</PaywallTitle>
-				</PaywallHeading>
-				<PaywallDescription
-					className={cn(
-						compact &&
-							"text-sm max-w-[360px] mt-2 mb-3.5 leading-relaxed text-content-secondary",
-					)}
-				>
-					{description}
-				</PaywallDescription>
-				<PaywallDocumentationLink href={PREMIUM_PRICING_LINK}>
-					Read the documentation
-				</PaywallDocumentationLink>
-			</PaywallContent>
-			<PaywallSeparator className="h-[180px]" />
-			<PaywallStack className={cn(compact && "gap-4")}>
-				<PaywallFeatures className={cn(compact && "pr-0")}>
-					{PREMIUM_FEATURES.map((feature) => (
-						<PaywallFeature
-							className={cn(compact && "text-[13px] leading-tight")}
-							key={feature}
-						>
-							{feature}
-						</PaywallFeature>
-					))}
-				</PaywallFeatures>
-				{canViewLicenses ? (
-					<PaywallCTALink to={PREMIUM_PAGE_PATH}>
-						Learn about Premium
+			<section className="relative isolate overflow-hidden rounded-lg flex flex-col items-center text-center py-12 px-6 mb-8">
+				<Supergraphic className="absolute inset-0 -z-10" />
+				<PaywallTitle>{PREMIUM_DEFAULT_HERO}</PaywallTitle>
+				<p className="mt-3 mb-0 text-sm">{DEFAULT_HERO_SUBTITLE}</p>
+				{canViewPremium ? (
+					<PaywallCTALink to={PREMIUM_PAGE_PATH} className="mt-6 mx-0">
+						Start trial for free
 					</PaywallCTALink>
 				) : (
-					<PaywallGuidance>
+					<PaywallGuidance className="mt-6 mx-0">
 						Contact your deployment administrator for Premium.
 					</PaywallGuidance>
 				)}
-			</PaywallStack>
-		</Paywall>
+			</section>
+
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-6 pb-6">
+				<div>
+					<h3 className="m-0 font-semibold text-base leading-relaxed text-content-primary">
+						{description}
+					</h3>
+					<a
+						href={PREMIUM_PRICING_LINK}
+						target="_blank"
+						rel="noreferrer"
+						className="mt-4 inline-flex items-center gap-1.5 text-sm text-content-link underline underline-offset-2"
+					>
+						Learn more about premium
+						<ExternalLinkIcon aria-hidden="true" className="size-icon-sm" />
+					</a>
+				</div>
+				<PaywallFeatures className="px-0" aria-label={message}>
+					{features.map((feature) => (
+						<PaywallFeature key={feature}>{feature}</PaywallFeature>
+					))}
+				</PaywallFeatures>
+			</div>
+		</div>
 	);
 };
 
