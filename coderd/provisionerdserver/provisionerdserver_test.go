@@ -5605,6 +5605,180 @@ func TestDownloadFile(t *testing.T) {
 	})
 }
 
+func TestCompleteJob_AIDesignatedWorkspaceAgentBinding(t *testing.T) {
+	t.Parallel()
+
+	type buildFixture struct {
+		srv         proto.DRPCProvisionerDaemonServer
+		db          database.Store
+		ps          pubsub.Pubsub
+		daemon      database.ProvisionerDaemon
+		user        database.User
+		template    database.Template
+		version     database.TemplateVersion
+		file        database.File
+		buildNumber int32
+	}
+
+	newFixture := func(t *testing.T) *buildFixture {
+		t.Helper()
+		srv, db, ps, daemon := setup(t, false, nil)
+		user := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: daemon.OrganizationID,
+		})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: daemon.OrganizationID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			CreatedBy:      user.ID,
+		})
+		return &buildFixture{
+			srv:      srv,
+			db:       db,
+			ps:       ps,
+			daemon:   daemon,
+			user:     user,
+			template: template,
+			version: dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				OrganizationID: daemon.OrganizationID,
+				CreatedBy:      user.ID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+				JobID:          uuid.New(),
+			}),
+			file: dbgen.File(t, db, database.File{CreatedBy: user.ID}),
+		}
+	}
+
+	completeBuild := func(t *testing.T, f *buildFixture, workspace database.WorkspaceTable, params []database.WorkspaceBuildParameter, agentNames ...string) (*sdkproto.Metadata, database.WorkspaceBuild) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f.buildNumber++
+		buildID := uuid.New()
+		job := dbgen.ProvisionerJob(t, f.db, f.ps, database.ProvisionerJob{
+			OrganizationID: f.daemon.OrganizationID,
+			InitiatorID:    f.user.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         f.file.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: buildID,
+			})),
+			Tags: f.daemon.Tags,
+		})
+		build := dbgen.WorkspaceBuild(t, f.db, database.WorkspaceBuild{
+			ID:                buildID,
+			WorkspaceID:       workspace.ID,
+			BuildNumber:       f.buildNumber,
+			JobID:             job.ID,
+			TemplateVersionID: f.version.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+			InitiatorID:       f.user.ID,
+		})
+		params = slices.Clone(params)
+		for i := range params {
+			params[i].WorkspaceBuildID = build.ID
+		}
+		if len(params) > 0 {
+			dbgen.WorkspaceBuildParameters(t, f.db, params)
+		}
+
+		acquired, err := f.srv.AcquireJob(ctx, nil)
+		require.NoError(t, err)
+		workspaceBuild, ok := acquired.Type.(*proto.AcquiredJob_WorkspaceBuild_)
+		require.True(t, ok, "expected workspace build job")
+
+		agents := make([]*sdkproto.Agent, 0, len(agentNames))
+		for _, name := range agentNames {
+			agents = append(agents, &sdkproto.Agent{Name: name})
+		}
+		_, err = f.srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+					Resources: []*sdkproto.Resource{{
+						Name:   "resource-" + strconv.Itoa(int(f.buildNumber)),
+						Type:   "test",
+						Agents: agents,
+					}},
+				},
+			},
+		})
+		require.NoError(t, err)
+		return workspaceBuild.WorkspaceBuild.Metadata, build
+	}
+
+	requireBuildAgentsBound := func(t *testing.T, db database.Store, workspaceID uuid.UUID, buildNumber int32, aiAgentID uuid.UUID, expected int) {
+		t.Helper()
+		agents, err := db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(testutil.Context(t, testutil.WaitLong), database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+			WorkspaceID: workspaceID,
+			BuildNumber: buildNumber,
+		})
+		require.NoError(t, err)
+		require.Len(t, agents, expected)
+		for _, agent := range agents {
+			require.Equal(t, uuid.NullUUID{UUID: aiAgentID, Valid: true}, agent.AIAgentID)
+		}
+	}
+
+	t.Run("HumanOptInSurvivesRebuild", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		workspace := dbgen.Workspace(t, f.db, database.WorkspaceTable{
+			TemplateID:     f.template.ID,
+			OwnerID:        f.user.ID,
+			OrganizationID: f.daemon.OrganizationID,
+		})
+		optIn := []database.WorkspaceBuildParameter{{
+			Name:  provisionerdserver.AIAgentOptInParameterName,
+			Value: "true",
+		}}
+
+		_, firstBuild := completeBuild(t, f, workspace, optIn, "first-a", "first-b")
+		designated, err := f.db.GetWorkspaceByID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.True(t, designated.AIAgentID.Valid)
+		requireBuildAgentsBound(t, f.db, workspace.ID, firstBuild.BuildNumber, designated.AIAgentID.UUID, 2)
+
+		_, rebuild := completeBuild(t, f, workspace, nil, "rebuilt-a", "rebuilt-b")
+		requireBuildAgentsBound(t, f.db, workspace.ID, rebuild.BuildNumber, designated.AIAgentID.UUID, 2)
+	})
+
+	t.Run("ChatIdentityContinuity", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, chatAgent, err := aiagentidentity.Create(ctx, f.db, aiagentidentity.CreateParams{
+			OwnerID:        f.user.ID,
+			OrganizationID: f.daemon.OrganizationID,
+			OriginType:     database.AIAgentOriginChat,
+			OriginID:       uuid.New(),
+		})
+		require.NoError(t, err)
+		workspace := dbgen.Workspace(t, f.db, database.WorkspaceTable{
+			TemplateID:     f.template.ID,
+			OwnerID:        f.user.ID,
+			OrganizationID: f.daemon.OrganizationID,
+		})
+		_, err = f.db.SetWorkspaceAIAgentID(dbauthz.AsSystemRestricted(ctx), database.SetWorkspaceAIAgentIDParams{
+			ID:        workspace.ID,
+			AIAgentID: uuid.NullUUID{UUID: chatAgent.UserID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		_, build := completeBuild(t, f, workspace, nil, "chat-a", "chat-b")
+		requireBuildAgentsBound(t, f.db, workspace.ID, build.BuildNumber, chatAgent.UserID, 2)
+		_, err = f.db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+			OriginType: database.AIAgentOriginWorkspace,
+			OriginID:   workspace.ID,
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows, "chat-designated workspaces must not mint a workspace-origin identity")
+	})
+}
+
 // TestAcquireJob_AIAgentSessionToken exercises the workspace AI agent
 // identity lifecycle across build transitions: claim builds revoke identities
 // sponsored by the former owner, opted-in start builds mint a workspace-pinned
