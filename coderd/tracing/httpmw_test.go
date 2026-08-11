@@ -130,6 +130,15 @@ func Test_Middleware_SessionID(t *testing.T) {
 		return nil, false
 	}
 
+	hasAttrKey := func(attrs []attribute.KeyValue, key string) bool {
+		for _, a := range attrs {
+			if string(a.Key) == key {
+				return true
+			}
+		}
+		return false
+	}
+
 	t.Run("TracingEnabled", func(t *testing.T) {
 		t.Parallel()
 
@@ -171,7 +180,8 @@ func Test_Middleware_SessionID(t *testing.T) {
 
 		_, ok := fieldValue(fields, "session_id")
 		require.False(t, ok, "malformed session_id should be ignored")
-		require.NotContains(t, tp.span.attributes(), attribute.String("session_id", "not-a-valid-session-id"))
+		require.False(t, hasAttrKey(tp.span.attributes(), "session_id"),
+			"no session_id attribute should be set for malformed baggage")
 	})
 
 	t.Run("NonMatchingRoute", func(t *testing.T) {
@@ -186,7 +196,8 @@ func Test_Middleware_SessionID(t *testing.T) {
 
 		_, ok := fieldValue(fields, "session_id")
 		require.False(t, ok, "session_id must not be logged on a non-matching route")
-		require.NotContains(t, tp.span.attributes(), attribute.String("session_id", testSessionID))
+		require.False(t, hasAttrKey(tp.span.attributes(), "session_id"),
+			"no session_id attribute should be set on a non-matching route")
 	})
 
 	// FieldNamesMatchBaggageKey pins the baggage key, the log field name, and
