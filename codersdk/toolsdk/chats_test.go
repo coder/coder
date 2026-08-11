@@ -185,6 +185,23 @@ func TestChatTools(t *testing.T) {
 		require.Contains(t, ids, defaultModelConfig.ID.String())
 	})
 
+	t.Run("ListChatModelConfigsSkipsDeletedProviders", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		deletedProviderConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, chattest.OpenAI(t))
+		err := client.DeleteAIProvider(ctx, deletedProviderConfig.AIProviderID.String())
+		require.NoError(t, err)
+
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.NoArgs{})
+		require.NoError(t, err)
+		var ids []string
+		for _, config := range result.ModelConfigs {
+			ids = append(ids, config.ID)
+		}
+		require.NotContains(t, ids, deletedProviderConfig.ID.String())
+		require.Contains(t, ids, defaultModelConfig.ID.String())
+	})
+
 	t.Run("Interrupt", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 

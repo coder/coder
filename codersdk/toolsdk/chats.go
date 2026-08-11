@@ -490,10 +490,11 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 		// Admin model lists include configs backed by disabled providers.
 		// Filter them with provider state; non-admin lists are already
 		// filtered server-side.
-		providerEnabled := map[uuid.UUID]bool{}
+		var providerEnabled map[uuid.UUID]bool
 		providers, err := deps.coderClient.AIProviders(ctx)
 		switch {
 		case err == nil:
+			providerEnabled = make(map[uuid.UUID]bool, len(providers))
 			for _, provider := range providers {
 				providerEnabled[provider.ID] = provider.Enabled
 			}
@@ -518,7 +519,10 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 			if !config.Enabled {
 				continue
 			}
-			if enabled, ok := providerEnabled[config.AIProviderID]; ok && !enabled {
+			// A non-nil map is the authoritative provider set: absent IDs
+			// are soft-deleted providers whose configs stay listed by the
+			// admin endpoint, so exclude them along with disabled ones.
+			if providerEnabled != nil && !providerEnabled[config.AIProviderID] {
 				continue
 			}
 			summaries = append(summaries, ChatModelConfigSummary{
