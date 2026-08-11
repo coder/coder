@@ -20,8 +20,7 @@ import type { ChatMessageInputRef } from "../AgentChatInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
-import { getDiffCacheKeyPrefix } from "../DiffViewer/diffCacheKey";
-import { useParsedDiff } from "../DiffViewer/useParsedDiff";
+import { parseDiffString } from "../DiffViewer/parseDiff";
 
 export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
 
@@ -82,17 +81,8 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
-	const dataUpdatedAt = diffContentsQuery.dataUpdatedAt;
 
-	// The @pierre/diffs worker pool only keys cached highlighted
-	// ASTs by `cacheKey`, so the key must change whenever the diff
-	// query updates. React Query's `dataUpdatedAt` survives panel
-	// remounts, which prevents stale cache hits from pairing a new
-	// FileDiffMetadata with an older highlighted AST.
-	const parsedFiles = useParsedDiff(
-		diffContent,
-		getDiffCacheKeyPrefix(`chat-${chatId}`, dataUpdatedAt),
-	);
+	const parsedFiles = parseDiffString(diffContent);
 
 	// ---------------------------------------------------------------
 	// Scroll-to-file from chat input chip clicks

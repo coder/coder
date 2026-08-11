@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	agentapisdk "github.com/coder/agentapi-sdk-go"
@@ -1524,6 +1525,7 @@ func TestCreateTaskExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1582,6 +1584,7 @@ func TestCreateTaskExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1633,6 +1636,7 @@ func TestCreateTaskExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1665,6 +1669,7 @@ func TestCreateTaskExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)

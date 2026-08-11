@@ -27,6 +27,7 @@ const baseOpenAIFormValues: ProviderFormValues = {
 	displayName: "Primary OpenAI",
 	icon: "",
 	baseUrl: "https://api.openai.com",
+	protocol: "invoke-model",
 	model: "",
 	smallFastModel: "",
 	accessKey: "",
@@ -42,6 +43,7 @@ const baseBedrockFormValues: ProviderFormValues = {
 	displayName: "Primary Bedrock",
 	icon: "",
 	baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+	protocol: "invoke-model",
 	model: "anthropic.claude-sonnet-4-5",
 	smallFastModel: "anthropic.claude-haiku-4-5",
 	accessKey: "AKIA-test",
@@ -57,6 +59,7 @@ const baseCopilotFormValues: ProviderFormValues = {
 	displayName: "GitHub Copilot",
 	icon: "",
 	baseUrl: "https://api.business.githubcopilot.com",
+	protocol: "invoke-model",
 	model: "",
 	smallFastModel: "",
 	accessKey: "",
@@ -87,6 +90,22 @@ describe("parseBedrockRegionFromBaseUrl", () => {
 				"https://bedrock-runtime.us-west-2.amazonaws.com/",
 			),
 		).toBe("us-west-2");
+	});
+
+	it("extracts the region from a mantle URL", () => {
+		expect(
+			parseBedrockRegionFromBaseUrl(
+				"https://bedrock-mantle.eu-west-1.api.aws/anthropic",
+			),
+		).toBe("eu-west-1");
+	});
+
+	it("returns undefined for a mantle URL missing the /anthropic suffix", () => {
+		// The /anthropic suffix is required, so a bare mantle host is not a
+		// valid endpoint and yields no region.
+		expect(
+			parseBedrockRegionFromBaseUrl("https://bedrock-mantle.us-east-1.api.aws"),
+		).toBeUndefined();
 	});
 
 	it("lowercases the region", () => {
@@ -396,6 +415,33 @@ describe("providerFormValuesToCreate", () => {
 			const s = req.settings as unknown as Record<string, unknown>;
 			expect(s._type).toBe("bedrock");
 			expect(s.region).toBe("us-east-1");
+		});
+
+		it("emits protocol=invoke-model and includes the model fields for InvokeModel", () => {
+			// The protocol is emitted explicitly, and the model fields are
+			// configured on the provider.
+			const req = providerFormValuesToCreate(baseBedrockFormValues);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.protocol).toBe("invoke-model");
+			expect(s.model).toBe("anthropic.claude-sonnet-4-5");
+			expect(s.small_fast_model).toBe("anthropic.claude-haiku-4-5");
+		});
+
+		it("sets protocol=mantle, derives the region, and omits the model fields", () => {
+			// Mantle is a passthrough: the client sends the model, so the
+			// provider stores neither model field but keeps the region so the
+			// backend recognises the Bedrock provider.
+			const req = providerFormValuesToCreate({
+				...baseBedrockFormValues,
+				protocol: "mantle",
+				baseUrl: "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s._type).toBe("bedrock");
+			expect(s.protocol).toBe("mantle");
+			expect(s.region).toBe("us-east-1");
+			expect(s.model).toBeUndefined();
+			expect(s.small_fast_model).toBeUndefined();
 		});
 
 		it("omits the region when the URL is non-canonical", () => {
@@ -744,6 +790,39 @@ describe("aiProviderToFormValues", () => {
 		expect(values.type).toBe("bedrock");
 		expect(values.model).toBe("anthropic.claude-opus-4-7");
 		expect(values.smallFastModel).toBe("anthropic.claude-haiku-4-5");
+	});
+
+	it("reads protocol=mantle back and leaves the model fields blank", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			settings: settings({
+				_type: "bedrock",
+				protocol: "mantle",
+				region: "us-east-1",
+			}),
+		};
+		const values = aiProviderToFormValues(provider);
+		expect(values.protocol).toBe("mantle");
+		expect(values.model).toBe("");
+		expect(values.smallFastModel).toBe("");
+	});
+
+	it("defaults protocol to invoke-model for a legacy provider without one", () => {
+		const values = aiProviderToFormValues(MockAIProviderBedrock);
+		expect(values.protocol).toBe("invoke-model");
+	});
+
+	it("resolves an empty stored protocol to invoke-model", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			settings: settings({
+				_type: "bedrock",
+				protocol: "",
+				region: "us-east-1",
+			}),
+		};
+		const values = aiProviderToFormValues(provider);
+		expect(values.protocol).toBe("invoke-model");
 	});
 
 	it("never round-trips Bedrock secrets back to the form", () => {

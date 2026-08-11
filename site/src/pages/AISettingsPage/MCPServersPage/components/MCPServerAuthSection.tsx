@@ -122,14 +122,25 @@ const OAuth2Fields: FC<MCPServerAuthSectionProps> = ({
 				/>
 			</Field>
 		</div>
-		<Field label="Scopes" htmlFor={`${formId}-oauth-scopes`}>
-			<Input
-				id={`${formId}-oauth-scopes`}
-				className="shadow-none"
-				{...form.getFieldProps("oauth2Scopes")}
-				disabled={disabled}
-			/>
-		</Field>
+		<div className="grid items-start gap-4 sm:grid-cols-2">
+			<Field label="Revocation URL" htmlFor={`${formId}-oauth-revocation-url`}>
+				<Input
+					id={`${formId}-oauth-revocation-url`}
+					className="placeholder:text-content-disabled shadow-none"
+					{...form.getFieldProps("oauth2RevocationURL")}
+					placeholder="https://"
+					disabled={disabled}
+				/>
+			</Field>
+			<Field label="Scopes" htmlFor={`${formId}-oauth-scopes`}>
+				<Input
+					id={`${formId}-oauth-scopes`}
+					className="shadow-none"
+					{...form.getFieldProps("oauth2Scopes")}
+					disabled={disabled}
+				/>
+			</Field>
+		</div>
 	</div>
 );
 

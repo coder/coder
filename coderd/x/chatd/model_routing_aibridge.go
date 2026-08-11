@@ -3,10 +3,10 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"strings"
 
-	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
@@ -115,15 +115,15 @@ func (p *Server) newModel(
 	req modelClientRequest,
 	route aiGatewayModelRoute,
 	opts modelBuildOptions,
-) (fantasy.LanguageModel, error) {
+) (chatprovider.Model, error) {
 	if route.Provider.ID == uuid.Nil {
-		return nil, xerrors.New("AI Gateway routing requires a concrete AI provider")
+		return chatprovider.Model{}, xerrors.New("AI Gateway routing requires a concrete AI provider")
 	}
 	if route.Provider.Name == "" {
-		return nil, xerrors.New("AI Gateway routing requires an AI provider name")
+		return chatprovider.Model{}, xerrors.New("AI Gateway routing requires an AI provider name")
 	}
 	if opts.ActiveAPIKeyID == "" {
-		return nil, chaterror.WithClassification(
+		return chatprovider.Model{}, chaterror.WithClassification(
 			xerrors.New("AI Gateway routing requires the active turn API key ID"),
 			chaterror.ClassifiedError{
 				Kind:      codersdk.ChatErrorKindMissingKey,
@@ -134,7 +134,7 @@ func (p *Server) newModel(
 	}
 
 	if err := ValidateAIGatewayProviderModel(route.Provider, req.ModelName); err != nil {
-		return nil, chaterror.WithClassification(
+		return chatprovider.Model{}, chaterror.WithClassification(
 			err,
 			chaterror.ClassifiedError{
 				Kind:      codersdk.ChatErrorKindConfig,
@@ -146,15 +146,15 @@ func (p *Server) newModel(
 
 	factoryPtr := p.aibridgeTransportFactory
 	if factoryPtr == nil {
-		return nil, xerrors.New("AI Gateway transport factory is not configured")
+		return chatprovider.Model{}, xerrors.New("AI Gateway transport factory is not configured")
 	}
 	factory := factoryPtr.Load()
 	if factory == nil || *factory == nil {
-		return nil, xerrors.New("AI Gateway transport factory is not configured")
+		return chatprovider.Model{}, xerrors.New("AI Gateway transport factory is not configured")
 	}
 	rt, err := (*factory).TransportFor(route.Provider.Name, aibridge.SourceAgents)
 	if err != nil {
-		return nil, xerrors.Errorf("create AI Gateway transport: %w", err)
+		return chatprovider.Model{}, xerrors.Errorf("create AI Gateway transport: %w", err)
 	}
 	baseRT := http.RoundTripper(&aiGatewayRoundTripper{
 		base:         rt,
@@ -166,14 +166,52 @@ func (p *Server) newModel(
 	}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type)
+	callConfig, err := parseModelConfigOptions(req.ConfigOptions)
+	if err != nil {
+		return chatprovider.Model{}, err
+	}
+	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, callConfig)
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
 		config.Keys,
 		req.UserAgent,
-		req.ExtraHeaders,
+		extraHeaders,
 		&http.Client{Transport: baseRT},
+		callConfig.OpenAIConfig,
 	)
+}
+
+func parseModelConfigOptions(configOptions json.RawMessage) (codersdk.ChatModelCallConfig, error) {
+	var callConfig codersdk.ChatModelCallConfig
+	if len(configOptions) == 0 {
+		return callConfig, nil
+	}
+	if err := json.Unmarshal(configOptions, &callConfig); err != nil {
+		return codersdk.ChatModelCallConfig{}, xerrors.Errorf("parse model config options: %w", err)
+	}
+	return callConfig, nil
+}
+
+// mergeConfigBetaHeaders never mutates extraHeaders; existing entries win
+// over config-derived ones.
+func mergeConfigBetaHeaders(
+	extraHeaders map[string]string,
+	providerHint string,
+	callConfig codersdk.ChatModelCallConfig,
+) map[string]string {
+	betaHeaders := chatprovider.BetaHeadersFromCallConfig(providerHint, &callConfig)
+	if len(betaHeaders) == 0 {
+		return extraHeaders
+	}
+	merged := make(map[string]string, len(extraHeaders)+len(betaHeaders))
+	for name, value := range betaHeaders {
+		merged[name] = value
+	}
+	for name, value := range extraHeaders {
+		merged[name] = value
+	}
+	return merged
 }
 
 type aibridgeFantasyConfig struct {

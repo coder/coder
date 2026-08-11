@@ -9,7 +9,8 @@
 		// static/*.html are Go templates with {{ }} directives that
 		// Biome's HTML parser does not support.
 		"includes": ["**", "!**/pnpm-lock.yaml", "!**/static/*.html"],
-		"ignoreUnknown": true
+		"ignoreUnknown": true,
+		"maxSize": 2097152
 	},
 	"linter": {
 		"rules": {
@@ -50,6 +51,15 @@
 							"react": {
 								"message": "React 19 no longer requires forwardRef. Use ref as a prop instead.",
 								"importNames": ["forwardRef"]
+							},
+							"@pierre/diffs": {
+								"message": "Parse diffs through parseDiffString so every rendered file carries a content-derived cache key (pierrecomputer/pierre#1052).",
+								"importNames": [
+									"parsePatchFiles",
+									"processPatch",
+									"processFile",
+									"parseDiffFromFile"
+								]
 							},
 							"@mui/material/Alert": "Use components/Alert/Alert instead.",
 							"@mui/material/AlertTitle": "Use components/Alert/Alert instead.",
@@ -156,6 +166,21 @@
 				"rules": {
 					"suspicious": {
 						"noEmptyInterface": "off"
+					}
+				}
+			}
+		},
+		{
+			// parseDiff.ts is the single choke point allowed to import
+			// the raw @pierre/diffs parsers.
+			"includes": [
+				"**/DiffViewer/parseDiff.ts",
+				"**/DiffViewer/parseDiff.test.ts"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": "off"
 					}
 				}
 			}

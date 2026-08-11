@@ -3,11 +3,6 @@
 This guide walks platform teams and administrators through setting up Coder
 Agents, preparing your deployment, and running your first Coder Agent.
 
-> [!NOTE]
-> Coder Agents is in Beta. APIs, behavior, and configuration may change
-> between releases without notice; pin a release before broad rollout.
-> Use **Coder version 2.33.1 or greater**.
-
 ## Prerequisites
 
 Before you begin, confirm the following:
@@ -167,10 +162,9 @@ credential scoping, and pre-installing dependencies.
 
 ### Plan for change between releases
 
-Coder Agents is under active development. APIs, behavior, and
-configuration may change between releases without notice. Pin a
-specific release before broad rollout and review the release notes
-before upgrading so changes do not surprise developers in production.
+Coder Agents is generally available.
+However, APIs, behavior, and configuration may change between releases.
+As always, you should review [release notes](https://github.com/coder/coder/releases) and the [changelog](https://coder.com/changelog) before upgrading, so changes do not affect production.
 
 ### Use HTTPS for push notifications
 
@@ -196,7 +190,7 @@ deployment. Use this to encode organizational conventions:
 - Any guardrails specific to your environment.
 
 Configure the system prompt from **AI Settings** > **Coder Agents** > **Instructions**
-or via the API at `PUT /api/experimental/chats/config/system-prompt`.
+or via the API at `PUT /api/v2/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
 ### Understand the security model
@@ -224,8 +218,7 @@ sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Setting per-model token pricing under **Admin settings** > **AI** >
-  **Models** (Input Price, Output Price) to track spend.
+- Capping spend with [AI Gateway budgets](./platform-controls/spend-management.md).
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group
@@ -257,7 +250,7 @@ This is useful for building automations such as:
 **Quick example — create a Coder Agent via the API:**
 
 ```sh
-curl -X POST https://coder.example.com/api/experimental/chats \
+curl -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -269,18 +262,14 @@ curl -X POST https://coder.example.com/api/experimental/chats \
 
 Stream updates in real time by connecting to the WebSocket endpoint:
 
-```text
-GET /api/experimental/chats/{chat}/stream
+```txt
+GET /api/v2/chats/{chat}/stream
 ```
 
 For service-to-service automation, use
 [API keys](../../admin/users/sessions-tokens.md)
 rather than developer session tokens. Keep automation credentials
 narrowly scoped.
-
-> [!NOTE]
-> The Chats API is in beta and may change without notice.
-> See [Chats API](../../reference/api/chats.md) for the full endpoint reference.
 
 ### Add workspace context with AGENTS.md
 
@@ -320,7 +309,7 @@ Good feedback includes:
 - **Context** — screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
 
-Your input directly influences product direction during Beta.
+Your input directly influences product direction.
 
 ## Next steps
 

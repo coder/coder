@@ -179,7 +179,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		externalAuthError,
 		isPollingExternalAuth,
 		isLoadingExternalAuth,
-	} = useExternalAuth(selectedVersionId);
+	} = useExternalAuth(selectedVersionId, "me");
 	const missedExternalAuth = externalAuth?.filter(
 		(auth) => !auth.optional && !auth.authenticated,
 	);
@@ -437,7 +437,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 	missedExternalAuth,
 }) => {
 	const { startPollingExternalAuth, externalAuthPollingState } =
-		useExternalAuth(versionId);
+		useExternalAuth(versionId, "me");
 
 	return missedExternalAuth.map((auth) => {
 		const isPollingExternalAuth =

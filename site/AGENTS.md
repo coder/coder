@@ -1,5 +1,31 @@
 # Frontend Development Guidelines
 
+## Frontend Non-Negotiables (FE rules)
+
+Read [Frontend Patterns](../.claude/docs/FRONTEND_PATTERNS.md) before changing
+anything under `site/src/`. It is the canonical contract behind these rule
+IDs; reviewers cite them as FE1 to FE10.
+
+- **FE1**: UI behavior changes ship with Storybook stories whose `play`
+  function exercises the real interaction. Jest/RTL is for pure logic only.
+- **FE2**: No `any`, no `as unknown as`, no avoidable `as` casts. Use
+  generated types from `api/typesGenerated.ts`.
+- **FE3**: Search for an existing component or helper before writing one.
+  Keep PRs single-purpose.
+- **FE4**: No comments that restate identifiers, assertions, or control flow.
+- **FE5**: Every view handles loading, error, empty, and refetch states
+  without clobbering user state.
+- **FE6**: Interactive elements stay keyboard-reachable with correct
+  accessible names.
+- **FE7**: All server data through react-query. Import query key constants,
+  never re-type them as string literals.
+- **FE8**: `useEffect` only to synchronize with external systems. Never
+  derive state or chain fetches in effects.
+- **FE9**: Share entity fixtures as `Mock*` constants; compose story query
+  wiring inline per story.
+- **FE10**: Tests query semantic roles and names. No `querySelector` or
+  class-name assertions.
+
 ## TypeScript LSP Navigation (USE FIRST)
 
 When investigating or editing TypeScript/React code, always use the TypeScript language server tools for accurate navigation:
@@ -247,6 +273,11 @@ Debug logs and pprof dumps use the same job name and commit SHA convention.
 3. `pnpm format` - Format code consistently
 4. `pnpm test` - Run affected unit tests
 5. Visual check in Storybook if component changes
+6. If the diff touches `site/src/`, run the `frontend-review` skill
+   (discovered from `.agents/skills/`; canonical copy at
+   [.claude/skills/frontend-review](../.claude/skills/frontend-review/SKILL.md)):
+   audit the diff against FE1 to FE10 and fix every FAIL before creating
+   the PR
 
 ## Migration (MUI → shadcn) (Emotion → Tailwind)
 

@@ -22,11 +22,7 @@ on:
       - closed
       - labeled
 
-permissions:
-  contents: write
-  pull-requests: write
-  # Required to create the release-specific cherry-pick label if missing.
-  issues: write
+permissions: {}
 
 # Prevent duplicate runs for the same PR when both 'closed' and 'labeled'
 # fire in quick succession.
@@ -36,6 +32,11 @@ concurrency:
 jobs:
   cherry-pick:
     name: Cherry-pick to latest release
+    permissions:
+      contents: write
+      pull-requests: write
+      # Required to create the release-specific cherry-pick label if missing.
+      issues: write
     if: >
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'cherry-pick')
@@ -47,7 +48,7 @@ jobs:
       MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
       SENDER: ${{ github.event.sender.login }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Full history required for cherry-pick and branch discovery.
           fetch-depth: 0

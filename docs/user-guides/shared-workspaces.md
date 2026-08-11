@@ -102,7 +102,7 @@ To allow other users to access workspace apps, configure subdomain-based access:
 2. Set `subdomain = true` on the workspace app. For example, if you use the
    [code-server module](https://registry.coder.com/modules/coder/code-server):
 
-   ```hcl
+   ```tf
    module "code-server" {
      source    = "registry.coder.com/coder/code-server/coder"
      agent_id  = coder_agent.main.id

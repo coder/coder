@@ -426,7 +426,7 @@ func deriveTaskCurrentState(
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Tasks
-// @Param q query string false "Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>"
+// @Param q query string false "Search query for filtering tasks. Supports: `owner:<username/uuid/me>`, `organization:<org-name/uuid>`, `status:<status>`"
 // @Success 200 {object} codersdk.TasksListResponse
 // @Router /api/v2/tasks [get]
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {

@@ -59,7 +59,7 @@ variables, you can employ a straightforward solution:
 
 1. Push the new template revision using Coder CLI:
 
-   ```shell
+   ```sh
    coder templates push my-template -y # no need to use --var
    ```
 

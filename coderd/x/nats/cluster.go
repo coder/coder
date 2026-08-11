@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 )
 
 const defaultClusterTokenUsername = "coder"
@@ -46,6 +47,21 @@ func (p *Pubsub) SetPeerFetcher(fetcher PeerFetcher) {
 			p.logger.Warn(p.ctx, "unexpected NATS cluster port", slog.F("port", ca.Port))
 		}
 	}
+	p.RefreshPeers()
+}
+
+// SetCACache swaps the cluster mTLS CA cache, then triggers a peer refresh so
+// any route blocked by the previous (for example noop) cache is retried. It is
+// a no-op unless the pubsub was started with cluster TLS enabled
+// (Options.ClusterCA set, which installs the TLS callbacks). Passing a noop
+// cache reverts to no mTLS: new route handshakes can no longer mint a leaf and
+// will not form. The leaf IP SAN is fixed at construction from ClusterHost, so
+// it is not passed here. It logs the resulting mTLS state.
+func (p *Pubsub) SetCACache(ca cryptokeys.SigningKeycache) {
+	if p.clusterTLS == nil {
+		return
+	}
+	p.clusterTLS.setCACache(ca)
 	p.RefreshPeers()
 }
 

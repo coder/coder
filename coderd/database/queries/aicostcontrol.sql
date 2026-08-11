@@ -2,6 +2,9 @@
 -- Upsert a batch of (provider, model) rows from a JSON array. Each element
 -- must have provider, model, and the four price fields; null prices are
 -- written as SQL NULL.
+-- A conflicting row is only rewritten when a price differs, so updated_at
+-- records when a price last changed. Prices are nullable and a NULL on
+-- either side counts as a difference.
 INSERT INTO ai_model_prices (
 	provider, model, input_price, output_price, cache_read_price, cache_write_price
 )
@@ -18,7 +21,18 @@ ON CONFLICT (provider, model) DO UPDATE SET
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
 	cache_write_price = EXCLUDED.cache_write_price,
-	updated_at        = NOW();
+	updated_at        = NOW()
+WHERE (
+	ai_model_prices.input_price,
+	ai_model_prices.output_price,
+	ai_model_prices.cache_read_price,
+	ai_model_prices.cache_write_price
+) IS DISTINCT FROM (
+	EXCLUDED.input_price,
+	EXCLUDED.output_price,
+	EXCLUDED.cache_read_price,
+	EXCLUDED.cache_write_price
+);
 
 -- name: GetAIModelPriceByProviderModel :one
 SELECT *
@@ -60,24 +74,42 @@ DELETE FROM user_ai_budget_overrides WHERE user_id = @user_id RETURNING *;
 
 -- name: GetHighestGroupAIBudgetByUser :one
 -- Returns the highest group AI budget across the groups the user belongs to,
--- breaking ties by group name ascending. Implements the "highest" budget policy.
--- group_members_expanded is a UNION of group_members and organization_members,
--- so the implicit "Everyone" group (group_id == organization_id) is included.
--- Returns no rows when the user has no budgeted groups; callers should treat
--- sql.ErrNoRows as "no group budget".
+-- breaking ties by the earliest organization membership. Implements the
+-- "highest" budget policy. group_members_expanded is a UNION of group_members
+-- and organization_members, so the implicit "Everyone" group
+-- (group_id == organization_id) is included. Returns no rows when the user has
+-- no budgeted groups. Callers should treat sql.ErrNoRows as "no group budget".
 SELECT
-	gaib.group_id,
-	gaib.spend_limit_micros
-FROM group_ai_budgets gaib
-JOIN group_members_expanded gme ON gme.group_id = gaib.group_id
-WHERE gme.user_id = @user_id
+	budget.group_id,
+	budget.spend_limit_micros
+FROM group_ai_budgets budget
+JOIN group_members_expanded member ON member.group_id = budget.group_id
+JOIN organizations ON organizations.id = member.organization_id
+JOIN organization_members
+	ON organization_members.user_id = member.user_id
+	AND organization_members.organization_id = member.organization_id
+WHERE member.user_id = @user_id
+	AND organizations.deleted = false
 ORDER BY
-	gaib.spend_limit_micros DESC, -- highest wins
-	gme.group_name ASC,           -- alphabetical tiebreak
-	-- Final tiebreak on the group id makes the result deterministic when two
-	-- groups share both name and limit, which is possible across organizations
-	-- (groups are unique on (organization_id, name), not name alone).
-	gaib.group_id ASC
+	budget.spend_limit_micros DESC,       -- highest wins
+	organization_members.created_at ASC,  -- earliest organization membership
+	budget.group_id ASC                   -- deterministic tiebreak
+LIMIT 1;
+
+-- name: GetUserEveryoneFallbackGroup :one
+-- Returns the "Everyone" group (id == organization_id) to attribute a user's
+-- spend to when no override or budgeted group applies. Prefers the default org,
+-- then the earliest organization membership. Returns no rows when the user has
+-- no organization membership.
+SELECT organizations.id AS group_id
+FROM organization_members
+JOIN organizations ON organizations.id = organization_members.organization_id
+WHERE organization_members.user_id = @user_id
+	AND organizations.deleted = false
+ORDER BY
+	organizations.is_default DESC,        -- prefer the default org
+	organization_members.created_at ASC,  -- earliest organization membership
+	organizations.id ASC                  -- deterministic tiebreak
 LIMIT 1;
 
 -- name: IncrementUserAIDailySpend :one
@@ -101,3 +133,306 @@ FROM ai_user_daily_spend
 WHERE user_id = @user_id
 	AND effective_group_id = @effective_group_id
 	AND day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date;
+
+-- name: GetOrganizationGroupsAISpend :many
+-- Returns AI spend limits and aggregate spend for groups in @group_ids that
+-- belong to @organization_id, on or after period_start until NOW.
+-- spend_limit_micros is the per-member limit, null when the group has no budget.
+-- total_spend_limit_micros is the combined budget of the members attributed to
+-- the group, with each member's override replacing their share. It is null when
+-- the group has no budget.
+-- The period_start parameter is normalized to its UTC calendar day.
+-- TODO(AIGOV-527): unify effective group resolution in a single place.
+WITH queried_groups AS (
+	-- The requested groups that belong to the queried organization.
+	SELECT groups.id, groups.organization_id
+	FROM groups
+	WHERE groups.organization_id = @organization_id
+		AND groups.id = ANY(@group_ids::uuid[])
+),
+candidate_users AS (
+	-- Members of the queried groups. Uses group_members_expanded so the implicit
+	-- Everyone group counts.
+	SELECT DISTINCT member.user_id
+	FROM group_members_expanded member
+	WHERE member.group_id IN (SELECT id FROM queried_groups)
+),
+user_highest_group AS (
+	-- Per user, the highest-limit group they belong to. Uses
+	-- group_members_expanded so the implicit Everyone group counts.
+	SELECT DISTINCT ON (member.user_id)
+		member.user_id,
+		budget.group_id,
+		budget.spend_limit_micros
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
+	WHERE member.user_id IN (SELECT user_id FROM candidate_users)
+		AND organizations.deleted = false
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
+),
+effective AS (
+	-- Effective budget group per user: an override wins over the highest-limit
+	-- group they belong to. Users with neither are left out, since the group they
+	-- fall back to has no budget and reports null.
+	SELECT
+		candidate_users.user_id,
+		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,
+		override.spend_limit_micros AS override_limit_micros
+	FROM candidate_users
+	LEFT JOIN user_ai_budget_overrides override ON override.user_id = candidate_users.user_id
+	LEFT JOIN user_highest_group ON user_highest_group.user_id = candidate_users.user_id
+),
+group_limits AS (
+	-- Per attributed group, how many members take the group's own limit and the
+	-- combined limit of those carrying an override.
+	SELECT
+		effective.effective_group_id AS group_id,
+		count(*) FILTER (WHERE effective.override_limit_micros IS NULL) AS plain_member_count,
+		COALESCE(SUM(effective.override_limit_micros), 0)::BIGINT AS override_limit_sum
+	FROM effective
+	WHERE effective.effective_group_id IS NOT NULL
+	GROUP BY effective.effective_group_id
+),
+group_totals AS (
+	-- Combined limit per budgeted group, counting members with no override at the
+	-- group's own limit and adding the overrides on top. Unbudgeted groups are
+	-- absent here, so the join below leaves their total null.
+	SELECT
+		queried_groups.id AS group_id,
+		(budget.spend_limit_micros * COALESCE(group_limits.plain_member_count, 0)
+			+ COALESCE(group_limits.override_limit_sum, 0))::BIGINT AS total_spend_limit_micros
+	FROM queried_groups
+	JOIN group_ai_budgets budget ON budget.group_id = queried_groups.id
+	LEFT JOIN group_limits ON group_limits.group_id = queried_groups.id
+),
+group_spend AS (
+	-- Spend per queried group over the period.
+	SELECT
+		spend.effective_group_id AS group_id,
+		COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+	FROM ai_user_daily_spend spend
+	WHERE spend.effective_group_id IN (SELECT id FROM queried_groups)
+		AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.effective_group_id
+)
+SELECT
+	queried_groups.id AS group_id,
+	queried_groups.organization_id AS organization_id,
+	budget.spend_limit_micros AS spend_limit_micros,
+	group_totals.total_spend_limit_micros AS total_spend_limit_micros,
+	COALESCE(group_spend.current_spend_micros, 0)::BIGINT AS current_spend_micros
+FROM queried_groups
+LEFT JOIN group_ai_budgets budget ON budget.group_id = queried_groups.id
+LEFT JOIN group_totals ON group_totals.group_id = queried_groups.id
+LEFT JOIN group_spend ON group_spend.group_id = queried_groups.id
+ORDER BY queried_groups.id;
+
+-- name: GetGroupMembersAISpend :many
+-- Returns each user's AI spend attributed to the queried group, on or after
+-- period_start until NOW. Only current members of the queried group are
+-- returned. spend_limit_micros and limit_source are populated only when the
+-- queried group is the user's effective budget source. The effective group
+-- falls back to the Everyone group, and effective_group_id is null only when
+-- that group belongs to a different organization than the queried group.
+-- The period_start parameter is normalized to its UTC calendar day.
+-- TODO(AIGOV-527): unify effective group resolution in a single place.
+WITH queried_group AS (
+	-- The queried group's org, used to detect cross-org effective groups.
+	SELECT organization_id
+	FROM groups
+	WHERE id = @group_id
+),
+filtered_users AS (
+	-- Users from @user_ids that are members of the queried group. Uses
+	-- group_members_expanded so the implicit Everyone group counts.
+	SELECT DISTINCT user_id
+	FROM group_members_expanded
+	WHERE group_id = @group_id
+		AND user_id = ANY(@user_ids::uuid[])
+),
+user_highest_group AS (
+	-- Per user, the highest-limit group they belong to. Uses
+	-- group_members_expanded so the implicit Everyone group counts.
+	SELECT DISTINCT ON (member.user_id)
+		member.user_id,
+		budget.group_id,
+		budget.spend_limit_micros
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
+	WHERE member.user_id IN (SELECT user_id FROM filtered_users)
+		AND organizations.deleted = false
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
+),
+user_fallback_group AS (
+	-- Per user, the Everyone group to fall back to when no override or budgeted
+	-- group applies. The Everyone group has id == organization_id. Prefers the
+	-- default org, then the earliest organization membership.
+	SELECT DISTINCT ON (organization_members.user_id)
+		organization_members.user_id,
+		organizations.id AS group_id
+	FROM organization_members
+	JOIN organizations ON organizations.id = organization_members.organization_id
+	WHERE organization_members.user_id IN (SELECT user_id FROM filtered_users)
+		AND organizations.deleted = false
+	ORDER BY organization_members.user_id, organizations.is_default DESC, organization_members.created_at ASC, organizations.id ASC
+),
+effective AS (
+	-- Effective budget per user: a per-user override wins over the highest-limit
+	-- group, which wins over the Everyone group fallback.
+	SELECT
+		filtered_users.user_id,
+		COALESCE(override.group_id, user_highest_group.group_id, user_fallback_group.group_id) AS raw_effective_group_id,
+		COALESCE(override.spend_limit_micros, user_highest_group.spend_limit_micros) AS spend_limit_micros,
+		(CASE
+			WHEN override.group_id IS NOT NULL THEN 'user_override'
+			WHEN user_highest_group.group_id IS NOT NULL THEN 'group'
+		END)::text AS limit_source
+	FROM filtered_users
+	LEFT JOIN user_ai_budget_overrides override ON override.user_id = filtered_users.user_id
+	LEFT JOIN user_highest_group ON user_highest_group.user_id = filtered_users.user_id
+	LEFT JOIN user_fallback_group ON user_fallback_group.user_id = filtered_users.user_id
+),
+applied_budget AS (
+	-- The limit and source only for users whose effective budget source is the
+	-- queried group.
+	SELECT user_id, spend_limit_micros, limit_source
+	FROM effective
+	WHERE raw_effective_group_id = @group_id
+)
+-- Spend is aggregated for the queried group, not the user's effective group.
+SELECT
+	effective.user_id,
+	queried_group.organization_id,
+	effective_group.id AS effective_group_id,
+	applied_budget.spend_limit_micros,
+	applied_budget.limit_source,
+	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS group_spend_micros
+FROM effective
+CROSS JOIN queried_group
+LEFT JOIN groups effective_group
+	ON effective_group.id = effective.raw_effective_group_id
+	AND effective_group.organization_id = queried_group.organization_id
+-- A LEFT JOIN leaves spend_limit_micros and limit_source null for users
+-- whose effective budget source is not the queried group.
+LEFT JOIN applied_budget ON applied_budget.user_id = effective.user_id
+LEFT JOIN ai_user_daily_spend spend
+	ON spend.user_id = effective.user_id
+	AND spend.effective_group_id = @group_id
+	AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+GROUP BY
+	effective.user_id,
+	queried_group.organization_id,
+	effective_group.id,
+	applied_budget.spend_limit_micros,
+	applied_budget.limit_source
+ORDER BY effective.user_id;
+
+-- name: GetOverBudgetUsersPerGroup :many
+-- Returns, per effective group, the number of users at or over their spend
+-- limit since period_start. Only users with an enforceable limit (override or
+-- budgeted group) count, and the unlimited Everyone fallback does not.
+-- TODO(AIGOV-527): unify effective group resolution in a single place.
+WITH budgeted_users AS (
+	-- Users with an override or membership in a budgeted group.
+	SELECT user_id FROM user_ai_budget_overrides
+	UNION
+	SELECT DISTINCT member.user_id
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+),
+user_highest_group AS (
+	-- Per user, their highest-limit group ("highest" budget policy).
+	SELECT DISTINCT ON (member.user_id)
+		member.user_id,
+		budget.group_id,
+		budget.spend_limit_micros
+	FROM group_ai_budgets budget
+	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
+	WHERE member.user_id IN (SELECT user_id FROM budgeted_users)
+		AND organizations.deleted = false
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
+),
+effective AS (
+	-- An override wins over the highest-limit group, and users with neither drop.
+	SELECT
+		budgeted_users.user_id,
+		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,
+		COALESCE(override.spend_limit_micros, user_highest_group.spend_limit_micros) AS spend_limit_micros
+	FROM budgeted_users
+	LEFT JOIN user_ai_budget_overrides override ON override.user_id = budgeted_users.user_id
+	LEFT JOIN user_highest_group ON user_highest_group.user_id = budgeted_users.user_id
+	WHERE COALESCE(override.group_id, user_highest_group.group_id) IS NOT NULL
+),
+user_spend AS (
+	-- Each user's spend against their effective group since period_start.
+	SELECT
+		effective.user_id,
+		effective.effective_group_id,
+		effective.spend_limit_micros,
+		COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+	FROM effective
+	LEFT JOIN ai_user_daily_spend spend
+		ON spend.user_id = effective.user_id
+		AND spend.effective_group_id = effective.effective_group_id
+		AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY effective.user_id, effective.effective_group_id, effective.spend_limit_micros
+)
+SELECT
+	effective_group_id AS group_id,
+	COUNT(*)::BIGINT AS over_budget_users
+FROM user_spend
+WHERE current_spend_micros >= spend_limit_micros
+GROUP BY effective_group_id
+ORDER BY effective_group_id;
+
+-- name: ExportOrganizationAISpend :many
+-- Returns per-user, per-group, per-model, per-provider aggregated AI spend for
+-- @organization_id over the [period_start, period_end) window. Spend is
+-- attributed through the token usage's effective group, and rows are bucketed
+-- by the token usage created_at, matching how ai_user_daily_spend is derived.
+SELECT
+	ai.initiator_id AS user_id,
+	users.username AS username,
+	tu.effective_group_id AS group_id,
+	groups.name AS group_name,
+	groups.organization_id AS organization_id,
+	organizations.name AS organization_name,
+	ai.model AS model,
+	ai.provider AS provider,
+	ai.provider_name AS provider_name,
+	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
+	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
+	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
+	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+JOIN organizations ON organizations.id = groups.organization_id
+WHERE groups.organization_id = @organization_id
+	AND tu.created_at >= @period_start::timestamptz
+	AND tu.created_at < @period_end::timestamptz
+GROUP BY
+	ai.initiator_id,
+	users.username,
+	tu.effective_group_id,
+	groups.name,
+	groups.organization_id,
+	organizations.name,
+	ai.model,
+	ai.provider,
+	ai.provider_name
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model;

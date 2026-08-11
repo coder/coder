@@ -105,7 +105,7 @@ func createComputerUseParentChild(
 		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
 		LastModelConfigID: model.ID,
 		Title:             parentTitle,
-		Status:            database.ChatStatusPending,
+		Status:            database.ChatStatusRunning,
 	})
 
 	// Insert the child chat directly via DB to avoid triggering
@@ -121,7 +121,7 @@ func createComputerUseParentChild(
 		LastModelConfigID: model.ID,
 		Title:             childTitle,
 		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
-		Status:            database.ChatStatusPending,
+		Status:            database.ChatStatusRunning,
 	})
 
 	return parent, child

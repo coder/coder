@@ -308,6 +308,87 @@ func TestAdvisorRunError(t *testing.T) {
 	require.Equal(t, 0, retried.RemainingUses)
 }
 
+func TestAdvisorRunTextlessOutcomeDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	// A step without usable text collapses into one error result. The
+	// error must describe what the model actually returned so failure
+	// modes (tool-call mimicry, reasoning-only turns, truncation) are
+	// distinguishable from field reports alone.
+	tests := []struct {
+		name      string
+		parts     []fantasy.StreamPart
+		wantError string
+	}{
+		{
+			name: "ReasoningOnly",
+			parts: []fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeReasoningStart, ID: "r-1"},
+				{Type: fantasy.StreamPartTypeReasoningDelta, ID: "r-1", Delta: "I should call the advisor tool."},
+				{Type: fantasy.StreamPartTypeReasoningEnd, ID: "r-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			},
+			wantError: "advisor produced no text output (finish_reason=stop; parts: reasoning=1)",
+		},
+		{
+			name: "ToolCallOnly",
+			parts: []fantasy.StreamPart{
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "call-1",
+					ToolCallName:  "advisor",
+					ToolCallInput: `{"question":"hi"}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			},
+			wantError: "advisor produced no text output (finish_reason=tool-calls; parts: tool_call=1)",
+		},
+		{
+			name: "BlankText",
+			parts: []fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "   "},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			},
+			wantError: "advisor produced no text output (finish_reason=stop; parts: blank_text=1)",
+		},
+		{
+			name: "Empty",
+			parts: []fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonLength},
+			},
+			wantError: "advisor produced no text output (finish_reason=length; parts: none)",
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+				Model: &chattest.FakeModel{
+					ProviderName: "test-provider",
+					ModelName:    "test-model",
+					StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+						return streamFromParts(testCase.parts), nil
+					},
+				},
+				MaxUsesPerRun:   1,
+				MaxOutputTokens: 64,
+			})
+			require.NoError(t, err)
+
+			result, err := runtime.RunAdvisor(t.Context(), "what should I do?", nil, nil)
+			require.NoError(t, err)
+			require.Equal(t, chatadvisor.ResultTypeError, result.Type)
+			require.Equal(t, testCase.wantError, result.Error)
+			// A text-free run must refund its use so the parent can retry.
+			require.Equal(t, 1, result.RemainingUses)
+		})
+	}
+}
+
 func TestNewRuntimeValidation(t *testing.T) {
 	t.Parallel()
 
@@ -617,15 +698,14 @@ func TestBuildAdvisorMessagesPrefersNewestSystemDirectivesUnderBudget(t *testing
 	require.Equal(t, "Need advice", singleText(t, messages[3]))
 }
 
-func TestBuildAdvisorMessagesDropsOrphanToolResults(t *testing.T) {
+func TestBuildAdvisorMessagesTextualizesOrphanToolResult(t *testing.T) {
 	t.Parallel()
 
 	// Simulate a truncation cut that lands between the assistant tool-call
-	// message and its tool-result. The resulting recent window should not
-	// contain an orphan tool_result referencing a missing tool_use block.
-	// Building the window with only [tool_result, assistant_reply] mimics
-	// the state produced by the backward walk hitting its byte budget right
-	// before the tool-call assistant message.
+	// message and its tool-result. The result keeps its context value as a
+	// text note; because no raw tool blocks reach the nested call, there
+	// is no provider pairing constraint left to violate. The originating
+	// call is unknown, so the note uses the generic form.
 	snapshot := []fantasy.Message{
 		toolResultMessage("call-1", "ok"),
 		textMessage(fantasy.MessageRoleAssistant, "final reply"),
@@ -633,41 +713,79 @@ func TestBuildAdvisorMessagesDropsOrphanToolResults(t *testing.T) {
 
 	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
 
-	// Advisor system + assistant reply + question. The orphan tool result
-	// must not appear in the advisor prompt.
-	require.Len(t, messages, 3)
+	// Advisor system + result note + assistant reply + question.
+	require.Len(t, messages, 4)
 	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
 	require.Contains(t, singleText(t, messages[0]), "parent agent")
-	require.Equal(t, fantasy.MessageRoleAssistant, messages[1].Role)
-	require.Equal(t, "final reply", singleText(t, messages[1]))
-	require.Equal(t, fantasy.MessageRoleUser, messages[2].Role)
-	require.Equal(t, "Need advice", singleText(t, messages[2]))
+	require.Equal(t, fantasy.MessageRoleUser, messages[1].Role)
+	require.Equal(t, "[A tool run by the parent agent returned: ok]", singleText(t, messages[1]))
+	require.Equal(t, fantasy.MessageRoleAssistant, messages[2].Role)
+	require.Equal(t, "final reply", singleText(t, messages[2]))
+	require.Equal(t, fantasy.MessageRoleUser, messages[3].Role)
+	require.Equal(t, "Need advice", singleText(t, messages[3]))
 
-	for _, msg := range messages {
-		require.NotEqual(t, fantasy.MessageRoleTool, msg.Role)
-	}
+	requireNoRawToolContent(t, messages)
 }
 
-func TestBuildAdvisorMessagesKeepsPairedToolCallAndResult(t *testing.T) {
+func TestBuildAdvisorMessagesTextualizesToolExchanges(t *testing.T) {
 	t.Parallel()
 
+	// The nested advisor call defines no tools, so assistant-authored tool
+	// artifacts must not reach it: the model imitates them instead of
+	// answering. Each call/result pair folds into a single user-role note,
+	// assistant text survives, and an assistant message that carried only
+	// tool calls disappears entirely.
 	snapshot := []fantasy.Message{
-		toolCallAssistantMessage("call-1", "search", `{"q":"x"}`),
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "let me look"},
+				fantasy.ToolCallPart{ToolCallID: "call-1", ToolName: "search", Input: `{"q":"x"}`},
+			},
+		},
 		toolResultMessage("call-1", "ok"),
+		toolCallAssistantMessage("call-2", "search", `{"q":"y"}`),
+		toolResultMessage("call-2", "nope"),
 		textMessage(fantasy.MessageRoleAssistant, "done"),
 	}
 
 	messages := chatadvisor.BuildAdvisorMessages("Need advice", snapshot)
 
-	// Advisor system + assistant tool call + tool result + assistant reply
-	// + question. The matched pair must survive.
-	require.Len(t, messages, 5)
+	// Advisor system + assistant text + note 1 + note 2 + assistant reply
+	// + question. The call-only assistant message is gone; its input is
+	// preserved inside note 2.
+	require.Len(t, messages, 6)
 	require.Equal(t, fantasy.MessageRoleSystem, messages[0].Role)
 	require.Equal(t, fantasy.MessageRoleAssistant, messages[1].Role)
-	require.Equal(t, fantasy.MessageRoleTool, messages[2].Role)
-	require.Equal(t, fantasy.MessageRoleAssistant, messages[3].Role)
-	require.Equal(t, "done", singleText(t, messages[3]))
-	require.Equal(t, fantasy.MessageRoleUser, messages[4].Role)
+	require.Equal(t, "let me look", singleText(t, messages[1]))
+	require.Equal(t, fantasy.MessageRoleUser, messages[2].Role)
+	require.Equal(t,
+		`[The parent agent ran the search tool with input {"q":"x"}. Result: ok]`,
+		singleText(t, messages[2]))
+	require.Equal(t, fantasy.MessageRoleUser, messages[3].Role)
+	require.Equal(t,
+		`[The parent agent ran the search tool with input {"q":"y"}. Result: nope]`,
+		singleText(t, messages[3]))
+	require.Equal(t, fantasy.MessageRoleAssistant, messages[4].Role)
+	require.Equal(t, "done", singleText(t, messages[4]))
+	require.Equal(t, fantasy.MessageRoleUser, messages[5].Role)
+
+	requireNoRawToolContent(t, messages)
+}
+
+// requireNoRawToolContent asserts that no tool-role message and no raw tool
+// call/result part reaches the nested advisor prompt.
+func requireNoRawToolContent(t *testing.T, messages []fantasy.Message) {
+	t.Helper()
+	for _, msg := range messages {
+		require.NotEqual(t, fantasy.MessageRoleTool, msg.Role)
+		for _, part := range msg.Content {
+			_, isCall := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+			require.False(t, isCall, "raw tool call part leaked into advisor prompt")
+			_, isResult := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			require.False(t, isResult, "raw tool result part leaked into advisor prompt")
+		}
+	}
 }
 
 func streamFromParts(parts []fantasy.StreamPart) fantasy.StreamResponse {

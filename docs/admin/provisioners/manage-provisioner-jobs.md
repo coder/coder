@@ -71,7 +71,7 @@ Follow these steps to identify problematic jobs or daemons:
 
 1. Filter jobs by `pending` status in the dashboard, or use the CLI:
 
-   ```bash
+   ```sh
    coder provisioner jobs list -s pending
    ```
 
@@ -79,6 +79,6 @@ Follow these steps to identify problematic jobs or daemons:
 
 1. Cancel the job through the dashboard, or use the CLI:
 
-   ```shell
+   ```sh
    coder provisioner jobs cancel <job-id>
    ```

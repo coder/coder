@@ -16,6 +16,23 @@ describe("getQueuedMessageInfo", () => {
 			displayText: "hello",
 			rawText: "hello",
 			attachmentCount: 0,
+			hookNotices: [],
+			fileBlocks: [],
+		});
+	});
+
+	it("collects hook notices without polluting the preview text", () => {
+		const result = getQueuedMessageInfo(
+			buildMessage([
+				{ type: "text", text: "hello" },
+				{ type: "hook-notice", text: "policy notice" },
+			]),
+		);
+		expect(result).toEqual({
+			displayText: "hello",
+			rawText: "hello",
+			attachmentCount: 0,
+			hookNotices: ["policy notice"],
 			fileBlocks: [],
 		});
 	});
@@ -28,6 +45,7 @@ describe("getQueuedMessageInfo", () => {
 			displayText: "line1\nline2",
 			rawText: "line1\nline2",
 			attachmentCount: 0,
+			hookNotices: [],
 			fileBlocks: [],
 		});
 	});
@@ -40,6 +58,7 @@ describe("getQueuedMessageInfo", () => {
 			displayText: "[Queued message]",
 			rawText: "",
 			attachmentCount: 1,
+			hookNotices: [],
 			fileBlocks: [{ type: "file", file_id: "a", media_type: "image/png" }],
 		});
 	});
@@ -55,6 +74,7 @@ describe("getQueuedMessageInfo", () => {
 			displayText: "[Queued message]",
 			rawText: "",
 			attachmentCount: 2,
+			hookNotices: [],
 			fileBlocks: [
 				{ type: "file", file_id: "a", media_type: "image/png" },
 				{ type: "file", file_id: "b", media_type: "image/png" },
@@ -73,6 +93,7 @@ describe("getQueuedMessageInfo", () => {
 			displayText: "look",
 			rawText: "look",
 			attachmentCount: 1,
+			hookNotices: [],
 			fileBlocks: [{ type: "file", file_id: "a", media_type: "image/png" }],
 		});
 	});
@@ -83,6 +104,7 @@ describe("getQueuedMessageInfo", () => {
 			displayText: "[Queued message]",
 			rawText: "",
 			attachmentCount: 0,
+			hookNotices: [],
 			fileBlocks: [],
 		});
 	});
@@ -95,6 +117,7 @@ describe("getQueuedMessageInfo", () => {
 			displayText: "[Queued message]",
 			rawText: "",
 			attachmentCount: 0,
+			hookNotices: [],
 			fileBlocks: [],
 		});
 	});
@@ -110,6 +133,7 @@ describe("getQueuedMessageInfo", () => {
 			displayText: "[Queued message]",
 			rawText: "",
 			attachmentCount: 1,
+			hookNotices: [],
 			fileBlocks: [{ type: "file", file_id: "a", media_type: "image/png" }],
 		});
 	});
@@ -125,6 +149,7 @@ describe("getQueuedMessageInfo", () => {
 			displayText: "a b",
 			rawText: "a b",
 			attachmentCount: 0,
+			hookNotices: [],
 			fileBlocks: [],
 		});
 	});
@@ -141,6 +166,7 @@ describe("getQueuedMessageInfo", () => {
 			displayText: "check this",
 			rawText: "check this",
 			attachmentCount: 2,
+			hookNotices: [],
 			fileBlocks: [
 				{ type: "file", file_id: "img-1", media_type: "image/png" },
 				{ type: "file", file_id: "doc-2", media_type: "application/pdf" },

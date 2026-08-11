@@ -123,7 +123,7 @@ func TestClient_TransientDialErrorRetries(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
 
-	_, err = srv.ClientContext(testutil.Context(t, testutil.WaitShort))
+	_, err = srv.Client(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
 	require.Equal(t, int32(2), calls.Load())
 }
@@ -1007,7 +1007,7 @@ func TestReady(t *testing.T) {
 		pool := mock.NewMockPooler(ctrl)
 		pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
 
-		dialerCalled := make(chan struct{})
+		dialerCalled := make(chan struct{}, 1)
 		blockDialer := func(ctx context.Context) (aibridged.DRPCClient, error) {
 			select {
 			case dialerCalled <- struct{}{}:

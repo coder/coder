@@ -12,9 +12,8 @@ import {
 	type NodeKey,
 } from "lexical";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
-import type * as TypesGen from "#/api/typesGenerated";
 import { parsePersonalSkillTrigger } from "../../utils/personalSkills";
-import type { CaretAnchorRect } from "./PersonalSkillsTriggerMenu";
+import type { CaretAnchorRect, SkillMenuItem } from "./SkillsTriggerMenu";
 
 export type ActiveSkillsTrigger = {
 	nodeKey: NodeKey;
@@ -30,11 +29,11 @@ type DismissedSkillsTrigger = Pick<
 
 type SkillsTriggerPluginProps = {
 	open: boolean;
-	skills: readonly TypesGen.UserSkillMetadata[];
+	skills: readonly SkillMenuItem[];
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
 	onTriggerChange: (trigger: ActiveSkillsTrigger | null) => void;
-	onSkillSelect: (skill: TypesGen.UserSkillMetadata) => void;
+	onSkillSelect: (skill: SkillMenuItem) => void;
 };
 
 const currentCaretRect = (): CaretAnchorRect | null => {
@@ -181,8 +180,11 @@ export const SkillsTriggerPlugin = ({
 			if (count === 0) {
 				return true;
 			}
-			const currentIndex = Math.max(0, selectedIndex);
-			onSelectedIndexChange((currentIndex + delta + count) % count);
+			if (selectedIndex < 0) {
+				onSelectedIndexChange(delta > 0 ? 0 : count - 1);
+				return true;
+			}
+			onSelectedIndexChange((selectedIndex + delta + count) % count);
 			return true;
 		},
 	);
@@ -192,7 +194,7 @@ export const SkillsTriggerPlugin = ({
 			return false;
 		}
 		event?.preventDefault();
-		const skill = skills[selectedIndex];
+		const skill = selectedIndex >= 0 ? skills[selectedIndex] : undefined;
 		if (skill) {
 			onSkillSelect(skill);
 		}
@@ -203,7 +205,7 @@ export const SkillsTriggerPlugin = ({
 		if (!open) {
 			return false;
 		}
-		const skill = skills[selectedIndex];
+		const skill = selectedIndex >= 0 ? skills[selectedIndex] : undefined;
 		if (!skill) {
 			return false;
 		}

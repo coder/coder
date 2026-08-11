@@ -18,17 +18,14 @@ type ChatIconConfig = {
 
 const statusConfig = {
 	waiting: { icon: CheckIcon, className: "text-content-secondary" },
-	pending: { icon: Loader2Icon, className: "text-content-link animate-spin" },
 	running: { icon: Loader2Icon, className: "text-content-link animate-spin" },
-	paused: { icon: PauseIcon, className: "text-content-warning" },
 	interrupting: { icon: PauseIcon, className: "text-content-warning" },
 	requires_action: { icon: PauseIcon, className: "text-content-warning" },
 	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
-	completed: { icon: CheckIcon, className: "text-content-secondary" },
 } as const;
 
 const getStatusConfig = (status: ChatStatus): ChatIconConfig => {
-	return statusConfig[status] ?? statusConfig.completed;
+	return statusConfig[status] ?? statusConfig.waiting;
 };
 
 const getPRIconConfig = (
@@ -63,10 +60,10 @@ const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
 /**
  * Returns the icon and styling that represents a chat's current state.
  *
- * Combines `getStatusConfig` and `getPRIconConfig`: when the chat is in a
- * settled state (`waiting` or `completed`) and has a linked PR, the PR icon
- * takes precedence so list rows surface the merge / closed / draft state
- * instead of the generic status icon.
+ * Combines `getStatusConfig` and `getPRIconConfig`: when the chat is in the
+ * settled `waiting` state and has a linked PR, the PR icon takes precedence
+ * so list rows surface the merge / closed / draft state instead of the
+ * generic status icon.
  */
 export const getChatDisplayConfig = (
 	chat: Chat,
@@ -78,9 +75,7 @@ export const getChatDisplayConfig = (
 	const diffStatus = getChatDiffStatus(chat);
 	const baseConfig = getStatusConfig(chat.status);
 	const prConfig =
-		chat.status === "waiting" || chat.status === "completed"
-			? getPRIconConfig(diffStatus)
-			: undefined;
+		chat.status === "waiting" ? getPRIconConfig(diffStatus) : undefined;
 	const config = prConfig ?? baseConfig;
 	return {
 		icon: config.icon,

@@ -106,6 +106,45 @@ export const MockBedrockProviderState: ProviderState = {
 	modelConfigs: [mockBedrockClaude],
 };
 
+export const MockAzureProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-azure",
+	provider: "azure",
+	label: "Azure OpenAI",
+	providerConfig: {
+		...MockOpenAIProviderConfig,
+		id: "prov-azure",
+		provider: "azure",
+		display_name: "Azure OpenAI",
+	},
+	modelConfigs: [],
+};
+
+const MockDisabledProviderConfig: ChatProviderConfig = {
+	...MockOpenAIProviderConfig,
+	id: "prov-openai-disabled",
+	display_name: "OpenAI Secondary",
+	enabled: false,
+};
+
+export const mockProviderDisabledModel: ChatModelConfig = {
+	...mockGPT5,
+	id: "model-provider-disabled",
+	ai_provider_id: "prov-openai-disabled",
+	model: "gpt-4o-secondary",
+	display_name: "GPT-4o Secondary",
+	is_default: false,
+};
+
+export const MockDisabledProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-openai-disabled",
+	provider: "openai",
+	label: "OpenAI Secondary",
+	providerConfig: MockDisabledProviderConfig,
+	modelConfigs: [mockProviderDisabledModel],
+};
+
 export const MockCopilotProviderState: ProviderState = {
 	...MockOpenAIProviderState,
 	key: "prov-copilot",
@@ -118,4 +157,18 @@ export const MockCopilotProviderState: ProviderState = {
 		display_name: "GitHub Copilot",
 	},
 	modelConfigs: [],
+};
+
+// A model whose provider row has been deleted. In production such models
+// still appear in the top-level model list, but `deriveProviderStates`
+// drops them from every providerState.modelConfigs. Stories should feed
+// this fixture through `models` alone; do not add it to a provider state.
+export const mockOrphanedModel: ChatModelConfig = {
+	...mockGPT5,
+	id: "model-orphaned",
+	ai_provider_id: "prov-orphaned",
+	model: "gpt-4o-orphaned",
+	display_name: "Orphaned Model",
+	is_default: false,
+	enabled: true,
 };

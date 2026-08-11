@@ -28,7 +28,6 @@ import type { ProviderState } from "#/modules/aiModels/providerStates";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
-	PricingModelConfigFields,
 	ReasoningEffortConfigFields,
 } from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelConfigFields";
 import { ModelIdentifierField } from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelIdentifierField";
@@ -102,8 +101,6 @@ export const ModelFormFields: FC<{
 	displayNameField: FormHelpers;
 	setDefaultDisabled: boolean;
 	modelConfigFormBuildResult: ModelConfigFormBuildResult;
-	showPricing: boolean;
-	setShowPricing: (open: boolean) => void;
 	showProviderConfig: boolean;
 	setShowProviderConfig: (open: boolean) => void;
 	showAdvanced: boolean;
@@ -127,8 +124,6 @@ export const ModelFormFields: FC<{
 	displayNameField,
 	setDefaultDisabled,
 	modelConfigFormBuildResult,
-	showPricing,
-	setShowPricing,
 	showProviderConfig,
 	setShowProviderConfig,
 	showAdvanced,
@@ -149,6 +144,7 @@ export const ModelFormFields: FC<{
 					<ModelFormProviderSelect
 						providerStates={providerStates}
 						selectedProviderKey={selectedProviderKey}
+						isEditing={mode === "edit"}
 						onProviderChange={onProviderChange}
 						disabled={isDuplicating || providerStates.length === 0}
 					/>
@@ -240,30 +236,9 @@ export const ModelFormFields: FC<{
 							</InputGroupAddon>
 						</InputGroup>
 					</div>
-					<ReasoningEffortConfigFields
-						provider={selectedProviderState.provider}
-						form={form}
-						fieldErrors={modelConfigFormBuildResult.fieldErrors}
-						disabled={isSaving}
-					/>
 				</div>
 
 				<div className="overflow-hidden rounded-lg border border-solid border-border">
-					<CollapsibleSection
-						title="Cost tracking"
-						description="Set per-token pricing so Coder can track costs and enforce spending limits."
-						open={showPricing}
-						onOpenChange={setShowPricing}
-						contentClassName="grid grid-cols-2 gap-3 pt-3 pl-6 sm:grid-cols-4"
-					>
-						<PricingModelConfigFields
-							provider={selectedProviderState.provider}
-							form={form}
-							fieldErrors={modelConfigFormBuildResult.fieldErrors}
-							disabled={isSaving}
-						/>
-					</CollapsibleSection>
-
 					{hasProviderConfigFields && (
 						<CollapsibleSection
 							title="Provider configuration"
@@ -278,7 +253,14 @@ export const ModelFormFields: FC<{
 								form={form}
 								fieldErrors={modelConfigFormBuildResult.fieldErrors}
 								disabled={isSaving}
-							/>
+							>
+								<ReasoningEffortConfigFields
+									provider={selectedProviderState.provider}
+									form={form}
+									fieldErrors={modelConfigFormBuildResult.fieldErrors}
+									disabled={isSaving}
+								/>
+							</ModelConfigFields>
 						</CollapsibleSection>
 					)}
 

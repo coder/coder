@@ -29,6 +29,25 @@ import (
 func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, auditor *audit.Auditor, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
+		// This is queried on every request rather than cached, since
+		// registration is expected to happen rarely, not on a hot path. A
+		// misconfigured or misbehaving client flooding this endpoint is a
+		// rate-limiting or firewalling problem to solve at the deployment
+		// level, not a reason to cache this flag.
+		//nolint:gocritic // Public registration endpoint, no authenticated actor to authorize against.
+		dcrEnabled, err := db.GetOAuth2DCREnabled(dbauthz.AsSystemOAuth2(ctx))
+		if err != nil {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusInternalServerError,
+				"server_error", "Failed to check registration availability")
+			return
+		}
+		if !dcrEnabled {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusForbidden,
+				"invalid_request", "Dynamic client registration is disabled on this deployment")
+			return
+		}
+
 		aReq, commitAudit := audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     logger,
@@ -82,7 +101,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			Icon:                    req.LogoURI,
 			CallbackURL:             req.RedirectURIs[0], // Primary redirect URI
 			RedirectUris:            req.RedirectURIs,
-			ClientType:              sql.NullString{String: req.DetermineClientType(), Valid: true},
+			ClientType:              req.DetermineClientType(),
 			DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
 			ClientIDIssuedAt:        sql.NullTime{Time: now, Valid: true},
 			ClientSecretExpiresAt:   sql.NullTime{}, // No expiration for now
@@ -302,7 +321,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			Icon:                    req.LogoURI,
 			CallbackURL:             req.RedirectURIs[0], // Primary redirect URI
 			RedirectUris:            req.RedirectURIs,
-			ClientType:              sql.NullString{String: req.DetermineClientType(), Valid: true},
+			ClientType:              req.DetermineClientType(),
 			ClientSecretExpiresAt:   sql.NullTime{}, // No expiration for now
 			GrantTypes:              slice.ToStrings(req.GrantTypes),
 			ResponseTypes:           slice.ToStrings(req.ResponseTypes),

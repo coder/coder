@@ -40,10 +40,15 @@ const meta: Meta<typeof MobileMenu> = {
 		supportLinks: MockSupportLinks,
 		onSignOut: fn(),
 		isDefaultOpen: true,
-		canViewAuditLog: true,
-		canViewDeployment: true,
-		canViewHealth: true,
-		canViewOrganizations: true,
+		adminPermissions: {
+			canViewDeployment: true,
+			canViewOrganizations: true,
+			canViewAISettings: true,
+			canViewAuditLog: true,
+			canViewConnectionLog: true,
+			canViewAIBridge: true,
+			canViewHealth: true,
+		},
 	},
 	decorators: [withNavbarMock],
 };
@@ -64,10 +69,9 @@ export const Admin: Story = {
 export const Auditor: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: true,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewOrganizations: false,
+		adminPermissions: {
+			canViewAuditLog: true,
+		},
 	},
 	play: openAdminSettings,
 };
@@ -75,10 +79,10 @@ export const Auditor: Story = {
 export const OrgAdmin: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: true,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewOrganizations: true,
+		adminPermissions: {
+			canViewAuditLog: true,
+			canViewOrganizations: true,
+		},
 	},
 	play: openAdminSettings,
 };
@@ -86,10 +90,7 @@ export const OrgAdmin: Story = {
 export const Member: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewOrganizations: false,
+		adminPermissions: {},
 	},
 };
 

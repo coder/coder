@@ -25,7 +25,6 @@ import { Link, type Location, NavLink } from "react-router";
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -335,9 +334,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				}))
 	).filter((section) => section.chats.length > 0);
 	const isShowingEmptyState = visibleRootIDs.length === 0;
+	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
+	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
 		? "No agents match these filters"
-		: sidebarFilters.archiveStatus === "archived"
+		: isViewingArchived
 			? "No archived agents"
 			: "No agents yet";
 	const clearResultFilters = () => {
@@ -367,7 +368,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
-						<FeatureStageBadge contentType="beta" size="xs" />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
 						<Button
@@ -429,7 +429,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				<div className="mx-2 pt-6 mb-1.5">
 					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
-							Chats
+							{chatsHeadingLabel}
 						</h2>
 						<div className="flex items-center gap-1">
 							{onOpenSearchDialog && (

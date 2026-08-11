@@ -187,6 +187,9 @@ func TestTraceAnthropic(t *testing.T) {
 				attribute.Bool(tracing.Streaming, tc.streaming),
 				attribute.Bool(tracing.IsBedrock, tc.bedrock),
 			}
+			if tc.bedrock {
+				attrs = append(attrs, attribute.String(tracing.BedrockProtocol, string(config.BedrockProtocolInvokeModel)))
+			}
 
 			require.Len(t, sr.Ended(), totalCount)
 			verifyTraces(t, sr, tc.expect, attrs)
@@ -311,6 +314,9 @@ func TestTraceAnthropicErr(t *testing.T) {
 				attribute.Bool(tracing.Streaming, tc.streaming),
 				attribute.Bool(tracing.IsBedrock, tc.bedrock),
 			}
+			if tc.bedrock {
+				attrs = append(attrs, attribute.String(tracing.BedrockProtocol, string(config.BedrockProtocolInvokeModel)))
+			}
 
 			verifyTraces(t, sr, tc.expect, attrs)
 		})
@@ -422,6 +428,9 @@ func TestInjectedToolsTrace(t *testing.T) {
 			}
 			if tc.expectProvider == config.ProviderAnthropic {
 				attrs = append(attrs, attribute.Bool(tracing.IsBedrock, tc.bedrock))
+				if tc.bedrock {
+					attrs = append(attrs, attribute.String(tracing.BedrockProtocol, string(config.BedrockProtocolInvokeModel)))
+				}
 			}
 
 			verifyTraces(t, sr, []expectTrace{{"Intercept.ProcessRequest.ToolCall", 1, codes.Unset}}, attrs)

@@ -11,7 +11,7 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - Language and area docs: Use [Modern Go](.claude/docs/GO.md), [Testing Patterns and Best Practices](.claude/docs/TESTING.md), [Database Development Patterns](.claude/docs/DATABASE.md), [OAuth2 Development Guide](.claude/docs/OAUTH2.md), [Coder Architecture](.claude/docs/ARCHITECTURE.md), [Troubleshooting Guide](.claude/docs/TROUBLESHOOTING.md), [Documentation Style Guide](.claude/docs/DOCS_STYLE_GUIDE.md), and [Pull Request Description Style Guide](.claude/docs/PR_STYLE_GUIDE.md) when that area is in scope.
 - Docs content scope: Use [Coder Docs Content Guidelines](docs/.style/content-guidelines.md) to decide whether a piece of content belongs in `docs/` at all. The Documentation Style Guide above covers prose and formatting; the content guidelines govern scope and routing and supersede the style guide on conflicts.
 - Compatibility: `.agents/docs` symlinks to `.claude/docs` for agent runtimes that look there.
-- Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`.
+- Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`. For code under `site/src/`, the [Frontend Patterns](.claude/docs/FRONTEND_PATTERNS.md) rule contract (FE1 to FE10) applies.
 - Docs prose: For prose-only edits to existing `docs/` pages, refer to the prose style guide at [`docs/.style/style-guide/`](docs/.style/style-guide/README.md).
   For supporting agent-specific guidance, refer to [`.claude/docs/DOCS_STYLE_GUIDE.md`](.claude/docs/DOCS_STYLE_GUIDE.md), which covers structure, research, and content patterns.
 - Docs authoring: For new, moved, or restructured `docs/` pages, or when unsure, load the [`write-docs` skill](.claude/skills/write-docs/SKILL.md) first. It points at the canonical content guidelines and the prose style guide above, then walks research, routing, Diátaxis mode, structure, and validation.
@@ -104,6 +104,11 @@ instructions focused on guardrails that agents should see immediately.
 - **Frontend**: Read [Frontend Development Guidelines](site/AGENTS.md)
   before changing anything under `site/`. Reuse shared UI primitives when
   possible and prefer Storybook stories for component and page testing.
+- **GitHub Actions permissions**: Follow least privilege as recommended by
+  OpenSSF Scorecard. Do not set write permissions at the workflow
+  (top) level. Default every workflow to `permissions: {}` at the top level
+  and grant only the specific permissions each job needs under
+  `jobs.<id>.permissions`.
 
 ## Quick Reference
 

@@ -2,25 +2,30 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, within } from "storybook/test";
 import { DetailedError } from "#/api/errors";
 import type { Preset, PreviewParameter } from "#/api/typesGenerated";
-import { chromatic } from "#/testHelpers/chromatic";
-import { MockTemplate, MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockTemplate,
+	MockUserMember,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
 	title: "Pages/CreateWorkspacePageView",
-	parameters: { chromatic },
 	component: CreateWorkspacePageView,
 	args: {
 		autofillParameters: [],
 		diagnostics: [],
 		defaultName: "",
 		defaultOwner: MockUserOwner,
+		owner: MockUserOwner,
+		setOwner: () => {},
 		externalAuth: [],
 		externalAuthPollingState: {},
 		hasAllRequiredExternalAuth: true,
 		mode: "form",
 		parameters: [],
 		permissions: {
+			createWorkspaceForUserID: true,
 			createWorkspaceForAny: true,
 			canUpdateTemplate: false,
 		},
@@ -454,5 +459,43 @@ export const WithUrlPresetOverridesDefault: Story = {
 		expect(
 			canvas.getByRole("button", { name: /URL Preset/i }),
 		).toBeInTheDocument();
+	},
+};
+
+// When an admin creates a workspace for another user, the external auth section
+// reflects that owner's state. The requester cannot authenticate on their
+// behalf, so the login buttons are replaced with a read-only status.
+export const ExternalAuthForAnotherUser: Story = {
+	args: {
+		owner: MockUserMember,
+		hasAllRequiredExternalAuth: false,
+		externalAuth: [
+			{
+				id: "github",
+				type: "github",
+				display_name: "GitHub",
+				display_icon: "/icon/github.svg",
+				authenticate_url: "",
+				authenticated: true,
+			},
+			{
+				id: "gitlab",
+				type: "gitlab",
+				display_name: "GitLab",
+				display_icon: "/icon/gitlab.svg",
+				authenticate_url: "",
+				authenticated: false,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/must connect any required providers themselves/i),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Not connected")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: /login with/i }),
+		).not.toBeInTheDocument();
 	},
 };

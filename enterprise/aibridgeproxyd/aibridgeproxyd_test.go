@@ -150,7 +150,7 @@ type testProxyConfig struct {
 	listenAddr          string
 	tlsCertFile         string
 	tlsKeyFile          string
-	coderAccessURL      string
+	gatewayURL          string
 	allowedPorts        []string
 	certStore           *aibridgeproxyd.CertCache
 	providers           []aibridgeproxyd.ReloadedProvider
@@ -170,9 +170,9 @@ func withAllowedPorts(ports ...string) testProxyOption {
 	}
 }
 
-func withCoderAccessURL(coderAccessURL string) testProxyOption {
+func withGatewayURL(gatewayURL string) testProxyOption {
 	return func(cfg *testProxyConfig) {
-		cfg.coderAccessURL = coderAccessURL
+		cfg.gatewayURL = gatewayURL
 	}
 }
 
@@ -293,8 +293,8 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 	t.Helper()
 
 	cfg := &testProxyConfig{
-		listenAddr:     "127.0.0.1:0",
-		coderAccessURL: "http://localhost:3000",
+		listenAddr: "127.0.0.1:0",
+		gatewayURL: "http://localhost:3000",
 		// Allow 127.0.0.1 by default so test servers, which always listen on
 		// loopback, are reachable. Tests that verify IP blocking override this.
 		allowedPrivateCIDRs: []string{"127.0.0.1/32"},
@@ -306,7 +306,6 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 	for _, opt := range opts {
 		opt(cfg)
 	}
-
 	// If the test did not supply a RefreshProviders, synthesize one
 	// that returns the configured providers verbatim. This populates
 	// the router synchronously below, mirroring how production starts
@@ -325,7 +324,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 		ListenAddr:          cfg.listenAddr,
 		TLSCertFile:         cfg.tlsCertFile,
 		TLSKeyFile:          cfg.tlsKeyFile,
-		CoderAccessURL:      cfg.coderAccessURL,
+		GatewayURL:          cfg.gatewayURL,
 		MITMCertFile:        mitmCertFile,
 		MITMKeyFile:         mitmKeyFile,
 		AllowedPorts:        cfg.allowedPorts,
@@ -486,9 +485,9 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "listen address is required")
@@ -501,10 +500,10 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "listen address is required")
@@ -517,11 +516,11 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			TLSCertFile:    "cert.pem",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			TLSCertFile:  "cert.pem",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "tls cert file and tls key file must both be set")
@@ -534,11 +533,11 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			TLSKeyFile:     "key.pem",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			TLSKeyFile:   "key.pem",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "tls cert file and tls key file must both be set")
@@ -551,18 +550,18 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			TLSCertFile:    "/nonexistent/cert.pem",
-			TLSKeyFile:     "/nonexistent/key.pem",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			TLSCertFile:  "/nonexistent/cert.pem",
+			TLSKeyFile:   "/nonexistent/key.pem",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "load listener TLS certificate")
 	})
 
-	t.Run("MissingCoderAccessURL", func(t *testing.T) {
+	t.Run("MissingGatewayURL", func(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
@@ -574,88 +573,104 @@ func TestNew(t *testing.T) {
 			MITMKeyFile:  mitmKeyFile,
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "coder access URL is required")
+		require.Contains(t, err.Error(), "AI Gateway URL is required")
 	})
 
-	t.Run("EmptyCoderAccessURL", func(t *testing.T) {
+	t.Run("EmptyGatewayURL", func(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: " ",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   " ",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "coder access URL is required")
+		require.Contains(t, err.Error(), "AI Gateway URL is required")
 	})
 
-	t.Run("InvalidCoderAccessURL", func(t *testing.T) {
+	t.Run("InvalidGatewayURL", func(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "://invalid",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   "://invalid",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid coder access URL")
+		require.Contains(t, err.Error(), "invalid AI Gateway URL")
 	})
 
-	t.Run("CoderAccessURLDefaultHTTPPort", func(t *testing.T) {
+	t.Run("GatewayURLWithQuery", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   "http://localhost:3000?token=secret",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "AI Gateway URL must not include query parameters")
+	})
+
+	t.Run("GatewayURLDefaultHTTPPort", func(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   "http://localhost",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "localhost", srv.CoderAccessURL().Host)
+		require.Equal(t, "localhost", srv.GatewayURL().Host)
 	})
 
-	t.Run("CoderAccessURLDefaultHTTPSPort", func(t *testing.T) {
+	t.Run("GatewayURLDefaultHTTPSPort", func(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "https://localhost",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   "https://localhost",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "localhost", srv.CoderAccessURL().Host)
+		require.Equal(t, "localhost", srv.GatewayURL().Host)
 	})
 
-	t.Run("CoderAccessURLExplicitPort", func(t *testing.T) {
+	t.Run("GatewayURLExplicitPort", func(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
-		require.Equal(t, "3000", srv.CoderAccessURL().Port())
+		require.Equal(t, "localhost", srv.GatewayURL().Hostname())
+		require.Equal(t, "3000", srv.GatewayURL().Port())
 	})
 
 	t.Run("MissingCertFile", func(t *testing.T) {
@@ -664,9 +679,9 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     ":0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMKeyFile:    "key.pem",
+			ListenAddr:  ":0",
+			GatewayURL:  "http://localhost:3000",
+			MITMKeyFile: "key.pem",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cert file and key file are required")
@@ -678,9 +693,9 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     ":0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   "cert.pem",
+			ListenAddr:   ":0",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: "cert.pem",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cert file and key file are required")
@@ -692,10 +707,10 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     ":0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   "/nonexistent/cert.pem",
-			MITMKeyFile:    "/nonexistent/key.pem",
+			ListenAddr:   ":0",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: "/nonexistent/cert.pem",
+			MITMKeyFile:  "/nonexistent/key.pem",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to load MITM certificate")
@@ -708,11 +723,11 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
-			UpstreamProxy:  "://invalid-url",
+			ListenAddr:    "127.0.0.1:0",
+			GatewayURL:    "http://localhost:3000",
+			MITMCertFile:  mitmCertFile,
+			MITMKeyFile:   mitmKeyFile,
+			UpstreamProxy: "://invalid-url",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid upstream proxy URL")
@@ -726,7 +741,7 @@ func TestNew(t *testing.T) {
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
+			GatewayURL:      "http://localhost:3000",
 			MITMCertFile:    mitmCertFile,
 			MITMKeyFile:     mitmKeyFile,
 			UpstreamProxy:   "https://proxy.example.com:8080",
@@ -743,11 +758,11 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
-			UpstreamProxy:  "http://:@proxy.example.com:8080",
+			ListenAddr:    "127.0.0.1:0",
+			GatewayURL:    "http://localhost:3000",
+			MITMCertFile:  mitmCertFile,
+			MITMKeyFile:   mitmKeyFile,
+			UpstreamProxy: "http://:@proxy.example.com:8080",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid credentials: both username and password are empty")
@@ -761,7 +776,7 @@ func TestNew(t *testing.T) {
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:          "127.0.0.1:0",
-			CoderAccessURL:      "http://localhost:3000",
+			GatewayURL:          "http://localhost:3000",
 			MITMCertFile:        mitmCertFile,
 			MITMKeyFile:         mitmKeyFile,
 			AllowedPrivateCIDRs: []string{"not-a-cidr"},
@@ -777,10 +792,10 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -794,12 +809,12 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			TLSCertFile:    listenerCertFile,
-			TLSKeyFile:     listenerKeyFile,
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			TLSCertFile:  listenerCertFile,
+			TLSKeyFile:   listenerKeyFile,
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -812,11 +827,11 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
-			UpstreamProxy:  "http://proxy.example.com:8080",
+			ListenAddr:    "127.0.0.1:0",
+			GatewayURL:    "http://localhost:3000",
+			MITMCertFile:  mitmCertFile,
+			MITMKeyFile:   mitmKeyFile,
+			UpstreamProxy: "http://proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -831,7 +846,7 @@ func TestNew(t *testing.T) {
 		// Use the shared MITM certificate as the upstream proxy CA (it's a valid PEM cert)
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "127.0.0.1:0",
-			CoderAccessURL:  "http://localhost:3000",
+			GatewayURL:      "http://localhost:3000",
 			MITMCertFile:    mitmCertFile,
 			MITMKeyFile:     mitmKeyFile,
 			UpstreamProxy:   "https://proxy.example.com:8080",
@@ -848,11 +863,11 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
-			UpstreamProxy:  "http://proxyuser:proxypass@proxy.example.com:8080",
+			ListenAddr:    "127.0.0.1:0",
+			GatewayURL:    "http://localhost:3000",
+			MITMCertFile:  mitmCertFile,
+			MITMKeyFile:   mitmKeyFile,
+			UpstreamProxy: "http://proxyuser:proxypass@proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -865,11 +880,11 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
-			UpstreamProxy:  "http://proxyuser:@proxy.example.com:8080",
+			ListenAddr:    "127.0.0.1:0",
+			GatewayURL:    "http://localhost:3000",
+			MITMCertFile:  mitmCertFile,
+			MITMKeyFile:   mitmKeyFile,
+			UpstreamProxy: "http://proxyuser:@proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -883,11 +898,11 @@ func TestNew(t *testing.T) {
 
 		// Username only (no colon) should also succeed (password is optional)
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
-			UpstreamProxy:  "http://proxyuser@proxy.example.com:8080",
+			ListenAddr:    "127.0.0.1:0",
+			GatewayURL:    "http://localhost:3000",
+			MITMCertFile:  mitmCertFile,
+			MITMKeyFile:   mitmKeyFile,
+			UpstreamProxy: "http://proxyuser@proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -900,11 +915,11 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
-			UpstreamProxy:  "http://:proxypass@proxy.example.com:8080",
+			ListenAddr:    "127.0.0.1:0",
+			GatewayURL:    "http://localhost:3000",
+			MITMCertFile:  mitmCertFile,
+			MITMKeyFile:   mitmKeyFile,
+			UpstreamProxy: "http://:proxypass@proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -921,11 +936,11 @@ func TestNew(t *testing.T) {
 		metrics := aibridgeproxyd.NewMetrics(reg)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
-			Metrics:        metrics,
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
+			Metrics:      metrics,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -939,7 +954,7 @@ func TestNew(t *testing.T) {
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:          "127.0.0.1:0",
-			CoderAccessURL:      "http://localhost:3000",
+			GatewayURL:          "http://localhost:3000",
 			MITMCertFile:        mitmCertFile,
 			MITMKeyFile:         mitmKeyFile,
 			AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
@@ -948,7 +963,7 @@ func TestNew(t *testing.T) {
 		require.NotNil(t, srv)
 	})
 
-	t.Run("CoderAccessURLHostPreserved", func(t *testing.T) {
+	t.Run("GatewayURLHostPreserved", func(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
@@ -956,7 +971,7 @@ func TestNew(t *testing.T) {
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:          "127.0.0.1:0",
-			CoderAccessURL:      "https://coder.example.com",
+			GatewayURL:          "https://coder.example.com",
 			MITMCertFile:        mitmCertFile,
 			MITMKeyFile:         mitmKeyFile,
 			AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
@@ -964,11 +979,11 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = srv.Close() })
 
-		require.Equal(t, "coder.example.com", srv.CoderAccessURL().Host,
+		require.Equal(t, "coder.example.com", srv.GatewayURL().Host,
 			"Host must not have :443 appended")
 	})
 
-	t.Run("CoderAccessURLExplicitPortPreserved", func(t *testing.T) {
+	t.Run("GatewayURLExplicitPortPreserved", func(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
@@ -976,7 +991,7 @@ func TestNew(t *testing.T) {
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:          "127.0.0.1:0",
-			CoderAccessURL:      "https://coder.example.com:8443",
+			GatewayURL:          "https://coder.example.com:8443",
 			MITMCertFile:        mitmCertFile,
 			MITMKeyFile:         mitmKeyFile,
 			AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
@@ -984,7 +999,7 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = srv.Close() })
 
-		require.Equal(t, "coder.example.com:8443", srv.CoderAccessURL().Host)
+		require.Equal(t, "coder.example.com:8443", srv.GatewayURL().Host)
 	})
 }
 
@@ -998,10 +1013,10 @@ func TestClose(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
 		})
 		require.NoError(t, err)
 
@@ -1024,11 +1039,11 @@ func TestClose(t *testing.T) {
 		metrics := aibridgeproxyd.NewMetrics(reg)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     "127.0.0.1:0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
-			Metrics:        metrics,
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   "http://localhost:3000",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
+			Metrics:      metrics,
 		})
 		require.NoError(t, err)
 
@@ -1093,7 +1108,7 @@ func TestProxy_CertCaching(t *testing.T) {
 
 			// Start the proxy server with the certificate cache.
 			srv := newTestProxy(t,
-				withCoderAccessURL(aibridgedServer.URL),
+				withGatewayURL(aibridgedServer.URL),
 				withAllowedPorts(targetURL.Port()),
 				withCertStore(certCache),
 				withProviderHosts(providerHosts...),
@@ -1156,7 +1171,7 @@ func TestProxy_PortValidation(t *testing.T) {
 		},
 		{
 			name: "RejectedPort",
-			// Only allow port 443 which doesn't match the target.
+			// Only allow port 443 which does not match the target.
 			allowedPorts: func(_ *url.URL) []string {
 				return []string{"443"}
 			},
@@ -1183,7 +1198,7 @@ func TestProxy_PortValidation(t *testing.T) {
 
 			// Start the proxy server.
 			srv := newTestProxy(t,
-				withCoderAccessURL(aibridgedServer.URL),
+				withGatewayURL(aibridgedServer.URL),
 				withAllowedPorts(tt.allowedPorts(targetURL)...),
 				withProviderHosts(targetURL.Hostname()),
 			)
@@ -1259,7 +1274,7 @@ func TestProxy_Authentication(t *testing.T) {
 
 			// Start the proxy server.
 			srv := newTestProxy(t,
-				withCoderAccessURL(aibridgedServer.URL),
+				withGatewayURL(aibridgedServer.URL),
 				withAllowedPorts(targetURL.Port()),
 				withProviderHosts(targetURL.Hostname()),
 			)
@@ -1280,7 +1295,7 @@ func TestProxy_Authentication(t *testing.T) {
 				require.Equal(t, "hello from aibridged", string(body))
 			} else {
 				// Verify the proxy returns a 407 challenge with Proxy-Authenticate header.
-				// A raw CONNECT request is sent because Go's HTTP client doesn't expose
+				// A raw CONNECT request is sent because Go's HTTP client does not expose
 				// the response when CONNECT fails with a non-2xx status.
 				resp := sendConnect(t, srv.Addr(), targetURL.Host, tt.proxyAuth)
 				defer resp.Body.Close()
@@ -1311,7 +1326,10 @@ func TestProxy_MITM(t *testing.T) {
 		allowedPorts   []string
 		buildTargetURL func(tunneledURL *url.URL) (string, error)
 		tunneled       bool
+		customGateway  bool
+		gatewayPath    string
 		expectedPath   string
+		expectedBody   string
 		provider       string
 	}{
 		{
@@ -1321,7 +1339,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.anthropic.com/v1/messages", nil
 			},
-			expectedPath: "/api/v2/ai-gateway/anthropic/v1/messages",
+			expectedPath: "/anthropic/v1/messages",
 			provider:     "anthropic",
 		},
 		{
@@ -1331,7 +1349,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.anthropic.com:8443/v1/messages", nil
 			},
-			expectedPath: "/api/v2/ai-gateway/anthropic/v1/messages",
+			expectedPath: "/anthropic/v1/messages",
 			provider:     "anthropic",
 		},
 		{
@@ -1341,7 +1359,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.openai.com/v1/chat/completions", nil
 			},
-			expectedPath: "/api/v2/ai-gateway/openai/v1/chat/completions",
+			expectedPath: "/openai/v1/chat/completions",
 			provider:     "openai",
 		},
 		{
@@ -1351,8 +1369,33 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.openai.com:8443/v1/chat/completions", nil
 			},
-			expectedPath: "/api/v2/ai-gateway/openai/v1/chat/completions",
+			expectedPath: "/openai/v1/chat/completions",
 			provider:     "openai",
+		},
+		{
+			name:          "MitmdCustomGatewayTarget",
+			providerHosts: []string{aibridgeproxyd.HostAnthropic},
+			allowedPorts:  []string{"443"},
+			buildTargetURL: func(_ *url.URL) (string, error) {
+				return "https://api.anthropic.com/v1/messages", nil
+			},
+			customGateway: true,
+			expectedPath:  "/anthropic/v1/messages",
+			expectedBody:  "hello from custom gateway",
+			provider:      "anthropic",
+		},
+		{
+			name:          "MitmdCustomGatewayTargetWithPath",
+			providerHosts: []string{aibridgeproxyd.HostAnthropic},
+			allowedPorts:  []string{"443"},
+			buildTargetURL: func(_ *url.URL) (string, error) {
+				return "https://api.anthropic.com/v1/messages", nil
+			},
+			customGateway: true,
+			gatewayPath:   agplaibridge.AIGatewayRootPath,
+			expectedPath:  "/api/v2/ai-gateway/anthropic/v1/messages",
+			expectedBody:  "hello from custom gateway",
+			provider:      "anthropic",
 		},
 		{
 			name:          "TunneledUnknownHost",
@@ -1361,7 +1404,8 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(tunneledURL *url.URL) (string, error) {
 				return url.JoinPath(tunneledURL.String(), "/some/path")
 			},
-			tunneled: true,
+			tunneled:     true,
+			expectedBody: "hello from tunneled",
 		},
 	}
 
@@ -1405,9 +1449,28 @@ func TestProxy_MITM(t *testing.T) {
 				providerHosts = []string{tunneledURL.Hostname()}
 			}
 
-			// Start the proxy server pointing to our mock aibridged.
+			gatewayURL := aibridgedServer.URL
+			if tt.customGateway {
+				customGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					receivedPath = r.URL.Path
+					receivedAuthz = r.Header.Get("Authorization")
+					receivedBYOK = r.Header.Get(agplaibridge.HeaderCoderToken)
+					receivedRequestID = r.Header.Get(agplaibridge.HeaderCoderRequestID)
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte("hello from custom gateway"))
+				}))
+				t.Cleanup(customGateway.Close)
+				gatewayURL = customGateway.URL
+				if tt.gatewayPath != "" {
+					var err error
+					gatewayURL, err = url.JoinPath(gatewayURL, tt.gatewayPath)
+					require.NoError(t, err)
+				}
+			}
+
+			// Start the proxy server pointing to our mock gateway.
 			srv := newTestProxy(t,
-				withCoderAccessURL(aibridgedServer.URL),
+				withGatewayURL(gatewayURL),
 				withAllowedPorts(allowedPorts...),
 				withProviderHosts(providerHosts...),
 				withMetrics(metrics),
@@ -1430,9 +1493,8 @@ func TestProxy_MITM(t *testing.T) {
 				certPool = getProxyCertPool(t)
 			}
 
-			// Simulate the primary proxy use case: the Coder
-			// token is in Proxy-Authorization, and the user's
-			// own LLM token is in Authorization.
+			// Simulate the primary proxy use case: the Coder token is in
+			// Proxy-Authorization, and the user LLM token is in Authorization.
 			client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, strings.NewReader(`{}`))
 			require.NoError(t, err)
@@ -1446,6 +1508,10 @@ func TestProxy_MITM(t *testing.T) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
+			expectedBody := tt.expectedBody
+			if expectedBody == "" {
+				expectedBody = "hello from aibridged"
+			}
 
 			// Gather metrics for verification.
 			gatheredMetrics, err := reg.Gather()
@@ -1453,7 +1519,7 @@ func TestProxy_MITM(t *testing.T) {
 
 			if tt.tunneled {
 				// Verify request went to target server, not aibridged.
-				require.Equal(t, "hello from tunneled", string(body))
+				require.Equal(t, expectedBody, string(body))
 				require.Empty(t, receivedPath, "aibridged should not receive tunneled requests")
 				require.Empty(t, receivedAuthz, "tunneled requests should not reach aibridged")
 				require.Empty(t, receivedRequestID, "tunneled requests should not have request ID header")
@@ -1467,10 +1533,10 @@ func TestProxy_MITM(t *testing.T) {
 				require.False(t, testutil.PromGaugeGathered(t, gatheredMetrics, "inflight_mitm_requests", tt.provider))
 				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "mitm_responses_total", "200", tt.provider))
 			} else {
-				// Verify the request was routed to aibridged correctly.
-				require.Equal(t, "hello from aibridged", string(body))
+				// Verify the request was routed to the gateway correctly.
+				require.Equal(t, expectedBody, string(body))
 				require.Equal(t, tt.expectedPath, receivedPath)
-				require.Equal(t, "Bearer user-llm-token", receivedAuthz, "user's LLM credentials must be forwarded")
+				require.Equal(t, "Bearer user-llm-token", receivedAuthz, "user LLM credentials must be forwarded")
 				require.Equal(t, "coder-token", receivedBYOK, "proxy must inject BYOK header with Coder token")
 				require.NotEmpty(t, receivedRequestID, "MITM'd requests must include request ID header")
 				_, err := uuid.Parse(receivedRequestID)
@@ -1513,7 +1579,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 			expectBYOK:  false,
 		},
 		{
-			// BYOK: Authorization carries the user's token,
+			// BYOK: Authorization carries the user token,
 			// which differs from the Coder token. The proxy injects
 			// the BYOK header.
 			name:          "Authorization differs from Coder token",
@@ -1546,7 +1612,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 			t.Cleanup(aibridgedServer.Close)
 
 			srv := newTestProxy(t,
-				withCoderAccessURL(aibridgedServer.URL),
+				withGatewayURL(aibridgedServer.URL),
 				withProviderHosts(aibridgeproxyd.HostCopilot),
 			)
 
@@ -1622,7 +1688,7 @@ func TestListenerTLS(t *testing.T) {
 			var proxyOpts []testProxyOption
 			proxyOpts = append(proxyOpts,
 				withListenerTLS(listenerCertFile, listenerKeyFile),
-				withCoderAccessURL(aibridgedServer.URL),
+				withGatewayURL(aibridgedServer.URL),
 				withAllowedPorts(targetURL.Port()),
 			)
 			if tt.tunneled {
@@ -1674,7 +1740,7 @@ func TestProxy_AIBridgeTLSVerification(t *testing.T) {
 	t.Cleanup(aibridgeServer.Close)
 
 	srv := newTestProxy(t,
-		withCoderAccessURL(aibridgeServer.URL),
+		withGatewayURL(aibridgeServer.URL),
 		withProviderHosts(aibridgeproxyd.HostAnthropic),
 	)
 
@@ -1761,10 +1827,10 @@ func TestServeCACert_CompoundPEM(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 
 	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-		ListenAddr:     "127.0.0.1:0",
-		CoderAccessURL: "http://localhost:3000",
-		MITMCertFile:   compoundCertFile,
-		MITMKeyFile:    keyFile,
+		ListenAddr:   "127.0.0.1:0",
+		GatewayURL:   "http://localhost:3000",
+		MITMCertFile: compoundCertFile,
+		MITMKeyFile:  keyFile,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = srv.Close() })
@@ -1889,7 +1955,7 @@ func TestUpstreamProxy(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) string {
 				return "https://api.anthropic.com:443/v1/messages"
 			},
-			expectedAIBridgePath: "/api/v2/ai-gateway/anthropic/v1/messages",
+			expectedAIBridgePath: "/anthropic/v1/messages",
 		},
 	}
 
@@ -1950,7 +2016,7 @@ func TestUpstreamProxy(t *testing.T) {
 				// Hijack the connection to take over the raw TCP socket.
 				// After responding "200 Connection Established", the proxy stops being
 				// an HTTP server and becomes a transparent tunnel that copies bytes
-				// bidirectionally. The http package can't handle this mode, so we
+				// bidirectionally. The http package cannot handle this mode, so we
 				// hijack and manage the connection ourselves.
 				hijacker, ok := w.(http.Hijacker)
 				if !ok {
@@ -2038,7 +2104,7 @@ func TestUpstreamProxy(t *testing.T) {
 
 			// Create aiproxy with upstream proxy configured.
 			proxyOpts := []testProxyOption{
-				withCoderAccessURL(aibridgeServer.URL),
+				withGatewayURL(aibridgeServer.URL),
 				withProviderHosts(providerHosts...),
 				withUpstreamProxy(upstreamProxyURLStr),
 				withAllowedPorts("80", "443", parsedTargetURL.Port()),
@@ -2060,7 +2126,7 @@ func TestUpstreamProxy(t *testing.T) {
 			}
 
 			// Create HTTP client configured to use aiproxy. Coder token
-			// in Proxy-Authorization, user's LLM token in Authorization.
+			// in Proxy-Authorization, user LLM token in Authorization.
 			client := newProxyClient(t, srv, makeProxyAuthHeader("test-coder-token"), certPool, false)
 
 			// Make request through aiproxy.
@@ -2100,7 +2166,7 @@ func TestUpstreamProxy(t *testing.T) {
 				require.Equal(t, tt.expectedAIBridgePath, aibridgePath,
 					"aibridge should receive rewritten path")
 				require.Equal(t, "Bearer user-llm-token", aibridgeAuthz,
-					"user's LLM credentials must be forwarded")
+					"user LLM credentials must be forwarded")
 				require.Equal(t, "test-coder-token", aibridgeBYOK,
 					"proxy must inject BYOK header with Coder token")
 				require.Equal(t, requestBody, aibridgeBody,
@@ -2146,7 +2212,7 @@ func TestProxy_MITM_CustomProvider(t *testing.T) {
 	// withProviders, equivalent to the snapshot the daemon's Reload
 	// builds from classified providers in production.
 	srv := newTestProxy(t,
-		withCoderAccessURL(aibridgedServer.URL),
+		withGatewayURL(aibridgedServer.URL),
 		withProviders(aibridgeproxyd.ReloadedProvider{
 			ProviderOutcome: aibridged.ProviderOutcome{
 				Name:   openrouterProvider,
@@ -2175,7 +2241,7 @@ func TestProxy_MITM_CustomProvider(t *testing.T) {
 
 	// The proxy should route through the aibridge path using the custom
 	// provider name.
-	require.Equal(t, "/api/v2/ai-gateway/"+openrouterProvider+"/api/v1/chat/completions", receivedPath)
+	require.Equal(t, "/"+openrouterProvider+"/api/v1/chat/completions", receivedPath)
 	require.Equal(t, "coder-token", receivedBYOK)
 }
 
@@ -2187,7 +2253,7 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 		targetHostname   string
 		useUpstreamProxy bool
 		allowedCIDRs     []string
-		coderAccessURLFn func(targetHostname, port string) string
+		gatewayURLFn     func(targetHostname, port string) string
 		expectBlocked    bool
 		expectDialFail   bool
 	}{
@@ -2232,19 +2298,19 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 			expectBlocked:  false,
 		},
 		{
-			// Direct IP: the Coder access URL host:port is always exempt.
-			name:           "AllowedByCoderAccessURL",
+			// Direct IP: the AI Gateway URL host:port is always exempt.
+			name:           "AllowedByGatewayURL",
 			targetHostname: "127.0.0.1",
-			coderAccessURLFn: func(targetHostname, port string) string {
+			gatewayURLFn: func(targetHostname, port string) string {
 				return fmt.Sprintf("http://%s:%s", targetHostname, port)
 			},
 			expectBlocked: false,
 		},
 		{
-			// Hostname: DNS resolves to 127.0.0.1, which is exempt as the Coder access URL.
-			name:           "AllowedByCoderAccessURLByHostname",
+			// Hostname: DNS resolves to 127.0.0.1, which is exempt as the AI Gateway URL.
+			name:           "AllowedByGatewayURLByHostname",
 			targetHostname: "localhost",
-			coderAccessURLFn: func(targetHostname, port string) string {
+			gatewayURLFn: func(targetHostname, port string) string {
 				return fmt.Sprintf("http://%s:%s", targetHostname, port)
 			},
 			expectBlocked: false,
@@ -2292,8 +2358,8 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 			// Always override the default allowedPrivateCIDRs so blocked cases
 			// are not accidentally exempted by the loopback default.
 			opts = append(opts, withAllowedPrivateCIDRs(tt.allowedCIDRs...))
-			if tt.coderAccessURLFn != nil {
-				opts = append(opts, withCoderAccessURL(tt.coderAccessURLFn(tt.targetHostname, targetURL.Port())))
+			if tt.gatewayURLFn != nil {
+				opts = append(opts, withGatewayURL(tt.gatewayURLFn(tt.targetHostname, targetURL.Port())))
 			}
 
 			srv := newTestProxy(t, opts...)
@@ -2360,7 +2426,7 @@ func TestProxy_APIDump(t *testing.T) {
 	)
 
 	srv := newTestProxy(t,
-		withCoderAccessURL(aibridgedServer.URL),
+		withGatewayURL(aibridgedServer.URL),
 		withAllowedPorts("443"),
 		withProviderHosts(aibridgeproxyd.HostAnthropic),
 		withNewDumper(func(provider, requestID string) aibridgeproxyd.RoundTripDumper {
@@ -2407,7 +2473,7 @@ func TestProxy_APIDump_ErrorsDoNotAffectProxy(t *testing.T) {
 	t.Cleanup(aibridgedServer.Close)
 
 	srv := newTestProxy(t,
-		withCoderAccessURL(aibridgedServer.URL),
+		withGatewayURL(aibridgedServer.URL),
 		withAllowedPorts("443"),
 		withProviderHosts(aibridgeproxyd.HostAnthropic),
 		withNewDumper(func(_, _ string) aibridgeproxyd.RoundTripDumper {

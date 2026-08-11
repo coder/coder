@@ -305,8 +305,9 @@ func Test_TaskSend(t *testing.T) {
 		t.Parallel()
 
 		// Given: An active task whose app is in "working" state.
+		// Skip the default idle status to avoid a timestamp collision.
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "some task input", "some task response"))
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "some task input", "some task response"), withoutInitialAppStatus())
 
 		// Move the app into "working" state before running the command.
 		agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))

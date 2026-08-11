@@ -55,6 +55,26 @@ type SigningKeycache interface {
 	io.Closer
 }
 
+// NoopSigningKeycache is a SigningKeycache that holds no keys: SigningKey and
+// VerifyingKey always report ErrKeyNotFound. It lets a subsystem that only
+// needs real keys once an optional feature is enabled (for example NATS
+// cluster mTLS, which only signs leaves under enterprise HA) be constructed
+// without a database dependency, then be swapped for a real cache when the
+// feature turns on.
+type NoopSigningKeycache struct{}
+
+var _ SigningKeycache = NoopSigningKeycache{}
+
+func (NoopSigningKeycache) SigningKey(context.Context) (string, interface{}, error) {
+	return "", nil, ErrKeyNotFound
+}
+
+func (NoopSigningKeycache) VerifyingKey(context.Context, string) (interface{}, error) {
+	return nil, ErrKeyNotFound
+}
+
+func (NoopSigningKeycache) Close() error { return nil }
+
 const (
 	// latestSequence is a special sequence number that represents the latest key.
 	latestSequence = -1
@@ -213,23 +233,42 @@ func isEncryptionKeyFeature(feature codersdk.CryptoKeyFeature) bool {
 
 func isSigningKeyFeature(feature codersdk.CryptoKeyFeature) bool {
 	switch feature {
-	case codersdk.CryptoKeyFeatureTailnetResume, codersdk.CryptoKeyFeatureOIDCConvert, codersdk.CryptoKeyFeatureWorkspaceAppsToken:
+	case codersdk.CryptoKeyFeatureTailnetResume, codersdk.CryptoKeyFeatureOIDCConvert, codersdk.CryptoKeyFeatureWorkspaceAppsToken, codersdk.CryptoKeyFeatureNATSCA:
 		return true
 	default:
 		return false
 	}
 }
 
-func idSecret(k codersdk.CryptoKey) (string, []byte, error) {
+// idSecret materializes a stored crypto key into the in-memory key object the
+// feature uses, returning it as an interface{} alongside the key's id (its
+// sequence as a decimal string). Most features hex-decode the secret into raw
+// bytes, but nats_ca stores a PEM cert+key bundle and decodes into a *NATSCA.
+//
+// TODO: this hard-coded switch on feature is the simplest way to support a
+// second secret encoding, but it couples this generic cache to nats_ca
+// specifics. Explore abstracting the decode step (for example a per-feature
+// decoder injected at construction) so new key types can be added without
+// editing this function.
+func idSecret(k codersdk.CryptoKey) (string, interface{}, error) {
+	id := strconv.FormatInt(int64(k.Sequence), 10)
+
+	if k.Feature == codersdk.CryptoKeyFeatureNATSCA {
+		cert, signer, err := parseCASecret(k.Secret)
+		if err != nil {
+			return "", nil, xerrors.Errorf("decode nats_ca key: %w", err)
+		}
+		return id, &NATSCA{Sequence: k.Sequence, Cert: cert, Key: signer}, nil
+	}
+
 	key, err := hex.DecodeString(k.Secret)
 	if err != nil {
 		return "", nil, xerrors.Errorf("decode key: %w", err)
 	}
-
-	return strconv.FormatInt(int64(k.Sequence), 10), key, nil
+	return id, key, nil
 }
 
-func (c *cache) cryptoKey(ctx context.Context, sequence int32) (string, []byte, error) {
+func (c *cache) cryptoKey(ctx context.Context, sequence int32) (string, interface{}, error) {
 	c.logger.Debug(ctx, "request for key", slog.F("sequence", sequence))
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -284,7 +323,7 @@ func (c *cache) key(sequence int32) (codersdk.CryptoKey, bool) {
 	return key, ok
 }
 
-func checkKey(key codersdk.CryptoKey, sequence int32, now time.Time) (string, []byte, error) {
+func checkKey(key codersdk.CryptoKey, sequence int32, now time.Time) (string, interface{}, error) {
 	if sequence == latestSequence {
 		if !key.CanSign(now) {
 			return "", nil, ErrKeyInvalid

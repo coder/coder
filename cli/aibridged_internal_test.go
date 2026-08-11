@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -53,7 +54,14 @@ func buildFromEnv(t *testing.T, cfg codersdk.AIBridgeConfig) ([]aibridge.Provide
 // (providers, outcomes) the embedded reloader would observe.
 func buildFromDB(ctx context.Context, t *testing.T, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
 	t.Helper()
-	srv, err := aibridgedserver.NewServer(ctx, db, nil, logger, "/", cfg, nil, nil, agplaiseats.Noop{})
+	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+		Store:         db,
+		AISeatTracker: agplaiseats.Noop{},
+		AccessURL:     "/",
+		GatewayCfg:    cfg,
+		Logger:        logger,
+		Clock:         quartz.NewReal(),
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -174,6 +182,8 @@ func TestBuildProviders(t *testing.T) {
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
+		cfg.LegacyBedrock.Model = serpent.String("anthropic.claude-3-5-sonnet-20241022-v2:0")
+		cfg.LegacyBedrock.SmallFastModel = serpent.String("anthropic.claude-3-5-haiku-20241022-v1:0")
 
 		providers, err := buildFromEnv(t, cfg)
 		require.NoError(t, err)
@@ -190,6 +200,8 @@ func TestBuildProviders(t *testing.T) {
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
+		cfg.LegacyBedrock.Model = serpent.String("anthropic.claude-3-5-sonnet-20241022-v2:0")
+		cfg.LegacyBedrock.SmallFastModel = serpent.String("anthropic.claude-3-5-haiku-20241022-v1:0")
 
 		providers, err := buildFromEnv(t, cfg)
 		require.NoError(t, err)

@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"unicode"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -423,6 +424,49 @@ func ReadBodyAsError(res *http.Response) error {
 	}
 	defer res.Body.Close()
 
+	resp, err := io.ReadAll(res.Body)
+	if err != nil {
+		return xerrors.Errorf("read body: %w", err)
+	}
+
+	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
+		if len(resp) > 2048 {
+			resp = append(resp[:2048], []byte("...")...)
+		}
+		if len(resp) == 0 {
+			resp = []byte("no response body")
+		}
+		return newResponseError(res, Response{
+			Message: mimeErr.Error(),
+			Detail:  string(resp),
+		})
+	}
+
+	var m Response
+	err = json.NewDecoder(bytes.NewBuffer(resp)).Decode(&m)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return newResponseError(res, Response{
+				Message: "empty response body",
+			})
+		}
+		return xerrors.Errorf("decode body: %w", err)
+	}
+	if m.Message == "" {
+		if len(resp) > 1024 {
+			resp = append(resp[:1024], []byte("...")...)
+		}
+		m.Message = fmt.Sprintf("unexpected status code %d, response has no message", res.StatusCode)
+		m.Detail = string(resp)
+	}
+
+	return newResponseError(res, m)
+}
+
+// newResponseError wraps an API response in an *Error annotated with
+// the status code, request method, and request URL from res. For 401
+// responses it also sets a helper message suggesting 'coder login'.
+func newResponseError(res *http.Response, response Response) *Error {
 	var requestMethod, requestURL string
 	if res.Request != nil {
 		requestMethod = res.Request.Method
@@ -438,58 +482,202 @@ func ReadBodyAsError(res *http.Response) error {
 		helpMessage = "Try logging in using 'coder login'."
 	}
 
-	resp, err := io.ReadAll(res.Body)
-	if err != nil {
-		return xerrors.Errorf("read body: %w", err)
-	}
-
-	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
-		if len(resp) > 2048 {
-			resp = append(resp[:2048], []byte("...")...)
-		}
-		if len(resp) == 0 {
-			resp = []byte("no response body")
-		}
-		return &Error{
-			statusCode: res.StatusCode,
-			method:     requestMethod,
-			url:        requestURL,
-			Response: Response{
-				Message: mimeErr.Error(),
-				Detail:  string(resp),
-			},
-			Helper: helpMessage,
-		}
-	}
-
-	var m Response
-	err = json.NewDecoder(bytes.NewBuffer(resp)).Decode(&m)
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return &Error{
-				statusCode: res.StatusCode,
-				Response: Response{
-					Message: "empty response body",
-				},
-				Helper: helpMessage,
-			}
-		}
-		return xerrors.Errorf("decode body: %w", err)
-	}
-	if m.Message == "" {
-		if len(resp) > 1024 {
-			resp = append(resp[:1024], []byte("...")...)
-		}
-		m.Message = fmt.Sprintf("unexpected status code %d, response has no message", res.StatusCode)
-		m.Detail = string(resp)
-	}
-
 	return &Error{
-		Response:   m,
+		Response:   response,
 		statusCode: res.StatusCode,
 		method:     requestMethod,
 		url:        requestURL,
 		Helper:     helpMessage,
+	}
+}
+
+// jsonBodySniffLen bounds how much of a response body is retained while
+// decoding to identify HTML without buffering the entire response.
+const jsonBodySniffLen = 512
+
+// htmlResponseHelper suggests the most common causes of receiving HTML
+// from what should be a Coder API endpoint: a misconfigured Coder URL,
+// or an intermediary such as a reverse proxy or SSO portal intercepting
+// API requests.
+const htmlResponseHelper = "Ensure the Coder URL is correct and that any reverse proxy or SSO in front of it passes /api/v2 requests through to Coder."
+
+// ReadBodyAsJSON decodes the response body as JSON into v. It is
+// intended for typed API endpoints whose accepted responses are always
+// JSON, replacing direct json.NewDecoder(res.Body).Decode(...) calls.
+// It must not be used for streaming or non-JSON endpoints such as
+// WebSockets, server-sent events, or file downloads.
+//
+// Bodies that are HTML, empty, or otherwise not valid JSON produce a
+// structured *Error describing the response instead of a bare decode
+// error such as "invalid character '<' looking for beginning of value".
+// Intermediaries like reverse proxies and SSO portals commonly return
+// such bodies with a 200 status code.
+//
+// Valid JSON is decoded even when an intermediary omits or mislabels
+// the Content-Type header. The exception is a Content-Type declaring
+// HTML, which is always reported as an invalid response since Coder
+// API endpoints never serve HTML. The caller remains responsible for
+// closing the response body.
+func ReadBodyAsJSON(res *http.Response, v any) error {
+	return decodeBodyAsJSON(res, v, nil)
+}
+
+// ReadBodyAsJSONUseNumber behaves like ReadBodyAsJSON but decodes JSON
+// numbers into json.Number instead of float64, preserving integer
+// precision for callers that re-serialize or type-assert numeric
+// claims, such as license JWT claims.
+func ReadBodyAsJSONUseNumber(res *http.Response, v any) error {
+	return decodeBodyAsJSON(res, v, func(dec *json.Decoder) {
+		dec.UseNumber()
+	})
+}
+
+// decodeBodyAsJSON decodes the response body as JSON into v. When
+// configure is non-nil it is called with the decoder before decoding,
+// allowing callers to set options such as UseNumber.
+func decodeBodyAsJSON(res *http.Response, v any, configure func(*json.Decoder)) error {
+	if res == nil || res.Body == nil {
+		return xerrors.New("no response body to decode")
+	}
+
+	mimeType := parseMimeType(res.Header.Get("Content-Type"))
+	if isHTMLMimeType(mimeType) {
+		return htmlBodyError(res)
+	}
+
+	body := &responseBodyReader{Reader: res.Body}
+	prefix := &bodyPrefixWriter{}
+	dec := json.NewDecoder(io.TeeReader(body, prefix))
+	if configure != nil {
+		configure(dec)
+	}
+	err := dec.Decode(v)
+	switch {
+	case err == nil:
+		return nil
+	case body.err != nil && errors.Is(err, body.err):
+		return xerrors.Errorf("read response body: %w", err)
+	case len(prefix.bytes) == 0 && errors.Is(err, io.EOF):
+		return invalidBodyError(res, Response{
+			Message: "Received an empty response from the Coder API.",
+			Detail:  invalidBodyDetail(res),
+		}, "", nil)
+	case isHTMLBody(mimeType, prefix.bytes):
+		return htmlBodyError(res)
+	default:
+		return invalidBodyError(res, Response{
+			Message: "Received an invalid JSON response from the Coder API.",
+			Detail:  fmt.Sprintf("decode body: %s, %s", err.Error(), invalidBodyDetail(res)),
+		}, "", err)
+	}
+}
+
+// htmlBodyError returns the structured *Error reported when the Coder API
+// response body is HTML rather than JSON.
+func htmlBodyError(res *http.Response) *Error {
+	return invalidBodyError(res, Response{
+		Message: "Received an HTML response instead of JSON from the Coder API.",
+		Detail:  invalidBodyDetail(res),
+	}, htmlResponseHelper, nil)
+}
+
+// responseBodyReader records non-EOF read errors so decode errors from custom
+// JSON unmarshallers are not mistaken for transport failures.
+type responseBodyReader struct {
+	io.Reader
+	err error
+}
+
+func (r *responseBodyReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) && r.err == nil {
+		r.err = err
+	}
+	return n, err
+}
+
+// bodyPrefixWriter retains only the beginning of a body while reporting every
+// byte as written so it can be used with io.TeeReader.
+type bodyPrefixWriter struct {
+	bytes []byte
+}
+
+func (w *bodyPrefixWriter) Write(p []byte) (int, error) {
+	if remaining := jsonBodySniffLen - len(w.bytes); remaining > 0 {
+		w.bytes = append(w.bytes, p[:min(remaining, len(p))]...)
+	}
+	return len(p), nil
+}
+
+// isHTMLBody reports whether a response body is HTML, either by its
+// media type or by starting with '<' after optional whitespace. Valid
+// JSON can never start with '<', so the sniff also identifies HTML
+// bodies mislabeled with a JSON content type. Markup bodies such as
+// XML are intentionally classified the same way since the remediation,
+// fixing the URL or the intermediary, is identical.
+func isHTMLBody(mimeType string, prefix []byte) bool {
+	if isHTMLMimeType(mimeType) {
+		return true
+	}
+	// Strip a UTF-8 byte order mark, which some intermediaries prepend
+	// to HTML error pages.
+	trimmed := bytes.TrimPrefix(prefix, []byte("\xef\xbb\xbf"))
+	trimmed = bytes.TrimLeftFunc(trimmed, unicode.IsSpace)
+	return len(trimmed) > 0 && trimmed[0] == '<'
+}
+
+func isHTMLMimeType(mimeType string) bool {
+	return mimeType == "text/html" || mimeType == "application/xhtml+xml"
+}
+
+// invalidBodyDetail describes an invalid response body and how it was
+// reached, for inclusion in an Error Detail.
+func invalidBodyDetail(res *http.Response) string {
+	var sb strings.Builder
+	if contentType := res.Header.Get("Content-Type"); contentType != "" {
+		_, _ = fmt.Fprintf(&sb, "content type %q", contentType)
+	} else {
+		_, _ = sb.WriteString("no content type")
+	}
+	if orig := originalRequestURL(res); orig != "" && res.Request != nil && res.Request.URL != nil && orig != res.Request.URL.String() {
+		_, _ = fmt.Fprintf(&sb, ", after following redirects from %s", orig)
+	}
+	return sb.String()
+}
+
+// originalRequestURL returns the URL of the first request in the
+// redirect chain that produced res, or "" when unknown. res.Request
+// itself is the final request after any redirects.
+func originalRequestURL(res *http.Response) string {
+	req := res.Request
+	for req != nil && req.Response != nil && req.Response.Request != nil {
+		req = req.Response.Request
+	}
+	if req == nil || req.URL == nil {
+		return ""
+	}
+	return req.URL.String()
+}
+
+// invalidBodyError builds the *Error returned when a response with an
+// accepted status code does not contain the expected JSON body.
+func invalidBodyError(res *http.Response, response Response, helper string, cause error) *Error {
+	var requestMethod, requestURL string
+	if res.Request != nil {
+		requestMethod = res.Request.Method
+		if res.Request.URL != nil {
+			requestURL = res.Request.URL.String()
+		}
+	}
+	return &Error{
+		Response:    response,
+		statusCode:  res.StatusCode,
+		method:      requestMethod,
+		url:         requestURL,
+		contentType: res.Header.Get("Content-Type"),
+		cause:       cause,
+		invalidBody: true,
+		Helper:      helper,
 	}
 }
 
@@ -498,9 +686,17 @@ func ReadBodyAsError(res *http.Response) error {
 type Error struct {
 	Response
 
-	statusCode int
-	method     string
-	url        string
+	statusCode  int
+	method      string
+	url         string
+	contentType string
+	// cause is the underlying error, such as a JSON decode failure,
+	// exposed to errors.Is and errors.As via Unwrap.
+	cause error
+	// invalidBody marks errors for responses whose status code was
+	// accepted but whose body was not the expected JSON. Error() then
+	// describes the body rather than an unexpected status code.
+	invalidBody bool
 
 	Helper string
 }
@@ -517,6 +713,18 @@ func (e *Error) URL() string {
 	return e.url
 }
 
+// ContentType returns the Content-Type header of the response that
+// produced the error, when known.
+func (e *Error) ContentType() string {
+	return e.contentType
+}
+
+// Unwrap returns the underlying cause of the error, if any, such as the
+// JSON decode error for a response body that could not be decoded.
+func (e *Error) Unwrap() error {
+	return e.cause
+}
+
 func (e *Error) Friendly() string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintf(&sb, "%s. %s", strings.TrimSuffix(e.Message, "."), e.Helper)
@@ -531,7 +739,11 @@ func (e *Error) Error() string {
 	if e.method != "" && e.url != "" {
 		_, _ = fmt.Fprintf(&builder, "%v %v: ", e.method, e.url)
 	}
-	_, _ = fmt.Fprintf(&builder, "unexpected status code %d: %s", e.statusCode, e.Message)
+	if e.invalidBody {
+		_, _ = fmt.Fprintf(&builder, "invalid API response (status code %d): %s", e.statusCode, e.Message)
+	} else {
+		_, _ = fmt.Fprintf(&builder, "unexpected status code %d: %s", e.statusCode, e.Message)
+	}
 	if e.Helper != "" {
 		_, _ = fmt.Fprintf(&builder, ": %s", e.Helper)
 	}

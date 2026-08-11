@@ -40,6 +40,10 @@ It reads as a misspelling of the product name.
 
 *Enforced by `Coder.ProductTerms` (planned).*
 
+The [glossary](../../reference/glossary.md) is the fuller registry of these names and disambiguates collisions like the several senses of "agent".
+When you add, rename, or deprecate a product or feature name, update the glossary in the same change.
+The planned `Coder.ProductTerms` rule and the glossary should draw on one shared term list.
+
 ## Brand names
 
 Use the canonical casing for third-party brand and product names.
@@ -105,6 +109,32 @@ It isn't itself the concept, so it stays in backticks as a tool name.
 
 *Enforced by `Coder.DevContainer` (planned).*
 
+## One term per concept
+
+Pick one name for each thing, then use that name every time the thing appears.
+Synonyms read as new concepts.
+A page that alternates between "workspace", "environment", and "dev box" makes the reader ask whether the three differ.
+
+The [glossary](../../reference/glossary.md) is the registry of canonical names.
+When a concept has a glossary entry, use the entry's term.
+
+The same rule covers repeated instructions inside one page.
+Word the same action the same way each time it occurs, so the reader recognizes it as the same action.
+
+**Do**:
+
+> Create the workspace from the template.
+> When the workspace starts, the agent runs the startup script.
+
+**Don't**:
+
+> Create the workspace from the template.
+> When the environment starts, the agent runs the init script.
+
+*Adapted from ASD-STE100 Issue 9, rules 1.11 and 9.4.
+Documentation-only.
+No Vale rule.*
+
 ## Phrasal verbs and their noun forms
 
 English uses two spellings for many product actions: two words when the term is a verb (`set up`, `log in`), and one word (or hyphenated) when the term is a noun (`setup`, `login`).
@@ -145,6 +175,30 @@ Treat them consistently across the docs.
 > Backup the database before the upgrade.
 
 *Enforced by `Coder.PhrasalVerbs` (planned).*
+
+## Whose for people, not things
+
+"Whose" is the possessive of "who", so it implies the antecedent is a person.
+When the antecedent is an inanimate object or an abstract concept, prefer "with", "where", or "that has".
+
+**Do**:
+
+> A chat with pruned gateway records reports no cost.
+>
+> A template that has conflicting variables fails validation.
+>
+> A region where every proxy is unhealthy drops workspace connections.
+
+**Don't**:
+
+> A chat whose gateway records have been pruned reports no cost.
+>
+> A template whose variables conflict fails validation.
+>
+> A region whose proxies are all unhealthy drops workspace connections.
+
+*Documentation-only.
+No Vale rule.*
 
 ## Refer to, check out, visit, not see
 
@@ -200,7 +254,7 @@ Two rationales apply:
 
 **Do**:
 
-```markdown
+```md
 ## Learn more
 
 - [Configure SSH access](./ssh.md)
@@ -209,14 +263,34 @@ Two rationales apply:
 
 **Don't**:
 
-```markdown
+```md
 ## Next steps
 
 - [Configure SSH access](./ssh.md)
 - [Set workspace autostart](./autostart.md)
 ```
 
-*Enforced by `Coder.LearnMore` (planned).*
+### Sequenced tutorials: What's next?
+
+A tutorial in an ordered series may add a **What's next?** section that points to the single next tutorial in that series.
+Place it above **Learn more**, and write it as a short sentence with the link.
+
+**What's next?** is distinct from **Learn more**: it carries the reader along a defined sequence, while **Learn more** stays optional.
+It also avoids the "steps" mobility metaphor, so the ban on **Next steps** still holds.
+
+**Do**:
+
+```markdown
+## What's next?
+
+Now that you added a language, [install your own command-line tools](./install-command-line-tools.md).
+
+## Learn more
+
+- [Parameters](../../admin/templates/extending-templates/parameters.md) in the Coder documentation
+```
+
+*Enforced by `Coder.LearnMore` (planned). The planned rule flags Next steps, not What's next?.*
 
 ## Tutorial, not walkthrough
 

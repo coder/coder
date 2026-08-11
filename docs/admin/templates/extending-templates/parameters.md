@@ -420,7 +420,7 @@ parameters in one of two ways:
 
   To enable this feature, you need to set the `auto-fill-parameters` experiment flag:
 
-  ```shell
+  ```sh
   coder server --experiments=auto-fill-parameters
   ```
 

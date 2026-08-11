@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -19,13 +20,16 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/util/xhttp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
@@ -53,9 +57,19 @@ const (
 	defaultRefreshRetryTimeout = 10 * time.Second
 )
 
+// SingleflightGroup exposes a subset of singleflight.Group for easier testing.
+// singleflight.Group should be used instead of implementing this in production.
+type SingleflightGroup interface {
+	DoChan(key string, fn func() (any, error)) <-chan singleflight.Result
+}
+
 // Config is used for authentication for Git operations.
 type Config struct {
 	promoauth.InstrumentedOAuth2Config
+	// Logs rate-limited validation warnings. Zero value discards output.
+	Logger slog.Logger
+	// rateLimitLogThrottle throttles rate-limited validation warnings.
+	rateLimitLogThrottle logThrottle
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Type is the type of provider.
@@ -142,6 +156,9 @@ type Config struct {
 	// defaultRefreshRetryTimeout. A negative value disables transient-failure
 	// retries entirely, so exactly one refresh attempt is made.
 	RefreshRetryTimeout time.Duration
+
+	// RefreshGroup deduplicates concurrent requests.
+	RefreshGroup SingleflightGroup
 }
 
 // Git returns a Provider for this config if the provider type is a
@@ -190,6 +207,37 @@ func IsInvalidTokenError(err error) bool {
 
 // RefreshToken automatically refreshes the token if expired and permitted.
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
+	// Prevent parallel refreshes by waiting for the result of any already
+	// in-flight refresh.  Otherwise, the parallel calls will fail with a bad
+	// refresh token error as they can only be used once.
+	key := c.ID + ":" + externalAuthLink.UserID.String()
+	ch := c.RefreshGroup.DoChan(key, func() (any, error) {
+		// Use a detached context so if a request is canceled or times out it does
+		// not cancel all the other requests as well.  The deadline is arbitrary but
+		// we give at least enough time for the refresh timeout then another 10
+		// seconds for updating the database and validating the link.
+		timeout := 10 * time.Second
+		if c.RefreshRetryTimeout > 0 {
+			timeout += c.RefreshRetryTimeout
+		}
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+		defer cancel()
+		return c.innerRefreshToken(rctx, db, externalAuthLink)
+	})
+	select {
+	case results := <-ch:
+		if newlink, ok := results.Val.(database.ExternalAuthLink); ok {
+			return newlink, results.Err
+		} else if results.Err == nil {
+			return externalAuthLink, xerrors.Errorf("got invalid type from token refresh: %T", results.Val)
+		}
+		return externalAuthLink, results.Err
+	case <-ctx.Done():
+		return externalAuthLink, ctx.Err()
+	}
+}
+
+func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
 	if c.NoRefresh &&
@@ -237,21 +285,17 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		//
 		// The error message is saved for debugging purposes.
 		if isFailedRefresh(existingToken, err) {
-			// Before caching the failure, re-read the external auth link
-			// from the database. A concurrent request may have already
-			// refreshed the token successfully, consuming the single-use
-			// refresh token (e.g., GitHub App tokens). In that case our
-			// "bad_refresh_token" error is a false positive from losing
-			// the race, and we should use the winner's updated token
-			// instead of poisoning the database with a cached failure.
+			// Before caching the failure, re-read the external auth link from the
+			// database. A nearly-concurrent request may have already refreshed the
+			// token successfully, consuming the single-use refresh token (e.g.,
+			// GitHub App tokens). In that case our "bad_refresh_token" error is a
+			// false positive from losing the race, and we should use the winner's
+			// updated token instead of poisoning the database with a cached failure.
 			currentLink, readErr := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				ProviderID: externalAuthLink.ProviderID,
 				UserID:     externalAuthLink.UserID,
 			})
 			if readErr == nil && currentLink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
-				// Another caller won the refresh race and stored a new
-				// refresh token. Return their updated link instead of
-				// caching a failure.
 				return currentLink, nil
 			}
 
@@ -322,15 +366,9 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// validation endpoint was unavailable (e.g. rate-limited 403), the
 	// new token would be silently lost and the user would be forced to
 	// re-authenticate manually.
-	// Use a detached context for the DB write only. The IDP already
-	// consumed the old refresh token, so if the caller's request
-	// context is canceled mid-save, the new token would be lost.
-	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer persistCancel()
-
 	originalAccessToken := externalAuthLink.OAuthAccessToken
 	if token.AccessToken != originalAccessToken {
-		updatedAuthLink, err := db.UpdateExternalAuthLink(persistCtx, database.UpdateExternalAuthLinkParams{
+		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:             c.ID,
 			UserID:                 externalAuthLink.UserID,
 			UpdatedAt:              dbtime.Now(),
@@ -489,7 +527,8 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		// validation endpoint is rejecting for a transient reason.
 		// Treat it as optimistically valid rather than discarding
 		// the token.
-		if isRateLimited(res) {
+		if xhttp.IsRateLimited(res) {
+			c.logRateLimitedValidation(ctx, http.StatusForbidden, "rate_limit_headers")
 			return true, nil, nil
 		}
 		// No rate-limit headers: genuine token revocation or
@@ -501,6 +540,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		// Treat 429 the same as a rate-limited 403: optimistically
 		// valid. The token was likely just issued by the IDP; the
 		// validation endpoint is transiently overloaded.
+		c.logRateLimitedValidation(ctx, http.StatusTooManyRequests, "status_code")
 		return true, nil, nil
 
 	case http.StatusOK:
@@ -527,6 +567,57 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 	}
 
 	return true, user, nil
+}
+
+// rateLimitLogInterval is the minimum time between rate-limited validation
+// warnings emitted per Config.
+const rateLimitLogInterval = time.Minute
+
+// logRateLimitedValidation warns that a token was kept valid without
+// provider confirmation due to a rate-limited response. At most one
+// warning is emitted per Config per rateLimitLogInterval; the line
+// carries the number of occurrences suppressed since the previous one.
+func (c *Config) logRateLimitedValidation(ctx context.Context, statusCode int, reason string) {
+	suppressed, ok := c.rateLimitLogThrottle.shouldLog(time.Now(), rateLimitLogInterval)
+	if !ok {
+		return
+	}
+	c.Logger.Warn(ctx, "external auth validation endpoint rate-limited; keeping token without provider confirmation",
+		slog.F("status_code", statusCode),
+		slog.F("reason", reason),
+		slog.F("suppressed", suppressed),
+	)
+}
+
+// logThrottle allows one event per interval and counts the events
+// suppressed in between. Safe for concurrent use; the zero value is
+// ready for use.
+type logThrottle struct {
+	mu         sync.Mutex
+	lastLog    time.Time
+	suppressed int64
+}
+
+// shouldLog reports whether an event occurring at now may be logged,
+// allowing at most one event per interval. When it returns true, it also
+// returns the number of events suppressed since the last allowed one;
+// if two or more intervals have elapsed, the stale count is discarded
+// and zero is returned.
+func (t *logThrottle) shouldLog(now time.Time, interval time.Duration) (int64, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	sinceLast := now.Sub(t.lastLog)
+	if sinceLast < interval {
+		t.suppressed++
+		return 0, false
+	}
+	n := t.suppressed
+	if sinceLast >= 2*interval {
+		n = 0
+	}
+	t.suppressed = 0
+	t.lastLog = now
+	return n, true
 }
 
 type AppInstallation struct {
@@ -821,7 +912,7 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
+func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
@@ -905,6 +996,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 
 		cfg := &Config{
 			InstrumentedOAuth2Config:      instrumented,
+			Logger:                        logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type)),
 			ID:                            entry.ID,
 			ClientID:                      entry.ClientID,
 			ClientSecret:                  entry.ClientSecret,
@@ -924,6 +1016,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			MCPToolAllowRegex:             mcpToolAllow,
 			MCPToolDenyRegex:              mcpToolDeny,
 			CodeChallengeMethodsSupported: slice.StringEnums[promoauth.Oauth2PKCEChallengeMethod](entry.CodeChallengeMethodsSupported),
+			RefreshGroup:                  new(singleflight.Group),
 		}
 
 		if entry.DeviceFlow {
@@ -1449,32 +1542,6 @@ func IsGithubDotComURL(str string) bool {
 		return false
 	}
 	return ghURL.Host == "github.com"
-}
-
-// isRateLimited checks whether an HTTP response indicates a rate
-// limit rather than a genuine authorization failure. It returns
-// true if either X-RateLimit-Remaining is "0" (primary) or
-// Retry-After is present (secondary). OR logic is intentional:
-// GitHub secondary limits can include Retry-After without
-// X-RateLimit-Remaining: 0 (the remaining count tracks the
-// primary quota, not secondary).
-//
-// Does not catch every secondary rate limit. GitHub can return
-// 403 with positive X-RateLimit-Remaining and no Retry-After.
-// Reliable detection of those requires response body inspection.
-// Missing them is not a regression since all 403s were previously
-// treated as invalid.
-func isRateLimited(resp *http.Response) bool {
-	if resp == nil {
-		return false
-	}
-	if resp.Header.Get("Retry-After") != "" {
-		return true
-	}
-	if resp.Header.Get("X-RateLimit-Remaining") == "0" {
-		return true
-	}
-	return false
 }
 
 // isFailedRefresh returns true if the error returned by the refresh attempt

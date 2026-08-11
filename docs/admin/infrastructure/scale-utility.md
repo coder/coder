@@ -53,7 +53,7 @@ environments.
 The following command will provision a number of Coder workspaces using the
 specified template and extra parameters:
 
-```shell
+```sh
 coder exp scaletest create-workspaces \
         --retry 5 \
         --count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
@@ -77,7 +77,7 @@ The command does the following:
 
 For more built-in `scaletest` options, use the `--help` flag:
 
-```shell
+```sh
 coder exp scaletest create-workspaces --help
 ```
 
@@ -87,7 +87,7 @@ Given an existing set of workspaces created previously with `create-workspaces`,
 the following command will generate traffic similar to that of Coder's Web
 Terminal against those workspaces.
 
-```shell
+```sh
 # Produce load at about 1000MB/s (25MB/40ms).
 coder exp scaletest workspace-traffic \
     --template "${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE}" \
@@ -127,7 +127,7 @@ The `workspace-traffic` supports also other modes - SSH traffic, workspace app:
 The scaletest utility will attempt to clean up all workspaces it creates. If you
 wish to clean up all workspaces, you can run the following command:
 
-```shell
+```sh
 coder exp scaletest cleanup \
     --cleanup-job-timeout 2h \
     --cleanup-timeout 15min

@@ -199,6 +199,12 @@ const (
 	FeatureBoundary               FeatureName = "boundary"
 	FeatureServiceAccounts        FeatureName = "service_accounts"
 	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
+	// FeatureAgentRuntimeHours is a usage period feature. It is never a
+	// license claim itself. It is populated from the
+	// agent_runtime_hours_allocation, agent_runtime_hours_limit_soft and
+	// agent_runtime_hours_limit_hard claims. Refer to
+	// enterprise/coderd/license/license.go for the license format.
+	FeatureAgentRuntimeHours FeatureName = "agent_runtime_hours"
 )
 
 var (
@@ -231,6 +237,7 @@ var (
 		FeatureBoundary,
 		FeatureServiceAccounts,
 		FeatureAIGovernanceUserLimit,
+		FeatureAgentRuntimeHours,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -300,6 +307,7 @@ func (n FeatureName) UsesLimit() bool {
 		FeatureUserLimit:             true,
 		FeatureManagedAgentLimit:     true,
 		FeatureAIGovernanceUserLimit: true,
+		FeatureAgentRuntimeHours:     true,
 	}[n]
 }
 
@@ -307,6 +315,7 @@ func (n FeatureName) UsesLimit() bool {
 func (n FeatureName) UsesUsagePeriod() bool {
 	return map[FeatureName]bool{
 		FeatureManagedAgentLimit: true,
+		FeatureAgentRuntimeHours: true,
 	}[n]
 }
 
@@ -372,7 +381,18 @@ type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
 	Limit       *int64      `json:"limit,omitempty"`
-	Actual      *int64      `json:"actual,omitempty"`
+	// SoftLimit is the advisory warning threshold that accompanies Limit for
+	// features whose license carries it. For these features, Limit carries
+	// the purchased allocation.
+	//
+	// Only certain features set this field:
+	// - FeatureAgentRuntimeHours
+	SoftLimit *int64 `json:"soft_limit,omitempty"`
+	// HardLimit is the enforcement threshold that accompanies Limit for
+	// features whose license carries it. See SoftLimit for the set of
+	// features that use these thresholds.
+	HardLimit *int64 `json:"hard_limit,omitempty"`
+	Actual    *int64 `json:"actual,omitempty"`
 
 	// Below is only for features that use usage periods.
 
@@ -385,6 +405,7 @@ type Feature struct {
 	//
 	// Only certain features set these fields:
 	// - FeatureManagedAgentLimit
+	// - FeatureAgentRuntimeHours
 	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
 }
 
@@ -407,6 +428,8 @@ type UsagePeriod struct {
 // 5. The limit is greater
 // 6. Enabled is greater than disabled
 // 7. The actual is greater
+//
+// SoftLimit and HardLimit are not comparison inputs.
 func (f Feature) Compare(b Feature) int {
 	// For features with usage period constraints only, check the issued at and
 	// end dates.
@@ -556,7 +579,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 		return Entitlements{}, ReadBodyAsError(res)
 	}
 	var ent Entitlements
-	return ent, json.NewDecoder(res.Body).Decode(&ent)
+	return ent, ReadBodyAsJSON(res, &ent)
 }
 
 type PostgresAuth string
@@ -610,6 +633,31 @@ const (
 // AIBudgetPeriods lists the supported AIBudgetPeriod values.
 var AIBudgetPeriods = []string{
 	string(AIBudgetPeriodMonth),
+}
+
+// Adjective renders the period as the adjective used in user-facing text (e.g. "monthly").
+func (p AIBudgetPeriod) Adjective() string {
+	switch p {
+	case "day":
+		return "daily"
+	case "week":
+		return "weekly"
+	case AIBudgetPeriodMonth:
+		return "monthly"
+	case "year":
+		return "yearly"
+	default:
+		return string(p)
+	}
+}
+
+// NewAIBudgetPeriodFromString converts s to an AIBudgetPeriod, falling back to
+// AIBudgetPeriodMonth when s is empty or not a recognized period.
+func NewAIBudgetPeriodFromString(s string) AIBudgetPeriod {
+	if slices.Contains(AIBudgetPeriods, s) {
+		return AIBudgetPeriod(s)
+	}
+	return AIBudgetPeriodMonth
 }
 
 // DeploymentValues is the central configuration values the coder server.
@@ -1906,7 +1954,7 @@ communicating directly.`,
 	}
 	aiGatewayBedrockRegion := serpent.Option{
 		Name:        "AI Gateway Bedrock Region",
-		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.",
+		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.",
 		Flag:        "ai-gateway-bedrock-region",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_REGION",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.Region,
@@ -2121,6 +2169,16 @@ communicating directly.`,
 		Default:     ":8888",
 		Group:       &deploymentGroupAIGatewayProxy,
 		YAML:        "listen_addr",
+	}
+	aiGatewayProxyTarget := serpent.Option{
+		Name:        "AI Gateway Proxy Target",
+		Description: "Base URL of the AI Gateway to forward intercepted requests to. Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.",
+		Flag:        "ai-gateway-proxy-target",
+		Env:         "CODER_AI_GATEWAY_PROXY_TARGET",
+		Value:       &c.AI.BridgeProxyConfig.Target,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "target",
 	}
 	aiGatewayProxyTLSCertFile := serpent.Option{
 		Name:        "AI Gateway Proxy TLS Certificate File",
@@ -2667,7 +2725,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Teams",
-			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
+			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: `<organization-name>/<team-slug>`.",
 			Flag:        "oauth2-github-allowed-teams",
 			Env:         "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS",
 			Value:       &c.OAuth2.Github.AllowedTeams,
@@ -4275,6 +4333,62 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "debugLoggingEnabled",
 		},
 		{
+			Name:        "Chat: Hook URL",
+			Description: "HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
+			Flag:        "chat-hook-url",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_URL",
+			Value:       &c.AI.Chat.HookURL,
+			Default:     "",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookURL",
+		},
+		{
+			Name:        "Chat: Hook Secret",
+			Description: "Shared secret used to sign chat agent lifecycle hook JWTs.",
+			Flag:        "chat-hook-secret",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_SECRET",
+			Value:       &c.AI.Chat.HookSecret,
+			Default:     "",
+			Group:       &deploymentGroupChat,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		},
+		{
+			Name:        "Chat: Hook Timeout",
+			Description: "Maximum time to wait for a chat agent lifecycle hook response.",
+			Flag:        "chat-hook-timeout",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_TIMEOUT",
+			Value:       &c.AI.Chat.HookTimeout,
+			Default:     (1500 * time.Millisecond).String(),
+			Group:       &deploymentGroupChat,
+			YAML:        "hookTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Chat: Hook Enabled",
+			Description: "Whether to dispatch chat agent lifecycle hooks when a hook URL is configured. Requires the agent-lifecycle-hooks experiment.",
+			Flag:        "chat-hook-enabled",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_ENABLED",
+			Value:       &c.AI.Chat.HookEnabled,
+			Default:     "true",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookEnabled",
+		},
+		{
+			Name:        "Chat: Hook Allow Insecure",
+			Description: "Allow the chat hook URL to use plain HTTP for any host. Plain HTTP exposes sensitive chat data and lets an on-path attacker forge hook responses that control agent execution, so only enable this on a network you fully trust.",
+			Flag:        "chat-hook-allow-insecure",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_ALLOW_INSECURE",
+			Value:       &c.AI.Chat.HookAllowInsecure,
+			Default:     "false",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookAllowInsecure",
+		},
+		{
 			Name:        "Chat: AI Gateway Routing Enabled",
 			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
@@ -4368,7 +4482,7 @@ Write out the current server config as YAML to stdout.`,
 		{
 			Name: "AI Bridge Bedrock Region",
 			Description: "Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION instead. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
-				"'https://bedrock-runtime.<region>.amazonaws.com'.",
+				"`https://bedrock-runtime.<region>.amazonaws.com`.",
 			Flag:       "aibridge-bedrock-region",
 			Env:        "CODER_AIBRIDGE_BEDROCK_REGION",
 			Value:      &c.AI.BridgeConfig.LegacyBedrock.Region,
@@ -4641,6 +4755,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayProxyListenAddr},
 		},
 		aiGatewayProxyListenAddr,
+		aiGatewayProxyTarget,
 		{
 			Name:        "AI Bridge Proxy TLS Certificate File",
 			Description: "Deprecated: use --ai-gateway-proxy-tls-cert-file or CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE instead. Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.",
@@ -4854,13 +4969,13 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyAnthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
-	// Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
+	// Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`
 	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	Providers []AIProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
@@ -4942,6 +5057,7 @@ type AIProviderConfig struct {
 type AIBridgeProxyConfig struct {
 	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
 	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
+	Target              serpent.String      `json:"target" typescript:",notnull"`
 	TLSCertFile         serpent.String      `json:"tls_cert_file" typescript:",notnull"`
 	TLSKeyFile          serpent.String      `json:"tls_key_file" typescript:",notnull"`
 	MITMCertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
@@ -4954,8 +5070,13 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -5005,6 +5126,45 @@ func (c *DeploymentValues) Validate() error {
 			refresh, access,
 		)
 	}
+
+	// Disabled hooks must not validate inert settings.
+	if c.AI.Chat.HookEnabled.Value() {
+		if c.AI.Chat.HookURL.String() != "" {
+			hookURL := c.AI.Chat.HookURL.Value()
+			allowInsecure := c.AI.Chat.HookAllowInsecure.Value()
+			switch {
+			case hookURL.Scheme == "https":
+			case hookURL.Scheme == "http" && allowInsecure:
+			default:
+				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL, or set --chat-hook-allow-insecure to allow plain HTTP")
+			}
+			// Hostname() instead of Host: a URL like http://:8080/hooks has a
+			// non-empty Host (":8080") but no hostname, and the dispatcher
+			// rejects it on every dispatch.
+			if hookURL.Hostname() == "" {
+				return xerrors.New("chat hook URL must include a host; set --chat-hook-url to a complete URL")
+			}
+			// The configured string is signed verbatim as the JWT audience,
+			// and neither component is ever transmitted, so a consumer
+			// configured with the URL it actually serves would never match.
+			if hookURL.Fragment != "" || hookURL.RawFragment != "" || hookURL.User != nil {
+				return xerrors.New("chat hook URL must not contain a fragment or userinfo; set --chat-hook-url to a URL without a fragment or userinfo")
+			}
+			if c.AI.Chat.HookSecret.Value() == "" {
+				return xerrors.New("chat hook secret is required when chat hook URL is set; set --chat-hook-secret")
+			}
+			// The hook SDK rejects HS256 secrets shorter than 32 bytes.
+			if len(c.AI.Chat.HookSecret.Value()) < 32 {
+				return xerrors.New("chat hook secret must be at least 32 bytes of cryptographically random data; set --chat-hook-secret to a longer value")
+			}
+
+			hookTimeout := c.AI.Chat.HookTimeout.Value()
+			if hookTimeout <= 0 || hookTimeout > 5*time.Second {
+				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -5072,7 +5232,7 @@ func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error
 		Values:  conf,
 		Options: conf.Options(),
 	}
-	return resp, json.NewDecoder(res.Body).Decode(resp)
+	return resp, ReadBodyAsJSON(res, resp)
 }
 
 func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
@@ -5087,7 +5247,7 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 	}
 
 	var df DeploymentStats
-	return df, json.NewDecoder(res.Body).Decode(&df)
+	return df, ReadBodyAsJSON(res, &df)
 }
 
 type AppearanceConfig struct {
@@ -5129,7 +5289,7 @@ func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
 		return AppearanceConfig{}, ReadBodyAsError(res)
 	}
 	var cfg AppearanceConfig
-	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
+	return cfg, ReadBodyAsJSON(res, &cfg)
 }
 
 func (c *Client) UpdateAppearance(ctx context.Context, appearance UpdateAppearanceConfig) error {
@@ -5206,25 +5366,26 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	}
 
 	var buildInfo BuildInfoResponse
-	return buildInfo, json.NewDecoder(res.Body).Decode(&buildInfo)
+	return buildInfo, ReadBodyAsJSON(res, &buildInfo)
 }
 
 type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentExample               Experiment = "example"                 // This isn't used for anything.
-	ExperimentAutoFillParameters    Experiment = "auto-fill-parameters"    // This should not be taken out of experiments until we have redesigned the feature.
-	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
-	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
-	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
-	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
-	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
-	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
-	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
-	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
-	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
-	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
+	ExperimentExample                   Experiment = "example"                     // This isn't used for anything.
+	ExperimentAutoFillParameters        Experiment = "auto-fill-parameters"        // This should not be taken out of experiments until we have redesigned the feature.
+	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
+	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
+	ExperimentOAuth2                    Experiment = "oauth2"                      // Enables OAuth2 provider functionality.
+	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
+	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
+	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
+	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
+	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
+	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
+	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
+	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5245,14 +5406,16 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Build Updates Channel"
 	case ExperimentNATSPubsub:
 		return "NATS Pubsub"
-	case ExperimentMinimumImplicitMember:
-		return "Gateway Accounts (minimum implicit member)"
-	case ExperimentAIGatewayCostControl:
-		return "AI Gateway Cost Control"
+	case ExperimentWorkspaceCapableLicensing:
+		return "Workspace-Capable Licensing"
+	case ExperimentAIGatewaySeatExclusion:
+		return "AI Gateway Seat Exclusion"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
+	case ExperimentAgentLifecycleHooks:
+		return "Agent Lifecycle Hooks"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5271,19 +5434,18 @@ var ExperimentsKnown = Experiments{
 	ExperimentMCPServerHTTP,
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
-	ExperimentMinimumImplicitMember,
-	ExperimentAIGatewayCostControl,
+	ExperimentWorkspaceCapableLicensing,
+	ExperimentAIGatewaySeatExclusion,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
+	ExperimentAgentLifecycleHooks,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{
-	ExperimentMinimumImplicitMember,
-}
+var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -5309,7 +5471,7 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var exp []Experiment
-	return exp, json.NewDecoder(res.Body).Decode(&exp)
+	return exp, ReadBodyAsJSON(res, &exp)
 }
 
 // AvailableExperiments is an expandable type that returns all safe experiments
@@ -5328,7 +5490,7 @@ func (c *Client) SafeExperiments(ctx context.Context) (AvailableExperiments, err
 		return AvailableExperiments{}, ReadBodyAsError(res)
 	}
 	var exp AvailableExperiments
-	return exp, json.NewDecoder(res.Body).Decode(&exp)
+	return exp, ReadBodyAsJSON(res, &exp)
 }
 
 type DAUsResponse struct {
@@ -5393,7 +5555,7 @@ func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsRespons
 	}
 
 	var resp DAUsResponse
-	return &resp, json.NewDecoder(res.Body).Decode(&resp)
+	return &resp, ReadBodyAsJSON(res, &resp)
 }
 
 type AppHostResponse struct {
@@ -5419,7 +5581,7 @@ func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
 	}
 
 	var host AppHostResponse
-	return host, json.NewDecoder(res.Body).Decode(&host)
+	return host, ReadBodyAsJSON(res, &host)
 }
 
 type WorkspaceConnectionLatencyMS struct {
@@ -5501,7 +5663,7 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 	}
 
 	var sshConfig SSHConfigResponse
-	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
+	return sshConfig, ReadBodyAsJSON(res, &sshConfig)
 }
 
 type CryptoKeyFeature string
@@ -5512,6 +5674,12 @@ const (
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
+	// CryptoKeyFeatureNATSCA is the CA that signs NATS cluster mTLS leaf
+	// certificates. Its secret is a PEM cert+key bundle (not a hex secret like
+	// the other features) and contains a private key, so it must never be
+	// served over the API. It is deliberately excluded from
+	// whitelistedCryptoKeyFeatures in enterprise/coderd/workspaceproxy.go.
+	CryptoKeyFeatureNATSCA CryptoKeyFeature = "nats_ca"
 )
 
 type CryptoKey struct {

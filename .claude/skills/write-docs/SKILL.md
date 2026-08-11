@@ -66,7 +66,10 @@ style.
    the Diátaxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md#follow-the-diátaxis-framework).
    One outcome per page. New pages MUST be added to `docs/manifest.json` under
    the right section, and the documentation lands in the same change as the
-   feature.
+   feature. If the change introduces, renames, or deprecates a Coder product
+   or feature name, update the [glossary](../../../docs/reference/glossary.md)
+   in the same change (add, edit, or mark the entry) per the
+   [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
 4. **Draft with deliberate pedagogy** (see patterns below).
 5. **Self-review and validate.** Apply the prose style guide with it open.
    Run `make lint/emdash`, markdownlint, and Vale. Run the commands and code
@@ -122,9 +125,9 @@ drift from the source.
 The canonical
 [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules)
 cover the manifest entry, auto-generated content, Premium marking, renames
-and redirects, and the emdash ban. Read them for the exact wording; the
-pre-handoff checklist below turns them into pass/fail items. Two application
-notes the canonical rules do not spell out:
+and redirects, the emdash ban, and the glossary. Read them for the exact
+wording; the pre-handoff checklist below turns them into pass/fail items. Two
+application notes the canonical rules do not spell out:
 
 - On a rename, pick the new link target by the specific page each sentence
   promises, not just the section hub, and confirm moved anchors still resolve.
@@ -166,6 +169,9 @@ the whole series as a single review.
 - [ ] The content belongs in `docs/`; anything that does not was routed.
 - [ ] One outcome per page, correct Diátaxis mode, added to
       `docs/manifest.json`.
+- [ ] New, renamed, or deprecated product or feature names have a matching
+      `docs/reference/glossary.md` entry (a rename keeps the former name; a
+      deprecation names the replacement).
 - [ ] Prose style guide applied with it open; `make lint/emdash`,
       markdownlint, and Vale pass.
 - [ ] Inbound links resolve; renames have redirects in `coder/coder.com`.

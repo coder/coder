@@ -419,7 +419,7 @@ func TestSharedReaderStreamChat(t *testing.T) {
 		LastModelConfigID: modelConfig.ID,
 		Title:             "shared stream chat",
 	})
-	insertAssistantCostMessage(t, db, chat.ID, modelConfig.ID, 0)
+	insertAssistantMessage(t, db, chat.ID, modelConfig.ID)
 
 	err := client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{

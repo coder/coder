@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import type { ChatDetailError } from "./chatError";
 import { deriveLiveStatus } from "./liveStatusModel";
 import { buildReconnectState, buildRetryState } from "./storyFixtures";
 import type { StreamState } from "./types";
@@ -47,7 +47,6 @@ describe("deriveLiveStatus", () => {
 		message: "Anthropic returned an unexpected error.",
 		attempt: 2,
 		provider: "anthropic",
-		delayMs: 2000,
 		retryingAt: "2026-03-10T00:00:02.000Z",
 	};
 	const reconnectingStatus = {

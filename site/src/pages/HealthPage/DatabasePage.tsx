@@ -12,7 +12,7 @@ import {
 	HealthyDot,
 	Main,
 } from "./Content";
-import { DismissWarningButton } from "./DismissWarningButton";
+import { MuteWarningsButton } from "./MuteWarningsButton";
 
 const DatabasePage = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
@@ -27,7 +27,7 @@ const DatabasePage = () => {
 					<HealthyDot severity={database.severity} />
 					Database
 				</HeaderTitle>
-				<DismissWarningButton healthcheck="Database" />
+				<MuteWarningsButton healthcheck="Database" />
 			</Header>
 
 			<Main>
@@ -38,6 +38,7 @@ const DatabasePage = () => {
 							key={warning.code}
 							severity="warning"
 							prominent
+							dismissible
 						>
 							{warning.message}
 						</Alert>

@@ -35,14 +35,6 @@ export const ShortCommand: Story = {
 	},
 };
 
-export const RunningWithoutCommand: Story = {
-	args: {
-		command: "",
-		status: "running",
-		transcriptBlocks: [],
-	},
-};
-
 export const LongCommand: Story = {
 	decorators: [
 		(Story) => (

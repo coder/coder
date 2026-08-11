@@ -136,7 +136,6 @@ func applyEditMessage(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded see
 		MessageID: seeded.initialUserMessageID,
 		CreatedBy: f.User.ID,
 		Content:   content,
-		APIKeyID:  f.apiKeyID(),
 	})
 	return err
 }
@@ -237,6 +236,13 @@ func applyFinishInterruption(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ s
 	return err
 }
 
+func applyRequestCompaction(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	var err error
+	result.requestCompaction, err = tx.RequestCompaction(chatstate.RequestCompactionInput{})
+	return err
+}
+
 func applyFinishTurn(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
 	var err error
@@ -283,6 +289,8 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 		return applySendMessageQueue
 	case chatstate.TransitionEditMessage:
 		return applyEditMessage
+	case chatstate.TransitionRequestCompaction:
+		return applyRequestCompaction
 	case chatstate.TransitionDeleteQueuedMessage:
 		return applyDeleteQueuedMessage
 	case chatstate.TransitionPromoteQueuedMessage:
@@ -334,6 +342,7 @@ func mustMarshalParts(t *testing.T, parts []codersdk.ChatMessagePart) pqtype.Nul
 type transitionCaseResult struct {
 	sendMessage             chatstate.SendMessageResult
 	editMessage             chatstate.EditMessageResult
+	requestCompaction       chatstate.RequestCompactionResult
 	deleteQueuedMessage     chatstate.DeleteQueuedMessageResult
 	promoteQueuedMessage    chatstate.PromoteQueuedMessageResult
 	interrupt               chatstate.InterruptResult
@@ -779,6 +788,10 @@ func matrixCases() []transitionCaseSpec {
 		editMessageCase(chatstate.StateA0),
 		editMessageCase(chatstate.StateA1),
 
+		// RequestCompaction: only from idle (W), lands in R0 with
+		// the one-shot marker set and no history/queue mutation.
+		requestCompactionCase(),
+
 		// DeleteQueuedMessage cases. Empty-tail want collapses the
 		// classified state (E1->E0, R1->R0, I1->I0, A1->A0). The
 		// non-empty-tail cases need a multi-queued seed.
@@ -855,6 +868,7 @@ func matrixCases() []transitionCaseSpec {
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),
 		finishErrorCase(chatstate.StateR1, chatstate.StateE1),
+		finishErrorCase(chatstate.StateW, chatstate.StateE0),
 
 		// ReconcileInvalidState cases: Invalid with empty queue
 		// lands in E0; Invalid with non-empty queue lands in E1.
@@ -1416,6 +1430,31 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 		}
 	}
 	return spec
+}
+
+func requestCompactionCase() transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionRequestCompaction,
+		from:       chatstate.StateW,
+		want:       chatstate.StateR0,
+		apply:      applyRequestCompaction,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatStatusRunning, after.Status,
+				"RequestCompaction sets status running")
+			require.True(t, after.CompactionRequestedAt.Valid,
+				"RequestCompaction sets compaction_requested_at")
+			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
+				"RequestCompaction inserts no history messages")
+			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
+				"RequestCompaction leaves the queue untouched")
+			require.Equal(t, after.ID, result.requestCompaction.Chat.ID,
+				"RequestCompaction returns the updated chat row")
+			require.True(t, result.requestCompaction.Chat.CompactionRequestedAt.Valid,
+				"returned chat row carries the compaction request marker")
+		},
+	}
 }
 
 func interruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {

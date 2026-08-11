@@ -10,7 +10,7 @@ import {
 	CollapsibleContent,
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
-import { StatusPill } from "#/components/StatusPill/StatusPill";
+import { StatusBadge } from "#/components/StatusBadge/StatusBadge";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
 import {
@@ -113,7 +113,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 									</div>
 
 									<div className="flex flex-row items-center gap-4">
-										<StatusPill isHttpCode code={auditLog.status_code} />
+										<StatusBadge isHttpCode code={auditLog.status_code} />
 
 										{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}

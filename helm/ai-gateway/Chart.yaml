@@ -1,0 +1,24 @@
+apiVersion: v2
+name: coder-ai-gateway
+description: Standalone AI Gateway for Coder
+home: https://github.com/coder/coder
+# These versions are replaced when Coder releases the chart.
+type: application
+version: "0.1.0"
+appVersion: "0.1.0"
+kubeVersion: ">= 1.23.0-0"
+keywords:
+  - coder
+  - ai
+sources:
+  - https://github.com/coder/coder/tree/main/helm/ai-gateway
+icon: https://helm.coder.com/coder_logo_black.png
+maintainers:
+  - name: Coder Technologies, Inc.
+    email: support@coder.com
+    url: https://coder.com/contact
+
+dependencies:
+  - name: libcoder
+    version: 0.1.0
+    repository: file://../libcoder

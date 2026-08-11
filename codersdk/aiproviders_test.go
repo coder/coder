@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -209,6 +210,199 @@ func TestAIProviderRequest_ValidateRoleARN(t *testing.T) {
 
 			update := codersdk.UpdateAIProviderRequest{Settings: &settings}
 			require.Equal(t, tc.wantErr, hasRoleARNError(update.Validate()))
+		})
+	}
+}
+
+func TestAIProviderRequest_ValidateBedrockProtocol(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		protocol codersdk.AIProviderBedrockProtocol
+		wantErr  bool
+	}{
+		{name: "empty is allowed", protocol: "", wantErr: false},
+		{name: "invoke-model", protocol: codersdk.AIProviderBedrockProtocolInvokeModel, wantErr: false},
+		{name: "mantle", protocol: codersdk.AIProviderBedrockProtocolMantle, wantErr: false},
+		{name: "typo", protocol: "mnatle", wantErr: true},
+		{name: "unknown", protocol: "http", wantErr: true},
+	}
+
+	hasProtocolError := func(vs []codersdk.ValidationError) bool {
+		for _, v := range vs {
+			if v.Field == "settings.protocol" {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings := codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:   "us-east-1",
+					Protocol: tc.protocol,
+				},
+			}
+
+			create := codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeBedrock,
+				Name:     "bedrock",
+				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+				Settings: settings,
+			}
+			require.Equal(t, tc.wantErr, hasProtocolError(create.Validate()))
+
+			update := codersdk.UpdateAIProviderRequest{Settings: &settings}
+			require.Equal(t, tc.wantErr, hasProtocolError(update.Validate()))
+		})
+	}
+}
+
+func TestAIProviderRequest_ValidateBedrockMantle(t *testing.T) {
+	t.Parallel()
+
+	hasFieldError := func(vs []codersdk.ValidationError, field string) bool {
+		for _, v := range vs {
+			if v.Field == field {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("MantleRequiresRegion", func(t *testing.T) {
+		t.Parallel()
+		create := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock",
+			BaseURL: "https://bedrock-mantle.us-east-1.api.aws",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Protocol: codersdk.AIProviderBedrockProtocolMantle,
+				},
+			},
+		}
+		require.True(t, hasFieldError(create.Validate(), "settings.region"))
+
+		create.Settings.Bedrock.Region = "us-east-1"
+		require.False(t, hasFieldError(create.Validate(), "settings.region"))
+	})
+
+	t.Run("MantleRequiresRegionOnUpdate", func(t *testing.T) {
+		t.Parallel()
+		settings := codersdk.AIProviderSettings{
+			Bedrock: &codersdk.AIProviderBedrockSettings{
+				Protocol: codersdk.AIProviderBedrockProtocolMantle,
+			},
+		}
+		update := codersdk.UpdateAIProviderRequest{Settings: &settings}
+		require.True(t, hasFieldError(update.Validate(), "settings.region"))
+
+		settings.Bedrock.Region = "us-east-1"
+		require.False(t, hasFieldError(update.Validate(), "settings.region"))
+	})
+
+	t.Run("InvokeModelDoesNotRequireRegionField", func(t *testing.T) {
+		t.Parallel()
+		// The mantle-specific region check must not fire for the invoke-model
+		// protocol, whether it is set explicitly or left empty (existing rows).
+		for _, protocol := range []codersdk.AIProviderBedrockProtocol{"", codersdk.AIProviderBedrockProtocolInvokeModel} {
+			create := codersdk.CreateAIProviderRequest{
+				Type:    codersdk.AIProviderTypeBedrock,
+				Name:    "bedrock",
+				BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
+				Settings: codersdk.AIProviderSettings{
+					Bedrock: &codersdk.AIProviderBedrockSettings{Protocol: protocol},
+				},
+			}
+			require.False(t, hasFieldError(create.Validate(), "settings.region"))
+		}
+	})
+}
+
+// TestAIProviderRequest_ValidationInSync keeps API-level validation
+// (CreateAIProviderRequest.Validate) and runtime-level validation
+// (config.AWSBedrock.Validate) in sync.
+func TestAIProviderRequest_ValidationInSync(t *testing.T) {
+	t.Parallel()
+
+	const (
+		model          = "anthropic.claude-sonnet-4-5"
+		smallFastModel = "anthropic.claude-haiku-4-5"
+	)
+
+	cases := []struct {
+		name    string
+		baseURL string
+		bedrock codersdk.AIProviderBedrockSettings
+		isValid bool
+	}{
+		{
+			name:    "InvokeModelRegionOnly",
+			baseURL: "https://bedrock.us-east-2.amazonaws.com",
+			bedrock: codersdk.AIProviderBedrockSettings{Region: "us-east-2"},
+			isValid: false,
+		},
+		{
+			name:    "InvokeModelMissingSmallFastModel",
+			baseURL: "https://bedrock.us-east-2.amazonaws.com",
+			bedrock: codersdk.AIProviderBedrockSettings{
+				Region: "us-east-2",
+				Model:  model,
+			},
+			isValid: false,
+		},
+		{
+			name:    "InvokeModelComplete",
+			baseURL: "https://bedrock.us-east-2.amazonaws.com",
+			bedrock: codersdk.AIProviderBedrockSettings{
+				Region:         "us-east-2",
+				Model:          model,
+				SmallFastModel: smallFastModel,
+			},
+			isValid: true,
+		},
+		{
+			// Mantle forwards the client's model unchanged, so it needs neither.
+			name:    "MantleWithoutModels",
+			baseURL: "https://bedrock-mantle.us-east-2.api.aws/anthropic",
+			bedrock: codersdk.AIProviderBedrockSettings{
+				Region:   "us-east-2",
+				Protocol: codersdk.AIProviderBedrockProtocolMantle,
+			},
+			isValid: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Mirror the settings-to-runtime conversion that cli/aibridged.go
+			// performs when it builds providers from the database.
+			runtimeCfg := config.AWSBedrock{
+				BaseURL:        tc.baseURL,
+				Region:         tc.bedrock.Region,
+				Model:          tc.bedrock.Model,
+				SmallFastModel: tc.bedrock.SmallFastModel,
+				Protocol:       config.BedrockProtocol(tc.bedrock.ResolvedProtocol()),
+			}
+			require.Equal(t, tc.isValid, runtimeCfg.Validate() == nil,
+				"config.AWSBedrock.Validate disagrees with the expected verdict")
+
+			create := codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeBedrock,
+				Name:     "bedrock",
+				BaseURL:  tc.baseURL,
+				Settings: codersdk.AIProviderSettings{Bedrock: &tc.bedrock},
+			}
+			require.Equal(t, tc.isValid, len(create.Validate()) == 0,
+				"the API disagrees with the expected verdict")
 		})
 	}
 }

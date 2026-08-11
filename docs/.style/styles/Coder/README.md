@@ -4,7 +4,7 @@ Custom Vale rules specific to Coder live here.
 Each rule is a YAML file that Vale loads through the `BasedOnStyles = Coder` setting in the repo-root `.vale.ini`.
 
 Active rules ship as YAML files in this directory.
-See the matching sections in `docs/.style/style-guide.md` for the user-facing policy each rule enforces.
+See the matching sections in `docs/.style/style-guide/` for the user-facing policy each rule enforces.
 Follow-up PRs add rules incrementally.
 Planned coverage:
 
@@ -28,7 +28,7 @@ Planned coverage:
    - The rule is objectively correct (typo, brand-name casing, banned
      substitution).
    - The existing-content violation count for the rule reaches zero.
-4. A follow-up PR adds a parity CI check that verifies every rule here has a matching section in `style-guide.md`.
+4. A follow-up PR adds a parity CI check that verifies every rule here has a matching section in `style-guide/`.
    Add the section in the same PR as the rule.
 
 ## Reference

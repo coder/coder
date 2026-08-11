@@ -45,7 +45,7 @@ The visible result is the same as a regular space, but the line breaker treats t
 
 In the Markdown source (what you type):
 
-```markdown
+```md
 The default timeout is 30&nbsp;seconds.
 Connection latency under 150&nbsp;ms shows green.
 ```
@@ -64,7 +64,7 @@ The number and the unit move to the next line together rather than separating.
 
 In the Markdown source:
 
-```markdown
+```md
 The default timeout is 30 seconds.
 Connection latency under 150ms shows green.
 ```

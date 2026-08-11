@@ -1,4 +1,5 @@
 import type {
+	TemplateBuilderBase,
 	TemplateBuilderComposeModule,
 	TemplateBuilderComposeRequest,
 	TemplateBuilderCreateTemplateRequest,
@@ -12,11 +13,48 @@ import type {
 export type SelectedBaseMeta = {
 	id: string;
 	name: string;
+	description?: string;
 	iconUrl?: string;
 	os?: string;
 	hasParameters: boolean;
 	hasPrerequisites: boolean;
 };
+
+/**
+ * Maps an API TemplateBuilderBase to the UI-only SelectedBaseMeta.
+ */
+export function toSelectedBaseMeta(
+	base: TemplateBuilderBase,
+): SelectedBaseMeta {
+	return {
+		id: base.id,
+		name: base.name,
+		description: base.description,
+		iconUrl: base.icon,
+		os: base.os,
+		hasParameters:
+			base.variables?.length > 0 && base.variables?.some((v) => !v.sensitive),
+		hasPrerequisites: Boolean(base.prerequisites?.length),
+	};
+}
+
+/**
+ * Derives editable customization defaults from the selected base template.
+ * Empty base values fall through to the fields' existing placeholders.
+ */
+export function baseCustomizationDefaults(base: SelectedBaseMeta): {
+	name: string;
+	displayName: string;
+	description: string;
+	icon: string;
+} {
+	return {
+		name: base.id,
+		displayName: base.name,
+		description: base.description ?? "",
+		icon: base.iconUrl ?? "",
+	};
+}
 
 /**
  * UI-only metadata for a selected module.
@@ -41,6 +79,10 @@ export type TemplateBuilderWizardState = {
 	icon: string;
 	selectedBase: SelectedBaseMeta | null;
 	selectedModules: SelectedModuleMeta[];
+	/** Epoch millis when the wizard was entered, used for telemetry duration. */
+	enteredAt: number;
+	/** Stable ID shared across wizard_entry and compose_completion events. */
+	sessionId: string;
 };
 
 export const initialWizardState: TemplateBuilderWizardState = {
@@ -54,7 +96,38 @@ export const initialWizardState: TemplateBuilderWizardState = {
 	icon: "",
 	selectedBase: null,
 	selectedModules: [],
+	enteredAt: 0,
+	sessionId: "",
 };
+
+/** Arguments for building a fresh wizard state on mount. */
+type WizardInit = {
+	/** Optional base template to preselect (from the ?base= param). */
+	preselectedBase?: SelectedBaseMeta;
+	/** Stable session ID shared across telemetry events for this mount. */
+	sessionId: string;
+};
+
+/**
+ * Builds the initial wizard state with a fresh telemetry session,
+ * optionally preselecting a base template.
+ */
+export function initWizardState(init: WizardInit): TemplateBuilderWizardState {
+	const state: TemplateBuilderWizardState = {
+		...initialWizardState,
+		enteredAt: Date.now(),
+		sessionId: init.sessionId,
+	};
+	if (!init.preselectedBase) {
+		return state;
+	}
+	return {
+		...state,
+		baseTemplateId: init.preselectedBase.id,
+		selectedBase: init.preselectedBase,
+		...baseCustomizationDefaults(init.preselectedBase),
+	};
+}
 
 export type WizardAction =
 	| { type: "SET_BASE"; base: SelectedBaseMeta }
@@ -85,12 +158,17 @@ export function wizardReducer(
 	switch (action.type) {
 		case "SET_BASE": {
 			const baseChanged = state.baseTemplateId !== action.base.id;
+			if (!baseChanged) {
+				return { ...state, selectedBase: action.base };
+			}
+			// Changing the base clears base variable values and re-seeds the
+			// customization fields with defaults derived from the new base.
 			return {
 				...state,
 				baseTemplateId: action.base.id,
 				selectedBase: action.base,
-				// Clear base variable values when base changes.
-				baseVariableValues: baseChanged ? {} : state.baseVariableValues,
+				baseVariableValues: {},
+				...baseCustomizationDefaults(action.base),
 			};
 		}
 		case "SET_BASE_VARIABLES":
@@ -133,14 +211,13 @@ export function wizardReducer(
 				hasProvisioners: action.value,
 			};
 		case "RESET_CUSTOMIZATIONS":
+			// Reset only organization and provisioner detection so re-entering the
+			// step re-runs org auto-select cleanly. The base-derived fields are
+			// left intact (they are re-seeded by SET_BASE when the base changes).
 			return {
 				...state,
 				organizationId: undefined,
 				hasProvisioners: undefined,
-				name: "",
-				displayName: "",
-				description: "",
-				icon: "",
 			};
 		case "RESET":
 			return initialWizardState;

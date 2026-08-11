@@ -24,7 +24,7 @@ If you have experience with a provider that is not listed here, please
 
 After you create an OAuth application, set environment variables to configure the Coder server to use it:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="<USER_DEFINED_ID>"
 CODER_EXTERNAL_AUTH_0_TYPE=<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=<OAuth app client ID>
@@ -67,7 +67,7 @@ Reference the documentation for your chosen provider for more information on how
 
 Use [`external-auth`](../../reference/cli/external-auth.md) in the Coder CLI to access a token within the workspace:
 
-```shell
+```sh
 coder external-auth access-token <USER_DEFINED_ID>
 ```
 
@@ -83,9 +83,16 @@ If no tokens are available, it defaults to SSH authentication.
 For Git providers configured with [external authentication](#configuration), Coder can use OAuth tokens for Git operations over HTTPS.
 When using SSH URLs (like `git@github.com:organization/repo.git`), Coder uses SSH keys as described in the [SSH Authentication](#ssh-authentication) section instead.
 
-For Git operations over HTTPS, Coder automatically uses the appropriate external auth provider
-token based on the repository URL.
+For Git operations over HTTPS, Coder automatically injects an external auth provider token.
 This works through Git's `GIT_ASKPASS` mechanism, which Coder configures in each workspace.
+
+`GIT_ASKPASS` tells Coder which Git host the operation is for, but never which provider to use.
+Coder resolves the provider in two steps:
+
+1. Coder considers only the providers that the workspace's template declares with `data "coder_external_auth"`, and selects the one whose `CODER_EXTERNAL_AUTH_<N>_REGEX` matches the host.
+1. If every declared provider is configured and none of them match the host, including when the template declares no providers at all, Coder matches the host against all providers configured on the deployment. This fallback keeps hosts that the template never declares, such as an unrelated Git server, reachable from the workspace.
+
+Because the first step is scoped to the template, two workspaces built from different templates receive their own template's token for the same Git host, regardless of the order the providers appear in the deployment configuration.
 
 To use OAuth tokens for Git authentication over HTTPS:
 
@@ -101,7 +108,7 @@ Behind the scenes, Coder:
 
 To manually access these tokens within a workspace:
 
-```shell
+```sh
 coder external-auth access-token <USER_DEFINED_ID>
 ```
 
@@ -124,7 +131,7 @@ You must add the SSH key to your Git provider.
 
 1. View your Coder Git SSH key:
 
-   ```shell
+   ```sh
    coder publickey
    ```
 
@@ -142,7 +149,7 @@ acting as an OAuth client to external identity providers.
 Coder will usually assume PKCE support is available with "S256" as the code challenge method. Manual
 configuration is available to override any default behavior.
 
-```env
+```dotenv
 # Enable PKCE with S256 (recommended when supported)
 CODER_EXTERNAL_AUTH_0_PKCE_METHODS="S256"
 
@@ -156,7 +163,7 @@ CODER_EXTERNAL_AUTH_0_PKCE_METHODS="none"
 
 Azure DevOps requires the following environment variables:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
 CODER_EXTERNAL_AUTH_0_TYPE=azure-devops
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
@@ -170,7 +177,7 @@ CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token
 
 Azure DevOps (via Entra ID) requires the following environment variables:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
 CODER_EXTERNAL_AUTH_0_TYPE=azure-devops-entra
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
@@ -185,7 +192,7 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://login.microsoftonline.com/<TENANT ID>/oa
 
 Bitbucket Server requires the following environment variables:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-bitbucket-server"
 CODER_EXTERNAL_AUTH_0_TYPE=bitbucket-server
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxx
@@ -199,7 +206,7 @@ This callback path includes the value of `CODER_EXTERNAL_AUTH_0_ID`.
 
 ### Gitea
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="gitea"
 CODER_EXTERNAL_AUTH_0_TYPE=gitea
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxxx
@@ -219,7 +226,7 @@ or to integrate with an existing GitHub authentication.
 For a more complete, step-by-step guide, follow the
 [configure a GitHub OAuth app](#configure-a-github-oauth-app) section instead.
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-github"
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
@@ -236,7 +243,7 @@ as `https://example.com/external-auth/primary-github/callback`, where
 
 GitHub Enterprise requires the following environment variables:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-github"
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
@@ -255,7 +262,7 @@ as `https://example.com/external-auth/primary-github/callback`, where
 
 GitLab self-managed requires the following environment variables:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-gitlab"
 CODER_EXTERNAL_AUTH_0_TYPE=gitlab
 # This value is the "Application ID"
@@ -281,7 +288,7 @@ Visit the [JFrog Artifactory](../../admin/integrations/jfrog-artifactory.md) gui
 Custom authentication and token URLs should be used for self-managed Git
 provider deployments.
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
 CODER_EXTERNAL_AUTH_0_REVOKE_URL="https://github.example.com/oauth/revoke"
@@ -296,7 +303,7 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.com
 
 Optionally, you can request custom scopes:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ```
 
@@ -343,11 +350,16 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
    before linking. To surface an **Install GitHub App** link in the
    Coder UI, set the following environment variable:
 
-   ```env
+   ```dotenv
    CODER_EXTERNAL_AUTH_0_APP_INSTALL_URL=https://github.com/apps/<your-app-slug>/installations/new
    ```
 
 ## Multiple External Providers (Premium)
+
+> [!NOTE]
+> Configuring more than one external authentication provider requires a
+> [Premium license](https://coder.com/pricing#compare-plans).
+> For more details, [contact your account team](https://coder.com/contact).
 
 Below is an example configuration with multiple providers:
 
@@ -358,7 +370,7 @@ Below is an example configuration with multiple providers:
 > git config --global credential.useHttpPath true
 > ```
 
-```env
+```dotenv
 # Provider 1) github.com
 CODER_EXTERNAL_AUTH_0_ID=primary-github
 CODER_EXTERNAL_AUTH_0_TYPE=github
@@ -377,3 +389,18 @@ CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_t
 CODER_EXTERNAL_AUTH_1_REVOKE_URL="https://github.example.com/login/oauth/revoke"
 CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/api/v3/user"
 ```
+
+### When Coder can't resolve a single provider
+
+When several providers serve the same Git host, HTTPS Git operations resolve the provider from the workspace template's declared providers, as described in [OAuth (external auth)](#oauth-external-auth).
+Coder stops in two cases rather than pick a provider the template didn't ask for.
+In both, the request fails and `coder gitaskpass` prints a warning and falls back to Git's own credential behavior, so the Git operation prompts for credentials or fails instead of using an unexpected token.
+
+- **Several of the template's declared providers match the host.**
+  Coder can't tell which one the operation needs, so it returns an HTTP 404 naming each match.
+  Give the providers non-overlapping `CODER_EXTERNAL_AUTH_<N>_REGEX` values so that only one matches the host, or fetch a token with an explicit provider ID using `coder external-auth access-token <USER_DEFINED_ID>` in your template's startup script.
+- **The template declares a provider that the deployment no longer configures, and none of its other declared providers match the host.**
+  This happens when a provider is renamed or removed after a template started declaring it.
+  Coder returns an HTTP 404 naming the missing provider instead of falling back to a provider the template never declared.
+  A provider that the template declares and the deployment still configures keeps serving its own host, so only the hosts that relied on the missing provider are affected.
+  Restore that provider's configuration, or update the template to declare a provider that the deployment configures.

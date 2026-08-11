@@ -15,7 +15,11 @@ import {
 	templateVersionsQueryKey,
 } from "#/api/queries/templates";
 import { workspacesKey } from "#/api/queries/workspaces";
-import type { Workspace, WorkspaceAppHealth } from "#/api/typesGenerated";
+import type {
+	Workspace,
+	WorkspaceAppHealth,
+	WorkspaceBuild,
+} from "#/api/typesGenerated";
 import { workspaceChecks } from "#/modules/workspaces/permissions";
 import {
 	MockDefaultOrganization,
@@ -74,6 +78,7 @@ const meta = {
 		user: MockUserOwner,
 		permissions: {
 			viewDeploymentConfig: false,
+			createWorkspace: true,
 		},
 		queries: [
 			{
@@ -322,16 +327,8 @@ export const BatchUpdateSkipsUpToDateWorkspaces: Story = {
 		await user.click(within(modal).getByRole("button", { name: /Update/ }));
 
 		await waitFor(() => expect(API.updateWorkspace).toHaveBeenCalledTimes(2));
-		expect(API.updateWorkspace).toHaveBeenCalledWith(
-			skipUpToDateWorkspaces[2],
-			[],
-			false,
-		);
-		expect(API.updateWorkspace).toHaveBeenCalledWith(
-			skipUpToDateWorkspaces[3],
-			[],
-			false,
-		);
+		expect(API.updateWorkspace).toHaveBeenCalledWith(skipUpToDateWorkspaces[2]);
+		expect(API.updateWorkspace).toHaveBeenCalledWith(skipUpToDateWorkspaces[3]);
 	},
 };
 
@@ -370,19 +367,65 @@ export const BatchUpdateRunningWorkspace: Story = {
 		await waitFor(() => expect(API.updateWorkspace).toHaveBeenCalledTimes(3));
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			updateRunningWorkspaces[0],
-			[],
-			false,
 		);
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			updateRunningWorkspaces[1],
-			[],
-			false,
 		);
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			updateRunningWorkspaces[2],
-			[],
-			false,
 		);
+	},
+};
+
+export const BatchUpdateShowsSubmittingState: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: updateRunningWorkspaces,
+			count: updateRunningWorkspaces.length,
+		});
+		spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		// Hold the mutation pending so the button's submitting state stays
+		// observable until the story explicitly resolves it.
+		let resolveUpdate!: () => void;
+		const pendingUpdate = new Promise<WorkspaceBuild>((resolve) => {
+			resolveUpdate = () => resolve(MockWorkspaceBuild);
+		});
+		spyOn(API, "updateWorkspace").mockReturnValue(pendingUpdate);
+
+		await selectWorkspaces(canvas, user, ["1", "2", "3"]);
+		await openBulkActions(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: /Update/ }));
+
+		const modal = await body.findByRole("dialog", { name: /Review Updates/i });
+		await user.click(
+			within(modal).getByRole("checkbox", {
+				name: /I acknowledge these risks\./,
+			}),
+		);
+		const updateButton = within(modal).getByRole("button", { name: /Update/ });
+		await user.click(updateButton);
+
+		await step("Button reflects the submitting state", async () => {
+			await waitFor(() => expect(updateButton).toBeDisabled());
+			await within(modal).findByText(
+				"Waiting for workspaces to finish processing",
+			);
+		});
+
+		await step("Resolving the update clears the submitting state", async () => {
+			resolveUpdate();
+			await waitFor(() =>
+				expect(
+					body.queryByText("Waiting for workspaces to finish processing"),
+				).not.toBeInTheDocument(),
+			);
+		});
 	},
 };
 
@@ -416,13 +459,9 @@ export const BatchUpdateIgnoresDormantWorkspaces: Story = {
 		await waitFor(() => expect(API.updateWorkspace).toHaveBeenCalledTimes(2));
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			ignoreDormantWorkspaces[1],
-			[],
-			false,
 		);
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			ignoreDormantWorkspaces[2],
-			[],
-			false,
 		);
 	},
 };
@@ -449,6 +488,9 @@ export const StopsOnlySelectedWorkspaces: Story = {
 		await selectWorkspaces(canvas, user, ["1", "2"]);
 		await openBulkActions(canvas, user);
 		await user.click(await body.findByRole("menuitem", { name: /stop/i }));
+
+		const dialog = await body.findByRole("dialog");
+		await user.click(within(dialog).getByRole("button", { name: "Stop" }));
 
 		await waitFor(() => expect(API.stopWorkspace).toHaveBeenCalledTimes(2));
 		expect(API.stopWorkspace).toHaveBeenCalledWith("1");
@@ -548,6 +590,9 @@ export const StopIgnoresAlreadyStoppedWorkspaces: Story = {
 		const stopItem = await body.findByRole("menuitem", { name: /stop/i });
 		expect(stopItem).not.toHaveAttribute("data-disabled");
 		await user.click(stopItem);
+
+		const dialog = await body.findByRole("dialog");
+		await user.click(within(dialog).getByRole("button", { name: "Stop" }));
 
 		await waitFor(() => expect(API.stopWorkspace).toHaveBeenCalledTimes(1));
 		expect(API.stopWorkspace).toHaveBeenCalledWith("2");

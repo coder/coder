@@ -1,10 +1,11 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
-	"database/sql"
 	"encoding/json"
+	"strings"
 	"testing"
 
+	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -93,7 +94,6 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := chatdTestContext(t)
 	user := dbgen.User(t, db, database.User{})
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         user.ID,
@@ -135,7 +135,6 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 				},
 				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 				ContentVersion: chatprompt.CurrentContentVersion,
-				APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
 			},
 		},
 	})
@@ -159,6 +158,182 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.True(t, ok, "%T", prepared.ProviderOptions[fantasyopenai.Name])
 	require.NotNil(t, providerOptions.ReasoningEffort)
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
+}
+
+func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, string(codersdk.ChatComputerUseProviderOpenAI)))
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	forceCompletions := false
+	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
+		OpenAIConfig: &codersdk.ChatModelOpenAIConfig{
+			UseResponsesAPI: &forceCompletions,
+		},
+		ProviderOptions: &codersdk.ChatModelProviderOptions{
+			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+				User: ptr.Ref("computer-use"),
+			},
+		},
+	})
+	require.NoError(t, err)
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "gpt-4o-mini",
+		Options:      modelConfigRaw,
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+
+	const attachmentText = "text attachment body"
+	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		Name:           "notes.txt",
+		Mimetype:       "text/plain",
+		Data:           []byte(attachmentText),
+	})
+	require.NoError(t, err)
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("hello"),
+		codersdk.ChatMessageFile(file.ID, "text/plain", "notes.txt"),
+	})
+	require.NoError(t, err)
+
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "computer use transport",
+		ClientType:        database.ChatClientTypeApi,
+		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        content,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(prepared.Cleanup)
+
+	// The computer-use model is Responses-selected by the SDK and its client
+	// ignores the config's forced Chat Completions, so the options must be the
+	// Responses type or the SDK discards them.
+	_, ok := prepared.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", prepared.ProviderOptions[fantasyopenai.Name])
+
+	// File classification must also key on the substituted model: the
+	// Responses transport drops native text file parts, so the attachment
+	// must be inlined as text rather than kept as a FilePart.
+	var sawInlinedText bool
+	for _, message := range prepared.Prompt {
+		for _, part := range message.Content {
+			if filePart, isFile := part.(fantasy.FilePart); isFile {
+				t.Fatalf("text attachment survived as FilePart %q", filePart.Filename)
+			}
+			if textPart, isText := part.(fantasy.TextPart); isText &&
+				strings.Contains(textPart.Text, attachmentText) {
+				sawInlinedText = true
+			}
+		}
+	}
+	require.True(t, sawInlinedText, "attachment was not inlined as text")
+}
+
+func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "gpt-4o-mini",
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	parent := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
+		LastModelConfigID: modelConfig.ID,
+		Title:             "subagent attribution",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, "inspect the workspace"),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(prepared.Cleanup)
+
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: GatewayTokenName(user.ID),
+	})
+	require.NoError(t, err)
+	require.Equal(t, gatewayKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
 }
 
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces
@@ -191,12 +366,11 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 			Model:       "gpt-4o-mini",
 			DisplayName: "gpt-4o-mini",
-			Options:     json.RawMessage(`{}`),
+			Options:     json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
 		}, func(p *database.InsertChatModelConfigParams) {
 			p.Enabled = true
 			p.IsDefault = true
 		})
-		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 			OrganizationID:    org.ID,
@@ -212,7 +386,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 					ContentVersion: chatprompt.CurrentContentVersion,
 					CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 					ModelConfigID:  uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-					APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
 				},
 			},
 		})
@@ -268,9 +441,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.Equal(t, "the answer is 42", result.FinalAssistantText)
 		require.Equal(t, lastUserID, result.TriggerMessageID)
 		require.Equal(t, tipID, result.HistoryTipMessageID)
-		require.NotNil(t, result.StatusLabelModel)
+		require.True(t, result.StatusLabelModel.Valid())
 		require.Equal(t, "openai", result.FallbackProvider)
 		require.Equal(t, "gpt-4o-mini", result.FallbackModel)
+		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelOptions))
 	})
 
 	t.Run("NonWaitingReturnsEmpty", func(t *testing.T) {
@@ -314,7 +488,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			DisplayName:  "gpt-4o-mini",
 			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
 		})
-		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 			OrganizationID:    org.ID,
@@ -330,7 +503,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 					ContentVersion: chatprompt.CurrentContentVersion,
 					CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 					ModelConfigID:  uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-					APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
 				},
 			},
 		})
@@ -346,7 +518,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.Equal(t, "the answer is 42", result.FinalAssistantText)
 		require.NotZero(t, result.TriggerMessageID)
 		require.NotZero(t, result.HistoryTipMessageID)
-		require.Nil(t, result.StatusLabelModel)
+		require.False(t, result.StatusLabelModel.Valid())
 		require.Empty(t, result.FallbackProvider)
 		require.Empty(t, result.FallbackModel)
 	})

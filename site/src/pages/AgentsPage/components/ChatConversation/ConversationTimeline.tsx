@@ -1,8 +1,14 @@
-import { ChevronLeftIcon, ChevronRightIcon, PencilIcon } from "lucide-react";
+import {
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	InfoIcon,
+	PencilIcon,
+} from "lucide-react";
 import {
 	type FC,
 	Fragment,
 	memo,
+	type ReactNode,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -14,6 +20,7 @@ import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
 
+import { AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
@@ -211,25 +218,23 @@ const SmoothedResponse = memo<{
 });
 
 const ReadFileTimelineBlock = memo<{
-	tools: readonly MergedTool[];
+	tools: readonly [MergedTool, ...MergedTool[]];
 }>(({ tools }) => {
 	const [expanded, setExpanded] = useState(false);
 	const [firstTool] = tools;
-	if (!firstTool) {
-		return null;
-	}
-
 	if (tools.length === 1) {
 		const readFile = getReadFileToolData(firstTool);
 		return (
-			<div data-tool-call="">
-				<ReadFileTool
-					{...readFile}
-					status={firstTool.status}
-					expanded={expanded}
-					onExpandedChange={setExpanded}
-				/>
-			</div>
+			<ToolCall.PolicyProvider hookRewritten={firstTool.hookRewritten ?? false}>
+				<div data-tool-call="">
+					<ReadFileTool
+						{...readFile}
+						status={firstTool.status}
+						expanded={expanded}
+						onExpandedChange={setExpanded}
+					/>
+				</div>
+			</ToolCall.PolicyProvider>
 		);
 	}
 
@@ -376,17 +381,16 @@ export const BlockList: FC<{
 							</div>
 						);
 					case "tool-group": {
-						const groupTools = block.ids
+						const [firstGroupTool, ...restGroupTools] = block.ids
 							.map((id) => toolByID.get(id))
 							.filter((tool) => tool !== undefined);
-						const [firstGroupTool] = groupTools;
 						if (!firstGroupTool) {
 							return null;
 						}
 						return (
 							<ReadFileTimelineBlock
 								key={firstGroupTool.id}
-								tools={groupTools}
+								tools={[firstGroupTool, ...restGroupTools]}
 							/>
 						);
 					}
@@ -448,6 +452,7 @@ export const BlockList: FC<{
 								}
 								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
+								hookRewritten={tool.hookRewritten}
 							/>
 						);
 					}
@@ -469,8 +474,10 @@ export const BlockList: FC<{
 								sources={block.sources}
 							/>
 						);
-					default:
-						return null;
+					default: {
+						const _exhaustive: never = block;
+						return _exhaustive;
+					}
 				}
 			})}
 			{remainingTools.map((tool) => (
@@ -506,11 +513,37 @@ export const BlockList: FC<{
 					}
 					modelIntent={tool.modelIntent}
 					parsedCommands={tool.parsedCommands}
+					hookRewritten={tool.hookRewritten}
 				/>
 			))}
 		</>
 	);
 };
+
+// Avoid announcing historical hook notices as live alerts.
+const TimelineNotice: FC<{ children?: ReactNode }> = ({ children }) => (
+	<div
+		role="note"
+		className="relative my-1 w-full rounded-lg border border-solid border-border-default bg-surface-secondary p-4 text-left"
+	>
+		<div className="flex min-w-0 flex-1 flex-row items-start gap-3 text-sm">
+			<InfoIcon className="size-icon-sm mt-[3px] text-highlight-sky" />
+			<div className="min-w-0 flex-1">{children}</div>
+		</div>
+	</div>
+);
+
+const LifecycleHookNotice: FC<{
+	children: string;
+	urlTransform?: UrlTransform;
+}> = ({ children, urlTransform }) => (
+	<TimelineNotice>
+		<div className="flex flex-col gap-1">
+			<AlertTitle>Lifecycle hook</AlertTitle>
+			<Response urlTransform={urlTransform}>{children}</Response>
+		</div>
+	</TimelineNotice>
+);
 
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
@@ -591,6 +624,33 @@ const ChatMessageItem = memo<{
 		if (displayState.shouldHide) {
 			return null;
 		}
+		if (message.role === "system") {
+			return (
+				<div
+					className={cn(
+						isAfterEditingMessage && "opacity-40 pointer-events-none",
+						"transition-opacity duration-200",
+					)}
+					// Keep links in dimmed notices out of accessibility navigation.
+					inert={isAfterEditingMessage ? true : undefined}
+				>
+					{parsed.hookNotices.length > 0 ? (
+						parsed.hookNotices.map((notice, index) => (
+							<LifecycleHookNotice
+								key={`${message.id}-hook-notice-${index}`}
+								urlTransform={urlTransform}
+							>
+								{notice}
+							</LifecycleHookNotice>
+						))
+					) : (
+						<TimelineNotice>
+							<Response urlTransform={urlTransform}>{parsed.markdown}</Response>
+						</TimelineNotice>
+					)}
+				</div>
+			);
+		}
 
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
@@ -602,6 +662,7 @@ const ChatMessageItem = memo<{
 					isAfterEditingMessage && "opacity-40 pointer-events-none",
 					"group/msg relative transition-opacity duration-200",
 				)}
+				inert={isAfterEditingMessage ? true : undefined}
 			>
 				<ConversationItem {...conversationItemProps}>
 					{isUser ? (
@@ -647,6 +708,14 @@ const ChatMessageItem = memo<{
 						</Message>
 					)}
 				</ConversationItem>
+				{parsed.hookNotices.map((notice, index) => (
+					<LifecycleHookNotice
+						key={`${message.id}-hook-notice-${index}`}
+						urlTransform={urlTransform}
+					>
+						{notice}
+					</LifecycleHookNotice>
+				))}
 				{!hideActions &&
 					(displayState.hasCopyableContent ||
 						(isUser && onEditUserMessage)) && (
@@ -779,6 +848,7 @@ const StickyUserMessage = memo<{
 	nextUserMessageId?: number;
 	onJumpToUserMessage?: (messageId: number) => void;
 	registerSentinel?: (messageId: number, el: HTMLDivElement | null) => void;
+	urlTransform?: UrlTransform;
 }>(
 	({
 		message,
@@ -790,6 +860,7 @@ const StickyUserMessage = memo<{
 		nextUserMessageId,
 		onJumpToUserMessage,
 		registerSentinel,
+		urlTransform,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
 		const [isReady, setIsReady] = useState(false);
@@ -1018,6 +1089,11 @@ const StickyUserMessage = memo<{
 								? { opacity: "calc(1 - var(--overlay-ready, 0))" }
 								: undefined
 						}
+						// While the overlay copy is shown, drop the flow copy
+						// from the accessibility tree so the message and its
+						// hook notices aren't exposed twice.
+						aria-hidden={isStuck && !isTooTall ? true : undefined}
+						inert={isStuck && !isTooTall ? true : undefined}
 					>
 						<ChatMessageItem
 							message={message}
@@ -1028,6 +1104,7 @@ const StickyUserMessage = memo<{
 							prevUserMessageId={prevUserMessageId}
 							nextUserMessageId={nextUserMessageId}
 							onJumpToUserMessage={onJumpToUserMessage}
+							urlTransform={urlTransform}
 						/>
 					</div>
 
@@ -1073,6 +1150,7 @@ const StickyUserMessage = memo<{
 									prevUserMessageId={prevUserMessageId}
 									nextUserMessageId={nextUserMessageId}
 									onJumpToUserMessage={onJumpToUserMessage}
+									urlTransform={urlTransform}
 									fadeFromBottom
 								/>
 							</div>
@@ -1091,6 +1169,10 @@ function computeLastInChainFlags(
 	let nextVisibleIsUser = true;
 	for (let i = displayMessages.length - 1; i >= 0; i--) {
 		const entry = displayMessages[i];
+		if (entry.message.role === "system") {
+			nextVisibleIsUser = true;
+			continue;
+		}
 		if (entry.message.role !== "user") {
 			flags[i] = nextVisibleIsUser;
 		}
@@ -1267,6 +1349,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
 									onJumpToUserMessage={jumpToUserMessage}
 									registerSentinel={registerSentinel}
+									urlTransform={urlTransform}
 								/>
 							);
 						}

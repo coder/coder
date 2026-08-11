@@ -17,11 +17,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
-import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
 import {
 	Select,
 	SelectContent,
@@ -29,6 +24,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -38,6 +38,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { getGroupSubtitle } from "#/modules/groups";
 import {
@@ -225,10 +226,13 @@ export const TemplatePermissionsPageView: FC<
 	onRemoveGroup,
 }) => {
 	return (
-		<>
-			<PageHeader className="pt-0">
-				<PageHeaderTitle>Permissions</PageHeaderTitle>
-			</PageHeader>
+		<div className="flex flex-col gap-12">
+			<SettingsHeader>
+				<SettingsHeaderTitle>Permissions</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Manage which members and groups can use this template.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<div className="flex flex-col gap-2.5">
 				{canUpdatePermissions && (
@@ -265,7 +269,7 @@ export const TemplatePermissionsPageView: FC<
 					</TableBody>
 				</Table>
 			</div>
-		</>
+		</div>
 	);
 };
 
@@ -298,14 +302,10 @@ const MembersTableBody: FC<MembersTableBodyProps> = ({
 		templateACL.users.length === 0 && templateACL.group.length === 0;
 	if (isEmpty) {
 		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState
-						message="No members yet"
-						description="Add a member using the controls above"
-					/>
-				</TableCell>
-			</TableRow>
+			<TableEmpty
+				message="No members yet"
+				description="Add a member using the controls above"
+			/>
 		);
 	}
 

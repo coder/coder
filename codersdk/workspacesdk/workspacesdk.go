@@ -2,7 +2,6 @@ package workspacesdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -158,7 +157,7 @@ func (c *Client) AgentConnectionInfoGeneric(ctx context.Context) (AgentConnectio
 	}
 
 	var connInfo AgentConnectionInfo
-	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
+	return connInfo, codersdk.ReadBodyAsJSON(res, &connInfo)
 }
 
 func (c *Client) AgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (AgentConnectionInfo, error) {
@@ -172,7 +171,7 @@ func (c *Client) AgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (Ag
 	}
 
 	var connInfo AgentConnectionInfo
-	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
+	return connInfo, codersdk.ReadBodyAsJSON(res, &connInfo)
 }
 
 // AgentConnFunc returns a new connection to the specified agent. If release is

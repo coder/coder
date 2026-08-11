@@ -7,10 +7,10 @@ import (
 	"cdr.dev/slog/v3"
 )
 
-// MarkKeyOnStatus marks key based on a key-specific HTTP
-// status code from resp (429 for temporary, 401 or 403 for
-// permanent). Returns true if the status was a key-specific
-// failover trigger so callers can retry with the next key.
+// MarkKeyOnStatus marks key based on a key-specific HTTP status
+// code from resp (429 or 401 for temporary). Returns true if the
+// status was a key-specific failover trigger so callers can retry
+// with the next key.
 func (p *Pool) MarkKeyOnStatus(
 	ctx context.Context,
 	key *Key,
@@ -22,35 +22,27 @@ func (p *Pool) MarkKeyOnStatus(
 	}
 	statusCode := resp.StatusCode
 	switch statusCode {
-	case http.StatusTooManyRequests:
-		cooldown := ParseRetryAfter(resp)
-		if cooldown <= 0 {
-			cooldown = defaultCooldown
+	// A 429 rate-limits the key for the provider-supplied cooldown. A 401
+	// means the key was rejected, so it cools down for the default period
+	// and recovers on its own.
+	case http.StatusTooManyRequests, http.StatusUnauthorized:
+		cooldown := defaultCooldown
+		reason := cooldownUnauthorized
+		if statusCode == http.StatusTooManyRequests {
+			reason = cooldownRateLimited
+			if retryAfter := ParseRetryAfter(resp); retryAfter > 0 {
+				cooldown = retryAfter
+			}
 		}
-		if key.MarkTemporary(cooldown) {
+		if key.applyCooldown(cooldown, reason) {
 			if p.metrics != nil {
-				p.metrics.KeyPoolStateTransitions.WithLabelValues(p.providerName, reasonRateLimited).Inc()
+				p.metrics.KeyPoolStateTransitions.WithLabelValues(p.providerName, string(reason)).Inc()
 			}
 			logger.Info(ctx, "key marked temporary",
 				slog.F("provider", p.providerName),
 				slog.F("api_key_hint", key.Hint()),
 				slog.F("status", statusCode),
 				slog.F("cooldown", cooldown))
-		}
-		return true
-	case http.StatusUnauthorized, http.StatusForbidden:
-		if key.MarkPermanent() {
-			if p.metrics != nil {
-				reason := reasonUnauthorized
-				if statusCode == http.StatusForbidden {
-					reason = reasonForbidden
-				}
-				p.metrics.KeyPoolStateTransitions.WithLabelValues(p.providerName, reason).Inc()
-			}
-			logger.Warn(ctx, "key marked permanent",
-				slog.F("provider", p.providerName),
-				slog.F("api_key_hint", key.Hint()),
-				slog.F("status", statusCode))
 		}
 		return true
 	default:

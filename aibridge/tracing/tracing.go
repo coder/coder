@@ -17,12 +17,13 @@ const (
 	// trace attribute key constants
 	RequestPath = "request_path"
 
-	InterceptionID = "interception_id"
-	InitiatorID    = "user_id"
-	Provider       = "provider"
-	Model          = "model"
-	Streaming      = "streaming"
-	IsBedrock      = "aws_bedrock"
+	InterceptionID  = "interception_id"
+	InitiatorID     = "user_id"
+	Provider        = "provider"
+	Model           = "model"
+	Streaming       = "streaming"
+	IsBedrock       = "aws_bedrock"
+	BedrockProtocol = "aws_bedrock_protocol"
 
 	PassthroughURL         = "passthrough_url"
 	PassthroughUpstreamURL = "passthrough_upstream_url"

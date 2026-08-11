@@ -487,38 +487,60 @@ export const downloadCoderVersion = async (
 		return binaryPath;
 	}
 
-	// Run our official install script to install the binary
-	await new Promise<void>((resolve, reject) => {
-		const cp = spawn(
-			path.join(__dirname, "../../install.sh"),
-			[
-				"--version",
-				versionNumber,
-				"--method",
-				"standalone",
-				"--prefix",
-				tempDir,
-				"--binary-name",
-				binaryName,
-			],
-			{
-				env: {
-					...process.env,
-					XDG_CACHE_HOME: "/tmp/coder-e2e-cache",
-					TRACE: "1", // tells install.sh to `set -x`, helpful if something goes wrong
+	// runInstallScript runs our official install script to install the binary,
+	// resolving with the script's exit code.
+	const runInstallScript = (): Promise<number> =>
+		new Promise<number>((resolve, reject) => {
+			const cp = spawn(
+				path.join(__dirname, "../../install.sh"),
+				[
+					"--version",
+					versionNumber,
+					"--method",
+					"standalone",
+					"--prefix",
+					tempDir,
+					"--binary-name",
+					binaryName,
+				],
+				{
+					env: {
+						...process.env,
+						XDG_CACHE_HOME: "/tmp/coder-e2e-cache",
+						TRACE: "1", // tells install.sh to `set -x`, helpful if something goes wrong
+					},
 				},
-			},
-		);
-		cp.stderr.on("data", (data) => console.error(data.toString()));
-		cp.stdout.on("data", (data) => console.info(data.toString()));
-		cp.on("close", (code) => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(new Error(`install.sh failed with code ${code}`));
-			}
+			);
+			cp.stderr.on("data", (data) => console.error(data.toString()));
+			cp.stdout.on("data", (data) => console.info(data.toString()));
+			cp.on("error", (err) => reject(err));
+			cp.on("close", (code) => resolve(code ?? 1));
 		});
-	});
+
+	// The install script downloads the release asset from GitHub, which
+	// occasionally returns a transient error (e.g. HTTP 403/503, surfacing as a
+	// nonzero curl exit code). Retry with exponential backoff so a single hiccup
+	// does not fail the test. Partial downloads are resumed and completed
+	// binaries are reused across attempts by install.sh.
+	const maxAttempts = 5;
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		const code = await runInstallScript();
+		if (code === 0) {
+			return binaryPath;
+		}
+		if (attempt === maxAttempts) {
+			throw new Error(
+				`install.sh failed with code ${code} after ${maxAttempts} attempts`,
+			);
+		}
+		// Exponential backoff with jitter: ~1s, 2s, 4s, 8s between attempts.
+		const backoffMs =
+			2 ** (attempt - 1) * 1000 + Math.floor(Math.random() * 1000);
+		console.error(
+			`install.sh attempt ${attempt}/${maxAttempts} failed with code ${code}; retrying in ${backoffMs}ms`,
+		);
+		await new Promise((resolve) => setTimeout(resolve, backoffMs));
+	}
 	return binaryPath;
 };
 
@@ -1228,9 +1250,7 @@ export const updateWorkspace = async (
 	await page.getByTestId("workspace-update-button").click();
 	await page.getByTestId("confirm-button").click();
 
-	await page
-		.getByRole("button", { name: /go to workspace parameters/i })
-		.click();
+	await page.getByRole("link", { name: /go to workspace parameters/i }).click();
 
 	await fillParameters(page, richParameters, buildParameters);
 

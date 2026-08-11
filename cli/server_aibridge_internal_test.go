@@ -727,6 +727,8 @@ func TestBuildProviderFromProtoSetsAPIDumpDir(t *testing.T) {
 					Region:          "us-east-1",
 					AccessKey:       "AKID",
 					AccessKeySecret: "secret",
+					Model:           "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					SmallFastModel:  "anthropic.claude-3-5-haiku-20241022-v1:0",
 				},
 			},
 			expectedType: aibridge.ProviderAnthropic,

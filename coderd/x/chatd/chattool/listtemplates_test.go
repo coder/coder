@@ -47,11 +47,13 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		OrganizationID: orgA.ID,
 		CreatedBy:      user.ID,
 		Name:           "alpha",
+		AgentsAllowed:  true,
 	})
 	tBeta := dbgen.Template(t, db, database.Template{
 		OrganizationID: orgB.ID,
 		CreatedBy:      user.ID,
 		Name:           "beta",
+		AgentsAllowed:  true,
 	})
 
 	t.Run("ScopedToOrgA", func(t *testing.T) {
@@ -149,18 +151,21 @@ func TestListTemplates_QueryMatchesDisplayNameAndDescription(t *testing.T) {
 		CreatedBy:      user.ID,
 		Name:           "tpl-42",
 		DisplayName:    "Data Science Lab",
+		AgentsAllowed:  true,
 	})
 	descriptionTemplate := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "node-general",
 		Description:    "A JavaScript and TypeScript workspace.",
+		AgentsAllowed:  true,
 	})
 	_ = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unrelated",
 		Description:    "A plain Linux workspace.",
+		AgentsAllowed:  true,
 	})
 
 	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
@@ -211,22 +216,26 @@ func TestListTemplates_QueryScoreTiers(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "python",
+		AgentsAllowed:  true,
 	})
 	prefix := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "python-alpha",
+		AgentsAllowed:  true,
 	})
 	contains := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "go-python",
+		AgentsAllowed:  true,
 	})
 	description := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "generic-dev",
 		Description:    "Python-capable general environment.",
+		AgentsAllowed:  true,
 	})
 
 	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
@@ -244,6 +253,7 @@ func TestListTemplates_QueryScoreTiers(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "python-gpu",
+		AgentsAllowed:  true,
 	})
 	result = runListTemplates(ctx, t, tool, `{"query":"python gpu"}`)
 	templates = listTemplateItems(t, result)
@@ -255,6 +265,7 @@ func TestListTemplates_QueryScoreTiers(t *testing.T) {
 		CreatedBy:      user.ID,
 		Name:           "ml-tools",
 		Description:    "Includes machine-learning libraries.",
+		AgentsAllowed:  true,
 	})
 	result = runListTemplates(ctx, t, tool, `{"query":"machine learning"}`)
 	templates = listTemplateItems(t, result)
@@ -279,6 +290,7 @@ func TestListTemplates_RanksAllCandidatesBeforePagination(t *testing.T) {
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
 			Name:           fmt.Sprintf("template-%02d", i),
+			AgentsAllowed:  true,
 		})
 		if i == 10 {
 			target = tpl
@@ -329,12 +341,14 @@ func TestListTemplates_QueryRelevanceOutranksPersonalUsage(t *testing.T) {
 		CreatedBy:      user.ID,
 		Name:           "python-gpu",
 		Description:    "GPU workspace.",
+		AgentsAllowed:  true,
 	})
 	used := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "generic-dev",
 		Description:    "Python-capable general environment.",
+		AgentsAllowed:  true,
 	})
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
@@ -370,11 +384,13 @@ func TestListTemplates_PersonalUsageBreaksEqualQueryScoreTie(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "python-alpha",
+		AgentsAllowed:  true,
 	})
 	used := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "python-beta",
+		AgentsAllowed:  true,
 	})
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
@@ -410,11 +426,13 @@ func TestListTemplates_OrgPopularityFallback(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "popular-template",
+		AgentsAllowed:  true,
 	})
 	lessPopular := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "less-popular-template",
+		AgentsAllowed:  true,
 	})
 	for range 2 {
 		otherUser := dbgen.User(t, db, database.User{})
@@ -458,11 +476,13 @@ func TestListTemplates_WeakOrgPopularityDoesNotRecommend(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "used-by-one",
+		AgentsAllowed:  true,
 	})
 	unused := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unused",
+		AgentsAllowed:  true,
 	})
 	otherUser := dbgen.User(t, db, database.User{})
 	dbgen.Workspace(t, db, database.WorkspaceTable{
@@ -503,11 +523,13 @@ func TestListTemplates_StalePersonalUsageDoesNotRecommend(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "old-usage",
+		AgentsAllowed:  true,
 	})
 	unused := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unused",
+		AgentsAllowed:  true,
 	})
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
@@ -551,11 +573,13 @@ func TestListTemplates_StaleFrequentPersonalUsageDoesNotRecommend(t *testing.T) 
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "stale-usage",
+		AgentsAllowed:  true,
 	})
 	unused := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unused",
+		AgentsAllowed:  true,
 	})
 	// Stale usage decays out of the personal signal despite its frequency.
 	for range 2 {
@@ -601,11 +625,13 @@ func TestListTemplates_RecentPersonalUsageRecommends(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "recent-usage",
+		AgentsAllowed:  true,
 	})
 	unused := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unused",
+		AgentsAllowed:  true,
 	})
 	// Recent in-window usage is a confident signal.
 	for range 2 {
@@ -649,11 +675,13 @@ func TestListTemplates_DeletedRecentPersonalUsageShowsEvidence(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "deleted-usage",
+		AgentsAllowed:  true,
 	})
 	unused := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "unused",
+		AgentsAllowed:  true,
 	})
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
@@ -695,11 +723,13 @@ func TestListTemplates_AmbiguousTopMatches(t *testing.T) {
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "go-alpha",
+		AgentsAllowed:  true,
 	})
 	_ = dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "go-beta",
+		AgentsAllowed:  true,
 	})
 
 	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
@@ -714,7 +744,7 @@ func TestListTemplates_AmbiguousTopMatches(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // Subtests share a single DB and run sequentially.
-func TestTemplateAllowlistEnforcement(t *testing.T) {
+func TestTemplateAgentsAllowedEnforcement(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
@@ -726,125 +756,66 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 
-	t1 := dbgen.Template(t, db, database.Template{
+	allowed := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "template-alpha",
+		AgentsAllowed:  true,
 	})
-	t2 := dbgen.Template(t, db, database.Template{
+	blocked := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "template-beta",
+		AgentsAllowed:  false,
 	})
 
 	t.Run("ListTemplates", func(t *testing.T) {
-		t.Run("NoAllowlist", func(t *testing.T) {
-			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
-				OwnerID: user.ID,
-			})
-
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c1", Name: "list_templates", Input: "{}"})
-			require.NoError(t, err)
-			var result map[string]any
-			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-			templates := result["templates"].([]any)
-			require.Len(t, templates, 2)
+		tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+			OwnerID: user.ID,
 		})
 
-		t.Run("EmptyAllowlist", func(t *testing.T) {
-			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{} },
-			})
-
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c2", Name: "list_templates", Input: "{}"})
-			require.NoError(t, err)
-			var result map[string]any
-			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-			templates := result["templates"].([]any)
-			require.Len(t, templates, 2)
-		})
-
-		t.Run("OneMatch", func(t *testing.T) {
-			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
-			})
-
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c3", Name: "list_templates", Input: "{}"})
-			require.NoError(t, err)
-			var result map[string]any
-			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-			templates := result["templates"].([]any)
-			require.Len(t, templates, 1)
-			m := templates[0].(map[string]any)
-			require.Equal(t, t1.ID.String(), m["id"].(string))
-			require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
-			require.Equal(t, t1.ID.String(), result["recommended_template_id"])
-		})
-
-		t.Run("NoMatches", func(t *testing.T) {
-			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{uuid.New(): true} },
-			})
-
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c4", Name: "list_templates", Input: "{}"})
-			require.NoError(t, err)
-			var result map[string]any
-			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-			templates := result["templates"].([]any)
-			require.Empty(t, templates)
-			require.Equal(t, chattool.NextStepNoTemplates, result["next_step"])
-			_, ok := result["recommended_template_id"]
-			require.False(t, ok)
-		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c1", Name: "list_templates", Input: "{}"})
+		require.NoError(t, err)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		templates := result["templates"].([]any)
+		require.Len(t, templates, 1)
+		template := templates[0].(map[string]any)
+		require.Equal(t, allowed.ID.String(), template["id"])
+		require.NotEqual(t, blocked.ID.String(), template["id"])
 	})
 
 	t.Run("ReadTemplate", func(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
 			tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
+				OwnerID: user.ID,
 			})
-			input := `{"template_id":"` + t1.ID.String() + `"}`
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c5", Name: "read_template", Input: input})
+			input := `{"template_id":"` + allowed.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c2", Name: "read_template", Input: input})
 			require.NoError(t, err)
 			require.False(t, resp.IsError)
 			var result map[string]any
 			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-			tmplInfo := result["template"].(map[string]any)
-			require.Equal(t, t1.ID.String(), tmplInfo["id"].(string))
+			template := result["template"].(map[string]any)
+			require.Equal(t, allowed.ID.String(), template["id"])
 		})
 
-		t.Run("Disallowed", func(t *testing.T) {
-			tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{uuid.New(): true} },
-			})
-			input := `{"template_id":"` + t2.ID.String() + `"}`
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c6", Name: "read_template", Input: input})
-			require.NoError(t, err)
-			require.True(t, resp.IsError)
-			require.Contains(t, resp.Content, "not found")
-		})
-
-		t.Run("NoAllowlist", func(t *testing.T) {
+		t.Run("Blocked", func(t *testing.T) {
 			tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
 				OwnerID: user.ID,
 			})
-			input := `{"template_id":"` + t2.ID.String() + `"}`
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c7", Name: "read_template", Input: input})
+			input := `{"template_id":"` + blocked.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c3", Name: "read_template", Input: input})
 			require.NoError(t, err)
-			require.False(t, resp.IsError)
+			require.True(t, resp.IsError)
+			require.Equal(t, "template not available for chat workspaces; use list_templates to find allowed templates", resp.Content)
 		})
 	})
 
+	model := seedModelConfig(t, db)
+
 	t.Run("CreateWorkspace", func(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
-			// CreateWorkspace requires a real chat row so the existing
-			// workspace lookup can fall through to creation.
-			model := seedModelConfig(t, db)
 			chat, err := db.InsertChat(ctx, database.InsertChatParams{
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,
@@ -857,44 +828,46 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 
 			createCalled := false
 			tool := chattool.CreateWorkspace(db, org.ID, chat.ID, chattool.CreateWorkspaceOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
-
+				OwnerID: user.ID,
 				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 					createCalled = true
 					return codersdk.Workspace{}, nil
 				},
 			})
 
-			input := `{"template_id":"` + t1.ID.String() + `"}`
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c8a", Name: "create_workspace", Input: input})
+			input := `{"template_id":"` + allowed.ID.String() + `"}`
+			_, err = tool.Run(ctx, fantasy.ToolCall{ID: "c4", Name: "create_workspace", Input: input})
 			require.NoError(t, err)
-			require.True(t, createCalled, "CreateFn should be called for allowed template")
-			// We don't assert resp.IsError here because CreateWorkspace
-			// does additional work (asOwner, workspace lookup) that
-			// depends on full RBAC setup. The key assertion is that
-			// the allowlist gate passed and CreateFn was invoked.
-			_ = resp
+			require.True(t, createCalled, "CreateFn should be called for an allowed template")
 		})
 
-		t.Run("Disallowed", func(t *testing.T) {
+		t.Run("Blocked", func(t *testing.T) {
+			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: model.ID,
+				Title:             "blocked-create",
+				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeApi,
+			})
+			require.NoError(t, err)
+
 			var createCalled bool
-			tool := chattool.CreateWorkspace(db, org.ID, uuid.New(), chattool.CreateWorkspaceOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t2.ID: true} },
+			tool := chattool.CreateWorkspace(db, org.ID, chat.ID, chattool.CreateWorkspaceOptions{
+				OwnerID: user.ID,
 				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 					createCalled = true
-					t.Fatal("CreateFn should not be called for blocked template")
+					t.Fatal("CreateFn should not be called for a blocked template")
 					return codersdk.Workspace{}, nil
 				},
 			})
 
-			input := `{"template_id":"` + t1.ID.String() + `"}`
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c8", Name: "create_workspace", Input: input})
+			input := `{"template_id":"` + blocked.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c5", Name: "create_workspace", Input: input})
 			require.NoError(t, err)
 			require.True(t, resp.IsError)
-			require.Contains(t, resp.Content, "template not available for chat workspaces")
-			require.False(t, createCalled, "CreateFn should not be called for blocked template")
+			require.Equal(t, "template not available for chat workspaces; use list_templates to find allowed templates", resp.Content)
+			require.False(t, createCalled, "CreateFn should not be called for a blocked template")
 		})
 	})
 }
@@ -931,6 +904,7 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 			CreatedBy:       user.ID,
 			Name:            name,
 			ActiveVersionID: tv.ID,
+			AgentsAllowed:   true,
 		})
 		require.NoError(t, db.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
 			ID:         tv.ID,
@@ -955,6 +929,7 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 		CreatedBy:       user.ID,
 		Name:            "missing-version",
 		ActiveVersionID: uuid.New(),
+		AgentsAllowed:   true,
 	})
 
 	// Run through a dbauthz-wrapped store so the tool executes under real RBAC as
@@ -1030,8 +1005,14 @@ func TestGetTemplateRankingSignalsByOwnerID(t *testing.T) {
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u, OrganizationID: org.ID})
 	}
 
-	used := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID, Name: "used"})
-	unused := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID, Name: "unused"})
+	used := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID, CreatedBy: user.ID, Name: "used",
+		AgentsAllowed: true,
+	})
+	unused := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID, CreatedBy: user.ID, Name: "unused",
+		AgentsAllowed: true,
+	})
 
 	activeLastUsedAt := now.Add(-2 * 24 * time.Hour)
 	deletedLastUsedAt := now.Add(-3 * 24 * time.Hour)

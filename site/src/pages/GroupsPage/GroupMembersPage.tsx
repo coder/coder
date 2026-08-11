@@ -1,38 +1,33 @@
 import dayjs from "dayjs";
-import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { EllipsisVerticalIcon } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
-import type { GroupMemberWithAICostControl } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { addMembers, groupAIBudget, removeMember } from "#/api/queries/groups";
+import {
+	groupAIBudget,
+	groupMembersAISpend,
+	removeMember,
+} from "#/api/queries/groups";
 import { meAISpend } from "#/api/queries/users";
 import type {
 	Group,
-	OrganizationMemberWithUserData,
+	GroupMemberAISpend,
+	ReducedUser,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
-import { MultiMemberSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
-import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -41,18 +36,23 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
+import { SpendEstimateDocsLink } from "./AICostControl";
 import {
 	effectiveBudgetGroup,
 	GroupMemberBudgetCells,
 } from "./GroupMemberBudgetCells";
 import type { GroupPageOutletContext } from "./GroupPage";
-import { InfoIconTooltip } from "./InfoIconTooltip";
+import { StatusIconTooltip } from "./StatusIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
+
+type MemberWithSpend = ReducedUser & {
+	readonly spend: GroupMemberAISpend | undefined;
+};
 
 const GroupMembersPage: FC = () => {
 	const {
@@ -64,19 +64,17 @@ const GroupMembersPage: FC = () => {
 		filterProps,
 	} = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
-	const addMembersMutation = useMutation(addMembers(queryClient, organization));
 	const removeMemberMutation = useMutation(
 		removeMember(queryClient, organization),
 	);
+	const { permissions: sitePermissions } = useAuthenticated();
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
-	const [budgetUser, setBudgetUser] =
-		useState<GroupMemberWithAICostControl | null>(null);
+	// Setting a user's AI budget override updates both the user and the group
+	// its spend is charged to, so it needs permission on both.
+	const canUpdateBudgetOverride = canUpdateGroup && sitePermissions.updateUsers;
+	const [budgetUser, setBudgetUser] = useState<MemberWithSpend | null>(null);
 
-	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
-	const aibridgeVisible =
-		Boolean(useFeatureVisibility().aibridge) &&
-		experiments.includes("ai-gateway-cost-control");
+	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
 	const { data: aiSpend } = useQuery({
 		...meAISpend(),
 		enabled: aibridgeVisible,
@@ -85,8 +83,25 @@ const GroupMembersPage: FC = () => {
 		...groupAIBudget(groupData.id),
 		enabled: aibridgeVisible,
 	});
+	const memberIds = members.map((member) => member.id);
+	const membersSpendQuery = useQuery({
+		...groupMembersAISpend(groupData.id, memberIds),
+		enabled: aibridgeVisible && memberIds.length > 0,
+	});
+	const spendByUserId = new Map(
+		membersSpendQuery.data?.members.map((spend) => [spend.user_id, spend]) ??
+			[],
+	);
+	// Join each member with its spend (undefined when loading, failed, or
+	// omitted by the backend) so each row gets a single object.
+	const membersWithSpend = members.map(
+		(member): MemberWithSpend => ({
+			...member,
+			spend: spendByUserId.get(member.id),
+		}),
+	);
 	const aiBudgetNote = [
-		"Monthly AI spend for this user.",
+		"Approximate monthly AI spend for this user.",
 		// Spend resets at period_end, rendered in the viewer's local time.
 		aiSpend &&
 			`Resets ${dayjs(aiSpend.period_end).format("MMM D, YYYY h:mm A")}.`,
@@ -97,23 +112,20 @@ const GroupMembersPage: FC = () => {
 		.filter(Boolean)
 		.join(" ");
 
+	useEffect(() => {
+		if (membersSpendQuery.error) {
+			toast.error(
+				getErrorMessage(membersSpendQuery.error, "Unable to load AI spend."),
+				{
+					description: getErrorDetail(membersSpendQuery.error),
+				},
+			);
+		}
+	}, [membersSpendQuery.error]);
+
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
-			<div className="flex flex-row justify-between">
-				<UsersFilter {...filterProps} />
-
-				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-					<AddUsersDialog
-						organizationId={groupData.organization_id}
-						onSubmit={async (users) => {
-							await addMembersMutation.mutateAsync({
-								groupId: groupData.id,
-								userIds: users.map((u) => u.user_id),
-							});
-						}}
-					/>
-				)}
-			</div>
+			<UsersFilter {...filterProps} />
 
 			<PaginationContainer query={membersQuery} paginationUnitLabel="members">
 				<Table aria-label="Group members">
@@ -129,14 +141,27 @@ const GroupMembersPage: FC = () => {
 								<>
 									<TableHead>
 										<div className="flex items-center gap-1">
-											AI budget
-											<InfoIconTooltip message={aiBudgetNote} />
+											AI spend
+											{membersSpendQuery.isError ? (
+												<StatusIconTooltip
+													kind="warning"
+													message="AI spend couldn't be loaded, so budgets aren't shown."
+												/>
+											) : (
+												<StatusIconTooltip
+													message={
+														<>
+															{aiBudgetNote} <SpendEstimateDocsLink />
+														</>
+													}
+												/>
+											)}
 										</div>
 									</TableHead>
 									<TableHead>
 										<div className="flex items-center gap-1">
 											Budget group
-											<InfoIconTooltip message="The group or individual budget currently responsible for this user's AI spend. Admins can reassign this at any time, so spend history may span multiple sources." />
+											<StatusIconTooltip message="The group or individual budget currently responsible for this user's AI spend. Admins can reassign this at any time, so spend history may span multiple sources." />
 										</div>
 									</TableHead>
 								</>
@@ -147,13 +172,9 @@ const GroupMembersPage: FC = () => {
 
 					<TableBody>
 						{members.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState message="No members found" />
-								</TableCell>
-							</TableRow>
+							<TableEmpty message="No members found" />
 						) : (
-							members.map((member) => (
+							membersWithSpend.map((member) => (
 								<GroupMemberRow
 									member={member}
 									group={groupData}
@@ -192,107 +213,16 @@ const GroupMembersPage: FC = () => {
 					}}
 					user={budgetUser}
 					currentGroup={groupData}
-					effectiveGroupId={budgetUser.ai_cost_control?.effective_group_id}
+					effectiveGroupId={budgetUser.spend?.effective_group_id}
+					canUpdate={canUpdateBudgetOverride}
 				/>
 			)}
 		</div>
 	);
 };
 
-interface AddUsersDialogProps {
-	onSubmit: (users: OrganizationMemberWithUserData[]) => Promise<void>;
-	organizationId: string;
-}
-
-const AddUsersDialog: FC<AddUsersDialogProps> = ({
-	onSubmit,
-	organizationId,
-}) => {
-	const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
-	const [submitting, setSubmitting] = useState(false);
-	const [filter, setFilter] = useState("");
-	const [selected, setSelected] = useState<OrganizationMemberWithUserData[]>(
-		[],
-	);
-	const closeDialog = () => {
-		setAddUserDialogOpen(false);
-		setFilter("");
-		setSelected([]);
-	};
-
-	return (
-		<>
-			<Button size="lg" onClick={() => setAddUserDialogOpen(true)}>
-				<UserPlusIcon />
-				Add users
-			</Button>
-			<Dialog
-				open={addUserDialogOpen}
-				onOpenChange={(open) => {
-					if (!open) {
-						closeDialog();
-					}
-				}}
-			>
-				<DialogContent
-					data-testid="dialog"
-					className="max-w-md gap-4 border-border-default bg-surface-primary p-8 text-content-primary"
-				>
-					<DialogTitle className="font-semibold text-content-primary">
-						Add user(s)
-					</DialogTitle>
-					<MultiMemberSelect
-						organizationId={organizationId}
-						filter={filter}
-						setFilter={setFilter}
-						onChange={(user, checked) => {
-							if (checked) {
-								setSelected([...selected, user]);
-							} else {
-								setSelected(selected.filter((s) => s.user_id !== user.user_id));
-							}
-						}}
-						selected={selected}
-					/>
-					<DialogFooter className="mt-4 flex-row justify-end gap-3">
-						<Button
-							variant="outline"
-							onClick={closeDialog}
-							disabled={submitting}
-						>
-							Cancel
-						</Button>
-						<Button
-							disabled={submitting || selected.length === 0}
-							onClick={async () => {
-								try {
-									setSubmitting(true);
-									await onSubmit(selected);
-									closeDialog();
-								} catch (error) {
-									toast.error(
-										getErrorMessage(error, "Failed to add members."),
-										{
-											description: getErrorDetail(error),
-										},
-									);
-								} finally {
-									setSubmitting(false);
-								}
-							}}
-						>
-							<Spinner loading={submitting} />
-							Add users
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-		</>
-	);
-};
-
 interface GroupMemberRowProps {
-	member: GroupMemberWithAICostControl;
+	member: MemberWithSpend;
 	group: Group;
 	canUpdate: boolean;
 	showAIBudget: boolean;
@@ -308,9 +238,8 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	onManageAIBudget,
 	onRemove,
 }) => {
-	const costControl = member.ai_cost_control;
 	const budgetFromOtherGroup =
-		effectiveBudgetGroup(costControl, group).kind === "other";
+		effectiveBudgetGroup(member.spend, group).kind === "other";
 
 	return (
 		<TableRow key={member.id}>
@@ -343,7 +272,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				<GroupMemberBudgetCells
 					group={group}
 					userID={member.id}
-					costControl={costControl}
+					spend={member.spend}
 				/>
 			)}
 			<TableCell className="w-1 whitespace-nowrap">

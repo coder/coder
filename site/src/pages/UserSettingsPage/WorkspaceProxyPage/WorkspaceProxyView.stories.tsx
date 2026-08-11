@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	MockHealthyWildWorkspaceProxy,
+	MockPermissions,
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
 	MockWorkspaceProxies,
@@ -11,6 +13,10 @@ import { WorkspaceProxyView } from "./WorkspaceProxyView";
 const meta: Meta<typeof WorkspaceProxyView> = {
 	title: "pages/UserSettingsPage/WorkspaceProxyView",
 	component: WorkspaceProxyView,
+	args: {
+		showPaywall: false,
+		permissions: MockPermissions,
+	},
 };
 
 export default meta;
@@ -33,6 +39,36 @@ export const Example: Story = {
 		proxies: MockWorkspaceProxies,
 		proxyLatencies: MockProxyLatencies,
 		preferredProxy: MockHealthyWildWorkspaceProxy,
+	},
+};
+
+export const Paywall: Story = {
+	args: {
+		...Example.args,
+		showPaywall: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const PaywallWithoutLicenseAccess: Story = {
+	args: {
+		...Paywall.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Learn about Premium" }),
+		).not.toBeInTheDocument();
 	},
 };
 

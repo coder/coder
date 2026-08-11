@@ -1,0 +1,69 @@
+coder:
+  image:
+    tag: v2.36.0
+  startupProbe:
+    enabled: true
+    initialDelaySeconds: 2
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 7
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 12
+    periodSeconds: 15
+    timeoutSeconds: 13
+    successThreshold: 1
+    failureThreshold: 17
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 22
+    periodSeconds: 25
+    timeoutSeconds: 23
+    successThreshold: 21
+    failureThreshold: 27
+  serviceAccount:
+    name: workload-identity
+    disableCreate: true
+  env:
+    - name: CODER_URL
+      value: https://coder-primary.coder-system.svc.cluster.local:8443
+    - name: CODER_AI_GATEWAY_HTTP_ADDRESS
+      value: 127.0.0.1:4444
+    - name: CODER_VERBOSE
+      value: "true"
+  envFrom:
+    - configMapRef:
+        name: gateway-config
+aigateway:
+  keySecret:
+    name: ai-gateway-key
+    key: token
+  coderTLS:
+    caSecret:
+      name: coder-ca
+      key: root.pem
+    clientSecret:
+      name: coder-client
+      certKey: client.crt
+      keyKey: client.key
+  listenerTLS:
+    name: gateway-tls
+    certKey: cert.pem
+    keyKey: key.pem
+extraTemplates:
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: '{{ include "coder.name" . }}-extra'
+      namespace: '{{ .Release.Namespace }}'
+    data:
+      release: '{{ .Release.Name }}'
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: '{{ include "coder.name" . }}-object'
+      namespace: '{{ .Release.Namespace }}'
+    data:
+      namespace: '{{ .Release.Namespace }}'

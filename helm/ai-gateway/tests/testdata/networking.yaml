@@ -1,0 +1,33 @@
+coder:
+  image:
+    tag: v2.36.0
+  env:
+    - name: CODER_URL
+      value: http://coder.ai-gateway-test.svc.cluster.local:80
+aigateway:
+  keySecret:
+    name: ai-gateway-key
+service:
+  type: LoadBalancer
+  port: 443
+  annotations:
+    service.example.com/internal: "true"
+  loadBalancerClass: example.com/lb
+ingress:
+  enable: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  host: ai.example.com
+  tls:
+    enable: true
+    secretName: ai-example-tls
+httproute:
+  enable: true
+  parentRefs:
+    - name: shared-gateway
+      namespace: gateway-system
+  hostnames:
+    - ai.example.com
+  annotations:
+    example.com/route: ai

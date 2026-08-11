@@ -11,7 +11,7 @@ import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
-import { MissingBuildParameters, ParameterValidationError } from "#/api/api";
+import { ParameterValidationError } from "#/api/api";
 import {
 	type ApiError,
 	getErrorDetail,
@@ -33,10 +33,9 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
+import { UpdateBuildParametersDialog } from "../WorkspaceUpdateDialogs";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
-import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
-import { UpdateBuildParametersDialogExperimental } from "./UpdateBuildParametersDialogExperimental";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
@@ -71,11 +70,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	// Change version
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
 	const changeVersionMutation = useMutation(
-		changeVersion(
-			workspace,
-			queryClient,
-			!workspace.template_use_classic_parameter_flow,
-		),
+		changeVersion(workspace, queryClient),
 	);
 
 	const handleError = (error: unknown) => {
@@ -201,44 +196,13 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				onClose={() => setIsDownloadDialogOpen(false)}
 			/>
 
-			{workspace.template_use_classic_parameter_flow ? (
+			{changeVersionMutation.error instanceof ParameterValidationError && (
 				<UpdateBuildParametersDialog
-					missedParameters={
-						changeVersionMutation.error instanceof MissingBuildParameters
-							? changeVersionMutation.error.parameters
-							: []
-					}
-					open={changeVersionMutation.error instanceof MissingBuildParameters}
+					workspace={workspace}
+					error={changeVersionMutation.error}
 					onClose={() => {
 						changeVersionMutation.reset();
 					}}
-					onUpdate={(buildParameters) => {
-						if (changeVersionMutation.error instanceof MissingBuildParameters) {
-							changeVersionMutation.mutate({
-								versionId: changeVersionMutation.error.versionId,
-								buildParameters,
-							});
-						}
-					}}
-				/>
-			) : (
-				<UpdateBuildParametersDialogExperimental
-					validations={
-						changeVersionMutation.error instanceof ParameterValidationError
-							? changeVersionMutation.error.validations
-							: []
-					}
-					open={changeVersionMutation.error instanceof ParameterValidationError}
-					onClose={() => {
-						changeVersionMutation.reset();
-					}}
-					workspaceOwnerName={workspace.owner_name}
-					workspaceName={workspace.name}
-					templateVersionId={
-						changeVersionMutation.error instanceof ParameterValidationError
-							? changeVersionMutation.error.versionId
-							: undefined
-					}
 				/>
 			)}
 
@@ -271,7 +235,6 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				open={workspaceErrorDialog.open}
 				error={workspaceErrorDialog.error}
 				onClose={() => setWorkspaceErrorDialog({ open: false })}
-				showDetail={workspace.template_use_classic_parameter_flow}
 				workspaceOwner={workspace.owner_name}
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}

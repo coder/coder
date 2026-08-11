@@ -337,6 +337,32 @@ WHERE
 	-- Filter out deleted sub agents.
 	AND workspace_agents.deleted = FALSE;
 
+-- name: GetWorkspaceAgentsInLatestBuildByWorkspaceIDs :many
+SELECT
+	workspace_builds.workspace_id,
+	sqlc.embed(workspace_agents)
+FROM
+	workspace_agents
+JOIN
+	workspace_resources ON workspace_agents.resource_id = workspace_resources.id
+JOIN
+	workspace_builds ON workspace_resources.job_id = workspace_builds.job_id
+JOIN (
+	SELECT
+		workspace_id,
+		MAX(build_number) AS build_number
+	FROM
+		workspace_builds
+	WHERE
+		workspace_id = ANY(@workspace_ids :: uuid [ ])
+	GROUP BY
+		workspace_id
+) AS latest_builds ON
+	latest_builds.workspace_id = workspace_builds.workspace_id AND
+	latest_builds.build_number = workspace_builds.build_number
+WHERE
+	workspace_agents.deleted = FALSE;
+
 -- name: GetWorkspaceAgentsByWorkspaceAndBuildNumber :many
 SELECT
 	workspace_agents.*

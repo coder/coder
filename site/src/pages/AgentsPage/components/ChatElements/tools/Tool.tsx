@@ -14,11 +14,7 @@ import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
-import {
-	ExecuteAuthRequiredTool,
-	ExecuteTool as ExecuteToolComponent,
-	WaitForExternalAuthTool,
-} from "./ExecuteTool";
+import { ExecuteTool as ExecuteToolComponent } from "./ExecuteTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
@@ -59,7 +55,6 @@ import {
 	parseServerEditDiffText,
 	parseServerEditResults,
 	type ToolStatus,
-	toProviderLabel,
 } from "./utils";
 
 import { WriteFileTool } from "./WriteFileTool";
@@ -93,6 +88,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	modelIntent?: string;
 	/** Parsed command tuples ([program] or [program, arg]) for execute tool calls. */
 	parsedCommands?: readonly string[][];
+	hookRewritten?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 }
@@ -227,26 +223,13 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
-	const outputBlock = data.transcriptBlocks.find(
-		(block) => block.kind === "output",
-	);
-
-	if (data.authenticateURL) {
-		return (
-			<ExecuteAuthRequiredTool
-				command={data.command}
-				output={outputBlock?.text ?? ""}
-				authenticateURL={data.authenticateURL}
-				providerLabel={data.providerLabel}
-			/>
-		);
-	}
 	return (
 		<ExecuteToolComponent
 			command={data.command}
 			transcriptBlocks={data.transcriptBlocks}
 			status={status}
 			isError={isError}
+			errorText={data.errorText}
 			durationMs={data.durationMs}
 			isBackgrounded={data.isBackgrounded}
 			killedBySignal={killedBySignal}
@@ -280,33 +263,6 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			errorMessage={errorMessage || undefined}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
-		/>
-	);
-};
-
-const WaitForExternalAuthRenderer: FC<ToolRendererProps> = ({
-	status,
-	result,
-	isError,
-}) => {
-	const rec = asRecord(result);
-	const providerLabel = toProviderLabel(
-		rec ? asString(rec.provider_display_name).trim() : "",
-		rec ? asString(rec.provider_id).trim() : "",
-		rec ? asString(rec.provider_type).trim() : "",
-	);
-	const authenticated = rec ? Boolean(rec.authenticated) : false;
-	const timedOut = rec ? Boolean(rec.timed_out) : false;
-	const errorMessage = rec ? asString(rec.error || rec.message) : "";
-
-	return (
-		<WaitForExternalAuthTool
-			providerLabel={providerLabel}
-			status={status}
-			authenticated={authenticated}
-			timedOut={timedOut}
-			isError={isError}
-			errorMessage={errorMessage || undefined}
 		/>
 	);
 };
@@ -640,6 +596,7 @@ const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 
 const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	status,
+	args,
 	result,
 	isError,
 }) => {
@@ -647,6 +604,12 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	const summary =
 		(rec ? asString(rec.summary) : "") ||
 		(typeof result === "string" ? result : "");
+	// The result carries the source once committed; while streaming,
+	// only the call args are available.
+	const argsRec = parseArgs(args);
+	const source =
+		(rec ? asString(rec.source) : "") ||
+		(argsRec ? asString(argsRec.source) : "");
 
 	return (
 		<ChatSummarizedTool
@@ -654,6 +617,7 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			source={source || undefined}
 		/>
 	);
 };
@@ -1053,11 +1017,10 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
 
-const toolRenderers: Record<string, FC<ToolRendererProps>> = {
+export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
 	process_signal: ProcessSignalRenderer,
-	wait_for_external_auth: WaitForExternalAuthRenderer,
 	read_file: ReadFileRenderer,
 	write_file: WriteFileRenderer,
 	edit_files: EditFilesRenderer,
@@ -1074,6 +1037,10 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
 };
+
+// Exported so tests can assert cross-cutting affordances across every
+// registered renderer instead of a hand-picked subset.
+export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
 
 // ---------------------------------------------------------------------------
 // Public Tool component with a single wrapper div and map dispatch.
@@ -1101,15 +1068,15 @@ export const Tool = memo(
 		previousResponseText,
 		modelIntent,
 		parsedCommands,
+		hookRewritten = false,
 		shellToolDisplayMode,
 		codeDiffDisplayMode,
 		ref,
 		...props
 	}: ToolProps) => {
-		const Renderer =
-			isSubagentToolName(name) && name !== "list_agents"
-				? SubagentRenderer
-				: (toolRenderers[name] ?? GenericToolRenderer);
+		const Renderer = isSubagentToolName(name)
+			? SubagentRenderer
+			: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
 		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;
@@ -1127,29 +1094,31 @@ export const Tool = memo(
 				)}
 				{...props}
 			>
-				<Renderer
-					name={name}
-					status={status}
-					args={args}
-					result={result}
-					isError={isError}
-					killedBySignal={killedBySignal}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					showDesktopPreviews={showDesktopPreviews}
-					subagentStatusOverrides={subagentStatusOverrides}
-					mcpServerConfigId={mcpServerConfigId}
-					mcpServers={mcpServers}
-					onImplementPlan={onImplementPlan}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-					isChatCompleted={isChatCompleted}
-					isLatestAskUserQuestion={isLatestAskUserQuestion}
-					previousResponseText={previousResponseText}
-					modelIntent={modelIntent}
-					parsedCommands={parsedCommands}
-					shellToolDisplayMode={shellToolDisplayMode}
-					codeDiffDisplayMode={codeDiffDisplayMode}
-				/>
+				<ToolCall.PolicyProvider hookRewritten={hookRewritten}>
+					<Renderer
+						name={name}
+						status={status}
+						args={args}
+						result={result}
+						isError={isError}
+						killedBySignal={killedBySignal}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						showDesktopPreviews={showDesktopPreviews}
+						subagentStatusOverrides={subagentStatusOverrides}
+						mcpServerConfigId={mcpServerConfigId}
+						mcpServers={mcpServers}
+						onImplementPlan={onImplementPlan}
+						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+						isChatCompleted={isChatCompleted}
+						isLatestAskUserQuestion={isLatestAskUserQuestion}
+						previousResponseText={previousResponseText}
+						modelIntent={modelIntent}
+						parsedCommands={parsedCommands}
+						shellToolDisplayMode={shellToolDisplayMode}
+						codeDiffDisplayMode={codeDiffDisplayMode}
+					/>
+				</ToolCall.PolicyProvider>
 			</div>
 		);
 	},

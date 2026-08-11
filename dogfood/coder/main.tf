@@ -191,6 +191,14 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
+data "coder_parameter" "enable_kvm" {
+  type        = "bool"
+  name        = "Expose /dev/kvm to the workspace"
+  default     = false
+  description = "If enabled, the host's /dev/kvm device is mapped into the workspace container to allow hardware-accelerated VMs. Only works when the underlying host exposes /dev/kvm; leave disabled otherwise."
+  mutable     = true
+}
+
 # dogfood/main.tf injects this value from a GH Actions secret;
 # `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY` and `TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY`.
 # Currently unused since AI Gateway is always enabled, but kept for emergency fallback.
@@ -327,7 +335,7 @@ module "personalize" {
 module "mux" {
   count                = data.coder_workspace.me.start_count
   source               = "registry.coder.com/coder/mux/coder"
-  version              = "1.4.3"
+  version              = "1.5.0"
   agent_id             = coder_agent.dev.id
   subdomain            = true
   display_name         = "Mux"
@@ -341,7 +349,7 @@ module "mux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.5.0"
+  version                 = "1.5.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -351,7 +359,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.6.0"
+  version                 = "1.6.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -675,6 +683,22 @@ resource "coder_script" "install-deps" {
     # (site tests + the claude-code/codex MCP servers below).
     cd "${local.repo_dir}/site" && pnpm exec playwright install chromium
     npx --yes --package=@playwright/mcp@0.0.75 playwright-core install --no-shell chromium
+
+    # Keep this version pinned because the dashboard is embeddable only while
+    # it omits X-Frame-Options and CSP headers. This is not a documented
+    # contract, so verify those headers before updating.
+    npm install -g agent-browser@0.33.2
+    agent-browser install
+
+    # Keep the agent skill aligned with the installed CLI version.
+    skill_src="$(npm root -g)/agent-browser/skills/agent-browser"
+    for skill_dir in "$HOME/.claude/skills" "$HOME/.agents/skills"; do
+      mkdir -p "$skill_dir"
+      rm -rf "$skill_dir/agent-browser"
+      cp -r "$skill_src" "$skill_dir/agent-browser"
+    done
+
+    agent-browser dashboard start
   EOT
 }
 
@@ -880,6 +904,15 @@ resource "docker_container" "workspace" {
   capabilities {
     add = ["CAP_NET_ADMIN", "CAP_SYS_NICE"]
   }
+  # Gated behind a parameter because mapping /dev/kvm fails container creation
+  # on hosts that do not expose it.
+  dynamic "devices" {
+    for_each = data.coder_parameter.enable_kvm.value ? [1] : []
+    content {
+      host_path      = "/dev/kvm"
+      container_path = "/dev/kvm"
+    }
+  }
   # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"
@@ -994,4 +1027,24 @@ resource "coder_app" "codex" {
     cd "${local.repo_dir}"
     exec tmux new-session -A -s codex codex
   EOT
+}
+
+# Live view of agent browser sessions, served by the dashboard that
+# install-deps starts. The dashboard has no authentication, so restrict
+# it to the workspace owner. "preview" is reserved for apps that need
+# the iframe navigation toolbar.
+resource "coder_app" "agent_browser" {
+  agent_id     = coder_agent.dev.id
+  slug         = "agent-browser"
+  display_name = "Agent Browser"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f310.png" // 🌐
+  url          = "http://localhost:4848"
+  share        = "owner"
+  subdomain    = true
+  open_in      = "tab"
+  healthcheck {
+    url       = "http://localhost:4848/"
+    interval  = 5
+    threshold = 6
+  }
 }

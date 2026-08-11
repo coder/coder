@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -107,11 +108,11 @@ func (p *Server) resolveAdvisorModelOverrideOrFallback(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg codersdk.AdvisorConfig,
-	fallbackModel fantasy.LanguageModel,
+	fallbackModel chatprovider.Model,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
-) (fantasy.LanguageModel, codersdk.ChatModelCallConfig) {
+) (chatprovider.Model, codersdk.ChatModelCallConfig) {
 	model, cfg, err := p.resolveAdvisorModelOverride(
 		ctx,
 		chat,
@@ -132,7 +133,7 @@ func (p *Server) newAdvisorRuntimeOrFallback(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg codersdk.AdvisorConfig,
-	fallbackModel fantasy.LanguageModel,
+	fallbackModel chatprovider.Model,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
@@ -159,7 +160,7 @@ func (p *Server) newAdvisorRuntimeOrFallback(
 func TestResolveAdvisorModelOverride(t *testing.T) {
 	t.Parallel()
 
-	fallbackModel := &chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}
+	fallbackModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}, nil)
 	fallbackCallConfig := codersdk.ChatModelCallConfig{}
 	logger := slog.Make()
 
@@ -316,6 +317,10 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		providerID := uuid.New()
 		rawOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
 			Temperature: func() *float64 { v := 0.42; return &v }(),
+			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+				Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
+				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortXHigh),
+			},
 		})
 		require.NoError(t, err)
 		store := &advisorOverrideStubStore{
@@ -343,22 +348,28 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
 			database.Chat{},
-			codersdk.AdvisorConfig{ModelConfigID: configID},
+			codersdk.AdvisorConfig{
+				ModelConfigID:   configID,
+				ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+			},
 			fallbackModel,
 			fallbackCallConfig,
 			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
 		)
-		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel,
+		require.NotEqual(t, fallbackModel.LanguageModel(), gotModel.LanguageModel(),
 			"success path must return the override model, not the fallback")
-		require.NotNil(t, gotModel)
+		require.True(t, gotModel.Valid())
 		require.Equal(t, "openai", gotModel.Provider())
 		// Guard against ModelFromConfig silently ignoring the model field
 		// and returning a default. The override is only useful if the
 		// model name from the config row actually propagates.
-		require.Equal(t, "gpt-5.2", gotModel.Model())
+		require.Equal(t, "gpt-5.2", gotModel.ModelID())
 		require.NotNil(t, gotCfg.Temperature)
 		require.InDelta(t, 0.42, *gotCfg.Temperature, 1e-9)
+		require.NotNil(t, gotCfg.ReasoningEffort)
+		require.Equal(t, codersdk.ChatModelReasoningEffortHigh, *gotCfg.ReasoningEffort.Default)
+		require.Equal(t, codersdk.ChatModelReasoningEffortHigh, *gotCfg.ReasoningEffort.Max)
 	})
 	t.Run("AIProviderIDResolvesOverrideProviderKeys", func(t *testing.T) {
 		t.Parallel()
@@ -401,10 +412,10 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
 		)
-		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel)
-		require.NotNil(t, gotModel)
+		require.NotEqual(t, fallbackModel.LanguageModel(), gotModel.LanguageModel())
+		require.True(t, gotModel.Valid())
 		require.Equal(t, "openai", gotModel.Provider())
-		require.Equal(t, "gpt-5.2", gotModel.Model())
+		require.Equal(t, "gpt-5.2", gotModel.ModelID())
 		require.Equal(t, fallbackCallConfig, gotCfg)
 	})
 }
@@ -439,13 +450,13 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 		ctx,
 		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
 		codersdk.AdvisorConfig{ModelConfigID: configID},
-		&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"},
+		chatprovider.NewModel(&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}, nil),
 		codersdk.ChatModelCallConfig{},
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 		slog.Make(),
 	)
 	require.ErrorContains(t, err, "AI Gateway transport factory")
-	require.Nil(t, model)
+	require.False(t, model.Valid())
 }
 
 // TestStripAdvisorGuidanceBlock exercises the filter that keeps the advisor
@@ -536,7 +547,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 	t.Parallel()
 
 	logger := slog.Make()
-	fallbackModel := &chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4"}
+	fallbackModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "openai", ModelName: "gpt-4"}, nil)
 	fallbackCallConfig := codersdk.ChatModelCallConfig{}
 
 	t.Run("ZeroMaxUsesDefaultsToMaxChatSteps", func(t *testing.T) {

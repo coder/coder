@@ -1,9 +1,8 @@
 # GitHub Copilot
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 [GitHub Copilot](https://github.com/features/copilot) is an AI coding assistant that doesn't support custom base URLs but does respect proxy configurations.
 This makes it compatible with [AI Gateway Proxy](../ai-gateway-proxy/index.md), which integrates with [AI Gateway](../index.md) for full access to auditing and governance features.
@@ -27,7 +26,7 @@ For installation instructions, see [GitHub Copilot CLI documentation](https://do
 
 Set the `HTTPS_PROXY` environment variable:
 
-```shell
+```sh
 export HTTPS_PROXY="https://coder:${CODER_API_TOKEN}@<proxy-host>:8888"
 ```
 
@@ -39,7 +38,7 @@ Note: if [TLS is not enabled](../ai-gateway-proxy/setup.md#proxy-tls-configurati
 
 Copilot CLI is built on Node.js and uses the `NODE_EXTRA_CA_CERTS` environment variable for custom certificates:
 
-```shell
+```sh
 export NODE_EXTRA_CA_CERTS="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
@@ -47,7 +46,7 @@ See [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#tru
 
 When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, combine the MITM CA certificate and the TLS certificate into a single file:
 
-```shell
+```sh
 cat coder-ai-gateway-proxy-ca.pem listener.crt > combined-ca.pem
 export NODE_EXTRA_CA_CERTS="/path/to/combined-ca.pem"
 ```

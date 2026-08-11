@@ -6,9 +6,7 @@ import {
 	ProvisionerKeyIDUserAuth,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
-import { Loader } from "#/components/Loader/Loader";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
@@ -18,11 +16,13 @@ import {
 import {
 	Table,
 	TableBody,
-	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
@@ -38,12 +38,13 @@ interface OrganizationProvisionerKeysPageViewProps {
 	showPaywall: boolean | undefined;
 	provisionerKeyDaemons: ProvisionerKeyDaemons[] | undefined;
 	error: unknown;
+	permissions: Permissions;
 	onRetry: () => void;
 }
 
 export const OrganizationProvisionerKeysPageView: FC<
 	OrganizationProvisionerKeysPageViewProps
-> = ({ showPaywall, provisionerKeyDaemons, error, onRetry }) => {
+> = ({ showPaywall, provisionerKeyDaemons, error, permissions, onRetry }) => {
 	const filteredProvisionerKeyDaemons = provisionerKeyDaemons?.filter(
 		(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
 	);
@@ -63,6 +64,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
 					documentationLink={docs("/admin/provisioners")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (
 				<Table className="mt-6">
@@ -77,14 +79,10 @@ export const OrganizationProvisionerKeysPageView: FC<
 					<TableBody>
 						{filteredProvisionerKeyDaemons ? (
 							filteredProvisionerKeyDaemons.length === 0 ? (
-								<TableRow>
-									<TableCell colSpan={5}>
-										<EmptyState
-											message="No provisioner keys"
-											description="Create your first provisioner key to authenticate external provisioner daemons."
-										/>
-									</TableCell>
-								</TableRow>
+								<TableEmpty
+									message="No provisioner keys"
+									description="Create your first provisioner key to authenticate external provisioner daemons."
+								/>
 							) : (
 								filteredProvisionerKeyDaemons.map((pkd) => (
 									<ProvisionerKeyRow
@@ -96,24 +94,16 @@ export const OrganizationProvisionerKeysPageView: FC<
 								))
 							)
 						) : error ? (
-							<TableRow>
-								<TableCell colSpan={5}>
-									<EmptyState
-										message="Error loading provisioner keys"
-										cta={
-											<Button onClick={onRetry} size="sm">
-												Retry
-											</Button>
-										}
-									/>
-								</TableCell>
-							</TableRow>
+							<TableEmpty
+								message="Error loading provisioner keys"
+								cta={
+									<Button onClick={onRetry} size="sm">
+										Retry
+									</Button>
+								}
+							/>
 						) : (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<Loader />
-								</TableCell>
-							</TableRow>
+							<TableLoader />
 						)}
 					</TableBody>
 				</Table>

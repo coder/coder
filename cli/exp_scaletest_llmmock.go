@@ -19,7 +19,11 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 	var (
 		address             string
 		artificialLatency   time.Duration
+		minStreamDuration   time.Duration
+		maxStreamDuration   time.Duration
 		responsePayloadSize int64
+		toolCallsPerTurn    int64
+		toolCallCommand     string
 
 		pprofEnable  bool
 		pprofAddress string
@@ -34,6 +38,13 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 			ctx, stop := signal.NotifyContext(inv.Context(), StopSignals...)
 			defer stop()
 
+			if (minStreamDuration > 0) != (maxStreamDuration > 0) {
+				return xerrors.New("--min-stream-duration and --max-stream-duration must be set together")
+			}
+			if minStreamDuration > maxStreamDuration {
+				return xerrors.New("--min-stream-duration must not exceed --max-stream-duration")
+			}
+
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelInfo)
 
 			if pprofEnable {
@@ -46,9 +57,11 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 				Address:             address,
 				Logger:              logger,
 				ArtificialLatency:   artificialLatency,
+				MinStreamDuration:   minStreamDuration,
+				MaxStreamDuration:   maxStreamDuration,
 				ResponsePayloadSize: int(responsePayloadSize),
-				PprofEnable:         pprofEnable,
-				PprofAddress:        pprofAddress,
+				ToolCallsPerTurn:    int(toolCallsPerTurn),
+				ToolCallCommand:     toolCallCommand,
 				TraceEnable:         traceEnable,
 			}
 			srv := new(llmmock.Server)
@@ -88,11 +101,39 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 			Value:       serpent.DurationOf(&artificialLatency),
 		},
 		{
+			Flag:        "min-stream-duration",
+			Env:         "CODER_SCALETEST_LLM_MOCK_MIN_STREAM_DURATION",
+			Default:     "0s",
+			Description: "Minimum duration to stream a text response over (e.g., 5s, 10s). Set with max-stream-duration to pace response chunks.",
+			Value:       serpent.DurationOf(&minStreamDuration),
+		},
+		{
+			Flag:        "max-stream-duration",
+			Env:         "CODER_SCALETEST_LLM_MOCK_MAX_STREAM_DURATION",
+			Default:     "0s",
+			Description: "Maximum duration to stream a text response over (e.g., 10s, 30s). Set with min-stream-duration to pace response chunks.",
+			Value:       serpent.DurationOf(&maxStreamDuration),
+		},
+		{
 			Flag:        "response-payload-size",
 			Env:         "CODER_SCALETEST_LLM_MOCK_RESPONSE_PAYLOAD_SIZE",
 			Default:     "0",
 			Description: "Size in bytes of the response payload. If 0, uses default context-aware responses.",
 			Value:       serpent.Int64Of(&responsePayloadSize),
+		},
+		{
+			Flag:        "tool-calls-per-turn",
+			Env:         "CODER_SCALETEST_LLM_MOCK_TOOL_CALLS_PER_TURN",
+			Default:     "0",
+			Description: "Number of execute tool calls to emit per user turn. Set to 0 for text-only responses. OpenAI Chat Completions only.",
+			Value:       serpent.Int64Of(&toolCallsPerTurn),
+		},
+		{
+			Flag:        "tool-call-command",
+			Env:         "CODER_SCALETEST_LLM_MOCK_TOOL_CALL_COMMAND",
+			Default:     "echo scaletest",
+			Description: "Shell command sent in each mock execute tool call when tool calls are enabled. OpenAI Chat Completions only.",
+			Value:       serpent.StringOf(&toolCallCommand),
 		},
 		{
 			Flag:        "pprof-enable",

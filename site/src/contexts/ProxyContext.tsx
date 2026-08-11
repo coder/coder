@@ -13,6 +13,7 @@ import { cachedQuery } from "#/api/queries/util";
 import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
@@ -97,6 +98,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	const { permissions } = useAuthenticated();
 	const { metadata } = useEmbeddedMetadata();
+	const { workspace_proxy: workspaceProxyEnabled } = useFeatureVisibility();
 
 	const {
 		data: proxiesResp,
@@ -106,11 +108,15 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	} = useQuery(
 		cachedQuery({
 			metadata: metadata.regions,
-			queryKey: ["get-proxies"],
+			queryKey: ["get-proxies", workspaceProxyEnabled],
 			queryFn: async (): Promise<readonly Region[]> => {
-				const apiCall = permissions.editWorkspaceProxies
-					? API.getWorkspaceProxies
-					: API.getWorkspaceProxyRegions;
+				// Detailed proxy status requires the workspace_proxy entitlement.
+				// Fall back to regions when unlicensed so admins do not hit a
+				// Premium feature error on every page load.
+				const apiCall =
+					permissions.editWorkspaceProxies && workspaceProxyEnabled
+						? API.getWorkspaceProxies
+						: API.getWorkspaceProxyRegions;
 
 				const resp = await apiCall();
 				return resp.regions;

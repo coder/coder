@@ -178,6 +178,46 @@ func TestConnectionLogs(t *testing.T) {
 		require.Equal(t, ws.OwnerID, logs.ConnectionLogs[0].WebInfo.User.ID)
 	})
 
+	t.Run("WebInfoTunnel", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			ConnectionLogging: true,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAuditLog:      1,
+					codersdk.FeatureConnectionLog: 1,
+				},
+			},
+		})
+
+		now := dbtime.Now()
+		ws := createWorkspace(t, db)
+		// Tunnel events are written by coderd with the connecting
+		// user's identity; they must surface it via WebInfo.
+		clog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			Time:             now.Add(-time.Hour),
+			Type:             database.ConnectionTypeTunnel,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			UserAgent:        sql.NullString{String: "coder-cli/2.0.0", Valid: true},
+			UserID:           uuid.NullUUID{UUID: ws.OwnerID, Valid: true},
+		})
+
+		logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{})
+		require.NoError(t, err)
+
+		require.Len(t, logs.ConnectionLogs, 1)
+		require.EqualValues(t, 1, logs.Count)
+		require.Nil(t, logs.ConnectionLogs[0].SSHInfo)
+		require.NotNil(t, logs.ConnectionLogs[0].WebInfo)
+		require.Equal(t, clog.UserAgent.String, logs.ConnectionLogs[0].WebInfo.UserAgent)
+		require.NotNil(t, logs.ConnectionLogs[0].WebInfo.User)
+		require.Equal(t, ws.OwnerID, logs.ConnectionLogs[0].WebInfo.User.ID)
+	})
+
 	t.Run("SSHInfo", func(t *testing.T) {
 		t.Parallel()
 

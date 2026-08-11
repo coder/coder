@@ -106,6 +106,13 @@ export const MultipleSessions: Story = {
 				cache_read_input_tokens: 800 * (i + 1),
 				cache_write_input_tokens: 50 * (i + 1),
 			},
+			network_calls: [
+				{ total: 23, blocked: 2 },
+				{ total: 5, blocked: 1 },
+				{ total: 0, blocked: 0 },
+				undefined,
+				{ total: 150, blocked: 0 },
+			][i],
 		})),
 	},
 };

@@ -3,16 +3,12 @@ package codersdk_test
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -56,81 +52,6 @@ func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *t
 	require.True(t, *decoded.Anthropic.SendReasoning)
 	require.NotNil(t, decoded.Anthropic.ThinkingDisplay)
 	require.Equal(t, "summarized", *decoded.Anthropic.ThinkingDisplay)
-}
-
-func TestChatUsageLimitExceededFrom(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ExtractsTyped409", func(t *testing.T) {
-		t.Parallel()
-
-		want := codersdk.ChatUsageLimitExceededResponse{
-			Response:    codersdk.Response{Message: "Chat usage limit exceeded."},
-			SpentMicros: 123,
-			LimitMicros: 456,
-			ResetsAt:    time.Date(2026, time.March, 16, 12, 0, 0, 0, time.UTC),
-		}
-
-		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			require.Equal(t, http.MethodPost, r.Method)
-			require.Equal(t, "/api/experimental/chats", r.URL.Path)
-			rw.Header().Set("Content-Type", "application/json")
-			rw.WriteHeader(http.StatusConflict)
-			require.NoError(t, json.NewEncoder(rw).Encode(want))
-		}))
-		defer srv.Close()
-
-		serverURL, err := url.Parse(srv.URL)
-		require.NoError(t, err)
-
-		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
-		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-		})
-		require.Error(t, err)
-
-		sdkErr, ok := codersdk.AsError(err)
-		require.True(t, ok)
-		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
-		require.Equal(t, want.Message, sdkErr.Message)
-
-		limitErr := codersdk.ChatUsageLimitExceededFrom(err)
-		require.NotNil(t, limitErr)
-		require.Equal(t, want, *limitErr)
-	})
-
-	t.Run("ReturnsNilForNonLimitErrors", func(t *testing.T) {
-		t.Parallel()
-
-		require.Nil(t, codersdk.ChatUsageLimitExceededFrom(codersdk.NewError(http.StatusConflict, codersdk.Response{Message: "plain conflict"})))
-
-		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			rw.Header().Set("Content-Type", "application/json")
-			rw.WriteHeader(http.StatusBadRequest)
-			require.NoError(t, json.NewEncoder(rw).Encode(codersdk.Response{Message: "Invalid request."}))
-		}))
-		defer srv.Close()
-
-		serverURL, err := url.Parse(srv.URL)
-		require.NoError(t, err)
-
-		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
-		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-		})
-		require.Error(t, err)
-
-		sdkErr, ok := codersdk.AsError(err)
-		require.True(t, ok)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Nil(t, codersdk.ChatUsageLimitExceededFrom(err))
-	})
 }
 
 func TestChatErrorKind_JSONRoundTrip(t *testing.T) {
@@ -307,13 +228,18 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	// variants tag or add it here with a comment explaining why.
 	excludedFields := map[string]string{
 		"type":                         "discriminant, added automatically by codegen",
-		"signature":                    "added in #22290, never populated by any code path",
 		"provider_metadata":            "internal only, stripped by db2sdk before API responses",
 		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
 		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
 		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
+	}
+	// Part types intentionally excluded from all generated variants.
+	// If you add a new part type, either reference it in a variants
+	// tag or add it here with a reason.
+	excludedTypes := map[codersdk.ChatMessagePartType]string{
+		codersdk.ChatMessagePartTypeHookContext: "internal only, stripped from client-facing conversions by db2sdk",
 	}
 	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
 	for _, pt := range codersdk.AllChatMessagePartTypes() {
@@ -354,8 +280,14 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		}
 	}
 
-	// Every known type must appear in at least one variants tag.
+	// Every known type must appear in at least one variants tag
+	// unless it is intentionally excluded from client codegen.
 	for pt := range knownTypes {
+		if _, excluded := excludedTypes[pt]; excluded {
+			assert.False(t, coveredTypes[pt],
+				"ChatMessagePartType %q is in excludedTypes but referenced by a variants tag; %s", pt, editHint)
+			continue
+		}
 		assert.True(t, coveredTypes[pt],
 			"ChatMessagePartType %q is not referenced by any variants tag; %s", pt, editHint)
 	}
@@ -501,66 +433,63 @@ func TestChatMessagePart_ReasoningTimestamps_JSON(t *testing.T) {
 	})
 }
 
-func TestModelCostConfig_LegacyNumericJSON(t *testing.T) {
+func TestChatModelCallConfig_UnmarshalStoredCost(t *testing.T) {
 	t.Parallel()
 
-	var decoded codersdk.ModelCostConfig
-	err := json.Unmarshal([]byte("{\"input_price_per_million_tokens\": 1.5}"), &decoded)
-	require.NoError(t, err)
-	require.NotNil(t, decoded.InputPricePerMillionTokens)
-	require.True(t, decoded.InputPricePerMillionTokens.Equal(decimal.RequireFromString("1.5")))
+	raw := []byte(`{
+		"temperature": 0.5,
+		"cost": {"input_price_per_million_tokens": "5"},
+		"provider_options": {"anthropic": {"thinking": {"budget_tokens": 1024}}}
+	}`)
+
+	var decoded codersdk.ChatModelCallConfig
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	require.NotNil(t, decoded.Temperature)
+
+	require.NoError(t, decoded.UnmarshalStrict(raw))
+	require.NotNil(t, decoded.Temperature)
+
+	// Configs predating the nested cost object stored the pricing keys at
+	// the top level (see migration 000435).
+	legacyTopLevel := []byte(`{
+		"temperature": 0.5,
+		"input_price_per_million_tokens": "5",
+		"output_price_per_million_tokens": "10",
+		"cache_read_price_per_million_tokens": "1",
+		"cache_write_price_per_million_tokens": "2"
+	}`)
+	require.NoError(t, decoded.UnmarshalStrict(legacyTopLevel))
+	require.NotNil(t, decoded.Temperature)
+
+	err := decoded.UnmarshalStrict([]byte(`{"provider_options": {"anthropic": {"bogus_setting": true}}}`))
+	require.ErrorContains(t, err, `unknown field "bogus_setting"`)
+
+	err = decoded.UnmarshalStrict([]byte(`{"temperature": 0.5} {"bogus_setting": true}`))
+	require.ErrorContains(t, err, "trailing data")
+
+	require.NoError(t, json.Unmarshal([]byte(`{"bogus_setting": true}`), &decoded))
 }
 
-func TestModelCostConfig_QuotedDecimalJSON(t *testing.T) {
-	t.Parallel()
-
-	var decoded codersdk.ModelCostConfig
-	err := json.Unmarshal([]byte("{\"input_price_per_million_tokens\": \"1.5\"}"), &decoded)
-	require.NoError(t, err)
-	require.NotNil(t, decoded.InputPricePerMillionTokens)
-	require.True(t, decoded.InputPricePerMillionTokens.Equal(decimal.RequireFromString("1.5")))
-}
-
-func TestModelCostConfig_NilVsZero(t *testing.T) {
-	t.Parallel()
-
-	zero := decimal.Zero
-	raw, err := json.Marshal(struct {
-		Nil  codersdk.ModelCostConfig `json:"nil"`
-		Zero codersdk.ModelCostConfig `json:"zero"`
-	}{
-		Nil:  codersdk.ModelCostConfig{},
-		Zero: codersdk.ModelCostConfig{InputPricePerMillionTokens: &zero},
-	})
-	require.NoError(t, err)
-	require.Contains(t, string(raw), "\"zero\":{\"input_price_per_million_tokens\":\"0\"}")
-	require.Contains(t, string(raw), "\"nil\":{}")
-}
-
-func TestChatModelCallConfig_UnmarshalLegacyPricing(t *testing.T) {
+func TestChatModelCallConfig_UseResponsesAPIRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	var decoded codersdk.ChatModelCallConfig
-	err := json.Unmarshal([]byte("{\"input_price_per_million_tokens\": 1.5}"), &decoded)
+	err := decoded.UnmarshalStrict([]byte(`{"openai_config": {"use_responses_api": true}}`))
 	require.NoError(t, err)
-	require.NotNil(t, decoded.Cost)
-	require.NotNil(t, decoded.Cost.InputPricePerMillionTokens)
-	require.True(t, decoded.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("1.5")))
-}
+	require.NotNil(t, decoded.OpenAIConfig)
+	require.NotNil(t, decoded.OpenAIConfig.UseResponsesAPI)
+	require.True(t, *decoded.OpenAIConfig.UseResponsesAPI)
 
-func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	original := codersdk.ChatCostSummary{
-		TotalCostMicros: 123,
-	}
-	raw, err := json.Marshal(original)
+	raw, err := json.Marshal(decoded)
 	require.NoError(t, err)
+	require.Contains(t, string(raw), `"use_responses_api":true`)
 
-	var decoded codersdk.ChatCostSummary
-	err = json.Unmarshal(raw, &decoded)
+	var unset codersdk.ChatModelCallConfig
+	require.NoError(t, unset.UnmarshalStrict([]byte(`{"openai_config": {}}`)))
+	require.Nil(t, unset.OpenAIConfig.UseResponsesAPI)
+	raw, err = json.Marshal(unset)
 	require.NoError(t, err)
-	require.Equal(t, original.TotalCostMicros, decoded.TotalCostMicros)
+	require.NotContains(t, string(raw), "use_responses_api")
 }
 
 // TestChat_JSONRoundTrip verifies that every field of codersdk.Chat

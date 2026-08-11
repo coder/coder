@@ -329,6 +329,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
+// @Param user_id query string false "Owner to report external auth state for. Defaults to the requesting user." format(uuid)
 // @Success 200 {array} codersdk.TemplateVersionExternalAuth
 // @Router /api/v2/templateversions/{templateversion}/external-auth [get]
 func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Request) {
@@ -338,7 +339,33 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
 
-	providers, err := api.templateVersionExternalAuthForUser(ctx, templateVersion, apiKey.UserID)
+	ownerID := apiKey.UserID
+	externalAuthCtx := ctx
+	if q := r.URL.Query().Get("user_id"); q != "" && q != codersdk.Me {
+		id, err := uuid.Parse(q)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid user_id query parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		ownerID = id
+
+		// Verify that the user has permission to create a workspace on behalf of
+		// the proposed workspace owner. If so, use a system actor to perform later
+		// checks that the user is unlikely to have the other required permissions
+		// for.
+		if !api.Authorize(r, policy.ActionCreate,
+			rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(ownerID.String())) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		//nolint:gocritic // Authorized as create-workspace-for-owner above; the checker only reads/refreshes the owner's external auth links.
+		externalAuthCtx = dbauthz.AsExternalAuthCoordinator(ctx)
+	}
+
+	providers, err := api.templateVersionExternalAuthForUser(externalAuthCtx, templateVersion, ownerID)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return

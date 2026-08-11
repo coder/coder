@@ -18,7 +18,7 @@ variable "project_uuid" {
 
       $ doctl projects list
   EOF
-  sensitive   = true
+  default     = {{ .Variables.project_uuid }}
 
   validation {
     # make sure length of alphanumeric string is 36 (UUIDv4 size)
@@ -39,8 +39,7 @@ variable "ssh_key_id" {
 
       $ doctl compute ssh-key list
   EOF
-  sensitive   = true
-  default     = 0
+  default     = {{ .Variables.ssh_key_id }}
 
   validation {
     condition     = var.ssh_key_id >= 0

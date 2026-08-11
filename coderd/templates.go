@@ -212,6 +212,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 	// Default is false as dynamic parameters are now the preferred approach.
 	useClassicParameterFlow := ptr.NilToDefault(createTemplate.UseClassicParameterFlow, false)
+	agentsAllowed := ptr.NilToDefault(createTemplate.AgentsAllowed, true)
 
 	// Make a temporary struct to represent the template. This is used for
 	// auditing if any of the following checks fail. It will be overwritten when
@@ -224,6 +225,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		Icon:                    createTemplate.Icon,
 		DisplayName:             createTemplate.DisplayName,
 		UseClassicParameterFlow: useClassicParameterFlow,
+		AgentsAllowed:           agentsAllowed,
 	}
 
 	_, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
@@ -447,6 +449,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			MaxPortSharingLevel:          maxPortShareLevel,
 			UseClassicParameterFlow:      useClassicParameterFlow,
 			CorsBehavior:                 corsBehavior,
+			AgentsAllowed:                agentsAllowed,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -577,15 +580,6 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			return
 		}
 
-		prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceTemplate.Type)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error preparing sql filter.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
 		args := filter
 		if mutate != nil {
 			mutate(r, &args)
@@ -599,8 +593,9 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			}
 		}
 
-		// Filter templates based on rbac permissions
-		templates, err := api.Database.GetAuthorizedTemplates(ctx, args, prepared)
+		// GetTemplatesWithFilter authorizes the query itself, so we don't
+		// prepare a SQL filter here.
+		templates, err := api.Database.GetTemplatesWithFilter(ctx, args)
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
@@ -786,6 +781,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			UseClassicParameterFlow:      resolved.useClassicTemplateFlow,
 			CorsBehavior:                 resolved.corsBehavior,
 			DisableModuleCache:           resolved.disableModuleCache,
+			AgentsAllowed:                resolved.agentsAllowed,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1062,6 +1058,7 @@ func (api *API) convertTemplate(
 		UseClassicParameterFlow: template.UseClassicParameterFlow,
 		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
 		DisableModuleCache:      template.DisableModuleCache,
+		AgentsAllowed:           template.AgentsAllowed,
 	}
 }
 

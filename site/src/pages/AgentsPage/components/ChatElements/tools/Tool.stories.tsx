@@ -1,18 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	expect,
-	fn,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { chatModelConfigsKey } from "#/api/queries/chats";
+import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
+import { workspaceByIdKey } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
-import { Tool } from "./Tool";
+import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
 const executeIntentCommand = "npm test";
@@ -99,11 +97,6 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: { success: true },
 	},
 	{
-		name: "wait_for_external_auth",
-		args: { provider: "github" },
-		result: { provider_display_name: "GitHub", authenticated: true },
-	},
-	{
 		name: "read_file",
 		args: { path: "site/src/pages/AgentsPage/AgentChatPage.tsx" },
 		result: { content: "export const AgentChatPage = () => null;" },
@@ -136,6 +129,13 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 				},
 			],
 			count: 1,
+		},
+	},
+	{
+		name: "list_agents",
+		result: {
+			agents: [{ id: "agent-1", title: "Workspace diagnostics" }],
+			total: 1,
 		},
 	},
 	{
@@ -399,6 +399,142 @@ export const ExecuteError: Story = {
 	},
 };
 
+export const ExecuteDeniedByHook: Story = {
+	args: {
+		name: "execute",
+		status: "error",
+		isError: true,
+		args: { command: "cat /etc/secrets" },
+		parsedCommands: [["cat", "/etc/secrets"]],
+		result: {
+			error:
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: secret reads are blocked. This is an administrative policy decision, not a tool or workspace failure; retrying the same call will be denied again. Explain the policy block to the user and adjust your approach.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Failed to run cat/)).toBeVisible();
+		expect(canvas.queryByText(/Ran cat/)).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("img", {
+				name: /blocked by an external policy/,
+			}),
+		).toBeVisible();
+		expect(canvas.getByText(/Reason: secret reads are blocked/)).toBeVisible();
+	},
+};
+
+export const ExecuteRewrittenByHook: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "echo REWRITTEN_BY_HOOK" },
+		parsedCommands: [["echo", "REWRITTEN_BY_HOOK"]],
+		hookRewritten: true,
+		result: { output: "REWRITTEN_BY_HOOK", exit_code: 0 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = canvas.getByRole("button", {
+			name: /^(Expand|Collapse) command, modified by policy$/,
+		});
+		expect(within(header).getByText(/Ran echo/)).toBeVisible();
+		expect(canvas.getByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const ExecuteNotRewrittenByHook: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "echo original" },
+		parsedCommands: [["echo", "original"]],
+		result: { output: "original", exit_code: 0 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Ran echo/)).toBeVisible();
+		expect(canvas.queryByText("Modified by policy")).not.toBeInTheDocument();
+	},
+};
+
+export const WriteFileRewrittenByHook: Story = {
+	args: {
+		name: "write_file",
+		status: "completed",
+		codeDiffDisplayMode: "auto",
+		args: {
+			path: "src/utils/helpers.ts",
+			content: "export const helper = true;\n",
+		},
+		hookRewritten: true,
+		result: { success: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const SubagentRewrittenByHook: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		hookRewritten: true,
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeVisible();
+		expect(canvas.getByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const NonCollapsibleRewrittenByHook: Story = {
+	args: {
+		name: "read_template",
+		status: "completed",
+		args: { template_id: "template-1" },
+		hookRewritten: true,
+		result: {
+			template: { name: "go-template", display_name: "Go Development" },
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", { name: /Read template/ }),
+		).not.toBeInTheDocument();
+		expect(canvas.getByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const NonCollapsibleNotRewrittenByHook: Story = {
+	args: {
+		name: "read_template",
+		status: "completed",
+		args: { template_id: "template-1" },
+		result: {
+			template: { name: "go-template", display_name: "Go Development" },
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Read template Go Development")).toBeVisible();
+		expect(canvas.queryByText("Modified by policy")).not.toBeInTheDocument();
+	},
+};
+
 export const ExecuteBackgrounded: Story = {
 	args: {
 		name: "execute",
@@ -542,99 +678,6 @@ export const ProcessOutputStringError: Story = {
 	},
 };
 
-export const ExecuteAuthRequired: Story = {
-	args: {
-		result: {
-			auth_required: true,
-			provider_display_name: "GitHub",
-			authenticate_url: "https://coder.example.com/external-auth/github",
-			output:
-				"fatal: could not read Username for 'https://github.com': terminal prompts disabled",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const button = canvas.getByRole("button", {
-			name: "Authenticate with GitHub",
-		});
-		expect(button).toBeInTheDocument();
-		expect(
-			canvas.getByRole("link", { name: "Open authentication link" }),
-		).toHaveAttribute("href", "https://coder.example.com/external-auth/github");
-
-		const openSpy = spyOn(window, "open").mockImplementation(() => null);
-		await userEvent.click(button);
-		expect(openSpy).toHaveBeenCalledWith(
-			"https://coder.example.com/external-auth/github",
-			"_blank",
-			"width=900,height=600",
-		);
-		openSpy.mockRestore();
-	},
-};
-
-// ---------------------------------------------------------------------------
-// WaitForExternalAuth stories
-// ---------------------------------------------------------------------------
-
-export const WaitForExternalAuthRunning: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "running",
-		result: {
-			provider_display_name: "GitHub",
-			authenticated: false,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Waiting for GitHub authentication..."),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", { name: "Authentication in progress" }),
-		).toBeVisible();
-	},
-};
-
-export const WaitForExternalAuthAuthenticated: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "completed",
-		result: {
-			provider_display_name: "GitHub",
-			authenticated: true,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Authenticated with GitHub")).toBeInTheDocument();
-	},
-};
-
-export const WaitForExternalAuthTimedOut: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "completed",
-		result: {
-			provider_display_name: "GitHub",
-			timed_out: true,
-		},
-	},
-};
-
-export const WaitForExternalAuthError: Story = {
-	args: {
-		name: "wait_for_external_auth",
-		status: "error",
-		isError: true,
-		result: {
-			provider_display_name: "GitHub",
-			error: "Authentication failed: token exchange was rejected.",
-		},
-	},
-};
-
 // ---------------------------------------------------------------------------
 // Subagent stories
 // ---------------------------------------------------------------------------
@@ -685,6 +728,135 @@ export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
 			"href",
 			["/agents/8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2"].join(""),
 		);
+	},
+};
+
+const mockChatModelConfig = {
+	...MockChatModelConfig,
+	id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+	model: "claude-sonnet-4-6",
+	display_name: "Claude Sonnet 4.6",
+	model_config: {
+		reasoning_effort: { default: "medium", max: "high" },
+	},
+};
+
+export const SubagentSpawnWithModelAndEffort: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+			reasoning_effort: "high",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", {
+					name: /Spawned Workspace diagnostics with Claude Sonnet 4.6, high thinking/,
+				}),
+			).toBeInTheDocument(),
+		);
+	},
+};
+
+export const SubagentSpawnWithModelDefaultEffort: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", {
+					name: /Spawned Workspace diagnostics with Claude Sonnet 4.6, medium thinking/,
+				}),
+			).toBeInTheDocument(),
+		);
+	},
+};
+
+// Effort-only spawns resolve against an inherited model whose effort
+// bounds are unknown client-side, so no suffix is shown.
+export const SubagentSpawnWithEffortOnly: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			reasoning_effort: "high",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const label = canvas.getByRole("button", {
+			name: /Spawned Workspace diagnostics/,
+		});
+		expect(label).toBeInTheDocument();
+		expect(label).not.toHaveTextContent(/with/);
+	},
+};
+
+export const SubagentSpawnWithUnknownModelConfig: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const label = canvas.getByRole("button", {
+			name: /Spawned Workspace diagnostics/,
+		});
+		expect(label).toBeInTheDocument();
+		expect(label).not.toHaveTextContent(/with/);
 	},
 };
 
@@ -991,7 +1163,6 @@ export const WaitAgentExploreStreamingFromHistory: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Waiting for Explore agent/ }),
 		).toBeInTheDocument();
-		expect(canvas.queryByText("Waiting for sub-agent…")).toBeNull();
 	},
 };
 
@@ -1011,7 +1182,6 @@ export const MessageAgentExploreStreamingFromResult: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Messaging Explore agent/ }),
 		).toBeInTheDocument();
-		expect(canvas.queryByText("Messaging sub-agent…")).toBeNull();
 	},
 };
 
@@ -1259,6 +1429,59 @@ export const ChatSummarized: Story = {
 				text.includes("Compaction summary text."),
 			),
 		).toBeInTheDocument();
+	},
+};
+
+// Automatic compactions include source: "automatic" but keep the
+// plain "Summarized" label; only manual ones are called out.
+export const ChatSummarizedAutomaticSource: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "automatic" }),
+		result: { summary: "Compaction summary text.", source: "automatic" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Summarized" }),
+		).toBeInTheDocument();
+	},
+};
+
+// A user-requested /compact renders with a distinct manual label.
+export const ChatSummarizedManual: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "manual" }),
+		result: { summary: "Manual compaction summary text.", source: "manual" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Summarized (manual)" });
+		expect(toggle).toBeInTheDocument();
+
+		await userEvent.click(toggle);
+
+		expect(
+			await canvas.findByText((text) =>
+				text.includes("Manual compaction summary text."),
+			),
+		).toBeInTheDocument();
+	},
+};
+
+// While the summary streams in, the manual source is only present in
+// the call args; the header still shows the running label.
+export const ChatSummarizedManualRunning: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "manual" }),
+		status: "running",
+		result: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Summarizing…")).toBeInTheDocument();
 	},
 };
 
@@ -1599,6 +1822,34 @@ export const WriteFileAlwaysExpanded: Story = {
 	},
 };
 
+export const WriteFileDeniedByHook: Story = {
+	args: {
+		name: "write_file",
+		status: "error",
+		isError: true,
+		codeDiffDisplayMode: "auto",
+		args: {
+			path: "src/utils/helpers.ts",
+			content: "export const helper = true;\n",
+		},
+		result: {
+			error:
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: writes to src are blocked.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Failed to write helpers\.ts/)).toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Failed to write helpers\.ts/ }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText(/blocked by an external policy/)).toBeVisible();
+		});
+		expect(canvas.queryByTestId("write-file-diff")).not.toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // EditFiles stories
 // ---------------------------------------------------------------------------
@@ -1772,7 +2023,10 @@ export const EditFilesError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited missing\.ts/)).toBeInTheDocument();
+		expect(canvas.getByText(/Failed to edit missing\.ts/)).toBeInTheDocument();
+		await waitFor(() => {
+			expect(canvas.getByText("File not found")).toBeVisible();
+		});
 		// On error, no diff body: the synthetic fallback would
 		// misrepresent a rejected edit as applied.
 		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
@@ -2171,6 +2425,24 @@ export const ReadFileLongLine: Story = {
 			canvas.getByRole("button", { name: /Read config.ts/i }),
 		);
 		await expectDiffText(canvasElement, "apiUrl");
+	},
+};
+
+export const ReadFileFailed: Story = {
+	args: {
+		name: "read_file",
+		status: "error",
+		isError: true,
+		args: { path: "site/src/config.ts" },
+		result: { error: "permission denied" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// An explicit ariaLabel on the row would replace the computed name and
+		// drop the failure text the status icon contributes.
+		expect(
+			canvas.getByRole("button", { name: /permission denied/ }),
+		).toBeVisible();
 	},
 };
 
@@ -3024,5 +3296,101 @@ export const AllToolIconsTranscript: Story = {
 				data: [],
 			},
 		],
+	},
+};
+
+const policyCaseLabel = (name: string, index: number) =>
+	`policy case ${name} ${index}`;
+
+// WorkspaceBuildLogSection falls back to the workspace's latest build when a
+// tool result carries no build_id, so both must resolve to the seeded logs.
+const showcaseBuildId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
+const policyCaseWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-workspace-id",
+	latest_build: {
+		...MockWorkspaceBuild,
+		id: showcaseBuildId,
+		workspace_id: "test-workspace-id",
+	},
+};
+
+export const PolicyBadgeCoversEveryRenderer: Story = {
+	render: () => (
+		<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
+			<DesktopPanelContext.Provider
+				value={{ desktopChatId: "desktop-child", onOpenDesktop: fn() }}
+			>
+				<div className="flex flex-col gap-2">
+					{allToolShowcaseItems.map((tool, index) => (
+						<div
+							key={`${tool.name}-${index}`}
+							role="group"
+							aria-label={policyCaseLabel(tool.name, index)}
+						>
+							<Tool
+								name={tool.name}
+								status={tool.status ?? "completed"}
+								args={tool.args}
+								result={tool.result}
+								isError={tool.isError}
+								killedBySignal={tool.killedBySignal}
+								modelIntent={tool.modelIntent}
+								parsedCommands={tool.parsedCommands}
+								subagentVariants={tool.subagentVariants}
+								hookRewritten
+								shellToolDisplayMode="always_collapsed"
+								codeDiffDisplayMode="always_collapsed"
+								showDesktopPreviews={false}
+							/>
+						</div>
+					))}
+				</div>
+			</DesktopPanelContext.Provider>
+		</ChatWorkspaceContext>
+	),
+	parameters: {
+		queries: [
+			{
+				key: workspaceByIdKey("test-workspace-id"),
+				data: policyCaseWorkspace,
+			},
+			{
+				key: workspaceBuildLogs(showcaseBuildId).queryKey,
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const covered = new Set(allToolShowcaseItems.map((tool) => tool.name));
+		expect(
+			toolRendererNames.filter((name) => !covered.has(name)),
+		).toStrictEqual([]);
+
+		const canvas = within(canvasElement);
+		const rendered = new Set<string>();
+		const missingBadge: string[] = [];
+		allToolShowcaseItems.forEach((tool, index) => {
+			const toolCase = canvas.getByRole("group", {
+				name: policyCaseLabel(tool.name, index),
+			});
+			if (toolCase.textContent?.trim() === "") {
+				return;
+			}
+			rendered.add(tool.name);
+			// checkVisibility, not presence: a badge hidden by the card's own
+			// layout still satisfies a text query.
+			if (
+				!within(toolCase).queryByText("Modified by policy")?.checkVisibility()
+			) {
+				missingBadge.push(tool.name);
+			}
+		});
+
+		expect(missingBadge).toStrictEqual([]);
+		expect(
+			toolRendererNames.filter((name) => !rendered.has(name)),
+		).toStrictEqual([]);
 	},
 };

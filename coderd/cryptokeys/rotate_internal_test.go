@@ -104,6 +104,112 @@ func Test_rotateKeys(t *testing.T) {
 		require.Equal(t, newKey, keys[0])
 	})
 
+	t.Run("RotatesNATSCA", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			db, _       = dbtestutil.NewDB(t)
+			clock       = quartz.NewMock(t)
+			keyDuration = time.Hour * 24 * 7
+			logger      = testutil.Logger(t)
+			ctx         = testutil.Context(t, testutil.WaitShort)
+		)
+
+		kr := &rotator{
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			features: []database.CryptoKeyFeature{
+				database.CryptoKeyFeatureNATSCA,
+			},
+		}
+
+		now := dbnow(clock)
+
+		oldKey := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureNATSCA,
+			StartsAt: now,
+			Sequence: 4,
+		})
+
+		// Advance the window to just inside rotation time.
+		_ = clock.Advance(keyDuration - time.Minute*59)
+		err := kr.rotateKeys(ctx)
+		require.NoError(t, err)
+
+		// The old CA row is retained roughly as long as its certificate is
+		// valid: NATSCAOverlap past the active-signing window, plus the
+		// rotator's standard 1h propagation buffer.
+		expectedDeletesAt := oldKey.ExpiresAt(keyDuration).Add(NATSCAOverlap + time.Hour)
+		oldKey, err = db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  oldKey.Feature,
+			Sequence: oldKey.Sequence,
+		})
+		require.NoError(t, err)
+		require.Equal(t, expectedDeletesAt, oldKey.DeletesAt.Time.UTC())
+
+		newKey, err := db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  database.CryptoKeyFeatureNATSCA,
+			Sequence: oldKey.Sequence + 1,
+		})
+		require.NoError(t, err)
+		requireKey(t, newKey, database.CryptoKeyFeatureNATSCA, oldKey.ExpiresAt(keyDuration), nullTime, oldKey.Sequence+1)
+	})
+
+	t.Run("IgnoresUnmanagedFeatureKeys", func(t *testing.T) {
+		t.Parallel()
+
+		// Regression: a rotator managing a subset of features (e.g. after the
+		// nats_ca experiment is toggled off) must still rotate its managed
+		// features even when the DB holds keys for features it does not manage,
+		// such as nats_ca rows left over from a prior experiment-on run.
+		// Previously such rows aborted every rotation.
+		var (
+			db, _       = dbtestutil.NewDB(t)
+			clock       = quartz.NewMock(t)
+			keyDuration = time.Hour * 24 * 7
+			logger      = testutil.Logger(t)
+			ctx         = testutil.Context(t, testutil.WaitShort)
+		)
+
+		kr := &rotator{
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			// Manages only tailnet resume; nats_ca is intentionally not managed,
+			// mirroring the experiment being off.
+			features: []database.CryptoKeyFeature{
+				database.CryptoKeyFeatureTailnetResume,
+			},
+		}
+
+		now := dbnow(clock)
+
+		// A leftover nats_ca row the rotator does not manage.
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureNATSCA,
+			StartsAt: now,
+			Sequence: 1,
+		})
+
+		// No managed key exists yet, so rotation must insert one for the managed
+		// feature and must not error on the unmanaged nats_ca row.
+		err := kr.rotateKeys(ctx)
+		require.NoError(t, err)
+
+		newKey, err := db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureTailnetResume)
+		require.NoError(t, err)
+		require.Equal(t, database.CryptoKeyFeatureTailnetResume, newKey.Feature)
+
+		// The unmanaged nats_ca row is untouched (no rotation, no delete).
+		natsKeys, err := db.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureNATSCA)
+		require.NoError(t, err)
+		require.Len(t, natsKeys, 1)
+		require.False(t, natsKeys[0].DeletesAt.Valid)
+	})
+
 	t.Run("DoesNotRotateValidKeys", func(t *testing.T) {
 		t.Parallel()
 
@@ -409,8 +515,7 @@ func Test_rotateKeys(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, keys, 5)
 
-		kbf, err := keysByFeature(keys, defaultRotatedFeatures)
-		require.NoError(t, err)
+		kbf := keysByFeature(keys, defaultRotatedFeatures)
 
 		// No actions on OIDC convert.
 		require.Len(t, kbf[database.CryptoKeyFeatureOIDCConvert], 1)
@@ -585,6 +690,14 @@ func requireKey(t *testing.T, key database.CryptoKey, feature database.CryptoKey
 	require.Equal(t, deletesAt.Valid, key.DeletesAt.Valid)
 	require.Equal(t, deletesAt.Time.UTC(), key.DeletesAt.Time.UTC())
 	require.Equal(t, sequence, key.Sequence)
+
+	// The NATS CA secret is a PEM bundle rather than hex-encoded bytes.
+	if key.Feature == database.CryptoKeyFeatureNATSCA {
+		cert, _, err := parseCASecret(key.Secret.String)
+		require.NoError(t, err)
+		require.True(t, cert.IsCA)
+		return
+	}
 
 	secret, err := hex.DecodeString(key.Secret.String)
 	require.NoError(t, err)

@@ -10,13 +10,14 @@ import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	scheduleChanged,
 	scheduleToAutostart,
@@ -71,12 +72,15 @@ const WorkspaceSchedulePage: FC = () => {
 	});
 
 	return (
-		<>
+		<div className="flex flex-col gap-12">
 			<title>{pageTitle(workspaceName, "Schedule")}</title>
 
-			<PageHeader className="pt-0">
-				<PageHeaderTitle>Workspace Schedule</PageHeaderTitle>
-			</PageHeader>
+			<SettingsHeader>
+				<SettingsHeaderTitle>Schedule</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Configure when this workspace starts and stops automatically.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			{error && <ErrorAlert error={error} />}
 
@@ -136,9 +140,19 @@ const WorkspaceSchedulePage: FC = () => {
 
 							await submitScheduleMutation.mutateAsync(data);
 
+							// A running build's autostop deadline is calculated when the
+							// build starts, so updating the TTL does not retroactively
+							// change it. Prompt the user to restart so the new value takes
+							// effect immediately, but only when all of the following hold:
+							//   - autostop actually changed (toggled or new TTL value),
+							//   - autostop is enabled after the change; disabling clears the
+							//     running build's deadline server-side, so no restart is
+							//     needed, and
+							//   - the workspace is running; a stopped workspace picks up the
+							//     new value on its next start.
 							if (
 								data.autostopChanged &&
-								getAutostop(workspace).autostopEnabled &&
+								values.autostopEnabled &&
 								workspace.latest_build.status === "running"
 							) {
 								setIsConfirmingApply(true);
@@ -159,10 +173,12 @@ const WorkspaceSchedulePage: FC = () => {
 					navigate(`/@${username}/${workspaceName}`);
 				}}
 				onClose={() => {
-					navigate(`/@${username}/${workspaceName}`);
+					// Keep the user on the schedule page; the saved value still
+					// applies on the next workspace start.
+					setIsConfirmingApply(false);
 				}}
 			/>
-		</>
+		</div>
 	);
 };
 

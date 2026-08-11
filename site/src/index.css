@@ -83,13 +83,21 @@
 				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
 			) !important;
 			overflow: hidden !important;
+			display: flex !important;
+			flex-direction: column !important;
+		}
+		/* min-height: 0 on both flex children lets the list shrink below its
+			content and scroll inside the capped column instead of overflowing. */
+		.mobile-full-width-dropdown-above-composer > [cmdk-root],
+		.mobile-full-width-dropdown-above-composer > [cmdk-root] > [cmdk-list] {
+			flex: 1 1 0% !important;
+			min-height: 0 !important;
+		}
+		.mobile-full-width-dropdown-above-composer > [cmdk-root] > [cmdk-list] {
+			max-height: none !important;
 		}
 		.mobile-full-width-dropdown-above-composer
 			.mobile-full-width-dropdown-scroll-area {
-			max-height: calc(
-				var(--mobile-dropdown-above-composer-max-height, 18rem) -
-				0.5rem
-			) !important;
 			overflow-y: auto !important;
 			overscroll-behavior: contain;
 			-webkit-overflow-scrolling: touch;

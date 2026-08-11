@@ -8,6 +8,8 @@ import (
 var baseLabels = []string{"provider", "model"}
 
 const (
+	PrometheusMetricPrefix = "coder_ai_gateway_"
+
 	InterceptionCountStatusFailed    = "failed"
 	InterceptionCountStatusCompleted = "completed"
 )
@@ -138,12 +140,12 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		// Key pool failover metrics.
 
-		// Pessimistic cardinality: 2 providers, 3 reasons = up to 6.
+		// Pessimistic cardinality: 2 providers, 2 reasons = up to 4.
 		KeyPoolStateTransitions: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "key_pool",
 			Name:      "state_transitions_total",
 			Help: "The number of API key state transitions during failover " +
-				"(reason: rate_limited, unauthorized, forbidden).",
+				"(reason: rate_limited, unauthorized).",
 		}, []string{"provider", "reason"}),
 		// Pessimistic cardinality: 2 providers, 2 outcomes = up to 4.
 		KeyPoolExhaustions: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{

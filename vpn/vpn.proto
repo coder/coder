@@ -297,6 +297,4 @@ message Status {
 // tunnel uses this as a hint to rediscover network paths.
 message WakeRequest {}
 
-message WakeResponse {
-	bool success = 1;
-}
+message WakeResponse {}

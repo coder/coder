@@ -1725,10 +1725,7 @@ type ChatStatus string
 
 const (
 	ChatStatusWaiting        ChatStatus = "waiting"
-	ChatStatusPending        ChatStatus = "pending"
 	ChatStatusRunning        ChatStatus = "running"
-	ChatStatusPaused         ChatStatus = "paused"
-	ChatStatusCompleted      ChatStatus = "completed"
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
@@ -1772,10 +1769,7 @@ func (ns NullChatStatus) Value() (driver.Value, error) {
 func (e ChatStatus) Valid() bool {
 	switch e {
 	case ChatStatusWaiting,
-		ChatStatusPending,
 		ChatStatusRunning,
-		ChatStatusPaused,
-		ChatStatusCompleted,
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting:
@@ -1787,10 +1781,7 @@ func (e ChatStatus) Valid() bool {
 func AllChatStatusValues() []ChatStatus {
 	return []ChatStatus{
 		ChatStatusWaiting,
-		ChatStatusPending,
 		ChatStatusRunning,
-		ChatStatusPaused,
-		ChatStatusCompleted,
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting,
@@ -1864,6 +1855,7 @@ const (
 	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
+	ConnectionTypeTunnel          ConnectionType = "tunnel"
 )
 
 func (e *ConnectionType) Scan(src interface{}) error {
@@ -1908,7 +1900,8 @@ func (e ConnectionType) Valid() bool {
 		ConnectionTypeJetbrains,
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding:
+		ConnectionTypePortForwarding,
+		ConnectionTypeTunnel:
 		return true
 	}
 	return false
@@ -1922,6 +1915,7 @@ func AllConnectionTypeValues() []ConnectionType {
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
+		ConnectionTypeTunnel,
 	}
 }
 
@@ -3537,6 +3531,7 @@ const (
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
+	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3610,7 +3605,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeGroupAIBudget,
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
-		ResourceTypeUserAIBudgetOverride:
+		ResourceTypeUserAIBudgetOverride,
+		ResourceTypeOauth2ProviderSettings:
 		return true
 	}
 	return false
@@ -3653,6 +3649,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
+		ResourceTypeOauth2ProviderSettings,
 	}
 }
 
@@ -4979,6 +4976,8 @@ type Chat struct {
 	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
+	Summary                  sql.NullString          `db:"summary" json:"summary"`
+	SummaryGeneratedAt       sql.NullTime            `db:"summary_generated_at" json:"summary_generated_at"`
 	SnapshotVersion          int64                   `db:"snapshot_version" json:"snapshot_version"`
 	HistoryVersion           int64                   `db:"history_version" json:"history_version"`
 	QueueVersion             int64                   `db:"queue_version" json:"queue_version"`
@@ -4995,6 +4994,7 @@ type Chat struct {
 	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
+	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5128,10 +5128,11 @@ type ChatMessage struct {
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
-	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
 	Revision            int64                 `db:"revision" json:"revision"`
 	// Stores the selected effort for the turn triggered by this message.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	// Used for full text search. NULL initially, populated async via background job.
+	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
 }
 
 type ChatModelConfig struct {
@@ -5158,7 +5159,6 @@ type ChatQueuedMessage struct {
 	Content       json.RawMessage `db:"content" json:"content"`
 	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
 	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
-	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
 	Position      int64           `db:"position" json:"position"`
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
@@ -5216,6 +5216,10 @@ type ChatTable struct {
 	ContextError string `db:"context_error" json:"context_error"`
 	// Stores the most recent message effort once per-turn selection is wired.
 	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+	// Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.
+	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
+	Summary               sql.NullString `db:"summary" json:"summary"`
+	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -5444,20 +5448,22 @@ type MCPServerConfig struct {
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
 }
 
 type MCPServerUserToken struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
-	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
-	AccessToken       string         `db:"access_token" json:"access_token"`
-	AccessTokenKeyID  sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`
-	RefreshToken      string         `db:"refresh_token" json:"refresh_token"`
-	RefreshTokenKeyID sql.NullString `db:"refresh_token_key_id" json:"refresh_token_key_id"`
-	TokenType         string         `db:"token_type" json:"token_type"`
-	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	ID                        uuid.UUID      `db:"id" json:"id"`
+	MCPServerConfigID         uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID                    uuid.UUID      `db:"user_id" json:"user_id"`
+	AccessToken               string         `db:"access_token" json:"access_token"`
+	AccessTokenKeyID          sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`
+	RefreshToken              string         `db:"refresh_token" json:"refresh_token"`
+	RefreshTokenKeyID         sql.NullString `db:"refresh_token_key_id" json:"refresh_token_key_id"`
+	TokenType                 string         `db:"token_type" json:"token_type"`
+	Expiry                    sql.NullTime   `db:"expiry" json:"expiry"`
+	CreatedAt                 time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt                 time.Time      `db:"updated_at" json:"updated_at"`
+	OauthRefreshFailureReason string         `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 }
 
 type NotificationMessage struct {
@@ -5519,7 +5525,7 @@ type OAuth2ProviderApp struct {
 	// List of valid redirect URIs for the application
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
 	// OAuth2 client type: confidential or public
-	ClientType sql.NullString `db:"client_type" json:"client_type"`
+	ClientType string `db:"client_type" json:"client_type"`
 	// Whether this app was created via dynamic client registration
 	DynamicallyRegistered sql.NullBool `db:"dynamically_registered" json:"dynamically_registered"`
 	// RFC 7591: Timestamp when client_id was issued
@@ -5596,13 +5602,15 @@ type OAuth2ProviderAppToken struct {
 	ExpiresAt  time.Time `db:"expires_at" json:"expires_at"`
 	HashPrefix []byte    `db:"hash_prefix" json:"hash_prefix"`
 	// Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.
-	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
-	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
-	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
+	RefreshHash []byte        `db:"refresh_hash" json:"refresh_hash"`
+	AppSecretID uuid.NullUUID `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID    string        `db:"api_key_id" json:"api_key_id"`
 	// Token audience binding from resource parameter
 	Audience sql.NullString `db:"audience" json:"audience"`
 	// Denormalized user ID for performance optimization in authorization checks
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.
+	AppID uuid.UUID `db:"app_id" json:"app_id"`
 }
 
 type Organization struct {
@@ -5902,6 +5910,7 @@ type Template struct {
 	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache            bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
+	AgentsAllowed                 bool            `db:"agents_allowed" json:"agents_allowed"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -5954,6 +5963,8 @@ type TemplateTable struct {
 	DisableModuleCache      bool         `db:"disable_module_cache" json:"disable_module_cache"`
 	// How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.
 	TimeTilAutostopNotify int64 `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
+	// Whether Coder Agents can create workspaces using this template.
+	AgentsAllowed bool `db:"agents_allowed" json:"agents_allowed"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -6136,7 +6147,8 @@ type UsageEvent struct {
 	EventType string `db:"event_type" json:"event_type"`
 	// Event payload. Determined by the matching usage struct for this event type.
 	EventData json.RawMessage `db:"event_data" json:"event_data"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	// The time the usage occurred, which is not necessarily the time the row was inserted. Events that measure a time bucket (e.g. hb_agent_runtime_v1) always set this to the bucket start, regardless of when the row was inserted. This timestamp determines the day used by the daily rollup trigger and is sent to the usage collector service as the event timestamp.
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	// Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.
 	PublishStartedAt sql.NullTime `db:"publish_started_at" json:"publish_started_at"`
 	// Set to a timestamp when the event is successfully (or permanently unsuccessfully) published to the usage collector service. If set, the event should never be attempted to be published again.
@@ -6244,6 +6256,7 @@ type UserSecret struct {
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
 }
 
 type UserSkill struct {

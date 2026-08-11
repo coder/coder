@@ -147,6 +147,28 @@ promhttp_metric_handler_requests_in_flight 1
 promhttp_metric_handler_requests_total{code="200"} 2
 promhttp_metric_handler_requests_total{code="500"} 0
 promhttp_metric_handler_requests_total{code="503"} 0
+# HELP coder_ai_gateway_cost_control_blocked_requests_total The number of AI requests blocked because the initiator's budget was exceeded.
+# TYPE coder_ai_gateway_cost_control_blocked_requests_total counter
+coder_ai_gateway_cost_control_blocked_requests_total{group_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890"} 0
+# HELP coder_ai_gateway_cost_control_blocked_users The number of users currently over their AI budget.
+# TYPE coder_ai_gateway_cost_control_blocked_users gauge
+coder_ai_gateway_cost_control_blocked_users{group_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890"} 0
+# HELP coder_ai_gateway_cost_control_enforcement_duration_seconds The duration of AI budget enforcement checks, in seconds (outcome: allowed, blocked, error).
+# TYPE coder_ai_gateway_cost_control_enforcement_duration_seconds histogram
+coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.005"} 0
+coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.01"} 0
+coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.025"} 0
+coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.05"} 0
+coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.1"} 0
+coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.25"} 0
+coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="0.5"} 0
+coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="1"} 0
+coder_ai_gateway_cost_control_enforcement_duration_seconds_bucket{outcome="allowed",le="+Inf"} 0
+coder_ai_gateway_cost_control_enforcement_duration_seconds_sum{outcome="allowed"} 0
+coder_ai_gateway_cost_control_enforcement_duration_seconds_count{outcome="allowed"} 0
+# HELP coder_ai_gateway_cost_control_unpriced_token_usage_records_total The number of recorded AI token-usage records for which no (provider, model) price was found.
+# TYPE coder_ai_gateway_cost_control_unpriced_token_usage_records_total counter
+coder_ai_gateway_cost_control_unpriced_token_usage_records_total{model="gpt-5-nano",provider="openai"} 0
 # HELP coder_ai_gateway_injected_tool_invocations_total The number of times an injected MCP tool was invoked by AI Gateway.
 # TYPE coder_ai_gateway_injected_tool_invocations_total counter
 coder_ai_gateway_injected_tool_invocations_total{model="gpt-5-nano",name="coder_list_templates",provider="openai",server="https://xxx.pit-1.try.coder.app/api/experimental/mcp/http"} 1
@@ -173,7 +195,7 @@ coder_ai_gateway_interceptions_total{client="Codex",initiator_id="95f6752b-08cc-
 coder_ai_gateway_key_pool_state{provider="openai",state="valid"} 2
 coder_ai_gateway_key_pool_state{provider="openai",state="temporary"} 0
 coder_ai_gateway_key_pool_state{provider="openai",state="permanent"} 0
-# HELP coder_ai_gateway_key_pool_state_transitions_total The number of API key state transitions during failover (reason: rate_limited, unauthorized, forbidden).
+# HELP coder_ai_gateway_key_pool_state_transitions_total The number of API key state transitions during failover (reason: rate_limited, unauthorized).
 # TYPE coder_ai_gateway_key_pool_state_transitions_total counter
 coder_ai_gateway_key_pool_state_transitions_total{provider="openai",reason="rate_limited"} 1
 # HELP coder_ai_gateway_key_pool_exhaustions_total The number of times the key pool was exhausted with no usable key (outcome: rate_limited, auth_failed).

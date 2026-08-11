@@ -1,4 +1,9 @@
-import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
+import {
+	type MutationOptions,
+	mutationOptions,
+	type QueryClient,
+	type QueryOptions,
+} from "react-query";
 import {
 	API,
 	type GetTemplatesOptions,
@@ -12,12 +17,14 @@ import type {
 	Template,
 	TemplateRole,
 	TemplateVersion,
+	UpdateTemplateMeta,
 	UsersRequest,
 } from "#/api/typesGenerated";
 import { delay } from "#/utils/delay";
 import { getTemplateVersionFiles } from "#/utils/templateVersion";
 
 const templateKey = (templateId: string) => ["template", templateId];
+const templateListsKey = ["templates", "list"] as const;
 
 export const template = (templateId: string) => {
 	return {
@@ -41,7 +48,7 @@ export const templateByName = (organization: string, name: string) => {
 
 export const getTemplatesQueryKey = (
 	options?: GetTemplatesOptions | GetTemplatesQuery,
-) => ["templates", options];
+) => [...templateListsKey, options];
 
 export const templates = (
 	options?: GetTemplatesOptions | GetTemplatesQuery,
@@ -51,6 +58,38 @@ export const templates = (
 		queryFn: () => API.getTemplates(options),
 	};
 };
+
+export const invalidateTemplateListQueries = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({
+		queryKey: templateListsKey,
+		refetchType: "all",
+	});
+
+type UpdateTemplateMetaVariables = {
+	template: Template;
+	data: UpdateTemplateMeta;
+};
+
+export const updateTemplateMeta = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({ template, data }: UpdateTemplateMetaVariables) =>
+			API.updateTemplateMeta(template.id, data),
+		onSuccess: async (result, { template }) => {
+			const updatedTemplate = result ?? template;
+			await Promise.all([
+				invalidateTemplateListQueries(queryClient),
+				queryClient.invalidateQueries({
+					queryKey: templateKey(template.id),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: templateByNameKey(
+						updatedTemplate.organization_name,
+						updatedTemplate.name,
+					),
+				}),
+			]);
+		},
+	});
 
 export const templateACL = (templateId: string) => {
 	return {
@@ -206,16 +245,20 @@ export const templaceACLAvailable = (
 	};
 };
 
-const templateVersionExternalAuthKey = (versionId: string) => [
+const templateVersionExternalAuthKey = (versionId: string, userId = "me") => [
 	templateVersionRoot,
 	versionId,
+	userId,
 	"externalAuth",
 ];
 
-export const templateVersionExternalAuth = (versionId: string) => {
+export const templateVersionExternalAuth = (
+	versionId: string,
+	userId = "me",
+) => {
 	return {
-		queryKey: templateVersionExternalAuthKey(versionId),
-		queryFn: () => API.getTemplateVersionExternalAuth(versionId),
+		queryKey: templateVersionExternalAuthKey(versionId, userId),
+		queryFn: () => API.getTemplateVersionExternalAuth(versionId, userId),
 	};
 };
 

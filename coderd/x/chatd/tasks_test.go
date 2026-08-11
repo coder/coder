@@ -391,6 +391,92 @@ func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 	require.True(t, toolParts[0].IsError)
 }
 
+func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	recorder := newTaskSideEffectRecorder()
+	clock := quartz.NewMock(t)
+	starter := newTestTaskStarterWithClock(t, f, recorder, clock)
+	buffer := starter.opts.MessagePartBuffer
+	key := messagepartbuffer.Key{
+		ChatID:            chat.ID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt,
+	}
+	require.NoError(t, buffer.CreateEpisode(key))
+	// Prompt preparation and attempt bookkeeping run before the
+	// provider stream opens and must not be billed.
+	clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.StartModelInvocation(key))
+	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
+	clock.Advance(1500 * time.Millisecond)
+	interrupting := f.interruptChat(t, chat.ID)
+
+	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	})
+	require.NoError(t, err)
+
+	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(messages), 3)
+	assistant := messages[len(messages)-2]
+	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, assistant.RuntimeMs)
+}
+
+func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	recorder := newTaskSideEffectRecorder()
+	clock := quartz.NewMock(t)
+	starter := newTestTaskStarterWithClock(t, f, recorder, clock)
+	buffer := starter.opts.MessagePartBuffer
+	key := messagepartbuffer.Key{
+		ChatID:            chat.ID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt,
+	}
+	// A local tool execution batch never opens a provider stream, so
+	// its wall time is not billable even though it publishes parts.
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
+	clock.Advance(1500 * time.Millisecond)
+	interrupting := f.interruptChat(t, chat.ID)
+
+	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	})
+	require.NoError(t, err)
+
+	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(messages), 3)
+	assistant := messages[len(messages)-2]
+	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+	require.False(t, assistant.RuntimeMs.Valid)
+}
+
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
 	t.Parallel()
 
@@ -806,8 +892,7 @@ func TestRunner_StartsRealInterruptTask(t *testing.T) {
 	worker := startRealTaskWorker(t, f)
 	waitOwnedChat(t, f, chat.ID, worker.chatWorkerID())
 
-	interrupting := f.interruptChat(t, chat.ID)
-	require.Equal(t, database.ChatStatusInterrupting, interrupting.Status)
+	f.interruptChat(t, chat.ID)
 	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(ctx context.Context) bool {
 		latest, err := f.db.GetChatByID(ctx, chat.ID)
 		return err == nil && latest.Status == database.ChatStatusRunning
@@ -943,6 +1028,7 @@ func (f *taskTestFixture) acquireChat(t *testing.T, chatID uuid.UUID, workerID u
 
 func (f *taskTestFixture) interruptChat(t *testing.T, chatID uuid.UUID) database.Chat {
 	t.Helper()
+	f.pubsub.clear()
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
 	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
@@ -953,7 +1039,6 @@ func (f *taskTestFixture) interruptChat(t *testing.T, chatID uuid.UUID) database
 	}))
 	chat, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chatID)
 	require.NoError(t, err)
-	f.pubsub.clear()
 	return chat
 }
 
@@ -1044,7 +1129,6 @@ func taskUserTextMessage(t *testing.T, text string, createdBy uuid.UUID, modelCo
 		ContentVersion: chatprompt.CurrentContentVersion,
 		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: true},
 		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		APIKeyID:       sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
 	}
 }
 
@@ -1245,13 +1329,20 @@ func (r *taskSideEffectRecorder) requireInterruptionOutcome(t *testing.T, chatID
 
 func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder) *taskStarter {
 	t.Helper()
-	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	return newTestTaskStarterWithClock(t, f, recorder, quartz.NewReal())
+}
+
+// newTestTaskStarterWithClock shares the clock between the starter and its
+// message part buffer, mirroring production wiring.
+func newTestTaskStarterWithClock(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder, clock quartz.Clock) *taskStarter {
+	t.Helper()
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
 	t.Cleanup(buffer.Close)
 	starter, err := newTaskStarter(newUnstartedServer(t, f.rawPS, f.db), chatWorkerOptions{
 		Store:                   f.db,
 		Pubsub:                  f.pubsub,
 		Logger:                  slog.Make(),
-		Clock:                   quartz.NewReal(),
+		Clock:                   clock,
 		MessagePartBuffer:       buffer,
 		TaskRetryInitialBackoff: time.Millisecond,
 		TaskRetryMaxBackoff:     time.Millisecond,

@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
@@ -162,6 +163,7 @@ func TestIntegration(t *testing.T) {
 					Type:                     "mock",
 					DisplayName:              "Mock",
 					MCPURL:                   mockMCPServer.URL,
+					RefreshGroup:             new(singleflight.Group),
 				},
 			},
 		},

@@ -1,7 +1,6 @@
-import Stack from "@mui/material/Stack";
 import type { FC } from "react";
 import type { Permission } from "#/api/typesGenerated";
-import { Pill } from "#/components/Pill/Pill";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -23,7 +22,7 @@ export const PermissionPillsList: FC<PermissionPillsListProps> = ({
 	const resourceTypes = getUniqueResourceTypes(permissions);
 
 	return (
-		<Stack direction="row" spacing={1}>
+		<div className="flex flex-row gap-2">
 			{permissions.length > 0 ? (
 				<PermissionsPill
 					resource={resourceTypes[0]}
@@ -39,7 +38,7 @@ export const PermissionPillsList: FC<PermissionPillsListProps> = ({
 					permissions={permissions.slice(1)}
 				/>
 			)}
-		</Stack>
+		</div>
 	);
 };
 
@@ -57,10 +56,10 @@ const PermissionsPill: FC<PermissionPillProps> = ({
 	);
 
 	return (
-		<Pill type="muted" className="w-fit">
+		<Badge className="w-fit">
 			<b>{resource}</b>:{" "}
 			{actions.map((p) => `${p.negate ? "!" : ""}${p.action}`).join(", ")}
-		</Pill>
+		</Badge>
 	);
 };
 
@@ -76,13 +75,9 @@ const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill
-					type="muted"
-					className="w-fit"
-					data-testid="overflow-permissions-pill"
-				>
+				<Badge className="w-fit" data-testid="overflow-permissions-pill">
 					+{resources.length} more
-				</Pill>
+				</Badge>
 			</TooltipTrigger>
 
 			<TooltipContent className="px-4 py-3 border-surface-quaternary">

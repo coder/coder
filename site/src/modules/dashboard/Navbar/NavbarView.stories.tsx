@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockBuildInfo,
 	MockTasks,
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { pixelWithDesktop, pixelWithTablet } from "#/testHelpers/pixel";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
@@ -18,7 +18,7 @@ const tasksFilter: TasksFilter = {
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
 	parameters: {
-		chromatic: chromaticWithTablet,
+		pixel: { matrix: pixelWithTablet },
 		layout: "fullscreen",
 		queries: [
 			{
@@ -30,11 +30,15 @@ const meta: Meta<typeof NavbarView> = {
 	component: NavbarView,
 	args: {
 		user: MockUserOwner,
-		canViewAuditLog: true,
-		canViewDeployment: true,
-		canViewHealth: true,
-		canViewAISettings: true,
-		canViewOrganizations: true,
+		adminPermissions: {
+			canViewDeployment: true,
+			canViewOrganizations: true,
+			canViewAISettings: true,
+			canViewAuditLog: true,
+			canViewConnectionLog: true,
+			canViewAIBridge: true,
+			canViewHealth: true,
+		},
 		canCreateChat: true,
 		supportLinks: [],
 	},
@@ -45,6 +49,7 @@ export default meta;
 type Story = StoryObj<typeof NavbarView>;
 
 export const ForAdmin: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -54,13 +59,12 @@ export const ForAdmin: Story = {
 };
 
 export const ForAuditor: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: true,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: false,
+		adminPermissions: {
+			canViewAuditLog: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -71,13 +75,13 @@ export const ForAuditor: Story = {
 };
 
 export const ForOrgAdmin: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: true,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: true,
+		adminPermissions: {
+			canViewAuditLog: true,
+			canViewOrganizations: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -88,12 +92,11 @@ export const ForOrgAdmin: Story = {
 };
 
 export const ForSingleOrgOSSAdmin: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
-		canViewAuditLog: false,
-		canViewOrganizations: false,
-		canViewConnectionLog: false,
-		canViewAIBridge: false,
-		canViewAISettings: false,
+		adminPermissions: {
+			canViewDeployment: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -106,11 +109,7 @@ export const ForSingleOrgOSSAdmin: Story = {
 export const ForMember: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: false,
+		adminPermissions: {},
 		canCreateChat: false,
 	},
 };
@@ -118,11 +117,7 @@ export const ForMember: Story = {
 export const ForMemberWithAgentsAccess: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: false,
+		adminPermissions: {},
 		canCreateChat: true,
 	},
 };
@@ -141,11 +136,7 @@ export const IdleTasks: Story = {
 export const SupportLinks: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: false,
+		adminPermissions: {},
 		supportLinks: [
 			{
 				name: "This is a bug",
@@ -182,11 +173,7 @@ export const SupportLinks: Story = {
 export const DefaultSupportLinks: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: false,
+		adminPermissions: {},
 		supportLinks: [
 			{ icon: "docs", name: "Documentation", target: "" },
 			{ icon: "bug", name: "Report a bug", target: "" },

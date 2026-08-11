@@ -1,17 +1,14 @@
 import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
-import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
@@ -20,13 +17,18 @@ import {
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
-import { pickReasoningEffort } from "../utils/reasoningEffort";
 import {
-	formatUsageLimitMessage,
-	isChatUsageLimitExceededResponse,
-} from "../utils/usageLimitMessage";
+	getReasoningEffortForModel,
+	pickReasoningEffort,
+	saveReasoningEffortForModel,
+} from "../utils/reasoningEffort";
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
+import {
+	isChatHookDeniedResponse,
+	isChatHookDispatchFailedResponse,
+} from "./ChatConversation/chatError";
+import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
 import type { ModelSelectorOption } from "./ChatElements";
 import { CompactOrgSelector } from "./ChatElements";
 import {
@@ -240,13 +242,29 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return selectedModel || undefined;
 	})();
-	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
+	const [selectedReasoningEfforts, setSelectedReasoningEfforts] = useState<
+		Record<string, string>
+	>({});
 	const selectedModelOption = modelOptions.find(
 		(option) => option.id === selectedModel,
 	);
+	// Persisted per-model choice wins over a root override; a stale
+	// stored value is ignored so the override still applies. The
+	// override applies to its own model even after a manual re-select.
+	const rootOverrideReasoningEffort =
+		selectedModel === rootOverrideModelID
+			? rootPersonalModelOverride?.reasoning_effort
+			: undefined;
+	const persistedReasoningEffort = (() => {
+		const stored = getReasoningEffortForModel(selectedModel);
+		const efforts = selectedModelOption?.reasoningEfforts;
+		return stored && efforts?.includes(stored) ? stored : undefined;
+	})();
 	const effectiveReasoningEffort = selectedModelOption
 		? pickReasoningEffort(
-				selectedReasoningEffort,
+				selectedReasoningEfforts[selectedModel] ??
+					persistedReasoningEffort ??
+					rootOverrideReasoningEffort,
 				selectedModelOption.reasoningEfforts ?? [],
 				selectedModelOption.reasoningEffortDefault,
 			)
@@ -349,6 +367,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const handleModelChange = (value: string) => {
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
+	};
+
+	const handleReasoningEffortChange = (value: string) => {
+		setSelectedReasoningEfforts((current) => ({
+			...current,
+			[selectedModel]: value,
+		}));
+		saveReasoningEffortForModel(selectedModel, value);
 	};
 
 	const isForbidden = !canCreateChat;
@@ -485,18 +511,27 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						<ChatAccessDeniedAlert />
 					) : createError ? (
 						isApiError(createError) &&
-						createError.response?.status === 409 &&
-						isChatUsageLimitExceededResponse(createError.response.data) ? (
-							<Alert
-								severity="info"
-								actions={
-									<Button asChild size="sm">
-										<Link to="/agents/analytics">View usage</Link>
-									</Button>
-								}
-							>
+						createError.response.status === 502 &&
+						isChatHookDispatchFailedResponse(createError.response.data) ? (
+							<Alert severity="error">
+								<AlertTitle>
+									{getErrorTitle("hook_dispatch_failed", "error")}
+								</AlertTitle>
 								<AlertDescription>
-									{formatUsageLimitMessage(createError.response.data)}
+									<span>{createError.response.data.message}</span>
+									{createError.response.data.detail && (
+										<span className="mt-1 block text-content-secondary">
+											{createError.response.data.detail}
+										</span>
+									)}
+								</AlertDescription>
+							</Alert>
+						) : isApiError(createError) &&
+							createError.response.status === 403 &&
+							isChatHookDeniedResponse(createError.response.data) ? (
+							<Alert severity="info">
+								<AlertDescription>
+									{createError.response.data.message}
 								</AlertDescription>
 							</Alert>
 						) : (
@@ -544,7 +579,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						reasoningEffort={effectiveReasoningEffort}
-						onReasoningEffortChange={setSelectedReasoningEffort}
+						onReasoningEffortChange={handleReasoningEffortChange}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
@@ -577,17 +612,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							{modelSelectorHelp}
 						</div>
 					) : null}
-					<p className="text-center text-xs text-content-secondary/50">
-						<a
-							href={docs("/ai-coder/agents")}
-							target="_blank"
-							rel="noreferrer"
-							className="text-content-secondary/50 underline hover:text-content-secondary"
-						>
-							Introductory access
-						</a>{" "}
-						to Coder Agents through September 2026
-					</p>
 				</div>
 			</div>
 			<ConfirmDialog

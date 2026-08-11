@@ -92,7 +92,7 @@ in the right-hand corner of the page to delete the template.
 Using the CLI, login to Coder and run the following command to delete a
 template:
 
-```shell
+```sh
 coder templates delete <template-name>
 ```
 

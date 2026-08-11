@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/singleflight"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -52,6 +53,50 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
+
+// TestWorkspacesListSingleAuthorizePrepare guards against reintroducing the
+// redundant OPA partial evaluation the GET /api/v2/workspaces handler used to
+// perform. The handler called AuthorizeSQLFilter to build a prepared
+// ResourceWorkspace authorizer, but the dbauthz GetAuthorizedWorkspaces wrapper
+// ignored it and re-prepared inside GetWorkspaces, so every request ran partial
+// evaluation twice. Partial-evaluation cost scales with the number of
+// organization-scoped roles the subject carries (see #21890), so the duplicate
+// prepare doubled an already expensive operation. A single list request must
+// prepare the ResourceWorkspace authorizer exactly once.
+func TestWorkspacesListSingleAuthorizePrepare(t *testing.T) {
+	t.Parallel()
+
+	authz := &coderdtest.RecordingAuthorizer{Wrapped: rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())}
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		Authorizer: authz,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	// Seed one workspace directly in the database. The authorization path the
+	// handler takes does not depend on how the workspace was built, so dbfake
+	// avoids the cost of a provisioner and real build.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner.UserID,
+		OrganizationID: owner.OrganizationID,
+	}).Do()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Reset immediately before the measured request so setup prepares are
+	// excluded. Counts are keyed by subject ID, so background work under system
+	// subjects is ignored.
+	authz.Reset()
+	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, res.Workspaces, 1)
+
+	// The exact count of 1 relies on this being the only request issued under the
+	// owner subject between the reset and this assertion, which holds because the
+	// test makes a single serial call.
+	count := authz.PrepareCount(owner.UserID.String(), policy.ActionRead, rbac.ResourceWorkspace.Type)
+	require.Equal(t, 1, count,
+		"GET /workspaces must prepare the ResourceWorkspace authorizer exactly once; a higher count means a redundant partial evaluation was reintroduced")
+}
 
 func TestWorkspace(t *testing.T) {
 	t.Parallel()
@@ -1501,6 +1546,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1553,6 +1599,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1601,6 +1648,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1640,6 +1688,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
 				ValidateURL:              validateSrv.URL,
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1680,6 +1729,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				ID:                       "fallback-provider",
 				Regex:                    regexp.MustCompile(`fallback\.example\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -2817,6 +2867,105 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+	})
+
+	t.Run("IncludeAgentMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		// A named non-UTC zone on purpose: jsonb renders timestamptz
+		// in the session TimeZone, and the year-1 collected_at
+		// default renders named zones with LMT second-offsets that Go
+		// refuses to parse unless the query pins UTC.
+		store, ps := dbtestutil.NewDB(t, dbtestutil.WithTimezone("America/Caracas"))
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: store,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		build := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+		require.Len(t, build.Agents, 1)
+		agentID := build.Agents[0].ID
+
+		//nolint:gocritic // This is a test; only the agent API writes metadata.
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		collectedAt := dbtime.Now()
+		// Task_Status is mixed-case on purpose: requested keys are
+		// lowercased by the search parser, and the query matches stored
+		// keys case-insensitively. uncollected is registered but never
+		// reported, so it keeps the year-1 collected_at default.
+		for i, key := range []string{"Task_Status", "cpu", "unrequested", "uncollected"} {
+			err := store.InsertWorkspaceAgentMetadata(ctx, database.InsertWorkspaceAgentMetadataParams{
+				WorkspaceAgentID: agentID,
+				DisplayName:      key,
+				Key:              key,
+				Script:           "echo",
+				Timeout:          int64(time.Second),
+				Interval:         int64(time.Second),
+				// Reversed so the response order proves display_order
+				// sorting rather than insertion order.
+				DisplayOrder: int32(4 - i), //nolint:gosec // Tiny test constant.
+			})
+			require.NoError(t, err)
+			if key == "uncollected" {
+				continue
+			}
+			err = store.UpdateWorkspaceAgentMetadata(ctx, database.UpdateWorkspaceAgentMetadataParams{
+				WorkspaceAgentID: agentID,
+				Key:              []string{key},
+				Value:            []string{"value-" + key},
+				Error:            []string{""},
+				CollectedAt:      []time.Time{collectedAt},
+			})
+			require.NoError(t, err)
+		}
+
+		reqCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		findAgent := func(res codersdk.WorkspacesResponse) codersdk.WorkspaceAgent {
+			require.Len(t, res.Workspaces, 1)
+			require.Len(t, res.Workspaces[0].LatestBuild.Resources, 1)
+			require.Len(t, res.Workspaces[0].LatestBuild.Resources[0].Agents, 1)
+			return res.Workspaces[0].LatestBuild.Resources[0].Agents[0]
+		}
+
+		// Without the opt-in the response carries no metadata.
+		res, err := client.Workspaces(reqCtx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Empty(t, findAgent(res).Metadata)
+
+		// Opting in returns exactly the requested keys, ordered by
+		// display_order, with their collected values. The uncollected
+		// item must round-trip as Go's zero time rather than breaking
+		// the page.
+		res, err = client.Workspaces(reqCtx, codersdk.WorkspaceFilter{
+			IncludeAgentMetadata: []string{"task_status", "cpu", "uncollected"},
+		})
+		require.NoError(t, err)
+		metadata := findAgent(res).Metadata
+		require.Len(t, metadata, 3)
+		require.Equal(t, "uncollected", metadata[0].Description.Key)
+		require.Empty(t, metadata[0].Result.Value)
+		require.True(t, metadata[0].Result.CollectedAt.IsZero())
+		require.Equal(t, "cpu", metadata[1].Description.Key)
+		require.Equal(t, "value-cpu", metadata[1].Result.Value)
+		// The collection script is deliberately not exposed on the list
+		// endpoint; it can be long.
+		require.Empty(t, metadata[1].Description.Script)
+		require.Equal(t, "Task_Status", metadata[2].Description.Key)
+		require.Equal(t, "value-Task_Status", metadata[2].Result.Value)
+		require.WithinDuration(t, collectedAt, metadata[2].Result.CollectedAt, time.Second)
+
+		// Unknown keys are not an error; the metadata is just absent.
+		res, err = client.Workspaces(reqCtx, codersdk.WorkspaceFilter{
+			IncludeAgentMetadata: []string{"no_such_key"},
+		})
+		require.NoError(t, err)
+		require.Empty(t, findAgent(res).Metadata)
 	})
 
 	t.Run("HealthyFilter", func(t *testing.T) {
@@ -4872,8 +5021,17 @@ func TestWorkspaceDormant(t *testing.T) {
 
 		// Should be able to stop a workspace while it is dormant.
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		// Drain both audit entries emitted so far (the dormancy update and
+		// the stop build) before resetting the auditor. Audit logs are
+		// exported asynchronously relative to the API responses, so an entry
+		// landing after ResetLogs would break the exact count assertion
+		// below.
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			return auditor.Contains(t, database.AuditLog{
+				ResourceID:   workspace.ID,
+				ResourceType: database.ResourceTypeWorkspace,
+				Action:       database.AuditActionWrite,
+			}) && auditor.Contains(t, database.AuditLog{
 				ResourceID:   workspace.LatestBuild.ID,
 				ResourceType: database.ResourceTypeWorkspaceBuild,
 				Action:       database.AuditActionStop,

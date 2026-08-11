@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -49,15 +50,14 @@ type Acquirer struct {
 	mu sync.Mutex
 	q  map[dKey]domain
 
-	// testing only
-	backupPollDuration time.Duration
+	clock quartz.Clock
 }
 
 type AcquirerOption func(*Acquirer)
 
-func TestingBackupPollDuration(dur time.Duration) AcquirerOption {
+func WithClock(clock quartz.Clock) AcquirerOption {
 	return func(a *Acquirer) {
-		a.backupPollDuration = dur
+		a.clock = clock
 	}
 }
 
@@ -70,12 +70,12 @@ func NewAcquirer(ctx context.Context, logger slog.Logger, store AcquirerStore, p
 	opts ...AcquirerOption,
 ) *Acquirer {
 	a := &Acquirer{
-		ctx:                ctx,
-		logger:             logger,
-		store:              store,
-		ps:                 ps,
-		q:                  make(map[dKey]domain),
-		backupPollDuration: backupPollDuration,
+		ctx:    ctx,
+		logger: logger,
+		store:  store,
+		ps:     ps,
+		q:      make(map[dKey]domain),
+		clock:  quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -173,7 +173,7 @@ func (a *Acquirer) want(organization uuid.UUID, pt []database.ProvisionerType, t
 			acquirees:      make(map[chan<- struct{}]*acquiree),
 		}
 		a.q[dk] = d
-		go d.poll(a.backupPollDuration)
+		go d.poll(backupPollDuration)
 		// this is a new request for this dKey, so is cleared.
 		cleared = true
 	}
@@ -483,7 +483,7 @@ func (d domain) contains(p provisionerjobs.JobPosting) bool {
 }
 
 func (d domain) poll(dur time.Duration) {
-	tkr := time.NewTicker(dur)
+	tkr := d.a.clock.NewTicker(dur, "acquirer", "backup_poll")
 	defer tkr.Stop()
 	for {
 		select {

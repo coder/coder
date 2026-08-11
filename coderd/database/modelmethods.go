@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"slices"
 	"sort"
@@ -459,12 +458,24 @@ func (g GetGroupsRow) RBACObject() rbac.Object {
 	return g.Group.RBACObject()
 }
 
+func (g GetOrganizationGroupsAISpendRow) RBACObject() rbac.Object {
+	return Group{ID: g.GroupID, OrganizationID: g.OrganizationID}.RBACObject()
+}
+
 func (gm GroupMember) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }
 
 func (gm GetGroupMembersByGroupIDPaginatedRow) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
+}
+
+func (r GetGroupMembersAISpendRow) RBACObject() rbac.Object {
+	return rbac.ResourceGroupMember.WithID(r.UserID).InOrg(r.OrganizationID).WithOwner(r.UserID.String())
+}
+
+func (r ExportOrganizationAISpendRow) RBACObject() rbac.Object {
+	return rbac.ResourceGroupMember.WithID(r.UserID).InOrg(r.OrganizationID).WithOwner(r.UserID.String())
 }
 
 // PrebuiltWorkspaceResource defines the interface for types that can be identified as prebuilt workspaces
@@ -869,12 +880,20 @@ func (r GetAuthorizationUserRolesRow) RoleNames() ([]rbac.RoleIdentifier, error)
 	return names, nil
 }
 
-func (k CryptoKey) ExpiresAt(keyDuration time.Duration) time.Time {
-	return k.StartsAt.Add(keyDuration).UTC()
+func (r GetActiveUsersAuthorizationRolesRow) RoleNames() ([]rbac.RoleIdentifier, error) {
+	names := make([]rbac.RoleIdentifier, 0, len(r.Roles))
+	for _, role := range r.Roles {
+		value, err := rbac.RoleNameFromString(role)
+		if err != nil {
+			return nil, xerrors.Errorf("convert role %q: %w", role, err)
+		}
+		names = append(names, value)
+	}
+	return names, nil
 }
 
-func (k CryptoKey) DecodeString() ([]byte, error) {
-	return hex.DecodeString(k.Secret.String)
+func (k CryptoKey) ExpiresAt(keyDuration time.Duration) time.Time {
+	return k.StartsAt.Add(keyDuration).UTC()
 }
 
 func (k CryptoKey) CanSign(now time.Time) bool {

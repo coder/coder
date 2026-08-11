@@ -7,9 +7,16 @@ import type {
 	WorkspaceRole,
 	WorkspaceUser,
 } from "#/api/typesGenerated";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { isGroup } from "#/modules/groups";
 import { AddWorkspaceUserOrGroup } from "#/modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
 import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
+import { docs } from "#/utils/docs";
 
 interface WorkspaceSharingPageViewProps {
 	workspace: Workspace;
@@ -51,30 +58,45 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 	hasRemovedMember,
 }) => {
 	return (
-		<WorkspaceSharingForm
-			organizationId={workspace.organization_id}
-			workspaceACL={workspaceACL}
-			canUpdatePermissions={canUpdatePermissions}
-			error={error}
-			updatingUserId={updatingUserId}
-			onUpdateUser={onUpdateUser}
-			onRemoveUser={onRemoveUser}
-			updatingGroupId={updatingGroupId}
-			onUpdateGroup={onUpdateGroup}
-			onRemoveGroup={onRemoveGroup}
-			showRestartWarning={hasRemovedMember}
-			addMemberForm={
-				<AddWorkspaceUserOrGroup
-					organizationID={workspace.organization_id}
-					workspaceACL={workspaceACL}
-					isLoading={isAddingUser || isAddingGroup}
-					onSubmit={(value, role, resetAutocomplete) =>
-						isGroup(value)
-							? onAddGroup(value, role, resetAutocomplete)
-							: onAddUser(value, role, resetAutocomplete)
-					}
-				/>
-			}
-		/>
+		<div className="flex flex-col gap-12">
+			<SettingsHeader
+				actions={
+					<SettingsHeaderDocsLink
+						href={docs("/user-guides/shared-workspaces")}
+					/>
+				}
+			>
+				<SettingsHeaderTitle>Sharing</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Share this workspace with other users and groups.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+
+			<WorkspaceSharingForm
+				organizationId={workspace.organization_id}
+				workspaceACL={workspaceACL}
+				canUpdatePermissions={canUpdatePermissions}
+				error={error}
+				updatingUserId={updatingUserId}
+				onUpdateUser={onUpdateUser}
+				onRemoveUser={onRemoveUser}
+				updatingGroupId={updatingGroupId}
+				onUpdateGroup={onUpdateGroup}
+				onRemoveGroup={onRemoveGroup}
+				showRestartWarning={hasRemovedMember}
+				addMemberForm={
+					<AddWorkspaceUserOrGroup
+						organizationID={workspace.organization_id}
+						workspaceACL={workspaceACL}
+						isLoading={isAddingUser || isAddingGroup}
+						onSubmit={(value, role, resetAutocomplete) =>
+							isGroup(value)
+								? onAddGroup(value, role, resetAutocomplete)
+								: onAddUser(value, role, resetAutocomplete)
+						}
+					/>
+				}
+			/>
+		</div>
 	);
 };

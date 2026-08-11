@@ -8,17 +8,23 @@ set -euo pipefail
 # tag for each minor release.
 #
 # ESR (Extended Support Release) versions are biannually released and receive extended
-# maintenance. Update the ESR_VERSIONS array below when new ESR versions are designated
-# or old ones reach end of life.
+# maintenance. The active ESR set is maintained in scripts/release_channels/esr_versions.txt,
+# which is also consumed by .github/workflows/backport.yaml. Update that file when new ESR
+# versions are designated or old ones reach end of life.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DOCS_FILE="docs/install/releases/index.md"
+ESR_VERSIONS_FILE="${SCRIPT_DIR}/release_channels/esr_versions.txt"
 
 CALENDAR_START_MARKER="<!-- RELEASE_CALENDAR_START -->"
 CALENDAR_END_MARKER="<!-- RELEASE_CALENDAR_END -->"
 
-# Known active ESR (Extended Support Release) minor versions.
-# Update this list when new ESR versions are designated or old ones reach end of life.
-ESR_VERSIONS=(29 34)
+# Known active ESR (Extended Support Release) minor versions. The shared source
+# of truth stores full major.minor versions; extract the minor component, since
+# the calendar logic below is scoped to the 2.x line. Blank lines and '#'
+# comments are ignored.
+mapfile -t ESR_VERSIONS < <(grep -vE '^\s*(#|$)' "$ESR_VERSIONS_FILE" | cut -d. -f2)
 
 # Check if a minor version is a known active ESR version.
 is_esr_version() {

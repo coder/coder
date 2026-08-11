@@ -195,7 +195,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		if !ok {
 			continue
 		}
-		tokenMap[tok.MCPServerConfigID] = api.refreshMCPUserToken(ctx, cfg, tok, apiKey.UserID)
+		tokenMap[tok.MCPServerConfigID] = api.refreshMCPUserToken(ctx, cfg, tok)
 	}
 
 	resp := make([]codersdk.MCPServerConfig, 0, len(configs))
@@ -208,8 +208,6 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		}
 		if config.AuthType == "oauth2" {
 			sdkConfig.AuthConnected = tokenMap[config.ID]
-		} else {
-			sdkConfig.AuthConnected = true
 		}
 		resp = append(resp, sdkConfig)
 	}
@@ -233,6 +231,16 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.CreateMCPServerConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
+	}
+
+	if trimmed := strings.TrimSpace(req.OAuth2RevocationURL); trimmed != "" {
+		if err := mcpclient.ValidateRevocationEndpoint(trimmed); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid OAuth2 revocation URL.",
+				Detail:  "oauth2_revocation_url must be an https URL (loopback hosts may use http).",
+			})
+			return
+		}
 	}
 
 	// Validate auth-type-dependent fields.
@@ -271,6 +279,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				OAuth2ClientSecretKeyID: sql.NullString{},
 				OAuth2AuthURL:           "",
 				OAuth2TokenURL:          "",
+				OAuth2RevocationURL:     "",
 				OAuth2Scopes:            "",
 				APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
 				APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
@@ -312,10 +321,12 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 			// Now build the callback URL with the actual ID.
 			callbackURL := fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), inserted.ID)
-			httpClient := api.HTTPClient
-			if httpClient == nil {
-				httpClient = &http.Client{Timeout: 30 * time.Second}
-			}
+			// Discovery targets are attacker-influenced (the MCP
+			// server URL and any endpoints or redirects it
+			// advertises), so all discovery traffic goes through an
+			// SSRF-guarded client that refuses private/internal
+			// destinations (CDM-02-002).
+			httpClient := newMCPDiscoveryHTTPClient(api.HTTPClient, api.MCPOAuth2DiscoveryAllowedIPRanges)
 			result, err := discoverAndRegisterMCPOAuth2(ctx, httpClient, strings.TrimSpace(req.URL), callbackURL)
 			if err != nil {
 				// Clean up: delete the partially created config.
@@ -345,6 +356,22 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2Scopes = result.scopes
 			}
 
+			// A discovered endpoint that fails the HTTPS policy is
+			// dropped instead of failing creation.
+			oauth2RevocationURL := strings.TrimSpace(req.OAuth2RevocationURL)
+			if oauth2RevocationURL == "" {
+				oauth2RevocationURL = result.revocationURL
+				if oauth2RevocationURL != "" {
+					if err := mcpclient.ValidateRevocationEndpoint(oauth2RevocationURL); err != nil {
+						api.Logger.Warn(ctx, "ignoring discovered MCP oauth2 revocation endpoint",
+							slog.F("url", req.URL),
+							slog.Error(err),
+						)
+						oauth2RevocationURL = ""
+					}
+				}
+			}
+
 			// Update the record with discovered OAuth2 credentials.
 			updated, err := api.Database.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
 				ID:                      inserted.ID,
@@ -360,6 +387,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				OAuth2ClientSecretKeyID: sql.NullString{},
 				OAuth2AuthURL:           result.authURL,
 				OAuth2TokenURL:          result.tokenURL,
+				OAuth2RevocationURL:     oauth2RevocationURL,
 				OAuth2Scopes:            oauth2Scopes,
 				APIKeyHeader:            inserted.APIKeyHeader,
 				APIKeyValue:             inserted.APIKeyValue,
@@ -430,6 +458,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		OAuth2ClientSecretKeyID: sql.NullString{},
 		OAuth2AuthURL:           strings.TrimSpace(req.OAuth2AuthURL),
 		OAuth2TokenURL:          strings.TrimSpace(req.OAuth2TokenURL),
+		OAuth2RevocationURL:     strings.TrimSpace(req.OAuth2RevocationURL),
 		OAuth2Scopes:            strings.TrimSpace(req.OAuth2Scopes),
 		APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
 		APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
@@ -533,12 +562,10 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 		for _, tok := range userTokens {
 			if tok.MCPServerConfigID == config.ID {
-				sdkConfig.AuthConnected = api.refreshMCPUserToken(ctx, config, tok, apiKey.UserID)
+				sdkConfig.AuthConnected = api.refreshMCPUserToken(ctx, config, tok)
 				break
 			}
 		}
-	} else {
-		sdkConfig.AuthConnected = true
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
@@ -565,6 +592,29 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.UpdateMCPServerConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
+	}
+
+	// Validated here rather than via a struct tag because an empty
+	// string is a valid value that clears the stored URL.
+	if req.OAuth2RevocationURL != nil {
+		if trimmed := strings.TrimSpace(*req.OAuth2RevocationURL); trimmed != "" {
+			if err := httpapi.Validate.VarCtx(ctx, trimmed, "url"); err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid OAuth2 revocation URL.",
+					Detail:  "oauth2_revocation_url must be a valid URL or an empty string.",
+				})
+				return
+			}
+			// Same policy as RevokeOAuth2Token, so stored URLs are
+			// not refused later at disconnect time.
+			if err := mcpclient.ValidateRevocationEndpoint(trimmed); err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid OAuth2 revocation URL.",
+					Detail:  "oauth2_revocation_url must be an https URL (loopback hosts may use http).",
+				})
+				return
+			}
+		}
 	}
 
 	// Pre-validate custom headers before entering the transaction.
@@ -646,6 +696,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			oauth2TokenURL = strings.TrimSpace(*req.OAuth2TokenURL)
 		}
 
+		oauth2RevocationURL := existing.OAuth2RevocationURL
+		if req.OAuth2RevocationURL != nil {
+			oauth2RevocationURL = strings.TrimSpace(*req.OAuth2RevocationURL)
+		}
+
 		oauth2Scopes := existing.OAuth2Scopes
 		if req.OAuth2Scopes != nil {
 			oauth2Scopes = strings.TrimSpace(*req.OAuth2Scopes)
@@ -717,6 +772,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2ClientSecretKeyID = sql.NullString{}
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
+				oauth2RevocationURL = ""
 				oauth2Scopes = ""
 				apiKeyHeader = ""
 				apiKeyValue = ""
@@ -735,6 +791,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2ClientSecretKeyID = sql.NullString{}
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
+				oauth2RevocationURL = ""
 				oauth2Scopes = ""
 				customHeaders = "{}"
 				customHeadersKeyID = sql.NullString{}
@@ -744,6 +801,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2ClientSecretKeyID = sql.NullString{}
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
+				oauth2RevocationURL = ""
 				oauth2Scopes = ""
 				apiKeyHeader = ""
 				apiKeyValue = ""
@@ -757,6 +815,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2ClientSecretKeyID = sql.NullString{}
 				oauth2AuthURL = ""
 				oauth2TokenURL = ""
+				oauth2RevocationURL = ""
 				oauth2Scopes = ""
 				apiKeyHeader = ""
 				apiKeyValue = ""
@@ -779,6 +838,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			OAuth2ClientSecretKeyID: oauth2ClientSecretKeyID,
 			OAuth2AuthURL:           oauth2AuthURL,
 			OAuth2TokenURL:          oauth2TokenURL,
+			OAuth2RevocationURL:     oauth2RevocationURL,
 			OAuth2Scopes:            oauth2Scopes,
 			APIKeyHeader:            apiKeyHeader,
 			APIKeyValue:             apiKeyValue,
@@ -1142,6 +1202,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 // Removes the user's stored OAuth2 token for an MCP server.
+// Provider revocation is best-effort and cannot block local deletion.
 func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -1152,11 +1213,43 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	}
 
 	//nolint:gocritic // Users manage their own tokens.
-	err := api.Database.DeleteMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.DeleteMCPServerUserTokenParams{
-		MCPServerConfigID: mcpServerID,
-		UserID:            apiKey.UserID,
-	})
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	var (
+		config database.MCPServerConfig
+		token  database.MCPServerUserToken
+	)
+	// Serializable isolation keeps the revoked token aligned with the row deleted locally.
+	err := api.Database.InTx(func(tx database.Store) error {
+		dbToken, err := tx.GetMCPServerUserToken(systemCtx, database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: mcpServerID,
+			UserID:            apiKey.UserID,
+		})
+		if err != nil {
+			return err
+		}
+		// Load the config only after the token is found so callers
+		// without a token cannot probe which config IDs exist.
+		dbConfig, err := tx.GetMCPServerConfigByID(systemCtx, mcpServerID)
+		if err != nil {
+			return err
+		}
+		if err := tx.DeleteMCPServerUserToken(systemCtx, database.DeleteMCPServerUserTokenParams{
+			MCPServerConfigID: mcpServerID,
+			UserID:            apiKey.UserID,
+		}); err != nil {
+			return err
+		}
+		config = dbConfig
+		token = dbToken
+		return nil
+	}, &database.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Nonexistent config IDs take the same path, so they
+			// cannot be probed either.
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerOAuth2DisconnectResponse{})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to disconnect OAuth2 token.",
 			Detail:  err.Error(),
@@ -1164,27 +1257,46 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	rw.WriteHeader(http.StatusNoContent)
+	resp := codersdk.MCPServerOAuth2DisconnectResponse{}
+	if config.AuthType == "oauth2" {
+		// The local token is already deleted, so a client abort must
+		// not cancel the provider revocation; it has its own timeout.
+		revoked, err := mcpclient.RevokeOAuth2Token(context.WithoutCancel(ctx), api.HTTPClient, config, token)
+		resp.TokenRevoked = revoked
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to revoke MCP oauth2 token at provider",
+				slog.F("server_slug", config.Slug),
+				slog.Error(err),
+			)
+			// Provider error bodies may echo the client secret, so
+			// callers only get a generic message.
+			resp.TokenRevocationError = "The OAuth provider rejected the revocation request."
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// parseMCPServerConfigID extracts the MCP server config UUID from the
-// "mcpServer" path parameter.
 // refreshMCPUserToken attempts to refresh an expired OAuth2 token
 // for the given MCP server config. Returns true when the token is
 // valid (either still fresh or successfully refreshed), false when
-// the token is expired and cannot be refreshed.
+// the token is expired and cannot be refreshed. Permanent refresh
+// failures (e.g. revoked grants) are persisted so subsequent calls
+// skip the provider without a network call.
 func (api *API) refreshMCPUserToken(
 	ctx context.Context,
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
-	userID uuid.UUID,
 ) bool {
 	if cfg.AuthType != "oauth2" {
 		return true
 	}
+	if tok.OauthRefreshFailureReason != "" {
+		return false
+	}
 	if tok.RefreshToken == "" {
-		// No refresh token — consider connected only if not
-		// expired (or no expiry set).
+		// No refresh token; connected only if not expired (or no
+		// expiry set).
 		return !tok.Expiry.Valid || tok.Expiry.Time.After(time.Now())
 	}
 
@@ -1194,7 +1306,11 @@ func (api *API) refreshMCPUserToken(
 			slog.F("server_slug", cfg.Slug),
 			slog.Error(err),
 		)
-		// Refresh failed — token is dead.
+		if mcpclient.IsPermanentRefreshError(err) {
+			return api.markMCPTokenRefreshFailure(ctx, cfg, tok, err)
+		}
+		// Transient failure; the token is unusable right now but a
+		// later refresh may succeed.
 		return false
 	}
 
@@ -1206,11 +1322,11 @@ func (api *API) refreshMCPUserToken(
 
 		//nolint:gocritic // Need system-level write access to
 		// persist the refreshed OAuth2 token.
-		_, err = api.Database.UpsertMCPServerUserToken(
+		_, err = api.Database.UpdateMCPServerUserTokenFromRefresh(
 			dbauthz.AsSystemRestricted(ctx),
-			database.UpsertMCPServerUserTokenParams{
-				MCPServerConfigID: tok.MCPServerConfigID,
-				UserID:            userID,
+			database.UpdateMCPServerUserTokenFromRefreshParams{
+				ID:                tok.ID,
+				UpdatedAt:         tok.UpdatedAt,
 				AccessToken:       result.AccessToken,
 				AccessTokenKeyID:  sql.NullString{},
 				RefreshToken:      result.RefreshToken,
@@ -1220,6 +1336,13 @@ func (api *API) refreshMCPUserToken(
 			},
 		)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				connected, readErr := api.currentMCPUserTokenConnected(ctx, tok)
+				if readErr == nil {
+					return connected
+				}
+				err = readErr
+			}
 			api.Logger.Warn(ctx, "failed to persist refreshed MCP oauth2 token",
 				slog.F("server_slug", cfg.Slug),
 				slog.Error(err),
@@ -1230,6 +1353,70 @@ func (api *API) refreshMCPUserToken(
 	return true
 }
 
+func (api *API) currentMCPUserTokenConnected(
+	ctx context.Context,
+	tok database.MCPServerUserToken,
+) (bool, error) {
+	//nolint:gocritic // Reading the current token requires system access.
+	current, err := api.Database.GetMCPServerUserToken(
+		dbauthz.AsSystemRestricted(ctx),
+		database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: tok.MCPServerConfigID,
+			UserID:            tok.UserID,
+		},
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return current.OauthRefreshFailureReason == "" &&
+		current.AccessToken != "" &&
+		(!current.Expiry.Valid || current.Expiry.Time.After(time.Now())), nil
+}
+
+// markMCPTokenRefreshFailure persists a permanent refresh failure so
+// later status checks skip the provider. The updated_at optimistic
+// lock loses to concurrent refreshes: in that case the winner's row
+// determines whether the token is still usable.
+func (api *API) markMCPTokenRefreshFailure(
+	ctx context.Context,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+	refreshErr error,
+) bool {
+	//nolint:gocritic // Need system-level write access to persist
+	// the refresh failure.
+	_, err := api.Database.MarkMCPServerUserTokenRefreshFailure(
+		dbauthz.AsSystemRestricted(ctx),
+		database.MarkMCPServerUserTokenRefreshFailureParams{
+			ID:                        tok.ID,
+			UpdatedAt:                 tok.UpdatedAt,
+			OauthRefreshFailureReason: mcpclient.RefreshFailureReason(refreshErr),
+		},
+	)
+	if err == nil {
+		return false
+	}
+
+	if xerrors.Is(err, sql.ErrNoRows) {
+		connected, readErr := api.currentMCPUserTokenConnected(ctx, tok)
+		if readErr == nil {
+			return connected
+		}
+		err = readErr
+	}
+
+	api.Logger.Warn(ctx, "failed to persist MCP oauth2 refresh failure",
+		slog.F("server_slug", cfg.Slug),
+		slog.Error(err),
+	)
+	return false
+}
+
+// parseMCPServerConfigID extracts the MCP server config UUID from the
+// "mcpServer" path parameter.
 func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	mcpServerID, err := uuid.Parse(chi.URLParam(r, "mcpServer"))
 	if err != nil {
@@ -1256,12 +1443,13 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		Transport: config.Transport,
 		URL:       config.Url,
 
-		AuthType:        config.AuthType,
-		OAuth2ClientID:  config.OAuth2ClientID,
-		HasOAuth2Secret: config.OAuth2ClientSecret != "",
-		OAuth2AuthURL:   config.OAuth2AuthURL,
-		OAuth2TokenURL:  config.OAuth2TokenURL,
-		OAuth2Scopes:    config.OAuth2Scopes,
+		AuthType:            config.AuthType,
+		OAuth2ClientID:      config.OAuth2ClientID,
+		HasOAuth2Secret:     config.OAuth2ClientSecret != "",
+		OAuth2AuthURL:       config.OAuth2AuthURL,
+		OAuth2TokenURL:      config.OAuth2TokenURL,
+		OAuth2RevocationURL: config.OAuth2RevocationURL,
+		OAuth2Scopes:        config.OAuth2Scopes,
 
 		APIKeyHeader: config.APIKeyHeader,
 		HasAPIKey:    config.APIKeyValue != "",
@@ -1279,6 +1467,10 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		ForwardCoderHeaders: config.ForwardCoderHeaders,
 		CreatedAt:           config.CreatedAt,
 		UpdatedAt:           config.UpdatedAt,
+
+		// Default per-user auth state. Handlers that know the
+		// calling user's token state (list/get) overwrite this.
+		AuthConnected: config.AuthType != "oauth2",
 	}
 }
 
@@ -1292,6 +1484,7 @@ func convertMCPServerConfigRedacted(config database.MCPServerConfig) codersdk.MC
 	c.OAuth2ClientID = ""
 	c.OAuth2AuthURL = ""
 	c.OAuth2TokenURL = ""
+	c.OAuth2RevocationURL = ""
 	c.OAuth2Scopes = ""
 	c.APIKeyHeader = ""
 	return c
@@ -1338,11 +1531,12 @@ func coalesceStringSlice(ss []string) []string {
 // mcpOAuth2Discovery holds the result of MCP OAuth2 auto-discovery
 // and Dynamic Client Registration.
 type mcpOAuth2Discovery struct {
-	clientID     string
-	clientSecret string
-	authURL      string
-	tokenURL     string
-	scopes       string // space-separated
+	clientID      string
+	clientSecret  string
+	authURL       string
+	tokenURL      string
+	revocationURL string
+	scopes        string // space-separated
 }
 
 // protectedResourceMetadata represents the response from a
@@ -1360,6 +1554,7 @@ type authServerMetadata struct {
 	AuthorizationEndpoint string   `json:"authorization_endpoint"`
 	TokenEndpoint         string   `json:"token_endpoint"`
 	RegistrationEndpoint  string   `json:"registration_endpoint,omitempty"`
+	RevocationEndpoint    string   `json:"revocation_endpoint,omitempty"`
 	ScopesSupported       []string `json:"scopes_supported,omitempty"`
 }
 
@@ -1680,10 +1875,11 @@ func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, 
 	scopes := strings.Join(asMeta.ScopesSupported, " ")
 
 	return &mcpOAuth2Discovery{
-		clientID:     clientID,
-		clientSecret: clientSecret,
-		authURL:      asMeta.AuthorizationEndpoint,
-		tokenURL:     asMeta.TokenEndpoint,
-		scopes:       scopes,
+		clientID:      clientID,
+		clientSecret:  clientSecret,
+		authURL:       asMeta.AuthorizationEndpoint,
+		tokenURL:      asMeta.TokenEndpoint,
+		revocationURL: asMeta.RevocationEndpoint,
+		scopes:        scopes,
 	}, nil
 }
