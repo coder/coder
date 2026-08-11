@@ -717,7 +717,7 @@ export const QuotedTypedFilterDoesNotCommitEarly: Story = {
 
 		await userEvent.type(searchInput, 'merged" ');
 		await expect(
-			await body.findByText("pr_status:open merged"),
+			await body.findByText("pr_status:open,merged"),
 		).toBeInTheDocument();
 		await expect(searchInput).toHaveValue("");
 		await waitFor(() => {

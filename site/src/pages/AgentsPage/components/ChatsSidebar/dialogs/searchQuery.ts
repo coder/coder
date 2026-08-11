@@ -120,11 +120,14 @@ export const buildChatSearchQuery = (
 	const hasSearchText = text
 		.split(/\s+/)
 		.some((token) => /[\p{L}\p{N}]/u.test(token));
-	if (text !== "") {
+	if (freeText.trim() !== "") {
 		// The wrapper quotes make the value one token for the backend parser and
 		// are stripped before FTS, so OR and -negation stay live but typed phrase
-		// quotes are lost.
-		parts.push(`search:"${text}"`);
+		// quotes are lost. Input that sanitizes to nothing (e.g. a lone `"`)
+		// still yields no results, not recent chats; the backend rejects an empty
+		// search value, so a single space stands in for it (it produces an empty
+		// tsquery, which matches nothing).
+		parts.push(`search:"${text === "" ? " " : text}"`);
 	}
 
 	return {
@@ -200,24 +203,44 @@ export const extractTypedFilters = (
 	const remainingTokens: string[] = [];
 	let consumed = false;
 
-	for (const token of tokens) {
+	let tokenIndex = 0;
+	while (tokenIndex < tokens.length) {
+		const token = tokens[tokenIndex];
 		if (!token.quotesBalanced) {
 			remainingTokens.push(token.value);
+			tokenIndex += 1;
 			continue;
 		}
 
 		const colonIndex = token.value.indexOf(":");
 		if (colonIndex <= 0 || colonIndex === token.value.length - 1) {
 			remainingTokens.push(token.value);
+			tokenIndex += 1;
 			continue;
 		}
 
 		const key = token.value.slice(0, colonIndex).toLowerCase();
-		const value = stripSurroundingQuotes(
+		let value = stripSurroundingQuotes(
 			token.value.slice(colonIndex + 1),
 		).trim();
-		if (!knownKeys.has(key) || !isValidChatSearchFilterValue(key, value)) {
-			remainingTokens.push(token.value);
+		const candidateTokens = [token.value];
+		let nextTokenIndex = tokenIndex + 1;
+		if (key === "pr_status" && value.endsWith(",")) {
+			while (value.endsWith(",") && nextTokenIndex < tokens.length) {
+				const nextToken = tokens[nextTokenIndex];
+				value = `${value} ${nextToken.value}`;
+				candidateTokens.push(nextToken.value);
+				nextTokenIndex += 1;
+			}
+		}
+
+		if (
+			!knownKeys.has(key) ||
+			value.endsWith(",") ||
+			!isValidChatSearchFilterValue(key, value)
+		) {
+			remainingTokens.push(...candidateTokens);
+			tokenIndex = nextTokenIndex;
 			continue;
 		}
 
@@ -226,8 +249,12 @@ export const extractTypedFilters = (
 		if (activeValues.get(key) === normalizedValue) {
 			filtersByKey.delete(key);
 		} else {
-			filtersByKey.set(key, { key, value });
+			filtersByKey.set(key, {
+				key,
+				value: key === "pr_status" ? normalizedValue : value,
+			});
 		}
+		tokenIndex = nextTokenIndex;
 	}
 
 	return {

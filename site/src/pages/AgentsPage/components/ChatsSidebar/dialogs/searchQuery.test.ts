@@ -96,7 +96,7 @@ describe("buildChatSearchQuery", () => {
 			});
 		}
 		expect(buildChatSearchQuery([], '"')).toEqual({
-			query: undefined,
+			query: 'search:" "',
 			hasSearchText: false,
 		});
 		// OR/AND/NOT are lexemes under the simple config (operators only between
@@ -213,9 +213,48 @@ describe("extractTypedFilters", () => {
 		expect(
 			extractTypedFilters('pr_status:"open merged"', knownKeys, []),
 		).toEqual({
-			filters: [{ key: "pr_status", value: "open merged" }],
+			filters: [{ key: "pr_status", value: "open,merged" }],
 			remainingText: "",
 			consumed: true,
+		});
+	});
+
+	it("merges whitespace-separated PR status continuations", () => {
+		expect(
+			extractTypedFilters("pr_status:open, merged", knownKeys, []),
+		).toEqual({
+			filters: [{ key: "pr_status", value: "open,merged" }],
+			remainingText: "",
+			consumed: true,
+		});
+		expect(extractTypedFilters("pr_status:open,merged", knownKeys, [])).toEqual(
+			{
+				filters: [{ key: "pr_status", value: "open,merged" }],
+				remainingText: "",
+				consumed: true,
+			},
+		);
+		expect(
+			extractTypedFilters("pr_status:open, merged, closed", knownKeys, []),
+		).toEqual({
+			filters: [{ key: "pr_status", value: "open,merged,closed" }],
+			remainingText: "",
+			consumed: true,
+		});
+	});
+
+	it("leaves invalid or incomplete PR status continuations as text", () => {
+		expect(extractTypedFilters("pr_status:open, bogus", knownKeys, [])).toEqual(
+			{
+				filters: [],
+				remainingText: "pr_status:open, bogus",
+				consumed: false,
+			},
+		);
+		expect(extractTypedFilters("pr_status:open,", knownKeys, [])).toEqual({
+			filters: [],
+			remainingText: "pr_status:open,",
+			consumed: false,
 		});
 	});
 
