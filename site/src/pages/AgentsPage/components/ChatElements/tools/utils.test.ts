@@ -678,9 +678,9 @@ describe("parseEditFilesArgs", () => {
 		expect(diff).not.toBeNull();
 	});
 
-	// search uses required() (rejects "") while replace uses
-	// defined() (allows ""). This asymmetry is intentional:
-	// empty search is meaningless, empty replace is a deletion.
+	// normalizeEdit drops edits with an empty search but keeps an
+	// empty replace: an empty search is meaningless, an empty
+	// replace is a deletion.
 	it("rejects edits with empty-string search", () => {
 		const args = {
 			files: [
@@ -805,7 +805,7 @@ describe("buildEditDiff", () => {
 			{ search: "const y = 3;", replace: "const y = 4;" },
 		]);
 		expect(diff).not.toBeNull();
-		// Every edit appears in the synthetic diff, not just the first.
+		// Guards the regression that dropped edits after the first.
 		const added = diff!.additionLines.join("");
 		expect(added).toContain("const x = 2;");
 		expect(added).toContain("const y = 4;");
@@ -856,6 +856,31 @@ describe("buildEditDiff", () => {
 			},
 		]);
 		expect(diff).not.toBeNull();
+	});
+
+	it("does not manufacture blank lines at edit seams", () => {
+		// search ends in a newline, replace does not; a deletion edit
+		// sits beside a normal one. Neither may inject a blank line.
+		const diff = buildEditDiff("file.ts", [
+			{ search: "old\n", replace: "new" },
+			{ search: "a", replace: "" },
+			{ search: "b", replace: "c" },
+		]);
+		expect(diff).not.toBeNull();
+		expect(diff!.deletionLines).toEqual(["old\n", "a", "b"]);
+		expect(diff!.additionLines).toEqual(["new", "c"]);
+	});
+
+	it("never correlates lines across edits", () => {
+		// One edit deletes a block, another inserts the same block;
+		// each edit must render as its own change, not as shared context.
+		const diff = buildEditDiff("file.ts", [
+			{ search: "foo\nbar\nbaz", replace: "" },
+			{ search: "ctx", replace: "ctx\nfoo\nbar\nbaz" },
+		]);
+		expect(diff).not.toBeNull();
+		expect(diff!.deletionLines).toEqual(["foo\n", "bar\n", "baz", "ctx"]);
+		expect(diff!.additionLines).toEqual(["ctx\n", "foo\n", "bar\n", "baz"]);
 	});
 
 	it("handles replace with trailing newline (trailing empty popped)", () => {

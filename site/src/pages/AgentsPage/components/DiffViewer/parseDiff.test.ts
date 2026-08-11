@@ -147,7 +147,44 @@ describe("parseDiffString", () => {
 		expect(fromOld[0].cacheKey).not.toBe(fromOther[0].cacheKey);
 	});
 
-	it("keys diffs by lang when set", () => {
+	it("keeps an unchanged file's key stable when a sibling changes", () => {
+		const changed = uniqueFilesDiff.replace("const b = 2", "const b = 3");
+
+		const before = parseDiffString(uniqueFilesDiff);
+		const after = parseDiffString(changed);
+
+		expect(before[0].cacheKey).toBe(after[0].cacheKey);
+		expect(before[1].cacheKey).not.toBe(after[1].cacheKey);
+	});
+
+	it("gives the same path different keys for different bodies", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			// A later diff body for the same path must not reuse this AST.
+			const first = parseDiffString(duplicateFileDiff);
+			// parseDiffString collapses the duplicate path, so the
+			// CodeView duplicate-id crash class stays closed.
+			expect(first).toHaveLength(1);
+			// Dedupe keeps the first section; parse the second body alone to
+			// compare keys for one path with two bodies.
+			const secondBody = duplicateFileDiff
+				.split("diff --git")
+				.slice(2)
+				.map((s) => `diff --git${s}`)
+				.join("");
+			const second = parseDiffString(secondBody);
+
+			expect(first[0].name).toBe(second[0].name);
+			expect(first[0].cacheKey).not.toBe(second[0].cacheKey);
+			expect(warn).toHaveBeenCalledTimes(1);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+});
+
+describe("stampCacheKey", () => {
+	it("folds lang into the key", () => {
 		const body = [
 			"--- a.ts",
 			"+++ a.ts",
@@ -161,31 +198,5 @@ describe("parseDiffString", () => {
 		stampCacheKey(langSet[0]);
 
 		expect(plain[0].cacheKey).not.toBe(langSet[0].cacheKey);
-	});
-
-	it("keeps an unchanged file's key stable when a sibling changes", () => {
-		const changed = uniqueFilesDiff.replace("const b = 2", "const b = 3");
-
-		const before = parseDiffString(uniqueFilesDiff);
-		const after = parseDiffString(changed);
-
-		expect(before[0].cacheKey).toBe(after[0].cacheKey);
-		expect(before[1].cacheKey).not.toBe(after[1].cacheKey);
-	});
-
-	it("gives the same path different keys for different bodies", () => {
-		// A later diff body for the same path must not reuse this AST.
-		const first = parseDiffString(duplicateFileDiff);
-		// Dedupe keeps the first section; parse the second body alone to
-		// compare keys for one path with two bodies.
-		const secondBody = duplicateFileDiff
-			.split("diff --git")
-			.slice(2)
-			.map((s) => `diff --git${s}`)
-			.join("");
-		const second = parseDiffString(secondBody);
-
-		expect(first[0].name).toBe(second[0].name);
-		expect(first[0].cacheKey).not.toBe(second[0].cacheKey);
 	});
 });

@@ -535,9 +535,10 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 
 /**
  * Builds a synthetic unified diff from edit pairs (normalized to
- * search/replace) for a single file. The pairs are joined into one
- * old/new text pair so the parsed FileDiffMetadata carries every edit
- * in one consistent hunk set.
+ * search/replace) for a single file. Each edit is diffed against only
+ * its own snippet via `Diff.structuredPatch`, so lines can never
+ * correlate across edits; the hunks are offset by the prior edits'
+ * line counts and emitted as one patch.
  */
 export const buildEditDiff = (
 	path: string,
@@ -551,20 +552,52 @@ export const buildEditDiff = (
 	const diffPath = path.startsWith("/") ? path.slice(1) : path;
 
 	if (!kept.length) {
-		// All edits were skipped (empty search). An empty patch still
-		// parses to a file entry with zero hunks.
+		// An empty patch still parses to a file entry with zero hunks.
 		return parseSingleFileDiff(Diff.createPatch(diffPath, "", "", "", ""));
 	}
 
-	const patch = Diff.createPatch(
-		diffPath,
-		kept.map((edit) => edit.search).join("\n"),
-		kept.map((edit) => edit.replace).join("\n"),
-		"",
-		"",
-	);
-	return parseSingleFileDiff(patch);
+	let oldOffset = 0;
+	let newOffset = 0;
+	const hunks: Array<Diff.StructuredPatchHunk> = [];
+	for (const edit of kept) {
+		const structured = Diff.structuredPatch(
+			diffPath,
+			diffPath,
+			edit.search,
+			edit.replace,
+			"",
+			"",
+		);
+		for (const hunk of structured.hunks) {
+			hunks.push({
+				...hunk,
+				oldStart: hunk.oldStart + oldOffset,
+				newStart: hunk.newStart + newOffset,
+			});
+		}
+		oldOffset += snippetLineCount(edit.search);
+		newOffset += snippetLineCount(edit.replace);
+	}
+
+	const lines = [`--- ${diffPath}`, `+++ ${diffPath}`];
+	for (const hunk of hunks) {
+		const oldLines = hunk.lines.filter((l) => l[0] !== "+").length;
+		const newLines = hunk.lines.filter((l) => l[0] !== "-").length;
+		lines.push(
+			`@@ -${hunk.oldStart},${oldLines} +${hunk.newStart},${newLines} @@`,
+		);
+		lines.push(...hunk.lines);
+	}
+	return parseSingleFileDiff(`${lines.join("\n")}\n`);
 };
+
+// Lines a snippet contributes to the synthetic file: trailing newlines
+// terminate the last line rather than starting another, and an empty
+// snippet contributes none.
+const snippetLineCount = (snippet: string): number =>
+	snippet === ""
+		? 0
+		: snippet.split("\n").length - (snippet.endsWith("\n") ? 1 : 0);
 
 /**
  * Per-file result from the agent's FileEditResponse. `path` matches
