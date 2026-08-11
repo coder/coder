@@ -242,26 +242,21 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	const showPrTitleRow = effectiveView.type === "remote" && prTab && prTitle;
 
-	const prTitleRef = useRef<HTMLSpanElement>(null);
 	const [isPrTitleTruncated, setIsPrTitleTruncated] = useState(false);
-	// Keyed on `showPrTitleRow` (not `prTitle`) so the observer
-	// reattaches when the title span remounts after switching away
-	// from the PR view and back. Its truthy value is the title, so
-	// title changes still re-run the effect.
-	useEffect(() => {
-		const el = prTitleRef.current;
-		if (!el || !showPrTitleRow) {
-			setIsPrTitleTruncated(false);
+	// Ref callback so the observer attaches whenever the title span
+	// mounts: first render, switching back to the PR view, or a title
+	// change (via `key` on the span). ResizeObserver fires once on
+	// observe, which doubles as the initial truncation check.
+	const observePrTitle = (el: HTMLSpanElement | null) => {
+		if (!el) {
 			return;
 		}
-		const check = () => {
+		const observer = new ResizeObserver(() => {
 			setIsPrTitleTruncated(el.scrollWidth > el.clientWidth);
-		};
-		check();
-		const observer = new ResizeObserver(check);
+		});
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [showPrTitleRow]);
+	};
 
 	const remoteHeadBranch = remoteDiffStats?.head_branch;
 	const remoteItem: ViewItem | null = showRemoteTab
@@ -332,7 +327,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 			{/* Toolbar */}
 			<div className="flex shrink-0 items-center gap-2 px-3 pt-1.5 pb-1">
 				<div className="min-w-0 flex-1">
-					<ViewSwitcher
+					<GitViewSwitcher
 						items={items}
 						activeItem={activeItem}
 						hasRemoteItem={remoteItem !== null}
@@ -405,7 +400,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 					<Tooltip open={isPrTitleTruncated ? undefined : false}>
 						<TooltipTrigger asChild>
 							<span
-								ref={prTitleRef}
+								key={prTitle}
+								ref={observePrTitle}
 								className="min-w-0 truncate text-sm font-medium text-content-primary"
 								data-testid="git-panel-pr-title"
 							>
@@ -456,10 +452,10 @@ export const GitPanel: FC<GitPanelProps> = ({
 };
 
 // ---------------------------------------------------------------
-// View switcher: dropdown for the active PR/Branch/Working view.
+// Git view switcher: dropdown for the active PR/Branch/Working view.
 // ---------------------------------------------------------------
 
-interface ViewSwitcherProps {
+interface GitViewSwitcherProps {
 	items: ReadonlyArray<ViewItem>;
 	activeItem?: ViewItem;
 	/**
@@ -470,7 +466,7 @@ interface ViewSwitcherProps {
 	onSelect: (item: ViewItem) => void;
 }
 
-const ViewSwitcher: FC<ViewSwitcherProps> = ({
+const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	items,
 	activeItem,
 	hasRemoteItem,
@@ -512,14 +508,12 @@ const ViewSwitcher: FC<ViewSwitcherProps> = ({
 		</>
 	);
 
-	const triggerBase =
-		"inline-flex h-6 min-w-0 max-w-full items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs";
-	const triggerInteractive =
-		"cursor-pointer transition-colors hover:bg-surface-secondary";
-
 	if (isSingleItem) {
 		return (
-			<div className={triggerBase} data-testid="git-panel-view-switcher">
+			<div
+				className="inline-flex h-6 min-w-0 max-w-full items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs"
+				data-testid="git-panel-view-switcher"
+			>
 				{triggerContent}
 			</div>
 		);
@@ -530,7 +524,7 @@ const ViewSwitcher: FC<ViewSwitcherProps> = ({
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					className={cn(triggerBase, triggerInteractive)}
+					className="inline-flex h-6 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs transition-colors hover:bg-surface-secondary"
 					data-testid="git-panel-view-switcher"
 					aria-label="Switch git view"
 				>
