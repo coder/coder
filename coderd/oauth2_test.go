@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/coderd/userpassword"
@@ -149,6 +150,29 @@ func TestOAuth2ProviderAppSecrets(t *testing.T) {
 		//nolint:gocritic // OAauth2 app management requires owner permission.
 		_, err = client.OAuth2ProviderAppSecrets(ctx, apps.Default.ID)
 		require.Error(t, err)
+	})
+
+	t.Run("RejectsPublicClient", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		oauth2providertest.EnableDCR(t, client)
+		app := oauth2providertest.RegisterPublicClient(ctx, t, client, "app-secrets-public", "http://localhost:8080/callback")
+		appID, err := uuid.Parse(app.ClientID)
+		require.NoError(t, err)
+
+		// A public client authenticates with PKCE alone, so minting a secret
+		// would hand an operator a credential the token endpoint never
+		// checks, and one whose deletion looks like a kill switch but
+		// revokes nothing.
+		//nolint:gocritic // OAauth2 app management requires owner permission.
+		_, err = client.PostOAuth2ProviderAppSecret(ctx, appID)
+		require.Error(t, err)
+
+		//nolint:gocritic // OAauth2 app management requires owner permission.
+		secrets, err := client.OAuth2ProviderAppSecrets(ctx, appID)
+		require.NoError(t, err)
+		require.Empty(t, secrets)
 	})
 }
 
@@ -616,6 +640,101 @@ func TestOAuth2ProviderTokenExchangeCodeBelongsToDifferentApp(t *testing.T) {
 	require.ErrorContains(t, err, "The authorization code is invalid or expired")
 }
 
+// TestOAuth2ProviderTokenExchangePublicClientCodeBelongsToDifferentApp is the
+// public-client counterpart to the test above. A public client presents no
+// secret, so the secret-ownership check never runs and the code-ownership
+// check is the only thing binding the exchange to the app identified by
+// client_id. Two public clients sharing a redirect URI is the common case for
+// native apps, which makes this the scenario the check has to hold in.
+func TestOAuth2ProviderTokenExchangePublicClientCodeBelongsToDifferentApp(t *testing.T) {
+	t.Parallel()
+
+	ownerClient := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	oauth2providertest.EnableDCR(t, ownerClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Both apps are public, so neither has a secret and the code-ownership
+	// check is the only thing binding the exchange to an app.
+	const sharedCallback = "http://localhost:8080/callback"
+	appA := oauth2providertest.RegisterPublicClient(ctx, t, ownerClient, "public-code-owner", sharedCallback)
+	appB := oauth2providertest.RegisterPublicClient(ctx, t, ownerClient, "public-code-thief", sharedCallback)
+
+	userClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	authURL := ownerClient.URL.JoinPath("/oauth2/authorize").String()
+	tokenURL := ownerClient.URL.JoinPath("/oauth2/tokens").String()
+
+	cfgA := &oauth2.Config{
+		ClientID: appA.ClientID,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   authURL,
+			TokenURL:  tokenURL,
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+		RedirectURL: sharedCallback,
+		Scopes:      []string{},
+	}
+	code, verifier, err := authorizationFlow(ctx, userClient, cfgA)
+	require.NoError(t, err)
+
+	// Redeem appA's code under appB's client_id, with no secret and a valid
+	// PKCE verifier. Everything except the code's own app_id lines up.
+	cfgB := &oauth2.Config{
+		ClientID: appB.ClientID,
+		Endpoint: oauth2.Endpoint{
+			TokenURL:  tokenURL,
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+		RedirectURL: sharedCallback,
+		Scopes:      []string{},
+	}
+	_, err = cfgB.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "The authorization code is invalid or expired")
+
+	// PKCE is the only client authentication a public client has, so exercise
+	// its failure branches here rather than only on confidential apps. The
+	// verification currently sits outside the if !isPublic block, so a later
+	// change that moved it inside would leave every confidential test passing
+	// while public clients lost authentication entirely.
+	//
+	// An empty or under-length verifier fails the RFC 7636 §4.1 format check
+	// in extractTokenRequest before the PKCE hash comparison ever runs, so it
+	// surfaces as invalid_request rather than the hash-mismatch invalid_grant
+	// below. This lets a client that sent a malformed verifier tell that
+	// apart from one that sent a wrong-but-well-formed verifier. A malformed
+	// verifier never reaches authorizationCodeGrant, so it does not consume
+	// the code.
+	_, err = cfgA.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", ""))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "code_verifier")
+
+	// RFC 7636 §4.1 sets a 43-character floor. A one-character verifier
+	// hashes to a well-formed challenge, so only a length check refuses it;
+	// it fails the same format check as the empty verifier above, and
+	// likewise leaves the code unconsumed.
+	_, err = cfgA.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", "a"))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "code_verifier")
+
+	// A well-formed verifier that simply doesn't hash to the stored challenge
+	// passes the format check and reaches the PKCE comparison, which rejects
+	// it as invalid_grant. RFC 6749 §10.5 requires codes to be single-use, so
+	// unlike the two format failures above, this consumes the code: without
+	// that, a leaked code could be replayed with unlimited further guesses.
+	wrongVerifier, _ := oauth2providertest.GeneratePKCE(t)
+	_, err = cfgA.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", wrongVerifier))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "The PKCE code verifier is invalid")
+
+	// The code was consumed by the failed PKCE comparison above, so even the
+	// verifier that would have matched can no longer redeem it.
+	_, err = cfgA.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "The authorization code is invalid or expired")
+}
+
 func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1045,6 +1164,129 @@ func TestOAuth2ProviderRevokeCrossApp(t *testing.T) {
 			err = userClient.RevokeOAuth2Token(ctx, apps.Default.ID, tokenUnderTest)
 			require.NoError(t, err)
 			require.False(t, sessionWorks(), "same-app revoke must end the session")
+		})
+	}
+}
+
+// TestOAuth2PublicClientTokenLifecycle exercises refresh and revocation for a
+// public client, whose tokens are the first with a NULL app_secret_id.
+//
+// The confidential-client tests all mint tokens with a real secret, so the
+// refresh path that carries dbToken.AppSecretID forward and the two revocation
+// ownership checks in revoke.go were only ever run against a non-NULL value.
+// This PR's premise is that revocation ownership moved onto app_id precisely so
+// a secretless token can still be revoked, and that claim needs a test. Without
+// one, reintroducing a join through app_secret_id would break public clients
+// only, and the suite would stay green.
+func TestOAuth2PublicClientTokenLifecycle(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// tokenFor selects which token to revoke, covering both
+		// revokeRefreshTokenInTx and revokeAPIKeyInTx.
+		tokenFor func(*oauth2.Token) string
+	}{
+		{
+			name:     "AccessToken",
+			tokenFor: func(tok *oauth2.Token) string { return tok.AccessToken },
+		},
+		{
+			name:     "RefreshToken",
+			tokenFor: func(tok *oauth2.Token) string { return tok.RefreshToken },
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			db, pubsub := dbtestutil.NewDB(t)
+			ownerClient := coderdtest.New(t, &coderdtest.Options{
+				Database: db,
+				Pubsub:   pubsub,
+			})
+			owner := coderdtest.CreateFirstUser(t, ownerClient)
+			oauth2providertest.EnableDCR(t, ownerClient)
+
+			const callback = "http://localhost:8080/callback"
+			app := oauth2providertest.RegisterPublicClient(ctx, t, ownerClient, "public-lifecycle", callback)
+			otherApp := oauth2providertest.RegisterPublicClient(ctx, t, ownerClient, "public-lifecycle-other", callback)
+
+			appID, err := uuid.Parse(app.ClientID)
+			require.NoError(t, err)
+			otherAppID, err := uuid.Parse(otherApp.ClientID)
+			require.NoError(t, err)
+
+			userClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+			cfg := &oauth2.Config{
+				ClientID: app.ClientID,
+				Endpoint: oauth2.Endpoint{
+					AuthURL:   ownerClient.URL.JoinPath("/oauth2/authorize").String(),
+					TokenURL:  ownerClient.URL.JoinPath("/oauth2/tokens").String(),
+					AuthStyle: oauth2.AuthStyleInParams,
+				},
+				RedirectURL: callback,
+				Scopes:      []string{},
+			}
+
+			code, verifier, err := authorizationFlow(ctx, userClient, cfg)
+			require.NoError(t, err)
+			token, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+			require.NoError(t, err)
+			require.NotEmpty(t, token.RefreshToken)
+
+			// Confirm the precondition this test exists for: the minted row
+			// really does have a NULL app_secret_id, with app_id carrying the
+			// ownership that revocation depends on.
+			assertSecretlessToken := func(accessToken string) {
+				t.Helper()
+				keyID, _, err := httpmw.SplitAPIToken(accessToken)
+				require.NoError(t, err)
+				// This is the raw store handle, not the dbauthz-wrapped one the
+				// server uses, so no authorization layer is in the path and no
+				// system actor is needed.
+				dbToken, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(ctx, keyID)
+				require.NoError(t, err)
+				require.False(t, dbToken.AppSecretID.Valid, "public client token must have a NULL app_secret_id")
+				require.Equal(t, appID, dbToken.AppID)
+			}
+			assertSecretlessToken(token.AccessToken)
+
+			// Refresh carries AppSecretID forward untouched, so the refreshed
+			// row must still be secretless and still owned by the same app.
+			refreshCfg := *cfg
+			refreshed, err := refreshCfg.TokenSource(ctx, &oauth2.Token{
+				RefreshToken: token.RefreshToken,
+				Expiry:       time.Now().Add(-time.Hour),
+			}).Token()
+			require.NoError(t, err)
+			require.NotEmpty(t, refreshed.AccessToken)
+			assertSecretlessToken(refreshed.AccessToken)
+
+			sessionWorks := func() bool {
+				checkClient := codersdk.New(userClient.URL)
+				checkClient.SetSessionToken(refreshed.AccessToken)
+				_, err := checkClient.User(ctx, codersdk.Me)
+				return err == nil
+			}
+			require.True(t, sessionWorks(), "refreshed public-client session should be valid")
+
+			tokenUnderTest := test.tokenFor(refreshed)
+
+			// A different app must not be able to revoke it, and per RFC 7009
+			// must not learn that it exists.
+			err = userClient.RevokeOAuth2Token(ctx, otherAppID, tokenUnderTest)
+			require.NoError(t, err, "cross-app revoke must appear to succeed per RFC 7009")
+			require.True(t, sessionWorks(), "cross-app revoke must not end the session")
+
+			// The issuing app must be able to revoke it, with no secret to join
+			// through. This is the claim app_id was promoted for.
+			err = userClient.RevokeOAuth2Token(ctx, appID, tokenUnderTest)
+			require.NoError(t, err)
+			require.False(t, sessionWorks(), "public client must be able to revoke its own token")
 		})
 	}
 }

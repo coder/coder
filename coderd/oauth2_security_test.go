@@ -267,6 +267,19 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 				ClientName:              fmt.Sprintf("native-app-3-%d", time.Now().UnixNano()),
 				TokenEndpointAuthMethod: "none", // Required for public clients
 			},
+			{
+				// Bare custom schemes (no reverse-domain notation) are the
+				// schemes real native apps register with the OS, and PKCE,
+				// not the scheme's spelling, is what secures the redirect.
+				RedirectURIs:            []string{"vscode://coder.authenticate"},
+				ClientName:              fmt.Sprintf("native-app-vscode-%d", time.Now().UnixNano()),
+				TokenEndpointAuthMethod: "none",
+			},
+			{
+				RedirectURIs:            []string{"jetbrains://coder-callback"},
+				ClientName:              fmt.Sprintf("native-app-jetbrains-%d", time.Now().UnixNano()),
+				TokenEndpointAuthMethod: "none",
+			},
 		}
 
 		for i, req := range validCustomSchemeRequests {

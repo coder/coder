@@ -118,10 +118,25 @@ Coder supports the following OAuth2 client authentication methods at the token e
 
 - `client_secret_basic` (recommended): HTTP Basic authentication (RFC 6749 §2.3.1). The username is `client_id` and the password is `client_secret`.
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
+- `none`: No client secret. The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1). Available only through [Dynamic Client Registration](#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
-Coder supports both methods for compatibility; existing integrations using `client_secret_post` do not need to change.
+Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
-If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request.
+Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restriction below before choosing one.
+
+If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
+
+> [!IMPORTANT]
+> Public clients must use a loopback redirect (`http://127.0.0.1:{port}/...`),
+> a custom scheme (`myapp://callback`, `vscode://callback`), or the
+> out-of-band URN. `http` redirects to any other host are rejected for
+> public clients and are usable only by confidential ones.
+
+A client's type is fixed when it registers. An RFC 7592 update that would move a client between public and confidential is rejected with `invalid_client_metadata`, since the client either holds a secret that would stop being required or has none and no way to be issued one. Switching between `client_secret_basic` and `client_secret_post` is allowed, because both are confidential. To change type, register a new client.
+
+Clients registered with `token_endpoint_auth_method: none` before Coder honored it are stored as confidential and still require their `client_secret`. Coder reports `client_secret_basic` for those clients so that what it reports matches what it enforces, and the mismatch clears itself the next time the client updates its registration.
+
+Redirect URIs are matched exactly, so register every URI the client will use, including any that differ only by port.
 
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
@@ -209,12 +224,31 @@ confidential clients must include PKCE parameters:
 
 3. Include the code verifier in the token exchange (see [Client Authentication Methods](#client-authentication-methods)):
 
+   **Confidential client**
+
    ```sh
    curl -X POST \
      -u "$CLIENT_ID:$CLIENT_SECRET" \
      -H "Content-Type: application/x-www-form-urlencoded" \
      -d "grant_type=authorization_code" \
      -d "code=$AUTH_CODE" \
+     -d "code_verifier=$CODE_VERIFIER" \
+     -d "redirect_uri=https://yourapp.example.com/callback" \
+     "$CODER_URL/oauth2/tokens"
+   ```
+
+   **Public client (`token_endpoint_auth_method: none`)**
+
+   Send `client_id` in the form body and omit `client_secret` entirely. The code
+   verifier is the only client authentication, so it must be 43-128 characters
+   as RFC 7636 §4.1 requires; shorter values are rejected.
+
+   ```sh
+   curl -X POST \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "grant_type=authorization_code" \
+     -d "code=$AUTH_CODE" \
+     -d "client_id=$CLIENT_ID" \
      -d "code_verifier=$CODE_VERIFIER" \
      -d "redirect_uri=https://yourapp.example.com/callback" \
      "$CODER_URL/oauth2/tokens"
@@ -255,6 +289,17 @@ curl -X POST \
   -d "refresh_token=$REFRESH_TOKEN" \
   -d "client_id=$CLIENT_ID" \
   -d "client_secret=$CLIENT_SECRET" \
+  "$CODER_URL/oauth2/tokens"
+```
+
+**Option C: Public client (`none`)**
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=$REFRESH_TOKEN" \
+  -d "client_id=$CLIENT_ID" \
   "$CODER_URL/oauth2/tokens"
 ```
 

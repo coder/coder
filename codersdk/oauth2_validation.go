@@ -16,7 +16,9 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 		return xerrors.New("redirect_uris is required for authorization code flow")
 	}
 
-	if err := validateRedirectURIs(req.RedirectURIs, req.TokenEndpointAuthMethod); err != nil {
+	// The client type is derived once, by DetermineClientType, so which RFC 8252
+	// rules apply here cannot drift from what gets stored in client_type.
+	if err := validateRedirectURIs(req.RedirectURIs, req.DetermineClientType()); err != nil {
 		return xerrors.Errorf("invalid redirect_uris: %w", err)
 	}
 
@@ -118,8 +120,11 @@ func validateScheme(u *url.URL) error {
 	return nil
 }
 
-// validateRedirectURIs validates redirect URIs according to RFC 7591, 8252
-func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndpointAuthMethod) error {
+// validateRedirectURIs validates redirect URIs according to RFC 7591, 8252.
+// clientType selects which rules apply and is derived by DetermineClientType,
+// the single owner of that mapping, so this cannot disagree with the type the
+// app is stored as.
+func validateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
 	if len(uris) == 0 {
 		return xerrors.New("at least one redirect URI is required")
 	}
@@ -144,8 +149,7 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndp
 			continue
 		}
 
-		// Determine if this is a public client based on token endpoint auth method
-		isPublicClient := tokenEndpointAuthMethod == OAuth2TokenEndpointAuthMethodNone
+		isPublicClient := clientType == OAuth2ClientTypePublic
 
 		// Handle different validation for public vs confidential clients
 		if uri.Scheme == "http" || uri.Scheme == "https" {
@@ -163,17 +167,14 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndp
 					}
 				}
 			}
-		} else {
-			// Custom scheme validation for public clients (RFC 8252 section 7.1)
-			if isPublicClient {
-				// For public clients, custom schemes should follow RFC 8252 recommendations
-				// Should be reverse domain notation based on domain under their control
-				if !isValidCustomScheme(uri.Scheme) {
-					return xerrors.Errorf("redirect URI at index %d: custom scheme %s should use reverse domain notation (e.g. com.example.app)", i, uri.Scheme)
-				}
-			}
-			// For confidential clients, custom schemes are less common but allowed
 		}
+		// Custom schemes need no further check here: validateScheme already
+		// blocked the ones that are dangerous in a redirect context, and RFC
+		// 8252 §7.1 only recommends reverse-domain notation rather than
+		// requiring it. Rejecting bare schemes such as vscode:// or
+		// jetbrains:// would penalize the native and CLI apps this client
+		// type exists for; PKCE, not the scheme's spelling, is what secures
+		// the redirect.
 
 		// Prevent URI fragments (RFC 6749 section 3.1.2)
 		if uri.Fragment != "" || strings.Contains(uriStr, "#") {
@@ -294,23 +295,4 @@ func isLoopbackAddress(hostname string) bool {
 	return hostname == "localhost" ||
 		hostname == "127.0.0.1" ||
 		hostname == "::1"
-}
-
-// isValidCustomScheme validates custom schemes for public clients (RFC 8252)
-func isValidCustomScheme(scheme string) bool {
-	// For security and RFC compliance, require reverse domain notation
-	// Should contain at least one period and not be a well-known scheme
-	if !strings.Contains(scheme, ".") {
-		return false
-	}
-
-	// Block schemes that look like well-known protocols
-	wellKnownSchemes := []string{"http", "https", "ftp", "mailto", "tel", "sms"}
-	for _, wellKnown := range wellKnownSchemes {
-		if strings.EqualFold(scheme, wellKnown) {
-			return false
-		}
-	}
-
-	return true
 }
