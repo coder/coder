@@ -489,10 +489,14 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					for _, ws := range res.Workspaces {
 						wsNames = append(wsNames, ws.Name)
 					}
-					if len(res.Workspaces) < pageSize {
+					// The endpoint applies its limit in SQL and then drops rows whose
+					// build or template the caller cannot read, so a page shorter than
+					// pageSize does not mean the result set is exhausted. Count is the
+					// total before the limit and offset are applied.
+					offset += pageSize
+					if offset >= res.Count {
 						break
 					}
-					offset += pageSize
 				}
 				configOptions.workspaceNames = wsNames
 			}

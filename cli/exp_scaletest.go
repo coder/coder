@@ -577,7 +577,11 @@ func getScaletestPrebuildWorkspaces(ctx context.Context, client *codersdk.Client
 					result = append(result, ws)
 				}
 			}
-			if len(resp.Workspaces) < pageSize {
+			// The endpoint applies its limit in SQL and then drops rows whose build
+			// or template the caller cannot read, so a page shorter than pageSize
+			// does not mean the result set is exhausted. Count is the total before
+			// the limit and offset are applied.
+			if (page+1)*pageSize >= resp.Count {
 				break
 			}
 		}
@@ -2249,9 +2253,6 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner,
 		}
 
 		pageNumber++
-		if len(page.Workspaces) == 0 {
-			break
-		}
 
 		pageWorkspaces := make([]codersdk.Workspace, 0, len(page.Workspaces))
 		for _, w := range page.Workspaces {
@@ -2265,6 +2266,14 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner,
 			pageWorkspaces = append(pageWorkspaces, w)
 		}
 		workspaces = append(workspaces, pageWorkspaces...)
+
+		// The endpoint applies its limit in SQL and then drops rows whose build or
+		// template the caller cannot read, so a short or empty page does not mean
+		// the result set is exhausted. Count is the total before the limit and
+		// offset are applied.
+		if pageNumber*limit >= page.Count {
+			break
+		}
 	}
 	return workspaces, skipped, nil
 }

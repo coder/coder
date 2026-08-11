@@ -303,10 +303,15 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 				}
 				break
 			}
-			if offset+len(resp.Workspaces) >= count || len(resp.Workspaces) == 0 {
+			// The offset advances by the requested limit rather than the number of
+			// rows returned. The endpoint applies its limit in SQL and then drops
+			// rows whose build or template the caller cannot read, so advancing by
+			// len(resp.Workspaces) would re-request rows already collected. Count is
+			// the total before the limit and offset are applied.
+			offset += limit
+			if offset >= count {
 				break
 			}
-			offset += len(resp.Workspaces)
 		}
 		if d.Workspaces != nil {
 			// Replace with aggregated list

@@ -476,7 +476,11 @@ func allWorkspacesForTemplate(ctx context.Context, client *codersdk.Client, temp
 			return nil, xerrors.Errorf("list workspaces page %d: %w", page, err)
 		}
 		workspaces = append(workspaces, resp.Workspaces...)
-		if len(resp.Workspaces) < pageSize {
+		// The endpoint applies its limit in SQL and then drops rows whose build or
+		// template the caller cannot read, so a page shorter than pageSize does not
+		// mean the result set is exhausted. Count is the total before the limit and
+		// offset are applied.
+		if (page+1)*pageSize >= resp.Count {
 			break
 		}
 	}
