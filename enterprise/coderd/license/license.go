@@ -769,10 +769,12 @@ func LicensesEntitlements(
 			// the managed-agent write-back above for why.
 			entitlements.Features[codersdk.FeatureAgentRuntimeHours] = runtimeHours
 
-			// The allocation is dereferenced without a nil check because
-			// decodeAgentRuntimeHours always sets Limit for this feature.
-			entitlements.Warnings = appendAgentRuntimeHoursWarning(
-				entitlements.Warnings, actualHours, *runtimeHours.Limit, runtimeHours.SoftLimit)
+			// A nil Limit means the license grants unlimited runtime
+			// hours: no thresholds can exist, so no warnings.
+			if runtimeHours.Limit != nil {
+				entitlements.Warnings = appendAgentRuntimeHoursWarning(
+					entitlements.Warnings, actualHours, *runtimeHours.Limit, runtimeHours.SoftLimit)
+			}
 		}
 	}
 

@@ -18792,10 +18792,11 @@
 					"type": "integer"
 				},
 				"limit": {
+					"description": "Limit is the maximum value the license grants for the feature, in the\nfeature's own unit. For FeatureAgentRuntimeHours, an enabled feature\nwith Limit omitted means the license grants unlimited runtime hours.",
 					"type": "integer"
 				},
 				"soft_limit": {
-					"description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation. Only FeatureAgentRuntimeHours sets this\nfield.",
+					"description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation; an unlimited allocation has no thresholds,\nso SoftLimit is omitted alongside the omitted Limit. Only\nFeatureAgentRuntimeHours sets this field.",
 					"type": "integer"
 				},
 				"usage_period": {

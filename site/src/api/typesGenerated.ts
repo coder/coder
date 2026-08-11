@@ -5146,12 +5146,18 @@ export interface ExternalAuthUser {
 export interface Feature {
 	readonly entitlement: Entitlement;
 	readonly enabled: boolean;
+	/**
+	 * Limit is the maximum value the license grants for the feature, in the
+	 * feature's own unit. For FeatureAgentRuntimeHours, an enabled feature
+	 * with Limit omitted means the license grants unlimited runtime hours.
+	 */
 	readonly limit?: number;
 	/**
 	 * SoftLimit is the advisory warning threshold that accompanies Limit for
 	 * features whose license carries it. For these features, Limit carries
-	 * the purchased allocation. Only FeatureAgentRuntimeHours sets this
-	 * field.
+	 * the purchased allocation; an unlimited allocation has no thresholds,
+	 * so SoftLimit is omitted alongside the omitted Limit. Only
+	 * FeatureAgentRuntimeHours sets this field.
 	 */
 	readonly soft_limit?: number;
 	/**

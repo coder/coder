@@ -380,11 +380,15 @@ func (set FeatureSet) Features() []FeatureName {
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
-	Limit       *int64      `json:"limit,omitempty"`
+	// Limit is the maximum value the license grants for the feature, in the
+	// feature's own unit. For FeatureAgentRuntimeHours, an enabled feature
+	// with Limit omitted means the license grants unlimited runtime hours.
+	Limit *int64 `json:"limit,omitempty"`
 	// SoftLimit is the advisory warning threshold that accompanies Limit for
 	// features whose license carries it. For these features, Limit carries
-	// the purchased allocation. Only FeatureAgentRuntimeHours sets this
-	// field.
+	// the purchased allocation; an unlimited allocation has no thresholds,
+	// so SoftLimit is omitted alongside the omitted Limit. Only
+	// FeatureAgentRuntimeHours sets this field.
 	SoftLimit *int64 `json:"soft_limit,omitempty"`
 	// HardLimit is the enforcement threshold that accompanies Limit for
 	// features whose license carries it. See SoftLimit for the set of

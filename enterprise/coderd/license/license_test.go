@@ -1012,6 +1012,57 @@ func TestEntitlements(t *testing.T) {
 			entitlements.Warnings[0])
 	})
 
+	// An unlimited (-1) allocation still measures and publishes Actual, but
+	// never emits a runtime hours warning regardless of usage.
+	t.Run("AgentRuntimeHoursUnlimited", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		licenseOpts := (&coderdenttest.LicenseOptions{
+			FeatureSet: codersdk.FeatureSetPremium,
+			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
+			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
+			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
+			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
+		}).UserLimit(100).AIGovernanceAddon(100).
+			AgentRuntimeHours(license.AgentRuntimeHoursUnlimitedAllocation, nil, nil)
+
+		lic := database.License{
+			ID:  1,
+			JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
+			Exp: licenseOpts.ExpiresAt,
+		}
+
+		mDB.EXPECT().GetUnexpiredLicenses(gomock.Any()).Return([]database.License{lic}, nil)
+		mDB.EXPECT().GetActiveUserCount(gomock.Any(), false).Return(int64(1), nil)
+		mDB.EXPECT().GetActiveAISeatCount(gomock.Any()).Return(int64(0), nil)
+		mDB.EXPECT().GetTemplatesWithFilter(gomock.Any(), gomock.Any()).Return([]database.Template{}, nil)
+		mDB.EXPECT().GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).Return(int64(0), nil)
+		mDB.EXPECT().
+			GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
+			// Usage far beyond any plausible metered allocation.
+			Return((1_000_000 * time.Hour).Milliseconds(), nil)
+
+		entitlements, err := license.Entitlements(context.Background(), testutil.Logger(t), mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.Empty(t, entitlements.Errors)
+
+		runtimeHours, ok := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+		require.True(t, ok)
+		require.True(t, runtimeHours.Enabled)
+		require.Nil(t, runtimeHours.Limit)
+		require.Nil(t, runtimeHours.SoftLimit)
+		require.Nil(t, runtimeHours.HardLimit)
+		require.NotNil(t, runtimeHours.UsagePeriod)
+		require.NotNil(t, runtimeHours.Actual)
+		require.EqualValues(t, 1_000_000, *runtimeHours.Actual)
+
+		require.Empty(t, entitlements.Warnings)
+	})
+
 	t.Run("UsageQueryErrorsAreLoggedAndStable", func(t *testing.T) {
 		t.Parallel()
 
@@ -2853,7 +2904,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 
 		entitlements, err := license.LicensesEntitlements(
 			context.Background(), time.Now(), []database.License{lic},
-			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime(),
 		)
 		require.NoError(t, err)
 		require.Empty(t, entitlements.Errors)
