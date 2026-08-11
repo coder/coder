@@ -15,6 +15,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -44,6 +45,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		metadata      []database.WorkspaceAgentMetadatum
 		workspace     database.Workspace
 		devcontainers []database.WorkspaceAgentDevcontainer
+		userSecrets   []database.UserSecret
 	)
 
 	workspaceAgent, err := a.AgentFn(ctx)
@@ -90,12 +92,15 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("fetching workspace agent data: %w", err)
 	}
 
-	// Fetch user secrets for injection into the agent manifest.
-	// This runs after the errgroup because it needs workspace.OwnerID.
-	//nolint:gocritic // System context needed to read secrets for the workspace owner.
-	userSecrets, err := a.Database.ListUserSecretsWithValues(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
-	if err != nil {
-		return nil, xerrors.Errorf("getting user secrets: %w", err)
+	// Fetch user secrets after the errgroup because this needs workspace.OwnerID.
+	// AI-bound agents are denied ambient owner credentials by the shared Vertical 2
+	// phase 1 policy.
+	if aiagentidentity.WorkspaceAgentAllowsOwnerCredentials(ctx, workspaceAgent) {
+		//nolint:gocritic // System context needed to read secrets for the workspace owner.
+		userSecrets, err = a.Database.ListUserSecretsWithValues(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
+		if err != nil {
+			return nil, xerrors.Errorf("getting user secrets: %w", err)
+		}
 	}
 
 	appSlug := appurl.ApplicationURL{

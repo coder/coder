@@ -27,6 +27,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -2088,6 +2089,13 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// this workspace's own template-declared providers instead of scanning
 	// every provider configured on the deployment.
 	workspaceAgent := httpmw.WorkspaceAgent(r)
+	if !aiagentidentity.WorkspaceAgentAllowsOwnerCredentials(ctx, workspaceAgent) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "AI-bound workspace agents must use the MCP gateway for external authentication.",
+		})
+		return
+	}
+
 	// We must get the workspace to get the owner ID!
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
 	if err != nil {
