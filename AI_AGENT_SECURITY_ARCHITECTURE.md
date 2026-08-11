@@ -546,10 +546,10 @@ Replace everything devcontainer and Docker-specific in
 binary injection) with a generic parent-agent script executor and
 reconciler for the sandbox script contract below.
 
-**Prerequisite fix:** `DeleteSubAgent` does not verify that the target's
-`parent_id` equals the caller. Bind deletion to the calling parent before
-building sandbox lifecycle on this API. This compatibility-review finding
-remains unfixed.
+**Prerequisite fix (landed in phase 1):** `DeleteSubAgent` previously did
+not verify that the target's `parent_id` equals the caller. Deletion is
+now bound to the calling parent (`coderd/agentapi/subagent.go`), so
+sandbox lifecycle can safely build on this API.
 
 #### Sandbox script contract
 
@@ -784,8 +784,13 @@ Who fetches and applies policy, per shape:
 #### Audit stream and retention
 
 The parent-side supervisor or sandbox controller, which owns the proxy,
-emits network events through agentapi to `ai_sandbox_sessions` and
-`ai_sandbox_network_events`. The confined child never emits network policy
+emits network events through agent-authenticated ingestion endpoints
+(`POST /workspaceagents/me/ai-sandbox-sessions`,
+`PATCH /workspaceagents/me/ai-sandbox-network-events`) into
+`ai_sandbox_sessions` and `ai_sandbox_network_events`. Session and event
+attribution is resolved server-side from the agent binding; the reporter
+cannot assert it, and a reporter may only append events to sessions it
+created. The confined child never emits network policy
 events; its connection state supplies health and it may produce non-network
 activity events only. Events correlate with
 aibridge interceptions and become a Vertical 3 input.
@@ -1019,6 +1024,59 @@ it introduces.
    sandbox records, and the retained egress audit stream. Ship the netns
    supervisor as the first reference implementation. This makes both an
    AI-designated workspace and one sandboxed child usable.
+
+   *Implementation notes (landed).* The pieces below are on the branch;
+   deviations and remaining gaps are listed afterward.
+   - **Policy object**: `template_ai_egress_policies` (migration 000568),
+     an insert-only per-template revision history (revision 0 with no
+     rules is the implicit deny-all default; `created_by` is a plain UUID
+     so attribution survives user cleanup). Admin API:
+     `GET/PUT /api/v2/templates/{template}/ai-egress-policy` (template
+     `ActionRead`/`ActionUpdate`, audited with old/new rules and
+     revisions in `AdditionalFields` because child-row changes produce no
+     template diff). Writes publish on pubsub channel
+     `template-ai-egress-policy:<template_id>`.
+   - **Delivery**: agent-authenticated
+     `GET /api/v2/workspaceagents/me/ai-egress-policy` (bootstrap) and
+     `.../watch` (SSE: subscribe first, send current, then full
+     replacement policy per revision). Reads are materialized: coderd
+     appends implicit control-plane allow rules (access URL host and
+     effective port) to the admin rules.
+   - **Supervisor** (`agent/confine`, wired via `coder agent
+     --confine=netns|proxy`, env `CODER_AGENT_CONFINE`): fetches policy
+     before fork (fetch failure means deny-all plus degraded, never
+     unconfined), runs the CONNECT/absolute-form HTTP proxy and, in netns
+     mode, an SNI passthrough listener; applies watch revisions
+     atomically; keeps the last policy on stream failure (never widens).
+     Matcher: exact host or single leading-label wildcard, empty ports
+     imply 80/443, case- and trailing-dot-insensitive, coderd host
+     implicitly allowed. The child env gets
+     `CODER_AGENT_EGRESS_PROXY_URL` plus, in forced mode, HTTP(S)_PROXY
+     and NO_PROXY, and the agent propagates proxy variables to every
+     spawned process.
+   - **netns reference**: namespace `coder-confine-<8hex>`, veth /30
+     (100.115.92.0/30), no default route inside, `/etc/netns` resolv.conf
+     pointing at the host veth; created with the external `ip` binary;
+     any setup failure cleans up and falls back to proxy-only advisory
+     mode with a degraded signal.
+   - **Audit stream**: `ai_sandbox_sessions` and
+     `ai_sandbox_network_events` (migration 000569) with raw-UUID
+     snapshots and no FKs, ingestion endpoints as described under "Audit
+     stream and retention", and dbpurge retention (events by age,
+     sessions only when ended and event-free).
+   - **Deviations and open gaps**: the sandbox script contract itself
+     (parent-agent `create`/`destroy` execution) did not land; the
+     session API already supports the sandboxed-child shape via
+     `ChildAgentID` with server-side parent verification. Relay-only
+     tailnet (`BlockDirect`) for confined agents is not yet applied.
+     There is no DNS relay in the netns yet, so direct DNS inside the
+     namespace times out (proxied traffic resolves at the proxy).
+     Degraded state is surfaced through the supervisor init log and a
+     best-effort external agent log entry; a first-class degraded agent
+     health field does not exist and reusing `start_error` would
+     mislead the UI. Confinement runs for any agent whose command opts
+     in; server-side enforcement that an AI-designated workspace MUST
+     run confined is future admission-control work.
 5. **Credential plane**: add `ai_credential_mode`, mode-specific exceptions
    on top of default stripping, two-keyed consent, grant-time audit, MCP and
    broker pointers, brokered Git HTTPS rewrite, and runtime observability.
