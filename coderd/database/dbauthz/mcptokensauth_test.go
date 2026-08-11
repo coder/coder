@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // TestMCPServerUserTokensAuth exercises the owner-personal gating of
@@ -23,6 +24,7 @@ import (
 func TestMCPServerUserTokensAuth(t *testing.T) {
 	t.Parallel()
 
+	setupCtx := testutil.Context(t, testutil.WaitLong)
 	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
 	store, _ := dbtestutil.NewDB(t)
 	db := dbauthz.New(store, authz, slogtest.Make(t, &slogtest.Options{
@@ -39,7 +41,7 @@ func TestMCPServerUserTokensAuth(t *testing.T) {
 		return rbac.Subject{
 			ID: userID,
 			Roles: must(rolestore.Expand(
-				context.Background(),
+				setupCtx,
 				store,
 				[]rbac.RoleIdentifier{rbac.RoleMember(), rbac.ScopedRoleOrgMember(org.ID)},
 			)),
@@ -88,10 +90,11 @@ func TestMCPServerUserTokensAuth(t *testing.T) {
 	t.Run("ChatdSubjects", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		cfg := dbgen.MCPServerConfig(t, store, database.MCPServerConfig{
 			OrganizationID: org.ID,
 		})
-		token, err := store.UpsertMCPServerUserToken(context.Background(), database.UpsertMCPServerUserTokenParams{
+		token, err := store.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
 			MCPServerConfigID: cfg.ID,
 			UserID:            owner.ID,
 			AccessToken:       "chatd-access-token",
@@ -110,7 +113,7 @@ func TestMCPServerUserTokensAuth(t *testing.T) {
 
 		// The daemon-wide chatd subject may read tokens but must not
 		// hold personal-write access anywhere.
-		chatdCtx := dbauthz.AsChatd(context.Background())
+		chatdCtx := dbauthz.AsChatd(ctx)
 		_, err = db.GetMCPServerUserToken(chatdCtx, database.GetMCPServerUserTokenParams{
 			MCPServerConfigID: cfg.ID,
 			UserID:            owner.ID,
@@ -118,10 +121,21 @@ func TestMCPServerUserTokensAuth(t *testing.T) {
 		requireAuthorized(t, err)
 		requireNotAuthorized(t, markFailure(chatdCtx))
 
+		// The token-owner subject is write-only: reads belong to the
+		// daemon-wide chatd subject.
+		_, err = db.GetMCPServerUserToken(
+			dbauthz.AsChatdTokenOwner(ctx, owner.ID),
+			database.GetMCPServerUserTokenParams{
+				MCPServerConfigID: cfg.ID,
+				UserID:            owner.ID,
+			},
+		)
+		requireNotAuthorized(t, err)
+
 		// The per-user token-owner subject writes only its own
 		// owner's rows.
-		requireNotAuthorized(t, markFailure(dbauthz.AsChatdTokenOwner(context.Background(), stranger.ID)))
-		require.NoError(t, markFailure(dbauthz.AsChatdTokenOwner(context.Background(), owner.ID)))
+		requireNotAuthorized(t, markFailure(dbauthz.AsChatdTokenOwner(ctx, stranger.ID)))
+		require.NoError(t, markFailure(dbauthz.AsChatdTokenOwner(ctx, owner.ID)))
 	})
 
 	for _, tc := range testCases {
@@ -130,10 +144,11 @@ func TestMCPServerUserTokensAuth(t *testing.T) {
 
 			// A per-case config keeps parallel subtests from sharing
 			// token rows; the raw store seeds bypassing authz.
+			testCtx := testutil.Context(t, testutil.WaitLong)
 			cfg := dbgen.MCPServerConfig(t, store, database.MCPServerConfig{
 				OrganizationID: org.ID,
 			})
-			_, err := store.UpsertMCPServerUserToken(context.Background(), database.UpsertMCPServerUserTokenParams{
+			_, err := store.UpsertMCPServerUserToken(testCtx, database.UpsertMCPServerUserTokenParams{
 				MCPServerConfigID: cfg.ID,
 				UserID:            owner.ID,
 				AccessToken:       "seed-access-token",
@@ -141,7 +156,7 @@ func TestMCPServerUserTokensAuth(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			ctx := dbauthz.As(context.Background(), tc.Subject)
+			ctx := dbauthz.As(testCtx, tc.Subject)
 
 			_, err = db.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
 				MCPServerConfigID: cfg.ID,

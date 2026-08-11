@@ -495,8 +495,9 @@ var (
 	}
 
 	// subjectChatdTokenOwner persists MCP OAuth2 token refreshes and
-	// refresh failures for one chat owner. User-level permissions keep
-	// the write scoped to that owner's rows.
+	// refresh failures for one chat owner. The write-only user-level
+	// permission keeps the write scoped to that owner's rows; reads go
+	// through the daemon-wide chatd subject.
 	subjectChatdTokenOwner = func(userID uuid.UUID) rbac.Subject {
 		return rbac.Subject{
 			Type:         rbac.SubjectTypeChatdTokenOwner,
@@ -508,7 +509,7 @@ var (
 					DisplayName: "Chatd Token Owner",
 					Site:        []rbac.Permission{},
 					User: rbac.Permissions(map[string][]policy.Action{
-						rbac.ResourceUser.Type: {policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+						rbac.ResourceUser.Type: {policy.ActionUpdatePersonal},
 					}),
 					ByOrgID: map[string]rbac.OrgPermissions{},
 				},
