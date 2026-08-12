@@ -1,6 +1,8 @@
 package poctests_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,20 +27,23 @@ import (
 //
 // Revision 3 adds the first hop of the real path. A startup script launched
 // from the manifest runs an executable, and that executable calls CreateAIAgent
-// on the workspace_agent over its local socket.
+// on the workspace_agent over its local socket, carrying the workspace
+// identifier and the workspace_agent credential.
 //
 // It still asserts nothing about AI agent identity, because none of that code
 // exists. CreateAIAgent is reached, but the handler behind it is a stub in
-// agent/agentsocket/service.go that touches a file and returns. Each increment
-// moves that stub one hop further from the caller, until the last one replaces
-// it with the behavior itself.
+// agent/agentsocket/service.go that validates the request, touches a file, and
+// returns. Each increment moves that stub one hop further from the caller,
+// until the last one replaces it with the behavior itself. The data the call
+// carries is plumbed the same way, one hop at a time.
 //
-// The marker is what the stub touches, so it is now evidence that the call
-// arrived at the workspace_agent rather than that the executable merely ran.
+// The marker is what the stub touches, and the stub repeats into it what it
+// was sent. So the marker is evidence that the call arrived at the
+// workspace_agent, and that it arrived intact.
 //
 // The test passes on two independent conditions: the executable exited zero,
 // observed through the script timings the agent reports, and the marker file
-// the handler writes is present.
+// the handler writes holds what the handler was sent.
 //
 // # Checking that the marker assertion is load-bearing
 //
@@ -141,10 +146,18 @@ func TestAIAgentIdentity(t *testing.T) {
 				markerPath, readScriptLog(scriptLogPath))
 		}
 
+		// The handler repeats what it was given, so the marker shows the call
+		// arrived intact rather than merely that it arrived. The credential is
+		// compared by digest because the handler does not write it down.
+		tokenDigest := sha256.Sum256([]byte(r.AgentToken))
+		wantMarker := "CreateAIAgent\n" +
+			"workspace_id=" + r.Workspace.ID.String() + "\n" +
+			"agent_token_sha256=" + hex.EncodeToString(tokenDigest[:]) + "\n"
+
 		contents, err := os.ReadFile(markerPath)
 		require.NoError(t, err)
-		require.Equal(t, "CreateAIAgent\n", string(contents),
-			"marker should name the handler that wrote it")
+		require.Equal(t, wantMarker, string(contents),
+			"marker should name the handler and repeat the workspace and credential it was sent")
 
 		// Exit status is checked independently of the marker. The agent
 		// reports it, so a probe that wrote the marker and then failed would
