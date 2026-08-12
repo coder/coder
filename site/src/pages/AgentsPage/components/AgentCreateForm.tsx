@@ -343,8 +343,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// Clear a workspace when a settled permission refetch changes org, but
 	// preserve it on initial settlement. Render-time adjustment prevents stale
 	// selection from resurfacing before localStorage is cleared post-commit.
+	// An empty permitted set is skipped: its dashboard fallback is not a real
+	// org change (sends are blocked), and clearing would permanently delete a
+	// workspace that should return when the org is re-permitted.
 	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
-	if (orgSelectionSettled && organizationId !== lastSettledOrgId) {
+	if (
+		orgSelectionSettled &&
+		!noPermittedOrgs &&
+		organizationId !== lastSettledOrgId
+	) {
 		setLastSettledOrgId(organizationId);
 		if (lastSettledOrgId !== null) {
 			setSelectedWorkspaceId(null);

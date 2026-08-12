@@ -1286,6 +1286,56 @@ export const RevokedOrgChangeClearsStoredWorkspace: Story = {
 	},
 };
 
+export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
+	...revocableStoryContext,
+	args: {
+		...defaultArgs,
+		workspaceOptions: [
+			{
+				...MockWorkspace,
+				id: "ws-org-2",
+				name: "org2-workspace",
+				organization_id: MockOrganization2.id,
+			},
+		],
+		workspaceCount: 1,
+	},
+	beforeEach: () => {
+		localStorage.setItem("agents.selected-workspace-id", "ws-org-2");
+		mockRevocablePermissions({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByLabelText("Remove workspace org2-workspace"),
+			).toBeInTheDocument(),
+		);
+
+		// A refetch that empties the permitted set blocks sending but is
+		// not an org change; the stored workspace must survive it.
+		revocablePermissions[MockOrganization2.id] = false;
+		await revocableQueryClient?.invalidateQueries();
+		await waitFor(() =>
+			expect(canvas.getByText(/don't have permission/i)).toBeInTheDocument(),
+		);
+
+		revocablePermissions[MockOrganization2.id] = true;
+		await revocableQueryClient?.invalidateQueries();
+		await waitFor(() =>
+			expect(
+				canvas.getByLabelText("Remove workspace org2-workspace"),
+			).toBeInTheDocument(),
+		);
+		expect(localStorage.getItem("agents.selected-workspace-id")).toBe(
+			"ws-org-2",
+		);
+	},
+};
+
 export const RevokedPendingOrgClosesConfirmDialog: Story = {
 	...revocableStoryContext,
 	beforeEach: () => {
