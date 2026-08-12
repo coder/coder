@@ -99,7 +99,6 @@ interface ViewItemBase {
 	itemPrimary: string;
 	/** Secondary text in the dropdown item (e.g. PR title, repo name). */
 	itemSecondary?: string;
-	stateClasses: string;
 	icon: React.ReactNode;
 }
 
@@ -268,7 +267,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 					triggerIdentifier: `PR #${prTab.prNumber}`,
 					itemPrimary: `PR #${prTab.prNumber}`,
 					itemSecondary: prTitle || undefined,
-					stateClasses: prStateClasses(prState, prDraft),
 					icon: (
 						<PrStateIcon
 							state={prState}
@@ -284,7 +282,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 					triggerIdentifier: remoteHeadBranch || "Branch",
 					itemPrimary: "Branch",
 					itemSecondary: remoteHeadBranch || undefined,
-					stateClasses: "text-content-secondary",
 					icon: <GitBranchIcon className="!size-3.5 shrink-0" />,
 				}
 		: null;
@@ -297,7 +294,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 		triggerIdentifier: repoLabel(repoRoot),
 		itemPrimary: "Working",
 		itemSecondary: repoLabel(repoRoot),
-		stateClasses: "text-content-secondary",
 		icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
 	}));
 
@@ -462,26 +458,37 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 
 	const isSingleItem = items.length <= 1;
 
+	// The state is conveyed by the icon color (open/merged/closed/draft
+	// via PrStateIcon, dirty via CircleDotIcon), so the remote trigger
+	// only surfaces the identifier text. Local repos keep the "Working"
+	// label because the identifier alone (a repo name) does not read as
+	// a status.
+	const showStateLabelInline = activeItem.kind === "local";
+
 	const triggerContent = (
-		<>
+		<span className="flex h-full min-w-0 items-center gap-1.5 px-2 leading-none">
+			<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+				{activeItem.icon}
+			</span>
+			{showStateLabelInline && (
+				<span className="whitespace-nowrap font-medium text-content-primary">
+					{activeItem.stateLabel}
+				</span>
+			)}
 			<span
 				className={cn(
-					"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid border-border-default px-1.5 font-medium leading-none",
-					activeItem.stateClasses,
+					"min-w-0 truncate",
+					showStateLabelInline
+						? "text-content-secondary"
+						: "font-medium text-content-primary",
 				)}
 			>
-				<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
-					{activeItem.icon}
-				</span>
-				<span className="whitespace-nowrap">{activeItem.stateLabel}</span>
+				{activeItem.triggerIdentifier}
 			</span>
-			<span className="inline-flex min-w-0 items-center gap-1 pl-1.5 pr-1 text-content-primary">
-				<span className="truncate">{activeItem.triggerIdentifier}</span>
-				{!isSingleItem && (
-					<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
-				)}
-			</span>
-		</>
+			{!isSingleItem && (
+				<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+			)}
+		</span>
 	);
 
 	if (isSingleItem) {

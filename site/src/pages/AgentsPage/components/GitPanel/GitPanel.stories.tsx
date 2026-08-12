@@ -147,8 +147,10 @@ export const PullRequestAndWorkingChanges: Story = {
 		).toBeVisible();
 
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Open");
+		// The state is now conveyed by the icon color rather than a
+		// visible "Open" label, so we only assert the identifier text.
 		await expect(switcher).toHaveTextContent("PR #23020");
+		await expect(switcher).not.toHaveTextContent("Open");
 
 		const title = canvas.getByTestId("git-panel-pr-title");
 		await expect(title).toHaveTextContent(
@@ -245,7 +247,9 @@ export const DraftPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Draft");
+		// State is icon-only on the trigger; identifier stays visible.
+		await expect(switcher).toHaveTextContent("PR #22950");
+		await expect(switcher).not.toHaveTextContent("Draft");
 	},
 };
 
@@ -272,7 +276,9 @@ export const MergedPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Merged");
+		// State is icon-only on the trigger; identifier stays visible.
+		await expect(switcher).toHaveTextContent("PR #23000");
+		await expect(switcher).not.toHaveTextContent("Merged");
 	},
 };
 
@@ -299,7 +305,9 @@ export const ClosedPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Closed");
+		// State is icon-only on the trigger; identifier stays visible.
+		await expect(switcher).toHaveTextContent("PR #22800");
+		await expect(switcher).not.toHaveTextContent("Closed");
 	},
 };
 
