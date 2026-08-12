@@ -1108,7 +1108,31 @@ export const DelayedOrganizationAuthorization: Story = {
 		const canvas = within(canvasElement);
 		const sendButton = canvas.getByRole("button", { name: "Send" });
 		await expect(sendButton).toBeDisabled();
+		// dispatchEvent returns false when a handler accepted the drop
+		// via preventDefault, giving a race-free accepted/ignored signal.
+		const dropFile = (name: string): boolean => {
+			const dataTransfer = new DataTransfer();
+			dataTransfer.items.add(new File(["hello"], name, { type: "text/plain" }));
+			return canvas.getByTestId("chat-composer").dispatchEvent(
+				new DragEvent("drop", {
+					bubbles: true,
+					cancelable: true,
+					dataTransfer,
+				}),
+			);
+		};
+		// While the check is pending the composer must ignore drops: with
+		// no org context the file cannot upload, and post-settlement
+		// restoration would silently discard it.
+		expect(dropFile("drop.txt")).toBe(true);
+		expect(canvas.queryByLabelText("Remove drop.txt")).not.toBeInTheDocument();
 		await waitFor(() => expect(sendButton).toBeEnabled(), { timeout: 3_000 });
+		// Positive control: once settled the same drop is accepted and
+		// attaches, so the pending-state assertions exercised a real path.
+		expect(dropFile("after.txt")).toBe(false);
+		await waitFor(() =>
+			expect(canvas.getByLabelText("Remove after.txt")).toBeInTheDocument(),
+		);
 	},
 };
 

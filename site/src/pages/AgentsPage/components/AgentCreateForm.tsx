@@ -558,7 +558,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={setPlanModeEnabled}
 						attachments={attachments}
-						onAttach={handleAttach}
+						// Until the attachment hook has a real org, a dropped or
+						// pasted file cannot upload and would be discarded by
+						// restoration once the org settles.
+						onAttach={
+							orgSelectionSettled && !noPermittedOrgs ? handleAttach : undefined
+						}
 						onRemoveAttachment={handleRemoveAttachment}
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
