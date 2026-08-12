@@ -3345,9 +3345,6 @@ func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) 
 }
 
 func (p *Server) publishChatWatchEvent(chat database.Chat, event codersdk.ChatWatchEvent) {
-	if p.pubsub == nil {
-		return
-	}
 	payload, err := json.Marshal(event)
 	if err != nil {
 		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",

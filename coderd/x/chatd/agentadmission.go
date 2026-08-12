@@ -34,6 +34,9 @@ type AgentCapacityLimits struct {
 type agentCapacityLimiter struct {
 	unlock AgentCapacityUnlock
 
+	// staleSeconds is the heartbeat age beyond which a chat's owner is
+	// considered crashed and its capacity slot is freed. It is derived
+	// from Config.InFlightChatStaleAfter (5 minutes by default).
 	staleSeconds     int32
 	rootCapacity     int64
 	subagentCapacity int64
