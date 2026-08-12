@@ -352,7 +352,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 					<GitViewSwitcher
 						items={items}
 						activeItem={activeItem}
-						hasRemoteItem={remoteItem !== null}
 						onSelect={handleSelectItem}
 						panelWidth={panelWidth}
 					/>
@@ -457,11 +456,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 interface GitViewSwitcherProps {
 	items: ReadonlyArray<ViewItem>;
 	activeItem?: ViewItem;
-	/**
-	 * Whether a remote (PR or Branch) item exists in `items`. Controls
-	 * whether local entries are visually nested (indented) under it.
-	 */
-	hasRemoteItem: boolean;
 	onSelect: (item: ViewItem) => void;
 	/**
 	 * Measured width of the git panel container. The dropdown menu uses
@@ -473,7 +467,6 @@ interface GitViewSwitcherProps {
 const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	items,
 	activeItem,
-	hasRemoteItem,
 	onSelect,
 	panelWidth,
 }) => {
@@ -563,13 +556,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 							key={item.id}
 							onSelect={() => onSelect(item)}
 							className={cn(
-								"flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs",
-								// Nest local entries under the remote/PR entry
-								// when one exists. Without a parent above them,
-								// nesting reads as an orphan indent.
-								item.kind === "local" && hasRemoteItem
-									? "ml-4 mt-0.5"
-									: "w-full",
+								"flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs",
 								isActive && "bg-surface-secondary text-content-primary",
 							)}
 						>
