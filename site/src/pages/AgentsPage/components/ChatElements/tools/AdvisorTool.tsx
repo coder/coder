@@ -1,3 +1,4 @@
+import { TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Response } from "../Response";
@@ -34,8 +35,9 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	const showError = isError || resultType === "error";
 
 	const intent = formatModelIntentLabel(modelIntent);
-	const label =
-		intent && !showError
+	const label = showLimitReached
+		? "Advisor limit reached"
+		: intent && !showError
 			? intent
 			: isRunning
 				? "Consulting the advisor"
@@ -55,14 +57,15 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 				expanded ? "Collapse advisor guidance" : "Expand advisor guidance"
 			}
 		>
-			<ToolCall.HeaderLayout>
-				<ToolCall.HeaderButton>
-					<ToolCall.LeadingIcon name="advisor" />
-					<ToolCall.Label>{label}</ToolCall.Label>
-					<ToolCall.Status />
-					<ToolCall.Chevron />
-				</ToolCall.HeaderButton>
-			</ToolCall.HeaderLayout>
+			<ToolCall.Header
+				iconName="advisor"
+				label={label}
+				secondaryLabel={
+					showLimitReached ? (
+						<TriangleAlertIcon className="size-3.5 shrink-0 text-content-warning" />
+					) : null
+				}
+			/>
 			<ToolCall.Content>
 				<ScrollArea
 					className="mt-1.5 rounded-md border border-solid border-border-default"

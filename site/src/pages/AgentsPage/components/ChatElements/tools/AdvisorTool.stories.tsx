@@ -67,8 +67,6 @@ const meta: Meta<typeof Tool> = {
 export default meta;
 type Story = StoryObj<typeof Tool>;
 
-// Completed advice starts collapsed; expanding reveals the question and the
-// markdown guidance in the card.
 export const SuccessfulAdvice: Story = {
 	args: {
 		status: "completed",
@@ -84,14 +82,11 @@ export const SuccessfulAdvice: Story = {
 		const canvas = within(canvasElement);
 		const toggle = canvas.getByRole("button");
 
-		// Collapsed by default: the header is a status line and the question
-		// and advice live in the card until expanded.
 		expect(toggle).toHaveAttribute("aria-expanded", "false");
 		expect(canvas.getByText("Consulted the advisor")).toBeInTheDocument();
 		expect(canvas.queryByText(sampleQuestion)).not.toBeInTheDocument();
 		expect(canvas.queryByText("Quick summary")).not.toBeInTheDocument();
 
-		// Model name and quota are not rendered in the header.
 		expect(canvas.queryByText("openai/gpt-5.1")).not.toBeInTheDocument();
 		expect(canvas.queryByText("3 left")).not.toBeInTheDocument();
 
@@ -109,7 +104,6 @@ export const Running: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Running rows open expanded so streamed guidance is visible live.
 		expect(canvas.getByRole("button")).toHaveAttribute("aria-expanded", "true");
 		expect(canvas.getByText("Consulting the advisor")).toBeInTheDocument();
 		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
@@ -160,7 +154,6 @@ export const RunningWithStreamedAdvice: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Running rows are expanded, so the question shows in the card.
 		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
 		expect(canvas.getByText("Consulting the advisor")).toBeInTheDocument();
 		expect(
@@ -191,7 +184,10 @@ export const LimitReached: Story = {
 		const toggle = canvas.getByRole("button");
 		expect(toggle).toHaveAttribute("aria-expanded", "false");
 
-		// The limit message lives in the body, so it appears once expanded.
+		// The exhausted budget is visible without expanding: the header shows a
+		// limit-specific label and warning icon rather than an apparent success.
+		expect(canvas.getByText("Advisor limit reached")).toBeInTheDocument();
+
 		await userEvent.click(toggle);
 		expect(
 			await canvas.findByText("Advisor limit reached."),
@@ -244,7 +240,6 @@ export const EmptyQuestion: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The fallback question is inside the card, hidden while collapsed.
 		expect(canvas.queryByText("No question provided.")).not.toBeInTheDocument();
 		await userEvent.click(canvas.getByRole("button"));
 		expect(
@@ -351,7 +346,6 @@ export const PlainStringResult: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Collapsed: the question is inside the card until expanded.
 		expect(canvas.queryByText(sampleQuestion)).not.toBeInTheDocument();
 		await userEvent.click(canvas.getByRole("button"));
 		expect(
@@ -363,8 +357,6 @@ export const PlainStringResult: Story = {
 	},
 };
 
-// A long question renders in full inside the card; the long guidance shares
-// the same scrollable region.
 export const LongAdviceLongQuestion: Story = {
 	name: "Long Advice + long question",
 	args: {
@@ -381,7 +373,6 @@ export const LongAdviceLongQuestion: Story = {
 		const canvas = within(canvasElement);
 		const toggle = canvas.getByRole("button");
 
-		// Collapsed: neither the question nor the advice is visible.
 		expect(toggle).toHaveAttribute("aria-expanded", "false");
 		expect(canvas.queryByText(longQuestion)).not.toBeInTheDocument();
 		expect(canvas.queryByText("12 left")).not.toBeInTheDocument();
