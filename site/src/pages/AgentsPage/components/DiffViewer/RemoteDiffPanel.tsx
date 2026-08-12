@@ -153,7 +153,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 							href={pullRequestUrl}
 							target="_blank"
 							rel="noreferrer"
-							className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary"
+							className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary"
 						>
 							View PR
 							<ExternalLinkIcon className="size-3" />

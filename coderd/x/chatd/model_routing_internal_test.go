@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -27,6 +28,7 @@ import (
 )
 
 type aibridgeTestFactory struct {
+	mu           sync.Mutex
 	providerName string
 	source       aibridge.Source
 	err          error
@@ -34,12 +36,20 @@ type aibridgeTestFactory struct {
 }
 
 func (f *aibridgeTestFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.providerName = providerName
 	f.source = source
 	if f.err != nil {
 		return nil, f.err
 	}
 	return f.rt, nil
+}
+
+func (f *aibridgeTestFactory) recorded() (providerName string, source aibridge.Source) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.providerName, f.source
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -617,8 +627,9 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 			got := <-seen
 			require.NotEmpty(t, got.path)
 			require.Equal(t, modelName, got.model)
-			require.Equal(t, tt.providerName, factory.providerName)
-			require.Equal(t, aibridge.SourceAgents, factory.source)
+			gotProvider, gotSource := factory.recorded()
+			require.Equal(t, tt.providerName, gotProvider)
+			require.Equal(t, aibridge.SourceAgents, gotSource)
 		})
 	}
 }
@@ -655,8 +666,9 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	require.False(t, debugEnabled)
 	require.EqualValues(t, codersdk.ChatComputerUseProviderOpenAI, resolvedProvider)
 	require.Equal(t, modelName, resolvedModel)
-	require.Equal(t, "primary-openai", factory.providerName)
-	require.Equal(t, aibridge.SourceAgents, factory.source)
+	gotProvider, gotSource := factory.recorded()
+	require.Equal(t, "primary-openai", gotProvider)
+	require.Equal(t, aibridge.SourceAgents, gotSource)
 }
 
 // The computer-use model is a hardcoded default with no config of its own, so
@@ -776,8 +788,9 @@ func TestAIBridgeDelegatedContextPropagation(t *testing.T) {
 	require.NoError(t, err)
 
 	got := <-seen
-	require.Equal(t, "primary-openai", factory.providerName)
-	require.Equal(t, aibridge.SourceAgents, factory.source)
+	gotProvider, gotSource := factory.recorded()
+	require.Equal(t, "primary-openai", gotProvider)
+	require.Equal(t, aibridge.SourceAgents, gotSource)
 	require.True(t, got.ok)
 	require.Equal(t, "/v1/responses", got.path)
 	require.Equal(t, apiKeyID, got.apiKeyID)
