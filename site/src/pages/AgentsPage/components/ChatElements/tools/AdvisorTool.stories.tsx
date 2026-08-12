@@ -133,11 +133,12 @@ export const WithModelIntent: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const toggle = canvas.getByRole("button");
+		// The toggle's accessible name comes from the visible label (no
+		// aria-label override), so assistive tech announces the intent.
+		const toggle = canvas.getByRole("button", {
+			name: /Weighing a refactor tradeoff/,
+		});
 		expect(toggle).toHaveAttribute("aria-expanded", "false");
-		expect(
-			canvas.getByText("Weighing a refactor tradeoff"),
-		).toBeInTheDocument();
 		expect(canvas.queryByText(/Consulted the advisor/)).not.toBeInTheDocument();
 		expect(canvas.queryByText("2 left")).not.toBeInTheDocument();
 
@@ -181,12 +182,13 @@ export const LimitReached: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const toggle = canvas.getByRole("button");
-		expect(toggle).toHaveAttribute("aria-expanded", "false");
-
 		// The exhausted budget is visible without expanding: the header shows a
-		// limit-specific label and warning icon rather than an apparent success.
-		expect(canvas.getByText("Advisor limit reached")).toBeInTheDocument();
+		// limit-specific label and warning icon rather than an apparent success,
+		// and the toggle's accessible name includes that status text.
+		const toggle = canvas.getByRole("button", {
+			name: /Advisor limit reached/,
+		});
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
 
 		await userEvent.click(toggle);
 		expect(

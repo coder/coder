@@ -53,9 +53,6 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 			errorMessage={effectiveErrorMessage}
 			hasContent
 			defaultExpanded={isRunning}
-			ariaLabel={(expanded) =>
-				expanded ? "Collapse advisor guidance" : "Expand advisor guidance"
-			}
 		>
 			<ToolCall.Header
 				iconName="advisor"
