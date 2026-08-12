@@ -6,7 +6,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// NewAgentCapacityUnlock builds the enterprise licensing hook for chat agent caps.
+// NewAgentCapacityUnlock returns an unlock that tracks entitlement changes.
 func NewAgentCapacityUnlock(set *entitlements.Set) osschatd.AgentCapacityUnlock {
 	return &agentCapacityUnlock{entitlements: set}
 }

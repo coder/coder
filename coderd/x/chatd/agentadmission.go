@@ -20,7 +20,7 @@ type AgentCapacityLimiter interface {
 	Limits() (limits AgentCapacityLimits, capped bool)
 }
 
-// AgentCapacityUnlock reports whether licensing currently removes the caps.
+// AgentCapacityUnlock reports whether the default chat agent caps are disabled.
 type AgentCapacityUnlock interface {
 	Unlocked() bool
 }
@@ -33,7 +33,7 @@ type AgentCapacityLimits struct {
 
 type agentCapacityLimiter struct {
 	unlock AgentCapacityUnlock
-	// staleSeconds is the maximum heartbeat age counted as active ownership.
+
 	staleSeconds     int32
 	rootCapacity     int64
 	subagentCapacity int64

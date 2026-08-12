@@ -2829,8 +2829,7 @@ LEFT JOIN to_archive t ON t.id = a.id
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
 
 -- name: CountChatCapacityActiveByPool :one
--- @exclude_chat_id removes the candidate so re-admission does not require an
--- extra slot.
+-- Excluding the candidate keeps ownership takeover capacity-neutral.
 SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS active_subagent_count

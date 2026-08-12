@@ -7071,8 +7071,7 @@ type CountChatCapacityActiveByPoolRow struct {
 	ActiveSubagentCount int64 `db:"active_subagent_count" json:"active_subagent_count"`
 }
 
-// @exclude_chat_id removes the candidate so re-admission does not require an
-// extra slot.
+// Excluding the candidate keeps ownership takeover capacity-neutral.
 func (q *sqlQuerier) CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error) {
 	row := q.db.QueryRowContext(ctx, countChatCapacityActiveByPool, arg.ExcludeChatID, arg.StaleSeconds)
 	var i CountChatCapacityActiveByPoolRow
