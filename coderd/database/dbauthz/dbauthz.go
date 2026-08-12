@@ -1889,13 +1889,6 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
 }
 
-func (q *querier) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return false, err
-	}
-	return q.db.ChatSearchQueryIsEmpty(ctx, search)
-}
-
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -2382,13 +2375,6 @@ func (q *querier) DeleteOldChatDebugRuns(ctx context.Context, arg database.Delet
 	return q.db.DeleteOldChatDebugRuns(ctx, arg)
 }
 
-func (q *querier) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return 0, err
-	}
-	return q.db.DeleteOldChatFiles(ctx, arg)
-}
-
 func (q *querier) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return 0, err
@@ -2520,6 +2506,13 @@ func (q *querier) DeleteTask(ctx context.Context, arg database.DeleteTaskParams)
 	}
 
 	return q.db.DeleteTask(ctx, arg)
+}
+
+func (q *querier) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteUnlinkedChatFilesByIDs(ctx, arg)
 }
 
 func (q *querier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
@@ -3901,6 +3894,17 @@ func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) (
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroups)(ctx, arg)
 }
 
+func (q *querier) GetGroupsByOrganizationIDPaginated(ctx context.Context, arg database.GetGroupsByOrganizationIDPaginatedParams) ([]database.GetGroupsByOrganizationIDPaginatedRow, error) {
+	// Required to have permission to read all groups in the organization. This
+	// mirrors PaginatedOrganizationMembers: a single org-wide read check with no
+	// per-row post-filter, so that SQL LIMIT/OFFSET and COUNT(*) OVER() stay
+	// consistent across pages.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.InOrg(arg.OrganizationID)); err != nil {
+		return nil, err
+	}
+	return q.db.GetGroupsByOrganizationIDPaginated(ctx, arg)
+}
+
 func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetHealthSettings(ctx)
@@ -4192,6 +4196,13 @@ func (q *querier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid
 		return []database.GetOAuth2ProviderAppsByUserIDRow{}, err
 	}
 	return q.db.GetOAuth2ProviderAppsByUserID(ctx, userID)
+}
+
+func (q *querier) GetOldUnlinkedChatFileIDs(ctx context.Context, arg database.GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetOldUnlinkedChatFileIDs(ctx, arg)
 }
 
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
@@ -6686,15 +6697,11 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 	return q.db.IsChatHeartbeatStale(ctx, arg)
 }
 
-func (q *querier) LinkChatFiles(ctx context.Context, arg database.LinkChatFilesParams) (int32, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
+func (q *querier) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return 0, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return 0, err
-	}
-	return q.db.LinkChatFiles(ctx, arg)
+	return q.db.LinkChatFilesAfterLock(ctx, arg)
 }
 
 func (q *querier) ListAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams) ([]string, error) {
@@ -6898,6 +6905,26 @@ func (q *querier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UU
 	}
 	_ = chat
 	return q.db.LockChatAndBumpSnapshotVersion(ctx, id)
+}
+
+func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.LockChatByID(ctx, id)
+}
+
+func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	// The lock query returns only the key ID, so fetch the key to authorize
+	// the read against its RBAC object.
+	key, err := q.db.GetProvisionerKeyByID(ctx, id)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, key); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.LockProvisionerKeyByIDForShare(ctx, id)
 }
 
 func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
@@ -9304,6 +9331,24 @@ func (q *querier) CountAuthorizedAIBridgeSessions(ctx context.Context, arg datab
 
 func (q *querier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	return q.db.ListAuthorizedAIBridgeSessionThreads(ctx, arg, prepared)
+}
+
+func (q *querier) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldChatFiles(ctx, arg)
+}
+
+func (q *querier) LinkChatFiles(ctx context.Context, arg database.LinkChatFilesParams) (int32, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.LinkChatFiles(ctx, arg)
 }
 
 func (q *querier) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, _ rbac.PreparedAuthorized) ([]database.GetChatsRow, error) {

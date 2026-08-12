@@ -78,8 +78,8 @@ enable auto-archiving.
 
 Use the admin API to read or update the value:
 
-    GET  /api/experimental/chats/config/auto-archive-days
-    PUT  /api/experimental/chats/config/auto-archive-days
+    GET  /api/v2/chats/config/auto-archive-days
+    PUT  /api/v2/chats/config/auto-archive-days
 
 ## Rollout advice
 
