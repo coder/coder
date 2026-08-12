@@ -154,6 +154,11 @@ func newReloadTestHarness(t *testing.T) *reloadTestHarness {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("aibridged"))
 	}))
+	// The proxy reuses pooled connections to aibridged, but net/http will
+	// not retry a POST on a closed pooled conn, so a stale reuse fails
+	// with a bare EOF on Windows. Force a fresh conn per request.
+	// https://github.com/coder/internal/issues/1564 (AIGOV-430)
+	bridged.Config.SetKeepAlivesEnabled(false)
 	t.Cleanup(bridged.Close)
 
 	store := &providerStore{}
