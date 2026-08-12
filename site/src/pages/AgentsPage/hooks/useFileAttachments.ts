@@ -163,10 +163,8 @@ function clearPersistedAttachments() {
 
 interface UseFileAttachmentsReturn {
 	/**
-	 * True once the in-memory attachment state belongs to the supplied
-	 * organization. Adoption happens in a post-commit effect, so during
-	 * the commit that first supplies (or changes) the org this is false;
-	 * callers should keep attach and send controls disabled until then.
+	 * True after the post-commit effect assigns in-memory attachment state to
+	 * the supplied organization. Keep attach and send controls disabled until then.
 	 */
 	organizationAdopted: boolean;
 	attachments: File[];
@@ -202,12 +200,9 @@ export function useFileAttachments(
 		() => new Map<File, UploadState>(),
 	);
 	const [previewUrls, setPreviewUrls] = useState(() => new Map<File, string>());
-	// stateOrgId tracks which org owns the in-memory attachment state.
-	// It stays null until an org is supplied because restoring against
-	// a provisional org would prune entries for the eventual org.
-	const [stateOrgId, setStateOrgId] = useState<string | null>(
-		persist ? null : "",
-	);
+	// Persisted state remains unowned until post-commit org adoption; restoring
+	// against a provisional org would prune entries for the eventual org.
+	const [stateOrgId, setStateOrgId] = useState<string | null>(null);
 	const [textContents, setTextContents] = useState(
 		() => new Map<File, string>(),
 	);
@@ -223,11 +218,9 @@ export function useFileAttachments(
 		return () => revokePreviewUrls();
 	}, []);
 
-	// Bumped on every adoption. Upload completions capture the epoch they
-	// started under and are discarded after any adoption since, even an
-	// A-to-B-to-A round trip that restores the original stateOrgId;
-	// applying a stale completion would persist the file ID and let a
-	// later restoration resurrect an abandoned upload.
+	// Every adoption invalidates older upload completions, including A-to-B-to-A
+	// round trips where stateOrgId matches again. Otherwise a stale completion
+	// could persist and later restore an abandoned upload.
 	const adoptionEpochRef = useRef(0);
 	const commitUploadOutcome = useEffectEvent(
 		(
@@ -289,11 +282,9 @@ export function useFileAttachments(
 	// file can't be resurrected. WeakSet lets entries get GC'd.
 	const abandonedResizesRef = useRef<WeakSet<File>>(new WeakSet());
 
-	// Permission refetches can change the caller's org without user action.
-	// Replace org-scoped attachment state so stale file IDs cannot be sent
-	// to another org. Runs post-commit (never during render) because
-	// restorePersistedAttachments prunes other orgs' localStorage entries,
-	// which must not happen from a render React may abandon.
+	// Permission refetches can change the org without user action. Replace state
+	// after commit so stale file IDs cannot cross orgs and an abandoned render
+	// cannot prune localStorage through restorePersistedAttachments.
 	const adoptOrganization = useEffectEvent((orgId: string) => {
 		adoptionEpochRef.current += 1;
 		for (const file of attachments) {

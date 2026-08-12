@@ -301,18 +301,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// permitted set.
 	const noPermittedOrgs =
 		showOrganizations && permittedOrgsQuery.data?.length === 0;
-	// Drop an explicit selection the moment a permission refetch
-	// invalidates it. Left latent, a later refetch that re-permits the
-	// org would silently switch back without user action, discarding
-	// the effective org's attachment state. Render-time state
-	// adjustment, not an effect, per the React "adjusting state when
-	// props change" pattern; effectiveOrg already ignores the invalid
-	// selection in this same render.
-	if (
-		selectedOrg &&
-		orgSelectionSettled &&
-		!permittedOrgs.some((org) => org.id === selectedOrg.id)
-	) {
+	const selectedOrgIsPermitted =
+		selectedOrg !== null &&
+		permittedOrgs.some((org) => org.id === selectedOrg.id);
+	// Clear invalid selections during render so re-permission cannot silently
+	// restore them and switch attachment state. effectiveOrg already ignores
+	// the invalid selection in this render.
+	if (selectedOrg && orgSelectionSettled && !selectedOrgIsPermitted) {
 		setSelectedOrg(null);
 	}
 	// Same rule for a pending change awaiting confirmation: closing the
@@ -325,19 +320,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setPendingOrgChange(null);
 	}
 	const effectiveOrg =
-		selectedOrg && permittedOrgs.some((org) => org.id === selectedOrg.id)
+		selectedOrg && selectedOrgIsPermitted
 			? selectedOrg
 			: (permittedOrgs.find((org) => org.is_default) ??
 				permittedOrgs[0] ??
 				initialOrg ??
 				null);
 	const organizationId = effectiveOrg?.id ?? "";
-	// A settled permission refetch that changes the effective org must
-	// also drop the stored workspace, mirroring user-driven org changes;
-	// left latent, it would resurrect and submit if the old org became
-	// effective again. Initial settlement records the org without
-	// clearing so a persisted workspace survives first load. Render-time
-	// state adjustment; the storage entry is removed post-commit below.
+	// Clear a workspace when a settled permission refetch changes org, but
+	// preserve it on initial settlement. Render-time adjustment prevents stale
+	// selection from resurfacing before localStorage is cleared post-commit.
 	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
 	if (orgSelectionSettled && organizationId !== lastSettledOrgId) {
 		setLastSettledOrgId(organizationId);
@@ -478,9 +470,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleRemoveAttachment,
 		resetAttachments,
 	} = useFileAttachments(
-		// With no permitted org, effectiveOrg falls back to an org the
-		// user cannot chat in; restoring against it would prune other
-		// orgs' persisted attachments.
+		// Avoid restoring against effectiveOrg's fallback when no org is permitted;
+		// that would prune attachments persisted for other orgs.
 		orgSelectionSettled && !noPermittedOrgs
 			? organizationId || undefined
 			: undefined,
@@ -556,9 +547,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
-					{/* Hidden until settled: before then the list is the
-					    unfiltered dashboard fallback, and selecting a
-					    never-permitted org would destroy workspace state. */}
+					{/* The pre-settlement list is the unfiltered dashboard fallback;
+					    selecting from it could destroy existing workspace state. */}
 					{showOrganizations &&
 						orgSelectionSettled &&
 						permittedOrgs.length > 1 && (
@@ -586,8 +576,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							isCreating ||
 							isForbidden ||
 							!orgSelectionSettled ||
-							// Until adoption, a send would omit persisted files
-							// the hook has not yet restored.
+							// Sending before adoption would omit persisted files not yet restored.
 							!organizationAdopted ||
 							isPersonalModelOverridesLoading ||
 							!hasModelOptions ||
@@ -608,10 +597,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={setPlanModeEnabled}
 						attachments={attachments}
-						// Until the attachment hook has adopted a real org, a
-						// dropped or pasted file cannot upload and would be
-						// discarded by restoration when adoption completes.
-						// Adoption implies the org settled and is permitted.
+						// Files attached before org adoption cannot upload and would be discarded
+						// when restoration completes.
 						onAttach={organizationAdopted ? handleAttach : undefined}
 						onRemoveAttachment={handleRemoveAttachment}
 						uploadStates={uploadStates}
@@ -653,9 +640,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						return;
 					}
 					setPendingOrgChange(null);
-					// A revoking refetch can land after this render's
-					// closure was created; re-check before destroying
-					// attachment and workspace state.
+					// Recheck authorization because a refetch may revoke the pending org
+					// after this render created the closure.
 					if (!permittedOrgs.some((org) => org.id === pendingOrgChange.id)) {
 						return;
 					}

@@ -2,6 +2,7 @@ import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { type FC, Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	persistedAttachmentsStorageKey,
 	useFileAttachments,
@@ -30,16 +31,11 @@ const renderAttachments = (initialProps: { orgId: string | undefined }) =>
 	);
 
 const mockDeferredUpload = (): ((value: { id: string }) => void) => {
-	let resolve: ((value: { id: string }) => void) | undefined;
+	const deferred = createDeferred<{ id: string }>();
 	vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
-		new Promise<{ id: string }>((res) => {
-			resolve = res;
-		}),
+		deferred.promise,
 	);
-	if (!resolve) {
-		throw new Error("Promise executor did not run synchronously");
-	}
-	return resolve;
+	return deferred.resolve;
 };
 
 describe("useFileAttachments org scoping", () => {
@@ -124,8 +120,6 @@ describe("useFileAttachments org scoping", () => {
 			return null;
 		};
 		render(<Probe orgId="org-a" />);
-		// The commit that supplies the org must not report adoption; the
-		// persisted file is only restored (and sendable) afterwards.
 		expect(log[0]).toStrictEqual({ adopted: false, fileIds: [] });
 		expect(log.at(-1)).toStrictEqual({ adopted: true, fileIds: ["file-a"] });
 	});
@@ -158,8 +152,7 @@ describe("useFileAttachments org scoping", () => {
 			result.current.startUpload(new File(["x"], "x.txt"));
 		});
 
-		// A -> B -> A: stateOrgId matches the upload's org again, so only
-		// the adoption epoch can tell the completion is stale.
+		// After A -> B -> A, only the adoption epoch distinguishes the stale upload.
 		rerender({ orgId: "org-b" });
 		await waitFor(() => {
 			expect(result.current.organizationAdopted).toBe(true);
@@ -183,8 +176,7 @@ describe("useFileAttachments org scoping", () => {
 			persistedAttachmentsStorageKey,
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
-		// Suspending after the hook call abandons the render before
-		// commit, the same discard concurrent rendering can perform.
+		// Suspending after the hook runs simulates a render React abandons before commit.
 		const Suspender: FC<{ orgId: string }> = ({ orgId }) => {
 			useFileAttachments(orgId, { persist: true });
 			throw new Promise(() => {});

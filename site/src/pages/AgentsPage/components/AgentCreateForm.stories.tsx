@@ -22,6 +22,7 @@ import {
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
+import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
@@ -1123,13 +1124,11 @@ export const DelayedOrganizationAuthorization: Story = {
 				}),
 			);
 		};
-		// While the check is pending the composer must ignore drops: with
-		// no org context the file cannot upload, and post-settlement
-		// restoration would silently discard it.
+		// Pending authorization leaves attachments without a valid org, so drops
+		// must be ignored.
 		expect(dropFile("drop.txt")).toBe(true);
 		expect(canvas.queryByLabelText("Remove drop.txt")).not.toBeInTheDocument();
-		// The picker must also stay hidden: its pending-state option list
-		// is the unfiltered dashboard fallback.
+		// The pending option list is unfiltered, so the picker must stay hidden.
 		expect(
 			canvas.queryByTestId("compact-org-selector"),
 		).not.toBeInTheDocument();
@@ -1144,10 +1143,9 @@ export const DelayedOrganizationAuthorization: Story = {
 	},
 };
 
-// Mutable so play functions can change results between refetches; the
-// story-level QueryClient lets them drive those refetches, which the
-// preview decorator's client (staleTime: Infinity, inaccessible from
-// play) cannot.
+// Mutable permissions let play functions change authorization across refetches.
+// The story-local QueryClient exposes those refetches; the preview client's
+// instance is inaccessible and uses infinite stale time.
 const revocablePermissions: Record<string, boolean> = {};
 let revocableQueryClient: QueryClient | undefined;
 
@@ -1185,17 +1183,23 @@ const mockRevocablePermissions = (permissions: Record<string, boolean>) => {
 	}));
 };
 
-export const RevokedSelectionDoesNotResurrect: Story = {
+const revocableStoryContext = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
 	},
 	decorators: [withRevocableQueryClient],
+};
+
+const allOrganizationsPermitted = {
+	[MockDefaultOrganization.id]: true,
+	[MockOrganization2.id]: true,
+};
+
+export const RevokedSelectionDoesNotResurrect: Story = {
+	...revocableStoryContext,
 	beforeEach: () => {
-		mockRevocablePermissions({
-			[MockDefaultOrganization.id]: true,
-			[MockOrganization2.id]: true,
-		});
+		mockRevocablePermissions(allOrganizationsPermitted);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1213,8 +1217,6 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 			),
 		);
 
-		// A refetch revokes the selected org; with one permitted org
-		// left, the picker unmounts and the default becomes effective.
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
 		await waitFor(() =>
@@ -1223,8 +1225,6 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 			).not.toBeInTheDocument(),
 		);
 
-		// A later refetch re-permits it. The revoked selection must not
-		// resurrect and switch orgs without user action.
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
 		await waitFor(() =>
@@ -1236,11 +1236,7 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 };
 
 export const RevokedOrgChangeClearsStoredWorkspace: Story = {
-	parameters: {
-		showOrganizations: true,
-		organizations: [MockDefaultOrganization, MockOrganization2],
-	},
-	decorators: [withRevocableQueryClient],
+	...revocableStoryContext,
 	args: {
 		...defaultArgs,
 		workspaceOptions: [
@@ -1255,10 +1251,7 @@ export const RevokedOrgChangeClearsStoredWorkspace: Story = {
 	},
 	beforeEach: () => {
 		localStorage.setItem("agents.selected-workspace-id", "ws-default-org");
-		mockRevocablePermissions({
-			[MockDefaultOrganization.id]: true,
-			[MockOrganization2.id]: true,
-		});
+		mockRevocablePermissions(allOrganizationsPermitted);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1268,8 +1261,6 @@ export const RevokedOrgChangeClearsStoredWorkspace: Story = {
 			).toBeInTheDocument(),
 		);
 
-		// A refetch revokes the workspace's org, changing the effective
-		// org; the stored workspace must be dropped, not just masked.
 		revocablePermissions[MockDefaultOrganization.id] = false;
 		await revocableQueryClient?.invalidateQueries();
 		await waitFor(() =>
@@ -1278,7 +1269,6 @@ export const RevokedOrgChangeClearsStoredWorkspace: Story = {
 			).not.toBeInTheDocument(),
 		);
 
-		// Re-permitting the org must not resurrect the workspace.
 		revocablePermissions[MockDefaultOrganization.id] = true;
 		await revocableQueryClient?.invalidateQueries();
 		await waitFor(() =>
@@ -1294,15 +1284,11 @@ export const RevokedOrgChangeClearsStoredWorkspace: Story = {
 };
 
 export const RevokedPendingOrgClosesConfirmDialog: Story = {
-	parameters: {
-		showOrganizations: true,
-		organizations: [MockDefaultOrganization, MockOrganization2],
-	},
-	decorators: [withRevocableQueryClient],
+	...revocableStoryContext,
 	beforeEach: () => {
 		localStorage.clear();
 		localStorage.setItem(
-			"agents.persisted-attachments",
+			persistedAttachmentsStorageKey,
 			JSON.stringify([
 				{
 					fileId: "file-default-org",
@@ -1313,10 +1299,7 @@ export const RevokedPendingOrgClosesConfirmDialog: Story = {
 				},
 			]),
 		);
-		mockRevocablePermissions({
-			[MockDefaultOrganization.id]: true,
-			[MockOrganization2.id]: true,
-		});
+		mockRevocablePermissions(allOrganizationsPermitted);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1332,8 +1315,6 @@ export const RevokedPendingOrgClosesConfirmDialog: Story = {
 			"Changing organization will remove your current attachments.",
 		);
 
-		// Revoking the pending org while its confirmation dialog is open
-		// must close the dialog before Continue can destroy attachments.
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
 		await waitFor(() =>
@@ -1449,7 +1430,7 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		// Another org's persisted attachment must survive a visit while
 		// the user has no chat permission anywhere.
 		localStorage.setItem(
-			"agents.persisted-attachments",
+			persistedAttachmentsStorageKey,
 			JSON.stringify([
 				{
 					fileId: "file-other-org",
@@ -1476,7 +1457,7 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 		expect(args.onCreateChat).not.toHaveBeenCalled();
 		expect(
-			localStorage.getItem("agents.persisted-attachments") ?? "",
+			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
 		).toContain("file-other-org");
 	},
 };
