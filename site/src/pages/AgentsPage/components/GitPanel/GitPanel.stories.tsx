@@ -147,8 +147,7 @@ export const PullRequestAndWorkingChanges: Story = {
 		).toBeVisible();
 
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// Dropdown PR trigger drops the state label; state stays legible
-		// via the icon color and its aria-label.
+		// State pill is dropped; icon aria-label carries it instead.
 		await expect(switcher).toHaveTextContent("PR #23020");
 		await expect(switcher).not.toHaveTextContent("Open");
 		await expect(
@@ -252,8 +251,7 @@ export const DraftPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// Dropdown PR trigger drops the state label; state stays legible
-		// via the icon color and its aria-label.
+		// State pill is dropped; icon aria-label carries it instead.
 		await expect(switcher).toHaveTextContent("PR #22950");
 		await expect(switcher).not.toHaveTextContent("Draft");
 		await expect(
@@ -287,9 +285,7 @@ export const MergedPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// Single-item view: the trigger drops chrome and state label so
-		// only the identifier remains visible. State is conveyed by the
-		// icon color and its aria-label.
+		// State pill is dropped; icon aria-label carries it instead.
 		await expect(switcher).toHaveTextContent("PR #23000");
 		await expect(switcher).not.toHaveTextContent("Merged");
 		await expect(
@@ -323,9 +319,7 @@ export const ClosedPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// Single-item view: the trigger drops chrome and state label so
-		// only the identifier remains visible. State is conveyed by the
-		// icon color and its aria-label.
+		// State pill is dropped; icon aria-label carries it instead.
 		await expect(switcher).toHaveTextContent("PR #22800");
 		await expect(switcher).not.toHaveTextContent("Closed");
 		await expect(
@@ -407,9 +401,8 @@ export const GitNotActive: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByLabelText("Refresh")).toBeDisabled();
-		// The diff-style toggle lives inside the per-view sub-header, so
-		// with no git context and no sub-header rendered it is absent from
-		// the DOM entirely.
+		// Diff-style toggle lives in the per-view sub-header, which does
+		// not render without git context.
 		await expect(canvas.queryByLabelText("Unified diff")).toBeNull();
 		await expect(canvas.queryByLabelText("Split diff")).toBeNull();
 		await expect(
@@ -506,8 +499,7 @@ export const EverDirtyRepoGoneClean: Story = {
 			"[data-testid='git-panel-view-switcher']",
 		);
 		expect(switcher).not.toBeNull();
-		// Single-item switcher shows just the identifier (the repo name);
-		// the "Working" state pill is dropdown-only.
+		// Single-item switcher shows only the identifier (the repo name).
 		expect(switcher?.textContent ?? "").toContain("coder");
 
 		// The content pane falls through to the diff viewer's empty state.

@@ -100,11 +100,8 @@ interface ViewItemBase {
 	/** Secondary text in the dropdown item (e.g. PR title, repo name). */
 	itemSecondary?: string;
 	icon: React.ReactNode;
-	/**
-	 * Accessible label for the state icon. Used on the single-item
-	 * trigger where the state is conveyed by icon color alone; screen
-	 * readers announce this in place of the visible state pill.
-	 */
+	/** Accessible label for the state icon. Screen readers announce this
+	 * because the state is conveyed by icon color alone on the trigger. */
 	iconLabel: string;
 }
 
@@ -467,10 +464,8 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 
 	const isSingleItem = items.length <= 1;
 
-	// Single-item trigger: no button chrome (no border, background, or
-	// padding), just the icon and identifier as inline text. The state
-	// pill is dropped so the icon color is the only state signal, so add
-	// an aria-label to keep the state readable to screen readers.
+	// Single-item trigger: flat text, no button chrome. Icon aria-label
+	// keeps the state readable when there is no dropdown context.
 	if (isSingleItem) {
 		return (
 			<div

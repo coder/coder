@@ -6,8 +6,6 @@ import type { DiffStyle } from "./DiffViewer";
 interface DiffStyleToggleProps {
 	value: DiffStyle;
 	onChange: (style: DiffStyle) => void;
-	disabled?: boolean;
-	disabledTitle?: string;
 }
 
 /**
@@ -18,8 +16,6 @@ interface DiffStyleToggleProps {
 export const DiffStyleToggle: FC<DiffStyleToggleProps> = ({
 	value,
 	onChange,
-	disabled,
-	disabledTitle,
 }) => {
 	return (
 		<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
@@ -28,10 +24,8 @@ export const DiffStyleToggle: FC<DiffStyleToggleProps> = ({
 				onClick={() => onChange("unified")}
 				aria-label="Unified diff"
 				aria-pressed={value === "unified"}
-				disabled={disabled}
-				title={disabled ? disabledTitle : undefined}
 				className={cn(
-					"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
+					"flex cursor-pointer items-center border-none px-1.5 transition-colors",
 					value === "unified"
 						? "bg-surface-quaternary/25 text-content-primary"
 						: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -44,10 +38,8 @@ export const DiffStyleToggle: FC<DiffStyleToggleProps> = ({
 				onClick={() => onChange("split")}
 				aria-label="Split diff"
 				aria-pressed={value === "split"}
-				disabled={disabled}
-				title={disabled ? disabledTitle : undefined}
 				className={cn(
-					"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
+					"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors",
 					value === "split"
 						? "bg-surface-quaternary/25 text-content-primary"
 						: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
