@@ -98,8 +98,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    multi-iteration requests do not inflate context estimates.
 // 7) go.mod replaces pointing anthropic-sdk-go and openai-go at the
 //    coder forks below.
-// See: https://github.com/coder/fantasy/commits/02fe20885709
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260811105534-02fe20885709
+// See: https://github.com/coder/fantasy/commits/6f8df3735907
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260812075759-6f8df3735907
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
