@@ -19,7 +19,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/smtpmock"
@@ -28,10 +27,7 @@ import (
 )
 
 type Runner struct {
-	client *codersdk.Client
-	cfg    Config
-
-	createUserRunner *createusers.Runner
+	cfg Config
 
 	// websocketReceiptTimes stores the receipt time for websocket notifications
 	websocketReceiptTimes   map[uuid.UUID]time.Time
@@ -44,9 +40,11 @@ type Runner struct {
 	clock quartz.Clock
 }
 
-func NewRunner(client *codersdk.Client, cfg Config) *Runner {
+// NewRunner returns a runner that dials the notification websocket as
+// cfg.PreCreatedUser. It needs no API client: the caller owns the user lifecycle,
+// so the handshake is the only request a runner makes.
+func NewRunner(cfg Config) *Runner {
 	return &Runner{
-		client:                client,
 		cfg:                   cfg,
 		websocketReceiptTimes: make(map[uuid.UUID]time.Time),
 		smtpReceiptTimes:      make(map[uuid.UUID]time.Time),
@@ -61,11 +59,10 @@ func (r *Runner) WithClock(clock quartz.Clock) *Runner {
 
 var (
 	_ harness.Runnable    = &Runner{}
-	_ harness.Cleanable   = &Runner{}
 	_ harness.Collectable = &Runner{}
 )
 
-func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
+func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -78,49 +75,39 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	reachedReceivingWatchBarrier := false
 	defer func() {
-		if len(r.cfg.ExpectedNotificationsIDs) > 0 && !reachedReceivingWatchBarrier {
+		if len(r.cfg.ExpectedNotificationIDs) > 0 && !reachedReceivingWatchBarrier {
 			r.cfg.ReceivingWatchBarrier.Done()
 		}
 	}()
 
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
-	r.client.SetLogger(logger)
-	r.client.SetLogBodies(true)
 
-	r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
-	newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
-	if err != nil {
-		r.cfg.Metrics.AddError("create_user")
-		return xerrors.Errorf("create user: %w", err)
+	// Config.Validate owns this contract; these are defensive guards against a
+	// caller that bypasses validation. A caller-side programming error is not a
+	// load-test failure, so neither is recorded as an error metric.
+	if r.cfg.PreCreatedUser.ID == uuid.Nil {
+		return xerrors.New("pre-created user required but not provided")
 	}
-	newUser := newUserAndToken.User
-	newUserClient := codersdk.New(r.client.URL,
-		codersdk.WithSessionToken(newUserAndToken.SessionToken),
+	if r.cfg.SessionToken == "" {
+		return xerrors.New("session token required but not provided")
+	}
+	user := r.cfg.PreCreatedUser
+	userClient := codersdk.New(r.cfg.URL,
+		codersdk.WithSessionToken(r.cfg.SessionToken),
 		codersdk.WithLogger(logger),
 		codersdk.WithLogBodies())
+	// Dial with the caller's HTTP client so the handshake uses its TLS and proxy
+	// configuration.
+	userClient.HTTPClient = r.cfg.DialHTTPClient
 
-	logger.Info(ctx, "runner user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
-
-	if len(r.cfg.Roles) > 0 {
-		logger.Info(ctx, "assigning roles to user", slog.F("roles", r.cfg.Roles))
-
-		_, err := r.client.UpdateUserRoles(ctx, newUser.ID.String(), codersdk.UpdateRoles{
-			Roles: r.cfg.Roles,
-		})
-		if err != nil {
-			r.cfg.Metrics.AddError("assign_roles")
-			return xerrors.Errorf("assign roles: %w", err)
-		}
-	}
-
-	logger.Info(ctx, "notification runner is ready")
+	logger.Info(ctx, "notification runner is ready", slog.F("username", user.Username), slog.F("user_id", user.ID.String()))
 
 	dialCtx, cancel := context.WithTimeout(ctx, r.cfg.DialTimeout)
 	defer cancel()
 
 	logger.Info(ctx, "connecting to notification websocket")
-	conn, err := r.dialNotificationWebsocket(dialCtx, newUserClient, logger)
+	conn, err := r.dialNotificationWebsocket(dialCtx, userClient, logger)
 	if err != nil {
 		return xerrors.Errorf("dial notification websocket: %w", err)
 	}
@@ -131,7 +118,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.cfg.DialBarrier.Done()
 	r.cfg.DialBarrier.Wait()
 
-	if len(r.cfg.ExpectedNotificationsIDs) == 0 {
+	if len(r.cfg.ExpectedNotificationIDs) == 0 {
 		logger.Info(ctx, "maintaining websocket connection, waiting for receiving users to complete")
 
 		// Wait for receiving users to complete
@@ -150,21 +137,25 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return nil
 	}
 
-	logger.Info(ctx, "waiting for notifications", slog.F("timeout", r.cfg.NotificationTimeout))
+	// The watch runs until the caller's context expires. That context carries the
+	// overall test budget, so there is no separate per-runner notification
+	// deadline that could expire before or after it.
+	if deadline, ok := ctx.Deadline(); ok {
+		logger.Info(ctx, "waiting for notifications", slog.F("deadline", deadline))
+	} else {
+		logger.Info(ctx, "waiting for notifications")
+	}
 
-	watchCtx, cancel := context.WithTimeout(ctx, r.cfg.NotificationTimeout)
-	defer cancel()
-
-	eg, egCtx := errgroup.WithContext(watchCtx)
+	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		return r.watchNotifications(egCtx, conn, newUser, logger, r.cfg.ExpectedNotificationsIDs)
+		return r.watchNotifications(egCtx, conn, user, logger, r.cfg.ExpectedNotificationIDs)
 	})
 
 	if r.cfg.SMTPApiURL != "" {
 		logger.Info(ctx, "running SMTP notification watcher")
 		eg.Go(func() error {
-			return r.watchNotificationsSMTP(egCtx, newUser, logger, r.cfg.ExpectedNotificationsIDs)
+			return r.watchNotificationsSMTP(egCtx, user, logger, r.cfg.ExpectedNotificationIDs)
 		})
 	}
 
@@ -174,17 +165,6 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	reachedReceivingWatchBarrier = true
 	r.cfg.ReceivingWatchBarrier.Done()
-
-	return nil
-}
-
-func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
-	if r.createUserRunner != nil {
-		_, _ = fmt.Fprintln(logs, "Cleaning up user...")
-		if err := r.createUserRunner.Cleanup(ctx, id, logs); err != nil {
-			return xerrors.Errorf("cleanup user: %w", err)
-		}
-	}
 
 	return nil
 }
@@ -209,31 +189,16 @@ func (r *Runner) GetMetrics() map[string]any {
 	}
 }
 
+// dialNotificationWebsocket connects to the inbox watch endpoint. Client.Dial
+// parses the URL, propagates the client's HTTP client so custom TLS applies, and
+// sets the session token header.
 func (r *Runner) dialNotificationWebsocket(ctx context.Context, client *codersdk.Client, logger slog.Logger) (*websocket.Conn, error) {
-	u, err := client.URL.Parse("/api/v2/notifications/inbox/watch")
+	conn, err := client.Dial(ctx, "/api/v2/notifications/inbox/watch", nil)
 	if err != nil {
-		logger.Error(ctx, "parse notification URL", slog.Error(err))
-		r.cfg.Metrics.AddError("parse_url")
-		return nil, xerrors.Errorf("parse notification URL: %w", err)
-	}
-
-	conn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
-		HTTPHeader: http.Header{
-			"Coder-Session-Token": []string{client.SessionToken()},
-		},
-	})
-	if err != nil {
-		if resp != nil {
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusSwitchingProtocols {
-				err = codersdk.ReadBodyAsError(resp)
-			}
-		}
 		logger.Error(ctx, "dial notification websocket", slog.Error(err))
 		r.cfg.Metrics.AddError("dial")
 		return nil, xerrors.Errorf("dial notification websocket: %w", err)
 	}
-
 	return conn, nil
 }
 
@@ -347,6 +312,10 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 
 			if _, exists := expectedNotifications[notificationID]; exists {
 				if _, received := receivedNotifications[notificationID]; !received {
+					// The SMTP mock stamps this date on its own host, while the trigger time
+					// comes from the CLI host, so clock skew between the two lands in the
+					// reported SMTP latency and can even make it negative. The websocket
+					// measurement stays on one clock and does not have this problem.
 					receiptTime := summary.Date
 					if receiptTime.IsZero() {
 						receiptTime = time.Now()

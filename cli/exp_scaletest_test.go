@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -253,4 +254,111 @@ func TestScaleTestDashboard(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "invalid target users \"0:0\": start and end cannot be equal")
 	})
+}
+
+// TestScaleTestNotifications_ValidatesArgs checks the degenerate configurations the
+// command must reject before doing any work, each of which would otherwise produce
+// a run that measures nothing and still exits 0.
+func TestScaleTestNotifications_ValidatesArgs(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name          string
+		args          []string
+		errorContains string
+	}{
+		{
+			name:          "ZeroTemplateAdminPercentage",
+			args:          []string{"--user-count", "1", "--template-admin-percentage", "0"},
+			errorContains: "--template-admin-percentage must be greater than 0",
+		},
+		{
+			name:          "ZeroSetupConcurrency",
+			args:          []string{"--user-count", "1", "--setup-concurrency", "0"},
+			errorContains: "--setup-concurrency must be greater than 0",
+		},
+		{
+			name:          "ZeroTimeout",
+			args:          []string{"--user-count", "1", "--timeout", "0"},
+			errorContains: "--timeout must be greater than 0",
+		},
+		{
+			name:          "ZeroCleanupTimeout",
+			args:          []string{"--user-count", "1", "--cleanup-timeout", "0"},
+			errorContains: "--cleanup-timeout must be greater than 0",
+		},
+		{
+			name:          "ZeroSetupTimeout",
+			args:          []string{"--user-count", "1", "--setup-timeout", "0"},
+			errorContains: "--setup-timeout must be greater than 0",
+		},
+		{
+			// The connect phase must leave room to trigger and observe, or the run
+			// measures nothing.
+			name:          "DialTimeoutNotLessThanTimeout",
+			args:          []string{"--user-count", "1", "--timeout", "30m", "--dial-timeout", "30m"},
+			errorContains: "--dial-timeout (30m0s) must be less than --timeout (30m0s)",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			client := coderdtest.New(t, &coderdtest.Options{Logger: &log})
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			args := append([]string{"exp", "scaletest", "notifications"}, tc.args...)
+			args = append(args,
+				"--scaletest-prometheus-address", "127.0.0.1:0",
+				"--scaletest-prometheus-wait", "0s",
+			)
+			inv, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, client, root)
+			err := inv.WithContext(ctx).Run()
+			require.ErrorContains(t, err, tc.errorContains)
+		})
+	}
+}
+
+// TestScaleTestNotifications_CleanupRunsAfterFailure checks the guarantee that the
+// round 1 review found broken: users created during setup are cleaned up even when
+// the run fails after setup, not only on the fully successful path.
+func TestScaleTestNotifications_CleanupRunsAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{Logger: &log})
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	// A dial timeout this short guarantees the run fails after setup created its
+	// users, which is the window the cleanup must still cover.
+	inv, root := clitest.New(t, "exp", "scaletest", "notifications",
+		"--user-count", "2",
+		"--template-admin-percentage", "50",
+		"--timeout", "5s",
+		"--dial-timeout", "1s",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+	)
+	// The command requires an admin: it lists users, updates roles, mints tokens,
+	// and creates templates.
+	//nolint:gocritic // This scaletest command must run as an admin.
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.Error(t, err, "the run must fail")
+
+	// Every user the run created must be gone, leaving only the owner.
+	users, err := client.Users(ctx, codersdk.UsersRequest{})
+	require.NoError(t, err)
+	require.Len(t, users.Users, 1, "created users must be cleaned up after a post-setup failure")
+	require.Equal(t, firstUser.UserID, users.Users[0].ID)
+
+	// The trigger template must not be left behind to poison later runs.
+	templates, err := client.TemplatesByOrganization(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	for _, tpl := range templates {
+		require.NotContains(t, tpl.Name, "notifications-", "trigger template must be cleaned up")
+	}
 }
