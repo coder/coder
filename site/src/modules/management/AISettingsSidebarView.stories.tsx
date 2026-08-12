@@ -75,6 +75,26 @@ export const NoDeploymentConfig: Story = {
 			editDeploymentConfig: false,
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText("Coder Agents")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Templates")).not.toBeInTheDocument();
+	},
+};
+
+export const NoUpdateTemplates: Story = {
+	args: {
+		permissions: {
+			...MockPermissions,
+			updateTemplates: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Coder Agents")).toBeVisible();
+		expect(canvas.queryByText("Templates")).not.toBeInTheDocument();
+		expect(canvas.getByText("Models")).toBeVisible();
+	},
 };
 
 export const NoPermissions: Story = {

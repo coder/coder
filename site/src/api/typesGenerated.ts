@@ -2037,6 +2037,7 @@ export interface ChatConfig {
 	readonly hook_secret: string;
 	readonly hook_timeout: number;
 	readonly hook_enabled: boolean;
+	readonly hook_allow_insecure: boolean;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -2175,7 +2176,7 @@ export const ChatContextResourceStatuses: ChatContextResourceStatus[] = [
  */
 export interface ChatContextTool {
 	/**
-	 * Name is the tool name with the "<server>__" prefix the agent adds
+	 * Name is the tool name with the `<server>__` prefix the agent adds
 	 * stripped, so it reads as the server exposes it.
 	 */
 	readonly name: string;
@@ -3433,16 +3434,6 @@ export interface ChatSystemPromptResponse {
 }
 
 // From codersdk/chats.go
-/**
- * ChatTemplateAllowlist is the request and response body for the
- * chat template allowlist configuration endpoint. An empty list
- * means all templates are allowed.
- */
-export interface ChatTemplateAllowlist {
-	readonly template_ids: readonly string[];
-}
-
-// From codersdk/chats.go
 export interface ChatTextPart {
 	readonly type: "text";
 	readonly text: string;
@@ -4107,6 +4098,11 @@ export interface CreateTemplateRequest {
 	 * CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
 	 */
 	readonly cors_behavior: CORSBehavior | null;
+	/**
+	 * AgentsAllowed controls whether Coder Agents can create workspaces using
+	 * this template. Defaults to true.
+	 */
+	readonly agents_allowed?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -6921,6 +6917,47 @@ export interface OrganizationSyncSettings {
 	readonly organization_assign_default: boolean;
 }
 
+// From codersdk/groups.go
+/**
+ * PaginatedGroup is a group summary returned by the paginated groups endpoint.
+ * It deliberately omits the member roster (which the endpoint does not return)
+ * and exposes only the total member count. Fetch the roster via the group
+ * members endpoint.
+ */
+export interface PaginatedGroup {
+	readonly id: string;
+	readonly name: string;
+	readonly display_name: string;
+	readonly organization_id: string;
+	/**
+	 * TotalMemberCount is the number of members in the group, shown even when
+	 * the caller cannot read individual members. The roster itself is not
+	 * returned by this endpoint.
+	 */
+	readonly total_member_count: number;
+	readonly avatar_url: string;
+	readonly quota_allowance: number;
+	readonly source: GroupSource;
+	readonly organization_name: string;
+	readonly organization_display_name: string;
+}
+
+// From codersdk/groups.go
+/**
+ * PaginatedGroupsRequest are the filters for a paginated groups request.
+ * Groups only support free-text search, so unlike UsersRequest it exposes no
+ * key:value filters that the endpoint would reject.
+ */
+export interface PaginatedGroupsRequest extends Pagination {
+	readonly q?: string;
+}
+
+// From codersdk/groups.go
+export interface PaginatedGroupsResponse {
+	readonly groups: readonly PaginatedGroup[];
+	readonly count: number;
+}
+
 // From codersdk/organizations.go
 export interface PaginatedMembersRequest {
 	readonly limit?: number;
@@ -8791,6 +8828,7 @@ export interface Template {
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
+	readonly agents_allowed: boolean;
 	/**
 	 * DisableModuleCache disables the use of cached Terraform modules during
 	 * provisioning.
@@ -9777,6 +9815,11 @@ export interface UpdateTemplateMeta {
 	 * provisioning. It is recommended not to disable this.
 	 */
 	readonly disable_module_cache?: boolean;
+	/**
+	 * AgentsAllowed controls whether Coder Agents can create workspaces using
+	 * this template. If omitted, the current value is preserved.
+	 */
+	readonly agents_allowed?: boolean;
 }
 
 // From codersdk/users.go
@@ -10659,6 +10702,13 @@ export interface WorkspaceAgent {
 	readonly display_apps: readonly DisplayApp[];
 	readonly log_sources: readonly WorkspaceAgentLogSource[];
 	readonly scripts: readonly WorkspaceAgentScript[];
+	/**
+	 * Metadata is only populated on the workspaces list endpoint when the
+	 * request opts in with the include_agent_metadata search key, and it
+	 * only carries the requested keys. The description's script is always
+	 * empty here: it can be long, and list consumers want values.
+	 */
+	readonly metadata?: readonly WorkspaceAgentMetadata[];
 	/**
 	 * StartupScriptBehavior is a legacy field that is deprecated in favor
 	 * of the `coder_script` resource. It's only referenced by old clients.

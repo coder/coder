@@ -713,14 +713,6 @@ func (m queryMetricsStore) DeleteOldChatDebugRuns(ctx context.Context, arg datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.DeleteOldChatFiles(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteOldChatFiles").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldChatFiles").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldChats(ctx, arg)
@@ -854,6 +846,14 @@ func (m queryMetricsStore) DeleteTask(ctx context.Context, arg database.DeleteTa
 	r0, r1 := m.s.DeleteTask(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteTask").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteTask").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteUnlinkedChatFilesByIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteUnlinkedChatFilesByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUnlinkedChatFilesByIDs").Inc()
 	return r0, r1
 }
 
@@ -1769,14 +1769,6 @@ func (m queryMetricsStore) GetChatSystemPromptConfig(ctx context.Context) (datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatTemplateAllowlist(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatTemplateAllowlist(ctx)
-	m.queryLatencies.WithLabelValues("GetChatTemplateAllowlist").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTemplateAllowlist").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatTitleGenerationModelOverride(ctx)
@@ -2161,6 +2153,14 @@ func (m queryMetricsStore) GetGroups(ctx context.Context, arg database.GetGroups
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetGroupsByOrganizationIDPaginated(ctx context.Context, arg database.GetGroupsByOrganizationIDPaginatedParams) ([]database.GetGroupsByOrganizationIDPaginatedRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGroupsByOrganizationIDPaginated(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationIDPaginated").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupsByOrganizationIDPaginated").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetHealthSettings(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetHealthSettings(ctx)
@@ -2486,6 +2486,14 @@ func (m queryMetricsStore) GetOAuth2ProviderAppsByUserID(ctx context.Context, us
 	r0, r1 := m.s.GetOAuth2ProviderAppsByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppsByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderAppsByUserID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOldUnlinkedChatFileIDs(ctx context.Context, arg database.GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOldUnlinkedChatFileIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOldUnlinkedChatFileIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOldUnlinkedChatFileIDs").Inc()
 	return r0, r1
 }
 
@@ -4633,11 +4641,11 @@ func (m queryMetricsStore) IsChatHeartbeatStale(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) LinkChatFiles(ctx context.Context, arg database.LinkChatFilesParams) (int32, error) {
+func (m queryMetricsStore) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
 	start := time.Now()
-	r0, r1 := m.s.LinkChatFiles(ctx, arg)
-	m.queryLatencies.WithLabelValues("LinkChatFiles").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LinkChatFiles").Inc()
+	r0, r1 := m.s.LinkChatFilesAfterLock(ctx, arg)
+	m.queryLatencies.WithLabelValues("LinkChatFilesAfterLock").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LinkChatFilesAfterLock").Inc()
 	return r0, r1
 }
 
@@ -4838,6 +4846,22 @@ func (m queryMetricsStore) LockChatAndBumpSnapshotVersion(ctx context.Context, i
 	r0, r1 := m.s.LockChatAndBumpSnapshotVersion(ctx, id)
 	m.queryLatencies.WithLabelValues("LockChatAndBumpSnapshotVersion").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatAndBumpSnapshotVersion").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockChatByID(ctx, id)
+	m.queryLatencies.WithLabelValues("LockChatByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockProvisionerKeyByIDForShare(ctx, id)
+	m.queryLatencies.WithLabelValues("LockProvisionerKeyByIDForShare").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockProvisionerKeyByIDForShare").Inc()
 	return r0, r1
 }
 
@@ -6305,14 +6329,6 @@ func (m queryMetricsStore) UpsertChatSystemPrompt(ctx context.Context, value str
 	return r0
 }
 
-func (m queryMetricsStore) UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatTemplateAllowlist(ctx, templateAllowlist)
-	m.queryLatencies.WithLabelValues("UpsertChatTemplateAllowlist").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatTemplateAllowlist").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertChatTitleGenerationModelOverride(ctx, value)
@@ -6710,6 +6726,22 @@ func (m queryMetricsStore) ListAuthorizedAIBridgeSessionThreads(ctx context.Cont
 	r0, r1 := m.s.ListAuthorizedAIBridgeSessionThreads(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeSessionThreads").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeSessionThreads").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldChatFiles(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldChatFiles").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldChatFiles").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) LinkChatFiles(ctx context.Context, arg database.LinkChatFilesParams) (int32, error) {
+	start := time.Now()
+	r0, r1 := m.s.LinkChatFiles(ctx, arg)
+	m.queryLatencies.WithLabelValues("LinkChatFiles").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LinkChatFiles").Inc()
 	return r0, r1
 }
 

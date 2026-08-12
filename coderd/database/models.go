@@ -5540,7 +5540,7 @@ type OAuth2ProviderApp struct {
 	// List of valid redirect URIs for the application
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
 	// OAuth2 client type: confidential or public
-	ClientType sql.NullString `db:"client_type" json:"client_type"`
+	ClientType string `db:"client_type" json:"client_type"`
 	// Whether this app was created via dynamic client registration
 	DynamicallyRegistered sql.NullBool `db:"dynamically_registered" json:"dynamically_registered"`
 	// RFC 7591: Timestamp when client_id was issued
@@ -5617,13 +5617,15 @@ type OAuth2ProviderAppToken struct {
 	ExpiresAt  time.Time `db:"expires_at" json:"expires_at"`
 	HashPrefix []byte    `db:"hash_prefix" json:"hash_prefix"`
 	// Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.
-	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
-	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
-	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
+	RefreshHash []byte        `db:"refresh_hash" json:"refresh_hash"`
+	AppSecretID uuid.NullUUID `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID    string        `db:"api_key_id" json:"api_key_id"`
 	// Token audience binding from resource parameter
 	Audience sql.NullString `db:"audience" json:"audience"`
 	// Denormalized user ID for performance optimization in authorization checks
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.
+	AppID uuid.UUID `db:"app_id" json:"app_id"`
 }
 
 type Organization struct {
@@ -5923,6 +5925,7 @@ type Template struct {
 	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache            bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
+	AgentsAllowed                 bool            `db:"agents_allowed" json:"agents_allowed"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -5975,6 +5978,8 @@ type TemplateTable struct {
 	DisableModuleCache      bool         `db:"disable_module_cache" json:"disable_module_cache"`
 	// How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.
 	TimeTilAutostopNotify int64 `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
+	// Whether Coder Agents can create workspaces using this template.
+	AgentsAllowed bool `db:"agents_allowed" json:"agents_allowed"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.

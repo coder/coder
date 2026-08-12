@@ -224,7 +224,7 @@ const (
 // ChatContextTool is one tool exposed by a pinned MCP server, reported on the
 // single-chat GET response. Metadata only; the input schema is omitted.
 type ChatContextTool struct {
-	// Name is the tool name with the "<server>__" prefix the agent adds
+	// Name is the tool name with the `<server>__` prefix the agent adds
 	// stripped, so it reads as the server exposes it.
 	Name string `json:"name"`
 	// Description is the tool's human-readable summary; may be empty.
@@ -1205,13 +1205,6 @@ func ParseChatWorkspaceTTL(s string) (time.Duration, error) {
 	return d, nil
 }
 
-// ChatTemplateAllowlist is the request and response body for the
-// chat template allowlist configuration endpoint. An empty list
-// means all templates are allowed.
-type ChatTemplateAllowlist struct {
-	TemplateIDs []string `json:"template_ids"`
-}
-
 // ChatProviderConfigSource describes how a provider entry is sourced.
 type ChatProviderConfigSource string
 
@@ -2008,7 +2001,7 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 		return nil, ReadBodyAsError(res)
 	}
 	var chats []Chat
-	return chats, json.NewDecoder(res.Body).Decode(&chats)
+	return chats, ReadBodyAsJSON(res, &chats)
 }
 
 // ListChatModels returns the available chat model catalog.
@@ -2023,7 +2016,7 @@ func (c *ExperimentalClient) ListChatModels(ctx context.Context) (ChatModelsResp
 	}
 
 	var catalog ChatModelsResponse
-	return catalog, json.NewDecoder(res.Body).Decode(&catalog)
+	return catalog, ReadBodyAsJSON(res, &catalog)
 }
 
 // ListChatProviders returns admin-managed chat provider configs.
@@ -2038,7 +2031,7 @@ func (c *ExperimentalClient) ListChatProviders(ctx context.Context) ([]ChatProvi
 	}
 
 	var providers []ChatProviderConfig
-	return providers, json.NewDecoder(res.Body).Decode(&providers)
+	return providers, ReadBodyAsJSON(res, &providers)
 }
 
 // CreateChatProvider creates an admin-managed chat provider config.
@@ -2053,7 +2046,7 @@ func (c *ExperimentalClient) CreateChatProvider(ctx context.Context, req CreateC
 	}
 
 	var provider ChatProviderConfig
-	return provider, json.NewDecoder(res.Body).Decode(&provider)
+	return provider, ReadBodyAsJSON(res, &provider)
 }
 
 // UpdateChatProvider updates an admin-managed chat provider config.
@@ -2068,7 +2061,7 @@ func (c *ExperimentalClient) UpdateChatProvider(ctx context.Context, providerID 
 	}
 
 	var provider ChatProviderConfig
-	return provider, json.NewDecoder(res.Body).Decode(&provider)
+	return provider, ReadBodyAsJSON(res, &provider)
 }
 
 // DeleteChatProvider deletes an admin-managed chat provider config.
@@ -2095,7 +2088,7 @@ func (c *ExperimentalClient) ListUserAIProviderKeyConfigs(ctx context.Context, u
 		return nil, ReadBodyAsError(res)
 	}
 	var configs []UserAIProviderKeyConfig
-	return configs, json.NewDecoder(res.Body).Decode(&configs)
+	return configs, ReadBodyAsJSON(res, &configs)
 }
 
 // UpsertUserAIProviderKey creates or replaces a user API key for an AI provider.
@@ -2109,7 +2102,7 @@ func (c *ExperimentalClient) UpsertUserAIProviderKey(ctx context.Context, user s
 		return UserAIProviderKeyConfig{}, ReadBodyAsError(res)
 	}
 	var config UserAIProviderKeyConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	return config, ReadBodyAsJSON(res, &config)
 }
 
 // DeleteUserAIProviderKey deletes a user API key for an AI provider.
@@ -2140,7 +2133,7 @@ func (c *ExperimentalClient) ListUserChatProviderConfigs(ctx context.Context) ([
 		return nil, ReadBodyAsError(res)
 	}
 	var configs []UserChatProviderConfig
-	return configs, json.NewDecoder(res.Body).Decode(&configs)
+	return configs, ReadBodyAsJSON(res, &configs)
 }
 
 // UpsertUserChatProviderKey creates or replaces a user API key for a provider.
@@ -2154,7 +2147,7 @@ func (c *ExperimentalClient) UpsertUserChatProviderKey(ctx context.Context, prov
 		return UserChatProviderConfig{}, ReadBodyAsError(res)
 	}
 	var config UserChatProviderConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	return config, ReadBodyAsJSON(res, &config)
 }
 
 // DeleteUserChatProviderKey deletes a user API key for a provider.
@@ -2182,7 +2175,7 @@ func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context) ([]ChatMo
 	}
 
 	var configs []ChatModelConfig
-	return configs, json.NewDecoder(res.Body).Decode(&configs)
+	return configs, ReadBodyAsJSON(res, &configs)
 }
 
 // CreateChatModelConfig creates an admin-managed chat model config.
@@ -2197,7 +2190,7 @@ func (c *ExperimentalClient) CreateChatModelConfig(ctx context.Context, req Crea
 	}
 
 	var config ChatModelConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	return config, ReadBodyAsJSON(res, &config)
 }
 
 // UpdateChatModelConfig updates an admin-managed chat model config.
@@ -2212,7 +2205,7 @@ func (c *ExperimentalClient) UpdateChatModelConfig(ctx context.Context, modelCon
 	}
 
 	var config ChatModelConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	return config, ReadBodyAsJSON(res, &config)
 }
 
 // DeleteChatModelConfig deletes an admin-managed chat model config.
@@ -2240,7 +2233,7 @@ func (c *ExperimentalClient) GetChatCost(ctx context.Context, chatID uuid.UUID) 
 		return ChatCost{}, ReadBodyAsError(res)
 	}
 	var cost ChatCost
-	return cost, json.NewDecoder(res.Body).Decode(&cost)
+	return cost, ReadBodyAsJSON(res, &cost)
 }
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
@@ -2254,7 +2247,7 @@ func (c *ExperimentalClient) GetChatSystemPrompt(ctx context.Context) (ChatSyste
 		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatSystemPromptResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
@@ -2281,7 +2274,7 @@ func (c *ExperimentalClient) GetChatPlanModeInstructions(ctx context.Context) (C
 		return ChatPlanModeInstructionsResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatPlanModeInstructionsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatPlanModeInstructions updates the deployment-wide plan mode instructions.
@@ -2313,7 +2306,7 @@ func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, override 
 		return ChatModelOverrideResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatModelOverrideResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatModelOverride updates the deployment-wide chat model override for
@@ -2346,7 +2339,7 @@ func (c *ExperimentalClient) GetChatPersonalModelOverridesAdminSettings(ctx cont
 		return ChatPersonalModelOverridesAdminSettings{}, ReadBodyAsError(res)
 	}
 	var resp ChatPersonalModelOverridesAdminSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatPersonalModelOverridesAdminSettings updates the deployment-wide
@@ -2375,7 +2368,7 @@ func (c *ExperimentalClient) GetUserChatPersonalModelOverrides(ctx context.Conte
 		return UserChatPersonalModelOverridesResponse{}, ReadBodyAsError(res)
 	}
 	var resp UserChatPersonalModelOverridesResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateUserChatPersonalModelOverride updates the user's personal model
@@ -2407,7 +2400,7 @@ func (c *ExperimentalClient) GetUserChatCustomPrompt(ctx context.Context) (UserC
 		return UserChatCustomPrompt{}, ReadBodyAsError(res)
 	}
 	var resp UserChatCustomPrompt
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetChatAdvisorConfig returns the deployment-wide advisor configuration.
@@ -2421,7 +2414,7 @@ func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorC
 		return AdvisorConfig{}, ReadBodyAsError(res)
 	}
 	var resp AdvisorConfig
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
@@ -2448,7 +2441,7 @@ func (c *ExperimentalClient) GetChatComputerUseProvider(ctx context.Context) (Ch
 		return ChatComputerUseProviderResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatComputerUseProviderResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatComputerUseProvider updates the deployment-wide computer use
@@ -2476,7 +2469,7 @@ func (c *ExperimentalClient) GetChatWorkspaceTTL(ctx context.Context) (ChatWorks
 		return ChatWorkspaceTTLResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatWorkspaceTTLResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatWorkspaceTTL updates the chat workspace TTL setting.
@@ -2503,7 +2496,7 @@ func (c *ExperimentalClient) GetChatRetentionDays(ctx context.Context) (ChatRete
 		return ChatRetentionDaysResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatRetentionDaysResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatRetentionDays updates the chat retention period.
@@ -2531,7 +2524,7 @@ func (c *ExperimentalClient) GetChatDebugRetentionDays(ctx context.Context) (Cha
 		return ChatDebugRetentionDaysResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatDebugRetentionDaysResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatDebugRetentionDays updates the chat debug run retention period.
@@ -2558,39 +2551,12 @@ func (c *ExperimentalClient) GetChatAutoArchiveDays(ctx context.Context) (ChatAu
 		return ChatAutoArchiveDaysResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatAutoArchiveDaysResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatAutoArchiveDays updates the chat auto-archive period.
 func (c *ExperimentalClient) UpdateChatAutoArchiveDays(ctx context.Context, req UpdateChatAutoArchiveDaysRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/auto-archive-days", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-// GetChatTemplateAllowlist returns the deployment-wide chat template allowlist.
-func (c *ExperimentalClient) GetChatTemplateAllowlist(ctx context.Context) (ChatTemplateAllowlist, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/template-allowlist", nil)
-	if err != nil {
-		return ChatTemplateAllowlist{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatTemplateAllowlist{}, ReadBodyAsError(res)
-	}
-	var resp ChatTemplateAllowlist
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// UpdateChatTemplateAllowlist updates the deployment-wide chat template allowlist.
-func (c *ExperimentalClient) UpdateChatTemplateAllowlist(ctx context.Context, req ChatTemplateAllowlist) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/template-allowlist", req)
 	if err != nil {
 		return err
 	}
@@ -2612,7 +2578,7 @@ func (c *ExperimentalClient) UpdateUserChatCustomPrompt(ctx context.Context, req
 		return UserChatCustomPrompt{}, ReadBodyAsError(res)
 	}
 	var resp UserChatCustomPrompt
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetUserChatCompactionThresholds fetches the user's per-model chat
@@ -2627,7 +2593,7 @@ func (c *ExperimentalClient) GetUserChatCompactionThresholds(ctx context.Context
 		return UserChatCompactionThresholds{}, ReadBodyAsError(res)
 	}
 	var thresholds UserChatCompactionThresholds
-	return thresholds, json.NewDecoder(res.Body).Decode(&thresholds)
+	return thresholds, ReadBodyAsJSON(res, &thresholds)
 }
 
 // UpdateUserChatCompactionThreshold updates the user's per-model chat
@@ -2642,7 +2608,7 @@ func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Conte
 		return UserChatCompactionThreshold{}, ReadBodyAsError(res)
 	}
 	var threshold UserChatCompactionThreshold
-	return threshold, json.NewDecoder(res.Body).Decode(&threshold)
+	return threshold, ReadBodyAsJSON(res, &threshold)
 }
 
 // DeleteUserChatCompactionThreshold deletes the user's per-model chat
@@ -2670,7 +2636,7 @@ func (c *ExperimentalClient) CreateChat(ctx context.Context, req CreateChatReque
 	}
 	defer res.Body.Close()
 	var chat Chat
-	return chat, json.NewDecoder(res.Body).Decode(&chat)
+	return chat, ReadBodyAsJSON(res, &chat)
 }
 
 // StreamChatOptions are optional parameters for StreamChat.
@@ -2824,7 +2790,7 @@ func (c *ExperimentalClient) GetChatDebugLogging(ctx context.Context) (ChatDebug
 		return ChatDebugLoggingAdminSettings{}, ReadBodyAsError(res)
 	}
 	var resp ChatDebugLoggingAdminSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChatDebugLogging updates the runtime admin setting that allows
@@ -2853,7 +2819,7 @@ func (c *ExperimentalClient) GetUserChatDebugLogging(ctx context.Context) (UserC
 		return UserChatDebugLoggingSettings{}, ReadBodyAsError(res)
 	}
 	var resp UserChatDebugLoggingSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateUserChatDebugLogging updates the current user's chat debug
@@ -2881,7 +2847,7 @@ func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.U
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ChatDebugRunSummary
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetChatDebugRun returns a single debug run along with its full step
@@ -2896,7 +2862,7 @@ func (c *ExperimentalClient) GetChatDebugRun(ctx context.Context, chatID uuid.UU
 		return ChatDebugRun{}, ReadBodyAsError(res)
 	}
 	var resp ChatDebugRun
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetChat returns a chat by ID.
@@ -2910,7 +2876,7 @@ func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Cha
 		return Chat{}, ReadBodyAsError(res)
 	}
 	var chat Chat
-	return chat, json.NewDecoder(res.Body).Decode(&chat)
+	return chat, ReadBodyAsJSON(res, &chat)
 }
 
 // RefreshChatContext re-pins the chat to its agent's latest context snapshot
@@ -2925,7 +2891,7 @@ func (c *ExperimentalClient) RefreshChatContext(ctx context.Context, chatID uuid
 		return Chat{}, ReadBodyAsError(res)
 	}
 	var chat Chat
-	return chat, json.NewDecoder(res.Body).Decode(&chat)
+	return chat, ReadBodyAsJSON(res, &chat)
 }
 
 func (c *ExperimentalClient) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
@@ -2938,7 +2904,7 @@ func (c *ExperimentalClient) GetChatACL(ctx context.Context, chatID uuid.UUID) (
 		return ChatACL{}, ReadBodyAsError(res)
 	}
 	var acl ChatACL
-	return acl, json.NewDecoder(res.Body).Decode(&acl)
+	return acl, ReadBodyAsJSON(res, &acl)
 }
 
 func (c *ExperimentalClient) UpdateChatACL(ctx context.Context, chatID uuid.UUID, req UpdateChatACL) error {
@@ -2995,7 +2961,7 @@ func (c *ExperimentalClient) GetChatMessages(ctx context.Context, chatID uuid.UU
 		return ChatMessagesResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatMessagesResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ChatPromptsOptions are optional query parameters for GetChatPrompts.
@@ -3030,7 +2996,7 @@ func (c *ExperimentalClient) GetChatPrompts(ctx context.Context, chatID uuid.UUI
 		return ChatPromptsResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatPromptsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateChat patches a chat resource.
@@ -3057,7 +3023,7 @@ func (c *ExperimentalClient) CreateChatMessage(ctx context.Context, chatID uuid.
 	}
 	defer res.Body.Close()
 	var resp CreateChatMessageResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // EditChatMessage edits an existing user message in a chat and re-runs from there.
@@ -3081,7 +3047,7 @@ func (c *ExperimentalClient) EditChatMessage(
 	}
 	defer res.Body.Close()
 	var resp EditChatMessageResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // InterruptChat cancels an in-flight chat run and leaves it waiting.
@@ -3095,7 +3061,7 @@ func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID
 		return Chat{}, ReadBodyAsError(res)
 	}
 	var chat Chat
-	return chat, json.NewDecoder(res.Body).Decode(&chat)
+	return chat, ReadBodyAsJSON(res, &chat)
 }
 
 // CompactChat requests a manual context compaction on an idle chat.
@@ -3112,7 +3078,7 @@ func (c *ExperimentalClient) CompactChat(ctx context.Context, chatID uuid.UUID) 
 		return Chat{}, ReadBodyAsError(res)
 	}
 	var chat Chat
-	return chat, json.NewDecoder(res.Body).Decode(&chat)
+	return chat, ReadBodyAsJSON(res, &chat)
 }
 
 // ReconcileInvalidChatState recovers a chat stuck in an invalid
@@ -3128,7 +3094,7 @@ func (c *ExperimentalClient) ReconcileInvalidChatState(ctx context.Context, chat
 		return Chat{}, ReadBodyAsError(res)
 	}
 	var chat Chat
-	return chat, json.NewDecoder(res.Body).Decode(&chat)
+	return chat, ReadBodyAsJSON(res, &chat)
 }
 
 // RegenerateChatTitle requests the server to regenerate the chat's
@@ -3143,7 +3109,7 @@ func (c *ExperimentalClient) RegenerateChatTitle(ctx context.Context, chatID uui
 		return Chat{}, ReadBodyAsError(res)
 	}
 	var chat Chat
-	return chat, json.NewDecoder(res.Body).Decode(&chat)
+	return chat, ReadBodyAsJSON(res, &chat)
 }
 
 // ProposeChatTitleResponse is returned by the propose-title endpoint.
@@ -3162,7 +3128,7 @@ func (c *ExperimentalClient) ProposeChatTitle(ctx context.Context, chatID uuid.U
 		return ProposeChatTitleResponse{}, ReadBodyAsError(res)
 	}
 	var resp ProposeChatTitleResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetChatDiffContents returns resolved diff contents for a chat.
@@ -3176,7 +3142,7 @@ func (c *ExperimentalClient) GetChatDiffContents(ctx context.Context, chatID uui
 		return ChatDiffContents{}, ReadBodyAsError(res)
 	}
 	var diff ChatDiffContents
-	return diff, json.NewDecoder(res.Body).Decode(&diff)
+	return diff, ReadBodyAsJSON(res, &diff)
 }
 
 // UploadChatFile uploads a file for use in chat messages.
@@ -3195,7 +3161,7 @@ func (c *ExperimentalClient) UploadChatFile(ctx context.Context, organizationID 
 		return UploadChatFileResponse{}, ReadBodyAsError(res)
 	}
 	var resp UploadChatFileResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetChatFile retrieves a previously uploaded chat file by ID.
@@ -3246,5 +3212,5 @@ func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceI
 		return nil, ReadBodyAsError(res)
 	}
 	var result map[uuid.UUID]uuid.UUID
-	return result, json.NewDecoder(res.Body).Decode(&result)
+	return result, ReadBodyAsJSON(res, &result)
 }

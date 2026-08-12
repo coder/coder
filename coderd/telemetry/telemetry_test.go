@@ -44,6 +44,24 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
+func TestConvertTemplateAgentsAllowed(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		allowed bool
+	}{
+		{name: "Allowed", allowed: true},
+		{name: "Disallowed", allowed: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := telemetry.ConvertTemplate(database.Template{AgentsAllowed: tt.allowed})
+			require.Equal(t, tt.allowed, got.AgentsAllowed)
+		})
+	}
+}
+
 func TestTelemetry(t *testing.T) {
 	t.Parallel()
 	t.Run("Snapshot", func(t *testing.T) {

@@ -1,6 +1,5 @@
 import type { ComponentProps, FC } from "react";
 import type { ConnectionLog } from "#/api/typesGenerated";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -12,14 +11,11 @@ import {
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableRow,
-} from "#/components/Table/Table";
+import { Table, TableBody } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
 import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
@@ -32,6 +28,7 @@ interface ConnectionLogPageViewProps {
 	error?: unknown;
 	filterProps: ComponentProps<typeof ConnectionLogFilter>;
 	connectionLogsQuery: PaginationResult;
+	permissions: Permissions;
 }
 
 export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
@@ -41,6 +38,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	error,
 	filterProps,
 	connectionLogsQuery: paginationResult,
+	permissions,
 }) => {
 	const isLoading =
 		(connectionLogs === undefined ||
@@ -89,6 +87,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					message="Connection logs"
 					description="Connection logs allow you to see how and when users connect to workspaces. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/monitoring/connection-logs")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
 		</Margins>
@@ -113,11 +112,7 @@ const ConnectionLogTableBody: FC<ConnectionLogTableBodyProps> = ({
 	// An error renders as an empty table.
 	if (error) {
 		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState message="An error occurred while loading connection logs" />
-				</TableCell>
-			</TableRow>
+			<TableEmpty message="An error occurred while loading connection logs" />
 		);
 	}
 	if (isLoading) {
@@ -127,13 +122,7 @@ const ConnectionLogTableBody: FC<ConnectionLogTableBodyProps> = ({
 		const emptyMessage = isNonInitialPage
 			? "No connection logs available on this page"
 			: "No connection logs available";
-		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState message={emptyMessage} />
-				</TableCell>
-			</TableRow>
-		);
+		return <TableEmpty message={emptyMessage} />;
 	}
 	if (!connectionLogs) {
 		return null;

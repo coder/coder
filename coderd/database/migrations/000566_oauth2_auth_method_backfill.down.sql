@@ -1,0 +1,7 @@
+-- Deliberately a no-op.
+--
+-- The up migration does not record which rows it touched, so the previous
+-- values cannot be restored, and restoring them would only reinstate metadata
+-- that tells a client to authenticate in a way the server rejects. The schema
+-- is unchanged either way, so rolling back past this migration needs no
+-- structural work.

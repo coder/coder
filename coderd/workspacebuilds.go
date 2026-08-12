@@ -323,7 +323,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Tags Builds
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
-// @Success 200 {object} codersdk.WorkspaceBuild
+// @Success 201 {object} codersdk.WorkspaceBuild
 // @Router /api/v2/workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

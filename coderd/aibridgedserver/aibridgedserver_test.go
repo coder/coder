@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	"strconv"
@@ -1913,6 +1914,75 @@ func TestRecordTokenUsage(t *testing.T) {
 				},
 			},
 			{
+				// Implausible counts are rejected before any DB work, so no row
+				// is written. Persisting them would poison the organization
+				// spend export, whose SUM cast raises rather than wraps.
+				name:           "token usage above the allowed range is rejected",
+				expectErrorLog: true,
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId: uuid.NewString(),
+					MsgId:          "msg_123",
+					InputTokens:    math.MaxInt64,
+					CreatedAt:      timestamppb.Now(),
+				},
+				expectedErr: "reported token usage is out of range",
+			},
+			{
+				name:           "negative token usage is rejected",
+				expectErrorLog: true,
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId: uuid.NewString(),
+					MsgId:          "msg_123",
+					InputTokens:    -1_000_000,
+					OutputTokens:   2_000_000,
+					CreatedAt:      timestamppb.Now(),
+				},
+				expectedErr: "reported token usage is out of range",
+			},
+			{
+				// Plausible token counts against a price row six orders of
+				// magnitude too high. The record is written anyway, with prices
+				// snapshotted and cost NULL.
+				name:           "valid token usage with cost out of range",
+				expectErrorLog: true,
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId: uuid.NewString(),
+					MsgId:          "msg_123",
+					InputTokens:    1_000_000,
+					CreatedAt:      timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					intc := newTestInterception(interceptionID)
+					groupID := uuid.New()
+					group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000_000_000}
+					// $20M per million tokens puts a 1M-token request well past
+					// the per-interception cost bound.
+					price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: 20_000_000_000_000, Valid: true}}
+					expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
+
+					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+					)
+
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
+						// Prices and tokens are populated even though cost is NULL.
+						if !assert.Equal(t, uuid.NullUUID{UUID: groupID, Valid: true}, p.EffectiveGroupID, "effective group ID") ||
+							!assert.True(t, p.InputPriceMicros.Valid, "input price populated") ||
+							!assert.False(t, p.CostMicros.Valid, "cost null") ||
+							!assert.Equal(t, int64(1_000_000), p.InputTokens, "input tokens recorded") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+
+					// Spend update is skipped because cost is NULL.
+					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
+				},
+			},
+			{
 				// Price row exists with NULL columns, so cost is 0 (Valid).
 				name: "valid token usage with effective group and NULL prices",
 				request: &proto.RecordTokenUsageRequest{
@@ -3534,6 +3604,10 @@ type testRecordMethodCase[Req any] struct {
 	// assertMetrics, when set, is called after the method returns to assert
 	// the metrics recorded on the server's registry.
 	assertMetrics func(t *testing.T, reg *prometheus.Registry)
+	// expectErrorLog tolerates ERROR-level logs, which slogtest otherwise
+	// treats as a test failure. Set it only for cases whose expected behavior
+	// includes logging an error, so every other case stays strict.
+	expectErrorLog bool
 }
 
 // testRecordMethod is a helper that abstracts the common testing pattern for all Record* methods.
@@ -3551,6 +3625,9 @@ func testRecordMethod[Req any, Resp any](
 			ctrl := gomock.NewController(t)
 			db := dbmock.NewMockStore(ctrl)
 			logger := testutil.Logger(t)
+			if tc.expectErrorLog {
+				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			}
 
 			if tc.setupMocks != nil {
 				tc.setupMocks(t, db, tc.request)

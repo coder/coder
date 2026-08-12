@@ -35,7 +35,6 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
@@ -206,36 +205,6 @@ type Server struct {
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
 	chatHeartbeatInterval      time.Duration
-}
-
-// chatTemplateAllowlist returns the deployment-wide template
-// allowlist as a set of permitted template IDs. The callback
-// signature matches what the chat tools expect. When the
-// allowlist is empty or cannot be loaded the function returns
-// nil, which the tools interpret as "all templates allowed".
-func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
-	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
-	// access for reading deployment config.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	//nolint:gocritic // AsChatd provides narrowly-scoped read
-	// access to deployment config (the template allowlist).
-	ctx = dbauthz.AsChatd(ctx)
-	raw, err := p.db.GetChatTemplateAllowlist(ctx)
-	if err != nil {
-		p.logger.Warn(ctx, "failed to load chat template allowlist", slog.Error(err))
-		return nil
-	}
-	ids, err := xjson.ParseUUIDList(raw)
-	if err != nil {
-		p.logger.Warn(ctx, "failed to parse chat template allowlist", slog.Error(err))
-		return nil
-	}
-	m := make(map[uuid.UUID]bool, len(ids))
-	for _, id := range ids {
-		m[id] = true
-	}
-	return m
 }
 
 func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) codersdk.AdvisorConfig {
@@ -1233,6 +1202,36 @@ type PromoteQueuedResult struct {
 	PromotedMessage database.ChatMessage
 }
 
+// enforceForcedMCPServerIDs appends the ID of every enabled Force On
+// MCP server config missing from ids. Force On availability is a
+// server-side policy: callers must not be able to exclude such
+// servers by stripping IDs from a request (Cure53 CDM-02-010). The
+// forced set is read with daemon scope because regular users cannot
+// read MCP server configs directly.
+func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, ids []uuid.UUID) ([]uuid.UUID, error) {
+	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
+	forced, err := store.GetForcedMCPServerConfigs(dbauthz.AsChatd(ctx))
+	if err != nil {
+		// Fail closed: proceeding without the forced set would
+		// silently bypass a security policy.
+		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+	}
+	merged := slices.Clone(ids)
+	if merged == nil {
+		merged = []uuid.UUID{}
+	}
+	seen := make(map[uuid.UUID]struct{}, len(merged))
+	for _, id := range merged {
+		seen[id] = struct{}{}
+	}
+	for _, cfg := range forced {
+		if _, ok := seen[cfg.ID]; !ok {
+			merged = append(merged, cfg.ID)
+		}
+	}
+	return merged, nil
+}
+
 // CreateChat creates a chat with its initial history through
 // chatstate.CreateChat. The new chat starts in `running` status per
 // the chat execution state model. Ownership hints wake chat workers.
@@ -1255,6 +1254,14 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.MCPServerIDs == nil {
 		opts.MCPServerIDs = []uuid.UUID{}
 	}
+	// Force On MCP servers are enforced server-side so a caller
+	// cannot exclude them by stripping IDs from the request
+	// (Cure53 CDM-02-010).
+	enforcedMCPServerIDs, err := enforceForcedMCPServerIDs(ctx, p.db, opts.MCPServerIDs)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	opts.MCPServerIDs = enforcedMCPServerIDs
 	if opts.Labels == nil {
 		opts.Labels = database.StringMap{}
 	}
@@ -1371,6 +1378,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		},
 		ClientType:      opts.ClientType,
 		InitialMessages: initialMessages,
+		FileIDs:         chatprompt.FileIDs(contentParts),
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1504,9 +1512,16 @@ func (p *Server) SendMessage(
 					slog.F("chat_id", opts.ChatID),
 				)
 			} else {
+				// Force On MCP servers are enforced server-side so a
+				// caller cannot remove them by tampering with the
+				// update (Cure53 CDM-02-010).
+				enforcedIDs, enforceErr := enforceForcedMCPServerIDs(ctx, store, *requestedMCPServerIDs)
+				if enforceErr != nil {
+					return enforceErr
+				}
 				lockedChat, err = store.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
 					ID:           opts.ChatID,
-					MCPServerIDs: *requestedMCPServerIDs,
+					MCPServerIDs: enforcedIDs,
 				})
 				if err != nil {
 					return xerrors.Errorf("update chat mcp server ids: %w", err)
@@ -1543,6 +1558,11 @@ func (p *Server) SendMessage(
 		// previous queue head into history; report those inserts so
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
+
+		// File-link errors must roll back the message.
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+			return err
+		}
 		// Capture the post-transition chat inside the same
 		// transaction so the returned chat and the watch event
 		// reflect the snapshot bump and status change produced by
@@ -1852,6 +1872,9 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+			return err
+		}
 		// Capture the post-edit chat inside the same transaction so
 		// the returned chat and the debug-cleanup cutoff use the
 		// snapshot bump and updated_at stamped by the transition.
@@ -3867,14 +3890,12 @@ func (p *Server) appendRootChatTools(
 
 	tools = append(tools,
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
-			OwnerID:            opts.chat.OwnerID,
-			Logger:             p.logger,
-			Clock:              p.clock,
-			AllowedTemplateIDs: p.chatTemplateAllowlist,
+			OwnerID: opts.chat.OwnerID,
+			Logger:  p.logger,
+			Clock:   p.clock,
 		}),
 		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
-			OwnerID:            opts.chat.OwnerID,
-			AllowedTemplateIDs: p.chatTemplateAllowlist,
+			OwnerID: opts.chat.OwnerID,
 		}),
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
@@ -3884,7 +3905,6 @@ func (p *Server) appendRootChatTools(
 			WorkspaceMu:                    opts.workspaceMu,
 			OnChatUpdated:                  onChatUpdated,
 			Logger:                         p.logger,
-			AllowedTemplateIDs:             p.chatTemplateAllowlist,
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,

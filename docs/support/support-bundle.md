@@ -70,7 +70,7 @@ A brief overview of all files contained in the bundle is provided below:
    > It is recommended to generate a support bundle from a location
    > experiencing workspace connectivity issues.
 
-3. Ensure you are [logged in](../reference/cli/login.md#login) to your Coder
+3. Ensure you are [logged in](../reference/cli/login.md) to your Coder
    deployment. Any authenticated user can generate a support bundle. Users with
    the Owner role will get the most complete bundle; non-admin users will still
    get a useful bundle but some admin-only data will be omitted (see the note

@@ -890,6 +890,94 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest // Subtests share one database seeded by the parent test.
+func TestGetTemplatesWithAgentsAllowedFilter(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	allowed := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		AgentsAllowed:  true,
+	})
+	require.True(t, allowed.AgentsAllowed)
+	blocked := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		AgentsAllowed:  false,
+	})
+
+	tests := []struct {
+		name  string
+		value sql.NullBool
+		want  []uuid.UUID
+	}{
+		{
+			name: "unset",
+			want: []uuid.UUID{allowed.ID, blocked.ID},
+		},
+		{
+			name:  "allowed",
+			value: sql.NullBool{Bool: true, Valid: true},
+			want:  []uuid.UUID{allowed.ID},
+		},
+		{
+			name:  "blocked",
+			value: sql.NullBool{Bool: false, Valid: true},
+			want:  []uuid.UUID{blocked.ID},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+				Deleted:        false,
+				OrganizationID: org.ID,
+				AgentsAllowed:  tt.value,
+			})
+			require.NoError(t, err)
+			gotIDs := make([]uuid.UUID, 0, len(got))
+			for _, template := range got {
+				gotIDs = append(gotIDs, template.ID)
+			}
+			require.ElementsMatch(t, tt.want, gotIDs)
+		})
+	}
+
+	byID, err := db.GetTemplateByID(ctx, blocked.ID)
+	require.NoError(t, err)
+	require.False(t, byID.AgentsAllowed)
+
+	all, err := db.GetTemplates(ctx)
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+	for _, template := range all {
+		if template.ID == blocked.ID {
+			require.False(t, template.AgentsAllowed)
+		}
+	}
+
+	prepared, err := (&coderdtest.FakeAuthorizer{}).Prepare(
+		ctx,
+		rbac.Subject{},
+		policy.ActionRead,
+		rbac.ResourceTemplate.Type,
+	)
+	require.NoError(t, err)
+	authorized, err := db.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
+		Deleted:        false,
+		OrganizationID: org.ID,
+		AgentsAllowed:  sql.NullBool{Bool: false, Valid: true},
+	}, prepared)
+	require.NoError(t, err)
+	require.Len(t, authorized, 1)
+	require.Equal(t, blocked.ID, authorized[0].ID)
+	require.False(t, authorized[0].AgentsAllowed)
+}
+
 func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 	t.Parallel()
 
@@ -1923,6 +2011,49 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 	require.Empty(t, rows[0].GroupACL)
 }
 
+func TestLinkChatFilesDeduplicatesInput(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		Name:           "duplicate.txt",
+		Mimetype:       "text/plain",
+		Data:           []byte("duplicate"),
+	})
+	require.NoError(t, err)
+
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      []uuid.UUID{file.ID, file.ID},
+		MaxFileLinks: 1,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	require.Equal(t, file.ID, files[0].ID)
+}
+
 func TestGetChatFileDataPrefixesByIDs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2480,6 +2611,27 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
 			ProvisionerTags: json.RawMessage(`{}`),
 		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("ProvisionerKeyLock", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitMedium)
+			org   = dbgen.Organization(t, db, database.Organization{})
+			key   = dbgen.ProvisionerKey(t, db, database.ProvisionerKey{OrganizationID: org.ID})
+		)
+
+		// While the key exists, the lock returns its ID.
+		id, err := db.LockProvisionerKeyByIDForShare(ctx, key.ID)
+		require.NoError(t, err)
+		require.Equal(t, key.ID, id)
+
+		// Once the key is deleted, the lock reports no rows.
+		err = db.DeleteProvisionerKey(ctx, key.ID)
+		require.NoError(t, err)
+		_, err = db.LockProvisionerKeyByIDForShare(ctx, key.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }

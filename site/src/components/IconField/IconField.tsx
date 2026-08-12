@@ -1,95 +1,147 @@
-import { css, Global, useTheme } from "@emotion/react";
-import InputAdornment from "@mui/material/InputAdornment";
-import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { type FC, lazy, Suspense, useState } from "react";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import {
+	type ComponentPropsWithRef,
+	type FC,
+	lazy,
+	type ReactNode,
+	Suspense,
+	useId,
+	useState,
+} from "react";
+import { ChevronDownIcon as AnimatedChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupInput,
+} from "#/components/InputGroup/InputGroup";
+import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-
-type IconFieldProps = TextFieldProps & {
-	onPickEmoji: (value: string) => void;
-};
+import { cn } from "#/utils/cn";
 
 const EmojiPicker = lazy(() => import("./EmojiPicker"));
 
+type IconFieldProps = Omit<ComponentPropsWithRef<"input">, "type"> & {
+	label?: ReactNode;
+	error?: boolean;
+	helperText?: ReactNode;
+	onPickEmoji: (value: string) => void;
+	/** Accepted for call-site compatibility with former MUI TextField usage. */
+	fullWidth?: boolean;
+};
+
 export const IconField: FC<IconFieldProps> = ({
+	id: idProp,
+	value,
+	label = "Icon",
+	error,
+	helperText,
+	disabled,
+	className,
 	onPickEmoji,
-	...textFieldProps
+	fullWidth: _fullWidth,
+	...inputProps
 }) => {
-	if (
-		typeof textFieldProps.value !== "string" &&
-		typeof textFieldProps.value !== "undefined"
-	) {
-		throw new Error(`Invalid icon value "${typeof textFieldProps.value}"`);
+	if (typeof value !== "string" && typeof value !== "undefined") {
+		throw new Error(`Invalid icon value "${typeof value}"`);
 	}
 
-	const theme = useTheme();
-	const hasIcon = textFieldProps.value && textFieldProps.value !== "";
+	const generatedId = useId();
+	const id = idProp ?? generatedId;
+	const errorId = `${id}-error`;
+	const helperId = `${id}-helper`;
 	const [open, setOpen] = useState(false);
+	const stringValue = value ?? "";
+	const hasIcon = stringValue !== "";
 
 	return (
-		<div className="flex items-center gap-2">
-			<TextField
-				fullWidth
-				label="Icon"
-				{...textFieldProps}
-				InputProps={{
-					endAdornment: hasIcon ? (
-						<InputAdornment
-							position="end"
-							className="size-6 flex items-center justify-center [&_img]:max-w-full [&_img]:object-contain"
-						>
+		<div className="flex w-full flex-col gap-2">
+			{label ? (
+				<Label htmlFor={id} className="text-sm">
+					{label}
+				</Label>
+			) : null}
+			<InputGroup>
+				<InputGroupInput
+					{...inputProps}
+					id={id}
+					value={stringValue}
+					disabled={disabled}
+					aria-invalid={error}
+					aria-describedby={
+						helperText ? (error ? errorId : helperId) : undefined
+					}
+					className={cn("min-w-0 placeholder:text-content-disabled", className)}
+					spellCheck={false}
+				/>
+				<InputGroupAddon align="inline-end" className="gap-1.5">
+					{hasIcon && (
+						<span className="flex size-5 items-center justify-center">
 							<ExternalImage
 								alt=""
-								src={textFieldProps.value}
-								// This prevent browser to display the ugly error icon if the
-								// image path is wrong or user didn't finish typing the url
-								onError={(e) => {
-									e.currentTarget.style.display = "none";
+								src={stringValue}
+								className="max-w-full object-contain"
+								onError={(event) => {
+									event.currentTarget.style.display = "none";
 								}}
-								onLoad={(e) => {
-									e.currentTarget.style.display = "inline";
+								onLoad={(event) => {
+									event.currentTarget.style.display = "inline";
 								}}
 							/>
-						</InputAdornment>
-					) : undefined,
-				}}
-			/>
-
-			<Global
-				styles={css`
-					em-emoji-picker {
-						--rgb-background: ${theme.palette.background.paper};
-						--rgb-input: ${theme.palette.primary.main};
-						--rgb-color: ${theme.palette.text.primary};
-					}
-				`}
-			/>
-			<Popover open={open} onOpenChange={setOpen}>
-				<PopoverTrigger asChild>
-					<Button variant="outline" size="lg" className="group flex-shrink-0">
-						Emoji
-						<ChevronDownIcon />
-					</Button>
-				</PopoverTrigger>
-				<PopoverContent id="emoji" side="bottom" align="end" className="w-min">
-					<Suspense fallback={<Loader />}>
-						<EmojiPicker
-							onEmojiSelect={(emoji) => {
-								const value = emoji.src ?? `/emojis/${emoji.unified}.png`;
-								onPickEmoji(value);
-								setOpen(false);
-							}}
-						/>
-					</Suspense>
-				</PopoverContent>
-			</Popover>
+						</span>
+					)}
+					<Popover open={open} onOpenChange={setOpen}>
+						<PopoverTrigger asChild>
+							<Button
+								type="button"
+								variant="subtle"
+								size="sm"
+								className="group h-7 gap-1"
+								disabled={disabled}
+								aria-label="Pick an emoji or icon"
+							>
+								Emoji
+								<AnimatedChevronDownIcon />
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent
+							side="bottom"
+							align="end"
+							className="w-min"
+							// The popover is portaled in the DOM but still a React child of
+							// InputGroupAddon, whose click handler focuses the text input.
+							// Stop clicks here so the emoji picker keeps focus.
+							onClick={(event) => event.stopPropagation()}
+						>
+							<Suspense fallback={<Loader />}>
+								<EmojiPicker
+									onEmojiSelect={(emoji) => {
+										const picked = emoji.src ?? `/emojis/${emoji.unified}.png`;
+										onPickEmoji(picked);
+										setOpen(false);
+									}}
+								/>
+							</Suspense>
+						</PopoverContent>
+					</Popover>
+				</InputGroupAddon>
+			</InputGroup>
+			{helperText ? (
+				<span
+					id={error ? errorId : helperId}
+					className={cn(
+						"text-xs",
+						error ? "text-content-destructive" : "text-content-secondary",
+					)}
+				>
+					{helperText}
+				</span>
+			) : null}
 
 			{/*
       - This component takes a long time to load (easily several seconds), so we

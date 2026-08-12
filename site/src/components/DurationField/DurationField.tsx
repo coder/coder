@@ -86,12 +86,10 @@ export const DurationField: FC<DurationFieldProps> = ({
 	}
 
 	const handleTextChange = (raw: string) => {
-		// Preserve exactly what the user typed rather than silently stripping
-		// non-digits (which surprisingly turned "ABC123DEF" into "123"). The
-		// pattern constraint on the Input surfaces invalid entries instead.
-		setText(raw);
+		const digits = raw.replace(/\D/g, "");
+		setText(digits);
 
-		const ms = toMs(raw, unit);
+		const ms = toMs(digits, unit);
 		if (ms !== valueMs) {
 			onChange(ms);
 		}

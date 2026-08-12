@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import { ExternalLinkIcon, RotateCwIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import type { ApiErrorResponse } from "#/api/errors";
@@ -6,6 +5,7 @@ import type { ExternalAuth, ExternalAuthDevice } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { GitDeviceAuth } from "#/components/GitDeviceAuth/GitDeviceAuth";
+import { Link } from "#/components/Link/Link";
 import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
 import {
 	Tooltip,
@@ -56,6 +56,8 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 				href={externalAuth.app_install_url}
 				target="_blank"
 				rel="noreferrer"
+				showExternalIcon={false}
+				className="p-0 text-sm font-medium"
 			>
 				{installTheApp}
 			</Link>
@@ -88,6 +90,8 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 										href={install.account.profile_url}
 										target="_blank"
 										rel="noreferrer"
+										showExternalIcon={false}
+										className="p-0 after:hover:content-none"
 									>
 										<Avatar
 											src={install.account.avatar_url}
@@ -107,7 +111,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 				</div>
 			)}
 
-			<div className="m-4 flex flex-col gap-1">
+			<div className="m-4 flex flex-col items-center gap-1">
 				{!hasInstallations && externalAuth.app_installable && (
 					<Alert severity="warning" className="m-4">
 						You must {installTheApp} to clone private repositories. Accounts
@@ -122,7 +126,8 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 							href={externalAuth.app_install_url}
 							target="_blank"
 							rel="noreferrer"
-							className="flex items-center justify-center gap-2 text-base"
+							showExternalIcon={false}
+							className="inline-flex items-center gap-2 p-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
 						>
 							<ExternalLinkIcon className="size-icon-xs" />
 							{externalAuth.installations.length > 0 ? "Configure" : "Install"}{" "}
@@ -130,8 +135,9 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 						</Link>
 					)}
 				<Link
-					className="flex items-center justify-center gap-2 text-base"
+					className="inline-flex items-center gap-2 p-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
 					href="#"
+					showExternalIcon={false}
 					onClick={() => {
 						onReauthenticate();
 					}}

@@ -3453,11 +3453,25 @@ ON CONFLICT (provider, model) DO UPDATE SET
 	cache_read_price  = EXCLUDED.cache_read_price,
 	cache_write_price = EXCLUDED.cache_write_price,
 	updated_at        = NOW()
+WHERE (
+	ai_model_prices.input_price,
+	ai_model_prices.output_price,
+	ai_model_prices.cache_read_price,
+	ai_model_prices.cache_write_price
+) IS DISTINCT FROM (
+	EXCLUDED.input_price,
+	EXCLUDED.output_price,
+	EXCLUDED.cache_read_price,
+	EXCLUDED.cache_write_price
+)
 `
 
 // Upsert a batch of (provider, model) rows from a JSON array. Each element
 // must have provider, model, and the four price fields; null prices are
 // written as SQL NULL.
+// A conflicting row is only rewritten when a price differs, so updated_at
+// records when a price last changed. Prices are nullable and a NULL on
+// either side counts as a difference.
 func (q *sqlQuerier) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
 	_, err := q.db.ExecContext(ctx, upsertAIModelPrices, seed)
 	return err
@@ -5764,48 +5778,22 @@ func (q *sqlQuerier) UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebu
 	return i, err
 }
 
-const deleteOldChatFiles = `-- name: DeleteOldChatFiles :execrows
-WITH kept_file_ids AS (
-    -- NOTE: This uses updated_at as a proxy for archive time
-    -- because there is no archived_at column. Correctness
-    -- requires that updated_at is never backdated on archived
-    -- chats. See ArchiveChatByID.
-    SELECT DISTINCT cfl.file_id
-    FROM chat_file_links cfl
-    JOIN chats c ON c.id = cfl.chat_id
-    WHERE c.archived = false
-       OR c.updated_at >= $1::timestamptz
-),
-deletable AS (
-    SELECT cf.id
-    FROM chat_files cf
-    LEFT JOIN kept_file_ids k ON cf.id = k.file_id
-    WHERE cf.created_at < $1::timestamptz
-      AND k.file_id IS NULL
-    ORDER BY cf.created_at ASC
-    LIMIT $2
-)
-DELETE FROM chat_files
-USING deletable
-WHERE chat_files.id = deletable.id
+const deleteUnlinkedChatFilesByIDs = `-- name: DeleteUnlinkedChatFilesByIDs :execrows
+DELETE FROM chat_files cf
+WHERE cf.id = ANY($1::uuid[])
+  AND cf.created_at < $2::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM chat_file_links cfl WHERE cfl.file_id = cf.id
+  )
 `
 
-type DeleteOldChatFilesParams struct {
-	BeforeTime time.Time `db:"before_time" json:"before_time"`
-	LimitCount int32     `db:"limit_count" json:"limit_count"`
+type DeleteUnlinkedChatFilesByIDsParams struct {
+	IDs        []uuid.UUID `db:"ids" json:"ids"`
+	BeforeTime time.Time   `db:"before_time" json:"before_time"`
 }
 
-// TODO(cian): Add indexes on chats(archived, updated_at) and
-// chat_files(created_at) for purge query performance.
-// See: https://github.com/coder/internal/issues/1438
-// Deletes chat files that are older than the given threshold and are
-// not referenced by any chat that is still active or was archived
-// within the same threshold window. This covers two cases:
-//  1. Orphaned files not linked to any chat.
-//  2. Files whose every referencing chat has been archived for longer
-//     than the retention period.
-func (q *sqlQuerier) DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteOldChatFiles, arg.BeforeTime, arg.LimitCount)
+func (q *sqlQuerier) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteUnlinkedChatFilesByIDs, pq.Array(arg.IDs), arg.BeforeTime)
 	if err != nil {
 		return 0, err
 	}
@@ -5955,6 +5943,47 @@ func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOldUnlinkedChatFileIDs = `-- name: GetOldUnlinkedChatFileIDs :many
+SELECT cf.id
+FROM chat_files cf
+WHERE cf.created_at < $1::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM chat_file_links cfl WHERE cfl.file_id = cf.id
+  )
+ORDER BY cf.created_at ASC
+LIMIT $2
+FOR UPDATE OF cf SKIP LOCKED
+`
+
+type GetOldUnlinkedChatFileIDsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Locks candidate rows against foreign-key inserts for the transaction.
+func (q *sqlQuerier) GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getOldUnlinkedChatFileIDs, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -10419,14 +10448,14 @@ func (q *sqlQuerier) IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbe
 	return stale, err
 }
 
-const linkChatFiles = `-- name: LinkChatFiles :one
+const linkChatFilesAfterLock = `-- name: LinkChatFilesAfterLock :one
 WITH current AS (
     SELECT COUNT(*) AS cnt
     FROM chat_file_links
     WHERE chat_id = $1::uuid
 ),
 new_links AS (
-    SELECT $1::uuid AS chat_id, unnest($2::uuid[]) AS file_id
+    SELECT DISTINCT $1::uuid AS chat_id, unnest($2::uuid[]) AS file_id
 ),
 genuinely_new AS (
     SELECT nl.chat_id, nl.file_id
@@ -10449,22 +10478,16 @@ SELECT
     (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files
 `
 
-type LinkChatFilesParams struct {
+type LinkChatFilesAfterLockParams struct {
 	ChatID       uuid.UUID   `db:"chat_id" json:"chat_id"`
 	FileIds      []uuid.UUID `db:"file_ids" json:"file_ids"`
 	MaxFileLinks int32       `db:"max_file_links" json:"max_file_links"`
 }
 
-// LinkChatFiles inserts file associations into the chat_file_links
-// join table with deduplication (ON CONFLICT DO NOTHING). The INSERT
-// is conditional: it only proceeds when the total number of links
-// (existing + genuinely new) does not exceed max_file_links. Returns
-// the number of genuinely new file IDs that were NOT inserted due to
-// the cap. A return value of 0 means all files were linked (or were
-// already linked). A positive value means the cap blocked that many
-// new links.
-func (q *sqlQuerier) LinkChatFiles(ctx context.Context, arg LinkChatFilesParams) (int32, error) {
-	row := q.db.QueryRowContext(ctx, linkChatFiles, arg.ChatID, pq.Array(arg.FileIds), arg.MaxFileLinks)
+// LinkChatFilesAfterLock requires the chat row lock.
+// The lock serializes cap checks. The result counts rejected new links.
+func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, linkChatFilesAfterLock, arg.ChatID, pq.Array(arg.FileIds), arg.MaxFileLinks)
 	var rejected_new_files int32
 	err := row.Scan(&rejected_new_files)
 	return rejected_new_files, err
@@ -10638,6 +10661,20 @@ func (q *sqlQuerier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid
 		&i.CompactionRequestedAt,
 	)
 	return i, err
+}
+
+const lockChatByID = `-- name: LockChatByID :one
+SELECT id
+FROM chats
+WHERE id = $1::uuid
+FOR UPDATE
+`
+
+func (q *sqlQuerier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, lockChatByID, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const markChatsContextDirtyByAgent = `-- name: MarkChatsContextDirtyByAgent :many
@@ -10970,10 +11007,6 @@ FROM chats_expanded
 ORDER BY (chats_expanded.id = $1::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC
 `
 
-// Unarchives a chat (and its children). Stale file references are
-// handled automatically by FK cascades on chat_file_links: when
-// dbpurge deletes a chat_files row, the corresponding
-// chat_file_links rows are cascade-deleted by PostgreSQL.
 func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, unarchiveChatByID, id)
 	if err != nil {
@@ -14970,7 +15003,9 @@ FROM
 WHERE
 	organization_id = $1
 AND
-	name = $2
+	-- Match group name case-insensitively, consistent with organization and
+	-- workspace name lookups.
+	LOWER("name") = LOWER($2)
 LIMIT
 	1
 `
@@ -15089,6 +15124,101 @@ func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetG
 			&i.Group.ChatSpendLimitMicros,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupsByOrganizationIDPaginated = `-- name: GetGroupsByOrganizationIDPaginated :many
+SELECT
+		groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source, groups.chat_spend_limit_micros,
+		organizations.name AS organization_name,
+		organizations.display_name AS organization_display_name,
+		COUNT(*) OVER() AS count
+FROM
+		groups
+INNER JOIN
+		organizations ON groups.organization_id = organizations.id
+WHERE
+		true
+		AND groups.organization_id = $1
+		-- Keyset pagination cursor. When @after_id is set, return only groups
+		-- ordered after it, matching the ORDER BY (LOWER(name), id) below. This
+		-- lets callers page without duplicated or skipped rows even if groups are
+		-- inserted or deleted between page requests.
+		AND CASE
+				WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+						(LOWER(groups.name), groups.id) > (
+								SELECT LOWER(name), id FROM groups WHERE id = $2
+						)
+				ELSE true
+		END
+		-- Filter by group name or display name (substring, case-insensitive).
+		AND CASE WHEN $3 :: text != '' THEN (
+				groups.name ILIKE concat('%', $3, '%')
+				OR groups.display_name ILIKE concat('%', $3, '%')
+			)
+			ELSE true
+		END
+ORDER BY
+		-- Deterministic and consistent ordering of all groups. This is to ensure consistent pagination.
+		LOWER(groups.name) ASC, groups.id ASC OFFSET $4
+LIMIT
+		-- A null limit means "no limit", so 0 means return all
+		NULLIF($5 :: int, 0)
+`
+
+type GetGroupsByOrganizationIDPaginatedParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	AfterID        uuid.UUID `db:"after_id" json:"after_id"`
+	Search         string    `db:"search" json:"search"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type GetGroupsByOrganizationIDPaginatedRow struct {
+	Group                   Group  `db:"group" json:"group"`
+	OrganizationName        string `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string `db:"organization_display_name" json:"organization_display_name"`
+	Count                   int64  `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetGroupsByOrganizationIDPaginated(ctx context.Context, arg GetGroupsByOrganizationIDPaginatedParams) ([]GetGroupsByOrganizationIDPaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationIDPaginated,
+		arg.OrganizationID,
+		arg.AfterID,
+		arg.Search,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupsByOrganizationIDPaginatedRow
+	for rows.Next() {
+		var i GetGroupsByOrganizationIDPaginatedRow
+		if err := rows.Scan(
+			&i.Group.ID,
+			&i.Group.Name,
+			&i.Group.OrganizationID,
+			&i.Group.AvatarURL,
+			&i.Group.QuotaAllowance,
+			&i.Group.DisplayName,
+			&i.Group.Source,
+			&i.Group.ChatSpendLimitMicros,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -18771,11 +18901,8 @@ func (q *sqlQuerier) DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id u
 const deleteOAuth2ProviderAppTokensByAppAndUserID = `-- name: DeleteOAuth2ProviderAppTokensByAppAndUserID :exec
 DELETE FROM
   oauth2_provider_app_tokens
-USING
-  oauth2_provider_app_secrets
 WHERE
-  oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
-  AND oauth2_provider_app_secrets.app_id = $1
+  oauth2_provider_app_tokens.app_id = $1
   AND oauth2_provider_app_tokens.user_id = $2
 `
 
@@ -18784,6 +18911,9 @@ type DeleteOAuth2ProviderAppTokensByAppAndUserIDParams struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
+// Filters directly on app_id rather than joining through app_secret_id,
+// since app_secret_id is NULL for public (secretless) clients and would
+// silently exclude their tokens from this delete.
 func (q *sqlQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error {
 	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppTokensByAppAndUserID, arg.AppID, arg.UserID)
 	return err
@@ -18989,7 +19119,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 }
 
 const getOAuth2ProviderAppTokenByAPIKeyID = `-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id FROM oauth2_provider_app_tokens WHERE api_key_id = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id FROM oauth2_provider_app_tokens WHERE api_key_id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error) {
@@ -19005,12 +19135,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, ap
 		&i.APIKeyID,
 		&i.Audience,
 		&i.UserID,
+		&i.AppID,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
@@ -19026,6 +19157,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 		&i.APIKeyID,
 		&i.Audience,
 		&i.UserID,
+		&i.AppID,
 	)
 	return i, err
 }
@@ -19089,10 +19221,8 @@ SELECT
   COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
   oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri
 FROM oauth2_provider_app_tokens
-  INNER JOIN oauth2_provider_app_secrets
-    ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   INNER JOIN oauth2_provider_apps
-    ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
+    ON oauth2_provider_apps.id = oauth2_provider_app_tokens.app_id
 WHERE
   oauth2_provider_app_tokens.user_id = $1
 GROUP BY
@@ -19104,6 +19234,9 @@ type GetOAuth2ProviderAppsByUserIDRow struct {
 	OAuth2ProviderApp OAuth2ProviderApp `db:"oauth2_provider_app" json:"oauth2_provider_app"`
 }
 
+// Joins directly on oauth2_provider_app_tokens.app_id rather than through
+// app_secret_id, since app_secret_id is NULL for public (secretless) clients
+// and would silently exclude their tokens from this listing.
 func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, getOAuth2ProviderAppsByUserID, userID)
 	if err != nil {
@@ -19221,7 +19354,7 @@ type InsertOAuth2ProviderAppParams struct {
 	Icon                    string                `db:"icon" json:"icon"`
 	CallbackURL             string                `db:"callback_url" json:"callback_url"`
 	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
-	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientType              string                `db:"client_type" json:"client_type"`
 	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
 	ClientIDIssuedAt        sql.NullTime          `db:"client_id_issued_at" json:"client_id_issued_at"`
 	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
@@ -19437,6 +19570,7 @@ INSERT INTO oauth2_provider_app_tokens (
     expires_at,
     hash_prefix,
     refresh_hash,
+    app_id,
     app_secret_id,
     api_key_id,
     user_id,
@@ -19450,8 +19584,9 @@ INSERT INTO oauth2_provider_app_tokens (
     $6,
     $7,
     $8,
-    $9
-) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id
+    $9,
+    $10
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
@@ -19460,7 +19595,8 @@ type InsertOAuth2ProviderAppTokenParams struct {
 	ExpiresAt   time.Time      `db:"expires_at" json:"expires_at"`
 	HashPrefix  []byte         `db:"hash_prefix" json:"hash_prefix"`
 	RefreshHash []byte         `db:"refresh_hash" json:"refresh_hash"`
-	AppSecretID uuid.UUID      `db:"app_secret_id" json:"app_secret_id"`
+	AppID       uuid.UUID      `db:"app_id" json:"app_id"`
+	AppSecretID uuid.NullUUID  `db:"app_secret_id" json:"app_secret_id"`
 	APIKeyID    string         `db:"api_key_id" json:"api_key_id"`
 	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
 	Audience    sql.NullString `db:"audience" json:"audience"`
@@ -19473,6 +19609,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.ExpiresAt,
 		arg.HashPrefix,
 		arg.RefreshHash,
+		arg.AppID,
 		arg.AppSecretID,
 		arg.APIKeyID,
 		arg.UserID,
@@ -19489,6 +19626,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.APIKeyID,
 		&i.Audience,
 		&i.UserID,
+		&i.AppID,
 	)
 	return i, err
 }
@@ -19525,7 +19663,7 @@ type UpdateOAuth2ProviderAppByClientIDParams struct {
 	Icon                    string                `db:"icon" json:"icon"`
 	CallbackURL             string                `db:"callback_url" json:"callback_url"`
 	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
-	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientType              string                `db:"client_type" json:"client_type"`
 	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
 	ResponseTypes           []string              `db:"response_types" json:"response_types"`
@@ -19631,7 +19769,7 @@ type UpdateOAuth2ProviderAppByIDParams struct {
 	Icon                    string                `db:"icon" json:"icon"`
 	CallbackURL             string                `db:"callback_url" json:"callback_url"`
 	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
-	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientType              string                `db:"client_type" json:"client_type"`
 	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
 	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
@@ -23660,6 +23798,27 @@ func (q *sqlQuerier) ListProvisionerKeysByOrganizationExcludeReserved(ctx contex
 	return items, nil
 }
 
+const lockProvisionerKeyByIDForShare = `-- name: LockProvisionerKeyByIDForShare :one
+SELECT
+    id
+FROM
+    provisioner_keys
+WHERE
+    id = $1
+FOR KEY SHARE
+`
+
+// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
+// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
+// is held the key cannot be deleted, and a committed deletion is observed as
+// no rows by later calls.
+func (q *sqlQuerier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, lockProvisionerKeyByIDForShare, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
 	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version
@@ -24809,20 +24968,6 @@ func (q *sqlQuerier) GetChatSystemPromptConfig(ctx context.Context) (GetChatSyst
 	return i, err
 }
 
-const getChatTemplateAllowlist = `-- name: GetChatTemplateAllowlist :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_template_allowlist'), '') :: text AS template_allowlist
-`
-
-// GetChatTemplateAllowlist returns the JSON-encoded template allowlist.
-// Returns an empty string when no allowlist has been configured (all templates allowed).
-func (q *sqlQuerier) GetChatTemplateAllowlist(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatTemplateAllowlist)
-	var template_allowlist string
-	err := row.Scan(&template_allowlist)
-	return template_allowlist, err
-}
-
 const getChatTitleGenerationModelOverride = `-- name: GetChatTitleGenerationModelOverride :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_title_generation_model_override'), '') :: text AS model_config_id
@@ -25246,16 +25391,6 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat
 
 func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatSystemPrompt, value)
-	return err
-}
-
-const upsertChatTemplateAllowlist = `-- name: UpsertChatTemplateAllowlist :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_template_allowlist', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_template_allowlist'
-`
-
-func (q *sqlQuerier) UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatTemplateAllowlist, templateAllowlist)
 	return err
 }
 
@@ -26702,7 +26837,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names
 WHERE
@@ -26747,6 +26882,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.CorsBehavior,
 		&i.DisableModuleCache,
 		&i.TimeTilAutostopNotify,
+		&i.AgentsAllowed,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -26759,7 +26895,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names AS templates
 WHERE
@@ -26812,6 +26948,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.CorsBehavior,
 		&i.DisableModuleCache,
 		&i.TimeTilAutostopNotify,
+		&i.AgentsAllowed,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -26823,7 +26960,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -26869,6 +27006,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.CorsBehavior,
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
+			&i.AgentsAllowed,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -26891,7 +27029,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
+	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.agents_allowed, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
 FROM
 	template_with_names AS t
 LEFT JOIN
@@ -26958,23 +27096,29 @@ WHERE
 			tv.has_ai_task = $9 :: boolean
 		ELSE true
 	END
+	-- Filter by agents_allowed
+	AND CASE
+		WHEN $10 :: boolean IS NOT NULL THEN
+			t.agents_allowed = $10 :: boolean
+		ELSE true
+	END
 	-- Filter by author_id
 	AND CASE
-		  WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  t.created_by = $10
+		  WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $11
 		  ELSE true
 	END
 	-- Filter by author_username
 	AND CASE
-		  WHEN $11 :: text != '' THEN
-			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($11) AND deleted = false)
+		  WHEN $12 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($12) AND deleted = false)
 		  ELSE true
 	END
 
 	-- Filter by has_external_agent in latest version
 	AND CASE
-		WHEN $12 :: boolean IS NOT NULL THEN
-			tv.has_external_agent = $12 :: boolean
+		WHEN $13 :: boolean IS NOT NULL THEN
+			tv.has_external_agent = $13 :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
@@ -26992,6 +27136,7 @@ type GetTemplatesWithFilterParams struct {
 	IDs              []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated       sql.NullBool `db:"deprecated" json:"deprecated"`
 	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
+	AgentsAllowed    sql.NullBool `db:"agents_allowed" json:"agents_allowed"`
 	AuthorID         uuid.UUID    `db:"author_id" json:"author_id"`
 	AuthorUsername   string       `db:"author_username" json:"author_username"`
 	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
@@ -27008,6 +27153,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,
+		arg.AgentsAllowed,
 		arg.AuthorID,
 		arg.AuthorUsername,
 		arg.HasExternalAgent,
@@ -27052,6 +27198,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.CorsBehavior,
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
+			&i.AgentsAllowed,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -27091,10 +27238,11 @@ INSERT INTO
 		allow_user_cancel_workspace_jobs,
 		max_port_sharing_level,
 		use_classic_parameter_flow,
-		cors_behavior
+		cors_behavior,
+		agents_allowed
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 `
 
 type InsertTemplateParams struct {
@@ -27115,6 +27263,7 @@ type InsertTemplateParams struct {
 	MaxPortSharingLevel          AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
+	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -27136,6 +27285,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.MaxPortSharingLevel,
 		arg.UseClassicParameterFlow,
 		arg.CorsBehavior,
+		arg.AgentsAllowed,
 	)
 	return err
 }
@@ -27238,7 +27388,8 @@ SET
 	max_port_sharing_level = $9,
 	use_classic_parameter_flow = $10,
 	cors_behavior = $11,
-	disable_module_cache = $12
+	disable_module_cache = $12,
+	agents_allowed = $13
 WHERE
 	id = $1
 `
@@ -27256,6 +27407,7 @@ type UpdateTemplateMetaByIDParams struct {
 	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache           bool            `db:"disable_module_cache" json:"disable_module_cache"`
+	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -27272,6 +27424,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.UseClassicParameterFlow,
 		arg.CorsBehavior,
 		arg.DisableModuleCache,
+		arg.AgentsAllowed,
 	)
 	return err
 }
@@ -38500,8 +38653,8 @@ const getWorkspaces = `-- name: GetWorkspaces :many
 WITH
 build_params AS (
 SELECT
-	LOWER(unnest($1 :: text[])) AS name,
-	LOWER(unnest($2 :: text[])) AS value
+	LOWER(unnest($2 :: text[])) AS name,
+	LOWER(unnest($3 :: text[])) AS value
 ),
 filtered_workspaces AS (
 SELECT
@@ -38513,7 +38666,8 @@ SELECT
 	latest_build.error as latest_build_error,
 	latest_build.transition as latest_build_transition,
 	latest_build.job_status as latest_build_status,
-	latest_build.has_external_agent as latest_build_has_external_agent
+	latest_build.has_external_agent as latest_build_has_external_agent,
+	latest_build.provisioner_job_id as latest_build_provisioner_job_id
 FROM
 	workspaces_expanded as workspaces
 JOIN
@@ -38554,7 +38708,7 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed
 	FROM
 		templates
 	WHERE
@@ -38562,32 +38716,32 @@ LEFT JOIN LATERAL (
 ) template ON true
 WHERE
 	-- Optionally include deleted workspaces
-	workspaces.deleted = $3
+	workspaces.deleted = $4
 	AND CASE
-		WHEN $4 :: text != '' THEN
+		WHEN $5 :: text != '' THEN
 			CASE
 			    -- Some workspace specific status refer to the transition
 			    -- type. By default, the standard provisioner job status
 			    -- search strings are supported.
 			    -- 'running' states
-				WHEN $4 = 'starting' THEN
+				WHEN $5 = 'starting' THEN
 				    latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
-				WHEN $4 = 'stopping' THEN
+				WHEN $5 = 'stopping' THEN
 					latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
-				WHEN $4 = 'deleting' THEN
+				WHEN $5 = 'deleting' THEN
 					latest_build.job_status = 'running' AND
 					latest_build.transition = 'delete'::workspace_transition
 
 			    -- 'succeeded' states
-			    WHEN $4 = 'deleted' THEN
+			    WHEN $5 = 'deleted' THEN
 			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
 			    	latest_build.transition = 'delete'::workspace_transition
-				WHEN $4 = 'stopped' THEN
+				WHEN $5 = 'stopped' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
-				WHEN $4 = 'started' THEN
+				WHEN $5 = 'started' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 
@@ -38595,13 +38749,13 @@ WHERE
 			    -- differ. A workspace is "running" if the job is "succeeded" and
 			    -- the transition is "start". This is because a workspace starts
 			    -- running when a job is complete.
-			    WHEN $4 = 'running' THEN
+			    WHEN $5 = 'running' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 
-				WHEN $4 != '' THEN
+				WHEN $5 != '' THEN
 				    -- By default just match the job status exactly
-			    	latest_build.job_status = $4::provisioner_job_status
+			    	latest_build.job_status = $5::provisioner_job_status
 				ELSE
 					true
 			END
@@ -38609,19 +38763,19 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN $5 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.owner_id = $5
+		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.owner_id = $6
 		ELSE true
 	END
   	-- Filter by organization_id
   	AND CASE
-		  WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  workspaces.organization_id = $6
+		  WHEN $7 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  workspaces.organization_id = $7
 		  ELSE true
 	END
 	-- Filter by build parameter
    	-- @has_param will match any build that includes the parameter.
-	AND CASE WHEN array_length($7 :: text[], 1) > 0  THEN
+	AND CASE WHEN array_length($8 :: text[], 1) > 0  THEN
 		EXISTS (
 			SELECT
 				1
@@ -38630,14 +38784,14 @@ WHERE
 			WHERE
 				workspace_build_parameters.workspace_build_id = latest_build.id AND
 				-- ILIKE is case insensitive
-				workspace_build_parameters.name ILIKE ANY($7)
+				workspace_build_parameters.name ILIKE ANY($8)
 		)
 		ELSE true
 	END
 	-- @param_value will match param name an value.
   	-- requires 2 arrays, @param_names and @param_values to be passed in.
   	-- Array index must match between the 2 arrays for name=value
-  	AND CASE WHEN array_length($1 :: text[], 1) > 0  THEN
+  	AND CASE WHEN array_length($2 :: text[], 1) > 0  THEN
 		EXISTS (
 			SELECT
 				1
@@ -38655,40 +38809,40 @@ WHERE
 
 	-- Filter by owner_name
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.username) = lower($8) AND deleted = false)
+		WHEN $9 :: text != '' THEN
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.username) = lower($9) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN $9 :: text != '' THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($9) AND deleted = false)
+		WHEN $10 :: text != '' THEN
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($10) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
-		WHEN array_length($10 :: uuid[], 1) > 0 THEN
-			workspaces.template_id = ANY($10)
+		WHEN array_length($11 :: uuid[], 1) > 0 THEN
+			workspaces.template_id = ANY($11)
 		ELSE true
 	END
   	-- Filter by workspace_ids
   	AND CASE
-		  WHEN array_length($11 :: uuid[], 1) > 0 THEN
-			  workspaces.id = ANY($11)
+		  WHEN array_length($12 :: uuid[], 1) > 0 THEN
+			  workspaces.id = ANY($12)
 		  ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		WHEN $12 :: text != '' THEN
-			workspaces.name ILIKE '%' || $12 || '%'
+		WHEN $13 :: text != '' THEN
+			workspaces.name ILIKE '%' || $13 || '%'
 		ELSE true
 	END
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN array_length($13 :: text[], 1) > 0 THEN
+		WHEN array_length($14 :: text[], 1) > 0 THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -38713,43 +38867,43 @@ WHERE
 								END
 							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
 								'disconnected'
-							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $14 :: bigint THEN
+							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $15 :: bigint THEN
 								'disconnected'
 							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
 								'connected'
 							ELSE
 								NULL
 						END
-					) = ANY($13 :: text[])
+					) = ANY($14 :: text[])
 			) > 0
 		ELSE true
 	END
 	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN $15 :: boolean != 'false' THEN
+		WHEN $16 :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
 		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
-		  WHEN $16 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at <= $16
+		  WHEN $17 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at <= $17
 		  ELSE true
 	END
 	AND CASE
-		  WHEN $17 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at >= $17
+		  WHEN $18 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at >= $18
 		  ELSE true
 	END
   	AND CASE
-		  WHEN $18 :: boolean IS NOT NULL THEN
-			  (latest_build.template_version_id = template.active_version_id) = $18 :: boolean
+		  WHEN $19 :: boolean IS NOT NULL THEN
+			  (latest_build.template_version_id = template.active_version_id) = $19 :: boolean
 		  ELSE true
 	END
 	-- Filter by has_ai_task, checks if this is a task workspace.
 	AND CASE
-		WHEN $19::boolean IS NOT NULL
-		THEN $19::boolean = EXISTS (
+		WHEN $20::boolean IS NOT NULL
+		THEN $20::boolean = EXISTS (
 			SELECT
 				1
 			FROM
@@ -38763,26 +38917,26 @@ WHERE
 	END
 	-- Filter by has_external_agent in latest build
 	AND CASE
-		WHEN $20 :: boolean IS NOT NULL THEN
-			latest_build.has_external_agent = $20 :: boolean
+		WHEN $21 :: boolean IS NOT NULL THEN
+			latest_build.has_external_agent = $21 :: boolean
 		ELSE true
 	END
 	-- Filter by shared status
 	AND CASE
-		WHEN $21 :: boolean IS NOT NULL THEN
-			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = $21 :: boolean
+		WHEN $22 :: boolean IS NOT NULL THEN
+			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = $22 :: boolean
 		ELSE true
 	END
 	-- Filter by shared_with_user_id
 	AND CASE
-		WHEN $22 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.user_acl ? ($22 :: uuid) :: text
+		WHEN $23 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.user_acl ? ($23 :: uuid) :: text
 		ELSE true
 	END
 	-- Filter by shared_with_group_id
 	AND CASE
-		WHEN $23 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.group_acl ? ($23 :: uuid) :: text
+		WHEN $24 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.group_acl ? ($24 :: uuid) :: text
 		ELSE true
 	END
 
@@ -38790,12 +38944,12 @@ WHERE
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
 	SELECT
-		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.group_acl, fw.user_acl, fw.owner_avatar_url, fw.owner_username, fw.owner_name, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.task_id, fw.group_acl_display_info, fw.user_acl_display_info, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status, fw.latest_build_has_external_agent
+		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.group_acl, fw.user_acl, fw.owner_avatar_url, fw.owner_username, fw.owner_name, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.task_id, fw.group_acl_display_info, fw.user_acl_display_info, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status, fw.latest_build_has_external_agent, fw.latest_build_provisioner_job_id
 	FROM
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $24) THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -38804,14 +38958,14 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $26 :: integer > 0 THEN
-				$26
+			WHEN $27 :: integer > 0 THEN
+				$27
 		END
 	OFFSET
-		$25
+		$26
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
-		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.task_id, fwo.group_acl_display_info, fwo.user_acl_display_info, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_external_agent
+		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.task_id, fwo.group_acl_display_info, fwo.user_acl_display_info, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_external_agent, fwo.latest_build_provisioner_job_id
 	FROM
 		filtered_workspaces_order fwo
 	-- Return a technical summary row with total count of workspaces.
@@ -38858,9 +39012,10 @@ WHERE
 		'', -- latest_build_error
 		'start'::workspace_transition, -- latest_build_transition
 		'unknown'::provisioner_job_status, -- latest_build_status
-		false -- latest_build_has_external_agent
+		false, -- latest_build_has_external_agent
+		'00000000-0000-0000-0000-000000000000'::uuid -- latest_build_provisioner_job_id
 	WHERE
-		$27 :: boolean = true
+		$28 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -38868,7 +39023,60 @@ WHERE
 		filtered_workspaces
 )
 SELECT
-	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.next_start_at, fwos.group_acl, fwos.user_acl, fwos.owner_avatar_url, fwos.owner_username, fwos.owner_name, fwos.organization_name, fwos.organization_display_name, fwos.organization_icon, fwos.organization_description, fwos.template_name, fwos.template_display_name, fwos.template_icon, fwos.template_description, fwos.task_id, fwos.group_acl_display_info, fwos.user_acl_display_info, fwos.template_version_id, fwos.template_version_name, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status, fwos.latest_build_has_external_agent,
+	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.next_start_at, fwos.group_acl, fwos.user_acl, fwos.owner_avatar_url, fwos.owner_username, fwos.owner_name, fwos.organization_name, fwos.organization_display_name, fwos.organization_icon, fwos.organization_description, fwos.template_name, fwos.template_display_name, fwos.template_icon, fwos.template_description, fwos.task_id, fwos.group_acl_display_info, fwos.user_acl_display_info, fwos.template_version_id, fwos.template_version_name, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status, fwos.latest_build_has_external_agent, fwos.latest_build_provisioner_job_id,
+	-- agent_metadata expands the response with the requested agent
+	-- metadata keys for the latest build's agents. The CASE keeps the
+	-- subquery unevaluated for every caller that does not opt in, and
+	-- it only runs for the returned page. Each element carries the
+	-- workspace_agent_id so multi-agent workspaces can map values onto
+	-- the right agent.
+	CASE WHEN cardinality($1 :: text[]) > 0 THEN
+		COALESCE((
+			SELECT
+				jsonb_agg(jsonb_build_object(
+					'workspace_agent_id', workspace_agents.id,
+					'display_name', workspace_agent_metadata.display_name,
+					'key', workspace_agent_metadata.key,
+					-- script is deliberately omitted: it can be long and
+					-- list consumers want values, not collection commands.
+					'value', workspace_agent_metadata.value,
+					'error', workspace_agent_metadata.error,
+					'timeout', workspace_agent_metadata.timeout,
+					'interval', workspace_agent_metadata.interval,
+					-- Rendered explicitly as UTC RFC3339: jsonb renders
+					-- timestamptz in the session TimeZone, and the year-1
+					-- default of collected_at renders named zones with
+					-- LMT second-offsets (even BC), which Go rejects.
+					'collected_at', to_char(workspace_agent_metadata.collected_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+					'display_order', workspace_agent_metadata.display_order
+				))
+			FROM
+				workspace_agents
+			JOIN
+				workspace_resources
+			ON
+				workspace_resources.id = workspace_agents.resource_id
+			JOIN
+				workspace_agent_metadata
+			ON
+				workspace_agent_metadata.workspace_agent_id = workspace_agents.id
+			WHERE
+				-- The latest build's job was already resolved by the
+				-- latest_build lateral; resources hang off its job.
+				workspace_resources.job_id = fwos.latest_build_provisioner_job_id
+				-- Filter out deleted sub agents.
+				AND workspace_agents.deleted = FALSE
+				-- Both sides are lowercased so matching is
+				-- case-insensitive regardless of how the caller cased
+				-- the requested keys.
+				AND LOWER(workspace_agent_metadata.key) = ANY(ARRAY(
+					SELECT LOWER(key) FROM unnest($1 :: text[]) AS k(key)
+				))
+		), '[]'::jsonb)
+	ELSE
+		-- Never NULL: lib/pq cannot scan NULL into json.RawMessage.
+		'[]'::jsonb
+	END :: jsonb AS agent_metadata,
 	tc.count
 FROM
 	filtered_workspaces_order_with_summary fwos
@@ -38877,6 +39085,7 @@ CROSS JOIN
 `
 
 type GetWorkspacesParams struct {
+	IncludeAgentMetadata                  []string     `db:"include_agent_metadata" json:"include_agent_metadata"`
 	ParamNames                            []string     `db:"param_names" json:"param_names"`
 	ParamValues                           []string     `db:"param_values" json:"param_values"`
 	Deleted                               bool         `db:"deleted" json:"deleted"`
@@ -38947,6 +39156,8 @@ type GetWorkspacesRow struct {
 	LatestBuildTransition       WorkspaceTransition  `db:"latest_build_transition" json:"latest_build_transition"`
 	LatestBuildStatus           ProvisionerJobStatus `db:"latest_build_status" json:"latest_build_status"`
 	LatestBuildHasExternalAgent sql.NullBool         `db:"latest_build_has_external_agent" json:"latest_build_has_external_agent"`
+	LatestBuildProvisionerJobID uuid.UUID            `db:"latest_build_provisioner_job_id" json:"latest_build_provisioner_job_id"`
+	AgentMetadata               json.RawMessage      `db:"agent_metadata" json:"agent_metadata"`
 	Count                       int64                `db:"count" json:"count"`
 }
 
@@ -38955,6 +39166,7 @@ type GetWorkspacesRow struct {
 // be used in a WHERE clause.
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaces,
+		pq.Array(arg.IncludeAgentMetadata),
 		pq.Array(arg.ParamNames),
 		pq.Array(arg.ParamValues),
 		arg.Deleted,
@@ -39031,6 +39243,8 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.LatestBuildTransition,
 			&i.LatestBuildStatus,
 			&i.LatestBuildHasExternalAgent,
+			&i.LatestBuildProvisionerJobID,
+			&i.AgentMetadata,
 			&i.Count,
 		); err != nil {
 			return nil, err

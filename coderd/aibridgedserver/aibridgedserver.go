@@ -347,6 +347,17 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 		)
 	}
 
+	if err := validateTokenUsage(in); err != nil {
+		s.logger.Error(ctx, "implausible token usage, discarding record",
+			slog.F("interception_id", intcID),
+			slog.F("input_tokens", in.GetInputTokens()),
+			slog.F("output_tokens", in.GetOutputTokens()),
+			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
+			slog.F("cache_write_input_tokens", in.GetCacheWriteInputTokens()),
+			slog.Error(err))
+		return nil, xerrors.Errorf("validate token usage for interception %q: %w", intcID, err)
+	}
+
 	out, err := json.Marshal(metadata)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
