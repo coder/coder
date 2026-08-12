@@ -195,19 +195,12 @@ export function useFileAttachments(
 		() => new Map<File, UploadState>(),
 	);
 	const [previewUrls, setPreviewUrls] = useState(() => new Map<File, string>());
-	// Delay restoration until an org is supplied. A provisional org would
-	// prune entries for the eventual org; stateOrgId tracks which org owns
-	// the in-memory attachment state.
+	// stateOrgId tracks which org owns the in-memory attachment state.
+	// It stays null until an org is supplied because restoring against
+	// a provisional org would prune entries for the eventual org.
 	const [stateOrgId, setStateOrgId] = useState<string | null>(
 		persist ? null : "",
 	);
-	if (persist && stateOrgId === null && organizationId) {
-		setStateOrgId(organizationId);
-		const restored = restorePersistedAttachments(organizationId);
-		setAttachments(restored.attachments);
-		setUploadStates(restored.uploadStates);
-		setPreviewUrls(restored.previewUrls);
-	}
 	const [textContents, setTextContents] = useState(
 		() => new Map<File, string>(),
 	);
@@ -278,7 +271,9 @@ export function useFileAttachments(
 
 	// Permission refetches can change the caller's org without user action.
 	// Replace org-scoped attachment state so stale file IDs cannot be sent
-	// to another org.
+	// to another org. Runs post-commit (never during render) because
+	// restorePersistedAttachments prunes other orgs' localStorage entries,
+	// which must not happen from a render React may abandon.
 	const adoptOrganization = useEffectEvent((orgId: string) => {
 		for (const file of attachments) {
 			abandonedResizesRef.current.add(file);
@@ -292,12 +287,7 @@ export function useFileAttachments(
 		setPreviewUrls(restored.previewUrls);
 	});
 	useEffect(() => {
-		if (
-			persist &&
-			stateOrgId &&
-			organizationId &&
-			stateOrgId !== organizationId
-		) {
+		if (persist && organizationId && stateOrgId !== organizationId) {
 			adoptOrganization(organizationId);
 		}
 	}, [persist, stateOrgId, organizationId]);

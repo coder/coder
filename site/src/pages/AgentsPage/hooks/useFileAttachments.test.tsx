@@ -1,5 +1,5 @@
 import { render, renderHook, waitFor } from "@testing-library/react";
-import type { FC } from "react";
+import { type FC, Suspense } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	persistedAttachmentsStorageKey,
@@ -93,5 +93,26 @@ describe("useFileAttachments org scoping", () => {
 			(entry) => entry.orgId === "org-b" && entry.fileIds.includes("file-a"),
 		);
 		expect(leaked).toStrictEqual([]);
+	});
+
+	it("does not prune storage during a render that never commits", () => {
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
+		);
+		// Suspending after the hook call abandons the render before
+		// commit, the same discard concurrent rendering can perform.
+		const Suspender: FC<{ orgId: string }> = ({ orgId }) => {
+			useFileAttachments(orgId, { persist: true });
+			throw new Promise(() => {});
+		};
+		render(
+			<Suspense fallback={null}>
+				<Suspender orgId="org-b" />
+			</Suspense>,
+		);
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toContain(
+			"file-a",
+		);
 	});
 });
