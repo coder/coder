@@ -52,6 +52,10 @@ export const Example: Story = {
 		const canvas = within(canvasElement);
 		const backLink = canvas.getByRole("link", { name: "Back to the template" });
 		await expect(backLink).toBeVisible();
+		await expect(backLink).toHaveAttribute(
+			"aria-label",
+			"Back to the template",
+		);
 	},
 };
 
