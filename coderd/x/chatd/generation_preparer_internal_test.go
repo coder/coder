@@ -613,4 +613,11 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 		// 211,000 / 262,144 = ~80.5%
 		assert.True(t, shouldCompactPromptUsage(usage, contextLimit, 80))
 	})
+
+	t.Run("falls back to TotalTokens when granular fields are missing", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, shouldCompactPromptUsage(
+			fantasy.Usage{TotalTokens: 211000},
+			contextLimit, 80))
+	})
 }
