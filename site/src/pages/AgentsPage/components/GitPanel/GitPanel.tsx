@@ -550,7 +550,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 						? { width: panelWidth - TOOLBAR_PADDING_PX * 2 }
 						: undefined
 				}
-				className="p-1"
+				className="flex flex-col gap-1 p-1"
 			>
 				{items.map((item) => {
 					const isActive = item.id === activeItem.id;
