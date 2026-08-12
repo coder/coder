@@ -2,7 +2,7 @@ import {
 	CheckIcon,
 	ChevronDownIcon,
 	CircleDotIcon,
-	ColumnsIcon,
+	ExternalLinkIcon,
 	GitBranchIcon,
 	GitCompareArrowsIcon,
 	GitMergeIcon,
@@ -10,7 +10,6 @@ import {
 	GitPullRequestDraftIcon,
 	GitPullRequestIcon,
 	RefreshCwIcon,
-	RowsIcon,
 } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -33,6 +32,7 @@ import {
 import { cn } from "#/utils/cn";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
+import { DiffStyleToggle } from "../DiffViewer/DiffStyleToggle";
 import {
 	type DiffStyle,
 	loadDiffStyle,
@@ -336,38 +336,13 @@ export const GitPanel: FC<GitPanelProps> = ({
 				</div>
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1">
-					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
-						<button
-							type="button"
-							onClick={() => handleDiffStyleChange("unified")}
-							aria-label="Unified diff"
-							disabled={!hasGitContext}
-							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
-							className={cn(
-								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
-								diffStyle === "unified"
-									? "bg-surface-quaternary/25 text-content-primary"
-									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							)}
-						>
-							<RowsIcon className="size-3.5" />
-						</button>
-						<button
-							type="button"
-							onClick={() => handleDiffStyleChange("split")}
-							aria-label="Split diff"
-							disabled={!hasGitContext}
-							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
-							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
-								diffStyle === "split"
-									? "bg-surface-quaternary/25 text-content-primary"
-									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							)}
-						>
-							<ColumnsIcon className="size-3.5" />
-						</button>
-					</div>
+					<PrimaryCta
+						effectiveView={effectiveView}
+						prTab={prTab}
+						pullRequestUrl={remoteDiffStats?.url}
+						repositories={repositories}
+						onCommit={onCommit}
+					/>
 					{/*
 					 * The shared Button applies `disabled:pointer-events-none`,
 					 * which would suppress the native `title` tooltip when the
@@ -428,6 +403,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
+						onDiffStyleChange={handleDiffStyleChange}
 						diffStatus={remoteDiffStats}
 					/>
 				) : (
@@ -440,9 +416,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 								deletions: 0,
 							}
 						}
-						onCommit={onCommit}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
+						onDiffStyleChange={handleDiffStyleChange}
 						chatInputRef={chatInputRef}
 					/>
 				)}
@@ -572,6 +548,58 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 };
 
 // ---------------------------------------------------------------
+// Primary CTA (View PR / Commit) shown next to Refresh in the toolbar.
+// The action follows the active view: a link to the PR on the remote
+// view, or a Commit button on a working repo. Renders nothing when
+// there is no actionable target.
+// ---------------------------------------------------------------
+
+const PrimaryCta: FC<{
+	effectiveView: GitView;
+	prTab?: { prNumber: number; chatId: string };
+	pullRequestUrl?: string;
+	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
+	onCommit: (repoRoot: string) => void;
+}> = ({ effectiveView, prTab, pullRequestUrl, repositories, onCommit }) => {
+	const ctaClassName =
+		"inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-[13px] font-medium leading-none text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50";
+
+	if (effectiveView.type === "remote") {
+		if (!prTab || !pullRequestUrl) {
+			return null;
+		}
+		return (
+			<a
+				href={pullRequestUrl}
+				target="_blank"
+				rel="noreferrer"
+				className={ctaClassName}
+				aria-label={`View PR #${prTab.prNumber}`}
+			>
+				View PR
+				<ExternalLinkIcon className="size-3" />
+			</a>
+		);
+	}
+
+	const repo = repositories.get(effectiveView.repoRoot);
+	if (!repo) {
+		return null;
+	}
+	return (
+		<button
+			type="button"
+			onClick={() => onCommit(effectiveView.repoRoot)}
+			disabled={!repo.unified_diff}
+			className={cn(ctaClassName, "cursor-pointer")}
+		>
+			<CheckIcon className="size-3" />
+			Commit
+		</button>
+	);
+};
+
+// ---------------------------------------------------------------
 // Remote view (branch/PR diff)
 // ---------------------------------------------------------------
 
@@ -582,6 +610,7 @@ const RemoteContent: FC<{
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
 	diffStatus?: ChatDiffStatus;
 }> = ({
 	prTab,
@@ -590,6 +619,7 @@ const RemoteContent: FC<{
 	isExpanded,
 	chatInputRef,
 	diffStyle,
+	onDiffStyleChange,
 	diffStatus,
 }) => {
 	if (!prTab) {
@@ -626,6 +656,7 @@ const RemoteContent: FC<{
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
 			diffStyle={diffStyle}
+			onDiffStyleChange={onDiffStyleChange}
 			diffStatus={diffStatus}
 		/>
 	);
@@ -639,17 +670,17 @@ const LocalRepoContent: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges | undefined;
 	diffStats: DiffStats;
-	onCommit: (repoRoot: string) => void;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 }> = ({
 	repoRoot,
 	repo,
 	diffStats,
-	onCommit,
 	isExpanded,
 	diffStyle,
+	onDiffStyleChange,
 	chatInputRef,
 }) => {
 	if (!repo) {
@@ -662,7 +693,8 @@ const LocalRepoContent: FC<{
 				repoRoot={repoRoot}
 				repo={repo}
 				diffStats={diffStats}
-				onCommit={() => onCommit(repoRoot)}
+				diffStyle={diffStyle}
+				onDiffStyleChange={onDiffStyleChange}
 			/>
 			<LocalDiffPanel
 				repo={repo}
@@ -682,8 +714,9 @@ const RepoHeader: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges;
 	diffStats: DiffStats;
-	onCommit: () => void;
-}> = ({ repoRoot, repo, diffStats, onCommit }) => {
+	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
+}> = ({ repoRoot, repo, diffStats, diffStyle, onDiffStyleChange }) => {
 	return (
 		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
@@ -698,15 +731,7 @@ const RepoHeader: FC<{
 					additions={diffStats.additions}
 					deletions={diffStats.deletions}
 				/>
-				<button
-					type="button"
-					onClick={onCommit}
-					disabled={!repo.unified_diff}
-					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
-				>
-					<CheckIcon className="size-3" />
-					Commit
-				</button>
+				<DiffStyleToggle value={diffStyle} onChange={onDiffStyleChange} />
 			</div>
 		</div>
 	);

@@ -1,9 +1,4 @@
-import {
-	ArrowLeftIcon,
-	CopyIcon,
-	ExternalLinkIcon,
-	GitBranchIcon,
-} from "lucide-react";
+import { ArrowLeftIcon, CopyIcon, GitBranchIcon } from "lucide-react";
 import { type FC, type RefObject, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
@@ -19,6 +14,7 @@ import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
+import { DiffStyleToggle } from "../DiffViewer/DiffStyleToggle";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
 
@@ -62,6 +58,7 @@ interface RemoteDiffPanelProps {
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
 	diffStatus?: TypesGen.ChatDiffStatus;
 }
 
@@ -70,6 +67,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	isExpanded,
 	chatInputRef,
 	diffStyle,
+	onDiffStyleChange,
 	diffStatus,
 }) => {
 	// ---------------------------------------------------------------
@@ -149,15 +147,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 								deletions={diffStatus.deletions}
 							/>
 						) : null}
-						<a
-							href={pullRequestUrl}
-							target="_blank"
-							rel="noreferrer"
-							className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary"
-						>
-							View PR
-							<ExternalLinkIcon className="size-3" />
-						</a>
+						<DiffStyleToggle value={diffStyle} onChange={onDiffStyleChange} />
 					</div>
 				</div>
 			)}

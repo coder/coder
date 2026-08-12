@@ -374,8 +374,11 @@ export const GitNotActive: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByLabelText("Refresh")).toBeDisabled();
-		await expect(canvas.getByLabelText("Unified diff")).toBeDisabled();
-		await expect(canvas.getByLabelText("Split diff")).toBeDisabled();
+		// The diff-style toggle lives inside the per-view sub-header, so
+		// with no git context and no sub-header rendered it is absent from
+		// the DOM entirely.
+		await expect(canvas.queryByLabelText("Unified diff")).toBeNull();
+		await expect(canvas.queryByLabelText("Split diff")).toBeNull();
 		await expect(
 			canvas.getByText("Git is not set up for this chat."),
 		).toBeVisible();
