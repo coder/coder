@@ -48,10 +48,12 @@ const sortVisibleTemplates = (templates: TemplateExample[]) => {
 
 interface StarterTemplatesProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
+	templateBuilderEnabled: boolean;
 }
 
 export const StarterTemplates: FC<StarterTemplatesProps> = ({
 	starterTemplatesByTag,
+	templateBuilderEnabled,
 }) => {
 	const [urlParams] = useSearchParams();
 	const tags = starterTemplatesByTag
@@ -98,6 +100,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 						example={example}
 						key={example.id}
 						activeTag={activeTag}
+						templateBuilderEnabled={templateBuilderEnabled}
 					/>
 				))}
 			</div>

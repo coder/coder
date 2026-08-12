@@ -1,29 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { deploymentConfigQueryKey } from "#/api/queries/deployment";
 import { chromatic } from "#/testHelpers/chromatic";
-import {
-	MockDeploymentConfig,
-	MockTemplateExample,
-	MockUserOwner,
-	mockApiError,
-} from "#/testHelpers/entities";
-import { withAuthProvider } from "#/testHelpers/storybook";
+import { MockTemplateExample, mockApiError } from "#/testHelpers/entities";
 import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
 const meta: Meta<typeof StarterTemplatePageView> = {
 	title: "pages/StarterTemplatePage",
-	parameters: {
-		chromatic,
-		user: MockUserOwner,
-		queries: [
-			{
-				key: deploymentConfigQueryKey,
-				data: MockDeploymentConfig,
-			},
-		],
-	},
-	decorators: [withAuthProvider],
+	parameters: { chromatic },
 	component: StarterTemplatePageView,
+	args: {
+		templateBuilderEnabled: true,
+	},
 };
 
 export default meta;

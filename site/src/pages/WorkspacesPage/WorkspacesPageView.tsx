@@ -51,6 +51,7 @@ interface WorkspacesPageViewProps {
 	templatesFetchStatus: TemplateQuery["status"];
 	templates: TemplateQuery["data"];
 	canCreateTemplate: boolean;
+	templateBuilderEnabled: boolean;
 	canCreateWorkspace: boolean;
 	canChangeVersions: boolean;
 	onActionSuccess: () => Promise<void>;
@@ -76,6 +77,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	templates,
 	templatesFetchStatus,
 	canCreateTemplate,
+	templateBuilderEnabled,
 	canCreateWorkspace,
 	canChangeVersions,
 	onActionSuccess,
@@ -216,6 +218,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 			) : (
 				<WorkspacesTable
 					canCreateTemplate={canCreateTemplate}
+					templateBuilderEnabled={templateBuilderEnabled}
 					canCreateWorkspace={canCreateWorkspace}
 					workspaces={workspaces}
 					isUsingFilter={filterState.filter.used}

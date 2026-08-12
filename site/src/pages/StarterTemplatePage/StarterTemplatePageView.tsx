@@ -13,19 +13,18 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
-import { useTemplateBuilderEnabled } from "#/modules/templates/useTemplateBuilderEnabled";
 
 interface StarterTemplatePageViewProps {
 	starterTemplate?: TemplateExample;
+	templateBuilderEnabled: boolean;
 	error?: unknown;
 }
 
 export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 	starterTemplate,
+	templateBuilderEnabled,
 	error,
 }) => {
-	const templateBuilderEnabled = useTemplateBuilderEnabled();
-
 	if (error) {
 		return (
 			<Margins>

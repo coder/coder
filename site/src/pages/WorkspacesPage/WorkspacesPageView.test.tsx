@@ -51,6 +51,7 @@ const defaultProps = {
 	templatesFetchStatus: "success" as const,
 	templates: [MockTemplate],
 	canCreateTemplate: false,
+	templateBuilderEnabled: true,
 	canCreateWorkspace: true,
 	canChangeVersions: false,
 	onActionSuccess: vi.fn().mockResolvedValue(undefined),

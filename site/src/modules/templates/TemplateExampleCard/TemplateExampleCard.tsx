@@ -6,21 +6,20 @@ import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Pill } from "#/components/Pill/Pill";
 import { cn } from "#/utils/cn";
-import { useTemplateBuilderEnabled } from "../useTemplateBuilderEnabled";
 
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
 	example: TemplateExample;
 	activeTag?: string;
+	templateBuilderEnabled: boolean;
 };
 
 export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 	example,
 	activeTag,
+	templateBuilderEnabled,
 	className,
 	...divProps
 }) => {
-	const templateBuilderEnabled = useTemplateBuilderEnabled();
-
 	return (
 		<div
 			className={cn(

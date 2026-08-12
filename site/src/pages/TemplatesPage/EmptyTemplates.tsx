@@ -74,7 +74,11 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 					<div className="flex flex-col gap-8 items-center">
 						<div className="flex flex-wrap justify-center gap-4">
 							{featuredExamples.map((example) => (
-								<TemplateExampleCard example={example} key={example.id} />
+								<TemplateExampleCard
+									example={example}
+									templateBuilderEnabled={templateBuilderEnabled}
+									key={example.id}
+								/>
 							))}
 						</div>
 						<Button size="sm" asChild className="rounded-full">

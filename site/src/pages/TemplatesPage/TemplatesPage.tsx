@@ -1,13 +1,13 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import { deploymentConfig } from "#/api/queries/deployment";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
 import { templateExamples, templates } from "#/api/queries/templates";
 import { type UseFilterResult, useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useTemplateBuilderEnabled } from "#/modules/templates/useTemplateBuilderEnabled";
 import { pageTitle } from "#/utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
@@ -34,7 +34,14 @@ const TemplatesPage: FC = () => {
 		),
 	);
 
-	const templateBuilderEnabled = useTemplateBuilderEnabled();
+	const deploymentConfigQuery = useQuery({
+		...deploymentConfig(),
+		enabled: permissions.createTemplates,
+	});
+	const templateBuilderEnabled =
+		deploymentConfigQuery.isSuccess &&
+		!deploymentConfigQuery.data?.config?.template_builder?.disabled &&
+		permissions.createTemplates;
 
 	const error =
 		templatesQuery.error ||

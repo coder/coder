@@ -5,12 +5,12 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
-import { useTemplateBuilderEnabled } from "#/modules/templates/useTemplateBuilderEnabled";
 
 interface WorkspacesEmptyProps {
 	isUsingFilter: boolean;
 	templates?: Template[];
 	canCreateTemplate: boolean;
+	templateBuilderEnabled: boolean;
 	canCreateWorkspace: boolean;
 }
 
@@ -18,10 +18,10 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,
 	templates,
 	canCreateTemplate,
+	templateBuilderEnabled,
 	canCreateWorkspace,
 }) => {
 	const getLink = useLinks();
-	const templateBuilderEnabled = useTemplateBuilderEnabled();
 
 	const totalFeaturedTemplates = 6;
 	const featuredTemplates = templates?.slice(0, totalFeaturedTemplates);
