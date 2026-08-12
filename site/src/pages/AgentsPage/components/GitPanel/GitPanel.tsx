@@ -100,6 +100,12 @@ interface ViewItemBase {
 	/** Secondary text in the dropdown item (e.g. PR title, repo name). */
 	itemSecondary?: string;
 	icon: React.ReactNode;
+	/**
+	 * Accessible label for the state icon. Screen readers announce this
+	 * because the state is now conveyed by icon color alone on the
+	 * trigger. Follows a `"<kind> status: <state>"` pattern.
+	 */
+	iconLabel: string;
 }
 
 type ViewItem =
@@ -274,6 +280,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 							className="!size-3.5 shrink-0"
 						/>
 					),
+					iconLabel: `Pull request status: ${prStateLabel(prState, prDraft)}`,
 				}
 			: {
 					kind: "remote",
@@ -283,6 +290,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 					itemPrimary: "Branch",
 					itemSecondary: remoteHeadBranch || undefined,
 					icon: <GitBranchIcon className="!size-3.5 shrink-0" />,
+					iconLabel: "Git view: Branch",
 				}
 		: null;
 
@@ -295,6 +303,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		itemPrimary: "Working",
 		itemSecondary: repoLabel(repoRoot),
 		icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
+		iconLabel: `Git view: Working (${repoLabel(repoRoot)})`,
 	}));
 
 	const items: ViewItem[] = [
@@ -467,7 +476,11 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 
 	const triggerContent = (
 		<span className="flex h-full min-w-0 items-center gap-1.5 px-2 leading-none">
-			<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+			<span
+				role="img"
+				aria-label={activeItem.iconLabel}
+				className="inline-flex size-3.5 shrink-0 items-center justify-center"
+			>
 				{activeItem.icon}
 			</span>
 			{showStateLabelInline && (
@@ -535,7 +548,11 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 								isActive && "bg-surface-secondary text-content-primary",
 							)}
 						>
-							<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+							<span
+								role="img"
+								aria-label={item.iconLabel}
+								className="inline-flex size-3.5 shrink-0 items-center justify-center"
+							>
 								{item.icon}
 							</span>
 							<span className="whitespace-nowrap font-medium">
