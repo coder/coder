@@ -949,11 +949,7 @@ When the manager cleans up a runner, the runner must cancel all goroutines it ha
 
 ## Concurrent agent limiter
 
-By default, chatd allows 5 root chats and 10 subagent chats to generate at the same time. The pools are independent. A chat occupies a slot while it has complete worker ownership and a fresh heartbeat from its current runner.
-
-Before a worker claims a running chat, the limiter counts occupied slots and writes the new ownership in the same database transaction. A transaction lock prevents two replicas from claiming the final slot. Interrupting and requires-action chats bypass the limit so existing work can finish. Enterprise deployments remove both caps while agent runtime hours are enabled and below the hard limit. Missing hard-limit or usage values also remove the caps.
-
-A refused chat stays running without an owner. The single-chat API reports `queued_for_capacity` when its pool is full, and the open-chat page polls that value every five seconds. Workers alternate between root and subagent candidates in best-effort FIFO order by `updated_at`. Periodic acquisition retries cover heartbeat expiry and entitlement changes.
+By default, chatd runs up to five top-level chats and ten subagent chats at once. Each limit applies across the entire deployment. Enterprise deployments can remove these limits when their plan permits it. Extra chats wait for capacity, but users can still interrupt active chats.
 
 ## Auto-archive loop
 
