@@ -223,6 +223,23 @@ export function useFileAttachments(
 		return () => revokePreviewUrls();
 	}, []);
 
+	// Upload completions capture the org they started under. By the time
+	// they resolve, adoption may have replaced state with another org's;
+	// applying then would leak an entry into the new org's map and
+	// persist the file ID under the abandoned org, where a later
+	// adoption flip could resurrect it.
+	const commitUploadOutcome = useEffectEvent(
+		(file: File, uploadOrgId: string, state: UploadState) => {
+			if (persist && stateOrgId !== uploadOrgId) {
+				return;
+			}
+			setUploadStates((prev) => new Map(prev).set(file, state));
+			if (persist && state.status === "uploaded" && state.fileId) {
+				addPersistedAttachment(file, state.fileId, uploadOrgId);
+			}
+		},
+	);
+
 	const startUpload = (file: File) => {
 		if (!organizationId) {
 			setUploadStates((prev) =>
@@ -234,25 +251,17 @@ export function useFileAttachments(
 			return;
 		}
 
-		const shouldPersist = persist && Boolean(organizationId);
+		const uploadOrgId = organizationId;
 		const isImage = file.type.startsWith("image/");
 
 		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
 		void (async () => {
 			try {
-				const result = await API.experimental.uploadChatFile(
-					file,
-					organizationId,
-				);
-				setUploadStates((prev) =>
-					new Map(prev).set(file, {
-						status: "uploaded",
-						fileId: result.id,
-					}),
-				);
-				if (shouldPersist) {
-					addPersistedAttachment(file, result.id, organizationId!);
-				}
+				const result = await API.experimental.uploadChatFile(file, uploadOrgId);
+				commitUploadOutcome(file, uploadOrgId, {
+					status: "uploaded",
+					fileId: result.id,
+				});
 				if (isImage) {
 					// Pre-warm the HTTP cache so the timeline can
 					// render the image instantly after send. Text
@@ -260,13 +269,10 @@ export function useFileAttachments(
 					void fetch(getChatFileURL(result.id));
 				}
 			} catch (err: unknown) {
-				const errorMessage = formatAgentAttachmentUploadError(err);
-				setUploadStates((prev) =>
-					new Map(prev).set(file, {
-						status: "error",
-						error: errorMessage,
-					}),
-				);
+				commitUploadOutcome(file, uploadOrgId, {
+					status: "error",
+					error: formatAgentAttachmentUploadError(err),
+				});
 			}
 		})();
 	};

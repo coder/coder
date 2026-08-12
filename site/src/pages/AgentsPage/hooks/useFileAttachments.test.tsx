@@ -1,6 +1,7 @@
-import { render, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { type FC, Suspense } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import {
 	persistedAttachmentsStorageKey,
 	useFileAttachments,
@@ -114,6 +115,32 @@ describe("useFileAttachments org scoping", () => {
 		// persisted file is only restored (and sendable) afterwards.
 		expect(log[0]).toStrictEqual({ adopted: false, fileIds: [] });
 		expect(log.at(-1)).toStrictEqual({ adopted: true, fileIds: ["file-a"] });
+	});
+
+	it("discards an upload that completes after another org was adopted", async () => {
+		let resolveUpload!: (value: { id: string }) => void;
+		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
+			new Promise<{ id: string }>((resolve) => {
+				resolveUpload = resolve;
+			}),
+		);
+		const { result, rerender } = renderAttachments({ orgId: "org-a" });
+		act(() => {
+			result.current.startUpload(new File(["x"], "x.txt"));
+		});
+
+		rerender({ orgId: "org-b" });
+		await waitFor(() => {
+			expect(result.current.organizationAdopted).toBe(true);
+		});
+		await act(async () => {
+			resolveUpload({ id: "file-x" });
+		});
+
+		expect(uploadedFileIds(result.current)).toStrictEqual([]);
+		expect(
+			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
+		).not.toContain("file-x");
 	});
 
 	it("does not prune storage during a render that never commits", () => {
