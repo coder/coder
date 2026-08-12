@@ -302,11 +302,27 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		},
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
-		initialOrg ?? null,
+		null,
 	);
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
-	const organizationId = selectedOrg?.id ?? "";
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			object: { resource_type: "chat" },
+			action: "create",
+		}),
+		enabled: showOrganizations,
+	});
+	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
+	const effectiveOrg =
+		selectedOrg && permittedOrgs.some((org) => org.id === selectedOrg.id)
+			? selectedOrg
+			: (permittedOrgs.find((org) => org.is_default) ??
+				permittedOrgs[0] ??
+				initialOrg ??
+				null);
+	const organizationId = effectiveOrg?.id ?? "";
+	const previousEffectiveOrgId = useRef(effectiveOrg?.id);
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -388,8 +404,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// enough to warrant pagination, this should switch to a
 	// server-side organization:<name> query filter.
 	const filteredWorkspaces =
-		showOrganizations && selectedOrg
-			? workspaceOptions.filter((ws) => ws.organization_id === selectedOrg.id)
+		showOrganizations && effectiveOrg
+			? workspaceOptions.filter((ws) => ws.organization_id === effectiveOrg.id)
 			: workspaceOptions;
 
 	const effectiveWorkspaceId =
@@ -459,49 +475,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const permittedOrgsQuery = useQuery({
-		...permittedOrganizations({
-			object: { resource_type: "chat", owner_id: "me" },
-			action: "create",
-		}),
-		enabled: showOrganizations,
-	});
-	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
-
-	// Reconcile selectedOrg when permission filtering removes it.
-	// Only pure state setters run during render; side effects
-	// (localStorage, blob URL cleanup) run in the effect below.
-	const [prevPermittedOrgs, setPrevPermittedOrgs] = useState(permittedOrgs);
-	const [orgWasAdjusted, setOrgWasAdjusted] = useState(false);
-	if (permittedOrgs !== prevPermittedOrgs) {
-		setPrevPermittedOrgs(permittedOrgs);
-		if (selectedOrg && !permittedOrgs.some((o) => o.id === selectedOrg.id)) {
-			// Fall back through: first permitted org, then the
-			// dashboard default. Never null out selectedOrg.
-			// organizationId must always be a valid UUID for the
-			// create-chat request.
-			const nextOrg = permittedOrgs[0] ?? initialOrg ?? null;
-			setSelectedOrg(nextOrg);
-			if (nextOrg?.id !== selectedOrg.id) {
-				setOrgWasAdjusted(true);
-			}
-		}
-	}
-
-	// Clean up workspace and attachment state after a programmatic
-	// org change from permission filtering. These calls have side
-	// effects (localStorage, blob URL revocation) that must not
-	// run during render.
-	const onOrgAdjusted = useEffectEvent(() => {
+	const resetOrgScopedState = useEffectEvent(() => {
 		handleWorkspaceChange(null);
 		resetAttachments();
 	});
 	useEffect(() => {
-		if (orgWasAdjusted) {
-			setOrgWasAdjusted(false);
-			onOrgAdjusted();
+		if (previousEffectiveOrgId.current === effectiveOrg?.id) {
+			return;
 		}
-	}, [orgWasAdjusted]);
+		previousEffectiveOrgId.current = effectiveOrg?.id;
+		resetOrgScopedState();
+	}, [effectiveOrg?.id]);
 
 	return (
 		<>
@@ -544,16 +528,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					)}
 					{showOrganizations && permittedOrgs.length > 1 && (
 						<CompactOrgSelector
-							value={selectedOrg}
+							value={effectiveOrg}
 							options={permittedOrgs}
 							onChange={(newOrg) => {
-								const orgChanged = newOrg.id !== selectedOrg?.id;
+								const orgChanged = newOrg.id !== effectiveOrg?.id;
 								if (orgChanged && attachments.length > 0) {
 									setPendingOrgChange(newOrg);
 									return;
-								}
-								if (orgChanged) {
-									handleWorkspaceChange(null);
 								}
 								setSelectedOrg(newOrg);
 							}}
@@ -566,6 +547,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						isDisabled={
 							isCreating ||
 							isForbidden ||
+							(showOrganizations && permittedOrgsQuery.isLoading) ||
 							isPersonalModelOverridesLoading ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
@@ -622,8 +604,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				hideCancel={false}
 				confirmText="Continue"
 				onConfirm={() => {
-					resetAttachments();
-					handleWorkspaceChange(null);
 					setSelectedOrg(pendingOrgChange);
 					setPendingOrgChange(null);
 				}}
