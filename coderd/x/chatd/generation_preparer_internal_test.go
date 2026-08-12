@@ -244,9 +244,9 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
 
-	// The computer-use model (gpt-5.5) is Responses-selected by the SDK and
-	// its client ignores the config's forced Chat Completions, so the
-	// options must be the Responses type or the SDK discards them.
+	// The computer-use model is Responses-selected by the SDK and its client
+	// ignores the config's forced Chat Completions, so the options must be the
+	// Responses type or the SDK discards them.
 	_, ok := prepared.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
 	require.True(t, ok, "%T", prepared.ProviderOptions[fantasyopenai.Name])
 

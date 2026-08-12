@@ -186,6 +186,25 @@ export const isWorkspaceAppEmbeddable = (app: WorkspaceApp): boolean => {
 	return !app.hidden && !isExternalApp(app) && !app.command;
 };
 
+export const AGENT_BROWSER_APP_SLUG = "agent-browser";
+
+export const getAgentBrowserApp = (
+	agent: WorkspaceAgent | undefined,
+): WorkspaceApp | undefined => {
+	const app = agent?.apps.find(
+		(agentApp) => agentApp.slug === AGENT_BROWSER_APP_SLUG,
+	);
+	// "disabled" means the template does not configure a health check.
+	if (
+		app &&
+		isWorkspaceAppEmbeddable(app) &&
+		(app.health === "healthy" || app.health === "disabled")
+	) {
+		return app;
+	}
+	return undefined;
+};
+
 /**
  * True when an app is not an external app, or is an external app whose URL can
  * be parsed by the URL constructor. External apps with an unparsable URL

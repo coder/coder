@@ -94,6 +94,18 @@ func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
 	return uuid.Parse(envelope.Data.FileID)
 }
 
+// FileIDs returns the valid file IDs referenced by file parts.
+func FileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
+	var ids []uuid.UUID
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeFile || !part.FileID.Valid {
+			continue
+		}
+		ids = append(ids, part.FileID.UUID)
+	}
+	return ids
+}
+
 // ConvertMessagesWithFiles converts persisted chat messages into LLM
 // prompt messages, resolving user file references via the provided
 // resolver. Missing-data placeholders are emitted only for replayed

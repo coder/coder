@@ -10,6 +10,7 @@ const meta: Meta<typeof TemplateExampleCard> = {
 	component: TemplateExampleCard,
 	args: {
 		example: MockTemplateExample,
+		templateBuilderEnabled: true,
 	},
 };
 
@@ -30,5 +31,11 @@ export const LotsOfTags: Story = {
 			...MockTemplateExample2,
 			tags: ["omg", "so many tags", "look at all these", "so cool"],
 		},
+	},
+};
+
+export const TemplateBuilderDisabled: Story = {
+	args: {
+		templateBuilderEnabled: false,
 	},
 };
