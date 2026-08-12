@@ -1,5 +1,5 @@
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import type {
 	AgentFirewallLog,
 	AIBridgeAgenticAction,
@@ -25,6 +25,7 @@ import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { AgenticLoopTable } from "./AgenticLoopTable";
 import { NetworkCallsTable } from "./NetworkCallsTable";
 import { PromptTable } from "./PromptTable";
+import { matchesNetworkCallSearch, matchesThreadSearch } from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
 
 interface ExpandableTextProps {
@@ -417,6 +418,11 @@ interface SessionTimelineProps {
 	 */
 	networkCallSummary?: AIBridgeSessionNetworkCallSummary;
 	networkCalls: readonly AgentFirewallLog[];
+	/**
+	 * Search query applied across all event types. Non-empty values filter
+	 * threads and network calls to matches (see sessionSearch.ts).
+	 */
+	searchQuery: string;
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 	onFetchNextPage: () => void;
@@ -427,11 +433,30 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 	threads,
 	networkCallSummary,
 	networkCalls,
+	searchQuery,
 	hasNextPage,
 	isFetchingNextPage,
 	onFetchNextPage,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
+
+	const isSearching = searchQuery.trim() !== "";
+
+	const filteredThreads = useMemo(
+		() => threads.filter((thread) => matchesThreadSearch(thread, searchQuery)),
+		[threads, searchQuery],
+	);
+
+	const filteredNetworkCalls = useMemo(
+		() =>
+			networkCalls.filter((call) =>
+				matchesNetworkCallSearch(call, searchQuery),
+			),
+		[networkCalls, searchQuery],
+	);
+
+	const hasAnyMatches =
+		filteredThreads.length > 0 || filteredNetworkCalls.length > 0;
 
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
@@ -535,17 +560,30 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* left vertical line */}
 				</div>
 				<div className="row-start-5 col-start-2 col-span-4">
-					{networkCallSummary && (
-						<div className="mb-4">
-							<NetworkCallsTable
-								summary={networkCallSummary}
-								calls={networkCalls}
-							/>
-						</div>
-					)}
+					{networkCallSummary &&
+						(!isSearching || filteredNetworkCalls.length > 0) && (
+							<div className="mb-4">
+								<NetworkCallsTable
+									// While searching, the panel header and blocked badge reflect
+									// the matching rows. Otherwise the session-scoped summary is
+									// preserved so the server truncation note stays accurate.
+									summary={
+										isSearching
+											? {
+													total: filteredNetworkCalls.length,
+													blocked: filteredNetworkCalls.filter(
+														(call) => !call.allowed,
+													).length,
+												}
+											: networkCallSummary
+									}
+									calls={filteredNetworkCalls}
+								/>
+							</div>
+						)}
 					{/* threads */}
 					<div className="[&>.thread-gap:last-child]:hidden">
-						{threads.map((thread) => (
+						{filteredThreads.map((thread) => (
 							<ThreadItem
 								key={thread.id}
 								thread={thread}
@@ -553,6 +591,14 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 							/>
 						))}
 					</div>
+					{isSearching && !hasAnyMatches && (
+						<p
+							className="m-0 py-4 text-sm font-normal text-content-secondary"
+							role="status"
+						>
+							No events match your search.
+						</p>
+					)}
 					{/* infinite scroll sentinel — sits 200px below the last thread */}
 					<div ref={sentinelRef} />
 					{isFetchingNextPage && (

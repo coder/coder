@@ -129,6 +129,7 @@ const meta: Meta<typeof SessionTimeline> = {
 		initiator: MockSession.initiator,
 		threads: [mockThread],
 		networkCalls: [],
+		searchQuery: "",
 		hasNextPage: false,
 		isFetchingNextPage: false,
 		onFetchNextPage: noop,
@@ -158,6 +159,63 @@ export const WithNetworkCalls: Story = {
 
 export const MultipleThreads: Story = {
 	args: { threads: [mockThread, mockThreadLong] },
+};
+
+// Filtering to a tool name keeps only the thread whose agentic loop contains a
+// matching tool call. The tool name is only visible once the agentic loop is
+// expanded, so assert on the thread prompt instead.
+export const SearchFiltersThreads: Story = {
+	args: {
+		threads: [mockThread, mockThreadLong],
+		searchQuery: "read_file",
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			canvas.getByText(
+				"Please refactor the authentication module so that it uses the new token-based flow we discussed. Make sure to update all the related tests and add inline comments explaining the security rationale for each change.",
+			),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Summarize the project structure"),
+		).not.toBeInTheDocument();
+	},
+};
+
+// While searching, the network panel header and rows reflect matches only.
+// "github.com" appears in two of the mock calls (api.github.com and the DNS
+// lookup for api.github.com), so the panel header shows the filtered count.
+export const SearchFiltersNetworkCalls: Story = {
+	args: {
+		networkCallSummary: { total: 4, blocked: 2 },
+		networkCalls: MockAIBridgeSessionNetworkCalls,
+		searchQuery: "npmjs.org",
+	},
+	play: async ({ canvas }) => {
+		await canvas.findByText("Network calls (1)");
+		await expect(
+			canvas.getByText("https://registry.npmjs.org/lodash"),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("https://api.github.com/repos/coder/coder"),
+		).not.toBeInTheDocument();
+	},
+};
+
+// A query that matches nothing shows a dedicated empty state while keeping the
+// session start/end markers.
+export const SearchNoMatches: Story = {
+	args: {
+		threads: [mockThread, mockThreadLong],
+		networkCallSummary: { total: 4, blocked: 2 },
+		networkCalls: MockAIBridgeSessionNetworkCalls,
+		searchQuery: "no-such-event",
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			canvas.getByText("No events match your search."),
+		).toBeInTheDocument();
+		await expect(canvas.queryByText("Prompt")).not.toBeInTheDocument();
+	},
 };
 
 export const FetchingNextPage: Story = {

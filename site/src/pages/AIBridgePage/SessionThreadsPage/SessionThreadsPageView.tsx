@@ -1,5 +1,5 @@
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
-import type { FC, PropsWithChildren } from "react";
+import { type FC, type PropsWithChildren, useState } from "react";
 import type {
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
@@ -7,6 +7,7 @@ import type {
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
+import { SearchField } from "#/components/SearchField/SearchField";
 import {
 	Tooltip,
 	TooltipContent,
@@ -61,6 +62,8 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	isAISessionsEntitled,
 	onBackClicked,
 }) => {
+	const [searchQuery, setSearchQuery] = useState("");
+
 	if (!isAISessionsEntitled) {
 		return <PaywallAIGovernance />;
 	}
@@ -131,15 +134,26 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 				</aside>
 				<main className="flex-1 min-w-0">
 					{session ? (
-						<SessionTimeline
-							initiator={session.initiator}
-							threads={threads}
-							networkCallSummary={session.network_calls}
-							networkCalls={session.network_call_logs ?? []}
-							hasNextPage={hasNextPage}
-							isFetchingNextPage={isFetchingNextPage}
-							onFetchNextPage={onFetchNextPage}
-						/>
+						<>
+							<SearchField
+								value={searchQuery}
+								onChange={setSearchQuery}
+								onClear={() => setSearchQuery("")}
+								placeholder="Search prompts, tool calls, and network calls"
+								aria-label="Search session events"
+								className="mb-4"
+							/>
+							<SessionTimeline
+								initiator={session.initiator}
+								threads={threads}
+								networkCallSummary={session.network_calls}
+								networkCalls={session.network_call_logs ?? []}
+								searchQuery={searchQuery}
+								hasNextPage={hasNextPage}
+								isFetchingNextPage={isFetchingNextPage}
+								onFetchNextPage={onFetchNextPage}
+							/>
+						</>
 					) : (
 						loading && <SessionTimelineSkeleton />
 					)}
