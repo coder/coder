@@ -19,7 +19,7 @@ AI Gateway can connect to MCP servers and inject tools automatically, enabling y
 > [!NOTE]
 > Only MCP servers which support OAuth2 Authorization are supported currently.
 >
-> [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
+> [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
 
 AI Gateway makes use of [External Auth](../../admin/external-auth/index.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure AI Gateway to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
 
