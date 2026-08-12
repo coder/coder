@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
@@ -1508,6 +1510,77 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, "https://auth.example.com/authorize", created.OAuth2AuthURL)
 		require.Equal(t, "https://auth.example.com/token", created.OAuth2TokenURL)
 	})
+}
+
+// TestMCPServerConfigsOAuth2AutoDiscoverySSRF is a regression test for
+// CDM-02-002: OAuth2 auto-discovery followed attacker-controlled
+// redirects to internal addresses. The canary on 127.0.0.2 stands in
+// for an internal-only service (e.g. cloud metadata) and must never
+// be reached, while the attacker's MCP server on 127.0.0.1 is
+// reachable via the test allowlist.
+func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	canaryLn, err := net.Listen("tcp", "127.0.0.2:0")
+	if err != nil {
+		t.Skipf("cannot bind 127.0.0.2 (loopback aliasing unsupported?): %v", err)
+	}
+	var canaryHits atomic.Int64
+	canary := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		canaryHits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"internal":"secret"}`))
+	}))
+	_ = canary.Listener.Close()
+	canary.Listener = canaryLn
+	canary.Start()
+	t.Cleanup(canary.Close)
+
+	// Attacker-controlled MCP server: redirects every discovery
+	// fetch to the internal canary.
+	attacker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, canary.URL+r.URL.Path, http.StatusFound)
+	}))
+	t.Cleanup(attacker.Close)
+
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+		// Allow only the attacker's address so the initial fetch
+		// succeeds; the canary's address stays blocked.
+		MCPOAuth2DiscoveryAllowedIPRanges: []netip.Prefix{
+			netip.MustParsePrefix("127.0.0.1/32"),
+		},
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	_, err = client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "SSRF Attacker",
+		Slug:          "ssrf-attacker",
+		Transport:     "streamable_http",
+		URL:           attacker.URL + "/v1/mcp",
+		AuthType:      "oauth2",
+		Availability:  "default_on",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Message, "auto-discovery failed")
+	require.EqualValues(t, 0, canaryHits.Load(), "internal canary must never be contacted via attacker redirect")
+
+	// The partially created config must have been cleaned up.
+	configs, err := client.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	for _, config := range configs {
+		require.NotEqual(t, "ssrf-attacker", config.Slug)
+	}
 }
 
 // nolint:bodyclose

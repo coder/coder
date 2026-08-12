@@ -375,6 +375,16 @@ func AnthropicTextChunks(deltas ...string) []AnthropicChunk {
 // the initial input and cache token counts, and the final message_delta
 // carries the output token count.
 func AnthropicTextChunksWithCacheUsage(usage AnthropicUsage, deltas ...string) []AnthropicChunk {
+	return AnthropicTextChunksWithMessageUsages(
+		usage,
+		AnthropicUsage{OutputTokens: usage.OutputTokens},
+		deltas...,
+	)
+}
+
+// AnthropicTextChunksWithMessageUsages creates a streaming response with
+// independent message_start and message_delta usage.
+func AnthropicTextChunksWithMessageUsages(messageStartUsage, messageDeltaUsage AnthropicUsage, deltas ...string) []AnthropicChunk {
 	if len(deltas) == 0 {
 		return nil
 	}
@@ -383,13 +393,26 @@ func AnthropicTextChunksWithCacheUsage(usage AnthropicUsage, deltas ...string) [
 	model := "claude-3-opus-20240229"
 
 	messageUsage := map[string]int{
-		"input_tokens": usage.InputTokens,
+		"input_tokens": messageStartUsage.InputTokens,
 	}
-	if usage.CacheCreationInputTokens != 0 {
-		messageUsage["cache_creation_input_tokens"] = usage.CacheCreationInputTokens
+	if messageStartUsage.CacheCreationInputTokens != 0 {
+		messageUsage["cache_creation_input_tokens"] = messageStartUsage.CacheCreationInputTokens
 	}
-	if usage.CacheReadInputTokens != 0 {
-		messageUsage["cache_read_input_tokens"] = usage.CacheReadInputTokens
+	if messageStartUsage.CacheReadInputTokens != 0 {
+		messageUsage["cache_read_input_tokens"] = messageStartUsage.CacheReadInputTokens
+	}
+
+	deltaUsage := map[string]int{
+		"output_tokens": messageDeltaUsage.OutputTokens,
+	}
+	if messageDeltaUsage.InputTokens != 0 {
+		deltaUsage["input_tokens"] = messageDeltaUsage.InputTokens
+	}
+	if messageDeltaUsage.CacheCreationInputTokens != 0 {
+		deltaUsage["cache_creation_input_tokens"] = messageDeltaUsage.CacheCreationInputTokens
+	}
+	if messageDeltaUsage.CacheReadInputTokens != 0 {
+		deltaUsage["cache_read_input_tokens"] = messageDeltaUsage.CacheReadInputTokens
 	}
 
 	chunks := []AnthropicChunk{
@@ -432,9 +455,7 @@ func AnthropicTextChunksWithCacheUsage(usage AnthropicUsage, deltas ...string) [
 		AnthropicChunk{
 			Type:       "message_delta",
 			StopReason: "end_turn",
-			UsageMap: map[string]int{
-				"output_tokens": usage.OutputTokens,
-			},
+			UsageMap:   deltaUsage,
 		},
 		AnthropicChunk{
 			Type: "message_stop",
@@ -556,6 +577,7 @@ func AnthropicToolCallChunks(toolName string, inputJSONDeltas ...string) []Anthr
 				Type:  "message",
 				Role:  "assistant",
 				Model: model,
+				Usage: map[string]int{"input_tokens": 10},
 			},
 		},
 		{
@@ -589,9 +611,8 @@ func AnthropicToolCallChunks(toolName string, inputJSONDeltas ...string) []Anthr
 		AnthropicChunk{
 			Type:       "message_delta",
 			StopReason: "tool_use",
-			Usage: AnthropicUsage{
-				InputTokens:  10,
-				OutputTokens: 5,
+			UsageMap: map[string]int{
+				"output_tokens": 5,
 			},
 		},
 		AnthropicChunk{

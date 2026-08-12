@@ -57,8 +57,8 @@ func (l *License) ExpiresAt() (time.Time, error) {
 }
 
 func (l *License) Trial() bool {
-	if trail, ok := l.Claims["trail"].(bool); ok {
-		return trail
+	if trial, ok := l.Claims["trial"].(bool); ok {
+		return trial
 	}
 	return false
 }
