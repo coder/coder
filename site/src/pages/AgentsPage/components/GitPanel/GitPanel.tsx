@@ -462,8 +462,6 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 
 	const isSingleItem = items.length <= 1;
 
-	// Single-item trigger: flat text, no button chrome. Icon aria-label
-	// keeps the state readable when there is no dropdown context.
 	if (isSingleItem) {
 		return (
 			<div
@@ -563,13 +561,6 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	);
 };
 
-// ---------------------------------------------------------------
-// Primary CTA (View PR / Commit) shown next to Refresh in the toolbar.
-// The action follows the active view: a link to the PR on the remote
-// view, or a Commit button on a working repo. Renders nothing when
-// there is no actionable target.
-// ---------------------------------------------------------------
-
 const PrimaryCta: FC<{
 	effectiveView: GitView;
 	prTab?: { prNumber: number; chatId: string };
@@ -577,9 +568,6 @@ const PrimaryCta: FC<{
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	onCommit: (repoRoot: string) => void;
 }> = ({ effectiveView, prTab, pullRequestUrl, repositories, onCommit }) => {
-	const ctaClassName =
-		"inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-[13px] font-medium leading-none text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50";
-
 	if (effectiveView.type === "remote") {
 		if (!prTab || !pullRequestUrl) {
 			return null;
@@ -589,7 +577,7 @@ const PrimaryCta: FC<{
 				href={pullRequestUrl}
 				target="_blank"
 				rel="noreferrer"
-				className={ctaClassName}
+				className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-[13px] font-medium leading-none text-content-primary no-underline transition-colors hover:bg-surface-secondary"
 				aria-label={`View PR #${prTab.prNumber}`}
 			>
 				View PR
@@ -607,7 +595,7 @@ const PrimaryCta: FC<{
 			type="button"
 			onClick={() => onCommit(effectiveView.repoRoot)}
 			disabled={!repo.unified_diff}
-			className={cn(ctaClassName, "cursor-pointer")}
+			className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-[13px] font-medium leading-none text-content-primary transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
 		>
 			<CheckIcon className="size-3" />
 			Commit
