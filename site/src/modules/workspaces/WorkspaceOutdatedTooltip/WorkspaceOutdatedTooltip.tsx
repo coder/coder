@@ -108,7 +108,7 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 					This workspace version is outdated and a newer version is available.
 				</HelpPopoverText>
 
-				<div className="flex flex-col gap-2 py-2 text-[13px]">
+				<div className="flex flex-col gap-2 py-2 text-sm font-normal">
 					<div className="leading-[1.6]">
 						<div className="text-content-primary font-semibold">
 							New version

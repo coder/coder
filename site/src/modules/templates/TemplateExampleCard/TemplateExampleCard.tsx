@@ -56,10 +56,10 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 
 			<div>
 				<h4 className="text-sm font-semibold m-0 mb-1">{example.name}</h4>
-				<span className="block text-[13px] leading-[1.6] text-content-secondary">
+				<span className="block text-sm font-normal leading-[1.6] text-content-secondary">
 					{example.description}{" "}
 					<Link
-						className="inline-block text-[13px] mt-1 p-0"
+						className="inline-block text-sm mt-1 p-0"
 						asChild
 						showExternalIcon={false}
 					>

@@ -75,7 +75,7 @@ const PaywallPremium = ({
 				<PaywallFeatures className={cn(compact && "pr-0")}>
 					{PREMIUM_FEATURES.map((feature) => (
 						<PaywallFeature
-							className={cn(compact && "text-[13px] leading-tight")}
+							className={cn(compact && "text-sm font-normal leading-tight")}
 							key={feature}
 						>
 							{feature}
