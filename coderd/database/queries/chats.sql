@@ -2470,6 +2470,10 @@ FROM chats_expanded;
 -- requires-action deadline, and the manual compaction request marker.
 -- Callers compose this with transition mutations inside a single
 -- ChatMachine.Update transaction.
+--
+-- grant_history_epoch gives a turn that inserts no history the same
+-- fresh retry budget and message part episode keys a history change
+-- would grant, mirroring the chat_messages trigger postcondition.
 WITH updated_chat AS (
     UPDATE chats
     SET
@@ -2480,6 +2484,9 @@ WITH updated_chat AS (
         last_error = sqlc.narg('last_error')::jsonb,
         requires_action_deadline_at = sqlc.narg('requires_action_deadline_at')::timestamptz,
         compaction_requested_at = sqlc.narg('compaction_requested_at')::timestamptz,
+        history_version = CASE WHEN @grant_history_epoch::boolean THEN snapshot_version ELSE history_version END,
+        generation_attempt = CASE WHEN @grant_history_epoch::boolean THEN 0 ELSE generation_attempt END,
+        retry_state = CASE WHEN @grant_history_epoch::boolean THEN NULL ELSE retry_state END,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = @id::uuid
