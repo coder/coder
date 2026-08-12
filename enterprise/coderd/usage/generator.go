@@ -49,10 +49,13 @@ const (
 // events from data already persisted in the database, so it can
 // deterministically backfill hours missed while the deployment was down,
 // zero-filling idle hours. Deterministic event IDs make concurrent replicas
-// safe without locking: a re-insert of a committed bucket is a no-op via the
-// insert's ON CONFLICT (id) arbiter, and two replicas racing an uncommitted
-// bucket surface a unique violation that generateBucket recognizes as the
-// other replica winning.
+// safe without locking: the insert's ON CONFLICT (id) arbiter turns a
+// re-insert of a bucket into a no-op, even when the competing insert is
+// still in flight (once its arbiter index entry is visible, PostgreSQL
+// waits on that transaction and takes the DO NOTHING path if it commits).
+// Only the narrow speculative-insertion race, before the competing row's
+// arbiter entry exists, surfaces a bucket unique violation instead, which
+// generateBucket recognizes as the other replica winning.
 //
 // Events are generated unconditionally in enterprise builds; the
 // publish_usage_data license flag only gates publishing to Tallyman.
@@ -239,10 +242,13 @@ func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error 
 	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
 	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
 	if database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
-		// The insert's ON CONFLICT (id) arbiter only sees committed rows, so
-		// a concurrent replica inserting the same bucket can trip the bucket
-		// unique index instead. Either way a row for this bucket already
-		// exists, which is all generateBucket needs.
+		// The insert's ON CONFLICT (id) arbiter absorbs most duplicate
+		// inserts, including in-flight ones: once a competing row's arbiter
+		// index entry is visible, PostgreSQL waits on that transaction and
+		// takes the DO NOTHING path if it commits. Only the narrow
+		// speculative-insertion race, before that entry exists, trips the
+		// bucket unique index instead. Either way a row for this bucket
+		// already exists, which is all generateBucket needs.
 		return nil
 	}
 	if err != nil {
