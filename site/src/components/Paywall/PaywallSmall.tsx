@@ -30,13 +30,13 @@ const PaywallSmall = ({
 	return (
 		<Paywall
 			className={cn(
-				compact && "max-w-[770px] py-4 px-[36px] gap-[18px] min-h-[230px]",
+				compact && "max-w-[770px] py-4 px-4 gap-[18px] min-h-[230px]",
 				className,
 			)}
 			{...props}
 		>
 			<PaywallSupergraphic className="bg-[length:auto_140%] bg-[position:50%_50%]" />
-			<PaywallContent className="items-start text-left">
+			<PaywallContent className="ml-8 items-start text-left">
 				<PaywallHeading className={cn(compact && "justify-start mb-[18px]")}>
 					<PaywallTitle className={cn(compact && "text-lg leading-none")}>
 						{PREMIUM_DEFAULT_HERO}

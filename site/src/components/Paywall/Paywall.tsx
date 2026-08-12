@@ -37,7 +37,7 @@ export const Paywall = ({
 			className={cn(
 				"relative isolate overflow-hidden",
 				"flex flex-row items-center justify-center min-h-[280px] p-4 rounded-lg gap-8",
-				"border border-solid border-border-default bg-surface-primary",
+				"border border-solid border-border-default bg-surface-secondary",
 				className,
 			)}
 			{...props}
