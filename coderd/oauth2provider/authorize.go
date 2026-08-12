@@ -54,12 +54,24 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 		codeChallengeMethod: p.String(vals, "", "code_challenge_method"),
 	}
 
-	// PKCE is required for authorization code flow requests.
-	if params.responseType == codersdk.OAuth2ProviderResponseTypeCode && params.codeChallenge == "" {
-		p.Errors = append(p.Errors, codersdk.ValidationError{
-			Field:  "code_challenge",
-			Detail: `Query param "code_challenge" is required and cannot be empty`,
-		})
+	// PKCE is required for authorization code flow requests. Reject a
+	// malformed code_challenge here (RFC 7636 §4.4.1) rather than storing it
+	// verbatim and failing later at token exchange, where the error would
+	// point at the code_verifier instead of the parameter that was actually
+	// invalid.
+	if params.responseType == codersdk.OAuth2ProviderResponseTypeCode {
+		switch {
+		case params.codeChallenge == "":
+			p.Errors = append(p.Errors, codersdk.ValidationError{
+				Field:  "code_challenge",
+				Detail: `Query param "code_challenge" is required and cannot be empty`,
+			})
+		case !ValidPKCEFormat(params.codeChallenge):
+			p.Errors = append(p.Errors, codersdk.ValidationError{
+				Field:  "code_challenge",
+				Detail: "must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~]",
+			})
+		}
 	}
 
 	// Validate resource indicator syntax (RFC 8707): must be absolute URI without fragment
