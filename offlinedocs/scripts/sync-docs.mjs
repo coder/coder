@@ -165,6 +165,13 @@ const manifestMd = allMd.filter((rel) =>
 // pass 3: rewrite + write content
 const copiedAssets = new Set();
 let unmappedMdLinks = 0;
+// Inter-doc links whose target could not be mapped to a synced page, collected
+// with the source file that contains them so the sync can name each one and
+// fail instead of silently shipping a dead relative link in the offline bundle.
+const unmappedLinks = [];
+// Source file currently being rewritten, so resolveMd can attribute an unmapped
+// link to the doc it appears in.
+let currentSourceRel = "";
 
 function copyAsset(resolvedRel) {
 	if (copiedAssets.has(resolvedRel)) return true;
@@ -185,6 +192,7 @@ const rewriteCtx = {
 		const mapped = fileMap.get(resolvedRel);
 		if (mapped) return routeHref(mapped.route);
 		unmappedMdLinks++;
+		unmappedLinks.push({ source: currentSourceRel, target: resolvedRel });
 		return null;
 	},
 	copyImage(resolvedRel) {
@@ -228,6 +236,7 @@ for (const rel of manifestMd) {
 		body = lines.join("\n");
 	}
 	body = stripHtmlComments(body);
+	currentSourceRel = rel;
 	body = rewriteContent(body, rel, rewriteCtx);
 	body = normalizeFences(body);
 	body = normalizeStepHeadings(body);
@@ -337,3 +346,24 @@ console.log(
 		`images=${copiedAssets.size} referenced (+ full images/ tree), ` +
 		`unmapped .md links=${unmappedMdLinks}`,
 );
+
+// Fail the sync (and therefore the offlinedocs build and the release target) if
+// any inter-doc link could not be resolved to a synced page. Such a link is
+// otherwise left as a raw relative path and 404s inside the offline bundle.
+// Naming the source file and target keeps a docs change that breaks a link
+// actionable in CI instead of shipping silently.
+if (unmappedLinks.length > 0) {
+	console.error(
+		`\n[sync-docs] ERROR: ${unmappedLinks.length} inter-doc link(s) do not ` +
+			`resolve to a synced page and would ship as dead links:`,
+	);
+	for (const { source, target } of unmappedLinks) {
+		console.error(`  ${source} -> ${target}`);
+	}
+	console.error(
+		"\nFix each link to point at a manifest page, or use an absolute URL " +
+			"(for example a https://github.com/... link) when the target is " +
+			"intentionally outside the published docs corpus.",
+	);
+	process.exit(1);
+}
