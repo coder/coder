@@ -4872,13 +4872,13 @@ type APIKey struct {
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
 }
 
-// Materialized view of AI Bridge sessions, maintained by triggers on aibridge_interceptions and aibridge_user_prompts. Each row summarizes the interceptions sharing same session_id and initiator.
+// Materialized view of AI Bridge sessions, maintained by a trigger on aibridge_interceptions. Each row summarizes the interceptions sharing same session_id and initiator.
 type AibridgeSession struct {
 	SessionID   string    `db:"session_id" json:"session_id"`
 	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	// Earliest started_at across the session's interceptions. Paired with last_active_at so time-range filters can test whether the session overlaps the requested window.
 	StartedAt time.Time `db:"started_at" json:"started_at"`
-	// Timestamp of the latest event in the session: the most recent user prompt or interception start, whichever is later. Sort key for the sessions list, and the upper bound for time-range filters.
+	// Latest ended_at across the session's interceptions. Sort key for the sessions list, and the upper bound for time-range filters.
 	LastActiveAt  time.Time `db:"last_active_at" json:"last_active_at"`
 	Providers     []string  `db:"providers" json:"providers"`
 	ProviderNames []string  `db:"provider_names" json:"provider_names"`

@@ -788,7 +788,7 @@ BEGIN
         providers, provider_names, models, client
     )
     VALUES (
-        NEW.session_id, NEW.initiator_id, NEW.started_at, NEW.started_at,
+        NEW.session_id, NEW.initiator_id, NEW.started_at, NEW.ended_at,
         ARRAY[NEW.provider], ARRAY[NEW.provider_name], ARRAY[NEW.model],
         COALESCE(NEW.client, 'Unknown')
     )
@@ -801,22 +801,6 @@ BEGIN
         -- client is deliberately absent: the first interception to complete
         -- sets it and later ones leave it alone, since a session_id comes from
         -- a single client.
-    RETURN NULL;
-END;
-$$;
-
-CREATE FUNCTION aibridge_session_track_prompt() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    UPDATE aibridge_sessions s
-    SET last_active_at = GREATEST(s.last_active_at, NEW.created_at)
-    -- Join aibridge_user_prompts with aibridge_interceptions to enrich the
-    -- prompt with session_id and initiator_id, then filter the session by them.
-    FROM aibridge_interceptions ai
-    WHERE ai.id = NEW.interception_id
-        AND s.session_id = ai.session_id
-        AND s.initiator_id = ai.initiator_id;
     RETURN NULL;
 END;
 $$;
@@ -1707,11 +1691,11 @@ CREATE TABLE aibridge_sessions (
     client text DEFAULT 'Unknown'::text NOT NULL
 );
 
-COMMENT ON TABLE aibridge_sessions IS 'Materialized view of AI Bridge sessions, maintained by triggers on aibridge_interceptions and aibridge_user_prompts. Each row summarizes the interceptions sharing same session_id and initiator.';
+COMMENT ON TABLE aibridge_sessions IS 'Materialized view of AI Bridge sessions, maintained by a trigger on aibridge_interceptions. Each row summarizes the interceptions sharing same session_id and initiator.';
 
 COMMENT ON COLUMN aibridge_sessions.started_at IS 'Earliest started_at across the session''s interceptions. Paired with last_active_at so time-range filters can test whether the session overlaps the requested window.';
 
-COMMENT ON COLUMN aibridge_sessions.last_active_at IS 'Timestamp of the latest event in the session: the most recent user prompt or interception start, whichever is later. Sort key for the sessions list, and the upper bound for time-range filters.';
+COMMENT ON COLUMN aibridge_sessions.last_active_at IS 'Latest ended_at across the session''s interceptions. Sort key for the sessions list, and the upper bound for time-range filters.';
 
 COMMENT ON COLUMN aibridge_sessions.client IS 'The client that issued the session. Scalar rather than an array because a session_id originates from one client.';
 
@@ -5142,8 +5126,6 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
   GROUP BY pj.id, wb.workspace_id;
 
 CREATE TRIGGER aibridge_interceptions_track_session AFTER INSERT OR UPDATE ON aibridge_interceptions FOR EACH ROW WHEN ((new.ended_at IS NOT NULL)) EXECUTE FUNCTION aibridge_session_track_interception();
-
-CREATE TRIGGER aibridge_user_prompts_track_session AFTER INSERT ON aibridge_user_prompts FOR EACH ROW EXECUTE FUNCTION aibridge_session_track_prompt();
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
