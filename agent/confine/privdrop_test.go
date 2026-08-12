@@ -325,7 +325,9 @@ func TestPrivilegeDropBehavior(t *testing.T) {
 		t.Skip("behavioral privilege drop test requires root")
 	}
 
-	secretPath := t.TempDir() + "/parent-secret"
+	secretDir := t.TempDir()
+	require.NoError(t, os.Chmod(secretDir, 0o755))
+	secretPath := secretDir + "/parent-secret"
 	require.NoError(t, os.WriteFile(secretPath, []byte("secret"), 0o600))
 
 	options := confine.PrivilegeDropOptions{
