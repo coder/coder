@@ -573,15 +573,7 @@ func (req OAuth2ClientRegistrationRequest) ApplyDefaults() OAuth2ClientRegistrat
 // apply defaults first, or an omitted field compares as "" and looks like a
 // change the client did not request.
 func (req *OAuth2ClientRegistrationRequest) DetermineClientType() OAuth2ClientType {
-	return ClientTypeFor(req.TokenEndpointAuthMethod)
-}
-
-// ClientTypeFor maps a token endpoint auth method to the client type it
-// implies. This is the single owner of that mapping: registration derives the
-// stored client_type from it, and redirect URI validation uses it to pick which
-// RFC 8252 rules apply, so the two cannot disagree about what "public" means.
-func ClientTypeFor(method OAuth2TokenEndpointAuthMethod) OAuth2ClientType {
-	if method == OAuth2TokenEndpointAuthMethodNone {
+	if req.TokenEndpointAuthMethod == OAuth2TokenEndpointAuthMethodNone {
 		return OAuth2ClientTypePublic
 	}
 	return OAuth2ClientTypeConfidential

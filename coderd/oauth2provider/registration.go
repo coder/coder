@@ -311,17 +311,49 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			return
 		}
 
+		// A client's type is fixed at registration (RFC 7592 §2.2 permits
+		// rejecting metadata the server will not accept). Flipping it would
+		// either drop the secret requirement for a client that has one, or mark
+		// a client confidential when it has no secret and no way to be issued
+		// one.
+		//
+		// The first conjunct only rejects an update that actually changes the
+		// auth method, which lets a legacy row whose two columns disagree still
+		// manage itself. IsPublic is the reader for the stored column so an
+		// unrecognized value is treated as confidential here exactly as it is at
+		// the token endpoint.
+		storedMethod := codersdk.OAuth2TokenEndpointAuthMethod(existingApp.TokenEndpointAuthMethod.String)
+		requestedClientType := req.DetermineClientType()
+		if req.TokenEndpointAuthMethod != storedMethod &&
+			(requestedClientType == codersdk.OAuth2ClientTypePublic) != existingApp.IsPublic() {
+			logger.Warn(ctx, "rejected oauth2 client type change",
+				slog.F("client_id", clientID.String()),
+				slog.F("stored_token_endpoint_auth_method", existingApp.TokenEndpointAuthMethod.String),
+				slog.F("requested_token_endpoint_auth_method", string(req.TokenEndpointAuthMethod)),
+				slog.F("stored_client_type", existingApp.ClientType))
+			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+				"invalid_client_metadata",
+				fmt.Sprintf("token_endpoint_auth_method cannot move an existing client between public and confidential (stored %q, requested %q); the client type is fixed at registration, so register a new client instead",
+					existingApp.TokenEndpointAuthMethod.String, string(req.TokenEndpointAuthMethod)))
+			return
+		}
+
 		// Update app in database
 		now := dbtime.Now()
 		//nolint:gocritic // OAuth2 system context — RFC 7592 client configuration endpoint
 		updatedApp, err := db.UpdateOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), database.UpdateOAuth2ProviderAppByClientIDParams{
-			ID:                      clientID,
-			UpdatedAt:               now,
-			Name:                    req.GenerateClientName(),
-			Icon:                    req.LogoURI,
-			CallbackURL:             req.RedirectURIs[0], // Primary redirect URI
-			RedirectUris:            req.RedirectURIs,
-			ClientType:              string(req.DetermineClientType()),
+			ID:           clientID,
+			UpdatedAt:    now,
+			Name:         req.GenerateClientName(),
+			Icon:         req.LogoURI,
+			CallbackURL:  req.RedirectURIs[0], // Primary redirect URI
+			RedirectUris: req.RedirectURIs,
+			// Carried through verbatim. The guard above rejects a request that
+			// would change the type, so re-deriving it here could only ever
+			// differ for a legacy row whose stored type and auth method
+			// disagree, silently converting it to public while it still holds a
+			// secret.
+			ClientType:              existingApp.ClientType,
 			ClientSecretExpiresAt:   sql.NullTime{}, // No expiration for now
 			GrantTypes:              slice.ToStrings(req.GrantTypes),
 			ResponseTypes:           slice.ToStrings(req.ResponseTypes),
