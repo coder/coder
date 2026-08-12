@@ -50,6 +50,11 @@ const GIT_NOT_SETUP_BODY =
 const GIT_STATUS_LOADING_TITLE = "Waiting for Git status";
 const GIT_STATUS_LOADING_BODY = "Checking the workspace for Git repositories.";
 
+// Horizontal padding on the toolbar (`px-3` = 12px). The switcher
+// dropdown uses this as a negative `alignOffset` so its left edge
+// lines up with the panel edge rather than the trigger's inset.
+const TOOLBAR_PADDING_PX = 12;
+
 interface DiffStats {
 	additions: number;
 	deletions: number;
@@ -207,6 +212,23 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const [spinning, setSpinning] = useState(false);
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
+
+	// Track the panel width so the switcher dropdown can stretch across
+	// the full panel, matching the toolbar's horizontal extent.
+	const panelRef = useRef<HTMLDivElement>(null);
+	const [panelWidth, setPanelWidth] = useState(0);
+	useEffect(() => {
+		const el = panelRef.current;
+		if (!el) return;
+		const observer = new ResizeObserver(([entry]) => {
+			if (entry) {
+				setPanelWidth(entry.contentRect.width);
+			}
+		});
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, []);
+
 	const handleRefresh = () => {
 		const sent = onRefresh();
 		if (!sent) {
@@ -323,7 +345,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	};
 
 	return (
-		<div className="flex h-full flex-col">
+		<div ref={panelRef} className="flex h-full flex-col">
 			{/* Toolbar */}
 			<div className="flex shrink-0 items-center gap-2 px-3 pt-1.5 pb-1">
 				<div className="min-w-0 flex-1">
@@ -332,6 +354,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						activeItem={activeItem}
 						hasRemoteItem={remoteItem !== null}
 						onSelect={handleSelectItem}
+						panelWidth={panelWidth}
 					/>
 				</div>
 				{/* Controls */}
@@ -440,6 +463,11 @@ interface GitViewSwitcherProps {
 	 */
 	hasRemoteItem: boolean;
 	onSelect: (item: ViewItem) => void;
+	/**
+	 * Measured width of the git panel container. The dropdown menu uses
+	 * this to span the full panel width instead of the compact trigger.
+	 */
+	panelWidth: number;
 }
 
 const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
@@ -447,6 +475,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	activeItem,
 	hasRemoteItem,
 	onSelect,
+	panelWidth,
 }) => {
 	if (!activeItem) {
 		return (
@@ -523,7 +552,9 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[240px] p-1"
+				alignOffset={-TOOLBAR_PADDING_PX}
+				style={panelWidth > 0 ? { width: panelWidth } : undefined}
+				className="p-1"
 			>
 				{items.map((item) => {
 					const isActive = item.id === activeItem.id;
