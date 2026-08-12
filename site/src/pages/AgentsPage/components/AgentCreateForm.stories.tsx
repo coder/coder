@@ -936,9 +936,7 @@ export const RestrictedMultiOrganizationUser: Story = {
 			MockDefaultOrganization,
 			MockOrganization2,
 		]);
-		// Mirrors backend RBAC for roles like agents-access: chat:create
-		// is granted at member (owner) scope, so a check without
-		// owner_id "me" is denied in every org.
+		// Model agents-access: "me" supplies the owner for member-scoped chat:create.
 		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
 			Object.fromEntries(
 				Object.entries(checks).map(([id, check]) => [
