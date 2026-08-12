@@ -99,6 +99,103 @@ func TestProxyCONNECTDenied(t *testing.T) {
 	require.EqualValues(t, 0, event.PolicyRevision)
 }
 
+func TestProxyHTTPOriginFormAllowed(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		require.Equal(t, "/hello", req.URL.Path)
+		require.Equal(t, "name=value", req.URL.RawQuery)
+		_, _ = io.WriteString(rw, "forwarded")
+	}))
+	defer upstream.Close()
+	upstreamURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+	_, port := splitHostPort(t, upstreamURL.Host)
+
+	engine := confine.NewPolicyEngine("", 0)
+	engine.Update(codersdk.AIEgressPolicy{Revision: 11, Rules: []codersdk.AIEgressRule{{Host: "localhost", Ports: []int{port}}}})
+	events := make(chan confine.NetworkEvent, 1)
+	proxy, err := confine.ListenProxy("127.0.0.1:0", engine, func(event confine.NetworkEvent) { events <- event })
+	require.NoError(t, err)
+	defer proxy.Close()
+
+	conn, err := net.Dial("tcp", proxy.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+	_, err = fmt.Fprintf(conn, "GET /hello?name=value HTTP/1.1\r\nHost: LOCALHOST.:%d\r\nConnection: close\r\n\r\n", port)
+	require.NoError(t, err)
+	res, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodGet})
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "forwarded", string(body))
+
+	event := <-events
+	require.Equal(t, agentsdk.AISandboxNetworkProtocolHTTP, event.Protocol)
+	require.Equal(t, agentsdk.AISandboxNetworkEventActionAllowed, event.Action)
+	require.Equal(t, "localhost", event.Host)
+	require.Equal(t, port, event.Port)
+	require.EqualValues(t, 11, event.PolicyRevision)
+}
+
+func TestProxyHTTPOriginFormDenied(t *testing.T) {
+	t.Parallel()
+
+	engine := confine.NewPolicyEngine("", 0)
+	engine.Update(codersdk.AIEgressPolicy{Revision: 12})
+	events := make(chan confine.NetworkEvent, 1)
+	proxy, err := confine.ListenProxy("127.0.0.1:0", engine, func(event confine.NetworkEvent) { events <- event })
+	require.NoError(t, err)
+	defer proxy.Close()
+
+	conn, err := net.Dial("tcp", proxy.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+	_, err = fmt.Fprint(conn, "GET /blocked HTTP/1.1\r\nHost: Denied.Example.COM.:8080\r\nConnection: close\r\n\r\n")
+	require.NoError(t, err)
+	res, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodGet})
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	require.Equal(t, http.StatusForbidden, res.StatusCode)
+	require.Contains(t, string(body), "denied.example.com")
+
+	event := <-events
+	require.Equal(t, agentsdk.AISandboxNetworkProtocolHTTP, event.Protocol)
+	require.Equal(t, agentsdk.AISandboxNetworkEventActionDenied, event.Action)
+	require.Equal(t, "denied.example.com", event.Host)
+	require.Equal(t, 8080, event.Port)
+	require.EqualValues(t, 12, event.PolicyRevision)
+}
+
+func TestProxyHTTPOriginFormRejectsInvalidHost(t *testing.T) {
+	t.Parallel()
+
+	for _, host := range []string{"", "http://example.com", "example.com/path", "example.com:invalid"} {
+		t.Run(host, func(t *testing.T) {
+			t.Parallel()
+
+			engine := confine.NewPolicyEngine("", 0)
+			proxy, err := confine.ListenProxy("127.0.0.1:0", engine, nil)
+			require.NoError(t, err)
+			defer proxy.Close()
+
+			conn, err := net.Dial("tcp", proxy.Addr().String())
+			require.NoError(t, err)
+			defer conn.Close()
+			_, err = fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host)
+			require.NoError(t, err)
+			res, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodGet})
+			require.NoError(t, err)
+			require.NoError(t, res.Body.Close())
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		})
+	}
+}
+
 func TestProxyHTTPForward(t *testing.T) {
 	t.Parallel()
 
@@ -136,6 +233,8 @@ func TestProxyHTTPForward(t *testing.T) {
 	event := <-events
 	require.Equal(t, agentsdk.AISandboxNetworkProtocolHTTP, event.Protocol)
 	require.Equal(t, agentsdk.AISandboxNetworkEventActionAllowed, event.Action)
+	require.Equal(t, host, event.Host)
+	require.Equal(t, port, event.Port)
 	require.EqualValues(t, 9, event.PolicyRevision)
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"golang.org/x/xerrors"
 
@@ -27,7 +28,7 @@ type NetworkEvent struct {
 // EventCallback receives every allow or deny decision.
 type EventCallback func(NetworkEvent)
 
-// Proxy serves CONNECT and absolute-form plain HTTP proxy requests.
+// Proxy serves CONNECT, absolute-form, and origin-form HTTP requests.
 type Proxy struct {
 	listener net.Listener
 	server   *http.Server
@@ -71,7 +72,7 @@ func (p *Proxy) Close() error {
 	return err
 }
 
-// ServeHTTP handles CONNECT tunnels and absolute-form HTTP forwarding.
+// ServeHTTP handles CONNECT tunnels and HTTP forwarding.
 func (p *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodConnect {
 		p.serveConnect(rw, req)
@@ -124,15 +125,29 @@ func (p *Proxy) serveConnect(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (p *Proxy) forwardHTTP(rw http.ResponseWriter, req *http.Request) {
-	if req.URL == nil || req.URL.Scheme != "http" || req.URL.Host == "" {
+	if req.URL == nil {
+		http.Error(rw, "invalid proxy destination", http.StatusBadRequest)
+		return
+	}
+
+	out := req.Clone(req.Context())
+	host, port, err := authority(req.URL.Host, defaultHTTPPort)
+	if req.URL.Scheme == "" && req.URL.Host == "" {
+		host, port, err = originAuthority(req.Host)
+		if err == nil {
+			out.URL.Scheme = "http"
+			out.URL.Host = net.JoinHostPort(host, strconv.Itoa(port))
+			out.Host = out.URL.Host
+		}
+	} else if req.URL.Scheme != "http" || req.URL.Host == "" {
 		http.Error(rw, "absolute-form http URL required", http.StatusBadRequest)
 		return
 	}
-	host, port, err := authority(req.URL.Host, defaultHTTPPort)
 	if err != nil {
 		http.Error(rw, "invalid proxy destination", http.StatusBadRequest)
 		return
 	}
+
 	decision := p.policy.Decide(host, port)
 	p.emit(agentsdk.AISandboxNetworkProtocolHTTP, host, port, decision)
 	if !decision.Allowed {
@@ -140,7 +155,6 @@ func (p *Proxy) forwardHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	out := req.Clone(req.Context())
 	out.RequestURI = ""
 	out.Header = req.Header.Clone()
 	out.Header.Del("Proxy-Connection")
@@ -172,6 +186,13 @@ func (p *Proxy) emit(protocol agentsdk.AISandboxNetworkProtocol, host string, po
 		Action:         action,
 		PolicyRevision: decision.Revision,
 	})
+}
+
+func originAuthority(value string) (string, int, error) {
+	if value == "" || strings.ContainsAny(value, "/\\") || strings.IndexFunc(value, unicode.IsSpace) >= 0 {
+		return "", 0, xerrors.New("invalid origin-form host")
+	}
+	return authority(value, defaultHTTPPort)
 }
 
 func authority(value string, defaultPort int) (string, int, error) {
