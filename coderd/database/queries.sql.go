@@ -1034,9 +1034,7 @@ SELECT
 FROM
 	aibridge_sessions s
 WHERE
-	-- Filter by time frame. A session matches when its interceptions overlap
-	-- the window, so the bounds are compared against opposite ends of the
-	-- session's range.
+	-- Filter by time frame.
 	CASE
 		WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN s.last_active_at >= $1::timestamptz
 		ELSE true
@@ -2241,9 +2239,7 @@ session_page AS (
 	FROM
 		aibridge_sessions s
 	WHERE
-		-- Filter by time frame. A session matches when its interceptions
-		-- overlap the window, so the bounds are compared against opposite
-		-- ends of the session's range.
+		-- Filter by time frame.
 		CASE
 			WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN s.last_active_at >= $2::timestamptz
 			ELSE true
@@ -2286,8 +2282,7 @@ session_page AS (
 		-- Cursor pagination: uses a composite (last_active_at, session_id)
 		-- cursor to support keyset pagination. The less-than comparison
 		-- matches the DESC sort order so rows after the cursor come later in
-		-- results. In WHERE rather than HAVING, the index seeks straight to
-		-- the cursor position instead of ranking every session first.
+		-- results.
 		AND CASE
 			WHEN $1::text != '' THEN (
 				(s.last_active_at, s.session_id) < (
