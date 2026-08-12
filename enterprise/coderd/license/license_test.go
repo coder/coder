@@ -2857,20 +2857,19 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 		},
 		{
-			// A zero soft limit would warn at zero usage forever, so it is
-			// dropped rather than rejecting the license. The canonical way
-			// to express "no soft limit" is omitting the claim, so a
-			// present-but-dropped zero still warns.
+			// A zero soft limit is valid (0 <= soft < allocation) and warns
+			// from the start of the usage period. Omitting the claim is the
+			// way to express "no soft limit".
 			name: "ZeroSoft",
 			features: license.Features{
 				license.ClaimAgentRuntimeHoursAllocation: 100,
 				license.ClaimAgentRuntimeHoursLimitSoft:  0,
 			},
 			expectFeature: &codersdk.Feature{
-				Enabled: true,
-				Limit:   ptr.Ref[int64](100),
+				Enabled:   true,
+				Limit:     ptr.Ref[int64](100),
+				SoftLimit: ptr.Ref[int64](0),
 			},
-			expectClaimsIgnored: true,
 		},
 		{
 			name: "NegativeSoft",
