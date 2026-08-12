@@ -28,7 +28,7 @@ import { AgentCreateForm } from "./AgentCreateForm";
 const permittedOrgsKey = [
 	"organizations",
 	"permitted",
-	{ object: { resource_type: "chat" }, action: "create" },
+	{ object: { resource_type: "chat", owner_id: "me" }, action: "create" },
 ];
 
 const modelConfigID = "model-config-1";
@@ -1102,5 +1102,40 @@ export const PermittedOrgsResolvesToSubset: Story = {
 			throw new Error("Expected onCreateChat to receive options");
 		}
 		expect(options.organizationId).toBe(MockOrganization2.id);
+	},
+};
+
+/**
+ * Member-scoped roles like agents-access grant chat:create only on
+ * chats the user owns, so the per-org check must carry owner context
+ * for the picker to render.
+ */
+export const MemberScopedPermissionsShowOrgPicker: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(
+				Object.entries(checks).map(([id, check]) => [
+					id,
+					check.object.owner_id === "me",
+				]),
+			),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const picker = await canvas.findByRole(
+			"button",
+			{ name: /^Organization:/ },
+			{ timeout: 3000 },
+		);
+		expect(picker).toBeInTheDocument();
 	},
 };
