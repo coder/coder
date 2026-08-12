@@ -86,6 +86,9 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					<TooltipTrigger asChild>
 						<button
 							type="button"
+							aria-label={
+								indicator ? `User menu. ${indicator.label}` : "User menu"
+							}
 							className="relative bg-transparent border-0 cursor-pointer p-0"
 						>
 							<Avatar
@@ -102,7 +105,6 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 									)}
 								>
 									{indicator.icon}
-									<span className="sr-only">{indicator.label}</span>
 								</span>
 							)}
 						</button>

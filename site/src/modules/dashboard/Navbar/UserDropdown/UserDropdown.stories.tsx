@@ -225,9 +225,9 @@ export const AISpendZeroLimit: Story = {
 	},
 };
 
-// Dropdown closed to isolate the avatar border and severity badge, which
-// reflect spend severity. The normal state keeps the standard avatar with no
-// badge; only warning/exceeded show the indicator.
+// Dropdown closed to isolate the avatar and its severity badge. The normal
+// state keeps the standard avatar with no badge; only warning/exceeded show
+// the indicator, which is also reflected in the trigger's accessible name.
 
 export const AvatarBorderDisabled: Story = {
 	parameters: {
@@ -241,11 +241,11 @@ export const AvatarBorderNormal: Story = {
 		queries: [{ key: meAISpendKey, data: mockAISpend }],
 	},
 	play: async ({ canvasElement, step }) => {
-		await step("shows no severity badge for normal spend", async () => {
+		await step("shows no severity indicator for normal spend", async () => {
 			const canvas = within(canvasElement);
 			expect(
-				canvas.queryByText(/AI spend (is nearing its limit|limit exceeded)/),
-			).not.toBeInTheDocument();
+				canvas.getByRole("button", { name: "User menu" }),
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -261,9 +261,11 @@ export const AvatarBorderWarning: Story = {
 		],
 	},
 	play: async ({ canvasElement, step }) => {
-		await step("shows the warning badge", async () => {
+		await step("labels the trigger with the warning state", async () => {
 			const canvas = within(canvasElement);
-			await canvas.findByText("AI spend is nearing its limit");
+			await canvas.findByRole("button", {
+				name: "User menu. AI spend is nearing its limit",
+			});
 		});
 	},
 };
@@ -279,9 +281,11 @@ export const AvatarBorderExceeded: Story = {
 		],
 	},
 	play: async ({ canvasElement, step }) => {
-		await step("shows the exceeded badge", async () => {
+		await step("labels the trigger with the exceeded state", async () => {
 			const canvas = within(canvasElement);
-			await canvas.findByText("AI spend limit exceeded");
+			await canvas.findByRole("button", {
+				name: "User menu. AI spend limit exceeded",
+			});
 		});
 	},
 };
