@@ -122,18 +122,11 @@ func TestImportUserSecretsBodyTooLarge(t *testing.T) {
 }
 
 // TestImportUserSecretsBodyLargerThanDefaultLimit pins that this endpoint reads
-// bodies beyond httpapi.DefaultMaxRequestBodyBytes, up to its own 8 MiB limit.
-// The endpoint needs the larger limit because JSON escaping inflates the body: a
-// control character costs one byte in the secrets file and six bytes as a JSON
-// escape sequence on the wire, so a file within MaxSecretsFileBytes can still
-// arrive as a multi-megabyte request.
-//
-// The assertion is that the body reaches the handler's parser, evidenced by a
-// 400 naming the secrets-file limit, rather than being cut off in transport with
-// a 413. A successful import cannot be used to show this: the per-user
-// MaxUserSecretsTotalValueBytes budget caps stored values at 200 KiB, so no
-// importable payload reaches 4 MiB. This still fails if the endpoint is capped
-// at the default, which is what it exists to catch.
+// past httpapi.DefaultMaxRequestBodyBytes, up to its own 8 MiB limit. A 400
+// naming the secrets-file limit shows the body reached the parser rather than
+// being cut off in transport with a 413. A successful import cannot show this:
+// MaxUserSecretsTotalValueBytes caps stored values at 200 KiB, so no importable
+// payload reaches 4 MiB.
 func TestImportUserSecretsBodyLargerThanDefaultLimit(t *testing.T) {
 	t.Parallel()
 

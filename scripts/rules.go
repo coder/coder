@@ -560,24 +560,17 @@ func codersdkResponseBodyDecode(m dsl.Matcher) {
 }
 
 // unboundedRequestBody reports an HTTP request body read without a size limit.
-// httpapi.Read and httpapi.ReadLimit bound the body they decode, so handlers
-// should decode through them. Reading r.Body directly bypasses that bound and
-// lets a single request allocate memory without limit (CWE-770), which is
-// reachable before authentication on the endpoints that authenticate by body.
+// Handlers should decode through httpapi.Read or httpapi.ReadLimit, which bound
+// the body; reading r.Body directly bypasses that bound (CWE-770) and is
+// reachable before authentication on endpoints that authenticate by body. The
+// rule covers the coderd API only, since the agent, aibridge, and the load-test
+// mocks serve separate ingress with their own limits.
 //
-// The rule covers the coderd HTTP API only. The agent, aibridge, and the
-// load-test mocks each serve separate ingress with their own error shapes and
-// their own limits, and bounding those is a different decision from this one.
-//
-// Wrapping r.Body in an http.MaxBytesReader before reading it is equally
-// correct, but it is textually indistinguishable from not doing so, so those
-// sites are enumerated below rather than detected. Adding an entry is the review
-// step that asserts the site installs its own bound and answers 413 when the
-// bound trips; it is not a way to opt out of having one.
-//
-// *http.Request also describes an outbound request, whose body this process
-// wrote and therefore already bounds. Those sites are exempt for that reason,
-// not because they install a limit.
+// A correct http.MaxBytesReader wrap is textually indistinguishable from a
+// missing one, so those sites are enumerated below rather than detected. Adding
+// an entry asserts the site bounds its own body and answers 413; it is not a way
+// to opt out of having a bound. Outbound requests are exempt for a different
+// reason: this process wrote the body.
 //
 //nolint:unused,deadcode,varnamelen
 func unboundedRequestBody(m dsl.Matcher) {
