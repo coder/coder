@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -762,6 +763,24 @@ func createWorkspace(
 		workspace, err = db.GetWorkspaceByID(ctx, workspaceID)
 		if err != nil {
 			return xerrors.Errorf("get workspace by ID: %w", err)
+		}
+
+		// Identity continuity: a workspace created by an AI agent carries
+		// that agent's identity, whatever route the request took. This is
+		// applied here rather than in the callers because an unmarked
+		// workspace receives the owner's full session token and skips agent
+		// binding, so a caller that forgot to mark it would hand the agent
+		// the ambient credentials that designation exists to withhold.
+		// The marker must be committed before the initial build is created
+		// so that build can bind its agents.
+		if aiActor, ok := aiagentidentity.ActorFromContext(ctx); ok {
+			//nolint:gocritic // Setting the internal designation marker requires system access.
+			if _, err := db.SetWorkspaceAIAgentID(dbauthz.AsSystemRestricted(ctx), database.SetWorkspaceAIAgentIDParams{
+				ID:        workspace.ID,
+				AIAgentID: uuid.NullUUID{UUID: aiActor.AgentUserID, Valid: true},
+			}); err != nil {
+				return xerrors.Errorf("designate AI-created workspace: %w", err)
+			}
 		}
 
 		// If the postCreate hook is provided, execute it. This can be used to
