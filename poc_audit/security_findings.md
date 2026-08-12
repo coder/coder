@@ -225,6 +225,71 @@ The correspondence key requirement from the audit approach applies directly
 here. An entry recording that a credential was issued must name which
 credential, by its non secret identifier and never by its value.
 
+## 6. Names and identifiers
+
+### Problem
+
+**P8. Names of variables that hold credentials do not always say that they are
+credentials.** Two habits account for most of it. A credential is named for how
+it is presented, as with `token`, or for how it is encoded, as with `uuid`.
+Neither says what the value is, and both invite the reader to reason about the
+wrong thing.
+
+Naming by presentation is the more common. `workspace_agents.auth_token` is the
+stored column, `RunningAgentAuthToken` is the proto message that carries a
+credential to the provisioner
+(`provisionersdk/proto/provisioner.proto:331`, whose field is simply `token`),
+and `GetExternalAgentTokensByTemplateID` selects
+`workspace_agents.auth_token AS agent_token`
+(`coderd/database/queries/workspaceagents.sql:395`), renaming one presentation
+to another.
+
+Naming by encoding shows up here as a type rather than as an identifier: the
+column is `uuid`. That is worse than a bad name, because it commits the schema
+to the encoding. Policy goal 3 requires that what persists be a one way hash,
+and a `uuid` column cannot hold one. The encoding was recorded as though it
+were the nature of the value, and it now obstructs P2 and P3.
+
+**`CODER_AGENT_TOKEN` is the clearest offender, and is wrong twice.**
+It is set at `agent/agent.go:1704` and read at `cli/root.go:93`. `token` names
+the presentation. `agent` names the wrong principal.
+
+The second half is worth stating precisely, because the credential does have a
+genuine relationship to a `workspace_agent`. It is stored per `workspace_agent`
+row and identifies which one presented it. But the authority it confers is not
+that agent's. `coderd/httpmw/workspaceagent.go:112` builds the RBAC subject
+from the workspace **owner's** roles, scoped by
+`rbac.WorkspaceAgentScope`, whose allow list
+(`coderd/rbac/scopes.go:63`) names the workspace, the template, the version,
+the owner, and optionally the task. **No element of it names a
+`workspace_agent`.** Two agents in one workspace hold different values and
+receive identical authority.
+
+So it identifies a `workspace_agent` and authenticates as the workspace. The
+name captures neither.
+
+### Solution
+
+**Rename poorly named variables.** A credential is named for what it is:
+
+- Not for how it is presented. `token` is a presentation.
+- Not for how it is encoded. `uuid` is an encoding, and should not appear in
+  the name or, per P2 and P3, in the stored type.
+- A more specific name is welcome where the kind is known and fixed.
+  `password` is a good name for a password.
+- Where the kind is unknown, or makes no difference to the code holding it,
+  `credential` is the right word.
+
+The same discipline applies to what the name claims about the principal. A
+credential's name should not assert an authority it does not confer, which is
+the second defect in `CODER_AGENT_TOKEN`.
+
+This is cosmetic only in appearance. Sections 1 through 5 are all concerned
+with treating this value as a bearer secret with a lifecycle. A name that says
+`token` invites the reader to think about a string being passed, and a type
+that says `uuid` forecloses storing a hash. Names that describe encodings and
+presentations are how the wrong model gets propagated.
+
 ## Policy
 
 The goals below are what future work on the code must satisfy. They are stated
@@ -249,13 +314,21 @@ as outcomes rather than as implementations.
    same name. Issuance, rotation, and revocation are persistent state changes
    and are treated as such, referring to credentials by identifier and never by
    value.
+6. **Credentials are named for what they are.** Not for how they are
+   presented, not for how they are encoded, and never for an authority they do
+   not confer. Where the kind of credential is known and fixed, the specific
+   word is used; otherwise the word is `credential`.
 
 ## Origin
 
-These findings came out of tracing the `register and fetch manifest` arrow in
+P1 through P7 came out of tracing the `register and fetch manifest` arrow in
 `poc_audit/workspace_startup_asbuilt.d2`, not out of a security-specific review.
 It was a design trace that kept turning up the same class of issue. They concern
 the credential a `workspace_agent` uses to authenticate to coderd.
+
+P8 has a different origin. It came out of naming a field while writing proof of
+concept code, where the question of what to call the value made it necessary to
+establish what the value actually authenticates.
 
 ## Before acting on any of this
 
