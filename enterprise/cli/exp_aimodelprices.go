@@ -65,10 +65,10 @@ type aiModelPriceRow struct {
 	// For table format:
 	Provider        string `json:"-" table:"provider,default_sort"`
 	Model           string `json:"-" table:"model"`
-	InputPrice      string `json:"-" table:"input $/mtok"`
-	OutputPrice     string `json:"-" table:"output $/mtok"`
-	CacheReadPrice  string `json:"-" table:"cache read $/mtok"`
-	CacheWritePrice string `json:"-" table:"cache write $/mtok"`
+	InputPrice      string `json:"-" table:"input price"`
+	OutputPrice     string `json:"-" table:"output price"`
+	CacheReadPrice  string `json:"-" table:"cache read price"`
+	CacheWritePrice string `json:"-" table:"cache write price"`
 	CreatedAt       string `json:"-" table:"created at"`
 	UpdatedAt       string `json:"-" table:"updated at"`
 }
@@ -79,7 +79,7 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 		model     string
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat([]aiModelPriceRow{}, []string{
-				"provider", "model", "input $/mtok", "output $/mtok", "cache read $/mtok", "cache write $/mtok",
+				"provider", "model", "input price", "output price", "cache read price", "cache write price",
 			}),
 			cliui.JSONFormat(),
 		)
@@ -88,8 +88,8 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "list",
 		Short: "List AI Governance model prices",
-		Long: "Lists every model priced for this deployment. Narrow the output with " +
-			"--provider or --model.",
+		Long: "Lists every model priced for this deployment. Prices are shown in " +
+			"dollars per million tokens. Narrow the output with --provider or --model.",
 		Middleware: serpent.Chain(serpent.RequireNArgs(0)),
 		Options: serpent.OptionSet{
 			{
@@ -166,20 +166,20 @@ func (r *RootCmd) aiModelPricesUpdate() *serpent.Command {
 		Short: "Set AI Governance model prices",
 		Long: modelPricesUpdateDescriptionLong + "\n" + agplcli.FormatExamples(
 			agplcli.Example{
-				Description: "Set prices for several models from a JSON document.",
+				Description: "Set prices for several models from a JSON document",
 				Command:     "coder exp ai-model-prices update prices.json",
 			},
 			agplcli.Example{
-				Description: "Read the document from stdin, applied without confirmation.",
+				Description: "Read the document from stdin, applied without confirmation",
 				Command:     "coder exp ai-model-prices update < prices.json",
 			},
 			agplcli.Example{
-				Description: "Set prices for a single model.",
+				Description: "Set prices for a single model",
 				Command: "coder exp ai-model-prices update --provider anthropic --model my-model " +
 					"--input-price 3000000 --output-price 15000000 --cache-read-price 300000 --cache-write-price null",
 			},
 			agplcli.Example{
-				Description: "Set prices without confirmation.",
+				Description: "Set prices without confirmation",
 				Command:     "coder exp ai-model-prices update prices.json --yes",
 			},
 		),
