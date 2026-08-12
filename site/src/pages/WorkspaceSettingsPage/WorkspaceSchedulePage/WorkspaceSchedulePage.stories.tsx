@@ -156,7 +156,32 @@ export const RestartFailureShowsErrorToast: Story = {
 				},
 			],
 		}),
-		queries: workspaceQueries(autostopDisabledWorkspace),
+		queries: [
+			{
+				key: workspaceByOwnerAndNameKey(
+					autostopDisabledWorkspace.owner_name,
+					autostopDisabledWorkspace.name,
+				),
+				data: autostopDisabledWorkspace,
+			},
+			{
+				key: ["workspaces", autostopDisabledWorkspace.id, "permissions"],
+				data: {
+					readWorkspace: true,
+					shareWorkspace: true,
+					updateWorkspace: true,
+					updateWorkspaceVersion: true,
+					deleteFailedWorkspace: true,
+				} satisfies WorkspacePermissions,
+			},
+			{
+				key: templateByNameKey(
+					autostopDisabledWorkspace.organization_id,
+					autostopDisabledWorkspace.template_name,
+				),
+				data: MockTemplate,
+			},
+		],
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
@@ -210,7 +235,32 @@ export const ChangingAutostopValueShowsRestartDialog: Story = {
 export const RestartDialogWarnsAboutTemplateUpdate: Story = {
 	parameters: {
 		reactRouter: workspaceRouterParameters(MockWorkspace),
-		queries: workspaceQueries(MockWorkspace),
+		queries: [
+			{
+				key: workspaceByOwnerAndNameKey(
+					MockWorkspace.owner_name,
+					MockWorkspace.name,
+				),
+				data: MockWorkspace,
+			},
+			{
+				key: ["workspaces", MockWorkspace.id, "permissions"],
+				data: {
+					readWorkspace: true,
+					shareWorkspace: true,
+					updateWorkspace: true,
+					updateWorkspaceVersion: true,
+					deleteFailedWorkspace: true,
+				} satisfies WorkspacePermissions,
+			},
+			{
+				key: templateByNameKey(
+					MockWorkspace.organization_id,
+					MockWorkspace.template_name,
+				),
+				data: MockTemplate,
+			},
+		],
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);

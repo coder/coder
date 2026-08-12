@@ -1,4 +1,4 @@
-import { AxiosError, type AxiosResponse } from "axios";
+import { AxiosError, AxiosHeaders } from "axios";
 import {
 	MockProvisionerJob,
 	MockStoppedWorkspace,
@@ -531,12 +531,19 @@ describe("api.ts", () => {
 		it("rejects immediately when a builds request fails permanently", async () => {
 			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(stopBuild);
 			vi.spyOn(API, "waitForBuild").mockResolvedValue(MockProvisionerJob);
+			const config = { headers: new AxiosHeaders() };
 			const forbidden = new AxiosError(
 				"Request failed with status code 403",
-				"ERR_BAD_REQUEST",
+				AxiosError.ERR_BAD_REQUEST,
+				config,
 				undefined,
-				undefined,
-				{ status: 403 } as AxiosResponse,
+				{
+					data: null,
+					status: 403,
+					statusText: "Forbidden",
+					headers: {},
+					config,
+				},
 			);
 			const getWorkspaceBuilds = vi
 				.spyOn(API, "getWorkspaceBuilds")
