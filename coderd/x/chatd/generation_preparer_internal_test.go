@@ -577,7 +577,7 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 
 	t.Run("inflated cumulative usage triggers compaction", func(t *testing.T) {
 		t.Parallel()
-		// 417,012 tokens — what the aibridge cross-chunk sum bug
+		// 417,012 tokens: what the aibridge cross-chunk sum bug
 		// produced for a ~6,000-token conversation.
 		assert.True(t, shouldCompactPromptUsage(
 			fantasy.Usage{InputTokens: 417012, TotalTokens: 418846},
