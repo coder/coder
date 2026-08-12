@@ -197,19 +197,18 @@ func TestDispatcherTimeoutNoRetry(t *testing.T) {
 
 	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
 	var requests atomic.Int32
-	release := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	// A real server cannot guarantee the handler runs before the short
+	// dispatch deadline on a loaded machine, so the transport records the
+	// attempt synchronously and blocks until the deadline expires.
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requests.Add(1)
-		w.WriteHeader(http.StatusOK)
-		assert.NoError(t, http.NewResponseController(w).Flush())
-		<-release
-	}))
-	t.Cleanup(server.Close)
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	})}
 
-	_, _, err := newTestDispatcher(t, server.Client(), server.URL, 50*time.Millisecond).Dispatch(
+	_, _, err := newTestDispatcher(t, client, "https://hooks.example.com/coder", 50*time.Millisecond).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
-	close(release)
 	assertDispatchErrorClass(t, err, ResultTimeout)
 	require.Equal(t, int32(1), requests.Load())
 }
