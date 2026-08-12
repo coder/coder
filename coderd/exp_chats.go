@@ -357,7 +357,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; quote multi-word values; cannot be combined with title, pr_title, or pr). Bare terms are not supported; use `title:<value>` or `search:<value>`."
+// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]
@@ -379,28 +379,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 			Validations: errs,
 		})
 		return
-	}
-
-	// Reject text that tokenizes to nothing; it would silently match no rows.
-	if searchParams.Search != "" {
-		isEmpty, err := api.Database.ChatSearchQueryIsEmpty(ctx, searchParams.Search)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate search query.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if isEmpty {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid chat search query.",
-				Validations: []codersdk.ValidationError{{
-					Field:  "search",
-					Detail: "Search query contains no searchable words.",
-				}},
-			})
-			return
-		}
 	}
 
 	var labelFilter pqtype.NullRawMessage

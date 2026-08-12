@@ -5,13 +5,7 @@ import {
 	LinkIcon,
 } from "lucide-react";
 import type { FC, RefObject } from "react";
-import {
-	type KeyboardEventHandler,
-	useId,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type KeyboardEventHandler, useId, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
 import { chatSearch } from "#/api/queries/chats";
@@ -21,45 +15,60 @@ import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { ChatSearchInput, type SearchFilter } from "./ChatSearchInput";
 import { ChatSearchResults } from "./ChatSearchResults";
-import { normalizeChatSearchInput } from "./searchQuery";
+import {
+	buildChatSearchQuery,
+	CHAT_SEARCH_FILTER_KEYS,
+	type ChatSearchFilterKey,
+	extractTypedFilters,
+	isValidChatSearchFilterValue,
+	normalizeChatSearchFilterValue,
+} from "./searchQuery";
 
 // Filter definitions. Filters with a defaultValue are inserted as complete
 // pills (e.g. has_unread:true). Filters without one are inserted as
 // incomplete pills so the user can type the value.
 type FilterDefinition = {
-	readonly key: string;
+	readonly key: ChatSearchFilterKey;
 	readonly label: string;
 	readonly icon: FC<{ className?: string }>;
 	readonly defaultValue: string | null;
+	readonly validate: (value: string) => boolean;
 };
 
-const FILTER_DEFINITIONS: readonly FilterDefinition[] = [
-	{
-		key: "has_unread",
+const FILTER_DEFINITIONS_BY_KEY: Readonly<
+	Record<ChatSearchFilterKey, Omit<FilterDefinition, "key">>
+> = {
+	has_unread: {
 		label: "Unread",
 		icon: CircleDotIcon,
 		defaultValue: "true",
+		validate: (value) => isValidChatSearchFilterValue("has_unread", value),
 	},
-	{
-		key: "archived",
+	archived: {
 		label: "Archived",
 		icon: ArchiveIcon,
 		defaultValue: "true",
+		validate: (value) => isValidChatSearchFilterValue("archived", value),
 	},
-	{
-		key: "pr_status",
+	pr_status: {
 		label: "PR status",
 		icon: FileTextIcon,
 		defaultValue: null,
+		validate: (value) => isValidChatSearchFilterValue("pr_status", value),
 	},
-	{ key: "diff_url", label: "Diff URL", icon: LinkIcon, defaultValue: null },
-];
+	diff_url: {
+		label: "Diff URL",
+		icon: LinkIcon,
+		defaultValue: null,
+		validate: (value) => isValidChatSearchFilterValue("diff_url", value),
+	},
+};
 
-// Set of recognized filter keys for detecting typed filter patterns
-// (e.g. "has_unread:true" typed directly into the input). Derived from
-// FILTER_DEFINITIONS; the backend equivalent lives in searchQuery.ts as
-// passthroughChatSearchFilterKeys.
-const KNOWN_FILTER_KEYS = new Set(FILTER_DEFINITIONS.map((def) => def.key));
+const FILTER_DEFINITIONS: readonly FilterDefinition[] =
+	CHAT_SEARCH_FILTER_KEYS.map((key) => ({
+		key,
+		...FILTER_DEFINITIONS_BY_KEY[key],
+	}));
 
 type ChatSearchDialogProps = {
 	readonly open: boolean;
@@ -131,29 +140,6 @@ type ChatSearchDialogContentProps = Omit<
 	readonly inputRef: RefObject<HTMLInputElement | null>;
 };
 
-// Build a raw query string from structured filters + freeform text, then
-// normalize it through the existing parser that the backend expects.
-const buildQuery = (
-	filters: readonly SearchFilter[],
-	freeText: string,
-): string | undefined => {
-	const parts: string[] = [];
-	for (const f of filters) {
-		if (f.value !== null && f.value !== "") {
-			// Strip internal quotes before wrapping so the resulting
-			// key:"value" token stays well-formed for the backend.
-			const stripped = f.value.replaceAll('"', "");
-			const v = stripped.includes(" ") ? `"${stripped}"` : stripped;
-			parts.push(`${f.key}:${v}`);
-		}
-	}
-	if (freeText.trim()) {
-		parts.push(freeText.trim());
-	}
-	const raw = parts.join(" ");
-	return normalizeChatSearchInput(raw);
-};
-
 const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	open,
 	onOpenChange,
@@ -176,34 +162,24 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	>(undefined);
 	const listboxId = useId();
 
-	// Build the full filter list for query building. When an incomplete filter
-	// has text, include it so debounced search can run against partial values.
-	const effectiveFilters = useMemo(
-		() =>
-			incompleteFilterKey && freeText.trim()
-				? [...filters, { key: incompleteFilterKey, value: freeText.trim() }]
-				: filters,
-		[filters, incompleteFilterKey, freeText],
-	);
-	const hasActiveSearch = effectiveFilters.length > 0 || freeText.trim() !== "";
-
-	const debouncedFreeText = useDebouncedValue(freeText, SEARCH_DEBOUNCE_MS);
-	const debouncedFilters = useDebouncedValue(
-		effectiveFilters,
-		SEARCH_DEBOUNCE_MS,
-	);
-	// When typing into an incomplete filter, only send the filter (not
-	// freeText as bare title search).
-	// When freeText is cleared (e.g. after committing a filter), zero
-	// queryFreeText immediately instead of waiting for the debounce to
-	// flush. Otherwise the stale debouncedFreeText leaks into the query.
-	const queryFreeText =
-		incompleteFilterKey || !freeText.trim() ? "" : debouncedFreeText;
-	const normalizedQuery = buildQuery(debouncedFilters, queryFreeText);
-	const hasQuery = hasActiveSearch && normalizedQuery !== undefined;
+	// Debounce as one snapshot so a committed incomplete-filter value cannot
+	// reappear as full-text search.
+	const queryFilters =
+		incompleteFilterKey && freeText.trim()
+			? [...filters, { key: incompleteFilterKey, value: freeText.trim() }]
+			: filters;
+	const queryFreeText = incompleteFilterKey ? "" : freeText;
+	const currentQuery = buildChatSearchQuery(queryFilters, queryFreeText);
+	const hasActiveSearch =
+		queryFilters.length > 0 || queryFreeText.trim() !== "";
+	// Keep the debounced value primitive. An object would reset the debounce when
+	// its identity changes on each render.
+	const debouncedQuery = useDebouncedValue(currentQuery, SEARCH_DEBOUNCE_MS);
+	const hasSearchText = /[\p{L}\p{N}]/u.test(queryFreeText.replaceAll('"', ""));
+	const hasQuery = hasActiveSearch && debouncedQuery !== undefined;
 
 	const searchQuery = useQuery({
-		...chatSearch({ q: normalizedQuery ?? "" }),
+		...chatSearch({ q: debouncedQuery ?? "" }),
 		enabled: open && hasQuery,
 		placeholderData: keepPreviousData,
 	});
@@ -241,10 +217,18 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		!showResultsLoading;
 
 	const commitIncompleteFilter = () => {
-		if (incompleteFilterKey && freeText.trim()) {
-			setFilters((prev) => [
-				...prev,
-				{ key: incompleteFilterKey, value: freeText.trim() },
+		const value = freeText.trim();
+		const definition = FILTER_DEFINITIONS.find(
+			(def) => def.key === incompleteFilterKey,
+		);
+		if (incompleteFilterKey && definition?.validate(value)) {
+			const committedValue =
+				incompleteFilterKey === "pr_status"
+					? normalizeChatSearchFilterValue(incompleteFilterKey, value)
+					: value;
+			setFilters((previous) => [
+				...previous.filter((filter) => filter.key !== incompleteFilterKey),
+				{ key: incompleteFilterKey, value: committedValue },
 			]);
 			setFreeText("");
 			setIncompleteFilterKey(null);
@@ -302,7 +286,12 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		if (
 			(event.key === " " || event.key === "Enter") &&
 			incompleteFilterKey &&
-			freeText.trim()
+			freeText.trim() &&
+			!(
+				event.key === " " &&
+				incompleteFilterKey === "pr_status" &&
+				freeText.trimEnd().endsWith(",")
+			)
 		) {
 			event.preventDefault();
 			commitIncompleteFilter();
@@ -312,35 +301,32 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		if (
 			(event.key === " " || event.key === "Enter") &&
 			!incompleteFilterKey &&
-			freeText.trim()
+			freeText.trim() &&
+			event.currentTarget.selectionStart === freeText.length &&
+			event.currentTarget.selectionEnd === freeText.length
 		) {
-			const activeKeys = new Set(filters.map((f) => f.key));
-			const tokens = freeText.trim().split(/\s+/);
-			const newFilters: SearchFilter[] = [];
-			const remaining: string[] = [];
-
-			for (const token of tokens) {
-				const colonIndex = token.indexOf(":");
-				if (colonIndex > 0 && colonIndex < token.length - 1) {
-					const key = token.slice(0, colonIndex);
-					const val = token.slice(colonIndex + 1);
-					if (KNOWN_FILTER_KEYS.has(key)) {
-						// Drop duplicate filter keys silently instead of
-						// letting them fall through to freeform text.
-						if (!activeKeys.has(key)) {
-							newFilters.push({ key, value: val });
-							activeKeys.add(key);
-						}
-						continue;
-					}
-				}
-				remaining.push(token);
-			}
-
-			if (newFilters.length > 0) {
+			const extracted = extractTypedFilters(freeText, filters);
+			if (extracted.consumed) {
 				event.preventDefault();
-				setFilters((prev) => [...prev, ...newFilters]);
-				setFreeText(remaining.join(" "));
+				setFilters((previous) => {
+					const replacements = new Map(
+						extracted.filters.map((filter) => [filter.key, filter]),
+					);
+					const next = previous.map(
+						(filter) => replacements.get(filter.key) ?? filter,
+					);
+					for (const filter of extracted.filters) {
+						if (!previous.some((existing) => existing.key === filter.key)) {
+							next.push(filter);
+						}
+					}
+					return next;
+				});
+				setFreeText(
+					event.key === " " && extracted.remainingText
+						? `${extracted.remainingText.trimEnd()} `
+						: extracted.remainingText.trimEnd(),
+				);
 				return;
 			}
 		}
@@ -428,8 +414,9 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			<ChatSearchResults
 				chats={searchQuery.data}
 				recentChats={recentChats}
-				error={searchQuery.error}
+				error={hasQuery ? searchQuery.error : undefined}
 				hasQuery={hasQuery}
+				hasSearchText={hasSearchText}
 				location={location}
 				listboxId={listboxId}
 				selectedChatIndex={safeSelectedChatIndex}
