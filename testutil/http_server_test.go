@@ -1,4 +1,4 @@
-package testutil
+package testutil_test
 
 import (
 	"bufio"
@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/testutil"
 )
 
 // TestNewUnstartedHTTPServerDisablesKeepAlives verifies the helper
@@ -18,7 +20,7 @@ import (
 func TestNewUnstartedHTTPServerDisablesKeepAlives(t *testing.T) {
 	t.Parallel()
 
-	srv := NewUnstartedHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := testutil.NewUnstartedHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	srv.Start()
@@ -32,8 +34,12 @@ func TestNewUnstartedHTTPServerDisablesKeepAlives(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_, err = http.ReadResponse(bufio.NewReader(conn), nil)
-		return err
+		resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+		if err != nil {
+			return err
+		}
+		_ = resp.Body.Close()
+		return nil
 	}
 
 	// First request on this connection succeeds.
