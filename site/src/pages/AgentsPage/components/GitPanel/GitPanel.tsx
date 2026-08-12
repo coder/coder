@@ -520,7 +520,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 			>
 				{activeItem.triggerIdentifier}
 			</span>
-			<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+			<ChevronDownIcon className="size-3.5 shrink-0 text-content-secondary" />
 		</span>
 	);
 
