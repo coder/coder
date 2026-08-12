@@ -79,6 +79,15 @@ minimize_diff() {
 	done
 }
 
+# Extract the coder/coder provider version from the given lockfile.
+# Two sed passes instead of nested brace blocks; BSD sed rejects
+# them and would silently return an empty string on macOS.
+extract_provider_version() {
+	sed -n '/coder\/coder/,/^}/p' "$1" |
+		sed -n 's/.*version[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' |
+		head -n 1
+}
+
 run() {
 	d="$1"
 	cd "$d"
@@ -131,13 +140,24 @@ fi
 # Verify that the canonical lockfile matches provider-version.txt.
 if [[ " $* " == *" --check "* ]]; then
 	expected="$(<"$scriptdir/provider-version.txt")"
-	actual="$(sed -n '/coder\/coder/,/^}/{ /version[[:space:]]*=/{ s/.*"\(.*\)"/\1/; p; q; } }' "$canonical_lock")"
+	actual="$(extract_provider_version "$canonical_lock")"
 	if [[ "$expected" == "$actual" ]]; then
 		exit 0
 	else
 		echo "ERROR: provider-version.txt ($expected) does not match lockfile ($actual)"
 		exit 1
 	fi
+fi
+
+# Committed testdata encodes linux/amd64 values from coder_provisioner.
+# Regenerating elsewhere bakes in the host OS/arch.
+if [[ "$(uname)" != "Linux" ]]; then
+	if ((upgrade)); then
+		echo "ERROR: --upgrade is not supported on $(uname); run on Linux or via CI."
+		exit 1
+	fi
+	echo "Note: skipping testdata regeneration on $(uname); regenerate on Linux or via CI."
+	exit 0
 fi
 
 # Filter flags from positional args to get directory names.
@@ -195,7 +215,7 @@ if ((upgrade)); then
 	fi
 	if [[ -n "$src" ]]; then
 		cp "$src" "$canonical_lock"
-		version="$(sed -n '/coder\/coder/,/^}/{ /version[[:space:]]*=/{ s/.*"\(.*\)"/\1/; p; q; } }' "$canonical_lock")"
+		version="$(extract_provider_version "$canonical_lock")"
 		echo "$version" >"$scriptdir/provider-version.txt"
 		echo "== Updated canonical lockfile and provider-version.txt (coder provider $version)"
 	fi

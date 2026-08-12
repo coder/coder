@@ -47,9 +47,6 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 	parameters: {
 		layout: "fullscreen",
 		features: ["advanced_template_scheduling"],
-		chromatic: {
-			diffThreshold: 0.6,
-		},
 		user: MockUserOwner,
 	},
 };
@@ -60,9 +57,8 @@ type Story = StoryObj<typeof WorkspaceTopbar>;
 export const Example: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("link", { name: "Back to workspaces" }),
-		).toBeVisible();
+		const backLink = canvas.getByRole("link", { name: "Back to workspaces" });
+		await expect(backLink).toBeVisible();
 	},
 };
 
@@ -335,11 +331,6 @@ export const TemplateInfoPopover: Story = {
 				),
 			);
 		});
-	},
-	parameters: {
-		chromatic: {
-			diffThreshold: 0.6,
-		},
 	},
 };
 

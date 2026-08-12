@@ -44,7 +44,7 @@ const PaywallAIGovernance = () => {
 						<span>
 							Visit{" "}
 							<a
-								href={docs("/ai-coder/ai-bridge")}
+								href={docs("/ai-coder/ai-gateway")}
 								target="_blank"
 								rel="noreferrer"
 								className="text-content-link"

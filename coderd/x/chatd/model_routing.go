@@ -2,14 +2,15 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type modelClientRequest struct {
@@ -17,67 +18,14 @@ type modelClientRequest struct {
 	ModelName    string
 	UserAgent    string
 	ExtraHeaders map[string]string
+	// ConfigOptions holds the model config row's Options JSONB; empty for
+	// paths without a config row.
+	ConfigOptions json.RawMessage
 }
 
 type modelBuildOptions struct {
 	ActiveAPIKeyID string
 	RecordHTTP     bool
-}
-
-func modelBuildOptionsFromMessages(messages []database.ChatMessage) modelBuildOptions {
-	apiKeyID, _ := activeTurnAPIKeyIDFromMessages(messages)
-	return modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-}
-
-type modelRouteKind int
-
-const (
-	modelRouteKindDirect modelRouteKind = iota + 1
-	modelRouteKindAIGateway
-)
-
-type resolvedModelRoute struct {
-	kind      modelRouteKind
-	direct    directModelRoute
-	aiGateway aiGatewayModelRoute
-}
-
-func newDirectModelRoute(providerHint string, keys chatprovider.ProviderAPIKeys) resolvedModelRoute {
-	return resolvedModelRoute{
-		kind: modelRouteKindDirect,
-		direct: directModelRoute{
-			ProviderHint: providerHint,
-			Keys:         keys,
-		},
-	}
-}
-
-func (r resolvedModelRoute) providerHint() (string, error) {
-	switch r.kind {
-	case modelRouteKindDirect:
-		return r.direct.ProviderHint, nil
-	case modelRouteKindAIGateway:
-		return r.aiGateway.ModelProviderHint, nil
-	default:
-		return "", xerrors.New("model route is not configured")
-	}
-}
-
-func (r resolvedModelRoute) withProviderHint(providerHint string) resolvedModelRoute {
-	switch r.kind {
-	case modelRouteKindDirect:
-		r.direct.ProviderHint = providerHint
-	case modelRouteKindAIGateway:
-		r.aiGateway.ModelProviderHint = providerHint
-	}
-	return r
-}
-
-func (r resolvedModelRoute) directProviderKeys() chatprovider.ProviderAPIKeys {
-	if r.kind != modelRouteKindDirect {
-		return chatprovider.ProviderAPIKeys{}
-	}
-	return r.direct.Keys
 }
 
 func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID) (database.AIProvider, error) {
@@ -91,49 +39,6 @@ func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID
 	return provider, nil
 }
 
-func (p *Server) shouldUseAIGatewayRouting() bool {
-	return p.aiGatewayRoutingEnabled
-}
-
-func (p *Server) resolveModelRouteForConfig(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	modelConfig database.ChatModelConfig,
-	fallbackKeys chatprovider.ProviderAPIKeys,
-) (resolvedModelRoute, error) {
-	if p.shouldUseAIGatewayRouting() {
-		return p.resolveAIGatewayModelRouteForConfig(ctx, ownerID, modelConfig)
-	}
-	return p.resolveDirectModelRouteForConfig(ctx, ownerID, modelConfig, fallbackKeys)
-}
-
-func (p *Server) resolveModelRouteForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (resolvedModelRoute, error) {
-	if p.shouldUseAIGatewayRouting() {
-		return p.resolveAIGatewayModelRouteForProviderType(ctx, ownerID, providerType)
-	}
-	return p.resolveDirectModelRouteForProviderType(ctx, ownerID, providerType)
-}
-
-func (p *Server) newModel(
-	ctx context.Context,
-	req modelClientRequest,
-	route resolvedModelRoute,
-	opts modelBuildOptions,
-) (fantasy.LanguageModel, error) {
-	switch route.kind {
-	case modelRouteKindDirect:
-		return p.newDirectModel(ctx, req, route.direct, opts)
-	case modelRouteKindAIGateway:
-		return p.newAIGatewayModel(ctx, req, route.aiGateway, opts)
-	default:
-		return nil, xerrors.New("model route is not configured")
-	}
-}
-
 func newLanguageModel(
 	providerHint string,
 	modelName string,
@@ -141,7 +46,8 @@ func newLanguageModel(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
-) (fantasy.LanguageModel, error) {
+	openAIConfig *codersdk.ChatModelOpenAIConfig,
+) (chatprovider.Model, error) {
 	model, err := chatprovider.ModelFromConfig(
 		providerHint,
 		modelName,
@@ -149,16 +55,17 @@ func newLanguageModel(
 		userAgent,
 		extraHeaders,
 		httpClient,
+		openAIConfig,
 	)
 	if err != nil {
-		return nil, err
+		return chatprovider.Model{}, err
 	}
-	if model == nil {
+	if !model.Valid() {
 		provider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(modelName, providerHint)
 		if resolveErr != nil {
-			return nil, resolveErr
+			return chatprovider.Model{}, resolveErr
 		}
-		return nil, xerrors.Errorf(
+		return chatprovider.Model{}, xerrors.Errorf(
 			"create model for %s/%s returned nil",
 			provider,
 			resolvedModel,

@@ -23,20 +23,20 @@ You can install and run Coder using the official Docker images published on
 ## Install Coder via `docker compose`
 
 Coder publishes a
-[docker compose example](https://github.com/coder/coder/blob/main/compose.yaml)
+[docker compose example](../../compose.yaml)
 which includes a PostgreSQL container and volume.
 
 1. Make sure you have [Docker Compose](https://docs.docker.com/compose/install/)
    installed.
 
 1. Download the
-   [`docker-compose.yaml`](https://github.com/coder/coder/blob/main/compose.yaml)
+   [`docker-compose.yaml`](../../compose.yaml)
    file.
 
 1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker`
    group. You can get the `docker` group `gid` by running the below command:
 
-   ```shell
+   ```sh
    getent group docker | cut -d: -f3
    ```
 
@@ -57,7 +57,7 @@ Coder's [configuration options](../admin/setup/index.md).
 For proof-of-concept deployments, you can run a complete Coder instance with the
 following command.
 
-```shell
+```sh
 export CODER_DATA=$HOME/.config/coderv2-docker
 export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
 mkdir -p $CODER_DATA
@@ -74,7 +74,7 @@ For production deployments, we recommend using an external PostgreSQL database
 (version 13 or higher). Set `CODER_ACCESS_URL` to the external URL that users
 and workspaces will use to connect to Coder.
 
-```shell
+```sh
 export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
 docker run --rm -it \
   -e CODER_ACCESS_URL="https://coder.example.com" \
@@ -105,14 +105,33 @@ Replace `ghcr.io/coder/coder:latest` in the `docker run` command in the
 
 If you see an error like:
 
-```text
+```txt
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 ```
 
 Docker is not installed or not running on the host. Install Docker and start the
 daemon before creating a workspace from a Docker-based template. Refer to the
-[quickstart troubleshooting](../tutorials/quickstart.md#cannot-connect-to-the-docker-daemon)
+[Troubleshooting section of the get started guide](../get-started/index.md#cannot-connect-to-the-docker-daemon)
 for platform-specific steps.
+
+If Docker is installed and running but Coder still cannot connect, the daemon may expose its socket at a path other than `/var/run/docker.sock`.
+This can happen on any operating system when Docker runs through a tool that uses a per-user socket, such as rootless Docker on Linux, or Colima, Podman, or Rancher Desktop on macOS.
+Point Coder at the right socket with `DOCKER_HOST`.
+
+Find the socket path first.
+For example, run `colima status` for Colima, or `docker context inspect` to read the endpoint of the active Docker context.
+Default socket paths vary by tool, so consult your tool's documentation and treat the following as examples only:
+
+```sh
+# rootless Docker (Linux)
+export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/docker.sock"
+
+# Colima (macOS)
+export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+```
+
+To persist the setting, add the `export` line to your shell's startup file, such as `~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`.
+Then restart the Coder server.
 
 ### Docker-based workspace is stuck in "Connecting..."
 

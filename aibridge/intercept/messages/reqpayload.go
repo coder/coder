@@ -76,7 +76,7 @@ var (
 	// If the beta flag is present in the (already-filtered) Anthropic-Beta header,
 	// the field is kept; otherwise it is stripped. Model-specific beta flags must
 	// be removed from the header before this check (see filterBedrockBetaFlags).
-	// Adaptive-only models (Opus 4.7+) are exempt for output_config since they
+	// Adaptive-only models are exempt for output_config since they
 	// support it natively without a beta flag, see
 	// bedrockModelRequiresAdaptiveThinking.
 	bedrockBetaGatedFields = map[string]string{
@@ -340,10 +340,11 @@ func (RequestPayload) resultToRawMessage(items []gjson.Result) []json.RawMessage
 }
 
 // The two Bedrock thinking-type conversions below are a temporary shim.
-// AI Bridge relays the Anthropic Messages API shape to Bedrock, whose Claude
+// AI Gateway relays the Anthropic Messages API shape to Bedrock, whose Claude
 // models accept a disjoint subset on each generation (older models reject
-// "adaptive"; Opus 4.7+ rejects "enabled"). A planned native Bedrock provider
-// removes the impedance mismatch and lets us delete this whole block. Hopefully.
+// "adaptive"; adaptive-only models reject "enabled"). A planned native
+// Bedrock provider removes the impedance mismatch and lets us delete this
+// whole block. Hopefully.
 
 // bedrockThinkingEffortRatios maps an output_config.effort hint to the fraction
 // of max_tokens to allocate as thinking budget. The mapping is a heuristic
@@ -402,7 +403,7 @@ func (p RequestPayload) convertAdaptiveThinkingForBedrock() (RequestPayload, err
 
 // convertEnabledThinkingForBedrock rewrites thinking.type "enabled" to plain
 // "adaptive", dropping budget_tokens. Needed for Bedrock models that only
-// support adaptive thinking (Opus 4.7+).
+// support adaptive thinking.
 //
 // We deliberately do not derive output_config.effort from the budget. Any
 // such mapping would be invented (no canonical budget-to-effort relationship
@@ -421,7 +422,7 @@ func (p RequestPayload) convertEnabledThinkingForBedrock() (RequestPayload, erro
 
 // removeBedrockUnsupportedOutputConfigSubFields drops sub-fields of
 // output_config that Bedrock rejects even on models where the parent
-// output_config object is accepted. Adaptive-only models (Opus 4.7+) accept
+// output_config object is accepted. Adaptive-only models accept
 // output_config.effort but reject output_config.format (structured outputs)
 // with a 400 "Extra inputs are not permitted." The generic field-strip pass
 // (removeUnsupportedBedrockFields) operates at top-level granularity only, so
@@ -444,7 +445,7 @@ func (p RequestPayload) removeBedrockUnsupportedOutputConfigSubFields() (Request
 // calling this method (see filterBedrockBetaFlags).
 //
 // Fields exempted by exemptFields are always kept regardless of beta flag
-// state. Adaptive-only Bedrock models (Opus 4.7+) require output_config
+// state. Adaptive-only Bedrock models require output_config
 // without a beta flag, so callers pass the field through this set to bypass
 // the effort-2025-11-24 gate.
 func (p RequestPayload) removeUnsupportedBedrockFields(headers http.Header, exemptFields ...string) (RequestPayload, error) {

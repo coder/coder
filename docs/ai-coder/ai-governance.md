@@ -1,4 +1,4 @@
-# AI Governance Add-On
+# AI Governance
 
 Coder Workspaces already lets teams run AI tools like
 [Cursor](https://registry.coder.com/modules/coder/cursor) and
@@ -7,10 +7,8 @@ development environments. As adoption grows, many enterprises also need
 observability, management, and policy controls to support secure and auditable
 AI rollouts.
 
-The AI Governance Add-On is a separate, per-user license for Premium customers.
-It is not included with a Premium subscription and must be purchased separately.
-Each user with the add-on gets access to a set of features
-that help organizations safely roll out AI tooling at scale:
+AI Governance is included with a Premium license. Each Premium user gets access
+to a set of features that help organizations safely roll out AI tooling at scale:
 
 - [AI Gateway](./ai-gateway/index.md): LLM gateway to audit AI sessions, central
   MCP server management, and policy enforcement
@@ -18,13 +16,13 @@ that help organizations safely roll out AI tooling at scale:
   agents, restricting which domains can be accessed by AI agents
 
 > [!NOTE]
-> As of Coder v2.32, the AI Governance Add-On is required to use AI Gateway and Agent Firewall.
-> Deployments without the add-on cannot access these features.
+> AI Gateway and Agent Firewall require a Premium license.
+> Community deployments cannot access these features.
 
-## Who should use the AI Governance Add-On
+## Who should use AI Governance
 
-The AI Governance Add-On is for teams that want to extend the Coder platform to
-support AI-powered IDEs and coding agents in a controlled, observable way.
+AI Governance is for teams that want to extend the Coder platform to support
+AI-powered IDEs and coding agents in a controlled, observable way.
 
 It's a good fit if you're:
 
@@ -37,7 +35,7 @@ It's a good fit if you're:
 If you already use other AI Governance tools, such as third-party LLM gateways
 or vendor-managed policies, you can continue using them. Coder Workspaces can
 still serve as the backend for development environments and AI workflows, with
-or without the AI Governance Add-On.
+or without Coder's AI Governance features.
 
 ## Use cases for AI Governance
 
@@ -79,10 +77,9 @@ rates, and usage patterns to inform decisions about AI strategy.
 ## GA status and availability
 
 Starting with Coder v2.30 (February 2026), AI Gateway and Agent Firewall are
-generally available as part of the AI Governance Add-On.
+generally available as part of AI Governance.
 
-To learn more about enabling the AI Governance Add-On, pricing, or trial
-options, reach out to your
+To learn more about AI Governance, pricing, or trial options, reach out to your
 [Coder account team](https://coder.com/contact/sales).
 
 ## How Coder Tasks usage is measured
@@ -128,9 +125,9 @@ deployments include 1,000 Agent Workspace Builds, primarily for proof-of-concept
 use and basic workflows. Community deployments do not have access to
 [AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md).
 
-Our [AI Governance Add-On](./ai-governance.md) includes a shared usage pool of
-Agent Workspace Builds for automated workflows, along with limits that scale
-proportionately with user count. Usage counts are measured and sent to Coder via
+Premium deployments include a shared usage pool of Agent Workspace Builds for
+automated workflows, along with limits that scale proportionately with user
+count. Usage counts are measured and sent to Coder via
 [usage data reporting](./usage-data-reporting.md). Coder Tasks and other AI
 features continue to function normally even if the limit is breached. Admins
 will receive a warning to [contact their account team](https://coder.com/contact)
@@ -146,24 +143,3 @@ entitlement limits.
 
 <small>Agent Workspace Build usage showing current consumption against
 entitlement limits in the Licenses page.</small>
-
-## Identifying AI seat consumers
-
-When the AI Governance add-on is licensed, the **Users** table and
-**Organization Members** table display an **AI add-on** column that shows
-whether each user is consuming an AI seat:
-
-- A green check icon indicates the user is actively consuming an AI seat.
-- A gray X icon indicates the user is not consuming an AI seat.
-
-A user consumes an AI seat when they use AI features such as AI Gateway or
-Tasks. The column helps administrators identify which users contribute to
-the organization's AI seat count, making it easier to manage seat
-allocations and stay within license limits.
-
-The **AI add-on** column only appears when the deployment has an active
-`ai_governance_user_limit` entitlement. If the entitlement is not present
-or the license has expired, the column is hidden.
-
-> **Tip:** Hover over the **AI add-on** column header for a tooltip
-> describing what the column represents.

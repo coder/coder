@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,14 +11,20 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -27,11 +34,24 @@ import (
 func Test_extractManualTitleTurns(t *testing.T) {
 	t.Parallel()
 
+	pasteFileID := uuid.New()
+
 	tests := []struct {
-		name     string
-		messages []database.ChatMessage
-		want     []manualTitleTurn
+		name      string
+		messages  []database.ChatMessage
+		pasteText map[uuid.UUID]string
+		want      []manualTitleTurn
 	}{
+		{
+			name: "paste only user message resolves via paste text",
+			messages: []database.ChatMessage{
+				mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+					codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
+				),
+			},
+			pasteText: map[uuid.UUID]string{pasteFileID: "pasted panic output"},
+			want:      []manualTitleTurn{{role: "user", text: "pasted panic output"}},
+		},
 		{
 			name: "filters to visible user and assistant text turns",
 			messages: []database.ChatMessage{
@@ -82,7 +102,7 @@ func Test_extractManualTitleTurns(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := extractManualTitleTurns(tt.messages)
+			got := extractManualTitleTurns(tt.messages, tt.pasteText)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -342,6 +362,7 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
 			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
 			require.Contains(t, prompt, "stay close to the user's wording")
+			require.Contains(t, prompt, "same language as the user's messages")
 
 			if tt.wantConversationSample {
 				require.Contains(t, prompt, "Conversation sample:")
@@ -362,14 +383,147 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 	}
 }
 
-func TestPreferredShortTextCandidatesNilUnderAIGateway(t *testing.T) {
+func Test_titleInput(t *testing.T) {
 	t.Parallel()
 
-	server := &Server{aiGatewayRoutingEnabled: true}
-	candidates := server.preferredShortTextCandidates(database.Chat{}, chatprovider.ProviderAPIKeys{
-		ByProvider: map[string]string{"openai": "test-key"},
+	pasteFileID := uuid.New()
+	pasteContent := "pasted stack trace with details"
+	pasteMessage := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
+	)
+	textMessage := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText("summarize build logs"),
+	)
+
+	tests := []struct {
+		name      string
+		chat      database.Chat
+		messages  []database.ChatMessage
+		pasteText map[uuid.UUID]string
+		wantInput string
+		wantOK    bool
+	}{
+		{
+			name:      "text message with fallback title is eligible",
+			chat:      database.Chat{Title: chatprompt.FallbackTitle("summarize build logs")},
+			messages:  []database.ChatMessage{textMessage},
+			wantInput: "summarize build logs",
+			wantOK:    true,
+		},
+		{
+			name:      "paste only message with resolved paste text is eligible",
+			chat:      database.Chat{Title: chatprompt.FallbackTitle(pasteContent)},
+			messages:  []database.ChatMessage{pasteMessage},
+			pasteText: map[uuid.UUID]string{pasteFileID: pasteContent},
+			wantInput: pasteContent,
+			wantOK:    true,
+		},
+		{
+			name:     "paste only message without resolved paste text is skipped",
+			chat:     database.Chat{Title: "New Chat"},
+			messages: []database.ChatMessage{pasteMessage},
+			wantOK:   false,
+		},
+		{
+			name:      "paste only message with user renamed title is skipped",
+			chat:      database.Chat{Title: "my custom name"},
+			messages:  []database.ChatMessage{pasteMessage},
+			pasteText: map[uuid.UUID]string{pasteFileID: pasteContent},
+			wantOK:    false,
+		},
+		{
+			name: "assistant reply disables generation",
+			chat: database.Chat{Title: chatprompt.FallbackTitle(pasteContent)},
+			messages: []database.ChatMessage{
+				pasteMessage,
+				mustChatMessage(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth,
+					codersdk.ChatMessageText("done"),
+				),
+			},
+			pasteText: map[uuid.UUID]string{pasteFileID: pasteContent},
+			wantOK:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			input, ok := titleInput(tt.chat, tt.messages, tt.pasteText)
+			require.Equal(t, tt.wantOK, ok)
+			require.Equal(t, tt.wantInput, input)
+		})
+	}
+}
+
+func Test_titlePasteText(t *testing.T) {
+	t.Parallel()
+
+	pasteFileID := uuid.New()
+	pasteMessage := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
+	)
+
+	t.Run("skips fetch when user messages have text", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		// No GetChatFileDataPrefixesByIDs expectation: a fetch would
+		// fail the test.
+		db := dbmock.NewMockStore(ctrl)
+
+		pasteText, err := titlePasteText(context.Background(), db, []database.ChatMessage{
+			mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+				codersdk.ChatMessageText("typed text"),
+				codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
+			),
+		})
+		require.NoError(t, err)
+		require.Nil(t, pasteText)
 	})
-	require.Nil(t, candidates)
+
+	t.Run("resolves paste content for paste only user messages", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetChatFileDataPrefixesByIDs(gomock.Any(), database.GetChatFileDataPrefixesByIDsParams{
+			IDs:         []uuid.UUID{pasteFileID},
+			PrefixBytes: chatprompt.TitlePasteBytePrefix,
+		}).Return([]database.GetChatFileDataPrefixesByIDsRow{
+			{ID: pasteFileID, DataPrefix: []byte("pasted content")},
+		}, nil)
+
+		pasteText, err := titlePasteText(context.Background(), db, []database.ChatMessage{pasteMessage})
+		require.NoError(t, err)
+		require.Equal(t, map[uuid.UUID]string{pasteFileID: "pasted content"}, pasteText)
+	})
+
+	t.Run("propagates fetch errors", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetChatFileDataPrefixesByIDs(gomock.Any(), gomock.Any()).Return(nil, sql.ErrConnDone)
+
+		_, err := titlePasteText(context.Background(), db, []database.ChatMessage{pasteMessage})
+		require.ErrorIs(t, err, sql.ErrConnDone)
+	})
+
+	t.Run("ignores non synthetic file only messages", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+
+		pasteText, err := titlePasteText(context.Background(), db, []database.ChatMessage{
+			mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+				codersdk.ChatMessageFile(uuid.New(), "image/png", "photo.png"),
+			),
+		})
+		require.NoError(t, err)
+		require.Nil(t, pasteText)
+	})
 }
 
 func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
@@ -391,8 +545,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider: "openai",
-		Model:    "test-model",
+		Model: "test-model",
 	})
 
 	userPrompt := "summarize failed workspace build logs"
@@ -400,18 +553,12 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             fallbackChatTitle(userPrompt),
+		Title:             chatprompt.FallbackTitle(userPrompt),
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 	})
 
-	expectedUpdatedAt := time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC)
-	chat, err := db.UpdateChatStatusPreserveUpdatedAt(ctx, database.UpdateChatStatusPreserveUpdatedAtParams{
-		ID:        chat.ID,
-		Status:    chat.Status,
-		UpdatedAt: expectedUpdatedAt,
-	})
-	require.NoError(t, err)
+	expectedUpdatedAt := chat.UpdatedAt
 
 	const wantTitle = "Failed workspace logs"
 	model := &chattest.FakeModel{
@@ -438,11 +585,11 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		ctx,
 		chat,
 		[]database.ChatMessage{message},
+		nil,
 		"openai",
-		"test-model",
-		model,
-		resolvedModelRoute{},
-		chatprovider.ProviderAPIKeys{},
+		database.ChatModelConfig{Model: "test-model"},
+		chatprovider.NewModel(model, nil),
+		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
 		logger,
@@ -463,12 +610,70 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	require.Equal(t, wantTitle, gotTitle)
 }
 
+func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	chat, messages := titleOverrideTestChatAndMessages(t)
+	reasoningEffort := "high"
+	maxReasoningEffort := "max"
+	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+			Default: &reasoningEffort,
+			Max:     &maxReasoningEffort,
+		},
+	})
+	require.NoError(t, err)
+
+	model := &chattest.FakeModel{
+		ProviderName: fantasyopenai.Name,
+		ModelName:    "gpt-4o-mini",
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			require.NotNil(t, call.MaxOutputTokens)
+			require.Equal(t, int64(256), *call.MaxOutputTokens)
+			providerOptions, ok := call.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+			require.True(t, ok, "%T", call.ProviderOptions[fantasyopenai.Name])
+			require.NotNil(t, providerOptions.ReasoningEffort)
+			require.Equal(t, fantasyopenai.ReasoningEffortHigh, *providerOptions.ReasoningEffort)
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": "Reasoning title"},
+			}, nil
+		},
+	}
+
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+		ID:    chat.ID,
+		Title: "Reasoning title",
+	}).Return(chatWithTitle(chat, "Reasoning title"), nil)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := titleOverrideTestServer(db, logger)
+	server.maybeGenerateChatTitle(
+		ctx,
+		chat,
+		messages,
+		nil,
+		fantasyopenai.Name,
+		database.ChatModelConfig{Model: "gpt-4o-mini", Options: modelConfigRaw},
+		chatprovider.NewModel(model, nil),
+		aiGatewayModelRoute{},
+		modelBuildOptions{},
+		&generatedChatTitle{},
+		logger,
+		nil,
+	)
+}
+
 func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	t.Parallel()
 
 	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
 	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
 	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
+	require.Contains(t, titleGenerationPrompt, "same language as the user's message")
+	require.Contains(t, titleGenerationPrompt, "Examples:")
 	require.NotContains(t, titleGenerationPrompt, "I am a title generator")
 }
 
@@ -500,10 +705,12 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 		},
 	}
 
-	title, _, err := generateManualTitle(
+	title, err := generateManualTitle(
 		context.Background(),
 		messages,
+		nil,
 		model,
+		nil,
 	)
 	require.NoError(t, err)
 	require.Equal(t, "Refresh title", title)
@@ -536,15 +743,17 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 		},
 	}
 
-	_, _, err := generateManualTitle(
+	_, err := generateManualTitle(
 		context.Background(),
 		messages,
+		nil,
 		model,
+		nil,
 	)
 	require.NoError(t, err)
 }
 
-func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) {
+func Test_generateManualTitle_ErrorsOnEmptyNormalizedTitle(t *testing.T) {
 	t.Parallel()
 
 	messages := []database.ChatMessage{
@@ -569,15 +778,14 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 		},
 	}
 
-	_, usage, err := generateManualTitle(
+	_, err := generateManualTitle(
 		context.Background(),
 		messages,
+		nil,
 		model,
+		nil,
 	)
 	require.ErrorContains(t, err, "generated title was empty")
-	require.Equal(t, int64(11), usage.InputTokens)
-	require.Equal(t, int64(7), usage.OutputTokens)
-	require.Equal(t, int64(18), usage.TotalTokens)
 }
 
 func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
@@ -586,24 +794,23 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	t.Run("chooses the highest-priority configured lightweight model", func(t *testing.T) {
 		t.Parallel()
 
-		configs := []database.ChatModelConfig{
-			{Provider: preferredTitleModels[2].provider, Model: preferredTitleModels[2].model},
-			{Provider: preferredTitleModels[1].provider, Model: preferredTitleModels[1].model},
-			{Provider: "openai", Model: "gpt-4.1"},
+		configs := []database.GetEnabledChatModelConfigsRow{
+			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[2].model}, Provider: preferredTitleModels[2].provider},
+			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[1].model}, Provider: preferredTitleModels[1].provider},
+			{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"}, Provider: "openai"},
 		}
 
 		got, ok := selectPreferredConfiguredShortTextModelConfig(configs)
 		require.True(t, ok)
-		require.Equal(t, preferredTitleModels[1].provider, got.Provider)
 		require.Equal(t, preferredTitleModels[1].model, got.Model)
 	})
 
 	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
 		t.Parallel()
 
-		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.ChatModelConfig{{
-			Provider: "openai",
-			Model:    "gpt-4.1",
+		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsRow{{
+			ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"},
+			Provider:        "openai",
 		}})
 		require.False(t, ok)
 		require.Equal(t, database.ChatModelConfig{}, got)
@@ -656,7 +863,6 @@ func TestFallbackTurnStatusLabel(t *testing.T) {
 		want   string
 	}{
 		{status: database.ChatStatusWaiting, want: "Finished latest turn"},
-		{status: database.ChatStatusPending, want: "Still working on request"},
 		{status: database.ChatStatusRequiresAction, want: "Waiting for user input"},
 		{status: database.ChatStatusError, want: "Hit an error"},
 		{status: database.ChatStatus("unknown"), want: "Updated chat status"},
@@ -678,7 +884,8 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 
 	title, _, err := generateStructuredTitleWithUsage(
 		t.Context(),
-		model,
+		model.LanguageModel(),
+		nil,
 		titleGenerationPrompt,
 		"summarize failed workspace build logs",
 	)
@@ -687,6 +894,50 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 
 	body := testutil.TryReceive(t.Context(), t, requests)
 	require.Equal(t, "required", body["tool_choice"])
+	require.Equal(t, quickgenTemperature, body["temperature"],
+		"title generation should pin temperature for repeatable output")
+}
+
+// newTemperatureRejectedError mirrors the bad-request error returned
+// through AI Bridge by models that do not accept the temperature
+// parameter.
+func newTemperatureRejectedError() *fantasy.ProviderError {
+	return &fantasy.ProviderError{
+		Title: "bad request",
+		Message: `POST "http://coder-aibridge/v1/messages": 400 Bad Request ` +
+			`{"error":{"message":"` + "`temperature`" + ` is deprecated for this model.",` +
+			`"type":"invalid_request_error"},"request_id":"","type":"error"}`,
+		StatusCode: http.StatusBadRequest,
+	}
+}
+
+func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T) {
+	t.Parallel()
+
+	var sawTemperature []bool
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			sawTemperature = append(sawTemperature, call.Temperature != nil)
+			if call.Temperature != nil {
+				return nil, newTemperatureRejectedError()
+			}
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": "Failed workspace logs"},
+			}, nil
+		},
+	}
+
+	title, _, err := generateStructuredTitleWithUsage(
+		t.Context(),
+		model,
+		nil,
+		titleGenerationPrompt,
+		"summarize failed workspace build logs",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Failed workspace logs", title)
+	require.Equal(t, []bool{true, false}, sawTemperature,
+		"generation should retry without temperature after the model rejects it")
 }
 
 func newOpenAICompatStructuredOutputServer(
@@ -742,7 +993,7 @@ func newOpenAICompatStructuredOutputServer(
 	return server, requests
 }
 
-func openAICompatTestModel(t *testing.T, baseURL string) fantasy.LanguageModel {
+func openAICompatTestModel(t *testing.T, baseURL string) chatprovider.Model {
 	t.Helper()
 
 	model, err := chatprovider.ModelFromConfig(
@@ -757,6 +1008,7 @@ func openAICompatTestModel(t *testing.T, baseURL string) fantasy.LanguageModel {
 			},
 		},
 		chatprovider.UserAgent(),
+		nil,
 		nil,
 		nil,
 	)
@@ -790,13 +1042,59 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		server, requests := newOpenAICompatStructuredOutputServer(t, "propose_turn_status_label", `{"label":"Submitted PR"}`)
 		model := openAICompatTestModel(t, server.URL)
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model.LanguageModel(), turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 		require.Len(t, requests, 1)
 
 		body := testutil.TryReceive(t.Context(), t, requests)
 		require.Equal(t, "required", body["tool_choice"])
+		require.Equal(t, quickgenTemperature, body["temperature"],
+			"status-label generation should pin temperature for repeatable output")
+	})
+
+	t.Run("drops temperature when model rejects it", func(t *testing.T) {
+		t.Parallel()
+
+		var sawTemperature []bool
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				sawTemperature = append(sawTemperature, call.Temperature != nil)
+				if call.Temperature != nil {
+					return nil, newTemperatureRejectedError()
+				}
+				return &fantasy.ObjectResponse{
+					Object: map[string]any{"label": "Submitted PR"},
+				}, nil
+			},
+		}
+
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		require.NoError(t, err)
+		require.Equal(t, "Submitted PR", label)
+		require.Equal(t, []bool{true, false}, sawTemperature,
+			"generation should retry without temperature after the model rejects it")
+	})
+
+	t.Run("surfaces unrelated bad request errors", func(t *testing.T) {
+		t.Parallel()
+
+		var calls int
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				calls++
+				return nil, &fantasy.ProviderError{
+					Title:      "bad request",
+					Message:    "tools.0.custom.input_schema: JSON schema is invalid",
+					StatusCode: http.StatusBadRequest,
+				}
+			},
+		}
+
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		require.ErrorContains(t, err, "JSON schema is invalid")
+		require.Equal(t, 1, calls,
+			"bad requests unrelated to temperature should not trigger a second attempt")
 	})
 
 	t.Run("rejects narrative label", func(t *testing.T) {
@@ -821,6 +1119,72 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "  ")
 		require.ErrorContains(t, err, "turn status label input was empty")
 	})
+}
+
+func TestIsTemperatureRejectedError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "plain error mentioning temperature",
+			err:  xerrors.New("temperature is deprecated for this model"),
+			want: false,
+		},
+		{
+			name: "bad request rejecting temperature",
+			err:  newTemperatureRejectedError(),
+			want: true,
+		},
+		{
+			name: "wrapped bad request rejecting temperature",
+			err:  xerrors.Errorf("tool-based generation failed: %w", newTemperatureRejectedError()),
+			want: true,
+		},
+		{
+			name: "bad request with temperature only in response body",
+			err: &fantasy.ProviderError{
+				Title:        "bad request",
+				Message:      "provider request failed",
+				StatusCode:   http.StatusBadRequest,
+				ResponseBody: []byte(`{"error":{"message":"Unsupported parameter: 'temperature' is not supported with this model."}}`),
+			},
+			want: true,
+		},
+		{
+			name: "bad request unrelated to temperature",
+			err: &fantasy.ProviderError{
+				Title:      "bad request",
+				Message:    "tools.0.custom.input_schema: JSON schema is invalid",
+				StatusCode: http.StatusBadRequest,
+			},
+			want: false,
+		},
+		{
+			name: "server error mentioning temperature",
+			err: &fantasy.ProviderError{
+				Title:      "internal server error",
+				Message:    "temperature processing failed",
+				StatusCode: http.StatusInternalServerError,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, isTemperatureRejectedError(tt.err))
+		})
+	}
 }
 
 func mustChatMessage(

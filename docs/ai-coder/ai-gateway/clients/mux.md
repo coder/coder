@@ -1,9 +1,8 @@
 # Mux
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 Mux makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop; it is open source and provider-agnostic.
 
@@ -23,14 +22,14 @@ Mux can be configured to route OpenAI- and Anthropic-compatible traffic through 
 1. Open Mux settings (`Cmd+,` / `Ctrl+,`).
 2. Go to **Providers** → **OpenAI**.
 3. Set **API Key** to your Coder API token.
-4. Set **Base URL** to `https://coder.example.com/api/v2/aibridge/openai/v1`.
+4. Set **Base URL** to `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
 
 ### Anthropic
 
 1. Open Mux settings (`Cmd+,` / `Ctrl+,`).
 2. Go to **Providers** → **Anthropic**.
 3. Set **API Key** to your Coder API token.
-4. Set **Base URL** to `https://coder.example.com/api/v2/aibridge/anthropic`.
+4. Set **Base URL** to `https://coder.example.com/api/v2/ai-gateway/anthropic`.
 
 </div>
 
@@ -48,16 +47,16 @@ Environment variables are useful in CI or when running Mux inside a Coder worksp
 ```sh
 # OpenAI-compatible traffic (GPT, Codex, etc.)
 export OPENAI_API_KEY="<your-coder-api-token>"
-export OPENAI_BASE_URL="https://coder.example.com/api/v2/aibridge/openai/v1"
+export OPENAI_BASE_URL="https://coder.example.com/api/v2/ai-gateway/openai/v1"
 
 # Anthropic-compatible traffic (Claude, etc.)
 export ANTHROPIC_API_KEY="<your-coder-api-token>"
-export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic"
 ```
 
-## Running Mux in a Coder workspace
+## Run Mux in a Coder workspace
 
-If you want to run Mux inside a Coder workspace (for example, as a Coder app), you can install it with the [Mux module](https://registry.coder.com/modules/coder/mux) and pre-configure AI Gateway via environment variables on the agent:
+To run Mux inside a Coder workspace (for example, as a Coder app), you can install it with the [Mux module](https://registry.coder.com/modules/coder/mux) and pre-configure AI Gateway via environment variables on the agent:
 
 ```tf
 data "coder_workspace" "me" {}
@@ -68,15 +67,15 @@ resource "coder_agent" "main" {
   # ... other agent configuration
   env = {
     OPENAI_API_KEY     = data.coder_workspace_owner.me.session_token
-    OPENAI_BASE_URL    = "${data.coder_workspace.me.access_url}/api/v2/aibridge/openai/v1"
+    OPENAI_BASE_URL    = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/openai/v1"
     ANTHROPIC_API_KEY  = data.coder_workspace_owner.me.session_token
-    ANTHROPIC_BASE_URL = "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic"
+    ANTHROPIC_BASE_URL = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/anthropic"
   }
 }
 
 module "mux" {
   source   = "registry.coder.com/coder/mux/coder"
-  version  = "~> 1.0" # See the module page for the latest version.
+  version  = "~> 1.5"
   agent_id = coder_agent.main.id
 }
 ```
@@ -85,15 +84,15 @@ module "mux" {
 
 If you prefer a file-based config, edit `~/.mux/providers.jsonc`:
 
-```jsonc
+```json
 {
   "openai": {
     "apiKey": "<your-coder-api-token>",
-    "baseUrl": "https://coder.example.com/api/v2/aibridge/openai/v1"
+    "baseUrl": "https://coder.example.com/api/v2/ai-gateway/openai/v1"
   },
   "anthropic": {
     "apiKey": "<your-coder-api-token>",
-    "baseUrl": "https://coder.example.com/api/v2/aibridge/anthropic"
+    "baseUrl": "https://coder.example.com/api/v2/ai-gateway/anthropic"
   }
 }
 ```

@@ -15,7 +15,7 @@ To copy the `.coder` hostname of a workspace agent, select the copy icon beside 
 
 You can also connect to the SSH server in your workspace using any SSH client, such as OpenSSH or PuTTY:
 
-   ```shell
+   ```sh
    ssh your-workspace.coder
    ```
 
@@ -38,7 +38,7 @@ For other port forwarding methods (CLI, dashboard, SSH), see [Workspace Ports](.
 
 Use `ping6` in your terminal to verify the connection to your workspace:
 
-   ```shell
+   ```sh
    ping6 -c 5 your-workspace.coder
    ```
 
@@ -46,7 +46,7 @@ Use `ping6` in your terminal to verify the connection to your workspace:
 
 Use `ping` in a Command Prompt or PowerShell terminal to verify the connection to your workspace:
 
-   ```shell
+   ```sh
    ping -n 5 your-workspace.coder
    ```
 

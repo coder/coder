@@ -14,11 +14,13 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestDialWithLazyValidation_FastDial(t *testing.T) {
 	t.Parallel()
 
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 	ctrl := gomock.NewController(t)
 	agentID := uuid.New()
 	workspaceID := uuid.New()
@@ -29,6 +31,7 @@ func TestDialWithLazyValidation_FastDial(t *testing.T) {
 
 	result, err := dialWithLazyValidation(
 		context.Background(),
+		clock,
 		agentID,
 		workspaceID,
 		func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -60,6 +63,7 @@ func TestDialWithLazyValidation_FastDial(t *testing.T) {
 func TestDialWithLazyValidation_SlowDialSameAgent(t *testing.T) {
 	t.Parallel()
 
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 	ctrl := gomock.NewController(t)
 	agentID := uuid.New()
 	workspaceID := uuid.New()
@@ -71,6 +75,7 @@ func TestDialWithLazyValidation_SlowDialSameAgent(t *testing.T) {
 
 	result, err := dialWithLazyValidation(
 		context.Background(),
+		clock,
 		agentID,
 		workspaceID,
 		func(ctx context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -111,6 +116,7 @@ func TestDialWithLazyValidation_SlowDialSameAgent(t *testing.T) {
 func TestDialWithLazyValidation_SlowDialNoCurrentAgent(t *testing.T) {
 	t.Parallel()
 
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 	staleAgentID := uuid.New()
 	workspaceID := uuid.New()
 	dialStarted := make(chan struct{})
@@ -122,6 +128,7 @@ func TestDialWithLazyValidation_SlowDialNoCurrentAgent(t *testing.T) {
 	go func() {
 		_, err := dialWithLazyValidation(
 			context.Background(),
+			clock,
 			staleAgentID,
 			workspaceID,
 			func(ctx context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -163,6 +170,7 @@ func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 	t.Run("LateSuccessReleasesStaleConn", func(t *testing.T) {
 		t.Parallel()
 
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 		ctrl := gomock.NewController(t)
 		staleAgentID := uuid.New()
 		currentAgentID := uuid.New()
@@ -177,6 +185,7 @@ func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 
 		result, err := dialWithLazyValidation(
 			context.Background(),
+			clock,
 			staleAgentID,
 			workspaceID,
 			func(ctx context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -225,6 +234,7 @@ func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 	t.Run("CanceledFailureDoesNotReleaseStaleConn", func(t *testing.T) {
 		t.Parallel()
 
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 		ctrl := gomock.NewController(t)
 		staleAgentID := uuid.New()
 		currentAgentID := uuid.New()
@@ -238,6 +248,7 @@ func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 
 		result, err := dialWithLazyValidation(
 			context.Background(),
+			clock,
 			staleAgentID,
 			workspaceID,
 			func(ctx context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -284,6 +295,7 @@ func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 	t.Run("SwitchDoesNotBlock", func(t *testing.T) {
 		t.Parallel()
 
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 		ctrl := gomock.NewController(t)
 		staleAgentID := uuid.New()
 		currentAgentID := uuid.New()
@@ -310,6 +322,7 @@ func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 		go func() {
 			result, err := dialWithLazyValidation(
 				context.Background(),
+				clock,
 				staleAgentID,
 				workspaceID,
 				func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -375,6 +388,7 @@ func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 func TestDialWithLazyValidation_FastFailure(t *testing.T) {
 	t.Parallel()
 
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 	ctrl := gomock.NewController(t)
 	staleAgentID := uuid.New()
 	currentAgentID := uuid.New()
@@ -387,6 +401,7 @@ func TestDialWithLazyValidation_FastFailure(t *testing.T) {
 
 	result, err := dialWithLazyValidation(
 		context.Background(),
+		clock,
 		staleAgentID,
 		workspaceID,
 		func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -432,6 +447,7 @@ func TestDialWithLazyValidation_FastFailure(t *testing.T) {
 func TestDialWithLazyValidation_FastFailureSameAgent(t *testing.T) {
 	t.Parallel()
 
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 	ctrl := gomock.NewController(t)
 	agentID := uuid.New()
 	workspaceID := uuid.New()
@@ -443,6 +459,7 @@ func TestDialWithLazyValidation_FastFailureSameAgent(t *testing.T) {
 
 	result, err := dialWithLazyValidation(
 		context.Background(),
+		clock,
 		agentID,
 		workspaceID,
 		func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -485,6 +502,7 @@ func TestDialWithLazyValidation_FastFailureSameAgent(t *testing.T) {
 func TestDialWithLazyValidation_FastFailureSameAgentRetryFails(t *testing.T) {
 	t.Parallel()
 
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 	agentID := uuid.New()
 	workspaceID := uuid.New()
 
@@ -493,6 +511,7 @@ func TestDialWithLazyValidation_FastFailureSameAgentRetryFails(t *testing.T) {
 
 	_, err := dialWithLazyValidation(
 		context.Background(),
+		clock,
 		agentID,
 		workspaceID,
 		func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -525,6 +544,7 @@ func TestDialWithLazyValidation_FastFailureSameAgentRetryFails(t *testing.T) {
 func TestDialWithLazyValidation_ValidationError(t *testing.T) {
 	t.Parallel()
 
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 	ctrl := gomock.NewController(t)
 	agentID := uuid.New()
 	workspaceID := uuid.New()
@@ -536,6 +556,7 @@ func TestDialWithLazyValidation_ValidationError(t *testing.T) {
 
 	result, err := dialWithLazyValidation(
 		context.Background(),
+		clock,
 		agentID,
 		workspaceID,
 		func(ctx context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -578,6 +599,7 @@ func TestDialWithLazyValidation_ValidationError(t *testing.T) {
 func TestDialWithLazyValidation_ContextCanceled(t *testing.T) {
 	t.Parallel()
 
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -588,6 +610,7 @@ func TestDialWithLazyValidation_ContextCanceled(t *testing.T) {
 
 	_, err := dialWithLazyValidation(
 		ctx,
+		clock,
 		agentID,
 		workspaceID,
 		func(ctx context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {

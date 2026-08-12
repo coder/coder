@@ -107,6 +107,28 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "Google", providers[1].DisplayName)
 		assert.Equal(t, "/icon/google.svg", providers[1].DisplayIcon)
 	})
+
+	// Regression test: when more than 10 providers are configured the
+	// previous lexicographic sort placed PROVIDER_10 between PROVIDER_1
+	// and PROVIDER_2 and the parser failed with "provider num skipped".
+	t.Run("MoreThan10Providers", func(t *testing.T) {
+		t.Parallel()
+		const count = 12
+		environ := make([]string, 0, count*2)
+		for i := 0; i < count; i++ {
+			environ = append(environ,
+				fmt.Sprintf("CODER_EXTERNAL_AUTH_%d_ID=id-%d", i, i),
+				fmt.Sprintf("CODER_EXTERNAL_AUTH_%d_TYPE=type-%d", i, i),
+			)
+		}
+		providers, err := cli.ReadExternalAuthProvidersFromEnv(environ)
+		require.NoError(t, err)
+		require.Len(t, providers, count)
+		for i := 0; i < count; i++ {
+			assert.Equal(t, fmt.Sprintf("id-%d", i), providers[i].ID)
+			assert.Equal(t, fmt.Sprintf("type-%d", i), providers[i].Type)
+		}
+	})
 }
 
 func TestReadExternalAuthProvidersFromEnv_APIBaseURL(t *testing.T) {
@@ -210,7 +232,7 @@ func TestServer(t *testing.T) {
 
 		const superDuperLong = testutil.WaitSuperLong * 3
 		ctx := testutil.Context(t, superDuperLong)
-		clitest.Start(t, inv.WithContext(ctx))
+		startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 
 		//nolint:gocritic // Embedded postgres take a while to fire up.
 		require.Eventually(t, func() bool {
@@ -310,7 +332,7 @@ func TestServer(t *testing.T) {
 		)
 		pty := ptytest.New(t).Attach(inv)
 		require.NoError(t, pty.Resize(20, 80))
-		clitest.Start(t, inv)
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Wait for startup
 		_ = waitAccessURL(t, cfg)
@@ -1569,6 +1591,65 @@ func TestServer(t *testing.T) {
 				}
 			}
 		})
+
+		t.Run("RedirectAllowedHosts", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+			defer cancel()
+
+			// Same fake-issuer setup as the other OIDC subtests.
+			oidcServer := httptest.NewServer(nil)
+			fakeWellKnownHandler := func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				payload := fmt.Sprintf("{\"issuer\": %q}", oidcServer.URL)
+				_, _ = w.Write([]byte(payload))
+			}
+			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
+			t.Cleanup(oidcServer.Close)
+
+			inv, cfg := clitest.New(t,
+				"server",
+				dbArg(t),
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--oidc-client-id", "fake",
+				"--oidc-client-secret", "fake",
+				"--oidc-issuer-url", oidcServer.URL,
+				"--oidc-redirect-allowed-hosts", "coder.example.com,coder-walle.example.com",
+			)
+
+			clitest.Start(t, inv)
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			randPassword, err := cryptorand.String(24)
+			require.NoError(t, err)
+
+			_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+				Username: "admin",
+				Trial:    true,
+			})
+			require.NoError(t, err)
+
+			loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+			})
+			require.NoError(t, err)
+			client.SetSessionToken(loginResp.SessionToken)
+
+			deploymentConfig, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err)
+
+			// The CLI flag should have populated the runtime config.
+			require.Equal(t,
+				[]string{"coder.example.com", "coder-walle.example.com"},
+				deploymentConfig.Values.OIDC.RedirectAllowedHosts.Value(),
+			)
+		})
 	})
 
 	t.Run("RateLimit", func(t *testing.T) {
@@ -1676,7 +1757,7 @@ func TestServer(t *testing.T) {
 				"--provisioner-types=echo",
 				"--log-human", fiName,
 			)
-			clitest.Start(t, root)
+			startIgnoringPostgresQueryCancel(t, root)
 
 			loggingWaitFile(t, fiName, testutil.WaitLong)
 		})
@@ -1695,7 +1776,7 @@ func TestServer(t *testing.T) {
 				"--provisioner-types=echo",
 				"--log-human", fi,
 			)
-			clitest.Start(t, root)
+			startIgnoringPostgresQueryCancel(t, root)
 
 			loggingWaitFile(t, fi, testutil.WaitShort)
 		})
@@ -1714,7 +1795,7 @@ func TestServer(t *testing.T) {
 				"--provisioner-types=echo",
 				"--log-json", fi,
 			)
-			clitest.Start(t, root)
+			startIgnoringPostgresQueryCancel(t, root)
 
 			loggingWaitFile(t, fi, testutil.WaitShort)
 		})
@@ -2475,7 +2556,7 @@ func TestServer_DisabledDERP_EmptyBaseMap(t *testing.T) {
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",
 	)
-	clitest.Start(t, inv.WithContext(ctx))
+	startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 	waitAccessURL(t, cfg)
 }
 
@@ -2501,7 +2582,7 @@ func TestServer_DisabledDERP_ExternalMap(t *testing.T) {
 		"--derp-server-enable=false",
 		"--derp-config-url", srv.URL,
 	)
-	clitest.Start(t, inv.WithContext(ctx))
+	startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 	accessURL := waitAccessURL(t, cfg)
 	derpURL, err := accessURL.Parse("/derp")
 	require.NoError(t, err)

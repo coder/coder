@@ -2,12 +2,12 @@
 package db2sdk
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +59,7 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 		Type:        codersdk.AIProviderType(row.Type),
 		Name:        row.Name,
 		DisplayName: display,
+		Icon:        row.Icon,
 		Enabled:     row.Enabled,
 		BaseURL:     row.BaseUrl,
 		APIKeys:     maskAIProviderKeys(keys),
@@ -376,6 +377,24 @@ func Group(row database.GetGroupsRow, members []database.GroupMember, totalMembe
 	}
 }
 
+// PaginatedGroup converts a group row into the slim summary returned by the
+// paginated groups endpoint, which omits the member roster and carries only
+// the total member count.
+func PaginatedGroup(row database.GetGroupsRow, totalMemberCount int) codersdk.PaginatedGroup {
+	return codersdk.PaginatedGroup{
+		ID:                      row.Group.ID,
+		Name:                    row.Group.Name,
+		DisplayName:             row.Group.DisplayName,
+		OrganizationID:          row.Group.OrganizationID,
+		AvatarURL:               row.Group.AvatarURL,
+		TotalMemberCount:        totalMemberCount,
+		QuotaAllowance:          int(row.Group.QuotaAllowance),
+		Source:                  codersdk.GroupSource(row.Group.Source),
+		OrganizationName:        row.OrganizationName,
+		OrganizationDisplayName: row.OrganizationDisplayName,
+	}
+}
+
 func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
 	// Use a stable sort, similarly to how we would sort in the query, note that
 	// we don't sort in the query because order varies depending on the table
@@ -576,8 +595,8 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	if node != nil {
 		workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
 		for rawRegion, latency := range node.DERPLatency {
-			regionParts := strings.SplitN(rawRegion, "-", 2)
-			regionID, err := strconv.Atoi(regionParts[0])
+			regionIDStr, _, _ := strings.Cut(rawRegion, "-")
+			regionID, err := strconv.Atoi(regionIDStr)
 			if err != nil {
 				return codersdk.WorkspaceAgent{}, xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
 			}
@@ -667,14 +686,12 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 }
 
 func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable) []codersdk.WorkspaceApp {
-	sort.Slice(dbApps, func(i, j int) bool {
-		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
-			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
-		}
-		if dbApps[i].DisplayName != dbApps[j].DisplayName {
-			return dbApps[i].DisplayName < dbApps[j].DisplayName
-		}
-		return dbApps[i].Slug < dbApps[j].Slug
+	slices.SortFunc(dbApps, func(a, b database.WorkspaceApp) int {
+		return cmp.Or(
+			cmp.Compare(a.DisplayOrder, b.DisplayOrder),
+			cmp.Compare(a.DisplayName, b.DisplayName),
+			cmp.Compare(a.Slug, b.Slug),
+		)
 	})
 
 	statusesByAppID := map[uuid.UUID][]database.WorkspaceAppStatus{}
@@ -806,8 +823,8 @@ func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemon
 	}
 
 	// Ensure stable order for display and for tests
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Name < results[j].Name
+	slices.SortFunc(results, func(a, b codersdk.ProvisionerDaemon) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return results
@@ -1093,46 +1110,6 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 	}
 }
 
-func AIBridgeInterception(interception database.AIBridgeInterception, initiator database.VisibleUser, tokenUsages []database.AIBridgeTokenUsage, userPrompts []database.AIBridgeUserPrompt, toolUsages []database.AIBridgeToolUsage) codersdk.AIBridgeInterception {
-	sdkTokenUsages := slice.List(tokenUsages, AIBridgeTokenUsage)
-	sort.Slice(sdkTokenUsages, func(i, j int) bool {
-		// created_at ASC
-		return sdkTokenUsages[i].CreatedAt.Before(sdkTokenUsages[j].CreatedAt)
-	})
-	sdkUserPrompts := slice.List(userPrompts, AIBridgeUserPrompt)
-	sort.Slice(sdkUserPrompts, func(i, j int) bool {
-		// created_at ASC
-		return sdkUserPrompts[i].CreatedAt.Before(sdkUserPrompts[j].CreatedAt)
-	})
-	sdkToolUsages := slice.List(toolUsages, AIBridgeToolUsage)
-	sort.Slice(sdkToolUsages, func(i, j int) bool {
-		// created_at ASC
-		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)
-	})
-	intc := codersdk.AIBridgeInterception{
-		ID:           interception.ID,
-		Initiator:    MinimalUserFromVisibleUser(initiator),
-		Provider:     interception.Provider,
-		ProviderName: interception.ProviderName,
-		Model:        interception.Model,
-		Metadata:     jsonOrEmptyMap(interception.Metadata),
-		StartedAt:    interception.StartedAt,
-		TokenUsages:  sdkTokenUsages,
-		UserPrompts:  sdkUserPrompts,
-		ToolUsages:   sdkToolUsages,
-	}
-	if interception.APIKeyID.Valid {
-		intc.APIKeyID = &interception.APIKeyID.String
-	}
-	if interception.EndedAt.Valid {
-		intc.EndedAt = &interception.EndedAt.Time
-	}
-	if interception.Client.Valid {
-		intc.Client = &interception.Client.String
-	}
-	return intc
-}
-
 func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSession {
 	session := codersdk.AIBridgeSession{
 		ID: row.SessionID,
@@ -1155,6 +1132,15 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 			CacheWriteInputTokens: row.CacheWriteInputTokens,
 		},
 	}
+	// NetworkCalls is only meaningful when the session passed through Agent
+	// Firewall. When it did not, leave it nil so the UI renders "Disabled"
+	// rather than a misleading zero count.
+	if row.FirewallActive {
+		session.NetworkCalls = &codersdk.AIBridgeSessionNetworkCallSummary{
+			Total:   row.NetworkCallsTotal,
+			Blocked: row.NetworkCallsBlocked,
+		}
+	}
 	// Ensure non-nil slices for JSON serialization.
 	if session.Providers == nil {
 		session.Providers = []string{}
@@ -1174,73 +1160,43 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 	return session
 }
 
-func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {
-	return codersdk.AIBridgeTokenUsage{
-		ID:                    usage.ID,
-		InterceptionID:        usage.InterceptionID,
-		ProviderResponseID:    usage.ProviderResponseID,
-		InputTokens:           usage.InputTokens,
-		OutputTokens:          usage.OutputTokens,
-		CacheReadInputTokens:  usage.CacheReadInputTokens,
-		CacheWriteInputTokens: usage.CacheWriteInputTokens,
-		Metadata:              jsonOrEmptyMap(usage.Metadata),
-		CreatedAt:             usage.CreatedAt,
-	}
-}
-
-func AIBridgeUserPrompt(prompt database.AIBridgeUserPrompt) codersdk.AIBridgeUserPrompt {
-	return codersdk.AIBridgeUserPrompt{
-		ID:                 prompt.ID,
-		InterceptionID:     prompt.InterceptionID,
-		ProviderResponseID: prompt.ProviderResponseID,
-		Prompt:             prompt.Prompt,
-		Metadata:           jsonOrEmptyMap(prompt.Metadata),
-		CreatedAt:          prompt.CreatedAt,
-	}
-}
-
-func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUsage {
-	return codersdk.AIBridgeToolUsage{
-		ID:                 usage.ID,
-		InterceptionID:     usage.InterceptionID,
-		ProviderResponseID: usage.ProviderResponseID,
-		ServerURL:          usage.ServerUrl.String,
-		Tool:               usage.Tool,
-		Input:              usage.Input,
-		Injected:           usage.Injected,
-		InvocationError:    usage.InvocationError.String,
-		Metadata:           jsonOrEmptyMap(usage.Metadata),
-		CreatedAt:          usage.CreatedAt,
-	}
+// AIBridgeSessionThreadsParams groups the session row and its subresources for
+// AIBridgeSessionThreads. Named fields avoid transposing the several adjacent
+// slice arguments (notably TopDomains and NetworkCalls) at the call site.
+type AIBridgeSessionThreadsParams struct {
+	Session       database.ListAIBridgeSessionsRow
+	Interceptions []database.ListAIBridgeSessionThreadsRow
+	TokenUsages   []database.AIBridgeTokenUsage
+	ToolUsages    []database.AIBridgeToolUsage
+	UserPrompts   []database.AIBridgeUserPrompt
+	ModelThoughts []database.AIBridgeModelThought
+	TopDomains    []database.GetAIBridgeSessionTopDomainsRow
+	NetworkCalls  []database.BoundaryLog
 }
 
 // AIBridgeSessionThreads converts session metadata and thread interceptions
 // into the threads response. It groups interceptions into threads, builds
 // agentic actions from tool usages and model thoughts, and aggregates
 // token usage with metadata.
-func AIBridgeSessionThreads(
-	session database.ListAIBridgeSessionsRow,
-	interceptions []database.ListAIBridgeSessionThreadsRow,
-	tokenUsages []database.AIBridgeTokenUsage,
-	toolUsages []database.AIBridgeToolUsage,
-	userPrompts []database.AIBridgeUserPrompt,
-	modelThoughts []database.AIBridgeModelThought,
-) codersdk.AIBridgeSessionThreadsResponse {
+func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSessionThreadsResponse {
+	session := p.Session
+	interceptions := p.Interceptions
+
 	// Index subresources by interception ID.
 	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(interceptions))
-	for _, tu := range tokenUsages {
+	for _, tu := range p.TokenUsages {
 		tokensByInterception[tu.InterceptionID] = append(tokensByInterception[tu.InterceptionID], tu)
 	}
 	toolsByInterception := make(map[uuid.UUID][]database.AIBridgeToolUsage, len(interceptions))
-	for _, tu := range toolUsages {
+	for _, tu := range p.ToolUsages {
 		toolsByInterception[tu.InterceptionID] = append(toolsByInterception[tu.InterceptionID], tu)
 	}
 	promptsByInterception := make(map[uuid.UUID][]database.AIBridgeUserPrompt, len(interceptions))
-	for _, up := range userPrompts {
+	for _, up := range p.UserPrompts {
 		promptsByInterception[up.InterceptionID] = append(promptsByInterception[up.InterceptionID], up)
 	}
 	thoughtsByInterception := make(map[uuid.UUID][]database.AIBridgeModelThought, len(interceptions))
-	for _, mt := range modelThoughts {
+	for _, mt := range p.ModelThoughts {
 		thoughtsByInterception[mt.InterceptionID] = append(thoughtsByInterception[mt.InterceptionID], mt)
 	}
 
@@ -1278,7 +1234,7 @@ func AIBridgeSessionThreads(
 
 	// Aggregate session-level token usage metadata from all token
 	// usages in the session (not just the page).
-	sessionTokenMeta := aggregateTokenMetadata(tokenUsages)
+	sessionTokenMeta := aggregateTokenMetadata(p.TokenUsages)
 
 	resp := codersdk.AIBridgeSessionThreadsResponse{
 		ID: session.SessionID,
@@ -1315,7 +1271,50 @@ func AIBridgeSessionThreads(
 	if !session.EndedAt.IsZero() {
 		resp.EndedAt = &session.EndedAt
 	}
+	// NetworkCalls is only meaningful when the session passed through Agent
+	// Firewall. When it did not, leave it nil so the UI renders "Disabled"
+	// rather than a misleading zero count.
+	if session.FirewallActive {
+		resp.NetworkCalls = &codersdk.AIBridgeSessionNetworkCallSummary{
+			Total:   session.NetworkCallsTotal,
+			Blocked: session.NetworkCallsBlocked,
+		}
+	}
+	for _, d := range p.TopDomains {
+		resp.NetworkTopDomains = append(resp.NetworkTopDomains, codersdk.AIBridgeSessionNetworkDomain{
+			Domain: d.Domain,
+			Count:  d.Count,
+		})
+		// TotalDomains is the same on every row (a window aggregate); take it
+		// from the last row processed.
+		resp.NetworkDomainCount = d.TotalDomains
+	}
+	resp.NetworkCallLogs = AgentFirewallLogs(p.NetworkCalls)
 	return resp
+}
+
+// AgentFirewallLogs converts boundary logs to their SDK representation.
+// Allowed is derived from MatchedRule being non-NULL.
+func AgentFirewallLogs(logs []database.BoundaryLog) []codersdk.AgentFirewallLog {
+	results := make([]codersdk.AgentFirewallLog, 0, len(logs))
+	for _, l := range logs {
+		bl := codersdk.AgentFirewallLog{
+			ID:             l.ID,
+			SessionID:      l.SessionID,
+			SequenceNumber: l.SequenceNumber,
+			Allowed:        l.MatchedRule.Valid,
+			CreatedAt:      l.CreatedAt,
+			Proto:          l.Proto,
+			Method:         l.Method,
+			Detail:         l.Detail,
+			CapturedAt:     &l.CapturedAt,
+		}
+		if l.MatchedRule.Valid {
+			bl.MatchedRule = &l.MatchedRule.String
+		}
+		results = append(results, bl)
+	}
+	return results
 }
 
 func buildAIBridgeThread(
@@ -1353,6 +1352,25 @@ func buildAIBridgeThread(
 		// only store the last prompt observed in an interception.
 		if prompts := promptsByInterception[rootIntc.ID]; len(prompts) > 0 {
 			thread.Prompt = &prompts[0].Prompt
+		}
+		if rootIntc.AgentFirewallSessionID.Valid {
+			id := rootIntc.AgentFirewallSessionID.UUID
+			thread.AgentFirewallSessionID = &id
+		}
+		if rootIntc.AgentFirewallSequenceNumber.Valid {
+			n := rootIntc.AgentFirewallSequenceNumber.Int32
+			thread.AgentFirewallSequenceNumber = &n
+		}
+		// Surface the terminal upstream error from the root interception. The
+		// message is only meaningful alongside a type, so it is nested to avoid
+		// a half-populated error on the response.
+		if rootIntc.ErrorType.Valid {
+			errType := string(rootIntc.ErrorType.AIBridgeInterceptionErrorType)
+			thread.ErrorType = &errType
+			if rootIntc.ErrorMessage.Valid {
+				errMsg := rootIntc.ErrorMessage.String
+				thread.ErrorMessage = &errMsg
+			}
 		}
 	}
 
@@ -1501,7 +1519,7 @@ func flattenAndSum(sums map[string]int64, prefix string, m map[string]json.RawMe
 	}
 }
 
-func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
+func GroupAIBudget(b database.GroupAIBudget) codersdk.GroupAIBudget {
 	return codersdk.GroupAIBudget{
 		GroupID:          b.GroupID,
 		SpendLimitMicros: b.SpendLimitMicros,
@@ -1510,7 +1528,7 @@ func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
 	}
 }
 
-func UserAIBudgetOverride(o database.UserAiBudgetOverride) codersdk.UserAIBudgetOverride {
+func UserAIBudgetOverride(o database.UserAIBudgetOverride) codersdk.UserAIBudgetOverride {
 	return codersdk.UserAIBudgetOverride{
 		UserID:           o.UserID,
 		GroupID:          o.GroupID,
@@ -1518,6 +1536,37 @@ func UserAIBudgetOverride(o database.UserAiBudgetOverride) codersdk.UserAIBudget
 		CreatedAt:        o.CreatedAt,
 		UpdatedAt:        o.UpdatedAt,
 	}
+}
+
+func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) codersdk.OrganizationGroupAISpend {
+	group := codersdk.OrganizationGroupAISpend{
+		GroupID:            row.GroupID,
+		CurrentSpendMicros: row.CurrentSpendMicros,
+	}
+	if row.SpendLimitMicros.Valid {
+		group.SpendLimitMicros = &row.SpendLimitMicros.Int64
+	}
+	if row.TotalSpendLimitMicros.Valid {
+		group.TotalSpendLimitMicros = &row.TotalSpendLimitMicros.Int64
+	}
+	return group
+}
+
+func GroupMemberAISpend(row database.GetGroupMembersAISpendRow) codersdk.GroupMemberAISpend {
+	member := codersdk.GroupMemberAISpend{
+		UserID:           row.UserID,
+		GroupSpendMicros: row.GroupSpendMicros,
+	}
+	if row.EffectiveGroupID.Valid {
+		member.EffectiveGroupID = &row.EffectiveGroupID.UUID
+	}
+	if row.SpendLimitMicros.Valid {
+		member.GroupBudget = &codersdk.AIBudgetLimit{
+			SpendLimitMicros: row.SpendLimitMicros.Int64,
+			LimitSource:      codersdk.AIBudgetLimitSource(row.LimitSource.String),
+		}
+	}
+	return member
 }
 
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
@@ -1663,11 +1712,17 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	if err != nil {
 		return nil, err
 	}
-	// Strip internal-only fields before API responses.
+	// Strip internal-only fields before API responses. Hook context
+	// parts are model-only and must never reach clients.
+	filtered := parts[:0]
 	for i := range parts {
+		if parts[i].Type == codersdk.ChatMessagePartTypeHookContext {
+			continue
+		}
 		parts[i].StripInternal()
+		filtered = append(filtered, parts[i])
 	}
-	return parts, nil
+	return filtered, nil
 }
 
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
@@ -1775,6 +1830,13 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String
 	}
+	if c.Summary.Valid {
+		chat.Summary = &c.Summary.String
+	}
+	if c.LastReasoningEffort.Valid {
+		lastReasoningEffort := string(c.LastReasoningEffort.ChatReasoningEffort)
+		chat.LastReasoningEffort = &lastReasoningEffort
+	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
 	}
@@ -1824,16 +1886,18 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 			})
 		}
 	}
-	if c.LastInjectedContext.Valid {
-		var parts []codersdk.ChatMessagePart
-		// Internal fields are stripped at write time in
-		// chatd.updateLastInjectedContext, so no
-		// StripInternal call is needed here. Unmarshal
-		// errors are suppressed — the column is written by
-		// us with a known schema.
-		if err := json.Unmarshal(c.LastInjectedContext.RawMessage, &parts); err == nil {
-			chat.LastInjectedContext = parts
+	// Report pinned-context state when the chat is context-tracked
+	// (has a pinned hash), dirty, or carries a snapshot error.
+	if len(c.ContextAggregateHash) > 0 || c.ContextDirtySince.Valid || c.ContextError != "" {
+		chatContext := &codersdk.ChatContext{
+			Dirty: c.ContextDirtySince.Valid,
+			Error: c.ContextError,
 		}
+		if c.ContextDirtySince.Valid {
+			dirtySince := c.ContextDirtySince.Time
+			chatContext.DirtySince = &dirtySince
+		}
+		chat.Context = chatContext
 	}
 	return chat
 }
@@ -2114,6 +2178,7 @@ func UserSecret(secret database.ListUserSecretsRow) codersdk.UserSecret {
 		Description: secret.Description,
 		EnvName:     secret.EnvName,
 		FilePath:    secret.FilePath,
+		Enabled:     secret.Enabled,
 		CreatedAt:   secret.CreatedAt,
 		UpdatedAt:   secret.UpdatedAt,
 	}
@@ -2128,6 +2193,7 @@ func UserSecretFromFull(secret database.UserSecret) codersdk.UserSecret {
 		Description: secret.Description,
 		EnvName:     secret.EnvName,
 		FilePath:    secret.FilePath,
+		Enabled:     secret.Enabled,
 		CreatedAt:   secret.CreatedAt,
 		UpdatedAt:   secret.UpdatedAt,
 	}

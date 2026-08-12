@@ -1,8 +1,8 @@
 -- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint
+	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
 ) VALUES (
-	@id, @api_key_id, @initiator_id, @provider, @provider_name, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('client_session_id'), sqlc.narg('thread_parent_interception_id')::uuid, sqlc.narg('thread_root_interception_id')::uuid, @credential_kind, @credential_hint
+	@id, @api_key_id, @initiator_id, @provider, @provider_name, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('client_session_id'), sqlc.narg('thread_parent_interception_id')::uuid, sqlc.narg('thread_root_interception_id')::uuid, @credential_kind, @credential_hint, sqlc.narg('agent_firewall_session_id')::uuid, sqlc.narg('agent_firewall_sequence_number')
 )
 RETURNING *;
 
@@ -15,7 +15,11 @@ UPDATE aibridge_interceptions
 		credential_hint = CASE
 			WHEN credential_kind = 'centralized' THEN @credential_hint::text
 			ELSE credential_hint
-		END
+		END,
+		-- Terminal upstream error, only set when the interception failed.
+		-- NULL leaves the columns empty for successful interceptions.
+		error_type = sqlc.narg('error_type')::aibridge_interception_error_type,
+		error_message = sqlc.narg('error_message')::text
 WHERE
 	id = @id::uuid
 	AND ended_at IS NULL
@@ -38,9 +42,11 @@ WHERE aibridge_interceptions.id = (
 
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
-  id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at
+  id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at,
+  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
 ) VALUES (
-  @id, @interception_id, @provider_response_id, @input_tokens, @output_tokens, @cache_read_input_tokens, @cache_write_input_tokens, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @interception_id, @provider_response_id, @input_tokens, @output_tokens, @cache_read_input_tokens, @cache_write_input_tokens, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at,
+  @effective_group_id, @input_price_micros, @output_price_micros, @cache_read_price_micros, @cache_write_price_micros, @cost_micros
 )
 RETURNING *;
 
@@ -54,9 +60,9 @@ RETURNING *;
 
 -- name: InsertAIBridgeToolUsage :one
 INSERT INTO aibridge_tool_usages (
-  id, interception_id, provider_response_id, provider_tool_call_id, tool, server_url, input, injected, invocation_error, metadata, created_at
+  id, interception_id, provider_response_id, provider_tool_call_id, provider_item_id, tool, server_url, input, injected, invocation_error, metadata, created_at
 ) VALUES (
-  @id, @interception_id, @provider_response_id, @provider_tool_call_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @interception_id, @provider_response_id, @provider_tool_call_id, @provider_item_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 )
 RETURNING *;
 
@@ -112,122 +118,6 @@ WHERE
 ORDER BY
 	created_at ASC,
 	id ASC;
-
--- name: CountAIBridgeInterceptions :one
-SELECT
-	COUNT(*)
-FROM
-	aibridge_interceptions
-WHERE
-	-- Remove inflight interceptions (ones which lack an ended_at value).
-	aibridge_interceptions.ended_at IS NOT NULL
-	-- Filter by time frame
-	AND CASE
-		WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= @started_after::timestamptz
-		ELSE true
-	END
-	AND CASE
-		WHEN @started_before::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= @started_before::timestamptz
-		ELSE true
-	END
-	-- Filter initiator_id
-	AND CASE
-		WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
-		ELSE true
-	END
-	-- Filter provider
-	AND CASE
-		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
-		ELSE true
-	END
-	-- Filter provider_name
-	AND CASE
-		WHEN @provider_name::text != '' THEN aibridge_interceptions.provider_name = @provider_name::text
-		ELSE true
-	END
-	-- Filter model
-	AND CASE
-		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
-		ELSE true
-	END
-	-- Filter client
-	AND CASE
-		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
-		ELSE true
-	END
-	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
-	-- @authorize_filter
-;
-
--- name: ListAIBridgeInterceptions :many
-SELECT
-	sqlc.embed(aibridge_interceptions),
-	sqlc.embed(visible_users)
-FROM
-	aibridge_interceptions
-JOIN
-	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
-WHERE
-	-- Remove inflight interceptions (ones which lack an ended_at value).
-	aibridge_interceptions.ended_at IS NOT NULL
-	-- Filter by time frame
-	AND CASE
-		WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= @started_after::timestamptz
-		ELSE true
-	END
-	AND CASE
-		WHEN @started_before::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= @started_before::timestamptz
-		ELSE true
-	END
-	-- Filter initiator_id
-	AND CASE
-		WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
-		ELSE true
-	END
-	-- Filter provider
-	AND CASE
-		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
-		ELSE true
-	END
-	-- Filter provider_name
-	AND CASE
-		WHEN @provider_name::text != '' THEN aibridge_interceptions.provider_name = @provider_name::text
-		ELSE true
-	END
-	-- Filter model
-	AND CASE
-		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
-		ELSE true
-	END
-	-- Filter client
-	AND CASE
-		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
-		ELSE true
-	END
-	-- Cursor pagination
-	AND CASE
-		WHEN @after_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-			-- The pagination cursor is the last ID of the previous page.
-			-- The query is ordered by the started_at field, so select all
-			-- rows before the cursor and before the after_id UUID.
-			-- This uses a less than operator because we're sorting DESC. The
-			-- "after_id" terminology comes from our pagination parser in
-			-- coderd.
-			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
-				(SELECT started_at FROM aibridge_interceptions WHERE id = @after_id),
-				@after_id::uuid
-			)
-		)
-		ELSE true
-	END
-	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
-	-- @authorize_filter
-ORDER BY
-	aibridge_interceptions.started_at DESC,
-	aibridge_interceptions.id DESC
-LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
-OFFSET @offset_
-;
 
 -- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
@@ -589,7 +479,10 @@ SELECT
 	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
 	COALESCE(st.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
 	COALESCE(slp.prompt, '') AS last_prompt,
-	sp.last_active_at AS last_active_at
+	sp.last_active_at AS last_active_at,
+	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
+	COALESCE(bnc.blocked, 0)::bigint AS network_calls_blocked,
+	COALESCE(sr.firewall_active, false) AS firewall_active
 FROM
 	session_page sp
 JOIN
@@ -600,7 +493,8 @@ LEFT JOIN LATERAL (
 		(ARRAY_AGG(ai.metadata ORDER BY ai.started_at, ai.id))[1] AS metadata,
 		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
-		ARRAY_AGG(ai.id) AS interception_ids
+		ARRAY_AGG(ai.id) AS interception_ids,
+		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active
 	FROM aibridge_interceptions ai
 	WHERE ai.session_id = sp.session_id
 		AND ai.initiator_id = sp.initiator_id
@@ -625,10 +519,143 @@ LEFT JOIN LATERAL (
 	ORDER BY up.created_at DESC, up.id DESC
 	LIMIT 1
 ) slp ON true
+LEFT JOIN LATERAL (
+	-- Count Agent Firewall network calls attributed to this session. Each
+	-- interception marks a point in its firewall session's monotonic sequence
+	-- stream; the boundary logs it triggered fall in the open interval
+	-- (this seq, next interception's seq) within the same firewall session.
+	-- The exclusive lower bound drops the interception's own LLM-provider call
+	-- (logged at exactly its sequence number), leaving the agent's other
+	-- egress. next_seq considers all interceptions in the firewall session so
+	-- windows never bleed across AI sessions that share one firewall session.
+	--
+-- The last interception in a session has no next row, so next_seq uses
+-- the largest sequence_number instead of NULL. The lookup stays a plain
+-- range, so the (session_id, sequence_number) index answers it alone.
+-- With NULL and an OR check, the index cannot bound the range: each
+-- interception reads every log to the end of the session and throws
+-- most of them away.
+	SELECT
+		COUNT(*)::bigint AS total,
+		COUNT(*) FILTER (WHERE bl.matched_rule IS NULL)::bigint AS blocked
+	FROM aibridge_interceptions afi
+	LEFT JOIN LATERAL (
+		SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
+		FROM aibridge_interceptions nxt
+		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+	) w ON true
+	JOIN boundary_logs bl
+		ON bl.session_id = afi.agent_firewall_session_id
+		AND bl.sequence_number > afi.agent_firewall_sequence_number
+		AND bl.sequence_number < w.next_seq
+	WHERE afi.id = ANY(sr.interception_ids)
+		AND afi.agent_firewall_session_id IS NOT NULL
+		AND afi.agent_firewall_sequence_number IS NOT NULL
+) bnc ON true
 ORDER BY
 	sp.last_active_at DESC,
 	sp.session_id DESC
 ;
+
+-- name: GetAIBridgeSessionTopDomains :many
+-- Returns the most contacted destination hosts for an AI session, ordered by
+-- call count descending and limited to the top @limit_ rows. total_domains is
+-- the number of distinct domains across the whole session, used to render a
+-- "+N more" overflow beyond the returned rows. Only HTTP egress is considered;
+-- dns/git/fs boundary logs do not carry a domain in the same shape.
+--
+-- Windowing mirrors the network_calls aggregation in ListAIBridgeSessions:
+-- each interception's boundary logs fall in the open interval (this seq, next
+-- interception's seq) within the same firewall session. The exclusive lower
+-- bound drops the interception's own LLM-provider call. next_seq considers all
+-- interceptions in the firewall session so windows never bleed across AI
+-- sessions that share one firewall session, and falls back to the maximum
+-- sequence_number for the last interception so the window stays an
+-- index-satisfiable range.
+WITH session_boundary_logs AS (
+	SELECT bl.detail
+	FROM aibridge_interceptions afi
+	LEFT JOIN LATERAL (
+		SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
+		FROM aibridge_interceptions nxt
+		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+	) w ON true
+	JOIN boundary_logs bl
+		ON bl.session_id = afi.agent_firewall_session_id
+		AND bl.sequence_number > afi.agent_firewall_sequence_number
+		AND bl.sequence_number < w.next_seq
+	WHERE afi.session_id = @session_id::text
+		AND afi.ended_at IS NOT NULL
+		AND afi.agent_firewall_session_id IS NOT NULL
+		AND afi.agent_firewall_sequence_number IS NOT NULL
+		AND bl.proto = 'http'
+),
+extracted AS (
+	-- Strip an optional scheme, then keep the host up to the first port, path,
+	-- query, or fragment delimiter. This assumes HTTP egress detail is a plain
+	-- scheme+host(+port) URL: it does not handle userinfo (user@host, which
+	-- would be captured into the host) or IPv6 literal hosts ([::1], where the
+	-- leading '[' is captured and the ':' terminates early). Boundary HTTP logs
+	-- do not currently emit those forms; revisit this extraction if they do.
+	SELECT substring(detail from '^(?:[A-Za-z][A-Za-z0-9+.-]*://)?([^/:?#]+)') AS domain
+	FROM session_boundary_logs
+),
+domains AS (
+	SELECT domain, COUNT(*)::bigint AS count
+	FROM extracted
+	WHERE domain IS NOT NULL AND domain != ''
+	GROUP BY domain
+)
+SELECT
+	-- COALESCE keeps sqlc from typing the grouped column as nullable; the
+	-- domains CTE already filters out NULL/empty hosts.
+	COALESCE(domain, '')::text AS domain,
+	count,
+	COUNT(*) OVER ()::bigint AS total_domains
+FROM domains
+ORDER BY count DESC, domain ASC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 5);
+
+-- name: ListAIBridgeSessionNetworkCalls :many
+-- Returns the individual Agent Firewall network calls made during an AI
+-- session, ordered chronologically. All protocols are included, unlike
+-- GetAIBridgeSessionTopDomains which considers only HTTP egress, so the list
+-- covers the same events the network_calls summary in ListAIBridgeSessions
+-- counts. The list is capped at @limit_ rows, so its length equals the summary
+-- total only for sessions at or below the cap. The summary stays authoritative
+-- for whole-session totals.
+--
+-- Windowing mirrors that summary and GetAIBridgeSessionTopDomains: each
+-- interception's boundary logs fall in the open interval (this seq, next
+-- interception's seq) within the same firewall session. The exclusive lower
+-- bound drops the interception's own LLM-provider call. next_seq considers all
+-- interceptions in the firewall session so windows never bleed across AI
+-- sessions that share one firewall session, and falls back to the maximum
+-- sequence_number for the last interception so the window stays an
+-- index-satisfiable range.
+SELECT bl.*
+FROM aibridge_interceptions afi
+LEFT JOIN LATERAL (
+	SELECT COALESCE(MIN(nxt.agent_firewall_sequence_number), 2147483647) AS next_seq
+	FROM aibridge_interceptions nxt
+	WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+		AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+) w ON true
+JOIN boundary_logs bl
+	ON bl.session_id = afi.agent_firewall_session_id
+	AND bl.sequence_number > afi.agent_firewall_sequence_number
+	AND bl.sequence_number < w.next_seq
+WHERE afi.session_id = @session_id::text
+	AND afi.ended_at IS NOT NULL
+	AND afi.agent_firewall_session_id IS NOT NULL
+	AND afi.agent_firewall_sequence_number IS NOT NULL
+-- created_at leads because a session can span several firewall sessions, whose
+-- sequence numbers are independent streams. id breaks remaining ties so the row
+-- that lands on the limit boundary is stable across identical requests.
+ORDER BY bl.created_at ASC, bl.sequence_number ASC, bl.id ASC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 1000);
 
 -- name: ListAIBridgeSessionThreads :many
 -- Returns all interceptions belonging to paginated threads within a session.
@@ -742,3 +769,42 @@ GROUP BY
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
+
+-- name: GetAIBridgeChatCost :one
+-- AI Gateway cost for one chat tree: the root chat plus every subagent
+-- beneath it. The spawning chat's ID is recorded as the interception session
+-- ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
+-- to its parent rather than the root, and only whole trees can be summed. The
+-- owner check guards against session-id collisions. Usage without an
+-- effective group never reaches ai_user_daily_spend.
+WITH per_request AS (
+	-- One row per interception. A request records one token usage per provider
+	-- response, so aggregating here keeps the outer counts per request and
+	-- flags a request whose cost is partial because some usage was unpriced.
+	-- The usage join is a LEFT JOIN so a request that ended without eligible
+	-- usage, such as one that failed upstream, still counts as a request. The
+	-- tu.id guard keeps that row from reading as unpriced usage, since the
+	-- unmatched side is all NULL.
+	SELECT
+		SUM(tu.cost_micros) AS cost_micros,
+		BOOL_OR(tu.id IS NOT NULL AND tu.cost_micros IS NULL) AS has_unpriced_usage
+	FROM aibridge_interceptions i
+	JOIN chats c ON c.id::text = i.session_id AND c.owner_id = i.initiator_id
+	LEFT JOIN aibridge_token_usages tu ON tu.interception_id = i.id AND tu.effective_group_id IS NOT NULL
+	WHERE (
+			-- Spelled out instead of COALESCE(c.root_chat_id, c.id) so each branch
+			-- stays a plain comparison against an indexed column.
+			c.root_chat_id = @root_chat_id::uuid
+			OR (c.root_chat_id IS NULL AND c.id = @root_chat_id::uuid)
+		)
+		-- Restrict to aibridge.ClientCoderAgents so another client's session
+		-- reference cannot match a chat ID.
+		AND i.client = 'Coder Agents'
+		AND i.ended_at IS NOT NULL
+	GROUP BY i.id
+)
+SELECT
+	COALESCE(SUM(cost_micros), 0)::bigint AS total_cost_micros,
+	COUNT(*)::bigint AS request_count,
+	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count
+FROM per_request;

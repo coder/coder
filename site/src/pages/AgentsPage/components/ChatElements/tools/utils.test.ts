@@ -27,9 +27,9 @@ import {
 	parseServerEditDiffText,
 	parseServerEditResults,
 	sanitizeExecuteModelIntent,
+	stripNoNewline,
 	stripSvnIndexHeaders,
 	summarizeParsedCommands,
-	toProviderLabel,
 } from "./utils";
 
 describe("formatModelIntentLabel", () => {
@@ -81,24 +81,6 @@ describe("sanitizeExecuteModelIntent", () => {
 		expect(
 			sanitizeExecuteModelIntent("Testing using mock data", "npm test"),
 		).toBe("Testing using mock data");
-	});
-});
-
-describe("toProviderLabel", () => {
-	it("returns displayName when provided", () => {
-		expect(toProviderLabel("GitHub", "gh-id", "oauth")).toBe("GitHub");
-	});
-
-	it("falls back to providerID when displayName is empty", () => {
-		expect(toProviderLabel("", "gh-id", "oauth")).toBe("gh-id");
-	});
-
-	it("falls back to providerType when displayName and ID are empty", () => {
-		expect(toProviderLabel("", "", "oauth")).toBe("oauth");
-	});
-
-	it("returns default label when all are empty", () => {
-		expect(toProviderLabel("", "", "")).toBe("Git provider");
 	});
 });
 
@@ -219,6 +201,17 @@ describe("mapSubagentStatusToToolStatus", () => {
 		expect(mapSubagentStatusToToolStatus("terminated", "running")).toBe(
 			"completed",
 		);
+	});
+
+	it("treats interrupted as an unknown status, not a chat status", () => {
+		// The interrupt_agent rename returns an `interrupted: true` response
+		// boolean, which is not a chat status. Status mapping only handles
+		// chat status strings, so "interrupted" falls back like any unknown
+		// value and "terminated" keeps mapping to completed.
+		expect(mapSubagentStatusToToolStatus("interrupted", "running")).toBe(
+			"running",
+		);
+		expect(mapSubagentStatusToToolStatus("interrupted", "error")).toBe("error");
 	});
 
 	it("maps error to error", () => {
@@ -685,9 +678,9 @@ describe("parseEditFilesArgs", () => {
 		expect(diff).not.toBeNull();
 	});
 
-	// search uses required() (rejects "") while replace uses
-	// defined() (allows ""). This asymmetry is intentional:
-	// empty search is meaningless, empty replace is a deletion.
+	// normalizeEdit drops edits with an empty search but keeps an
+	// empty replace: an empty search is meaningless, an empty
+	// replace is a deletion.
 	it("rejects edits with empty-string search", () => {
 		const args = {
 			files: [
@@ -812,6 +805,10 @@ describe("buildEditDiff", () => {
 			{ search: "const y = 3;", replace: "const y = 4;" },
 		]);
 		expect(diff).not.toBeNull();
+		// Guards the regression that dropped edits after the first.
+		const added = diff!.additionLines.join("");
+		expect(added).toContain("const x = 2;");
+		expect(added).toContain("const y = 4;");
 	});
 
 	it("does not emit console errors for multi-edit diffs", () => {
@@ -861,6 +858,40 @@ describe("buildEditDiff", () => {
 		expect(diff).not.toBeNull();
 	});
 
+	it("does not count the no-newline pragma in hunk headers", () => {
+		const diff = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
+		expect(diff).not.toBeNull();
+		// One-line replacement: the header must be 1/1, not 2/2 with the
+		// \ No newline pragma counted as a source line.
+		expect(diff!.hunks[0].deletionCount).toBe(1);
+		expect(diff!.hunks[0].additionCount).toBe(1);
+	});
+
+	it("does not manufacture blank lines at edit seams", () => {
+		// search ends in a newline, replace does not; a deletion edit
+		// sits beside a normal one. Neither may inject a blank line.
+		const diff = buildEditDiff("file.ts", [
+			{ search: "old\n", replace: "new" },
+			{ search: "a", replace: "" },
+			{ search: "b", replace: "c" },
+		]);
+		expect(diff).not.toBeNull();
+		expect(diff!.deletionLines).toEqual(["old\n", "a", "b"]);
+		expect(diff!.additionLines).toEqual(["new", "c"]);
+	});
+
+	it("never correlates lines across edits", () => {
+		// One edit deletes a block, another inserts the same block;
+		// each edit must render as its own change, not as shared context.
+		const diff = buildEditDiff("file.ts", [
+			{ search: "foo\nbar\nbaz", replace: "" },
+			{ search: "ctx", replace: "ctx\nfoo\nbar\nbaz" },
+		]);
+		expect(diff).not.toBeNull();
+		expect(diff!.deletionLines).toEqual(["foo\n", "bar\n", "baz", "ctx"]);
+		expect(diff!.additionLines).toEqual(["ctx\n", "foo\n", "bar\n", "baz"]);
+	});
+
 	it("handles replace with trailing newline (trailing empty popped)", () => {
 		const diff = buildEditDiff("file.ts", [
 			{ search: "old\n", replace: "new\n" },
@@ -881,6 +912,34 @@ describe("buildEditDiff", () => {
 		// middle line rather than removing and re-adding everything.
 		const hasContext = hunk.hunkContent.some((c) => c.type === "context");
 		expect(hasContext).toBe(true);
+	});
+
+	it("keys diffs by patch content, not by file name alone", () => {
+		const first = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
+		const sameAgain = buildEditDiff("file.ts", [
+			{ search: "old", replace: "new" },
+		]);
+		const different = buildEditDiff("file.ts", [
+			{ search: "old", replace: "other" },
+		]);
+		expect(first?.cacheKey).toMatch(/^content-/);
+		expect(first?.cacheKey).toBe(sameAgain?.cacheKey);
+		expect(first?.cacheKey).not.toBe(different?.cacheKey);
+	});
+
+	it("restamps the cache key when stripNoNewline clears the flags", () => {
+		const diff = buildEditDiff("file.ts", [{ search: "old", replace: "new" }]);
+		expect(diff).not.toBeNull();
+		// Pin the flags so the test does not depend on jsdiff's
+		// no-newline marker emission for this fixture.
+		for (const hunk of diff!.hunks) {
+			hunk.noEOFCRDeletions = true;
+			hunk.noEOFCRAdditions = true;
+		}
+
+		const stripped = stripNoNewline(diff!);
+
+		expect(stripped.cacheKey).not.toBe(diff!.cacheKey);
 	});
 });
 
@@ -990,24 +1049,35 @@ describe("constants", () => {
 		expect(DIFFS_FONT_STYLE).toHaveProperty("--diffs-line-height", "1.5");
 	});
 
-	it("fileViewerCSS is a non-empty string", () => {
-		expect(typeof fileViewerCSS).toBe("string");
-		expect(fileViewerCSS.length).toBeGreaterThan(0);
+	it("DIFFS_FONT_STYLE uses theme-aware diff variables", () => {
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-addition-color-override",
+			"hsl(var(--git-added))",
+		);
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-deletion-color-override",
+			"hsl(var(--git-deleted))",
+		);
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-bg-addition-override",
+			"hsl(var(--surface-git-added))",
+		);
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-bg-deletion-override",
+			"hsl(var(--surface-git-deleted))",
+		);
 	});
 
-	it("diffViewerCSS includes border-left style", () => {
-		expect(diffViewerCSS).toContain("border-left");
+	it("fileViewerCSS keeps file viewer backgrounds transparent", () => {
+		expect(fileViewerCSS).toContain("background-color: transparent");
+		expect(fileViewerCSS).toContain("[data-diffs-header]");
+		expect(fileViewerCSS).not.toContain("[data-code]");
 	});
 
-	it("diffViewerCSS uses theme-aware changed line backgrounds", () => {
-		expect(diffViewerCSS).toContain("--diffs-addition-color-override");
-		expect(diffViewerCSS).toContain("--diffs-deletion-color-override");
-		expect(diffViewerCSS).toContain("--diffs-bg-addition-override");
-		expect(diffViewerCSS).toContain("--diffs-bg-deletion-override");
-		expect(diffViewerCSS).toContain("var(--surface-git-added)");
-		expect(diffViewerCSS).toContain("var(--surface-git-deleted)");
-		expect(diffViewerCSS).toContain("[data-line-type='change-addition']");
-		expect(diffViewerCSS).toContain("[data-line-type='change-deletion']");
+	it("diffViewerCSS keeps hunk separator styling scoped", () => {
+		expect(diffViewerCSS).toContain("[data-separator='line-info']");
+		expect(diffViewerCSS).toContain("[data-separator-content]");
+		expect(diffViewerCSS).not.toContain("[data-diffs-header]");
 	});
 });
 
@@ -1063,6 +1133,27 @@ describe("parseServerEditResults", () => {
 });
 
 describe("parseServerEditDiffText", () => {
+	const changedLineContents = (
+		diff: NonNullable<ReturnType<typeof parseServerEditDiffText>>,
+	) =>
+		diff.hunks.flatMap((hunk) =>
+			hunk.hunkContent.flatMap((content) => {
+				if (content.type !== "change") {
+					return [];
+				}
+				return [
+					...diff.deletionLines.slice(
+						content.deletionLineIndex,
+						content.deletionLineIndex + content.deletions,
+					),
+					...diff.additionLines.slice(
+						content.additionLineIndex,
+						content.additionLineIndex + content.additions,
+					),
+				].map((line) => line.trimEnd());
+			}),
+		);
+
 	it("returns null for an empty string (no-op edit)", () => {
 		expect(parseServerEditDiffText("")).toBeNull();
 	});
@@ -1073,6 +1164,46 @@ describe("parseServerEditDiffText", () => {
 		);
 		expect(diff).not.toBeNull();
 		expect(diff?.name).toBe("/abs/a.txt");
+	});
+
+	it("parses quoted git diff headers", () => {
+		const diff = parseServerEditDiffText(
+			[
+				'diff --git "a/path with spaces.ts" "b/path with spaces.ts"',
+				"index 1111111..2222222 100644",
+				'--- "a/path with spaces.ts"',
+				'+++ "b/path with spaces.ts"',
+				"@@ -1 +1 @@",
+				"-old value",
+				"+new value",
+				"",
+			].join("\n"),
+		);
+
+		expect(diff).not.toBeNull();
+		expect(diff?.name).toBe("path with spaces.ts");
+		expect(changedLineContents(diff!)).toEqual(["old value", "new value"]);
+	});
+
+	it("parses diffs that include git patch footer metadata", () => {
+		const diff = parseServerEditDiffText(
+			[
+				"diff --git a/example.ts b/example.ts",
+				"index 1111111..2222222 100644",
+				"--- a/example.ts",
+				"+++ b/example.ts",
+				"@@ -1 +1 @@",
+				"-old value",
+				"+new value",
+				"-- ",
+				"2.45.0",
+				"",
+			].join("\n"),
+		);
+
+		expect(diff).not.toBeNull();
+		expect(diff?.name).toBe("example.ts");
+		expect(changedLineContents(diff!)).toEqual(["old value", "new value"]);
 	});
 });
 

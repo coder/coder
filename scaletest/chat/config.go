@@ -14,6 +14,7 @@ type Config struct {
 	OrganizationID uuid.UUID `json:"organization_id"`
 
 	// WorkspaceID is the pre-existing workspace to use for this chat run.
+	// When empty, the chat runs without workspace context.
 	WorkspaceID uuid.UUID `json:"workspace_id"`
 
 	// Prompt is the text content sent on every turn.
@@ -46,9 +47,6 @@ type Config struct {
 func (c Config) Validate() error {
 	if c.OrganizationID == uuid.Nil {
 		return xerrors.Errorf("validate organization_id: must not be empty")
-	}
-	if c.WorkspaceID == uuid.Nil {
-		return xerrors.Errorf("validate workspace_id: must not be empty")
 	}
 	if c.Prompt == "" {
 		return xerrors.Errorf("validate prompt: must not be empty")

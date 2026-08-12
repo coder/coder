@@ -140,13 +140,11 @@ func TestInstall(t *testing.T) {
 		var wg sync.WaitGroup
 		paths := make(chan string, 8)
 		for i := 0; i < 8; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				p, err := terraform.Install(ctx, log, false, dir, version, "http://"+proxy.listener.Addr().String())
 				assert.NoError(t, err)
 				paths <- p
-			}()
+			})
 		}
 		go func() {
 			wg.Wait()

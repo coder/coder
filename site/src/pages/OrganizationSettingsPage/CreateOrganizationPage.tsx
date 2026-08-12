@@ -26,15 +26,13 @@ const CreateOrganizationPage: FC = () => {
 				<CreateOrganizationPageView
 					error={error}
 					isEntitled={feats.multiple_organizations}
+					permissions={permissions}
 					onSubmit={async (values) => {
-						await createOrganizationMutation.mutateAsync(values, {
-							onSuccess: () => {
-								toast.success(
-									`Organization "${values.name}" created successfully.`,
-								);
-								navigate(`/organizations/${values.name}`);
-							},
-						});
+						await createOrganizationMutation.mutateAsync(values);
+						toast.success(
+							`Organization "${values.name}" created successfully.`,
+						);
+						navigate(`/organizations/${values.name}`);
 					}}
 				/>
 			</RequirePermission>

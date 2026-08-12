@@ -16,26 +16,29 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/scripts/atomicwrite"
+	"github.com/coder/coder/v2/scripts/docgenenv"
 )
 
 const (
-	apiSubdir       = "reference/api"
-	apiIndexFile    = "index.md"
-	apiIndexContent = `# API
-
-Get started with the Coder API:
+	apiSubdir    = "reference/api"
+	apiIndexFile = "index.md"
+	// apiIndexBody is the index page content below its front matter and the
+	// generated-content banner. The front matter is generated from the "REST
+	// API" manifest route (see writeDocs) so the index mirrors the manifest like
+	// every other generated page.
+	apiIndexBody = `Get started with the Coder API:
 
 ## Quickstart
 
 Generate a token on your Coder deployment by visiting:
 
-` + "````shell" + `
+` + "````txt" + `
 https://coder.example.com/settings/tokens
 ` + "````" + `
 
 List your workspaces
 
-` + "````shell" + `
+` + "````sh" + `
 # CLI
 curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 -H "Coder-Session-Token: <your-token>"
@@ -128,9 +131,37 @@ func prepareDocsDirectory() error {
 func writeDocs(sections [][]byte) error {
 	log.Println("Write docs to destination")
 
-	apiDir := path.Join(docsDirectory, apiSubdir)
-	err := atomicwrite.File(path.Join(apiDir, apiIndexFile), []byte(apiIndexContent))
+	manifestPath := path.Join(docsDirectory, "manifest.json")
+	m, err := docgenenv.LoadManifest(manifestPath)
 	if err != nil {
+		return err
+	}
+
+	// Resolve the REST API route once. Both the page front matter and the
+	// regenerated manifest routes read from this single traversal, so the
+	// metadata source and the rewrite target can't drift apart.
+	restAPI := m.FindRoute("Reference", "REST API")
+	if restAPI == nil {
+		return xerrors.Errorf("could not find REST API route in manifest %q", manifestPath)
+	}
+
+	// Index existing REST API child routes by title so their curated metadata
+	// (description, state, icon_path) flows into both the page front matter and
+	// the regenerated manifest routes.
+	existingByTitle := make(map[string]docgenenv.Route)
+	for _, child := range restAPI.Children {
+		existingByTitle[child.Title] = child
+	}
+
+	apiDir := path.Join(docsDirectory, apiSubdir)
+
+	// The index page mirrors the "REST API" route's own curated metadata
+	// (title/description/icon_path) rather than a hardcoded title, so its front
+	// matter matches the manifest like every other generated page.
+	indexRoute := *restAPI
+	indexRoute.Children = nil
+	indexContent := append([]byte(docgenenv.GeneratedHeader(indexRoute)), []byte(apiIndexBody)...)
+	if err := atomicwrite.File(path.Join(apiDir, apiIndexFile), indexContent); err != nil {
 		return xerrors.Errorf(`can't write the index file: %w`, err)
 	}
 
@@ -140,7 +171,7 @@ func writeDocs(sections [][]byte) error {
 	}
 	var mdFiles []mdFile
 
-	// Write .md files for grouped API method (Templates, Workspaces, etc.)
+	// Write .md files for grouped API methods (Templates, Workspaces, etc.)
 	for _, section := range sections {
 		sectionName, err := extractSectionName(section)
 		if err != nil {
@@ -148,10 +179,13 @@ func writeDocs(sections [][]byte) error {
 		}
 		log.Printf("Write section: %s", sectionName)
 
+		// Carry the manifest route's curated metadata into the front matter.
+		r := existingByTitle[sectionName]
+		r.Title = sectionName
+
 		mdFilename := toMdFilename(sectionName)
 		docPath := path.Join(apiDir, mdFilename)
-		err = atomicwrite.File(docPath, section)
-		if err != nil {
+		if err := atomicwrite.File(docPath, prependGeneratedHeader(section, r)); err != nil {
 			return xerrors.Errorf(`can't write doc file "%s": %w`, docPath, err)
 		}
 		mdFiles = append(mdFiles, mdFile{
@@ -172,78 +206,31 @@ func writeDocs(sections [][]byte) error {
 		return slices.IsSorted([]string{mdFiles[i].title, mdFiles[j].title})
 	})
 
-	// Update manifest.json
-	type route struct {
-		Title       string   `json:"title,omitempty"`
-		Description string   `json:"description,omitempty"`
-		Path        string   `json:"path,omitempty"`
-		IconPath    string   `json:"icon_path,omitempty"`
-		State       []string `json:"state,omitempty"`
-		Children    []route  `json:"children,omitempty"`
-	}
-
-	type manifest struct {
-		Versions []string `json:"versions,omitempty"`
-		Routes   []route  `json:"routes,omitempty"`
-	}
-
-	manifestPath := path.Join(docsDirectory, "manifest.json")
-	manifestFile, err := os.ReadFile(manifestPath)
-	if err != nil {
-		return xerrors.Errorf("can't read manifest file: %w", err)
-	}
-	log.Printf("Read manifest file: %dB", len(manifestFile))
-
-	var m manifest
-	err = json.Unmarshal(manifestFile, &m)
-	if err != nil {
-		return xerrors.Errorf("json.Unmarshal failed: %w", err)
-	}
-
-	for i, r := range m.Routes {
-		if r.Title != "Reference" {
-			continue
+	// Update manifest.json. Generated routes overwrite Title and Path;
+	// existing state/description/icon_path are preserved (keyed by title) so
+	// callouts like `state: ["experimental"]` survive regeneration. restAPI
+	// aliases m, so replacing its children updates the manifest in place.
+	var children []docgenenv.Route
+	for _, mdf := range mdFiles {
+		docRoute := docgenenv.Route{
+			Title: mdf.title,
+			Path:  mdf.path,
 		}
-		for j, child := range r.Children {
-			if child.Title != "REST API" {
-				continue
-			}
-
-			// Preserve existing state and description on children, keyed by
-			// title, so that callouts like `state: ["experimental"]` survive
-			// regeneration. Generated routes always overwrite Title and Path.
-			existingByTitle := make(map[string]route, len(child.Children))
-			for _, existing := range child.Children {
-				existingByTitle[existing.Title] = existing
-			}
-
-			var children []route
-			for _, mdf := range mdFiles {
-				docRoute := route{
-					Title: mdf.title,
-					Path:  mdf.path,
-				}
-				if existing, ok := existingByTitle[mdf.title]; ok {
-					docRoute.State = existing.State
-					docRoute.Description = existing.Description
-					docRoute.IconPath = existing.IconPath
-				}
-				children = append(children, docRoute)
-			}
-
-			m.Routes[i].Children[j].Children = children
-			break
+		if existing, ok := existingByTitle[mdf.title]; ok {
+			docRoute.State = existing.State
+			docRoute.Description = existing.Description
+			docRoute.IconPath = existing.IconPath
 		}
-		break
+		children = append(children, docRoute)
 	}
+	restAPI.Children = children
 
-	manifestFile, err = json.MarshalIndent(m, "", "  ")
+	manifestFile, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return xerrors.Errorf("json.Marshal failed: %w", err)
 	}
 
-	err = atomicwrite.File(manifestPath, manifestFile)
-	if err != nil {
+	if err := atomicwrite.File(manifestPath, manifestFile); err != nil {
 		return xerrors.Errorf("can't write manifest file: %w", err)
 	}
 	log.Printf("Write manifest file: %dB", len(manifestFile))
@@ -253,13 +240,43 @@ func writeDocs(sections [][]byte) error {
 func extractSectionName(section []byte) (string, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(section))
 	if !scanner.Scan() {
+		// Scan returns false on EOF or error. A first line past
+		// bufio.Scanner's token limit surfaces only in Err(); report it as a
+		// scanning error rather than mislabeling it a missing header.
+		if err := scanner.Err(); err != nil {
+			return "", xerrors.Errorf("scanning section: %w", err)
+		}
 		return "", xerrors.Errorf("section header was expected")
 	}
 
-	header := scanner.Text()[2:] // Skip #<space>
-	return strings.TrimSpace(header), nil
+	header := scanner.Text()
+	name, ok := strings.CutPrefix(header, "# ")
+	if !ok {
+		return "", xerrors.Errorf("section header %q must start with %q", header, "# ")
+	}
+	return strings.TrimSpace(name), nil
 }
 
 func toMdFilename(sectionName string) string {
 	return nonAlphanumericRegex.ReplaceAllLiteralString(strings.ReplaceAll(strings.ToLower(sectionName), " ", ""), "-") + ".md"
+}
+
+// prependGeneratedHeader replaces the leading "# {name}" heading of a raw API
+// section with r's generated-page header (front matter plus the shared
+// generated-content banner). Callers pass sections that have already cleared
+// extractSectionName, whose fail-fast on a missing "# " heading is the
+// load-bearing guarantee. The prefix check here is a defensive backstop: if a
+// section without the heading ever reached this function, it keeps the body
+// intact instead of dropping the first real content line.
+func prependGeneratedHeader(section []byte, r docgenenv.Route) []byte {
+	body := section
+	if bytes.HasPrefix(section, []byte("# ")) {
+		if _, rest, found := bytes.Cut(section, []byte{'\n'}); found {
+			body = rest
+		} else {
+			body = nil
+		}
+	}
+	body = bytes.TrimLeft(body, "\r\n")
+	return append([]byte(docgenenv.GeneratedHeader(r)), body...)
 }

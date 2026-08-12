@@ -24,6 +24,8 @@ const TERMINAL_IDLE_DETACH_MS = 30_000;
 interface TerminalPanelProps {
 	chatId: string;
 	reconnectionToken?: string;
+	/** Command run when the PTY session is first created, such as a command app. */
+	initialCommand?: string;
 	/** Whether this terminal should hold live xterm and WebSocket resources. */
 	isHot?: boolean;
 	/**
@@ -43,6 +45,7 @@ interface TerminalPanelProps {
 export const TerminalPanel: FC<TerminalPanelProps> = ({
 	chatId,
 	reconnectionToken = chatId,
+	initialCommand,
 	isHot,
 	autoFocus = true,
 	onReady,
@@ -164,6 +167,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 						onContentReady={signalReady}
 						onError={handleTerminalError}
 						reconnectionToken={reconnectionToken}
+						initialCommand={initialCommand}
 						baseUrl={terminalConfig.baseUrl}
 						terminalFontFamily={terminalConfig.fontFamily}
 						renderer={terminalConfig.renderer}

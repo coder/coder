@@ -1360,12 +1360,10 @@ func TestSSH(t *testing.T) {
 					return
 				}
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					defer fd.Close()
 					agentssh.Bicopy(ctx, fd, fd)
-				}()
+				})
 			}
 		})
 
@@ -1426,12 +1424,10 @@ func TestSSH(t *testing.T) {
 					return
 				}
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					defer fd.Close()
 					agentssh.Bicopy(ctx, fd, fd)
-				}()
+				})
 			}
 		})
 
@@ -1576,12 +1572,10 @@ func TestSSH(t *testing.T) {
 						return
 					}
 
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
+					wg.Go(func() {
 						defer fd.Close()
 						agentssh.Bicopy(ctx, fd, fd)
-					}()
+					})
 				}
 			})
 

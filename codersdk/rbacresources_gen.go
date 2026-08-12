@@ -52,6 +52,7 @@ const (
 	ResourceWorkspace                     RBACResource = "workspace"
 	ResourceWorkspaceAgentDevcontainers   RBACResource = "workspace_agent_devcontainers"
 	ResourceWorkspaceAgentResourceMonitor RBACResource = "workspace_agent_resource_monitor"
+	ResourceWorkspaceBuildOrchestration   RBACResource = "workspace_build_orchestration"
 	ResourceWorkspaceDormant              RBACResource = "workspace_dormant"
 	ResourceWorkspaceProxy                RBACResource = "workspace_proxy"
 )
@@ -83,7 +84,7 @@ const (
 // said resource type.
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:                      {},
-	ResourceAIGatewayKey:                  {ActionCreate, ActionDelete, ActionRead},
+	ResourceAIGatewayKey:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAiModelPrice:                  {ActionRead, ActionUpdate},
 	ResourceAIProvider:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAiSeat:                        {ActionCreate, ActionRead},
@@ -130,6 +131,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWorkspace:                     {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent},
 	ResourceWorkspaceAgentDevcontainers:   {ActionCreate},
 	ResourceWorkspaceAgentResourceMonitor: {ActionCreate, ActionRead, ActionUpdate},
+	ResourceWorkspaceBuildOrchestration:   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceWorkspaceDormant:              {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent},
 	ResourceWorkspaceProxy:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 }

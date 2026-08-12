@@ -44,6 +44,11 @@ type PrebuildsSettings struct {
 	ReconciliationPaused bool      `db:"reconciliation_paused" json:"reconciliation_paused"`
 }
 
+type OAuth2ProviderSettings struct {
+	ID                               uuid.UUID `db:"id" json:"id"`
+	DynamicClientRegistrationEnabled bool      `db:"dynamic_client_registration_enabled" json:"dynamic_client_registration_enabled"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {
@@ -113,6 +118,34 @@ func (c ChatACL) Value() (driver.Value, error) {
 
 type ChatACLEntry struct {
 	Permissions []policy.Action `json:"permissions"`
+}
+
+// AgentMetadataAggregate is the agent_metadata jsonb array the
+// GetWorkspaces query aggregates for the include_agent_metadata
+// expansion. Elements have WorkspaceAgentMetadatum's JSON shape; each
+// carries its workspace_agent_id so multi-agent workspaces can map
+// values onto the right agent. The generated row keeps
+// json.RawMessage because sqlc overrides cannot target expression
+// columns; callers Scan the raw value into this type.
+type AgentMetadataAggregate []WorkspaceAgentMetadatum
+
+func (a *AgentMetadataAggregate) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case nil:
+		return nil
+	case string:
+		return json.Unmarshal([]byte(v), &a)
+	case []byte:
+		return json.Unmarshal(v, &a)
+	case json.RawMessage:
+		return json.Unmarshal(v, &a)
+	}
+
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (a AgentMetadataAggregate) Value() (driver.Value, error) {
+	return json.Marshal(a)
 }
 
 type WorkspaceACL map[string]WorkspaceACLEntry
@@ -294,7 +327,29 @@ func (*NameOrganizationPair) Scan(_ interface{}) error {
 //
 //	SELECT ARRAY[('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid)];
 func (a NameOrganizationPair) Value() (driver.Value, error) {
-	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
+	// The string values must be escaped in case there are special characters, quotes, etc.
+	// 'NameOrganizationPair' is a composite value, which has no driver handler
+	// in the `pq` package.
+	//
+	// pq.StringArray formats the single name as `{"<escaped>"}`. Strip
+	// the outer braces to get the quoted+escaped form that composite
+	// literal syntax accepts unchanged.
+	//
+	// Ideally `appendArrayQuotedBytes` would be exported, and we could call
+	// it directly.
+	v, err := (&pq.StringArray{a.Name}).Value()
+	if err != nil {
+		return nil, err
+	}
+
+	s, ok := v.(string)
+	if !ok {
+		return nil, xerrors.Errorf("unexpected type %T", v)
+	}
+
+	stripCurlyBraces := s[1 : len(s)-1]
+
+	return fmt.Sprintf("(%s,%s)", stripCurlyBraces, a.OrganizationID.String()), nil
 }
 
 // AgentIDNamePair is used as a result tuple for workspace and agent rows.

@@ -58,7 +58,6 @@ func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 		Version:       req.Version,
 		AggregateHash: append([]byte(nil), req.AggregateHash[:]...),
 		Initial:       req.Initial,
-		SchemaVersion: req.SchemaVersion,
 		SnapshotError: req.SnapshotError,
 		Resources:     make([]*agentproto.ContextResource, 0, len(req.Resources)),
 	}

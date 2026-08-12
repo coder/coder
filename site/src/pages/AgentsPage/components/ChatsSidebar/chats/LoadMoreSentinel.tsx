@@ -37,7 +37,7 @@ export const LoadMoreSentinel: FC<{
 	return (
 		<div ref={sentinelRef} className="flex items-center justify-center py-2">
 			{isFetchingNextPage && (
-				<Spinner className="h-4 w-4 text-content-secondary" loading />
+				<Spinner className="size-4 text-content-secondary" loading />
 			)}
 		</div>
 	);

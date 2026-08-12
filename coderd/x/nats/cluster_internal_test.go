@@ -10,15 +10,19 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+const (
+	minTCPPort int32 = 1
+	maxTCPPort int32 = 65535
+)
+
 func Test_parsePeerAddresses(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
-		ps := &Pubsub{}
-		routes, err := ps.parsePeerAddresses([]string{
-			"whatever://127.0.0.1:4222 ",
-			"http://[::1]:7222",
+		routes, err := parsePeerAddresses([]string{
+			"nats://127.0.0.1:4222 ",
+			"nats://[::1]:7222",
 			"nats://example.com:6222",
 		})
 		require.NoError(t, err)
@@ -29,37 +33,16 @@ func Test_parsePeerAddresses(t *testing.T) {
 		}, routeStrings(routes))
 	})
 
-	// Test that when a pubsub is running with the default port, it assumes all peers are also using
-	// the default port.
-	t.Run("PrefersDefaultPort", func(t *testing.T) {
-		t.Parallel()
-		ps := &Pubsub{}
-		ps.opts.ClusterPort = defaultClusterPort
-		routes, err := ps.parsePeerAddresses([]string{
-			"whatever://127.0.0.1:4222 ",
-			"http://[::1]:7222",
-			"nats://example.com:1234",
-		})
-		require.NoError(t, err)
-		require.ElementsMatch(t, []string{
-			"nats://127.0.0.1:6222",
-			"nats://[::1]:6222",
-			"nats://example.com:6222",
-		}, routeStrings(routes))
-	})
-
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		ps := &Pubsub{}
-		routes, err := ps.parsePeerAddresses(nil)
+		routes, err := parsePeerAddresses(nil)
 		require.NoError(t, err)
 		require.Empty(t, routes)
 	})
 
 	t.Run("Dedupes", func(t *testing.T) {
 		t.Parallel()
-		ps := &Pubsub{}
-		routes, err := ps.parsePeerAddresses([]string{
+		routes, err := parsePeerAddresses([]string{
 			"nats://b.example:6222",
 			"nats://a.example:6222",
 			"nats://b.example:6222",
@@ -89,11 +72,12 @@ func Test_parsePeerAddresses(t *testing.T) {
 			"nats://127.0.0.1:4222/path",
 			"nats://127.0.0.1:4222?x=1",
 			"nats://127.0.0.1:4222#frag",
+			"whatever://127.0.0.1:4222 ",
+			"http://[::1]:7222",
 		} {
 			t.Run(address, func(t *testing.T) {
 				t.Parallel()
-				ps := &Pubsub{}
-				_, err := ps.parsePeerAddresses([]string{address})
+				_, err := parsePeerAddresses([]string{address})
 				require.Error(t, err)
 			})
 		}
@@ -103,10 +87,9 @@ func Test_parsePeerAddresses(t *testing.T) {
 func Test_filterSelfRoutes(t *testing.T) {
 	t.Parallel()
 
-	ps := &Pubsub{}
-	routes, err := ps.parsePeerAddresses([]string{
+	routes, err := parsePeerAddresses([]string{
 		"nats://b.example:6222",
-		"http://self.example:6222",
+		"nats://self.example:6222",
 	})
 	require.NoError(t, err)
 
@@ -127,6 +110,8 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 		opts := clusterTestOptions(t)
 		opts.PeerFetcher = fetcher
 		a := newTestPubsub(t, opts)
+		require.GreaterOrEqual(t, fetcher.port, minTCPPort)
+		require.LessOrEqual(t, fetcher.port, maxTCPPort)
 
 		require.Eventually(t, func() bool {
 			routes := currentRouteURLs(a)
@@ -145,11 +130,13 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 			"nats://127.0.0.1:1234",
 			"nats://127.0.0.1:1235",
 		}
-		fetcher := &testPeerFetcher{routes}
+		fetcher := &testPeerFetcher{addresses: routes}
 
 		expectedRoutes := routesWithAuth(mustParsePeerAddresses(t, fetcher.addresses...), opts.ClusterAuthToken)
 
 		a.SetPeerFetcher(fetcher)
+		require.GreaterOrEqual(t, fetcher.port, minTCPPort)
+		require.LessOrEqual(t, fetcher.port, maxTCPPort)
 		require.Eventually(t, func() bool {
 			return sortedURLsEqual(currentRouteURLs(a), sortRouteURLs(expectedRoutes))
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -180,9 +167,14 @@ func currentRouteURLs(ps *Pubsub) []*url.URL {
 
 type testPeerFetcher struct {
 	addresses []string
+	port      int32
 }
 
-func (f *testPeerFetcher) PrimaryPeerAddresses() []string {
+func (f *testPeerFetcher) SetSelfNATSPort(port int32) {
+	f.port = port
+}
+
+func (f *testPeerFetcher) FetchNATSPeers() []string {
 	return f.addresses
 }
 

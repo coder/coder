@@ -37,13 +37,12 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/wspubsub"
-	"github.com/coder/coder/v2/coderd/x/chatd"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -1368,6 +1367,9 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+
+	api.logTunnelConnection(ctx, r, waws)
+
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
@@ -1384,6 +1386,96 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
+	}
+}
+
+// logTunnelConnection records a connection log entry attributing a
+// tunnel to the authenticated user who opened it. Agent-reported rows
+// cannot identify the user (see coderd/agentapi/connectionlog.go), and
+// workspace-proxy-authenticated requests carry no API key and are
+// skipped.
+func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws database.GetWorkspaceAgentAndWorkspaceByIDRow) {
+	apiKey, ok := httpmw.APIKeyOptional(r)
+	if !ok {
+		return
+	}
+	// Bounded so log backpressure cannot stall tunnel establishment.
+	writeCtx, writeCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer writeCancel()
+	userAgent := r.UserAgent()
+	now := dbtime.Now()
+
+	// Clients re-dial automatically, so dedupe reconnects through the
+	// same audit session mechanism as workspace apps, keyed on
+	// (agent, user, IP, user agent). Status 101 and the empty slug
+	// keep tunnel sessions from ever colliding with app or
+	// port-forwarding sessions.
+	staleInterval := api.Options.WorkspaceAppAuditSessionTimeout
+	if staleInterval == 0 {
+		staleInterval = time.Hour
+	}
+	// nolint:gocritic // System context is needed to write audit sessions.
+	newSession, err := api.Database.UpsertWorkspaceAppAuditSession(dbauthz.AsSystemRestricted(writeCtx), database.UpsertWorkspaceAppAuditSessionParams{
+		// Config.
+		StaleIntervalMS: staleInterval.Milliseconds(),
+
+		// Data.
+		ID:         uuid.New(),
+		AgentID:    waws.WorkspaceAgent.ID,
+		AppID:      uuid.Nil, // Tunnels are not associated with an app.
+		UserID:     apiKey.UserID,
+		Ip:         r.RemoteAddr,
+		UserAgent:  userAgent,
+		SlugOrPort: "",
+		StatusCode: http.StatusSwitchingProtocols,
+		StartedAt:  now,
+		UpdatedAt:  now,
+	})
+	if err != nil {
+		// Skip logging rather than risk spamming the connection log.
+		api.Logger.Error(ctx, "upsert tunnel audit session",
+			slog.F("workspace_id", waws.WorkspaceTable.ID),
+			slog.F("user_id", apiKey.UserID),
+			slog.Error(err),
+		)
+		return
+	}
+	if !newSession {
+		// Reconnection of an already-logged session.
+		return
+	}
+
+	connLogger := *api.ConnectionLogger.Load()
+	err = connLogger.Upsert(writeCtx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now,
+		OrganizationID:   waws.WorkspaceTable.OrganizationID,
+		WorkspaceOwnerID: waws.WorkspaceTable.OwnerID,
+		WorkspaceID:      waws.WorkspaceTable.ID,
+		WorkspaceName:    waws.WorkspaceTable.Name,
+		AgentName:        waws.WorkspaceAgent.Name,
+		Type:             database.ConnectionTypeTunnel,
+		IP:               database.ParseIP(r.RemoteAddr),
+		Code: sql.NullInt32{
+			Int32: http.StatusSwitchingProtocols,
+			Valid: true,
+		},
+		UserAgent: sql.NullString{String: userAgent, Valid: userAgent != ""},
+		UserID:    uuid.NullUUID{UUID: apiKey.UserID, Valid: true},
+		// Left unset so each session gets its own row; reusing peerID
+		// would make resume_token reconnects upsert into a stale row.
+		ConnectionID:     uuid.NullUUID{},
+		ConnectionStatus: database.ConnectionStatusConnected,
+		// N/A
+		SlugOrPort:       sql.NullString{},
+		DisconnectReason: sql.NullString{},
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "upsert tunnel connection log",
+			slog.F("workspace_id", waws.WorkspaceTable.ID),
+			slog.F("user_id", apiKey.UserID),
+			slog.Error(err),
+		)
 	}
 }
 
@@ -1539,14 +1631,13 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// This workspace was a prebuild that got claimed. Check if
-		// the claim build completed successfully before sending
-		// reinit. We assume the latest build is the claim build
-		// (build 2). If a third build (e.g. a restart) starts
-		// between the claim and the agent's reconnection, this
-		// would check that build instead. The window is extremely
-		// small in practice, and a restart would trigger its own
-		// reinit path.
+		// This workspace was a prebuild that got claimed. The seeded
+		// reinit below recovers a claim event that was missed while
+		// the agent's /reinit connection was down. It only applies
+		// while the latest build is the claim build itself, which the
+		// build's provisioner job input records, mirroring the check
+		// the provisioner server uses when publishing the claim
+		// event.
 		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil {
 			log.Error(ctx, "failed to get latest workspace build", slog.Error(err))
@@ -1559,43 +1650,73 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			httpapi.InternalServerError(rw, xerrors.New("failed to get provisioner job"))
 			return
 		}
-
-		if job.CompletedAt.Valid && !job.Error.Valid {
-			// Claim build succeeded — cancel the pubsub
-			// subscription (no longer needed) and swap in a
-			// pre-seeded channel so the transmitter delivers
-			// exactly one reinit event.
-			cancelSub()
-			seeded := make(chan agentsdk.ReinitializationEvent, 1)
-			seeded <- agentsdk.ReinitializationEvent{
-				WorkspaceID: workspace.ID,
-				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
-				OwnerID:     workspace.OwnerID,
-			}
-			reinitEvents = seeded
-		} else if job.CompletedAt.Valid && job.Error.Valid {
-			// Claim build failed permanently. Return 409 so the
-			// agent treats this as terminal and stops retrying
-			// (WaitForReinitLoop exits on any 409).
-			cancelSub()
-			log.Warn(ctx, "claim build failed",
-				slog.F("job_id", job.ID),
-				slog.F("error", job.Error.String))
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Claim build failed permanently.",
-				Detail:  job.Error.String,
-			})
+		var jobInput provisionerdserver.WorkspaceProvisionJob
+		if err := json.Unmarshal(job.Input, &jobInput); err != nil {
+			log.Error(ctx, "failed to unmarshal provisioner job input", slog.Error(err))
+			httpapi.InternalServerError(rw, xerrors.New("failed to unmarshal provisioner job input"))
 			return
 		}
 
-		// Claim build still in progress — fall through to the
-		// transmitter. The pubsub subscription (set up above)
-		// will deliver the event when the build completes
-		// successfully. Note: FailJob does not publish a claim
-		// event, so a failed in-progress build will leave the
-		// agent blocking here until it disconnects and
-		// reconnects (at which point the durable check above
-		// handles it).
+		switch {
+		case jobInput.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim():
+			if job.CompletedAt.Valid && !job.Error.Valid {
+				// Claim build succeeded: cancel the pubsub
+				// subscription (no longer needed) and swap in a
+				// pre-seeded channel so the transmitter delivers
+				// exactly one reinit event.
+				cancelSub()
+				seeded := make(chan agentsdk.ReinitializationEvent, 1)
+				seeded <- agentsdk.ReinitializationEvent{
+					WorkspaceID: workspace.ID,
+					Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+					OwnerID:     workspace.OwnerID,
+				}
+				reinitEvents = seeded
+			} else if job.CompletedAt.Valid && job.Error.Valid {
+				// Claim build failed permanently. Return 409 so the
+				// agent treats this as terminal and stops retrying
+				// (WaitForReinitLoop exits on any 409).
+				cancelSub()
+				log.Warn(ctx, "claim build failed",
+					slog.F("job_id", job.ID),
+					slog.F("error", job.Error.String))
+				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+					Message: "Claim build failed permanently.",
+					Detail:  job.Error.String,
+				})
+				return
+			}
+			// Claim build still in progress: proceed to the
+			// transmitter below. The pubsub subscription (set up
+			// above) will deliver the event when the build completes
+			// successfully. Note: FailJob does not publish a claim
+			// event, so a failed in-progress build will leave the
+			// agent blocking here until it disconnects and
+			// reconnects (at which point the durable check above
+			// handles it).
+		case latestBuild.InitiatorID == database.PrebuildsSystemUserID:
+			// The workspace owner has changed but the claim build has
+			// not been created yet. Proceed to the transmitter below;
+			// the pubsub subscription set up above delivers the claim
+			// event once the claim build completes.
+		default:
+			// The latest build is a user-initiated build other than
+			// the claim build, so the claim has already been handled.
+			// Re-sending the reinit event here would needlessly
+			// restart the agent of a long-claimed workspace on every
+			// reconnection. Return 409 so the agent stops polling,
+			// the same as a regular workspace.
+			log.Debug(ctx, "prebuild claim already handled, stopping reinit polling",
+				slog.F("job_id", job.ID),
+				slog.F("latest_build_id", latestBuild.ID),
+				slog.F("latest_build_number", latestBuild.BuildNumber))
+			cancelSub()
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Workspace is not a prebuilt workspace waiting to be claimed.",
+				Detail:  "The prebuild claim for this workspace has already been handled by an earlier build.",
+			})
+			return
+		}
 	}
 
 	transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
@@ -1962,39 +2083,10 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// new token to be issued!
 	listen := query.Has("listen")
 
-	var externalAuthConfig *externalauth.Config
-	for _, extAuth := range api.ExternalAuthConfigs {
-		if extAuth.ID == id {
-			externalAuthConfig = extAuth
-			break
-		}
-		if match == "" || extAuth.Regex == nil {
-			continue
-		}
-		matches := extAuth.Regex.MatchString(match)
-		if !matches {
-			continue
-		}
-		externalAuthConfig = extAuth
-	}
-	if externalAuthConfig == nil {
-		detail := "External auth provider not found."
-		if len(api.ExternalAuthConfigs) > 0 {
-			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
-			for _, extAuth := range api.ExternalAuthConfigs {
-				if extAuth.Regex == nil {
-					continue
-				}
-				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", extAuth.ID, extAuth.Regex.String()))
-			}
-			detail = fmt.Sprintf("The configured external auth provider have regex filters that do not match the url. Provider url regex: %s", strings.Join(regexURLs, ","))
-		}
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("No matching external auth provider found in Coder for the url %q.", match),
-			Detail:  detail,
-		})
-		return
-	}
+	// Resolve the calling agent's own workspace/build before selecting a
+	// provider below, so the match-only (GIT_ASKPASS) path can be scoped to
+	// this workspace's own template-declared providers instead of scanning
+	// every provider configured on the deployment.
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	// We must get the workspace to get the owner ID!
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
@@ -2018,6 +2110,83 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get workspace.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var externalAuthConfig *externalauth.Config
+	if id != "" {
+		// Explicit ID path: exact match only. Deterministic, and deliberately
+		// unaffected by the template-scoped narrowing below.
+		for _, extAuth := range api.ExternalAuthConfigs {
+			if extAuth.ID == id {
+				externalAuthConfig = extAuth
+				break
+			}
+		}
+	} else {
+		// match-only path (GIT_ASKPASS supplies a hostname, never an ID):
+		// narrow to the workspace's own template-declared providers first.
+		// Only fall back to the full deployment-wide scan when every declared
+		// provider is configured and none of them match this hostname (e.g. a
+		// host the template never declared). Report an error rather than guess
+		// when several declared providers match, or when the declaration set is
+		// stale.
+		//
+		// Both errors use 404 so `coder gitaskpass` warns and defers to git's
+		// own credential behavior instead of failing the git operation.
+		declared, err := api.workspaceAgentsExternalAuthDeclaredCandidates(ctx, build, match)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to resolve the workspace's template-declared external auth providers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		switch {
+		case len(declared.matchedIDs) > 1:
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("Multiple external auth providers declared by this workspace's template match %q: %s.", match, strings.Join(declared.matchedIDs, ", ")),
+				Detail:  "Coder cannot tell which of them to use. Request a token with an explicit provider ID instead, using `coder external-auth access-token <id>`.",
+			})
+			return
+		case declared.config != nil:
+			externalAuthConfig = declared.config
+		case len(declared.missingIDs) > 0:
+			// A declared provider that the deployment no longer configures
+			// leaves no way to tell whether it was the one meant to serve this
+			// hostname, so another provider's token could silently stand in for
+			// it. Refuse instead, which keeps the template scoping above intact
+			// even while a template and the deployment config disagree.
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("This workspace's template declares external auth provider(s) that this deployment no longer configures: %s.", strings.Join(declared.missingIDs, ", ")),
+				Detail:  "Coder will not substitute a different provider's token. Restore that provider's configuration, or update the template to declare a configured provider.",
+			})
+			return
+		default:
+			for _, extAuth := range api.ExternalAuthConfigs {
+				if extAuth.Regex == nil || !extAuth.Regex.MatchString(match) {
+					continue
+				}
+				externalAuthConfig = extAuth
+			}
+		}
+	}
+	if externalAuthConfig == nil {
+		detail := "External auth provider not found."
+		if len(api.ExternalAuthConfigs) > 0 {
+			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
+			for _, extAuth := range api.ExternalAuthConfigs {
+				if extAuth.Regex == nil {
+					continue
+				}
+				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", extAuth.ID, extAuth.Regex.String()))
+			}
+			detail = fmt.Sprintf("The configured external auth provider have regex filters that do not match the url. Provider url regex: %s", strings.Join(regexURLs, ","))
+		}
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("No matching external auth provider found in Coder for the url %q.", match),
+			Detail:  detail,
 		})
 		return
 	}
@@ -2107,7 +2276,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	resp, err := createExternalAuthResponse(externalAuthConfig.Type, refreshedLink.OAuthAccessToken, refreshedLink.OAuthExtra)
+	resp, err := createExternalAuthResponse(externalAuthConfig.Type, refreshedLink.OAuthAccessToken, refreshedLink.OAuthExtra, refreshedLink.OAuthExpiry)
 	if err != nil {
 		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create external auth response.",
@@ -2116,6 +2285,78 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// declaredExternalAuthCandidates describes how a workspace template's declared
+// external auth providers relate to one hostname-only (GIT_ASKPASS) request.
+type declaredExternalAuthCandidates struct {
+	// config is the provider to use, set only when exactly one declared and
+	// configured provider matches the hostname.
+	config *externalauth.Config
+	// matchedIDs holds the ID of every declared and configured provider whose
+	// regex matches the hostname, in declaration order.
+	matchedIDs []string
+	// missingIDs holds the ID of every declared provider that the deployment
+	// does not configure.
+	missingIDs []string
+}
+
+// workspaceAgentsExternalAuthDeclaredCandidates resolves which configured
+// external auth provider should service a hostname-only (GIT_ASKPASS) request,
+// scoped to the given build's template version's declared providers. The zero
+// value means the template declares no providers at all.
+//
+// config is set only when exactly one declared provider matched, so callers
+// should distinguish four outcomes:
+//   - several matchedIDs: report the collision rather than guess between them.
+//   - config set: use it.
+//   - no match but some missingIDs: the declaration set is stale, so report
+//     that instead of substituting a provider the template never declared.
+//   - no match and nothing missing: the template's providers simply do not
+//     serve this hostname, so fall back to a deployment-wide scan.
+func (api *API) workspaceAgentsExternalAuthDeclaredCandidates(ctx context.Context, build database.WorkspaceBuild, match string) (declaredExternalAuthCandidates, error) {
+	// Template reads authorize through the template's ACL, which the owner may
+	// no longer have. The version ID is server-derived from the agent's token.
+	//nolint:gocritic // Agent needs system access to read its own template version's declared providers.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	templateVersion, err := api.Database.GetTemplateVersionByID(sysCtx, build.TemplateVersionID)
+	if err != nil {
+		return declaredExternalAuthCandidates{}, xerrors.Errorf("get template version: %w", err)
+	}
+
+	var declared []database.ExternalAuthProvider
+	if err := json.Unmarshal(templateVersion.ExternalAuthProviders, &declared); err != nil {
+		return declaredExternalAuthCandidates{}, xerrors.Errorf("unmarshal template version external auth providers: %w", err)
+	}
+
+	var (
+		candidates []*externalauth.Config
+		out        declaredExternalAuthCandidates
+	)
+	for _, provider := range declared {
+		idx := slices.IndexFunc(api.ExternalAuthConfigs, func(extAuth *externalauth.Config) bool {
+			return extAuth.ID == provider.ID
+		})
+		if idx < 0 {
+			out.missingIDs = append(out.missingIDs, provider.ID)
+			continue
+		}
+		extAuth := api.ExternalAuthConfigs[idx]
+		if extAuth.Regex == nil || !extAuth.Regex.MatchString(match) {
+			continue
+		}
+		candidates = append(candidates, extAuth)
+	}
+
+	for _, candidate := range candidates {
+		out.matchedIDs = append(out.matchedIDs, candidate.ID)
+	}
+	// Only a single match is actionable. Leave config nil when several match so
+	// the caller reports the collision instead of picking one arbitrarily.
+	if len(candidates) == 1 {
+		out.config = candidates[0]
+	}
+	return out, nil
 }
 
 func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace, gitRef chatGitRef) {
@@ -2180,7 +2421,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 		if !valid {
 			continue
 		}
-		resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+		resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra, externalAuthLink.OAuthExpiry)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to create external auth response.",
@@ -2347,7 +2588,7 @@ func fillCoderDesktopTelemetry(r *http.Request, event *telemetry.UserTailnetConn
 // createExternalAuthResponse creates an ExternalAuthResponse based on the
 // provider type. This is to support legacy `/workspaceagents/me/gitauth`
 // which uses `Username` and `Password`.
-func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) (agentsdk.ExternalAuthResponse, error) {
+func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage, expiry time.Time) (agentsdk.ExternalAuthResponse, error) {
 	var resp agentsdk.ExternalAuthResponse
 	switch typ {
 	case string(codersdk.EnhancedExternalAuthProviderGitLab):
@@ -2370,6 +2611,10 @@ func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) 
 	}
 	resp.AccessToken = token
 	resp.Type = typ
+	// Normalize to UTC so JSON encoding always uses the "Z" suffix and
+	// preserves the full timestamp without losing sub-minute precision from
+	// historical timezone offsets (e.g. LMT).
+	resp.ExpiresAt = expiry.UTC()
 
 	var err error
 	if extra.Valid {
@@ -2386,106 +2631,26 @@ func convertWorkspaceAgentLogs(logs []database.WorkspaceAgentLog) []codersdk.Wor
 	return sdk
 }
 
-// maxChatContextParts caps the number of parts per request to
-// prevent unbounded message payloads.
-const maxChatContextParts = 100
-
-// maxChatContextFileBytes caps each context-file part to the same
-// 64KiB budget used when the agent reads instruction files from disk.
-const maxChatContextFileBytes = 64 * 1024
-
-// maxChatContextRequestBodyBytes caps the JSON request body size for
-// agent-added context to roughly the same per-part budget used when
-// reading instruction files from disk.
-const maxChatContextRequestBodyBytes int64 = maxChatContextParts * maxChatContextFileBytes
-
-// sanitizeWorkspaceAgentContextFileContent applies prompt
-// sanitization, then enforces the 64KiB per-file budget. The
-// truncated flag is preserved when the caller already capped the
-// file before sending it.
-func sanitizeWorkspaceAgentContextFileContent(
-	content string,
-	truncated bool,
-) (string, bool) {
-	content = chatd.SanitizePromptText(content)
-	if len(content) > maxChatContextFileBytes {
-		content = content[:maxChatContextFileBytes]
-		truncated = true
-	}
-	return content, truncated
-}
-
-// readChatContextBody reads and validates the request body for chat
-// context endpoints. It handles MaxBytesReader wrapping, error
-// responses, and body rewind. If the body is empty or whitespace-only
-// and allowEmpty is true, it returns false without writing an error.
+// workspaceAgentRefreshChatContext re-pins every drifted chat bound to the
+// calling agent to the agent's latest context snapshot, clearing their
+// drift markers. It backs the in-workspace `coder exp chat context refresh`
+// (no chat argument), which uses the agent token rather than a user
+// session.
 //
-//nolint:revive // Add and clear endpoints only differ by empty-body handling.
-func readChatContextBody(ctx context.Context, rw http.ResponseWriter, r *http.Request, dst any, allowEmpty bool) bool {
-	r.Body = http.MaxBytesReader(rw, r.Body, maxChatContextRequestBodyBytes)
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
-				Message: "Request body too large.",
-				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", maxChatContextRequestBodyBytes),
-			})
-			return false
-		}
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to read request body.",
-			Detail:  err.Error(),
-		})
-		return false
-	}
-	if allowEmpty && len(bytes.TrimSpace(body)) == 0 {
-		r.Body = http.NoBody
-		return false
-	}
-
-	r.Body = io.NopCloser(bytes.NewReader(body))
-	return httpapi.Read(ctx, rw, r, dst)
-}
-
 // @x-apidocgen {"skip": true}
-func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceAgentRefreshChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 
-	var req agentsdk.AddChatContextRequest
-	if !readChatContextBody(ctx, rw, r, &req, false) {
+	// Chats are processed by the chat daemon; without it there is
+	// nothing to refresh.
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.RefreshChatContextResponse{})
 		return
 	}
 
-	if len(req.Parts) == 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "No context parts provided.",
-		})
-		return
-	}
-
-	if len(req.Parts) > maxChatContextParts {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Too many context parts (%d). Maximum is %d.", len(req.Parts), maxChatContextParts),
-		})
-		return
-	}
-
-	// Filter to only non-empty context-file and skill parts.
-	filtered := chatd.FilterContextParts(req.Parts, false)
-	if len(filtered) == 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "No context-file or skill parts provided.",
-		})
-		return
-	}
-	req.Parts = filtered
-	responsePartCount := 0
-
-	// Use system context for chat operations since the
-	// workspace agent scope does not include chat resources.
-	// We verify agent-to-chat ownership explicitly below.
+	// Use system context for chat operations since the workspace agent
+	// scope does not include chat resources.
 	//nolint:gocritic // Agent needs system access to read/write chat resources.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
@@ -2497,486 +2662,34 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	chat, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, workspace.OwnerID, req.ChatID)
+	chats, err := api.Database.GetActiveChatsByAgentID(sysCtx, workspaceAgent.ID)
 	if err != nil {
-		writeAgentChatError(ctx, rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chats for agent.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
-	// Stamp each persisted part with the agent identity. Context-file
-	// parts also get server-authoritative workspace metadata.
-	directory := workspaceAgent.ExpandedDirectory
-	if directory == "" {
-		directory = workspaceAgent.Directory
-	}
-	for i := range req.Parts {
-		req.Parts[i].ContextFileAgentID = uuid.NullUUID{
-			UUID:  workspaceAgent.ID,
-			Valid: true,
-		}
-		if req.Parts[i].Type != codersdk.ChatMessagePartTypeContextFile {
+	refreshed := 0
+	for _, chat := range chats {
+		// Only re-pin chats owned by this workspace's owner that have
+		// drifted from the agent's latest snapshot.
+		if chat.OwnerID != workspace.OwnerID || !chat.ContextDirtySince.Valid {
 			continue
 		}
-		req.Parts[i].ContextFileContent, req.Parts[i].ContextFileTruncated = sanitizeWorkspaceAgentContextFileContent(
-			req.Parts[i].ContextFileContent,
-			req.Parts[i].ContextFileTruncated,
-		)
-		req.Parts[i].ContextFileOS = workspaceAgent.OperatingSystem
-		req.Parts[i].ContextFileDirectory = directory
-	}
-	req.Parts = chatd.FilterContextParts(req.Parts, false)
-	if len(req.Parts) == 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "No context-file or skill parts provided.",
-		})
-		return
-	}
-	responsePartCount = len(req.Parts)
-
-	// Skill-only messages need a sentinel context-file part so the turn
-	// pipeline trusts the associated skill metadata.
-	req.Parts = prependAgentChatContextSentinelIfNeeded(
-		req.Parts,
-		workspaceAgent.ID,
-		workspaceAgent.OperatingSystem,
-		directory,
-	)
-
-	content, err := chatprompt.MarshalParts(req.Parts)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to marshal context parts.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	err = api.Database.InTx(func(tx database.Store) error {
-		locked, err := tx.GetChatByIDForUpdate(sysCtx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("lock chat: %w", err)
-		}
-		if !isActiveAgentChat(locked) {
-			return errChatNotActive
-		}
-		if !locked.AgentID.Valid || locked.AgentID.UUID != workspaceAgent.ID {
-			return errChatDoesNotBelongToAgent
-		}
-		if locked.OwnerID != workspace.OwnerID {
-			return errChatDoesNotBelongToWorkspaceOwner
-		}
-		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleUserChatMessageInsertParams(
-			chat.ID,
-			"", // Agent-initiated context injection has no caller API key.
-			content,
-			database.ChatMessageVisibilityBoth,
-			locked.LastModelConfigID,
-			chatprompt.CurrentContentVersion,
-			uuid.Nil,
-		)); err != nil {
-			return xerrors.Errorf("insert context message: %w", err)
-		}
-		if err := updateAgentChatLastInjectedContextFromMessages(sysCtx, api.Logger, tx, chat.ID); err != nil {
-			return xerrors.Errorf("rebuild injected context cache: %w", err)
-		}
-		return nil
-	}, nil)
-	if err != nil {
-		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) || errors.Is(err, errChatDoesNotBelongToWorkspaceOwner) {
-			writeAgentChatError(ctx, rw, err)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to persist context message.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.AddChatContextResponse{
-		ChatID: chat.ID,
-		Count:  responsePartCount,
-	})
-}
-
-// @x-apidocgen {"skip": true}
-func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	workspaceAgent := httpmw.WorkspaceAgent(r)
-
-	var req agentsdk.ClearChatContextRequest
-	populated := readChatContextBody(ctx, rw, r, &req, true)
-	if !populated && r.Body != http.NoBody {
-		return
-	}
-
-	// Use system context for chat operations since the
-	// workspace agent scope does not include chat resources.
-	//nolint:gocritic // Agent needs system access to read/write chat resources.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to determine workspace from agent token.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	chat, err := resolveAgentChat(sysCtx, api.Database, workspaceAgent.ID, workspace.OwnerID, req.ChatID)
-	if err != nil {
-		// Zero active chats is not an error for clear.
-		if errors.Is(err, errNoActiveChats) {
-			httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{})
-			return
-		}
-		writeAgentChatError(ctx, rw, err)
-		return
-	}
-
-	err = clearAgentChatContext(sysCtx, api.Database, chat.ID, workspaceAgent.ID, workspace.OwnerID)
-	if err != nil {
-		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) || errors.Is(err, errChatDoesNotBelongToWorkspaceOwner) {
-			writeAgentChatError(ctx, rw, err)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to clear context from chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ClearChatContextResponse{
-		ChatID: chat.ID,
-	})
-}
-
-var (
-	errNoActiveChats                     = xerrors.New("no active chats found")
-	errChatNotFound                      = xerrors.New("chat not found")
-	errChatNotActive                     = xerrors.New("chat is not active")
-	errChatDoesNotBelongToAgent          = xerrors.New("chat does not belong to this agent")
-	errChatDoesNotBelongToWorkspaceOwner = xerrors.New("chat does not belong to this workspace owner")
-)
-
-type multipleActiveChatsError struct {
-	count int
-}
-
-func (e *multipleActiveChatsError) Error() string {
-	return fmt.Sprintf(
-		"multiple active chats (%d) found for this agent, specify a chat ID",
-		e.count,
-	)
-}
-
-func resolveDefaultAgentChat(chats []database.Chat) (database.Chat, error) {
-	switch len(chats) {
-	case 0:
-		return database.Chat{}, errNoActiveChats
-	case 1:
-		return chats[0], nil
-	}
-
-	var rootChat *database.Chat
-	for i := range chats {
-		chat := &chats[i]
-		if chat.ParentChatID.Valid {
+		if _, err := api.chatDaemon.RefreshChatContext(sysCtx, chat); err != nil {
+			api.Logger.Warn(ctx, "failed to refresh chat context for agent",
+				slog.F("chat_id", chat.ID),
+				slog.F("agent_id", workspaceAgent.ID),
+				slog.Error(err),
+			)
 			continue
 		}
-		if rootChat != nil {
-			return database.Chat{}, &multipleActiveChatsError{count: len(chats)}
-		}
-		rootChat = chat
-	}
-	if rootChat != nil {
-		return *rootChat, nil
-	}
-	return database.Chat{}, &multipleActiveChatsError{count: len(chats)}
-}
-
-// resolveAgentChat finds the target chat from either an explicit ID
-// or auto-detection via the agent's active chats.
-func resolveAgentChat(
-	ctx context.Context,
-	db database.Store,
-	agentID uuid.UUID,
-	workspaceOwnerID uuid.UUID,
-	explicitChatID uuid.UUID,
-) (database.Chat, error) {
-	if explicitChatID == uuid.Nil {
-		chats, err := db.GetActiveChatsByAgentID(ctx, agentID)
-		if err != nil {
-			return database.Chat{}, xerrors.Errorf("list active chats: %w", err)
-		}
-		ownerChats := make([]database.Chat, 0, len(chats))
-		for _, chat := range chats {
-			if chat.OwnerID != workspaceOwnerID {
-				continue
-			}
-			ownerChats = append(ownerChats, chat)
-		}
-		return resolveDefaultAgentChat(ownerChats)
+		refreshed++
 	}
 
-	chat, err := db.GetChatByID(ctx, explicitChatID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return database.Chat{}, errChatNotFound
-		}
-		return database.Chat{}, xerrors.Errorf("get chat by id: %w", err)
-	}
-	if !chat.AgentID.Valid || chat.AgentID.UUID != agentID {
-		return database.Chat{}, errChatDoesNotBelongToAgent
-	}
-	if chat.OwnerID != workspaceOwnerID {
-		return database.Chat{}, errChatDoesNotBelongToWorkspaceOwner
-	}
-	if !isActiveAgentChat(chat) {
-		return database.Chat{}, errChatNotActive
-	}
-	return chat, nil
-}
-
-func isActiveAgentChat(chat database.Chat) bool {
-	if chat.Archived {
-		return false
-	}
-
-	switch chat.Status {
-	case database.ChatStatusWaiting,
-		database.ChatStatusPending,
-		database.ChatStatusRunning,
-		database.ChatStatusPaused,
-		database.ChatStatusRequiresAction:
-		return true
-	default:
-		return false
-	}
-}
-
-func clearAgentChatContext(
-	ctx context.Context,
-	db database.Store,
-	chatID uuid.UUID,
-	agentID uuid.UUID,
-	workspaceOwnerID uuid.UUID,
-) error {
-	return db.InTx(func(tx database.Store) error {
-		locked, err := tx.GetChatByIDForUpdate(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("lock chat: %w", err)
-		}
-		if !isActiveAgentChat(locked) {
-			return errChatNotActive
-		}
-		if !locked.AgentID.Valid || locked.AgentID.UUID != agentID {
-			return errChatDoesNotBelongToAgent
-		}
-		if locked.OwnerID != workspaceOwnerID {
-			return errChatDoesNotBelongToWorkspaceOwner
-		}
-		messages, err := tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  chatID,
-			AfterID: 0,
-		})
-		if err != nil {
-			return xerrors.Errorf("get chat messages: %w", err)
-		}
-		hadInjectedContext := locked.LastInjectedContext.Valid
-		var skillOnlyMessageIDs []int64
-		for _, msg := range messages {
-			if !msg.Content.Valid {
-				continue
-			}
-			hasContextFile := messageHasPartTypes(msg.Content.RawMessage, codersdk.ChatMessagePartTypeContextFile)
-			hasSkill := messageHasPartTypes(msg.Content.RawMessage, codersdk.ChatMessagePartTypeSkill)
-			if hasContextFile || hasSkill {
-				hadInjectedContext = true
-			}
-			if hasSkill && !hasContextFile {
-				skillOnlyMessageIDs = append(skillOnlyMessageIDs, msg.ID)
-			}
-		}
-		if !hadInjectedContext {
-			return nil
-		}
-		if err := tx.SoftDeleteContextFileMessages(ctx, chatID); err != nil {
-			return xerrors.Errorf("soft delete context-file messages: %w", err)
-		}
-		for _, messageID := range skillOnlyMessageIDs {
-			if err := tx.SoftDeleteChatMessageByID(ctx, messageID); err != nil {
-				return xerrors.Errorf("soft delete context message %d: %w", messageID, err)
-			}
-		}
-		// Reset provider-side Responses chaining so the next turn replays
-		// the post-clear history instead of inheriting cleared context.
-		if err := tx.ClearChatMessageProviderResponseIDsByChatID(ctx, chatID); err != nil {
-			return xerrors.Errorf("clear provider response chain: %w", err)
-		}
-		// Clear the injected-context cache inside the transaction so it is
-		// atomic with the soft-deletes.
-		param, err := chatd.BuildLastInjectedContext(nil)
-		if err != nil {
-			return xerrors.Errorf("clear injected context cache: %w", err)
-		}
-		if _, err := tx.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
-			ID:                  chatID,
-			LastInjectedContext: param,
-		}); err != nil {
-			return xerrors.Errorf("clear injected context cache: %w", err)
-		}
-		return nil
-	}, nil)
-}
-
-// prependAgentChatContextSentinelIfNeeded adds an empty context-file
-// part when the request only carries skills. The turn pipeline uses
-// the sentinel's agent metadata to trust the skill parts.
-func prependAgentChatContextSentinelIfNeeded(
-	parts []codersdk.ChatMessagePart,
-	agentID uuid.UUID,
-	operatingSystem string,
-	directory string,
-) []codersdk.ChatMessagePart {
-	hasContextFile := false
-	hasSkill := false
-	for _, part := range parts {
-		switch part.Type {
-		case codersdk.ChatMessagePartTypeContextFile:
-			hasContextFile = true
-		case codersdk.ChatMessagePartTypeSkill:
-			hasSkill = true
-		}
-		if hasContextFile && hasSkill {
-			return parts
-		}
-	}
-	if !hasSkill || hasContextFile {
-		return parts
-	}
-	return append([]codersdk.ChatMessagePart{{
-		Type:            codersdk.ChatMessagePartTypeContextFile,
-		ContextFilePath: chatd.AgentChatContextSentinelPath,
-		ContextFileAgentID: uuid.NullUUID{
-			UUID:  agentID,
-			Valid: true,
-		},
-		ContextFileOS:        operatingSystem,
-		ContextFileDirectory: directory,
-	}}, parts...)
-}
-
-func sortChatMessagesByCreatedAtAndID(messages []database.ChatMessage) {
-	sort.SliceStable(messages, func(i, j int) bool {
-		if messages[i].CreatedAt.Equal(messages[j].CreatedAt) {
-			return messages[i].ID < messages[j].ID
-		}
-		return messages[i].CreatedAt.Before(messages[j].CreatedAt)
-	})
-}
-
-// updateAgentChatLastInjectedContextFromMessages rebuilds the
-// injected-context cache from all persisted context-file and skill parts.
-func updateAgentChatLastInjectedContextFromMessages(
-	ctx context.Context,
-	logger slog.Logger,
-	db database.Store,
-	chatID uuid.UUID,
-) error {
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chatID,
-		AfterID: 0,
-	})
-	if err != nil {
-		return xerrors.Errorf("load context messages for injected context: %w", err)
-	}
-
-	sortChatMessagesByCreatedAtAndID(messages)
-
-	parts, err := chatd.CollectContextPartsFromMessages(ctx, logger, messages, true)
-	if err != nil {
-		return xerrors.Errorf("collect injected context parts: %w", err)
-	}
-	parts = chatd.FilterContextPartsToLatestAgent(parts)
-
-	param, err := chatd.BuildLastInjectedContext(parts)
-	if err != nil {
-		return xerrors.Errorf("update injected context: %w", err)
-	}
-	if _, err := db.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
-		ID:                  chatID,
-		LastInjectedContext: param,
-	}); err != nil {
-		return xerrors.Errorf("update injected context: %w", err)
-	}
-	return nil
-}
-
-func messageHasPartTypes(raw []byte, types ...codersdk.ChatMessagePartType) bool {
-	var parts []codersdk.ChatMessagePart
-	if err := json.Unmarshal(raw, &parts); err != nil {
-		return false
-	}
-	for _, part := range parts {
-		for _, typ := range types {
-			if part.Type == typ {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// writeAgentChatError translates resolveAgentChat errors to HTTP
-// responses.
-func writeAgentChatError(
-	ctx context.Context,
-	rw http.ResponseWriter,
-	err error,
-) {
-	if errors.Is(err, errNoActiveChats) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "No active chats found for this agent.",
-		})
-		return
-	}
-	if errors.Is(err, errChatNotFound) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Chat not found.",
-		})
-		return
-	}
-	if errors.Is(err, errChatDoesNotBelongToAgent) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Chat does not belong to this agent.",
-		})
-		return
-	}
-	if errors.Is(err, errChatDoesNotBelongToWorkspaceOwner) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Chat does not belong to this workspace owner.",
-		})
-		return
-	}
-	if errors.Is(err, errChatNotActive) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "Cannot modify context: this chat is no longer active.",
-		})
-		return
-	}
-
-	var multipleErr *multipleActiveChatsError
-	if errors.As(err, &multipleErr) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-		Message: "Failed to resolve chat.",
-		Detail:  err.Error(),
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.RefreshChatContextResponse{
+		Refreshed: refreshed,
 	})
 }

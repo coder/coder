@@ -20,6 +20,7 @@ var (
 	//  - "ActionCreate" :: create an AI Gateway key
 	//  - "ActionDelete" :: delete an AI Gateway key
 	//  - "ActionRead" :: read AI Gateway keys
+	//  - "ActionUpdate" :: update an AI Gateway key
 	ResourceAIGatewayKey = Object{
 		Type: "ai_gateway_key",
 	}
@@ -456,6 +457,16 @@ var (
 		Type: "workspace_agent_resource_monitor",
 	}
 
+	// ResourceWorkspaceBuildOrchestration
+	// Valid Actions
+	//  - "ActionCreate" :: create a workspace build orchestration
+	//  - "ActionDelete" :: delete a workspace build orchestration
+	//  - "ActionRead" :: read a workspace build orchestration
+	//  - "ActionUpdate" :: update a workspace build orchestration
+	ResourceWorkspaceBuildOrchestration = Object{
+		Type: "workspace_build_orchestration",
+	}
+
 	// ResourceWorkspaceDormant
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
@@ -535,6 +546,7 @@ func AllResources() []Objecter {
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,
 		ResourceWorkspaceAgentResourceMonitor,
+		ResourceWorkspaceBuildOrchestration,
 		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,
 	}

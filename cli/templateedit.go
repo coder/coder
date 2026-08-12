@@ -23,6 +23,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		icon                           string
 		defaultTTL                     time.Duration
 		activityBump                   time.Duration
+		timeTilAutostopNotify          time.Duration
 		autostopRequirementDaysOfWeek  []string
 		autostopRequirementWeeks       int64
 		autostartRequirementDaysOfWeek []string
@@ -32,6 +33,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		allowUserCancelWorkspaceJobs   bool
 		allowUserAutostart             bool
 		allowUserAutostop              bool
+		agentsAllowed                  bool
 		requireActiveVersion           bool
 		deprecationMessage             string
 		disableEveryone                bool
@@ -113,6 +115,10 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				activityBump = time.Duration(template.ActivityBumpMillis) * time.Millisecond
 			}
 
+			if !userSetOption(inv, "autostop-reminder") {
+				timeTilAutostopNotify = time.Duration(template.TimeTilAutostopNotifyMillis) * time.Millisecond
+			}
+
 			if !userSetOption(inv, "allow-user-autostop") {
 				allowUserAutostop = template.AllowUserAutostop
 			}
@@ -135,6 +141,10 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 
 			if !userSetOption(inv, "dormancy-auto-deletion") {
 				dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "agents-allowed") {
+				agentsAllowed = template.AgentsAllowed
 			}
 
 			if !userSetOption(inv, "require-active-version") {
@@ -174,12 +184,13 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			}
 
 			req := codersdk.UpdateTemplateMeta{
-				Name:               &name,
-				DisplayName:        &displayName,
-				Description:        &description,
-				Icon:               &icon,
-				DefaultTTLMillis:   ptr.Ref(defaultTTL.Milliseconds()),
-				ActivityBumpMillis: ptr.Ref(activityBump.Milliseconds()),
+				Name:                        &name,
+				DisplayName:                 &displayName,
+				Description:                 &description,
+				Icon:                        &icon,
+				DefaultTTLMillis:            ptr.Ref(defaultTTL.Milliseconds()),
+				ActivityBumpMillis:          ptr.Ref(activityBump.Milliseconds()),
+				TimeTilAutostopNotifyMillis: ptr.Ref(timeTilAutostopNotify.Milliseconds()),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeek,
 					Weeks:      autostopRequirementWeeks,
@@ -193,6 +204,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				AllowUserCancelWorkspaceJobs:   &allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:             &allowUserAutostart,
 				AllowUserAutostop:              &allowUserAutostop,
+				AgentsAllowed:                  &agentsAllowed,
 				RequireActiveVersion:           &requireActiveVersion,
 				DeprecationMessage:             deprecated,
 				DisableEveryoneGroupAccess:     &disableEveryoneGroup,
@@ -249,6 +261,11 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			Value:       serpent.DurationOf(&activityBump),
 		},
 		{
+			Flag:        "autostop-reminder",
+			Description: "Edit how long before the autostop deadline a reminder notification is sent for workspaces created from this template, in Go duration format (e.g. 1h, 30m). Set to 0 to disable.",
+			Value:       serpent.DurationOf(&timeTilAutostopNotify),
+		},
+		{
 			Flag:        "autostart-requirement-weekdays",
 			Description: "Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.",
 			Value:       serpent.EnumArrayOf(&autostartRequirementDaysOfWeek, append(codersdk.AllDaysOfWeek, "all")...),
@@ -280,6 +297,12 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			Description: "Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to \"Dormancy Auto-Deletion\" in the UI.",
 			Default:     "0h",
 			Value:       serpent.DurationOf(&dormancyAutoDeletion),
+		},
+		{
+			Flag:        "agents-allowed",
+			Description: "Allow Coder Agents to create workspaces using this template.",
+			Default:     "true",
+			Value:       serpent.BoolOf(&agentsAllowed),
 		},
 		{
 			Flag:        "allow-user-cancel-workspace-jobs",

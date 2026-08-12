@@ -1,13 +1,13 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import { deploymentConfig } from "#/api/queries/deployment";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
 import { templateExamples, templates } from "#/api/queries/templates";
-import { type UseFilterResult, useFilter } from "#/components/Filter/Filter";
-import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
+import { useTemplatesFilter } from "./TemplatesFilter";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const TemplatesPage: FC = () => {
@@ -33,6 +33,15 @@ const TemplatesPage: FC = () => {
 		),
 	);
 
+	const deploymentConfigQuery = useQuery({
+		...deploymentConfig(),
+		enabled: permissions.createTemplates,
+	});
+	const templateBuilderEnabled =
+		deploymentConfigQuery.isSuccess &&
+		!deploymentConfigQuery.data?.config?.template_builder?.disabled &&
+		permissions.createTemplates;
+
 	const error =
 		templatesQuery.error ||
 		examplesQuery.error ||
@@ -46,6 +55,7 @@ const TemplatesPage: FC = () => {
 				filterState={filterState}
 				showOrganizations={showOrganizations}
 				canCreateTemplates={permissions.createTemplates}
+				templateBuilderEnabled={templateBuilderEnabled}
 				examples={examplesQuery.data}
 				templates={templatesQuery.data}
 				workspacePermissions={workspacePermissionsQuery.data}
@@ -55,41 +65,3 @@ const TemplatesPage: FC = () => {
 };
 
 export default TemplatesPage;
-
-export type TemplateFilterState = {
-	filter: UseFilterResult;
-	menus: {
-		user?: ReturnType<typeof useUserFilterMenu>;
-	};
-};
-
-type UseTemplatesFilterOptions = {
-	searchParams: URLSearchParams;
-	onSearchParamsChange: (params: URLSearchParams) => void;
-};
-
-const useTemplatesFilter = ({
-	searchParams,
-	onSearchParamsChange,
-}: UseTemplatesFilterOptions): TemplateFilterState => {
-	const filter = useFilter({
-		searchParams,
-		onSearchParamsChange,
-	});
-
-	const { permissions } = useAuthenticated();
-	const canFilterByUser = permissions.viewAllUsers;
-	const userMenu = useUserFilterMenu({
-		value: filter.values.author,
-		onChange: (option) =>
-			filter.update({ ...filter.values, author: option?.value }),
-		enabled: canFilterByUser,
-	});
-
-	return {
-		filter,
-		menus: {
-			user: canFilterByUser ? userMenu : undefined,
-		},
-	};
-};

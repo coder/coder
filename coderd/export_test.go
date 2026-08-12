@@ -1,8 +1,5 @@
 package coderd
 
-// InsertAgentChatTestModelConfig exposes insertAgentChatTestModelConfig for external tests.
-var InsertAgentChatTestModelConfig = insertAgentChatTestModelConfig
-
 // ChatStartWorkspace exposes chatStartWorkspace for external tests.
 //
 // chatStartWorkspace is intentionally unexported to keep symmetry with

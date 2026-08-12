@@ -20,13 +20,13 @@
       "initiator": "autobuild",
       "name": "bobby-workspace",
       "reason": "breached the template's threshold for inactivity",
-      "timeTilDormant": "24 hours"
+      "timeTilDelete": "24 hours"
     },
     "data": null,
     "targets": null
   },
   "title": "Workspace \"bobby-workspace\" marked as dormant",
   "title_markdown": "Workspace \"bobby-workspace\" marked as dormant",
-  "body": "Your workspace bobby-workspace has been marked as dormant (https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) due to inactivity exceeding the dormancy threshold.\n\nThis workspace will be automatically deleted in 24 hours if it remains inactive.\n\nTo prevent deletion, activate your workspace using the link below.",
-  "body_markdown": "Your workspace **bobby-workspace** has been marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) due to inactivity exceeding the dormancy threshold.\n\nThis workspace will be automatically deleted in 24 hours if it remains inactive.\n\nTo prevent deletion, activate your workspace using the link below."
+  "body": "Your workspace bobby-workspace has been marked as dormant (https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-threshold) due to inactivity exceeding the dormancy threshold.\n\nThis workspace will be automatically deleted in 24 hours if it remains inactive.\n\nTo prevent deletion, activate your workspace using the link below.",
+  "body_markdown": "Your workspace **bobby-workspace** has been marked as [**dormant**](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-threshold) due to inactivity exceeding the dormancy threshold.\n\nThis workspace will be automatically deleted in 24 hours if it remains inactive.\n\nTo prevent deletion, activate your workspace using the link below."
 }

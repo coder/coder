@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -71,14 +71,13 @@ type CreateWorkspaceOptions struct {
 	WorkspaceMu                    *sync.Mutex
 	OnChatUpdated                  func(database.Chat)
 	Logger                         slog.Logger
-	AllowedTemplateIDs             func() map[uuid.UUID]bool
 }
 
 type createWorkspaceArgs struct {
 	TemplateID string            `json:"template_id" description:"The UUIDv4 of the template to create the workspace from. Obtain this from list_templates."`
 	Name       string            `json:"name,omitempty" description:"The name of the workspace to create. If not provided, a random name will be generated."`
-	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template."`
-	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset to use. Obtain available presets from read_template. When provided, the preset's parameters are applied automatically and the workspace may claim a prebuilt instance for faster startup."`
+	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template when needed."`
+	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset to use. Obtain available presets from read_template when needed. When provided, the preset's parameters are applied automatically and the workspace may claim a prebuilt instance for faster startup."`
 }
 
 // CreateWorkspace returns a tool that creates a new workspace from a
@@ -95,15 +94,12 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			"or when the user explicitly asks for one. Do not use this as a "+
 			"default first step for requests answerable from conversation "+
 			"context, provider tools, or external MCP tools. Requires a "+
-			"template_id (from list_templates). Optionally provide "+
-			"a name and parameter values (from read_template). "+
-			"If no name is given, one will be generated. "+
-			"Provide a preset_id (from read_template) to apply "+
-			"preset parameters and potentially claim a prebuilt "+
-			"workspace for faster startup. "+
-			"This tool is idempotent. If the chat already has a "+
-			"workspace that is building or running, the existing "+
-			"workspace is returned.",
+			"template_id from list_templates; follow its "+NextStepField+" "+
+			"before calling. Optionally provide a name (one is generated if "+
+			"omitted), parameter values, and a preset_id from read_template "+
+			"to apply preset parameters and potentially claim a prebuilt "+
+			"workspace for faster startup. Idempotent: if the chat already "+
+			"has a workspace building or running, it is returned.",
 		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.CreateFn == nil {
 				return fantasy.NewTextErrorResponse("workspace creator is not configured"), nil
@@ -118,10 +114,6 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("invalid template_id: %w", err).Error(),
 				), nil
-			}
-
-			if !isTemplateAllowed(options.AllowedTemplateIDs, templateID) {
-				return fantasy.NewTextErrorResponse("template not available for chat workspaces; use list_templates to find allowed templates"), nil
 			}
 
 			// Serialize workspace creation to prevent parallel
@@ -175,6 +167,9 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 					"template belongs to a different organization than this chat; " +
 						"use list_templates to find templates in the correct organization",
 				), nil
+			}
+			if !tmpl.AgentsAllowed {
+				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
 			}
 
 			hasExternalAgent, externalAgentErr := templateHasExternalAgent(ctx, db, tmpl)
@@ -637,11 +632,10 @@ func waitForAgentReady(
 		var lastErr error
 		for {
 			attemptCtx, attemptCancel := context.WithTimeout(agentCtx, agentAttemptTimeout)
-			conn, release, err := agentConnFn(attemptCtx, agentID)
+			_, release, err := agentConnFn(attemptCtx, agentID)
 			attemptCancel()
 			if err == nil {
 				release()
-				_ = conn
 				break
 			}
 			lastErr = err

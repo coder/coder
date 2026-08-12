@@ -14,15 +14,15 @@ import {
 	type ConcreteThemeName,
 	isConcreteThemeName,
 } from "#/theme";
-import type { AgentsOutletContext } from "./AgentsPage";
+import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./components/ChatConversation/chatError";
 import {
 	bootstrapChatEmbedSession,
 	EmbedContext,
 } from "./components/EmbedContext";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-} from "./utils/usageLimitMessage";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";
@@ -221,7 +221,7 @@ const AgentEmbedPage: FC = () => {
 		window.parent.postMessage({ type: "coder:chat-ready" }, "*");
 	};
 
-	const outletContext: AgentsOutletContext = {
+	const outletContext: AgentsPageOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
@@ -230,8 +230,8 @@ const AgentEmbedPage: FC = () => {
 		requestPinAgent: () => {},
 		requestUnpinAgent: () => {},
 		requestArchiveAndDeleteWorkspace,
-		// Title regeneration is not supported in embed mode.
-		regeneratingTitleChatIds: [],
+		isArchiving: false,
+		archivingChatId: undefined,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},

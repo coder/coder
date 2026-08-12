@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 
-	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -19,13 +18,12 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
-// GetAIBridgedHandler returns the in-memory aibridge HTTP handler set by
-// [API.RegisterInMemoryAIBridgedHTTPHandler], or nil if the daemon has not
-// been wired in. Used by the enterprise /api/v2/aibridge route (license-gated)
-// to forward requests into the same in-memory handler that chatd dispatches
-// to in-process.
-func (api *API) GetAIBridgedHandler() http.Handler {
-	return api.aibridgedHandler
+// AIGatewayHandler returns the in-memory AI Gateway HTTP handler
+// set by [API.RegisterInMemoryAIBridgedHTTPHandler], or nil if the daemon
+// has not been wired in. Callers must apply their own [http.StripPrefix]
+// for the route prefix they are mounting under.
+func (api *API) AIGatewayHandler() http.Handler {
+	return api.aiGatewayHandler
 }
 
 // RegisterInMemoryAIBridgedHTTPHandler mounts [aibridged.Server]'s HTTP router onto
@@ -42,9 +40,9 @@ func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
 		panic("aibridged cannot be nil")
 	}
 
-	api.aibridgedHandler = http.StripPrefix("/api/v2/aibridge", srv)
+	api.aiGatewayHandler = srv
 
-	factory := aibridged.NewTransportFactory(api.aibridgedHandler)
+	factory := aibridged.NewTransportFactory(http.StripPrefix(agplaibridge.AIGatewayRootPath, srv))
 	var asInterface agplaibridge.TransportFactory = factory
 	api.AIBridgeTransportFactory.Store(&asInterface)
 }
@@ -67,22 +65,24 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	}()
 
 	mux := drpcmux.New()
-	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, api.Logger.Named("aibridgedserver"),
-		api.AccessURL.String(), api.DeploymentValues.AI.BridgeConfig, api.ExternalAuthConfigs, api.Experiments, api.AISeatTracker)
+	srv, err := aibridgedserver.NewServer(api.ctx, aibridgedserver.Options{
+		Store:               api.Database,
+		Pubsub:              api.Pubsub,
+		AISeatTracker:       api.AISeatTracker,
+		Enqueuer:            api.NotificationsEnqueuer,
+		AccessURL:           api.AccessURL.String(),
+		GatewayCfg:          api.DeploymentValues.AI.BridgeConfig,
+		ExternalAuthConfigs: api.ExternalAuthConfigs,
+		Experiments:         api.Experiments,
+		Logger:              api.Logger.Named("aibridgedserver"),
+		Clock:               api.Clock,
+		Metrics:             api.AIGatewayServerMetrics,
+	})
 	if err != nil {
 		return nil, err
 	}
-	err = aibridgedproto.DRPCRegisterRecorder(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register recorder service: %w", err)
-	}
-	err = aibridgedproto.DRPCRegisterMCPConfigurator(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register MCP configurator service: %w", err)
-	}
-	err = aibridgedproto.DRPCRegisterAuthorizer(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register key validator service: %w", err)
+	if err := aibridgedserver.Register(mux, srv); err != nil {
+		return nil, err
 	}
 	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
@@ -114,9 +114,10 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	}()
 
 	return &aibridged.Client{
-		Conn:                      clientSession,
-		DRPCRecorderClient:        aibridgedproto.NewDRPCRecorderClient(clientSession),
-		DRPCMCPConfiguratorClient: aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
-		DRPCAuthorizerClient:      aibridgedproto.NewDRPCAuthorizerClient(clientSession),
+		Conn:                           clientSession,
+		DRPCRecorderClient:             aibridgedproto.NewDRPCRecorderClient(clientSession),
+		DRPCMCPConfiguratorClient:      aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
+		DRPCAuthorizerClient:           aibridgedproto.NewDRPCAuthorizerClient(clientSession),
+		DRPCProviderConfiguratorClient: aibridgedproto.NewDRPCProviderConfiguratorClient(clientSession),
 	}, nil
 }

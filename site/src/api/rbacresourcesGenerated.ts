@@ -12,6 +12,7 @@ export const RBACResourceActions: Partial<
 		create: "create an AI Gateway key",
 		delete: "delete an AI Gateway key",
 		read: "read AI Gateway keys",
+		update: "update an AI Gateway key",
 	},
 	ai_model_price: {
 		read: "read AI model prices",
@@ -257,6 +258,12 @@ export const RBACResourceActions: Partial<
 		create: "create workspace agent resource monitor",
 		read: "read workspace agent resource monitor",
 		update: "update workspace agent resource monitor",
+	},
+	workspace_build_orchestration: {
+		create: "create a workspace build orchestration",
+		delete: "delete a workspace build orchestration",
+		read: "read a workspace build orchestration",
+		update: "update a workspace build orchestration",
 	},
 	workspace_dormant: {
 		application_connect: "connect to workspace apps via browser",

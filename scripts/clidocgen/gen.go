@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
+	"github.com/coder/coder/v2/scripts/docgenenv"
 	"github.com/coder/flog"
 	"github.com/coder/serpent"
 )
@@ -41,12 +42,14 @@ func init() {
 					if opt.Hidden {
 						continue
 					}
+					// Skip YAML-only options that have no CLI flag; documenting them
+					// as if they were flags is misleading in the CLI reference.
+					if opt.Flag == "" && opt.FlagShorthand == "" {
+						continue
+					}
 					visible = append(visible, opt)
 				}
 				return visible
-			},
-			"atRoot": func(cmd *serpent.Command) bool {
-				return cmd.FullName() == "coder"
 			},
 			"newLinesToBr": func(s string) string {
 				return strings.ReplaceAll(s, "\n", "<br/>")
@@ -55,7 +58,24 @@ func init() {
 				return fmt.Sprintf("<code>%s</code>", s)
 			},
 			"commandURI": fmtDocFilename,
-			"fullName":   fullName,
+			// frontMatter renders the page's YAML front matter through the
+			// shared docgenenv emitter, so the CLI and API generators cannot
+			// drift on field set, ordering, or escaping. The CLI index mirrors
+			// the "Command Line" manifest route (main populates cliIndexRoute
+			// before the template runs); every other page uses the command's
+			// own name and short description.
+			"frontMatter": func(cmd *serpent.Command) string {
+				if cmd.FullName() == "coder" {
+					return docgenenv.FrontMatter(cliIndexRoute)
+				}
+				return docgenenv.FrontMatter(cliCommandRoute(cmd))
+			},
+			// generatedContentBanner emits the shared body banner that marks
+			// the whole page as generated, sourced from one constant so the CLI
+			// and API generators cannot drift on its wording.
+			"generatedContentBanner": func() string {
+				return docgenenv.GeneratedContentBanner
+			},
 			"tableHeader": func() string {
 				return `| | |
 | --- | --- |`
@@ -80,6 +100,28 @@ func fullName(cmd *serpent.Command) string {
 		return "coder"
 	}
 	return strings.TrimPrefix(cmd.FullName(), "coder ")
+}
+
+// cliCommandRoute maps a serpent command to the docgenenv.Route whose per-page
+// metadata the CLI generator mirrors into that command's page front matter.
+// main layers the manifest Path onto the same value when it rebuilds the nav
+// tree, so the per-command field mapping lives in exactly one place.
+func cliCommandRoute(cmd *serpent.Command) docgenenv.Route {
+	return docgenenv.Route{
+		Title:       fullName(cmd),
+		Description: cmd.Short,
+	}
+}
+
+// cliIndexRouteFrom returns the CLI index page's route: a copy of the "Command
+// Line" manifest route with its nav children dropped. Copying the whole route
+// instead of enumerating fields means the index front matter mirrors every
+// current and future per-page field (including curated icon_path and state)
+// automatically, so it can't drift from the shared docgenenv.FrontMatter
+// emitter the way a hand-written field list would.
+func cliIndexRouteFrom(cmdLine docgenenv.Route) docgenenv.Route {
+	cmdLine.Children = nil
+	return cmdLine
 }
 
 func fmtDocFilename(cmd *serpent.Command) string {

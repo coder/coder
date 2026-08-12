@@ -13,8 +13,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/retry"
 )
 
 const (
@@ -85,17 +88,51 @@ func WriteTFCliConfig(t *testing.T, dir string) string {
 	return cliConfigPath
 }
 
+const (
+	runCmdMaxAttempts = 5
+	runCmdRetryFloor  = 5 * time.Second
+	runCmdRetryCeil   = 30 * time.Second
+)
+
+// runCmd runs the given command, retrying on any non-zero exit. The provider
+// cache population commands hit the network and intermittently fail with
+// transient registry/GitHub 5xx errors; retrying is safe because `terraform
+// init` and `terraform providers mirror` are idempotent. The backoff window is
+// wide because registry incidents last seconds to minutes, and the wait is
+// only incurred on a cache miss (see DownloadTFProviders).
 func runCmd(t *testing.T, dir string, args ...string) {
 	t.Helper()
 
-	stdout, stderr := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
-	cmd := exec.Command(args[0], args[1:]...) //#nosec
-	cmd.Dir = dir
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to run %s: %s\nstdout: %s\nstderr: %s", strings.Join(args, " "), err, stdout.String(), stderr.String())
+	ctx := t.Context()
+	var (
+		attempt                int
+		lastErr                error
+		lastStdout, lastStderr string
+	)
+	for r := retry.New(runCmdRetryFloor, runCmdRetryCeil); attempt < runCmdMaxAttempts && r.Wait(ctx); attempt++ {
+		stdout, stderr := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
+		// #nosec G204 - args are test-controlled (the terraform binary plus fixed
+		// subcommands and a cache dir path), never external input.
+		cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+		err := cmd.Run()
+		if err == nil {
+			return
+		}
+		lastErr = err
+		lastStdout, lastStderr = stdout.String(), stderr.String()
+		t.Logf("attempt %d/%d to run %s failed: %s\nstdout: %s\nstderr: %s",
+			attempt+1, runCmdMaxAttempts, strings.Join(args, " "), err, lastStdout, lastStderr)
 	}
+	if lastErr == nil {
+		// The loop exited without running a command, which means r.Wait saw the
+		// context canceled before the first attempt. Report that, not a nil error.
+		t.Fatalf("failed to run %s: %v", strings.Join(args, " "), ctx.Err())
+	}
+	t.Fatalf("failed to run %s after %d attempts: %s\nstdout: %s\nstderr: %s",
+		strings.Join(args, " "), attempt, lastErr, lastStdout, lastStderr)
 }
 
 // GetTestTFCacheDir returns a unique cache directory path based on the test name and template files.

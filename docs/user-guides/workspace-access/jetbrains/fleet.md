@@ -11,13 +11,13 @@ To connect Fleet to a Coder workspace:
 
 1. Install Coder CLI
 
-   ```shell
+   ```sh
    curl -L https://coder.com/install.sh | sh
    ```
 
 1. Login and configure Coder SSH.
 
-   ```shell
+   ```sh
    coder login coder.example.com
    coder config-ssh
    ```

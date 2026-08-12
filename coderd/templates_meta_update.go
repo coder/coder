@@ -22,12 +22,14 @@ type templateMetaUpdate struct {
 	icon                                 string
 	defaultTTLMillis                     int64
 	activityBumpMillis                   int64
+	timeTilAutostopNotifyMillis          int64
 	failureTTLMillis                     int64
 	timeTilDormantMillis                 int64
 	timeTilDormantAutoDeleteMillis       int64
 	allowUserAutostart                   bool
 	allowUserAutostop                    bool
 	allowUserCancelWorkspaceJobs         bool
+	agentsAllowed                        bool
 	requireActiveVersion                 bool
 	deprecationMessage                   string
 	useClassicTemplateFlow               bool
@@ -73,12 +75,14 @@ func resolveTemplateMetaUpdate(
 		icon:                           ptr.NilToDefault(req.Icon, template.Icon),
 		defaultTTLMillis:               ptr.NilToDefault(req.DefaultTTLMillis, time.Duration(template.DefaultTTL).Milliseconds()),
 		activityBumpMillis:             ptr.NilToDefault(req.ActivityBumpMillis, time.Duration(template.ActivityBump).Milliseconds()),
+		timeTilAutostopNotifyMillis:    ptr.NilToDefault(req.TimeTilAutostopNotifyMillis, time.Duration(template.TimeTilAutostopNotify).Milliseconds()),
 		failureTTLMillis:               ptr.NilToDefault(req.FailureTTLMillis, time.Duration(template.FailureTTL).Milliseconds()),
 		timeTilDormantMillis:           ptr.NilToDefault(req.TimeTilDormantMillis, time.Duration(template.TimeTilDormant).Milliseconds()),
 		timeTilDormantAutoDeleteMillis: ptr.NilToDefault(req.TimeTilDormantAutoDeleteMillis, time.Duration(template.TimeTilDormantAutoDelete).Milliseconds()),
 		allowUserAutostart:             ptr.NilToDefault(req.AllowUserAutostart, template.AllowUserAutostart),
 		allowUserAutostop:              ptr.NilToDefault(req.AllowUserAutostop, template.AllowUserAutostop),
 		allowUserCancelWorkspaceJobs:   ptr.NilToDefault(req.AllowUserCancelWorkspaceJobs, template.AllowUserCancelWorkspaceJobs),
+		agentsAllowed:                  ptr.NilToDefault(req.AgentsAllowed, template.AgentsAllowed),
 		requireActiveVersion:           ptr.NilToDefault(req.RequireActiveVersion, template.RequireActiveVersion),
 		deprecationMessage:             ptr.NilToDefault(req.DeprecationMessage, template.Deprecated),
 		useClassicTemplateFlow:         ptr.NilToDefault(req.UseClassicParameterFlow, template.UseClassicParameterFlow),

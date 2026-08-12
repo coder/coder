@@ -16,7 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
@@ -33,22 +32,18 @@ type BlockingInterception struct {
 func NewBlockingInterceptor(
 	id uuid.UUID,
 	req *ChatCompletionNewParamsWrapper,
-	providerName string,
-	cfg config.OpenAI,
+	cfg intercept.Config,
+	cred intercept.Credential,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *BlockingInterception {
 	return &BlockingInterception{interceptionBase: interceptionBase{
-		id:             id,
-		providerName:   providerName,
-		req:            req,
-		cfg:            cfg,
-		clientHeaders:  clientHeaders,
-		authHeaderName: authHeaderName,
-		tracer:         tracer,
-		credential:     cred,
+		id:            id,
+		req:           req,
+		cfg:           cfg,
+		cred:          cred,
+		clientHeaders: clientHeaders,
+		tracer:        tracer,
 	}}
 }
 
@@ -72,7 +67,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	ctx, span := i.tracer.Start(r.Context(), "Intercept.ProcessRequest", trace.WithAttributes(tracing.InterceptionAttributesFromContext(r.Context())...))
 	defer tracing.EndSpanErr(span, &outErr)
 
-	svc := i.newCompletionsService()
+	svc := i.newCompletionsService(ctx)
 	logger := i.logger.With(slog.F("model", i.req.Model))
 
 	var (
@@ -91,7 +86,11 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		defer func() {
+			cp.Pool.RecordAttempts(totalKeyAttempts)
+		}()
+	}
 
 	for {
 		// TODO add outer loop span (https://github.com/coder/aibridge/issues/67)
@@ -124,20 +123,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		lastUsage := completion.Usage
 		cumulativeUsage = sumUsage(cumulativeUsage, completion.Usage)
 
-		_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
-			InterceptionID:       i.ID().String(),
-			MsgID:                completion.ID,
-			Input:                calculateActualInputTokenUsage(lastUsage),
-			Output:               lastUsage.CompletionTokens,
-			CacheReadInputTokens: lastUsage.PromptTokensDetails.CachedTokens,
-			ExtraTokenTypes: map[string]int64{
-				"prompt_audio":                   lastUsage.PromptTokensDetails.AudioTokens,
-				"completion_accepted_prediction": lastUsage.CompletionTokensDetails.AcceptedPredictionTokens,
-				"completion_rejected_prediction": lastUsage.CompletionTokensDetails.RejectedPredictionTokens,
-				"completion_audio":               lastUsage.CompletionTokensDetails.AudioTokens,
-				"completion_reasoning":           lastUsage.CompletionTokensDetails.ReasoningTokens,
-			},
-		})
+		i.recordTokenUsage(ctx, completion.ID, lastUsage)
 
 		// Check if we have tool calls to process.
 		var pendingToolCalls []openai.ChatCompletionMessageToolCallUnion
@@ -274,16 +260,16 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	return nil
 }
 
-// newChatCompletion routes between BYOK (single attempt) and centralized
-// failover, returning the upstream completion, the number of key attempts
-// made for this call, and any error.
+// newChatCompletion routes by credential type, returning the upstream
+// completion, the number of key attempts made for this call, and any error. A
+// centralized key pool fails over across keys, while BYOK authenticates with a
+// single, fixed credential baked into svc, so it makes one attempt.
 func (i *BlockingInterception) newChatCompletion(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
-	// BYOK: single attempt, no failover.
-	if i.cfg.KeyPool == nil {
-		completion, err := i.newChatCompletionWithKey(ctx, svc, opts)
-		return completion, 0, err
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		return i.newChatCompletionWithKeyFailover(ctx, svc, cp, opts)
 	}
-	return i.newChatCompletionWithKeyFailover(ctx, svc, opts)
+	completion, err := i.newChatCompletionWithKey(intercept.WithCredentialInfo(ctx, i.cred), svc, opts)
+	return completion, 0, err
 }
 
 // newChatCompletionWithKey performs a single upstream call.
@@ -307,18 +293,16 @@ func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc
 // on 429 and permanent on 401/403. Errors that aren't key-specific don't
 // trigger failover and are returned to the caller. It returns the upstream
 // completion, the number of key attempts made for this call, and any error.
-func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
-	walker := i.cfg.KeyPool.Walker()
+func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, cp *intercept.CentralizedPool, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
+	walker := cp.Pool.Walker()
 	for {
-		key, keyPoolErr := walker.Next()
+		key, keyPoolErr := cp.NextKey(walker)
 		if keyPoolErr != nil {
 			return nil, walker.Attempts(), keyPoolErr
 		}
-		// Record the key in use so the hint reflects the last attempted key.
-		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
-		i.logger.Debug(ctx, "using centralized api key",
-			slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
 
+		ctx = intercept.WithCredentialInfo(ctx, i.cred)
+		i.logger.Debug(ctx, "using centralized api key")
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,
 			option.WithAPIKey(key.Value()),

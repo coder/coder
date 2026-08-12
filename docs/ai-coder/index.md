@@ -31,14 +31,14 @@ interact with agents through the web UI or the REST API.
 [Learn more about Coder Agents](./agents/index.md) for architecture details,
 supported LLM providers, and how to get started.
 
-## Govern AI activity with the AI Governance Add-On
+## Govern AI activity with AI Governance
 
 AI coding tools are quickly becoming core to how engineering teams ship
 software. As adoption grows, platform teams want a clear picture of how AI is
 being used, consistent guardrails across teams, and predictable cost controls
 so they can confidently scale AI tooling to the whole organization.
 
-The [AI Governance Add-On](./ai-governance.md) is a per-user license that adds
+[AI Governance](./ai-governance.md) is included with a Premium license and adds
 observability, management, and policy controls for AI tooling across your
 Coder deployment. It includes:
 
@@ -51,5 +51,5 @@ Coder deployment. It includes:
 - Expanded Agent Workspace Build allowances for teams running AI-driven
   background work at scale.
 
-[Learn more about the AI Governance Add-On](./ai-governance.md) for use cases,
-entitlements, and how to enable it in your deployment.
+[Learn more about AI Governance](./ai-governance.md) for use cases, entitlements,
+and how to enable it in your deployment.

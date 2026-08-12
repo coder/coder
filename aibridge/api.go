@@ -34,6 +34,7 @@ type (
 	ModelThoughtRecord      = recorder.ModelThoughtRecord
 	Recorder                = recorder.Recorder
 	Metadata                = recorder.Metadata
+	ErrorType               = recorder.ErrorType
 
 	AnthropicConfig  = config.Anthropic
 	AWSBedrockConfig = config.AWSBedrock
@@ -45,8 +46,8 @@ func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) co
 	return aibcontext.AsActor(ctx, actorID, metadata)
 }
 
-func NewAnthropicProvider(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) provider.Provider {
-	return provider.NewAnthropic(cfg, bedrockCfg)
+func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (provider.Provider, error) {
+	return provider.NewAnthropic(ctx, cfg, bedrockCfg)
 }
 
 func NewOpenAIProvider(cfg config.OpenAI) provider.Provider {
@@ -69,6 +70,8 @@ func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 	return metrics.NewMetrics(reg)
 }
 
-func NewRecorder(logger slog.Logger, tracer trace.Tracer, clientFn func() (Recorder, error)) Recorder {
+// NewRecorder creates a [Recorder] which acquires a client per call.
+// clientFn receives the context of the call it serves.
+func NewRecorder(logger slog.Logger, tracer trace.Tracer, clientFn func(context.Context) (Recorder, error)) Recorder {
 	return recorder.NewWrappedRecorder(logger, tracer, clientFn)
 }

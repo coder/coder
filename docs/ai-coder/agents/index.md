@@ -229,30 +229,32 @@ model. Developers select from enabled models when starting a chat.
 The agent has access to a set of workspace tools that it uses to accomplish
 tasks:
 
-| Tool                                        | Description                                                              |
-|---------------------------------------------|--------------------------------------------------------------------------|
-| `list_templates`                            | Browse available workspace templates                                     |
-| `read_template`                             | Get template details and configurable parameters                         |
-| `create_workspace`                          | Create a workspace from a template                                       |
-| `start_workspace`                           | Start a stopped workspace for the current chat                           |
-| `propose_plan`                              | Present a Markdown plan file for user review                             |
-| `ask_user_question`                         | Ask the user structured clarification questions during plan mode         |
-| `read_file`                                 | Read file contents from the workspace                                    |
-| `write_file`                                | Write a file to the workspace                                            |
-| `edit_files`                                | Perform search-and-replace edits across files                            |
-| `execute`                                   | Run shell commands in the workspace                                      |
-| `process_output`                            | Retrieve output from a background process                                |
-| `process_list`                              | List all tracked processes in the workspace                              |
-| `process_signal`                            | Send a signal (terminate/kill) to a tracked process                      |
-| `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment |
-| `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel                       |
-| `wait_agent`                                | Wait for a sub-agent to complete and collect its result                  |
-| `message_agent`                             | Send a follow-up message to a running sub-agent                          |
-| `close_agent`                               | Stop a running sub-agent                                                 |
-| `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard) |
-| `read_skill`                                | Read the instructions for a workspace skill by name                      |
-| `read_skill_file`                           | Read a supporting file from a skill's directory                          |
-| `web_search`                                | Search the internet (provider-native, when enabled)                      |
+| Tool                                        | Description                                                                                        |
+|---------------------------------------------|----------------------------------------------------------------------------------------------------|
+| `list_templates`                            | Browse available workspace templates                                                               |
+| `read_template`                             | Get template details and configurable parameters                                                   |
+| `create_workspace`                          | Create a workspace from a template                                                                 |
+| `start_workspace`                           | Start a stopped workspace for the current chat                                                     |
+| `propose_plan`                              | Present a Markdown plan file for user review                                                       |
+| `ask_user_question`                         | Ask the user structured clarification questions during plan mode                                   |
+| `read_file`                                 | Read file contents from the workspace                                                              |
+| `write_file`                                | Write a file to the workspace                                                                      |
+| `edit_files`                                | Perform search-and-replace edits across files                                                      |
+| `execute`                                   | Run shell commands in the workspace                                                                |
+| `process_output`                            | Retrieve output from a background process                                                          |
+| `process_list`                              | List all tracked processes in the workspace                                                        |
+| `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                |
+| `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                           |
+| `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                 |
+| `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                           |
+| `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                            |
+| `message_agent`                             | Send a follow-up message to a running sub-agent                                                    |
+| `interrupt_agent`                           | Halt a sub-agent's current turn; it transitions to waiting or running if there are queued messages |
+| `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                           |
+| `list_agents`                               | List spawned child agents, most recently active first                                              |
+| `read_skill`                                | Read the instructions for a workspace skill by name                                                |
+| `read_skill_file`                           | Read a supporting file from a skill's directory                                                    |
+| `web_search`                                | Search the internet (provider-native, when enabled)                                                |
 
 These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in
@@ -260,7 +262,7 @@ the workspace.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`,
 `start_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`,
-`wait_agent`, `message_agent`, `close_agent`)
+`list_subagent_models`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`)
 are only available to root chats. Sub-agents do not have access to these
 tools and cannot create workspaces or spawn further sub-agents.
 
@@ -319,8 +321,3 @@ Coder Agents is a new approach that differs from
 | Workspace selection | Automatic, based on task description | Manual, user selects template                                  |
 | Sub-agents          | Built-in parallel delegation         | Not supported                                                  |
 | Modern chat UI      | Native chat with diffs, queuing      | Terminal-based interface                                       |
-
-## Product status
-
-Coder Agents is in Beta. The feature is under active development and
-available for evaluation.

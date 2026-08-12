@@ -12,13 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge"
 )
 
-// aibridgeRootPath is the URL prefix the in-memory aibridged handler
-// registers all of its routes under. The in-process round-tripper
-// prepends this plus the provider name to every request before
-// dispatch so callers can hand it upstream-shaped requests without
-// knowing the daemon's mount layout.
-const aibridgeRootPath = "/api/v2/aibridge"
-
 // NewTransportFactory returns an [aibridge.TransportFactory] whose RoundTripper
 // dispatches requests to handler in-process, streaming the response body
 // through an [io.Pipe] so SSE/NDJSON/chunked responses propagate token-by-token
@@ -37,7 +30,7 @@ type transportFactory struct {
 // TransportFor returns an in-process [http.RoundTripper] that dispatches
 // requests through the aibridged handler. The provider name is the routing
 // key the daemon mounts on; the round-tripper rewrites each request's URL
-// path to "/api/v2/aibridge/<providerName>/..." before dispatching so
+// path to "/api/v2/ai-gateway/<providerName>/..." before dispatching so
 // callers can build upstream-shaped requests and stay agnostic of the
 // daemon's mount layout. The source is attached to the request context for
 // downstream logging; routing does not depend on it.
@@ -69,10 +62,10 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	}
 
 	// Adapt the caller's upstream-shaped URL to the daemon's mount layout:
-	// "/api/v2/aibridge/<providerName>/<original-path>". Done here so
+	// "/api/v2/ai-gateway/<providerName>/<original-path>". Done here so
 	// callers do not need to encode the mount prefix or the provider
 	// routing key into the requests they hand to the transport.
-	newPath, err := url.JoinPath(aibridgeRootPath, t.providerName, req.URL.Path)
+	newPath, err := url.JoinPath(aibridge.AIGatewayRootPath, t.providerName, req.URL.Path)
 	if err != nil {
 		return nil, xerrors.Errorf("rewrite request URL for provider %q: %w", t.providerName, err)
 	}

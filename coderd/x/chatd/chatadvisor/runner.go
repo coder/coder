@@ -2,6 +2,7 @@ package chatadvisor
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -39,31 +40,24 @@ func (rt *Runtime) RunAdvisor(
 	if !rt.tryAcquire() {
 		return AdvisorResult{
 			Type:          ResultTypeLimitReached,
+			Advice:        LimitReachedAdvice,
 			RemainingUses: 0,
 		}, nil
 	}
 
-	// Clone per invocation and reset inherited state so chatloop cannot
-	// mutate the Runtime's stored options across calls, and so the nested
-	// call never runs as a chain-mode continuation against stale parent
-	// state or persists an orphan stored response on the provider side.
+	// resetProviderOptionsForNestedCall mutates its argument; give it a
+	// clone so the Runtime's stored options stay unchanged across calls.
 	nestedProviderOptions := cloneProviderOptions(rt.cfg.ProviderOptions)
 	resetProviderOptionsForNestedCall(nestedProviderOptions)
 
-	var persistedStep chatloop.PersistedStep
-	chatLoopOpts := chatloop.RunOptions{
+	assistantOpts := chatloop.GenerateAssistantOptions{
 		Model:           rt.cfg.Model,
 		Messages:        BuildAdvisorMessages(question, conversationSnapshot),
-		MaxSteps:        1,
 		ModelConfig:     rt.cfg.ModelConfig,
 		ProviderOptions: nestedProviderOptions,
-		PersistStep: func(_ context.Context, step chatloop.PersistedStep) error {
-			persistedStep = step
-			return nil
-		},
 	}
 	if opts != nil && opts.OnAdviceDelta != nil {
-		chatLoopOpts.PublishMessagePart = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+		assistantOpts.PublishMessagePart = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 			if role != codersdk.ChatMessageRoleAssistant ||
 				part.Type != codersdk.ChatMessagePartTypeText ||
 				part.Text == "" {
@@ -72,13 +66,17 @@ func (rt *Runtime) RunAdvisor(
 			opts.OnAdviceDelta(part.Text)
 		}
 	}
-	if opts != nil && opts.OnAdviceReset != nil {
-		chatLoopOpts.OnRetry = func(int, error, chatretry.ClassifiedError, time.Duration) {
+
+	var outcome chatloop.AssistantOutcome
+	if err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+		var err error
+		outcome, err = chatloop.GenerateAssistant(retryCtx, assistantOpts)
+		return err
+	}, func(int, error, chatretry.ClassifiedError, time.Duration) {
+		if opts != nil && opts.OnAdviceReset != nil {
 			opts.OnAdviceReset()
 		}
-	}
-
-	if err := chatloop.Run(ctx, chatLoopOpts); err != nil {
+	}); err != nil {
 		// Refund the use so a transient provider failure does not
 		// permanently exhaust the per-run advisor budget.
 		rt.release()
@@ -89,15 +87,18 @@ func (rt *Runtime) RunAdvisor(
 		}, nil
 	}
 
-	advice := extractAdvisorText(persistedStep)
+	advice := extractAdvisorText(outcome.Step)
 	if advice == "" {
 		// Refund: the run did not produce advice, so the contract
 		// "increments on every successful advisor call" treats this
 		// as not consuming a use.
 		rt.release()
 		return AdvisorResult{
-			Type:          ResultTypeError,
-			Error:         "advisor produced no text output",
+			Type: ResultTypeError,
+			Error: fmt.Sprintf(
+				"advisor produced no text output (%s)",
+				describeTextlessOutcome(outcome),
+			),
 			RemainingUses: rt.RemainingUses(),
 		}, nil
 	}
@@ -124,4 +125,46 @@ func extractAdvisorText(step chatloop.PersistedStep) string {
 		parts = append(parts, trimmed)
 	}
 	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+}
+
+// describeTextlessOutcome summarizes a step that yielded no usable advice
+// text so the error pinpoints the failure mode. A reasoning-only step means
+// the model spent its turn deciding on an action (such as a tool call it
+// cannot perform in this tool-less run) without answering; a length finish
+// means the output was truncated before any text was produced.
+func describeTextlessOutcome(outcome chatloop.AssistantOutcome) string {
+	var text, reasoning, toolCalls, other int
+	for _, content := range outcome.Step.Content {
+		switch content.(type) {
+		case fantasy.TextContent:
+			text++
+		case fantasy.ReasoningContent:
+			reasoning++
+		case fantasy.ToolCallContent:
+			toolCalls++
+		default:
+			other++
+		}
+	}
+	if len(outcome.ToolCalls) > toolCalls {
+		toolCalls = len(outcome.ToolCalls)
+	}
+
+	kinds := make([]string, 0, 4)
+	appendKind := func(name string, count int) {
+		if count > 0 {
+			kinds = append(kinds, fmt.Sprintf("%s=%d", name, count))
+		}
+	}
+	// Text parts can only reach here blank, so label them accordingly.
+	appendKind("blank_text", text)
+	appendKind("reasoning", reasoning)
+	appendKind("tool_call", toolCalls)
+	appendKind("other", other)
+
+	summary := "none"
+	if len(kinds) > 0 {
+		summary = strings.Join(kinds, ", ")
+	}
+	return fmt.Sprintf("finish_reason=%s; parts: %s", outcome.FinishReason, summary)
 }

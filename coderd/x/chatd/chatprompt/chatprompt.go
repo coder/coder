@@ -32,6 +32,8 @@ var syntheticPasteTruncationWarning = fmt.Sprintf(
 	syntheticPasteInlineBudget,
 )
 
+const inlinedFilePrefix = "[inlined-file] The user uploaded a file attachment. The target provider cannot accept this file type as a native attachment, so its full content is inlined below for direct model consumption.\n\n"
+
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
@@ -92,16 +94,31 @@ func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
 	return uuid.Parse(envelope.Data.FileID)
 }
 
+// FileIDs returns the valid file IDs referenced by file parts.
+func FileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
+	var ids []uuid.UUID
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeFile || !part.FileID.Valid {
+			continue
+		}
+		ids = append(ids, part.FileID.UUID)
+	}
+	return ids
+}
+
 // ConvertMessagesWithFiles converts persisted chat messages into LLM
 // prompt messages, resolving user file references via the provided
 // resolver. Missing-data placeholders are emitted only for replayed
 // user uploads; assistant-side and tool-side file metadata without
-// bytes is dropped from later model turns.
+// bytes is dropped from later model turns. acceptsFilePart, when
+// non-nil, gates whether text-family file parts are inlined as text for
+// providers that would drop them; nil preserves them as FilePart.
 func ConvertMessagesWithFiles(
 	ctx context.Context,
 	messages []database.ChatMessage,
 	resolver FileResolver,
 	logger slog.Logger,
+	acceptsFilePart func(mediaType string) bool,
 ) ([]fantasy.Message, error) {
 	// Phase 1: Parse all messages via ParseContent (→ SDK parts)
 	// and collect file_id references from user messages for batch
@@ -183,6 +200,7 @@ func ConvertMessagesWithFiles(
 				pm.parts,
 				resolved,
 				userMissingFilePolicy,
+				acceptsFilePart,
 			)
 			if len(userParts) == 0 {
 				continue
@@ -193,7 +211,7 @@ func ConvertMessagesWithFiles(
 			})
 		case codersdk.ChatMessageRoleAssistant:
 			fantasyParts := normalizeAssistantToolCallInputs(
-				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles),
+				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil),
 			)
 			for _, toolCall := range ExtractToolCalls(fantasyParts) {
 				if toolCall.ToolCallID == "" || strings.TrimSpace(toolCall.ToolName) == "" {
@@ -217,7 +235,7 @@ func ConvertMessagesWithFiles(
 					}
 				}
 			}
-			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles)
+			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil)
 			if len(toolParts) == 0 {
 				continue
 			}
@@ -233,39 +251,6 @@ func ConvertMessagesWithFiles(
 		toolNameByCallID,
 	)
 	return prompt, nil
-}
-
-// PrependSystem prepends a system message unless an existing system
-// message already mentions create_workspace guidance.
-func PrependSystem(prompt []fantasy.Message, instruction string) []fantasy.Message {
-	instruction = strings.TrimSpace(instruction)
-	if instruction == "" {
-		return prompt
-	}
-	for _, message := range prompt {
-		if message.Role != fantasy.MessageRoleSystem {
-			continue
-		}
-		for _, part := range message.Content {
-			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
-			if !ok {
-				continue
-			}
-			if strings.Contains(strings.ToLower(textPart.Text), "create_workspace") {
-				return prompt
-			}
-		}
-	}
-
-	out := make([]fantasy.Message, 0, len(prompt)+1)
-	out = append(out, fantasy.Message{
-		Role: fantasy.MessageRoleSystem,
-		Content: []fantasy.MessagePart{
-			fantasy.TextPart{Text: instruction},
-		},
-	})
-	out = append(out, prompt...)
-	return out
 }
 
 // InsertSystem inserts a system message after the existing system
@@ -295,24 +280,6 @@ func InsertSystem(prompt []fantasy.Message, instruction string) []fantasy.Messag
 	if !inserted {
 		out = append(out, systemMessage)
 	}
-	return out
-}
-
-// AppendUser appends an instruction as a user message at the end of
-// the prompt.
-func AppendUser(prompt []fantasy.Message, instruction string) []fantasy.Message {
-	instruction = strings.TrimSpace(instruction)
-	if instruction == "" {
-		return prompt
-	}
-	out := make([]fantasy.Message, 0, len(prompt)+1)
-	out = append(out, prompt...)
-	out = append(out, fantasy.Message{
-		Role: fantasy.MessageRoleUser,
-		Content: []fantasy.MessagePart{
-			fantasy.TextPart{Text: instruction},
-		},
-	})
 	return out
 }
 
@@ -947,10 +914,12 @@ func matchingAttachmentForMedia(
 	return chattool.AttachmentMetadata{}, false
 }
 
-// Keep in sync with coderd/x/chatd/subagent.go.
+// isSubagentLifecycleToolName lists subagent tools whose error results
+// may carry structured JSON. Keep in sync with coderd/x/chatd/subagent.go.
+// See subagentToolNameAliases for the full alias map.
 func isSubagentLifecycleToolName(name string) bool {
 	switch name {
-	case "spawn_agent", "wait_agent", "message_agent", "close_agent":
+	case "spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "close_agent":
 		return true
 	default:
 		return false
@@ -966,9 +935,20 @@ func hasErrorField(raw json.RawMessage) bool {
 	return ok
 }
 
+// injectMissingToolResults keeps tool results adjacent to the
+// assistant message that issued the calls. Hook effects, such as
+// pre_tool_use model context, can persist rows between an assistant
+// tool call and its result rows, so matching result rows found before
+// the next assistant message are hoisted back next to the call;
+// otherwise the interleaved row would make the real result look
+// orphaned. Unanswered local calls get synthetic interrupted results.
 func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 	result := make([]fantasy.Message, 0, len(prompt))
+	hoisted := make(map[int]bool)
 	for i := 0; i < len(prompt); i++ {
+		if hoisted[i] {
+			continue
+		}
 		msg := prompt[i]
 		result = append(result, msg)
 
@@ -979,28 +959,38 @@ func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 		if len(toolCalls) == 0 {
 			continue
 		}
+		callIDs := make(map[string]struct{}, len(toolCalls))
+		for _, tc := range toolCalls {
+			callIDs[tc.ToolCallID] = struct{}{}
+		}
 
-		// Collect the tool call IDs that have results in the
-		// following tool message(s).
+		// Hoist tool rows answering this assistant's calls, in
+		// persisted order, from anywhere before the next assistant
+		// message. Interleaved non-tool rows keep their relative
+		// order after the results.
 		answered := make(map[string]struct{})
-		j := i + 1
-		for ; j < len(prompt); j++ {
-			if prompt[j].Role != fantasy.MessageRoleTool {
+		for j := i + 1; j < len(prompt); j++ {
+			if prompt[j].Role == fantasy.MessageRoleAssistant {
 				break
 			}
+			if prompt[j].Role != fantasy.MessageRoleTool {
+				continue
+			}
+			answersThisCall := false
 			for _, part := range prompt[j].Content {
 				tr, ok := safeAsToolResultPart(part)
 				if !ok {
 					continue
 				}
-				answered[tr.ToolCallID] = struct{}{}
+				if _, ok := callIDs[tr.ToolCallID]; ok {
+					answersThisCall = true
+					answered[tr.ToolCallID] = struct{}{}
+				}
 			}
-		}
-		if i+1 < j {
-			// Preserve persisted tool result ordering and inject any
-			// synthetic results after the existing contiguous tool messages.
-			result = append(result, prompt[i+1:j]...)
-			i = j - 1
+			if answersThisCall {
+				result = append(result, prompt[j])
+				hoisted[j] = true
+			}
 		}
 
 		// Build synthetic results for any unanswered tool calls.
@@ -1292,8 +1282,11 @@ func executeToolParsedCommands(toolName string, args json.RawMessage) [][]string
 	return steps
 }
 
+// IsSyntheticPaste reports whether a file name and media type identify
+// a synthetic pasted-text attachment created by the chat UI.
+//
 // TODO: Replace filename-based detection with explicit origin metadata.
-func isSyntheticPaste(name string, mediaType string) bool {
+func IsSyntheticPaste(name string, mediaType string) bool {
 	if !syntheticPasteFileNamePattern.MatchString(name) {
 		return false
 	}
@@ -1326,6 +1319,41 @@ func formatSyntheticPasteText(name string, body []byte) string {
 	if len(body) > syntheticPasteInlineBudget {
 		_, _ = sb.WriteString(syntheticPasteTruncationWarning)
 	}
+	return sb.String()
+}
+
+// isInlinableTextMediaType reports whether mediaType is a text-family
+// type whose bytes may be decoded and inlined as prompt text. The set
+// is deliberately narrow so binary or unknown content is never decoded.
+// Any new text type added to codersdk.AllChatAttachmentMediaTypes must
+// also be added here, or it will be silently dropped on providers that
+// reject it as a file part.
+func isInlinableTextMediaType(mediaType string) bool {
+	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
+		mediaType = parsed
+	}
+	switch mediaType {
+	case "text/plain", "text/markdown", "text/csv", "application/json":
+		return true
+	default:
+		return false
+	}
+}
+
+// formatInlinedFileText renders a file's full content as prompt text
+// for providers that would drop the file part. Unlike the
+// synthetic-paste path, no truncation is applied.
+func formatInlinedFileText(name string, body []byte) string {
+	const fileNameLabel = "Attachment filename: "
+	const fileNameSuffix = "\n\n"
+
+	var sb strings.Builder
+	sb.Grow(len(inlinedFilePrefix) + len(fileNameLabel) + len(name) + len(fileNameSuffix) + len(body))
+	_, _ = sb.WriteString(inlinedFilePrefix)
+	if name != "" {
+		_, _ = fmt.Fprintf(&sb, "%s%s%s", fileNameLabel, name, fileNameSuffix)
+	}
+	_, _ = sb.Write(body)
 	return sb.String()
 }
 
@@ -1494,14 +1522,17 @@ const (
 
 // partsToMessageParts converts SDK chat message parts into fantasy
 // message parts for LLM dispatch. resolved is a lookup map for file
-// bytes, and policy controls whether missing file-backed parts are
-// dropped or replaced with text placeholders.
+// bytes, policy controls whether missing file-backed parts are dropped
+// or replaced with text placeholders, and acceptsFilePart (when non-nil)
+// gates whether text-family file parts are inlined as text for providers
+// that would drop them.
 func partsToMessageParts(
 	ctx context.Context,
 	logger slog.Logger,
 	parts []codersdk.ChatMessagePart,
 	resolved map[uuid.UUID]FileData,
 	policy missingFilePolicy,
+	acceptsFilePart func(mediaType string) bool,
 ) []fantasy.MessagePart {
 	result := make([]fantasy.MessagePart, 0, len(parts))
 	for _, part := range parts {
@@ -1559,7 +1590,7 @@ func partsToMessageParts(
 			// paste sent as a text/plain FilePart is dropped or rejected,
 			// so the model sees nothing. Converting it to TextPart keeps
 			// the pasted content visible to every provider.
-			if isSyntheticPaste(name, mediaType) {
+			if IsSyntheticPaste(name, mediaType) {
 				result = append(result, fantasy.TextPart{
 					Text:            formatSyntheticPasteText(name, data),
 					ProviderOptions: opts,
@@ -1585,6 +1616,26 @@ func partsToMessageParts(
 				// uploads, or provider-invalid prompt content. Unresolved
 				// file-backed parts are handled above so empty uploads do
 				// not look expired.
+				continue
+			}
+			// When the target provider would drop a text-family file part,
+			// inline the content as text so the model still sees it.
+			//
+			// This must run after the IsSyntheticPaste check above;
+			// synthetic pastes use a truncating path and must not fall
+			// through to the non-truncating inline path.
+			if acceptsFilePart != nil &&
+				isInlinableTextMediaType(mediaType) &&
+				!acceptsFilePart(mediaType) {
+				logger.Info(ctx,
+					"inlining text-family file part as text for provider that would drop it",
+					slog.F("file_name", name),
+					slog.F("media_type", mediaType),
+				)
+				result = append(result, fantasy.TextPart{
+					Text:            formatInlinedFileText(name, data),
+					ProviderOptions: opts,
+				})
 				continue
 			}
 			result = append(result, fantasy.FilePart{
@@ -1624,6 +1675,16 @@ func partsToMessageParts(
 			_, _ = sb.WriteString(part.ContextFileContent)
 			_, _ = sb.WriteString("\n</workspace-context>")
 			result = append(result, fantasy.TextPart{Text: sb.String()})
+		case codersdk.ChatMessagePartTypeHookContext:
+			// Lifecycle hook model context rides inside the user
+			// message and is sent to the model as plain text.
+			if strings.TrimSpace(part.Text) == "" {
+				continue
+			}
+			result = append(result, fantasy.TextPart{Text: part.Text})
+		case codersdk.ChatMessagePartTypeHookNotice:
+			// Client-only hook notice, never sent to the model.
+			continue
 		case codersdk.ChatMessagePartTypeSource:
 			// Source parts are metadata-only, not sent to LLM.
 			continue

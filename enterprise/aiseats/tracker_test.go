@@ -146,7 +146,7 @@ func TestSeatTrackerDB(t *testing.T) {
 		require.EqualValues(t, 1, count)
 
 		require.Len(t, a.AuditLogs(), 1)
-		require.Equal(t, database.ResourceTypeAiSeat, a.AuditLogs()[0].ResourceType)
+		require.Equal(t, database.ResourceTypeAISeat, a.AuditLogs()[0].ResourceType)
 	})
 
 	// Provisionerd also calls RecordUsage via SeatTracker for

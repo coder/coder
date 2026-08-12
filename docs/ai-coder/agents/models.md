@@ -1,9 +1,9 @@
 # Models
 
 Administrators configure LLM providers from **Admin settings** > **AI** and
-Coder Agents models from the **Agents** settings page. Providers, models, and
-centrally managed credentials are deployment-wide settings managed by platform
-teams. Developers select from the set of models that an administrator has
+Coder Agents models from **Admin settings** > **AI** > **Models**. Providers,
+models, and centrally managed credentials are deployment-wide settings managed
+by platform teams. Developers select from the set of models that an administrator has
 enabled.
 
 Optionally, administrators can enable AI Gateway Bring Your Own Key (BYOK)
@@ -35,6 +35,12 @@ models, internal gateways, or third-party proxies like LiteLLM.
 Coder Agents route model requests through AI Gateway automatically by using
 the provider configuration stored in Coder's database.
 
+Some provider types work as AI Gateway proxy targets but cannot back Coder
+Agents. GitHub Copilot, for example, authenticates with a per-request token
+that only an official Copilot client can mint, so the server-side Agents
+harness cannot use it. Configuring such a provider does not unlock Agents;
+add one of the supported provider types above instead.
+
 ### Add a provider
 
 LLM providers are managed from the deployment AI settings, not from the Agents
@@ -49,9 +55,8 @@ settings page.
    [endpoint/base URL](#endpointbase-url-for-openai-compatible-providers).
 1. Click **Save**.
 
-After saving a provider, add an Agents model for it from **Agents** >
-**Settings** > **Manage Agents** > **Models**. For provider-specific setup,
-including AWS Bedrock, see
+After saving a provider, add an Agents model for it from **Admin settings** >
+**AI** > **Models**. For provider-specific setup, including AWS Bedrock, see
 [AI Gateway provider configuration](../ai-gateway/providers.md#provider-types).
 
 ## Endpoint/base URL for OpenAI-compatible providers
@@ -62,7 +67,7 @@ implements the APIs Coder sends.
 
 For the default Agents path through AI Gateway, set the endpoint/base URL to
 the upstream provider or proxy endpoint. Do not set it to Coder's public AI
-Gateway route, such as `https://<coder-host>/api/v2/aibridge/openai/v1`.
+Gateway route, such as `https://<coder-host>/api/v2/ai-gateway/openai/v1`.
 
 OpenAI-shaped provider types require the upstream OpenAI-compatible prefix in
 the endpoint/base URL because Coder appends request suffixes such as
@@ -122,7 +127,7 @@ generation parameters, and provider-specific options.
 
 ### Add a model
 
-1. Open **Settings** > **Manage Agents** and select the **Models** tab.
+1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Click **Add** and select the provider for the new model.
 1. Enter the **Model Identifier**, the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
@@ -149,6 +154,22 @@ Click the **star icon** next to a model in the models list to make it the
 default. The default model is pre-selected when developers start a new chat.
 Only one model can be the default at a time.
 
+### Models with a missing or disabled provider
+
+The Models list reflects whether each model can actually be used:
+
+- When a model's connected provider has been deleted, the **Provider** column
+  shows **Unset** with an info tooltip that reads "The provider connected to
+  this model has been deleted."
+- When a model's provider is missing or disabled, the **Status** column
+  shows **Disabled**, regardless of the model's own enabled setting. Such a
+  model cannot serve chat requests.
+
+To reconnect a model to a working provider, open the model from the list,
+pick a new provider from the **Provider** dropdown, and click **Save**. The
+Save button is enabled as soon as the selected provider differs from the
+model's current provider, even if no other field is edited.
+
 ## Model options
 
 Every model has a set of general options and provider-specific options.
@@ -171,10 +192,6 @@ These options apply to all providers:
 | Top K                 | Limits token selection to the top K candidates.                                                  |
 | Presence Penalty      | Penalizes tokens that have already appeared in the conversation.                                 |
 | Frequency Penalty     | Penalizes tokens proportional to how often they have appeared.                                   |
-| Input Price           | Optional USD price metadata for input tokens, recorded per 1M tokens.                            |
-| Output Price          | Optional USD price metadata for output tokens, recorded per 1M tokens.                           |
-| Cache Read Price      | Optional USD price metadata for cache read tokens, recorded per 1M tokens.                       |
-| Cache Write Price     | Optional USD price metadata for cache creation/write tokens, recorded per 1M tokens.             |
 
 ### Provider-specific options
 
@@ -183,10 +200,11 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### Anthropic
 
-| Option                 | Description                                                      |
-|------------------------|------------------------------------------------------------------|
-| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.                  |
-| Effort                 | Thinking effort level (`low`, `medium`, `high`, `xhigh`, `max`). |
+| Option                 | Description                                                                                                                                                                                                                      |
+|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.                                                                                                                                                                                  |
+| Effort                 | Thinking effort level (`low`, `medium`, `high`, `xhigh`, `max`).                                                                                                                                                                 |
+| 1M Context Window      | Sends the `anthropic-beta: context-1m-2025-08-07` header to unlock the 1M token context window on supported Claude models. Pair it with a raised Context Limit, which still controls compaction. Long-context pricing may apply. |
 
 #### OpenAI
 
@@ -263,17 +281,25 @@ The configurable contexts:
 
 Resolution order, evaluated per chat or subagent:
 
+1. Explicit `model_config_id` on the `spawn_agent` tool call (general and
+   explore subagents only).
 1. Personal override (when the admin gate is on and a model is set).
 1. Admin subagent override.
 1. The chat's selected model (or the deployment default for new chats).
 
 If a referenced model is later disabled or deleted, that layer is skipped
-and resolution falls through to the next.
+and resolution falls through to the next. Explicit `spawn_agent` selection
+is different: an unusable `model_config_id` fails the tool call instead of
+falling through. Agents discover selectable models (and their reasoning
+effort ranges) with the `list_subagent_models` tool, which only returns
+enabled models usable with the chat owner's credentials. Computer-use
+subagents always run on the administrator-configured computer-use model and
+reject explicit model selection.
 
 > [!NOTE]
-> Both override layers are experimental and may change between releases.
-> The same values are available through the experimental chat
-> configuration API under `/api/experimental/chats/config/`.
+> Both override layers may change between releases.
+> The same values are available through the chat
+> configuration API under `/api/v2/chats/config/`.
 
 ## User API keys (BYOK)
 

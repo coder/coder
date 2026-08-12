@@ -52,7 +52,7 @@ const SessionThreadsPage: FC = () => {
 					// is a previous page in the history stack, navigate back. otherwise,
 					// navigate to the sessions list page without params
 					if (location.key === "default") {
-						navigate("/aibridge/sessions");
+						navigate("/ai-gateway/sessions");
 					} else {
 						navigate(-1);
 					}

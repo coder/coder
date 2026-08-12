@@ -70,7 +70,11 @@ const EditUserPage: FC = () => {
 				initialValues={{
 					username: userData.username,
 					name: userData.name ?? "",
+					avatar_url: userData.avatar_url ?? "",
 				}}
+				canEditAvatar={
+					userData.login_type === "password" || userData.login_type === "none"
+				}
 				onSubmit={handleSubmit}
 				onCancel={() => {
 					navigate("..", { relative: "path" });

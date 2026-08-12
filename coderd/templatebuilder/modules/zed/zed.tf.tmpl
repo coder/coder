@@ -1,0 +1,9 @@
+module "zed" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/zed/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  agent_name = {{ .Variables.agent_name }}
+  folder = {{ .Variables.folder }}
+  settings = {{ .Variables.settings }}
+}

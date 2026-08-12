@@ -8,21 +8,25 @@ import (
 	"strings"
 
 	"github.com/shopspring/decimal"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 )
 
 // SchemaField describes a single form field in the generated schema.
 type SchemaField struct {
-	JSONName    string   `json:"json_name"`
-	GoName      string   `json:"go_name"`
-	Type        string   `json:"type"`
-	Description string   `json:"description,omitempty"`
-	Label       string   `json:"label,omitempty"`
-	Required    bool     `json:"required"`
-	Enum        []string `json:"enum,omitempty"`
-	InputType   string   `json:"input_type"`
-	Hidden      bool     `json:"hidden,omitempty"`
+	JSONName            string   `json:"json_name"`
+	GoName              string   `json:"go_name"`
+	Type                string   `json:"type"`
+	Description         string   `json:"description,omitempty"`
+	Label               string   `json:"label,omitempty"`
+	Required            bool     `json:"required"`
+	Enum                []string `json:"enum,omitempty"`
+	InputType           string   `json:"input_type"`
+	Hidden              bool     `json:"hidden,omitempty"`
+	VisibleWhen         string   `json:"visible_when,omitempty"`
+	ConflictsWith       []string `json:"conflicts_with,omitempty"`
+	VisibleForProviders []string `json:"visible_for_providers,omitempty"`
 }
 
 // FieldGroup holds the fields for a struct or provider.
@@ -52,7 +56,12 @@ func main() {
 		reflect.TypeOf(codersdk.ChatModelCallConfig{}),
 		"",
 		map[string]bool{"ProviderOptions": true},
+		nil,
 	)
+	if err := validateFieldReferences("general", schema.General); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	// Provider-specific options. Each entry maps a provider key
 	// to the concrete options struct used for that provider.
@@ -69,7 +78,16 @@ func main() {
 	}
 
 	for _, p := range providerTypes {
-		schema.Providers[p.key] = extractFields(p.typ, "", nil)
+		schema.Providers[p.key] = extractFields(p.typ, "", nil, nil)
+		if err := validateFieldReferences(p.key, schema.Providers[p.key]); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+
+	if err := validateProviderScopes(schema); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 
 	out, err := json.MarshalIndent(schema, "", "\t")
@@ -83,10 +101,46 @@ func main() {
 	_, _ = fmt.Println(string(out))
 }
 
-// extractFields walks the struct fields of t and returns a FieldGroup.
-// prefix is used to build dot-separated json_name values for nested
-// structs. skip lists Go field names to exclude from output.
-func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGroup {
+// validateProviderScopes rejects a providers tag naming something that is
+// neither a canonical provider nor an alias, which would silently hide the
+// field from every editor.
+func validateProviderScopes(schema Schema) error {
+	for _, f := range schema.General.Fields {
+		for _, provider := range f.VisibleForProviders {
+			if _, ok := schema.Providers[provider]; ok {
+				continue
+			}
+			if _, ok := schema.ProviderAliases[provider]; ok {
+				continue
+			}
+			return xerrors.Errorf("field %q has providers entry %q referencing an unknown provider", f.JSONName, provider)
+		}
+	}
+	return nil
+}
+
+func validateFieldReferences(group string, fg FieldGroup) error {
+	names := make(map[string]bool, len(fg.Fields))
+	for _, f := range fg.Fields {
+		names[f.JSONName] = true
+	}
+
+	for _, f := range fg.Fields {
+		if f.VisibleWhen != "" && !names[f.VisibleWhen] {
+			return xerrors.Errorf("field %q in group %q has visible_when=%q referencing an unknown sibling field", f.JSONName, group, f.VisibleWhen)
+		}
+		for _, sibling := range f.ConflictsWith {
+			if !names[sibling] {
+				return xerrors.Errorf("field %q in group %q has conflicts_with entry %q referencing an unknown sibling field", f.JSONName, group, sibling)
+			}
+		}
+	}
+	return nil
+}
+
+// Nested fields inherit an enclosing provider scope unless they declare their
+// own.
+func extractFields(t reflect.Type, prefix string, skip map[string]bool, providers []string) FieldGroup {
 	var fields []SchemaField
 
 	for i := range t.NumField() {
@@ -120,6 +174,11 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGro
 		// so that entire sub-objects can be marked hidden.
 		hidden := f.Tag.Get("hidden") == "true"
 
+		fieldProviders := providers
+		if tag := f.Tag.Get("providers"); tag != "" {
+			fieldProviders = strings.Split(tag, ",")
+		}
+
 		// decimal.Decimal is an opaque numeric type used for pricing
 		// precision; do not recurse into its internal struct fields.
 		isDecimal := ft == reflect.TypeOf(decimal.Decimal{})
@@ -129,7 +188,7 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGro
 		// entire struct is marked hidden, in which case emit it
 		// as a single opaque field.
 		if ft.Kind() == reflect.Struct && !hidden && !isDecimal {
-			nested := extractFields(ft, fullJSONName, nil)
+			nested := extractFields(ft, fullJSONName, nil, fieldProviders)
 			fields = append(fields, nested.Fields...)
 			continue
 		}
@@ -138,6 +197,12 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGro
 		description := f.Tag.Get("description")
 		label := f.Tag.Get("label")
 		enumTag := f.Tag.Get("enum")
+		visibleWhen := f.Tag.Get("visible_when")
+
+		var conflictsWith []string
+		if conflictsTag := f.Tag.Get("conflicts_with"); conflictsTag != "" {
+			conflictsWith = strings.Split(conflictsTag, ",")
+		}
 
 		var enumValues []string
 		if enumTag != "" {
@@ -148,15 +213,18 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGro
 		inputType := inferInputType(typeName, enumValues)
 
 		fields = append(fields, SchemaField{
-			JSONName:    fullJSONName,
-			GoName:      goFieldPath(prefix, f.Name, t, fullJSONName),
-			Type:        typeName,
-			Description: description,
-			Label:       label,
-			Required:    required,
-			Enum:        enumValues,
-			InputType:   inputType,
-			Hidden:      hidden,
+			JSONName:            fullJSONName,
+			GoName:              goFieldPath(prefix, f.Name, t, fullJSONName),
+			Type:                typeName,
+			Description:         description,
+			Label:               label,
+			Required:            required,
+			Enum:                enumValues,
+			InputType:           inputType,
+			Hidden:              hidden,
+			VisibleWhen:         visibleWhen,
+			ConflictsWith:       conflictsWith,
+			VisibleForProviders: fieldProviders,
 		})
 	}
 

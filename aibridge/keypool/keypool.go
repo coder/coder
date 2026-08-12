@@ -32,6 +32,9 @@ const (
 	// ErrorKindPermanent means every key is permanently marked
 	// and no key can satisfy the request.
 	ErrorKindPermanent
+	// ErrorKindUnauthorized means every unavailable key is in a
+	// cooldown triggered by an authentication failure.
+	ErrorKindUnauthorized
 )
 
 // Error is returned when no key is available for the
@@ -45,7 +48,9 @@ type Error struct {
 func (e *Error) Error() string {
 	switch e.Kind {
 	case ErrorKindPermanent:
-		return "all configured keys failed authentication"
+		return "all configured keys are permanently unavailable"
+	case ErrorKindUnauthorized:
+		return "all configured keys failed authentication. Contact your Administrator"
 	case ErrorKindRateLimited:
 		return fmt.Sprintf("all configured keys are rate-limited (retry after %s)", e.RetryAfter)
 	default:
@@ -71,14 +76,20 @@ const (
 // with a zero or negative cooldown duration.
 const defaultCooldown = 60 * time.Second
 
-// Metric label values for the key pool failover metrics.
-const (
-	// Reasons for a key_pool_state_transitions_total event.
-	reasonRateLimited  = "rate_limited"
-	reasonUnauthorized = "unauthorized"
-	reasonForbidden    = "forbidden"
+// cooldownReason records why a key entered its current cooldown. It is
+// meaningful only while the cooldown is active.
+type cooldownReason string
 
-	// Outcomes for a key_pool_exhaustions_total event.
+const (
+	// cooldownRateLimited means the current cooldown was triggered by a
+	// rate-limit response (HTTP 429).
+	cooldownRateLimited cooldownReason = "rate_limited"
+	// cooldownUnauthorized means the current cooldown was triggered by an
+	// authentication failure (HTTP 401).
+	cooldownUnauthorized cooldownReason = "unauthorized"
+)
+
+const (
 	outcomeRateLimited = "rate_limited"
 	outcomeAuthFailed  = "auth_failed"
 )
@@ -88,6 +99,9 @@ type Key struct {
 	value         string
 	permanent     bool
 	cooldownUntil time.Time
+	// reason records why the current cooldown was applied. It is only
+	// meaningful while cooldownUntil is active.
+	reason cooldownReason
 
 	mu    sync.RWMutex
 	clock quartz.Clock
@@ -151,6 +165,11 @@ func (k *Key) Hint() string {
 	return utils.MaskSecret(k.value)
 }
 
+// Length returns the length of the key value, for logs.
+func (k *Key) Length() int {
+	return len(k.value)
+}
+
 // State returns the current state of the key, derived from its
 // permanent flag and cooldown deadline.
 func (k *Key) State() KeyState {
@@ -167,26 +186,31 @@ func (k *Key) State() KeyState {
 	return KeyStateValid
 }
 
-// stateAndCooldown returns the key's state and remaining
-// cooldown as a single atomic snapshot.
-func (k *Key) stateAndCooldown() (KeyState, time.Duration) {
+// stateAndCooldown returns the key's state, remaining cooldown, and the
+// reason for the current cooldown as a single atomic snapshot.
+func (k *Key) stateAndCooldown() (KeyState, time.Duration, cooldownReason) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
 	if k.permanent {
-		return KeyStatePermanent, 0
+		return KeyStatePermanent, 0, k.reason
 	}
 	now := k.clock.Now()
 	if now.Before(k.cooldownUntil) {
-		return KeyStateTemporary, k.cooldownUntil.Sub(now)
+		return KeyStateTemporary, k.cooldownUntil.Sub(now), k.reason
 	}
-	return KeyStateValid, 0
+	return KeyStateValid, 0, k.reason
 }
 
-// MarkTemporary marks the key as temporarily unavailable with
-// the specified cooldown duration. Returns true if this call
-// transitions the key to temporary.
+// MarkTemporary marks the key unavailable for the given cooldown. Returns
+// true on the valid -> temporary transition.
 func (k *Key) MarkTemporary(cooldown time.Duration) bool {
+	return k.applyCooldown(cooldown, cooldownRateLimited)
+}
+
+// applyCooldown marks the key unavailable for the given cooldown, recording
+// reason as the cause. Returns true on the valid -> temporary transition.
+func (k *Key) applyCooldown(cooldown time.Duration, reason cooldownReason) bool {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
@@ -210,6 +234,7 @@ func (k *Key) MarkTemporary(cooldown time.Duration) bool {
 	}
 
 	k.cooldownUntil = newDeadline
+	k.reason = reason
 	return !inCooldown
 }
 
@@ -228,46 +253,54 @@ func (k *Key) MarkPermanent() bool {
 	return true
 }
 
-// keyPoolError returns an Error summarizing why no
-// key is currently available. When at least one key is
-// temporary, the smallest remaining cooldown is used as the
-// retry-after.
+// keyPoolError returns an Error summarizing why no key is currently
+// available. When at least one key is temporary, the smallest remaining
+// cooldown is used as the retry-after. A rate limit anywhere in the pool
+// takes precedence, so the exhaustion is classified as unauthorized only
+// when every cooldown was triggered by an auth failure.
 func (p *Pool) keyPoolError() *Error {
 	var retryAfter time.Duration
 	var hasCooldown bool
+	var isRateLimited bool
 	for i := range p.keys {
-		state, cooldown := p.keys[i].stateAndCooldown()
+		state, cooldown, reason := p.keys[i].stateAndCooldown()
 		switch state {
 		// Recoverable now: a key's cooldown expired between the walker's
 		// check and this scan. Return Retry-After: 0 to indicate that
 		// an immediate retry will succeed.
 		case KeyStateValid:
 			return &Error{Kind: ErrorKindRateLimited}
-		// Recoverable later: track soonest remaining cooldown.
+		// Recoverable later: track soonest remaining cooldown and reason.
 		case KeyStateTemporary:
 			if !hasCooldown || cooldown < retryAfter {
 				retryAfter = cooldown
-				hasCooldown = true
+			}
+			hasCooldown = true
+			if reason == cooldownRateLimited {
+				isRateLimited = true
 			}
 		// Permanent: keep walking to confirm error type.
 		default:
 		}
 	}
 	if hasCooldown {
-		return &Error{Kind: ErrorKindRateLimited, RetryAfter: retryAfter}
+		kind := ErrorKindUnauthorized
+		if isRateLimited {
+			kind = ErrorKindRateLimited
+		}
+		return &Error{Kind: kind, RetryAfter: retryAfter}
 	}
 	return &Error{Kind: ErrorKindPermanent}
 }
 
-// recordExhaustion increments the exhaustion counter for the outcome
-// implied by err.Kind: a rate-limited pool can recover, a permanent
-// one cannot.
+// recordExhaustion increments the exhaustion counter, labeling the outcome
+// as an auth failure for permanent or unauthorized errors, else a rate limit.
 func (p *Pool) recordExhaustion(err *Error) {
 	if p.metrics == nil {
 		return
 	}
 	outcome := outcomeRateLimited
-	if err.Kind == ErrorKindPermanent {
+	if err.Kind == ErrorKindPermanent || err.Kind == ErrorKindUnauthorized {
 		outcome = outcomeAuthFailed
 	}
 	p.metrics.KeyPoolExhaustions.WithLabelValues(p.providerName, outcome).Inc()

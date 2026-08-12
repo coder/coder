@@ -41,26 +41,10 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 				return
 			}
 
-			// Extract the trace context from the request headers.
-			tmp := otel.GetTextMapPropagator()
-			hc := propagation.HeaderCarrier(r.Header)
-			ctx := tmp.Extract(r.Context(), hc)
-
-			// start span with default span name. Span name will be updated to "method route" format once request finishes.
-			ctx, span := tracer.Start(ctx, fmt.Sprintf("%s %s", r.Method, r.RequestURI))
+			// Start span with default span name. Span name will be updated to
+			// "method route" format once request finishes.
+			r, span := StartHTTPSpan(tracer, rw, r, fmt.Sprintf("%s %s", r.Method, r.RequestURI))
 			defer span.End()
-			r = r.WithContext(ctx)
-
-			if span.SpanContext().HasTraceID() && span.SpanContext().HasSpanID() {
-				// Technically these values are included in the Traceparent
-				// header, but they are easier to read for humans this way.
-				rw.Header().Set("X-Trace-ID", span.SpanContext().TraceID().String())
-				rw.Header().Set("X-Span-ID", span.SpanContext().SpanID().String())
-
-				// Inject the trace context into the response headers.
-				hc := propagation.HeaderCarrier(rw.Header())
-				tmp.Inject(ctx, hc)
-			}
 
 			sw, ok := rw.(*StatusWriter)
 			if !ok {
@@ -73,6 +57,26 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 			EndHTTPSpan(r, sw.Status, span)
 		})
 	}
+}
+
+// StartHTTPSpan starts a span, propagating inbound trace context and writing
+// X-Trace-ID/X-Span-ID response headers. The caller must end the span.
+func StartHTTPSpan(tracer trace.Tracer, rw http.ResponseWriter, r *http.Request, name string) (*http.Request, trace.Span) {
+	propagator := otel.GetTextMapPropagator()
+	ctx := propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+
+	ctx, span := tracer.Start(ctx, name)
+	r = r.WithContext(ctx)
+
+	if span.SpanContext().HasTraceID() && span.SpanContext().HasSpanID() {
+		// Technically these values are included in the Traceparent header, but
+		// they are easier to read for humans this way.
+		rw.Header().Set("X-Trace-ID", span.SpanContext().TraceID().String())
+		rw.Header().Set("X-Span-ID", span.SpanContext().SpanID().String())
+		propagator.Inject(ctx, propagation.HeaderCarrier(rw.Header()))
+	}
+
+	return r, span
 }
 
 // EndHTTPSpan captures request and response data after the handler is done.

@@ -1,0 +1,32 @@
+
+variable "api_key" {
+  description = "API key for the selected AI provider. This will be set as the appropriate environment variable based on the provider."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+module "aider" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/aider/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  agentapi_version = {{ .Variables.agentapi_version }}
+  ai_prompt = {{ .Variables.ai_prompt }}
+  ai_provider = {{ .Variables.ai_provider }}
+  api_key = var.api_key
+  base_aider_config = {{ .Variables.base_aider_config }}
+  cli_app = {{ .Variables.cli_app }}
+  cli_app_display_name = {{ .Variables.cli_app_display_name }}
+  custom_env_var_name = {{ .Variables.custom_env_var_name }}
+  experiment_additional_extensions = {{ .Variables.experiment_additional_extensions }}
+  icon = {{ .Variables.icon }}
+  install_agentapi = {{ .Variables.install_agentapi }}
+  install_aider = {{ .Variables.install_aider }}
+  model = {{ .Variables.model }}
+  post_install_script = {{ .Variables.post_install_script }}
+  pre_install_script = {{ .Variables.pre_install_script }}
+  report_tasks = {{ .Variables.report_tasks }}
+  system_prompt = {{ .Variables.system_prompt }}
+  web_app_display_name = {{ .Variables.web_app_display_name }}
+  workdir = {{ .Variables.workdir }}
+}

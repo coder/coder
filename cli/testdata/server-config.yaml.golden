@@ -172,7 +172,8 @@ networking:
   # True-Client-Ip, X-Forwarded-For.
   # (default: <unset>, type: string-array)
   proxyTrustedHeaders: []
-  # Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
+  # Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for
+  # subdomain app routing. e.g. 192.168.1.0/24.
   # (default: <unset>, type: string-array)
   proxyTrustedOrigins: []
   # Controls if the 'Secure' property is set on browser session cookies.
@@ -189,6 +190,13 @@ networking:
   # Whether Coder only allows connections to workspaces via the browser.
   # (default: <unset>, type: bool)
   browserOnly: false
+  # Configure network clustering. Coder Servers in the primary region form a cluster
+  # by
+  # communicating directly.
+  cluster:
+    # Hostname or (more commonly) IP to reach this replica for clustering.
+    # (default: <unset>, type: string)
+    clusterHost: ""
 # Interval to poll for scheduled workspace builds.
 # (default: 1m0s, type: duration)
 autobuildPollInterval: 1m0s
@@ -293,7 +301,7 @@ oauth2:
     # (default: <unset>, type: string-array)
     allowedOrgs: []
     # Teams inside organizations the user must be a member of to Login with GitHub.
-    # Structured as: <organization-name>/<team-slug>.
+    # Structured as: `<organization-name>/<team-slug>`.
     # (default: <unset>, type: string-array)
     allowedTeams: []
     # Whether new users can sign up with GitHub.
@@ -427,6 +435,26 @@ oidc:
   # setting can also break OIDC, so use with caution.
   # (default: <unset>, type: url)
   oidc-redirect-url:
+  # OIDC based users require the IdP issuer and subject in the claims to be static.
+  # If a new provider is configured, this option is required to be 'true'. It will
+  # reset any existing users to the previous provider, and match by email on their
+  # next login.
+  # (default: true, type: bool)
+  oidc-repair-links: true
+  # INSECURE: Allow OIDC logins to fall back to email-based matching when the
+  # linked_id (issuer+subject) does not match an existing user link. Required for
+  # IdP brokers that do not issue a stable 'sub' for the same user across
+  # connections. The existing user_link's linked_id is preserved on fallback. Only
+  # enable if you understand and accept the risk.
+  # (default: <unset>, type: bool)
+  dangerousOidcEmailFallback: false
+  # An allowlist of hostnames that may be used as the host of the OIDC redirect_uri.
+  # When set, the redirect_uri sent to the OIDC provider is built from the incoming
+  # request's Host header (validated against this list) instead of from access-url.
+  # Every listed host must also be registered as a valid redirect URI in the OIDC
+  # provider. Ignored when oidc-redirect-url is set.
+  # (default: <unset>, type: string-array)
+  oidcRedirectAllowedHosts: []
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.
@@ -512,6 +540,10 @@ sshKeygenAlgorithm: ed25519
 # URL to use for agent troubleshooting when not set in the template.
 # (default: https://coder.com/docs/admin/templates/troubleshooting, type: url)
 agentFallbackTroubleshootingURL: https://coder.com/docs/admin/templates/troubleshooting
+# Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is
+# provided for backward compatibility for existing users.
+# (default: true, type: bool)
+scimUseLegacy: true
 # Disable workspace apps that are not served from subdomains. Path-based apps can
 # make requests to the Coder API and pose a security risk when the workspace
 # serves malicious JavaScript. This is recommended for security purposes if a
@@ -771,9 +803,25 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
-  # Route chat model requests through AI Gateway when both chat routing and AI
-  # Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats
-  # without API key metadata may need a retry or temporary direct routing.
+  # HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires
+  # --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the
+  # agent-lifecycle-hooks experiment.
+  # (default: <unset>, type: url)
+  hookURL:
+  # Maximum time to wait for a chat agent lifecycle hook response.
+  # (default: 1.5s, type: duration)
+  hookTimeout: 1.5s
+  # Whether to dispatch chat agent lifecycle hooks when a hook URL is configured.
+  # Requires the agent-lifecycle-hooks experiment.
+  # (default: true, type: bool)
+  hookEnabled: true
+  # Allow the chat hook URL to use plain HTTP for any host. Plain HTTP exposes
+  # sensitive chat data and lets an on-path attacker forge hook responses that
+  # control agent execution, so only enable this on a network you fully trust.
+  # (default: false, type: bool)
+  hookAllowInsecure: false
+  # Deprecated: AI Gateway routing is now the only routing path. Setting this value
+  # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
 aibridge:
@@ -797,7 +845,7 @@ aibridge:
   bedrock_base_url: ""
   # Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION
   # instead. The AWS Bedrock API region to use. Constructs a base URL to use for the
-  # AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
+  # AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.
   # (default: <unset>, type: string)
   bedrock_region: ""
   # Deprecated: use --ai-gateway-bedrock-model or CODER_AI_GATEWAY_BEDROCK_MODEL
@@ -901,7 +949,7 @@ ai_gateway:
   # option seeds provider configuration at startup only exactly once. It will not be
   # used in service runtime. The AWS Bedrock API region to use. Constructs a base
   # URL to use for the AWS Bedrock API in the form of
-  # 'https://bedrock-runtime.<region>.amazonaws.com'.
+  # `https://bedrock-runtime.<region>.amazonaws.com`.
   # (default: <unset>, type: string)
   bedrock_region: ""
   # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this
@@ -947,7 +995,7 @@ ai_gateway:
   # X-Ai-Bridge-Actor-Metadata-Username (their username).
   # (default: false, type: bool)
   send_actor_headers: false
-  # Base directory for dumping AI Bridge request/response pairs to disk for
+  # Base directory for dumping AI Gateway request/response pairs to disk for
   # debugging. When set, each provider writes under a subdirectory named after the
   # provider. Sensitive headers are redacted. Leave empty to disable.
   # (default: <unset>, type: string)
@@ -1055,6 +1103,10 @@ ai_gateway_proxy:
   # The address the AI Gateway Proxy will listen on.
   # (default: :8888, type: string)
   listen_addr: :8888
+  # Base URL of the AI Gateway to forward intercepted requests to. Defaults to the
+  # embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.
+  # (default: <unset>, type: string)
+  target: ""
   # Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set
   # together with AI Gateway Proxy TLS Key File.
   # (default: <unset>, type: string)
@@ -1121,6 +1173,12 @@ retention:
   # build are always retained. Set to 0 to disable automatic deletion.
   # (default: 7d, type: duration)
   workspace_agent_logs: 168h0m0s
+  # How long boundary audit log entries are retained. Boundary logs record HTTP
+  # requests processed by a Boundary confinement proxy. Set to 0 to disable
+  # automatic deletion (keep indefinitely). Adjust to match your organization's
+  # regulatory requirements.
+  # (default: 0, type: duration)
+  boundary_logs: 0s
 templateBuilder:
   # Disable the template builder feature for guided template creation. When
   # disabled, all /api/v2/templatebuilder/* endpoints return 404.
@@ -1128,5 +1186,5 @@ templateBuilder:
   disabled: false
   # The base URL of the module registry used by the template builder for module
   # source paths.
-  # (default: https://registry.coder.com, type: string)
-  registryURL: https://registry.coder.com
+  # (default: registry.coder.com, type: string)
+  registryURL: registry.coder.com

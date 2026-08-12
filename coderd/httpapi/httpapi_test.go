@@ -96,6 +96,17 @@ func TestRead(t *testing.T) {
 		require.False(t, httpapi.Read(ctx, rw, r, v))
 	})
 
+	t.Run("BodyTooLarge", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", strings.NewReader(`{"value":"too large"}`))
+		r.Body = http.MaxBytesReader(rw, r.Body, 4)
+		var v json.RawMessage
+		require.False(t, httpapi.Read(ctx, rw, r, &v))
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+	})
+
 	t.Run("Validate", func(t *testing.T) {
 		t.Parallel()
 		type toValidate struct {

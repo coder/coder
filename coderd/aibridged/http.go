@@ -1,6 +1,7 @@
 package aibridged
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -21,6 +22,7 @@ var (
 	ErrConnect               = xerrors.New("could not connect to coderd")
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
+	ErrBudgetCheck           = xerrors.New("internal server error checking user AI budget")
 )
 
 // ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.
@@ -111,7 +113,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		r.Header.Del("X-Api-Key")
 	}
 
-	client, err := s.Client()
+	client, err := s.Client(ctx)
 	if err != nil {
 		logger.Warn(ctx, "failed to connect to coderd", slog.Error(err))
 		http.Error(rw, ErrConnect.Error(), http.StatusServiceUnavailable)
@@ -135,6 +137,30 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id, err := uuid.Parse(resp.GetOwnerId())
+	if err != nil {
+		logger.Warn(ctx, "failed to parse user ID", slog.Error(err), slog.F("id", resp.GetOwnerId()))
+		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+		return
+	}
+	logger = logger.With(slog.F("user_id", id))
+
+	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
+		UserId: id.String(),
+	})
+	if err != nil {
+		logger.Warn(ctx, "user AI budget check failed", slog.Error(err))
+		http.Error(rw, ErrBudgetCheck.Error(), http.StatusInternalServerError)
+		return
+	}
+	if budgetResp.GetExceeded() {
+		http.Error(rw, fmt.Sprintf(
+			"AI budget of US$%.2f exceeded. Please contact an administrator for more details.",
+			float64(budgetResp.GetSpendLimitMicros())/1_000_000,
+		), http.StatusForbidden)
+		return
+	}
+
 	// Rewire request context to include actor.
 	//
 	// [NOTE]
@@ -143,13 +169,6 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), recorder.Metadata{
 		"Username": resp.GetUsername(),
 	}))
-
-	id, err := uuid.Parse(resp.GetOwnerId())
-	if err != nil {
-		logger.Warn(ctx, "failed to parse user ID", slog.Error(err), slog.F("id", resp.GetOwnerId()))
-		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
-		return
-	}
 
 	handler, err := s.GetRequestHandler(ctx, Request{
 		SessionKey:  key,

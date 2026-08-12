@@ -210,6 +210,10 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	// ---------------------------------------------------------------
 	const [activeCommentBox, setActiveCommentBox] =
 		useState<CommentBoxState | null>(null);
+	const [previewSelection, setPreviewSelection] = useState<{
+		fileName: string;
+		range: SelectedLineRange;
+	} | null>(null);
 
 	const activeCommentBoxRef = useRef<CommentBoxState | null>(null);
 
@@ -228,6 +232,7 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 			annotationSide: "additions" | "deletions";
 		},
 	) => {
+		setPreviewSelection(null);
 		updateCommentBox({
 			fileName,
 			start: props.lineNumber,
@@ -239,16 +244,17 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 
 	const handleLineSelected = (
 		fileName: string,
-		range: {
-			start: number;
-			end: number;
-			side?: "additions" | "deletions";
-			endSide?: "additions" | "deletions";
-		} | null,
+		range: SelectedLineRange | null,
 	) => {
-		const result = commentBoxFromRange(fileName, range);
-		if (result === "ignore") return;
-		updateCommentBox(result);
+		setPreviewSelection(null);
+		updateCommentBox(commentBoxFromRange(fileName, range));
+	};
+
+	const handleLineSelectionChange = (
+		fileName: string,
+		range: SelectedLineRange | null,
+	) => {
+		setPreviewSelection(range ? { fileName, range } : null);
 	};
 
 	// ---------------------------------------------------------------
@@ -273,10 +279,14 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 		if (activeCommentBox && activeCommentBox.fileName === fileName) {
 			return selectedLinesForBox(activeCommentBox);
 		}
+		if (previewSelection && previewSelection.fileName === fileName) {
+			return previewSelection.range;
+		}
 		return null;
 	};
 
 	const handleCancelComment = () => {
+		setPreviewSelection(null);
 		updateCommentBox(null);
 	};
 
@@ -327,6 +337,7 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 			parsedFiles={parsedFiles}
 			onLineNumberClick={handleLineNumberClick}
 			onLineSelected={handleLineSelected}
+			onLineSelectionChange={handleLineSelectionChange}
 			getLineAnnotations={getLineAnnotations}
 			getSelectedLines={getSelectedLines}
 			renderAnnotation={renderAnnotation}

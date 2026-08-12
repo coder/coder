@@ -6,10 +6,7 @@ type TranscriptRowProps = ComponentPropsWithRef<"div"> & {
 	asChild?: boolean;
 };
 
-/**
- * Some transcript rows bypass ToolCollapsible, so they need one shared place
- * to keep the collapsed row height aligned across the chat timeline.
- */
+/** Consistent min-height for transcript rows that bypass the ToolCall primitives. */
 export const TranscriptRow: FC<TranscriptRowProps> = ({
 	asChild = false,
 	className,

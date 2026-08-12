@@ -26,12 +26,12 @@ jobs:
       chrome-path: ${{ steps.install-chrome.outputs.path }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -48,7 +48,7 @@ jobs:
           echo "cache-key=puppeteer-${RUNNER_OS}-${RUNNER_ARCH}-browsers-${installer_version}-chrome-${CHROME_BUILD_ID}" >> "$GITHUB_OUTPUT"
 
       - name: Restore Puppeteer browser cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/puppeteer
           key: ${{ steps.browser-versions.outputs.cache-key }}
@@ -68,12 +68,12 @@ jobs:
       pull-requests: write # required to post PR review comments by the action
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -102,13 +102,13 @@ jobs:
           mkdir -p "$(pnpm store path --silent)"
 
       - name: Restore Puppeteer browser cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/puppeteer
           key: ${{ needs.prepare-linkspector-browser.outputs.browser-cache-key }}
 
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@036f295d12b67b0c4b445bc83db0538afb78db69 # v1.5.2
+        uses: umbrelladocs/action-linkspector@568ec8d29fa92b31fd9ea5381e155c51e922af83 # v1.5.5
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
         env:
@@ -117,18 +117,21 @@ jobs:
           # See: https://github.com/UmbrellaDocs/action-linkspector/issues/62
           PUPPETEER_EXECUTABLE_PATH: ${{ needs.prepare-linkspector-browser.outputs.chrome-path }}
         with:
-          reporter: github-pr-review
+          # On PRs, use github-pr-review for inline comments. On schedule/dispatch,
+          # use local so reviewdog actually reports failures instead of silently
+          # exiting 0 (github-pr-review requires a PR context).
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'local' }}
           config_file: ".github/.linkspector.yml"
           fail_on_error: "true"
-          filter_mode: "file"
+          filter_mode: ${{ github.event_name == 'pull_request' && 'file' || 'nofilter' }}
 
       - name: Send Slack notification
-        if: failure() && github.event_name == 'schedule'
+        if: failure() && github.event_name != 'pull_request'
         run: |
           curl \
             -X POST \
             -H 'Content-type: application/json' \
-            -d '{"msg":"Broken links found in the documentation. Please check the logs at '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
+            -d '{"text":":warning: *Broken links found in the documentation.*\nPlease check the logs: '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
           echo "Sent Slack notification"
         env:
           LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}

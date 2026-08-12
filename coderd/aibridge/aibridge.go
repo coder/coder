@@ -20,6 +20,16 @@ const HeaderCoderToken = "X-Coder-AI-Governance-Token" //nolint:gosec // This is
 // request forwarded to aibridged for cross-service log correlation.
 const HeaderCoderRequestID = "X-Coder-AI-Governance-Request-Id"
 
+// HeaderAgentFirewallSessionID is injected by Agent Firewall on requests
+// routed through it. It carries the firewall session UUID so that AI
+// Gateway can correlate interceptions with firewall audit events.
+const HeaderAgentFirewallSessionID = "X-Coder-Agent-Firewall-Session-Id"
+
+// HeaderAgentFirewallSequenceNumber is injected alongside the session ID
+// by Agent Firewall. It carries a monotonically increasing sequence
+// number that orders network requests within a single firewall session.
+const HeaderAgentFirewallSequenceNumber = "X-Coder-Agent-Firewall-Sequence-Number"
+
 // Copilot provider.
 const (
 	ProviderCopilotBusiness   = "copilot-business"
@@ -33,6 +43,15 @@ const (
 	ProviderChatGPT = "chatgpt"
 	HostChatGPT     = "chatgpt.com"
 	BaseURLChatGPT  = "https://" + HostChatGPT + "/backend-api/codex"
+)
+
+// API route prefixes for the AI Gateway and legacy AI Bridge endpoints.
+const (
+	// AIGatewayRootPath is the URL prefix the AI Gateway handler
+	// registers all of its routes under.
+	AIGatewayRootPath = "/api/v2/ai-gateway"
+	// AIBridgeRootPath is the legacy prefix kept for backward compatibility.
+	AIBridgeRootPath = "/api/v2/aibridge"
 )
 
 // IsBYOK reports whether the request is using BYOK mode, determined

@@ -12,10 +12,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+// ReadTemplateReadmeMaxRunes bounds the full README returned by read_template
+// so one large README cannot dominate a single tool response.
+const ReadTemplateReadmeMaxRunes = 8000
+
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
-	OwnerID            uuid.UUID
-	AllowedTemplateIDs func() map[uuid.UUID]bool
+	OwnerID uuid.UUID
 }
 
 type readTemplateArgs struct {
@@ -23,16 +26,17 @@ type readTemplateArgs struct {
 }
 
 // ReadTemplate returns a tool that retrieves details about a specific
-// template, including its configurable rich parameters. The agent
-// uses this after list_templates and before create_workspace.
+// template, including its configurable rich parameters. The agent uses
+// this after list_templates when it needs parameters or presets before
+// create_workspace.
 // db must not be nil.
 func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTemplateOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_template",
 		"Get details about a workspace template, including its "+
-			"configurable parameters and available presets. Use this "+
-			"after finding a template with list_templates and before "+
-			"creating a workspace with create_workspace.",
+			"configurable parameters, available presets, and the active "+
+			"version README. Use this after list_templates when you need "+
+			"parameter details, preset IDs, or the README before create_workspace.",
 		func(ctx context.Context, args readTemplateArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			templateIDStr := strings.TrimSpace(args.TemplateID)
 			if templateIDStr == "" {
@@ -43,10 +47,6 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("invalid template_id: %w", err).Error(),
 				), nil
-			}
-
-			if !isTemplateAllowed(options.AllowedTemplateIDs, templateID) {
-				return fantasy.NewTextErrorResponse("template not found"), nil
 			}
 
 			ctx, err = asOwner(ctx, db, options.OwnerID)
@@ -61,6 +61,9 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 
 			if template.OrganizationID != organizationID {
 				return fantasy.NewTextErrorResponse("template not found"), nil
+			}
+			if !template.AgentsAllowed {
+				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
 			}
 
 			params, err := db.GetTemplateVersionParameters(ctx, template.ActiveVersionID)
@@ -87,6 +90,13 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			}
 			if desc := strings.TrimSpace(template.Description); desc != "" {
 				templateInfo["description"] = desc
+			}
+			// Best-effort: a missing or unreadable version must not fail
+			// read_template.
+			if version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID); err == nil {
+				if r := readmeText(version.Readme, ReadTemplateReadmeMaxRunes); r != "" {
+					templateInfo["readme"] = r
+				}
 			}
 
 			paramList := make([]map[string]any, 0, len(params))

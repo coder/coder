@@ -429,11 +429,9 @@ func setupTestListener(t *testing.T, l net.Listener, prefix []byte) string {
 				return
 			}
 
-			wg.Add(1)
-			go func() {
+			wg.Go(func() {
 				echoIfPrefixed(t, c, prefix)
-				wg.Done()
-			}()
+			})
 		}
 	}()
 

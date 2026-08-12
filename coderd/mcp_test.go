@@ -2,18 +2,27 @@ package coderd_test
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
+	"net/url"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -203,23 +212,24 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 
 	// Create a config with ALL secret fields populated.
 	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
-		DisplayName:        "Secrets Test",
-		Slug:               "secrets-test",
-		Transport:          "streamable_http",
-		URL:                "https://mcp.example.com/secrets",
-		AuthType:           "oauth2",
-		OAuth2ClientID:     "client-id-secret-test",
-		OAuth2ClientSecret: "THIS-IS-A-SECRET-VALUE",
-		OAuth2AuthURL:      "https://auth.example.com/authorize",
-		OAuth2TokenURL:     "https://auth.example.com/token",
-		OAuth2Scopes:       "read write",
-		APIKeyHeader:       "X-Api-Key",
-		APIKeyValue:        "THIS-IS-A-SECRET-API-KEY",
-		CustomHeaders:      map[string]string{"X-Custom": "THIS-IS-A-SECRET-HEADER"},
-		Availability:       "default_on",
-		Enabled:            true,
-		ToolAllowList:      []string{},
-		ToolDenyList:       []string{},
+		DisplayName:         "Secrets Test",
+		Slug:                "secrets-test",
+		Transport:           "streamable_http",
+		URL:                 "https://mcp.example.com/secrets",
+		AuthType:            "oauth2",
+		OAuth2ClientID:      "client-id-secret-test",
+		OAuth2ClientSecret:  "THIS-IS-A-SECRET-VALUE",
+		OAuth2AuthURL:       "https://auth.example.com/authorize",
+		OAuth2TokenURL:      "https://auth.example.com/token",
+		OAuth2RevocationURL: "https://auth.example.com/revoke",
+		OAuth2Scopes:        "read write",
+		APIKeyHeader:        "X-Api-Key",
+		APIKeyValue:         "THIS-IS-A-SECRET-API-KEY",
+		CustomHeaders:       map[string]string{"X-Custom": "THIS-IS-A-SECRET-HEADER"},
+		Availability:        "default_on",
+		Enabled:             true,
+		ToolAllowList:       []string{},
+		ToolDenyList:        []string{},
 	})
 	require.NoError(t, err)
 
@@ -272,6 +282,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 		assert.Empty(t, cfg.OAuth2ClientID, "member should not see OAuth2ClientID")
 		assert.Empty(t, cfg.OAuth2AuthURL, "member should not see OAuth2AuthURL")
 		assert.Empty(t, cfg.OAuth2TokenURL, "member should not see OAuth2TokenURL")
+		assert.Empty(t, cfg.OAuth2RevocationURL, "member should not see OAuth2RevocationURL")
 		assert.Empty(t, cfg.APIKeyHeader, "member should not see APIKeyHeader")
 		assert.Empty(t, cfg.OAuth2Scopes, "member should not see OAuth2Scopes")
 		assert.Empty(t, cfg.URL, "member should not see URL")
@@ -368,27 +379,85 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	// switch the auth_type to user_oidc and verify all auth-specific
 	// fields are cleared.
 	created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
-		DisplayName:        "Switch Server",
-		Slug:               "switch-server",
-		Transport:          "streamable_http",
-		URL:                "https://mcp.example.com/v1",
-		AuthType:           "oauth2",
-		OAuth2ClientID:     "cid",
-		OAuth2ClientSecret: "secret-value",
-		OAuth2AuthURL:      "https://auth.example.com/authorize",
-		OAuth2TokenURL:     "https://auth.example.com/token",
-		OAuth2Scopes:       "read write",
-		Availability:       "default_off",
-		Enabled:            true,
-		ToolAllowList:      []string{},
-		ToolDenyList:       []string{},
+		DisplayName:         "Switch Server",
+		Slug:                "switch-server",
+		Transport:           "streamable_http",
+		URL:                 "https://mcp.example.com/v1",
+		AuthType:            "oauth2",
+		OAuth2ClientID:      "cid",
+		OAuth2ClientSecret:  "secret-value",
+		OAuth2AuthURL:       "https://auth.example.com/authorize",
+		OAuth2TokenURL:      "https://auth.example.com/token",
+		OAuth2RevocationURL: "https://auth.example.com/revoke",
+		OAuth2Scopes:        "read write",
+		Availability:        "default_off",
+		Enabled:             true,
+		ToolAllowList:       []string{},
+		ToolDenyList:        []string{},
 	})
 	require.NoError(t, err)
 	require.True(t, created.HasOAuth2Secret)
 	require.Equal(t, "cid", created.OAuth2ClientID)
+	require.Equal(t, "https://auth.example.com/revoke", created.OAuth2RevocationURL)
+
+	newRevocationURL := "https://auth.example.com/revoke2"
+	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2RevocationURL: &newRevocationURL,
+	})
+	require.NoError(t, err)
+	require.Equal(t, newRevocationURL, updated.OAuth2RevocationURL)
+
+	invalidURL := "not a url"
+	_, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2RevocationURL: &invalidURL,
+	})
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	// Plaintext URLs are rejected on save, not later at disconnect.
+	plaintextURL := "http://auth.example.com/revoke"
+	_, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2RevocationURL: &plaintextURL,
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	_, err = client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:         "Plaintext Revoke",
+		Slug:                "plaintext-revoke",
+		Transport:           "streamable_http",
+		URL:                 "https://mcp.example.com/plaintext",
+		AuthType:            "oauth2",
+		OAuth2ClientID:      "cid",
+		OAuth2AuthURL:       "https://auth.example.com/authorize",
+		OAuth2TokenURL:      "https://auth.example.com/token",
+		OAuth2RevocationURL: plaintextURL,
+		Availability:        "default_on",
+		Enabled:             true,
+		ToolAllowList:       []string{},
+		ToolDenyList:        []string{},
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	// An explicit empty string clears the stored URL.
+	emptyURL := ""
+	updated, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2RevocationURL: &emptyURL,
+	})
+	require.NoError(t, err)
+	require.Empty(t, updated.OAuth2RevocationURL)
+
+	updated, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2RevocationURL: &newRevocationURL,
+	})
+	require.NoError(t, err)
+	require.Equal(t, newRevocationURL, updated.OAuth2RevocationURL)
 
 	newAuth := "user_oidc"
-	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+	updated, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		AuthType: &newAuth,
 	})
 	require.NoError(t, err)
@@ -399,6 +468,7 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.Empty(t, updated.OAuth2ClientID)
 	require.Empty(t, updated.OAuth2AuthURL)
 	require.Empty(t, updated.OAuth2TokenURL)
+	require.Empty(t, updated.OAuth2RevocationURL)
 	require.Empty(t, updated.OAuth2Scopes)
 	require.Empty(t, updated.APIKeyHeader)
 }
@@ -520,30 +590,330 @@ func TestMCPServerConfigsUniqueSlug(t *testing.T) {
 func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	adminClient := newMCPClient(t)
-	firstUser := coderdtest.CreateFirstUser(t, adminClient)
-	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	newDisconnectFixture := func(t *testing.T, slug, revocationURL string) (memberClient *codersdk.Client, memberID uuid.UUID, db database.Store, configID uuid.UUID) {
+		t.Helper()
 
-	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
-		DisplayName:    "OAuth Disconnect Test",
-		Slug:           "oauth-disconnect",
-		Transport:      "streamable_http",
-		URL:            "https://mcp.example.com/oauth-disc",
-		AuthType:       "oauth2",
-		OAuth2ClientID: "cid",
-		OAuth2AuthURL:  "https://auth.example.com/authorize",
-		OAuth2TokenURL: "https://auth.example.com/token",
-		Availability:   "default_on",
-		Enabled:        true,
-		ToolAllowList:  []string{},
-		ToolDenyList:   []string{},
+		ctx := testutil.Context(t, testutil.WaitLong)
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:         "OAuth Disconnect " + slug,
+			Slug:                slug,
+			Transport:           "streamable_http",
+			URL:                 "https://mcp.example.com/" + slug,
+			AuthType:            "oauth2",
+			OAuth2ClientID:      "cid",
+			OAuth2AuthURL:       "https://auth.example.com/authorize",
+			OAuth2TokenURL:      "https://auth.example.com/token",
+			OAuth2RevocationURL: revocationURL,
+			Availability:        "default_on",
+			Enabled:             true,
+			ToolAllowList:       []string{},
+			ToolDenyList:        []string{},
+		})
+		require.NoError(t, err)
+
+		return memberClient, member.ID, db, created.ID
+	}
+
+	seedToken := func(t *testing.T, db database.Store, configID, userID uuid.UUID) {
+		t.Helper()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Seeding test state requires system access.
+		_, err := db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: configID,
+			UserID:            userID,
+			AccessToken:       "access-token",
+			RefreshToken:      "refresh-token",
+			TokenType:         "Bearer",
+			Expiry:            sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+		})
+		require.NoError(t, err)
+	}
+
+	requireTokenDeleted := func(t *testing.T, db database.Store, configID, userID uuid.UUID) {
+		t.Helper()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Verifying persisted state requires system access.
+		_, err := db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: configID,
+			UserID:            userID,
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	}
+
+	t.Run("NoToken", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClient, _, _, configID := newDisconnectFixture(t, "disc-no-token", "")
+
+		resp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
+		require.NoError(t, err)
+		require.False(t, resp.TokenRevoked)
+		require.Empty(t, resp.TokenRevocationError)
 	})
-	require.NoError(t, err)
 
-	// Disconnect should succeed even when no token exists (idempotent).
-	err = memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
-	require.NoError(t, err)
+	t.Run("DoesNotRevealHiddenConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		adminClient, _ := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "OAuth Disconnect Hidden",
+			Slug:           "disc-hidden",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/disc-hidden",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "cid",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: "https://auth.example.com/token",
+			Availability:   "default_on",
+			Enabled:        false,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+
+		// Disconnecting a disabled config the member cannot see must be
+		// indistinguishable from disconnecting a nonexistent config ID.
+		hiddenResp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, created.ID)
+		require.NoError(t, err)
+		missingResp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, uuid.New())
+		require.NoError(t, err)
+		require.Equal(t, missingResp, hiddenResp)
+		require.False(t, hiddenResp.TokenRevoked)
+		require.Empty(t, hiddenResp.TokenRevocationError)
+	})
+
+	t.Run("RevokesAtProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		var gotForm atomic.Pointer[url.Values]
+		revokeSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.NoError(t, r.ParseForm())
+			form := r.PostForm
+			gotForm.Store(&form)
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(revokeSrv.Close)
+
+		memberClient, memberID, db, configID := newDisconnectFixture(t, "disc-revoke", revokeSrv.URL)
+		seedToken(t, db, configID, memberID)
+
+		resp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
+		require.NoError(t, err)
+		require.True(t, resp.TokenRevoked)
+		require.Empty(t, resp.TokenRevocationError)
+
+		form := gotForm.Load()
+		require.NotNil(t, form)
+		require.Equal(t, "refresh-token", form.Get("token"))
+		require.Equal(t, "refresh_token", form.Get("token_type_hint"))
+		require.Equal(t, "cid", form.Get("client_id"))
+
+		requireTokenDeleted(t, db, configID, memberID)
+	})
+
+	t.Run("RefreshCannotRestoreDisconnectedToken", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		refreshStarted := make(chan struct{})
+		releaseRefresh := make(chan struct{})
+		var releaseOnce sync.Once
+		tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			close(refreshStarted)
+			select {
+			case <-releaseRefresh:
+			case <-r.Context().Done():
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"fresh-access","refresh_token":"fresh-refresh","token_type":"Bearer","expires_in":3600}`))
+		}))
+		t.Cleanup(tokenSrv.Close)
+		t.Cleanup(func() { releaseOnce.Do(func() { close(releaseRefresh) }) })
+
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "OAuth Disconnect Refresh Race",
+			Slug:           "disc-refresh-race",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/disc-refresh-race",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "cid",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: tokenSrv.URL,
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Seeding test state requires system access.
+		_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: created.ID,
+			UserID:            member.ID,
+			AccessToken:       "expired-access",
+			RefreshToken:      "old-refresh",
+			TokenType:         "Bearer",
+			Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		})
+		require.NoError(t, err)
+
+		type configResult struct {
+			configs []codersdk.MCPServerConfig
+			err     error
+		}
+		result := make(chan configResult, 1)
+		go func() {
+			configs, listErr := memberClient.MCPServerConfigs(ctx)
+			result <- configResult{configs: configs, err: listErr}
+		}()
+
+		select {
+		case <-refreshStarted:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for token refresh")
+		}
+
+		_, err = memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, created.ID)
+		require.NoError(t, err)
+		releaseOnce.Do(func() { close(releaseRefresh) })
+
+		var listed configResult
+		select {
+		case listed = <-result:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for refreshed config response")
+		}
+		require.NoError(t, listed.err)
+		require.Len(t, listed.configs, 1)
+		require.False(t, listed.configs[0].AuthConnected)
+		requireTokenDeleted(t, db, created.ID, member.ID)
+	})
+
+	t.Run("NoRevocationURL", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClient, memberID, db, configID := newDisconnectFixture(t, "disc-no-url", "")
+		seedToken(t, db, configID, memberID)
+
+		resp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
+		require.NoError(t, err)
+		require.False(t, resp.TokenRevoked)
+		require.Empty(t, resp.TokenRevocationError)
+
+		requireTokenDeleted(t, db, configID, memberID)
+	})
+
+	t.Run("ProviderError", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		revokeSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(revokeSrv.Close)
+
+		memberClient, memberID, db, configID := newDisconnectFixture(t, "disc-err", revokeSrv.URL)
+		seedToken(t, db, configID, memberID)
+
+		// Members get a generic error; provider bodies may echo the secret.
+		resp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
+		require.NoError(t, err)
+		require.False(t, resp.TokenRevoked)
+		require.NotEmpty(t, resp.TokenRevocationError)
+		require.NotContains(t, resp.TokenRevocationError, "HTTP 500")
+
+		requireTokenDeleted(t, db, configID, memberID)
+	})
+
+	t.Run("OnlyDisconnectsCallingUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		otherClient, other := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "OAuth Disconnect Isolation",
+			Slug:           "disc-isolation",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/disc-isolation",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "cid",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: "https://auth.example.com/token",
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+
+		for _, userID := range []uuid.UUID{member.ID, other.ID} {
+			//nolint:gocritic // Seeding test state requires system access.
+			_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+				MCPServerConfigID: created.ID,
+				UserID:            userID,
+				AccessToken:       "valid-access",
+				TokenType:         "Bearer",
+				Expiry:            sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+			})
+			require.NoError(t, err)
+		}
+
+		requireAuthConnected := func(client *codersdk.Client, want bool) {
+			t.Helper()
+			configs, err := client.MCPServerConfigs(ctx)
+			require.NoError(t, err)
+			require.Len(t, configs, 1)
+			require.Equal(t, want, configs[0].AuthConnected)
+		}
+		requireAuthConnected(memberClient, true)
+		requireAuthConnected(otherClient, true)
+
+		_, err = memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, created.ID)
+		require.NoError(t, err)
+		requireAuthConnected(memberClient, false)
+		requireAuthConnected(otherClient, true)
+
+		_, err = memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, created.ID)
+		require.NoError(t, err)
+	})
 }
 
 func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
@@ -565,6 +935,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
 					"token_endpoint": "` + "http://" + r.Host + `/token",
 					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"revocation_endpoint": "` + "http://" + r.Host + `/revoke",
 					"response_types_supported": ["code"],
 					"scopes_supported": ["read", "write"]
 				}`))
@@ -625,7 +996,24 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.True(t, created.HasOAuth2Secret)
 		require.Equal(t, authServer.URL+"/authorize", created.OAuth2AuthURL)
 		require.Equal(t, authServer.URL+"/token", created.OAuth2TokenURL)
+		require.Equal(t, authServer.URL+"/revoke", created.OAuth2RevocationURL)
 		require.Equal(t, "read write", created.OAuth2Scopes)
+
+		// An explicit revocation URL wins over the discovered one.
+		overridden, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:         "Auto-Discovery Override",
+			Slug:                "auto-discovery-override",
+			Transport:           "streamable_http",
+			URL:                 mcpServer.URL + "/v1/mcp",
+			AuthType:            "oauth2",
+			OAuth2RevocationURL: "https://override.example.com/revoke",
+			Availability:        "default_on",
+			Enabled:             true,
+			ToolAllowList:       []string{},
+			ToolDenyList:        []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "https://override.example.com/revoke", overridden.OAuth2RevocationURL)
 	})
 
 	// Verify that when both path-aware and root-level protected
@@ -1122,6 +1510,77 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, "https://auth.example.com/authorize", created.OAuth2AuthURL)
 		require.Equal(t, "https://auth.example.com/token", created.OAuth2TokenURL)
 	})
+}
+
+// TestMCPServerConfigsOAuth2AutoDiscoverySSRF is a regression test for
+// CDM-02-002: OAuth2 auto-discovery followed attacker-controlled
+// redirects to internal addresses. The canary on 127.0.0.2 stands in
+// for an internal-only service (e.g. cloud metadata) and must never
+// be reached, while the attacker's MCP server on 127.0.0.1 is
+// reachable via the test allowlist.
+func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	canaryLn, err := net.Listen("tcp", "127.0.0.2:0")
+	if err != nil {
+		t.Skipf("cannot bind 127.0.0.2 (loopback aliasing unsupported?): %v", err)
+	}
+	var canaryHits atomic.Int64
+	canary := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		canaryHits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"internal":"secret"}`))
+	}))
+	_ = canary.Listener.Close()
+	canary.Listener = canaryLn
+	canary.Start()
+	t.Cleanup(canary.Close)
+
+	// Attacker-controlled MCP server: redirects every discovery
+	// fetch to the internal canary.
+	attacker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, canary.URL+r.URL.Path, http.StatusFound)
+	}))
+	t.Cleanup(attacker.Close)
+
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+		// Allow only the attacker's address so the initial fetch
+		// succeeds; the canary's address stays blocked.
+		MCPOAuth2DiscoveryAllowedIPRanges: []netip.Prefix{
+			netip.MustParsePrefix("127.0.0.1/32"),
+		},
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	_, err = client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "SSRF Attacker",
+		Slug:          "ssrf-attacker",
+		Transport:     "streamable_http",
+		URL:           attacker.URL + "/v1/mcp",
+		AuthType:      "oauth2",
+		Availability:  "default_on",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Message, "auto-discovery failed")
+	require.EqualValues(t, 0, canaryHits.Load(), "internal canary must never be contacted via attacker redirect")
+
+	// The partially created config must have been cleaned up.
+	configs, err := client.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	for _, config := range configs {
+		require.NotEqual(t, "ssrf-attacker", config.Slug)
+	}
 }
 
 // nolint:bodyclose
@@ -1943,4 +2402,189 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 		require.Equal(t, "trailing-slash-client", created.OAuth2ClientID)
 		require.True(t, created.HasOAuth2Secret)
 	})
+}
+
+func TestMCPServerConfigsRevokedGrant(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	var tokenEndpointHits atomic.Int64
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		tokenEndpointHits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"grant revoked"}`))
+	}))
+	t.Cleanup(tokenSrv.Close)
+
+	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:    "Revoked Server",
+		Slug:           "revoked-server",
+		Transport:      "streamable_http",
+		URL:            "https://mcp.example.com/v1",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "cid",
+		OAuth2AuthURL:  "https://auth.example.com/authorize",
+		OAuth2TokenURL: tokenSrv.URL,
+		Availability:   "default_on",
+		Enabled:        true,
+		ToolAllowList:  []string{},
+		ToolDenyList:   []string{},
+	})
+	require.NoError(t, err)
+	require.False(t, created.AuthConnected)
+
+	// Seed an expired token whose refresh the provider rejects with
+	// invalid_grant.
+	//nolint:gocritic // Seeding test state requires system access.
+	seeded, err := db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+		AccessToken:       "expired-access",
+		RefreshToken:      "dead-refresh",
+		TokenType:         "Bearer",
+		Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// First list: the refresh fails permanently, so the server is
+	// reported as not connected and the failure is persisted.
+	configs, err := memberClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.False(t, configs[0].AuthConnected)
+	// The oauth2 package may probe both client auth styles, so the
+	// exact count varies; what matters is that it never grows again.
+	hitsAfterFirstList := tokenEndpointHits.Load()
+	require.Positive(t, hitsAfterFirstList)
+
+	//nolint:gocritic // Verifying persisted state requires system access.
+	row, err := db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+	})
+	require.NoError(t, err)
+	require.Empty(t, row.AccessToken)
+	require.Empty(t, row.RefreshToken)
+	require.False(t, row.Expiry.Valid)
+	require.Contains(t, row.OauthRefreshFailureReason, "invalid_grant")
+
+	// Second list: the cached failure short-circuits, so the provider
+	// is not called again.
+	configs, err = memberClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.False(t, configs[0].AuthConnected)
+	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
+
+	// The single-config endpoint agrees.
+	single, err := memberClient.MCPServerConfigByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.False(t, single.AuthConnected)
+	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
+
+	// A stale optimistic-lock update must not clobber the row.
+	//nolint:gocritic // Exercising the query requires system access.
+	_, err = db.MarkMCPServerUserTokenRefreshFailure(dbauthz.AsSystemRestricted(ctx), database.MarkMCPServerUserTokenRefreshFailureParams{
+		ID:                        seeded.ID,
+		UpdatedAt:                 seeded.UpdatedAt,
+		OauthRefreshFailureReason: "stale",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	//nolint:gocritic // Verifying persisted state requires system access.
+	row, err = db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, "stale", row.OauthRefreshFailureReason)
+
+	// Re-authenticating (upserting fresh token material) clears the
+	// failure and restores connected status.
+	//nolint:gocritic // Seeding test state requires system access.
+	_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+		AccessToken:       "new-access",
+		RefreshToken:      "new-refresh",
+		TokenType:         "Bearer",
+		Expiry:            sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	configs, err = memberClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.True(t, configs[0].AuthConnected)
+	// The token is valid, so no refresh call is made.
+	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
+}
+
+func TestMCPServerConfigsTransientRefreshFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(tokenSrv.Close)
+
+	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:    "Flaky Server",
+		Slug:           "flaky-server",
+		Transport:      "streamable_http",
+		URL:            "https://mcp.example.com/v1",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "cid",
+		OAuth2AuthURL:  "https://auth.example.com/authorize",
+		OAuth2TokenURL: tokenSrv.URL,
+		Availability:   "default_on",
+		Enabled:        true,
+		ToolAllowList:  []string{},
+		ToolDenyList:   []string{},
+	})
+	require.NoError(t, err)
+
+	//nolint:gocritic // Seeding test state requires system access.
+	_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+		AccessToken:       "expired-access",
+		RefreshToken:      "still-good-refresh",
+		TokenType:         "Bearer",
+		Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	configs, err := memberClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.False(t, configs[0].AuthConnected)
+
+	// Transient failures must not destroy the token: a later refresh
+	// may succeed.
+	//nolint:gocritic // Verifying persisted state requires system access.
+	row, err := db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "still-good-refresh", row.RefreshToken)
+	require.Empty(t, row.OauthRefreshFailureReason)
 }

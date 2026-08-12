@@ -1201,12 +1201,10 @@ func createProxyReplicas(ctx context.Context, t *testing.T, opts *createProxyRep
 				ok = false
 
 				// Retry registration on this proxy.
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					err := proxy.RegisterNow(ctx)
 					t.Logf("replica %d re-registered: err=%v", i, err)
-				}()
+				})
 			}
 		}
 		wg.Wait()

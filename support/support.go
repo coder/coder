@@ -33,6 +33,8 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
+const supportBundleAgentLogLookback = 24 * time.Hour
+
 // Bundle is a set of information discovered about a deployment.
 // Even though we do attempt to sanitize data, it may still contain
 // sensitive information and should thus be treated as secret.
@@ -84,17 +86,18 @@ type Workspace struct {
 }
 
 type Agent struct {
-	Agent               *codersdk.WorkspaceAgent                       `json:"agent"`
-	ConnectionInfo      *workspacesdk.AgentConnectionInfo              `json:"connection_info"`
-	ListeningPorts      *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
-	Logs                []byte                                         `json:"logs"`
-	ClientMagicsockHTML []byte                                         `json:"client_magicsock_html"`
-	AgentMagicsockHTML  []byte                                         `json:"agent_magicsock_html"`
-	Manifest            *agentsdk.Manifest                             `json:"manifest"`
-	PeerDiagnostics     *tailnet.PeerDiagnostics                       `json:"peer_diagnostics"`
-	PingResult          *ipnstate.PingResult                           `json:"ping_result"`
-	Prometheus          []byte                                         `json:"prometheus"`
-	StartupLogs         []codersdk.WorkspaceAgentLog                   `json:"startup_logs"`
+	Agent                 *codersdk.WorkspaceAgent                       `json:"agent"`
+	ConnectionInfo        *workspacesdk.AgentConnectionInfo              `json:"connection_info"`
+	ListeningPorts        *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
+	Logs                  []byte                                         `json:"logs"`
+	WorkspaceFilesArchive []byte                                         `json:"workspace_files_archive"`
+	ClientMagicsockHTML   []byte                                         `json:"client_magicsock_html"`
+	AgentMagicsockHTML    []byte                                         `json:"agent_magicsock_html"`
+	Manifest              *agentsdk.Manifest                             `json:"manifest"`
+	PeerDiagnostics       *tailnet.PeerDiagnostics                       `json:"peer_diagnostics"`
+	PingResult            *ipnstate.PingResult                           `json:"ping_result"`
+	Prometheus            []byte                                         `json:"prometheus"`
+	StartupLogs           []codersdk.WorkspaceAgentLog                   `json:"startup_logs"`
 }
 
 type TemplateDump struct {
@@ -140,6 +143,8 @@ type Deps struct {
 	WorkspacesTotalCap int
 	// TemplateID optionally specifies a template to capture (active version).
 	TemplateID uuid.UUID
+	// WorkspaceFilePatterns are file paths or globs the agent collects from inside the remote workspace.
+	WorkspaceFilePatterns []string
 	// CollectPprof toggles server and agent pprof collection.
 	CollectPprof bool
 }
@@ -534,7 +539,7 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 	return w
 }
 
-func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID) Agent {
+func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, workspaceFilePatterns []string) Agent {
 	var (
 		a  Agent
 		eg errgroup.Group
@@ -571,7 +576,7 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 
 	// to simplify control flow, fetching information directly from
 	// the agent is handled in a separate function
-	closer := connectedAgentInfo(ctx, client, log, agentID, &eg, &a)
+	closer := connectedAgentInfo(ctx, client, log, agentID, workspaceFilePatterns, &eg, &a)
 	defer closer()
 
 	if err := eg.Wait(); err != nil {
@@ -581,7 +586,7 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 	return a
 }
 
-func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, eg *errgroup.Group, a *Agent) (closer func()) {
+func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, workspaceFilePatterns []string, eg *errgroup.Group, a *Agent) (closer func()) {
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
 			Logger:         log.Named("dial-agent"),
@@ -665,13 +670,31 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	eg.Go(func() error {
-		logBytes, err := conn.DebugLogs(ctx)
+		logBytes, err := conn.DebugLogs(ctx, workspacesdk.WithLogsAfter(time.Now().Add(-supportBundleAgentLogLookback)))
 		if err != nil {
 			return xerrors.Errorf("fetch coder agent logs: %w", err)
 		}
 		a.Logs = logBytes
 		return nil
 	})
+
+	if len(workspaceFilePatterns) > 0 {
+		eg.Go(func() error {
+			workspaceFilesArchive, err := conn.BundleFiles(ctx, workspacesdk.BundleFilesRequest{
+				Paths: workspaceFilePatterns,
+			})
+			if err != nil {
+				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
+					log.Warn(ctx, "workspace file collection is unsupported by this agent")
+					a.WorkspaceFilesArchive = unsupportedWorkspaceFilesArchive(workspaceFilePatterns)
+					return nil
+				}
+				return xerrors.Errorf("fetch workspace files: %w", err)
+			}
+			a.WorkspaceFilesArchive = workspaceFilesArchive
+			return nil
+		})
+	}
 
 	eg.Go(func() error {
 		lps, err := conn.ListeningPorts(ctx)
@@ -683,6 +706,38 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	return closer
+}
+
+// unsupportedWorkspaceFilesArchive builds a manifest-only archive recording
+// the requested patterns, for agents that predate the bundle-files endpoint.
+func unsupportedWorkspaceFilesArchive(patterns []string) []byte {
+	manifest, err := json.MarshalIndent(workspacesdk.BundleFilesManifest{
+		Requested: patterns,
+		Errors: []workspacesdk.BundleFilesManifestError{
+			{Reason: "workspace file collection is not supported by this agent version"},
+		},
+	}, "", "  ")
+	if err != nil {
+		return nil
+	}
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	err = tw.WriteHeader(&tar.Header{
+		Name:    "manifest.json",
+		Mode:    0o644,
+		Size:    int64(len(manifest)),
+		ModTime: time.Now(),
+	})
+	if err != nil {
+		return nil
+	}
+	if _, err := tw.Write(manifest); err != nil {
+		return nil
+	}
+	if err := tw.Close(); err != nil {
+		return nil
+	}
+	return buf.Bytes()
 }
 
 func PprofInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) *PprofCollection {
@@ -1087,7 +1142,7 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID)
+		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID, d.WorkspaceFilePatterns)
 		b.Agent = ai
 		return nil
 	})

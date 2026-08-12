@@ -57,8 +57,8 @@ For advanced use, we recommend installing code-server in your VM snapshot or
 container image. Here's a Dockerfile which leverages some special
 [code-server features](https://coder.com/docs/code-server):
 
-```Dockerfile
-FROM codercom/enterprise-base:ubuntu
+```dockerfile
+FROM codercom/example-base:ubuntu
 
 # install the latest version
 USER root

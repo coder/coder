@@ -9,7 +9,7 @@ tags: [container, docker, devcontainer, envbuilder]
 
 # Remote Development on Docker Containers (with Envbuilder)
 
-Provision Envbuilder containers based on `devcontainer.json` as [Coder workspaces](https://coder.com/docs/workspaces) in Docker with this example template.
+Provision Envbuilder containers based on `devcontainer.json` as [Coder workspaces](https://coder.com/docs/user-guides/workspace-management) in Docker with this example template.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ sudo -u coder docker ps
 
 ## Architecture
 
-Coder supports Envbuilder containers based on `devcontainer.json` via [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/templates/dev-containers).
+Coder supports Envbuilder containers based on `devcontainer.json` via [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/admin/integrations/devcontainers).
 
 This template provisions the following resources:
 

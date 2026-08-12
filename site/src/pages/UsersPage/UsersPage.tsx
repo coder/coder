@@ -15,8 +15,8 @@ import {
 	updateRoles,
 } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
 import { useStatusFilterMenu } from "#/components/Filter/UsersFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -25,7 +25,7 @@ import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
 import { pageTitle } from "#/utils/page";
-import { generateRandomString } from "#/utils/random";
+import { generateRandomBase64String } from "#/utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { UsersPageView } from "./UsersPageView";
 
@@ -122,7 +122,7 @@ const UsersPage: React.FC = () => {
 						newPassword:
 							process.env.STORYBOOK === "true"
 								? "hello-storybook"
-								: generateRandomString(12),
+								: generateRandomBase64String(12),
 					});
 				}}
 				onSuspendUser={setUserToSuspend}

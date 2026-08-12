@@ -71,7 +71,7 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 					) : (
 						<Skeleton variant="text" className="w-[120px] h-3" />
 					)}
-					<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+					<ChevronsUpDownIcon className="ml-2 size-4 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent className="w-[280px] p-0">
@@ -100,7 +100,7 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 									<UserItem option={option} />
 									<CheckIcon
 										className={cn(
-											"ml-2 h-4 w-4",
+											"ml-2 size-4",
 											option.value === selectedOption?.value
 												? "opacity-100"
 												: "opacity-0",

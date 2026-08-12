@@ -263,6 +263,29 @@ func TestHealthz(t *testing.T) {
 	assert.Equal(t, "OK", string(body))
 }
 
+// TestAIGatewayDisabledStartupAndShutdown verifies the server starts and
+// shuts down cleanly when the AI Gateway is disabled, leaving api.chatDaemon
+// nil. It exercises the startup path (git sync worker callback binding, see
+// chatDaemonPublishDiffStatusChangeFunc) and the shutdown path (Close on a
+// nil daemon), both of which panicked before the nil guards were added.
+func TestAIGatewayDisabledStartupAndShutdown(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	require.NoError(t, dv.AI.BridgeConfig.Enabled.Set("false"))
+	// Constructing the client starts the server; t.Cleanup (registered by
+	// coderdtest.New) closes it at the end of the test, exercising the
+	// shutdown path that used to panic.
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
+
+	res, err := client.Request(context.Background(), http.MethodGet, "/healthz", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+}
+
 func TestSwagger(t *testing.T) {
 	t.Parallel()
 
@@ -588,4 +611,52 @@ func TestRateLimitByUser(t *testing.T) {
 		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode,
 			"member should not be able to bypass rate limit")
 	})
+}
+
+// TestRateLimitPathNormalization is a regression test for CDM-02-003
+// (Cure53): a client could bypass a rate limit by inserting redundant
+// slashes into the request path. Coder's router still routes the
+// respelled path to the same handler as the canonical path, but the rate
+// limiter previously keyed its bucket on the raw, un-normalized path, so
+// the respelled request landed in a fresh bucket instead of the one
+// already exhausted by the canonical path.
+func TestRateLimitPathNormalization(t *testing.T) {
+	t.Parallel()
+
+	const rateLimit = 2
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		LoginRateLimit: rateLimit,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	post := func(path string) int {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+			client.URL.String()+path, strings.NewReader(`{"password":"hunter2"}`))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	// Exhaust the limit against the canonical path.
+	for i := range rateLimit {
+		require.Equal(t, http.StatusOK, post("/api/v2/users/validate-password"),
+			"request %d against the canonical path should succeed", i+1)
+	}
+
+	// The canonical path is now rate limited.
+	require.Equal(t, http.StatusTooManyRequests, post("/api/v2/users/validate-password"),
+		"canonical path should be rate limited after exhausting the limit")
+
+	// Respelling the same endpoint with redundant slashes must not grant a
+	// fresh bucket: it's the same handler, so it must still be limited.
+	require.Equal(t, http.StatusTooManyRequests, post("/api/v2/users//validate-password"),
+		"double-slash variant must share the canonical path's rate-limit bucket")
+	require.Equal(t, http.StatusTooManyRequests, post("/api/v2/users///validate-password"),
+		"triple-slash variant must share the canonical path's rate-limit bucket")
 }

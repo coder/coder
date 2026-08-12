@@ -29,7 +29,7 @@ deployments and you should adjust your infrastructure when preparing for
 production use. See: [Scaling Coder](../../admin/infrastructure/index.md)
 
 <video autoplay playsinline loop>
-  <source src="https://github.com/coder/coder/blob/main/docs/images/platforms/gcp/launch.mp4?raw=true" type="video/mp4">
+  <source src="../../images/platforms/gcp/launch.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
 
@@ -54,7 +54,7 @@ Given you created or added key-pairs when launching the instance, you can
 [configure your Coder deployment](../../admin/setup/index.md) by logging in via
 SSH or using the console:
 
-```shell
+```sh
 ssh ubuntu@<gcp-public-IPv4>
 sudo vim /etc/coder.d/coder.env # edit config
 sudo systemctl daemon-reload
@@ -65,12 +65,12 @@ sudo systemctl restart coder # restart Coder
 
 Instead of running containers on the Coder instance, you can offer developers
 full VM instances with the
-[gcp-linux](https://github.com/coder/coder/tree/main/examples/templates/gcp-linux)
+[gcp-linux](../../../examples/templates/gcp-linux/README.md)
 template.
 
 Before you can use this template, you must authorize Coder to create VM
 instances in your GCP project. Follow the instructions in the
-[gcp-linux template README](https://github.com/coder/coder/tree/main/examples/templates/gcp-linux#authentication)
+[gcp-linux template README](../../../examples/templates/gcp-linux/README.md#authentication)
 to set up authentication.
 
 ### Next Steps

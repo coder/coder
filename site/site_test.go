@@ -28,8 +28,10 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -273,6 +275,10 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithRole)
 	require.NoError(t, err)
 	assert.True(t, permsWithRole["createChat"], "user with agents-access role should have createChat = true")
+	// THEN: createWorkspace = true because the organization-member role
+	// grants creating a workspace owned by the member, and owner_id "me"
+	// resolves to the requesting user.
+	assert.True(t, permsWithRole["createWorkspace"], "org member should have createWorkspace = true")
 
 	// GIVEN: a user without the agents-access role.
 	userWithoutRole := dbgen.User(t, db, database.User{})
@@ -294,6 +300,36 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithoutRole)
 	require.NoError(t, err)
 	assert.False(t, permsWithoutRole["createChat"], "user without agents-access role should have createChat = false")
+	// THEN: createWorkspace = false because the user belongs to no
+	// organization, so the any_org check has no memberships to satisfy it.
+	assert.False(t, permsWithoutRole["createWorkspace"], "user without an org membership should have createWorkspace = false")
+
+	// GIVEN: an org member whose only membership carries the
+	// workspace-creation ban role.
+	bannedUser := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         bannedUser.ID,
+		Roles:          []string{rbac.RoleOrgWorkspaceCreationBan()},
+	})
+	_, bannedToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    bannedUser.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r = httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, bannedToken)
+	rw = httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// THEN: createWorkspace = false because the ban's negative permission
+	// overrides the create permission granted by org membership.
+	var bannedPerms codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &bannedPerms)
+	require.NoError(t, err)
+	assert.False(t, bannedPerms["createWorkspace"], "org member with a workspace-creation ban should have createWorkspace = false")
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
@@ -347,6 +383,98 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rw.Code)
 	body := rw.Body.String()
 	assert.Equal(t, "<html></html>", body)
+}
+
+func TestOrganizationsMetadata(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a site handler backed by an authz-wrapped database,
+	// matching production wiring, and a template that renders only
+	// the organizations metadata.
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .Organizations }}"),
+		},
+	}
+	rawDB, _ := dbtestutil.NewDB(t)
+	db := dbauthz.New(
+		rawDB,
+		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		testutil.Logger(t),
+		coderdtest.AccessControlStorePointer(),
+	)
+	handler, err := site.New(&site.Options{
+		Telemetry: telemetry.NewNoop(),
+		Database:  db,
+		SiteFS:    siteFS,
+	})
+	require.NoError(t, err)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// GIVEN: an org with members, another org, and a soft-deleted org.
+	memberOrg := dbgen.Organization(t, rawDB, database.Organization{})
+	otherOrg := dbgen.Organization(t, rawDB, database.Organization{})
+	deletedOrg := dbgen.Organization(t, rawDB, database.Organization{})
+	err = rawDB.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+		ID:        deletedOrg.ID,
+		UpdatedAt: dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	fetchOrgIDs := func(t *testing.T, token string) []uuid.UUID {
+		t.Helper()
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		rw := httptest.NewRecorder()
+		handler.ServeHTTP(rw, r)
+		require.Equal(t, http.StatusOK, rw.Code)
+		var orgs []codersdk.Organization
+		err := json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &orgs)
+		require.NoError(t, err)
+		ids := make([]uuid.UUID, 0, len(orgs))
+		for _, org := range orgs {
+			ids = append(ids, org.ID)
+		}
+		return ids
+	}
+
+	// WHEN: an owner who is a member of only one org loads the page.
+	owner := dbgen.User(t, rawDB, database.User{
+		RBACRoles: []string{codersdk.RoleOwner},
+	})
+	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{
+		OrganizationID: memberOrg.ID,
+		UserID:         owner.ID,
+	})
+	_, ownerToken := dbgen.APIKey(t, rawDB, database.APIKey{
+		UserID:    owner.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// THEN: the metadata includes every non-deleted org, not just the
+	// orgs the owner is a member of.
+	ownerOrgIDs := fetchOrgIDs(t, ownerToken)
+	assert.Contains(t, ownerOrgIDs, memberOrg.ID)
+	assert.Contains(t, ownerOrgIDs, otherOrg.ID)
+	assert.NotContains(t, ownerOrgIDs, deletedOrg.ID)
+
+	// WHEN: a regular member of a single org loads the page.
+	member := dbgen.User(t, rawDB, database.User{})
+	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{
+		OrganizationID: memberOrg.ID,
+		UserID:         member.ID,
+	})
+	_, memberToken := dbgen.APIKey(t, rawDB, database.APIKey{
+		UserID:    member.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// THEN: the metadata only includes orgs the member can read.
+	memberOrgIDs := fetchOrgIDs(t, memberToken)
+	assert.Contains(t, memberOrgIDs, memberOrg.ID)
+	assert.NotContains(t, memberOrgIDs, otherOrg.ID)
+	assert.NotContains(t, memberOrgIDs, deletedOrg.ID)
 }
 
 func TestCaching(t *testing.T) {
@@ -448,7 +576,7 @@ func TestServingFiles(t *testing.T) {
 	require.NoError(t, err)
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
-	client := &http.Client{}
+	client := srv.Client()
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -737,7 +865,7 @@ func TestServingBin(t *testing.T) {
 			compressor := middleware.NewCompressor(1, "text/*", "application/*")
 			srv := httptest.NewServer(compressor.Handler(handler))
 			defer srv.Close()
-			client := &http.Client{}
+			client := srv.Client()
 
 			// Create a context
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)

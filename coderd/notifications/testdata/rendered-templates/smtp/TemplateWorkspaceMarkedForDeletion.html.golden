@@ -13,8 +13,9 @@ Content-Type: text/plain; charset=UTF-8
 Hi Bobby,
 
 Your workspace bobby-workspace has been marked for deletion after 24 hours =
-of dormancy (https://coder.com/docs/templates/schedule#dormancy-auto-deleti=
-on-enterprise) because of template updated to new dormancy policy.
+of dormancy (https://coder.com/docs/admin/templates/managing-templates/sche=
+dule#dormancy-auto-deletion) because of template updated to new dormancy po=
+licy.
 To prevent deletion, use your workspace with the link below.
 
 
@@ -51,8 +52,8 @@ argin: 8px 0 32px; line-height: 1.5;">
         <p>Hi Bobby,</p>
         <p>Your workspace <strong>bobby-workspace</strong> has been marked =
 for <strong>deletion</strong> after 24 hours of <a href=3D"https://coder.co=
-m/docs/templates/schedule#dormancy-auto-deletion-enterprise">dormancy</a> b=
-ecause of template updated to new dormancy policy.<br>
+m/docs/admin/templates/managing-templates/schedule#dormancy-auto-deletion">=
+dormancy</a> because of template updated to new dormancy policy.<br>
 To prevent deletion, use your workspace with the link below.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">

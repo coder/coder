@@ -15,14 +15,22 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { toast } from "sonner";
 import {
 	ExponentialBackoff,
 	type Websocket,
 	WebsocketBuilder,
 	WebsocketEvent,
 } from "websocket-ts";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "#/components/ContextMenu/ContextMenu";
 import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
+import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
 import type { ConnectionStatus } from "./types";
 
@@ -98,7 +106,36 @@ export const WorkspaceTerminal = ({
 		onContentReady?.();
 	});
 	const [terminal, setTerminal] = useState<Terminal>();
-	const { copyToClipboard } = useClipboard();
+	const { copyToClipboard, readFromClipboard } = useClipboard();
+
+	const [hasSelection, setHasSelection] = useState(false);
+	const handleContextMenuOpenChange = (open: boolean) => {
+		if (open) {
+			setHasSelection(Boolean(terminal?.hasSelection()));
+		}
+	};
+	const copyTerminalSelection = () => {
+		const selection = terminal?.getSelection();
+		if (selection) {
+			void copyToClipboard(selection);
+		}
+	};
+	const pasteIntoTerminal = async () => {
+		if (!terminal) {
+			return;
+		}
+		try {
+			const text = await readFromClipboard();
+			if (text) {
+				terminal.paste(text);
+			}
+		} catch (error) {
+			toast.error("Failed to paste from clipboard");
+			console.error(error);
+		} finally {
+			terminal.focus();
+		}
+	};
 
 	const reportTerminalError = useEffectEvent((error: Error) => {
 		console.error(error);
@@ -203,7 +240,30 @@ export const WorkspaceTerminal = ({
 			}),
 		);
 
-		const isMac = navigator.platform.match("Mac");
+		// OSC 52 clipboard support. Programs like tmux send this escape
+		// sequence to copy text to the host's system clipboard.
+		nextTerminal.parser.registerOscHandler(52, (data) => {
+			const separatorIndex = data.indexOf(";");
+			if (separatorIndex === -1) {
+				return false;
+			}
+			const payload = data.slice(separatorIndex + 1);
+			// A "?" payload is a clipboard read query. Responding would
+			// require writing back to the PTY, which is not supported.
+			if (!payload || payload === "?") {
+				return false;
+			}
+			try {
+				const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
+				const decoded = new TextDecoder().decode(bytes);
+				void copyToClipboard(decoded);
+			} catch {
+				// Invalid base64; ignore.
+				return false;
+			}
+			return true;
+		});
+
 		const copySelection = () => {
 			const selection = nextTerminal.getSelection();
 			if (selection) {
@@ -229,7 +289,7 @@ export const WorkspaceTerminal = ({
 			// By default this usually launches the browser dev tools, but users
 			// expect this keybinding to copy when in the context of the web terminal.
 			if (
-				(isMac ? event.metaKey : event.ctrlKey) &&
+				(isMac() ? event.metaKey : event.ctrlKey) &&
 				event.shiftKey &&
 				event.key === "C"
 			) {
@@ -550,15 +610,35 @@ export const WorkspaceTerminal = ({
 					background-color: hsl(var(--surface-quaternary));
 				}
 			`}</style>
-			<div
-				className={cn(
-					"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
-					className,
-				)}
-				ref={terminalWrapperRef}
-				data-terminal-scope={scopeId}
-				data-testid={testId}
-			/>
+			<ContextMenu onOpenChange={handleContextMenuOpenChange}>
+				<ContextMenuTrigger asChild disabled={isMac()}>
+					<div
+						className={cn(
+							"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
+							className,
+						)}
+						ref={terminalWrapperRef}
+						data-terminal-scope={scopeId}
+						data-testid={testId}
+					/>
+				</ContextMenuTrigger>
+				<ContextMenuContent
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						terminal?.focus();
+					}}
+				>
+					<ContextMenuItem
+						disabled={!hasSelection}
+						onSelect={copyTerminalSelection}
+					>
+						Copy
+					</ContextMenuItem>
+					<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
+						Paste
+					</ContextMenuItem>
+				</ContextMenuContent>
+			</ContextMenu>
 		</>
 	);
 };

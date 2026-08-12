@@ -20,7 +20,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
@@ -38,22 +37,18 @@ type StreamingInterception struct {
 func NewStreamingInterceptor(
 	id uuid.UUID,
 	req *ChatCompletionNewParamsWrapper,
-	providerName string,
-	cfg config.OpenAI,
+	cfg intercept.Config,
+	cred intercept.Credential,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *StreamingInterception {
 	return &StreamingInterception{interceptionBase: interceptionBase{
-		id:             id,
-		providerName:   providerName,
-		req:            req,
-		cfg:            cfg,
-		clientHeaders:  clientHeaders,
-		authHeaderName: authHeaderName,
-		tracer:         tracer,
-		credential:     cred,
+		id:            id,
+		req:           req,
+		cfg:           cfg,
+		cred:          cred,
+		clientHeaders: clientHeaders,
+		tracer:        tracer,
 	}}
 }
 
@@ -99,7 +94,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	defer cancel()
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
-	svc := i.newCompletionsService()
+	svc := i.newCompletionsService(ctx)
 	logger := i.logger.With(slog.F("model", i.req.Model))
 
 	streamCtx, streamCancel := context.WithCancelCause(ctx)
@@ -131,31 +126,33 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		defer func() {
+			cp.Pool.RecordAttempts(totalKeyAttempts)
+		}()
+	}
 
 	for {
 		// TODO add outer loop span (https://github.com/coder/aibridge/issues/67)
 
-		// Per-iteration walker. An iteration is either an agentic
-		// continuation (sending a tool result back in a new
-		// stream) or a failover retry (previous key marked, try
-		// the next one).
-		var walker *keypool.Walker
-		if i.cfg.KeyPool != nil {
-			walker = i.cfg.KeyPool.Walker()
-		}
-
+		// Per-iteration: a pool credential advances its failover walker. An
+		// iteration is either an agentic continuation or a failover retry after
+		// the previous key was marked. BYOK has no pool and runs as a single
+		// attempt.
 		var opts []option.RequestOption
-		var currentKey *keypool.Key
-		if walker != nil {
-			key, keyPoolErr := walker.Next()
+		var currentPoolKey *keypool.Key
+		if cp, isPool := intercept.AsCentralizedPool(i.cred); isPool {
+			walker := cp.Pool.Walker()
+			key, keyPoolErr := cp.NextKey(walker)
 			if keyPoolErr != nil {
+				// Pool exhausted in this iteration. Relay the error to the
+				// client: as an SSE event if events have already been sent,
+				// or by direct write otherwise.
 				respErr := intercept.ResponseErrorFromKeyPool(keyPoolErr)
-				// Pool exhausted in this iteration. Relay the
-				// error to the client: as an SSE event if events
-				// have already been sent, or by direct write
-				// otherwise.
-				interceptionErr = respErr
+				// Record the underlying key-pool error (not the masked 502
+				// envelope) so the recorder can categorize by its kind. The
+				// client still receives respErr below.
+				interceptionErr = xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				if events.IsStreaming() {
 					payload, mErr := i.marshalErr(respErr)
 					if mErr != nil {
@@ -168,21 +165,17 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				}
 				break
 			}
-			currentKey = key
-			// Record the key in use so the hint reflects the last attempted key.
-			i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
-			logger.Debug(ctx, "using centralized api key",
-				slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
 
+			logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
+			currentPoolKey = key
 			opts = append(opts,
 				option.WithAPIKey(key.Value()),
-				// Disable SDK retries because the failover
-				// loop handles retries via key rotation.
+				// Disable SDK retries because the failover loop handles
+				// retries via key rotation.
 				option.WithMaxRetries(0),
 			)
+			totalKeyAttempts += walker.Attempts()
 		}
-
-		totalKeyAttempts += walker.Attempts()
 
 		// TODO(ssncferreira): inject actor headers directly in the client-header
 		//   middleware instead of using SDK options.
@@ -277,23 +270,8 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			prompt = nil
 		}
 
-		if lastUsage := processor.getLastUsage(); lastUsage.CompletionTokens > 0 {
-			// If the usage information is set, track it.
-			// The API will send usage information when the response terminates, which will happen if a tool call is invoked.
-			_ = i.recorder.RecordTokenUsage(streamCtx, &recorder.TokenUsageRecord{
-				InterceptionID:       i.ID().String(),
-				MsgID:                processor.getMsgID(),
-				Input:                calculateActualInputTokenUsage(lastUsage),
-				Output:               lastUsage.CompletionTokens,
-				CacheReadInputTokens: lastUsage.PromptTokensDetails.CachedTokens,
-				ExtraTokenTypes: map[string]int64{
-					"prompt_audio":                   lastUsage.PromptTokensDetails.AudioTokens,
-					"completion_accepted_prediction": lastUsage.CompletionTokensDetails.AcceptedPredictionTokens,
-					"completion_rejected_prediction": lastUsage.CompletionTokensDetails.RejectedPredictionTokens,
-					"completion_audio":               lastUsage.CompletionTokensDetails.AudioTokens,
-					"completion_reasoning":           lastUsage.CompletionTokensDetails.ReasoningTokens,
-				},
-			})
+		if lastUsage := processor.lastUsage; lastUsage.CompletionTokens > 0 {
+			i.recordTokenUsage(streamCtx, processor.getMsgID(), lastUsage)
 		}
 
 		if iterationStarted {
@@ -319,7 +297,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			// Pre-stream failure of this iteration. For
 			// centralized requests, mark the key and retry with
 			// the next one.
-			if currentKey != nil && i.markKeyOnError(ctx, currentKey, stream.Err()) {
+			if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, stream.Err()) {
 				continue
 			}
 			// Non-key error: relay it. Use mapStreamError so that
@@ -432,24 +410,19 @@ func (i *StreamingInterception) getInjectedToolByName(name string) *mcp.Tool {
 	return i.mcpProxy.GetTool(name)
 }
 
-// Mashals received stream chunk.
-// Overrides id (since proxy obscures injected tool call invocations).
-// If usage field was set in original chunk overrides it to culminative usage.
-//
 // sjson is used instead of normal struct marshaling so forwarded data
 // is as close to the original as possible. Structs from openai library lack
 // `omitzero/omitempty` annotations which adds additional empty fields
 // when marshaling structs. Those additional empty fields can break Codex client.
 func (i *StreamingInterception) marshalChunk(chunk *openai.ChatCompletionChunk, id uuid.UUID, prc *streamProcessor) ([]byte, error) {
+	// Normalize the response ID because injected tool calls span multiple upstream invocations.
 	sj, err := sjson.Set(chunk.RawJSON(), "id", id.String())
 	if err != nil {
 		return nil, xerrors.Errorf("marshal chunk id failed: %w", err)
 	}
 
-	// If usage information is available, relay the cumulative usage once all tool invocations have completed.
 	if chunk.JSON.Usage.Valid() {
-		u := prc.getCumulativeUsage()
-		sj, err = sjson.Set(sj, "usage", u)
+		sj, err = sjson.Set(sj, "usage", prc.lastUsage)
 		if err != nil {
 			return nil, xerrors.Errorf("marshal chunk usage failed: %w", err)
 		}
@@ -523,9 +496,7 @@ type streamProcessor struct {
 	pendingToolCall     bool
 	getInjectedToolFunc func(string) *mcp.Tool
 
-	// Token handling.
-	lastUsage       openai.CompletionUsage
-	cumulativeUsage openai.CompletionUsage
+	lastUsage openai.CompletionUsage
 }
 
 func newStreamProcessor(ctx context.Context, logger slog.Logger, isToolInjectedFunc func(string) *mcp.Tool) *streamProcessor {
@@ -545,9 +516,11 @@ func (s *streamProcessor) process(chunk openai.ChatCompletionChunk) bool {
 		// Potentially not fatal, move along in best effort...
 	}
 
-	// Accumulate token usage.
-	s.lastUsage = chunk.Usage
-	s.cumulativeUsage = sumUsage(s.cumulativeUsage, chunk.Usage)
+	// Some providers emit cumulative usage snapshots on every chunk, so the
+	// latest valid usage is authoritative. Never sum across chunks.
+	if chunk.JSON.Usage.Valid() {
+		s.lastUsage = chunk.Usage
+	}
 
 	// If the stream has reached a terminal state (i.e. call a tool), and this tool is injected,
 	// then it must not be relayed.
@@ -634,14 +607,6 @@ func (s *streamProcessor) getLastCompletion() *openai.ChatCompletionMessage {
 	}
 
 	return &s.acc.Choices[0].Message
-}
-
-func (s *streamProcessor) getLastUsage() openai.CompletionUsage {
-	return s.lastUsage
-}
-
-func (s *streamProcessor) getCumulativeUsage() openai.CompletionUsage {
-	return s.cumulativeUsage
 }
 
 // compactToolCalls removes nil/empty tool call entries (without an ID).

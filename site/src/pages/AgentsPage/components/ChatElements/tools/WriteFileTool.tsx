@@ -4,6 +4,8 @@ import { FileDiff } from "@pierre/diffs/react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { getPathBasename } from "../../../utils/path";
+import { DiffFileHeader } from "./DiffFileHeader";
 import {
 	type AgentDisplayState,
 	isAgentDisplayFullyExpanded,
@@ -36,8 +38,17 @@ export const WriteFileTool: React.FC<{
 		WRITE_FILE_AUTO_DISPLAY_STATE,
 	);
 
-	const filename = path.split("/").pop() || path;
-	const label = isRunning ? `Writing ${filename}…` : `Wrote ${filename}`;
+	const filename = getPathBasename(path);
+	let label = `Wrote ${filename}`;
+	if (isRunning) {
+		label = `Writing ${filename}…`;
+	} else if (isError) {
+		label = `Failed to write ${filename}`;
+	}
+	// The diff is synthesized from tool args, so showing it on error could
+	// misrepresent the content as written.
+	const showDiff = hasDiff && !isError;
+	const errorDetail = isError ? errorMessage?.trim() : undefined;
 
 	return (
 		<ToolCall.Root
@@ -46,12 +57,17 @@ export const WriteFileTool: React.FC<{
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to write file"}
-			hasContent={hasDiff}
+			hasContent={showDiff || Boolean(errorDetail)}
 			defaultView={displayState}
 		>
 			<ToolCall.Header iconName="write_file" label={label} />
 			<ToolCall.Content>
-				{hasDiff && (
+				{errorDetail && (
+					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
+						{errorDetail}
+					</pre>
+				)}
+				{showDiff && (
 					<ScrollArea
 						data-testid="write-file-diff"
 						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
@@ -66,6 +82,9 @@ export const WriteFileTool: React.FC<{
 							fileDiff={stripNoNewline(diff)}
 							options={getDiffViewerOptions(isDark)}
 							style={DIFFS_FONT_STYLE}
+							renderCustomHeader={(fileDiff) => (
+								<DiffFileHeader file={fileDiff} />
+							)}
 						/>
 					</ScrollArea>
 				)}

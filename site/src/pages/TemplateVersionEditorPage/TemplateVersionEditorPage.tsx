@@ -72,7 +72,7 @@ const TemplateVersionEditorPage: FC = () => {
 	const logs = useWatchVersionLogs(activeTemplateVersion, {
 		onDone: activeTemplateVersionQuery.refetch,
 	});
-	const { fileTree, tarFile } = useFileTree(activeTemplateVersion);
+	const { fileTree, setFileTree, tarFile } = useFileTree(activeTemplateVersion);
 	const {
 		missingVariables,
 		setIsMissingVariablesDialogOpen,
@@ -138,7 +138,10 @@ const TemplateVersionEditorPage: FC = () => {
 					onActivePathChange={onActivePathChange}
 					template={templateQuery.data}
 					templateVersion={activeTemplateVersion}
-					defaultFileTree={fileTree}
+					fileTree={fileTree}
+					onFileTreeChange={(updater) => {
+						setFileTree((current) => (current ? updater(current) : current));
+					}}
 					onPreview={async (newFileTree) => {
 						if (!tarFile) {
 							return;
@@ -244,13 +247,8 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 		...file(templateVersion?.job.file_id ?? ""),
 		enabled: templateVersion !== undefined,
 	});
-	const [state, setState] = useState<{
-		fileTree?: FileTree;
-		tarFile?: TarReader;
-	}>({
-		fileTree: undefined,
-		tarFile: undefined,
-	});
+	const [fileTree, setFileTree] = useState<FileTree | undefined>(undefined);
+	const [tarFile, setTarFile] = useState<TarReader | undefined>(undefined);
 
 	useEffect(() => {
 		let stale = false;
@@ -262,8 +260,8 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 				if (stale) {
 					return;
 				}
-				const fileTree = createTemplateVersionFileTree(tarFile);
-				setState({ fileTree, tarFile });
+				setFileTree(createTemplateVersionFileTree(tarFile));
+				setTarFile(tarFile);
 			} catch (error) {
 				console.error(error);
 				toast.error("Error on initializing the editor.", {
@@ -281,7 +279,7 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 		};
 	}, [fileQuery.data]);
 
-	return state;
+	return { fileTree, setFileTree, tarFile };
 };
 
 const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {

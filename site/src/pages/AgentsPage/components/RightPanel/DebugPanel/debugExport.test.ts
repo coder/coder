@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { ChatDebugRun } from "#/api/typesGenerated";
 import {
 	buildChatDebugExport,
 	buildDebugExportBlob,
@@ -7,50 +6,13 @@ import {
 	DEBUG_RUN_LIST_LIMIT,
 	debugExportFilename,
 } from "./debugExport";
+import { MockRun } from "./debugFixtures";
 
 const exportedAt = new Date("2026-05-07T10:45:00.000Z");
 
-const makeRun = (overrides: Partial<ChatDebugRun> = {}): ChatDebugRun => ({
-	id: "11111111-1111-1111-1111-111111111111",
-	chat_id: "00000000-0000-0000-0000-000000000000",
-	kind: "chat_turn",
-	status: "completed",
-	provider: "openai",
-	model: "gpt-4",
-	summary: { first_message: "Help debug this" },
-	started_at: "2026-05-07T10:40:00Z",
-	updated_at: "2026-05-07T10:44:00Z",
-	finished_at: "2026-05-07T10:44:00Z",
-	steps: [
-		{
-			id: "22222222-2222-2222-2222-222222222222",
-			run_id: "11111111-1111-1111-1111-111111111111",
-			chat_id: "00000000-0000-0000-0000-000000000000",
-			step_number: 1,
-			operation: "stream",
-			status: "completed",
-			normalized_request: { messages: [{ role: "user", content: "hello" }] },
-			normalized_response: { content: "hi" },
-			usage: { prompt_tokens: 10, completion_tokens: 2 },
-			attempts: [
-				{
-					number: 1,
-					status: "completed",
-					request_headers: { Authorization: "[REDACTED]" },
-				},
-			],
-			metadata: { provider: "openai" },
-			started_at: "2026-05-07T10:41:00Z",
-			updated_at: "2026-05-07T10:42:00Z",
-			finished_at: "2026-05-07T10:42:00Z",
-		},
-	],
-	...overrides,
-});
-
 describe("buildRunDebugExport", () => {
 	it("wraps a full debug run in a run-level export envelope", () => {
-		const run = makeRun();
+		const run = MockRun;
 		const payload = buildRunDebugExport(run.chat_id, run, exportedAt);
 
 		expect(payload).toEqual({
@@ -66,7 +28,7 @@ describe("buildRunDebugExport", () => {
 
 describe("buildChatDebugExport", () => {
 	it("wraps full debug runs in a chat-level export envelope", () => {
-		const runs = [makeRun(), makeRun({ id: "run-2" })];
+		const runs = [MockRun, { ...MockRun, id: "run-2" }];
 		const payload = buildChatDebugExport(runs[0].chat_id, runs, exportedAt);
 
 		expect(payload.version).toBe(1);
@@ -82,7 +44,7 @@ describe("buildChatDebugExport", () => {
 	});
 
 	it("includes failed run metadata when some detail fetches fail", () => {
-		const runs = [makeRun()];
+		const runs = [MockRun];
 		const failedRuns = [{ run_id: "run-2", message: "not found" }];
 		const payload = buildChatDebugExport(runs[0].chat_id, runs, exportedAt, {
 			failedRuns,
@@ -97,7 +59,7 @@ describe("buildChatDebugExport", () => {
 
 describe("buildDebugExportBlob", () => {
 	it("serializes export payloads as formatted JSON blobs", async () => {
-		const run = makeRun();
+		const run = MockRun;
 		const payload = buildRunDebugExport(run.chat_id, run, exportedAt);
 		const blob = buildDebugExportBlob(payload);
 

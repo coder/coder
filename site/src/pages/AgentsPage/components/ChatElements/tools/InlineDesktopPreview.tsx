@@ -101,7 +101,7 @@ export const InlineDesktopPreview: React.FC<{
 				className="flex w-full items-center justify-center text-content-secondary"
 				style={{ aspectRatio: DEFAULT_ASPECT }}
 			>
-				<Spinner loading className="h-5 w-5" />
+				<Spinner loading className="size-5" />
 			</div>,
 		);
 	}

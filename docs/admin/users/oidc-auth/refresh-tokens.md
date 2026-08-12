@@ -35,7 +35,7 @@ Go to the Azure Portal > **Azure Active Directory** > **App registrations** > Yo
 
 1. In your [Coder configuration](../../../reference/cli/server.md#--oidc-auth-url-params), request the same scopes:
 
-   ```env
+   ```dotenv
    CODER_OIDC_SCOPES=openid,profile,email,offline_access
    ```
 
@@ -60,7 +60,7 @@ Without this, users will be logged out when their access token expires.
 
 In your [Coder configuration](../../../reference/cli/server.md#--oidc-auth-url-params):
 
-```env
+```dotenv
 CODER_OIDC_SCOPES=openid,profile,email
 CODER_OIDC_AUTH_URL_PARAMS='{"access_type": "offline", "prompt": "consent"}'
 ```
@@ -76,7 +76,7 @@ including the ability to refresh access tokens without requiring the user to rea
 Add the `offline_access` scope to enable refresh tokens in your
 [Coder configuration](../../../reference/cli/server.md#--oidc-auth-url-params):
 
-```env
+```dotenv
 CODER_OIDC_SCOPES=openid,profile,email,offline_access
 CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline"}'
 ```
@@ -99,7 +99,7 @@ CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline"}'
 
 1. In your [Coder configuration](../../../reference/cli/server.md#--oidc-scopes), add the `offline_access` scope:
 
-   ```env
+   ```dotenv
    CODER_OIDC_SCOPES=openid,profile,email,offline_access
    ```
 

@@ -20,9 +20,10 @@ import type {
 	TemplateVersion,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { DeprecatedBadge } from "#/components/Badges/Badges";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -37,7 +38,6 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
-import { Pill } from "#/components/Pill/Pill";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
 import { TemplateStats } from "./TemplateStats";
@@ -263,7 +263,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 									? template.display_name
 									: template.name}
 							</PageHeaderTitle>
-							{template.deprecated && <Pill type="warning">Deprecated</Pill>}
+							{template.deprecated && <DeprecatedBadge />}
 						</div>
 
 						{template.deprecation_message !== "" ? (

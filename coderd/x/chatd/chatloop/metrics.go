@@ -3,7 +3,6 @@ package chatloop
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	"charm.land/fantasy"
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,6 +31,7 @@ type Metrics struct {
 	MessageCount             *prometheus.HistogramVec
 	PromptSizeBytes          *prometheus.HistogramVec
 	ToolResultSizeBytes      *prometheus.HistogramVec
+	ToolResultTruncatedTotal *prometheus.CounterVec
 	ToolErrorsTotal          *prometheus.CounterVec
 	TTFTSeconds              *prometheus.HistogramVec
 	CompactionTotal          *prometheus.CounterVec
@@ -72,6 +72,12 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help:      "Size in bytes of each tool execution result.",
 			Buckets:   prometheus.ExponentialBuckets(64, 4, 9), // 64B .. 4MB
 		}, []string{"provider", "model", "tool_name"}),
+		ToolResultTruncatedTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "tool_result_truncated_total",
+			Help:      "Total tool results truncated to fit the model context window.",
+		}, []string{"provider", "model", "tool_name"}),
 		ToolErrorsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -102,7 +108,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Subsystem: metricsSubsystem,
 			Name:      "stream_retries_total",
 			Help:      "Total LLM stream retries.",
-		}, []string{"provider", "model", "kind", "chain_broken"}),
+		}, []string{"provider", "model", "kind"}),
 		StreamBufferDroppedTotal: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -141,9 +147,7 @@ func (m *Metrics) RecordCompaction(provider, model string, compacted bool, err e
 
 // RecordStreamRetry increments stream_retries_total. The caller
 // must obtain classified via chaterror.Classify (non-empty Kind).
-// No-op when m is nil. The chain_broken label is "true" for chain
-// anchor failures (e.g. OpenAI previous_response_id 404) recovered
-// by the chatloop, and "false" otherwise.
+// No-op when m is nil.
 func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror.ClassifiedError) {
 	if m == nil {
 		return
@@ -152,7 +156,6 @@ func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror
 		provider,
 		model,
 		string(classified.Kind),
-		strconv.FormatBool(classified.ChainBroken),
 	).Inc()
 }
 
@@ -163,6 +166,19 @@ func (m *Metrics) RecordToolError(provider, model, toolLabel string) {
 		return
 	}
 	m.ToolErrorsTotal.WithLabelValues(provider, model, toolLabel).Inc()
+}
+
+// RecordToolResultTruncated increments tool_result_truncated_total for
+// the given tool. No-op when m is nil. An empty tool label is
+// normalized to "unknown" to match the other tool metrics.
+func (m *Metrics) RecordToolResultTruncated(provider, model, toolLabel string) {
+	if m == nil {
+		return
+	}
+	if toolLabel == "" {
+		toolLabel = "unknown"
+	}
+	m.ToolResultTruncatedTotal.WithLabelValues(provider, model, toolLabel).Inc()
 }
 
 // RecordStreamBufferDropped increments stream_buffer_dropped_total

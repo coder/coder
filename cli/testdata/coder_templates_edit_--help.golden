@@ -14,6 +14,9 @@ OPTIONS:
           template will have their shutdown time bumped by this value when
           activity is detected. Maps to "Activity bump" in the UI.
 
+      --agents-allowed bool (default: true)
+          Allow Coder Agents to create workspaces using this template.
+
       --allow-user-autostart bool (default: true)
           Allow users to configure autostart for workspaces on this template.
           This can only be disabled in enterprise.
@@ -30,6 +33,11 @@ OPTIONS:
           from this template can only autostart on the given weekdays. To unset
           this value for the template (and allow autostart on all days), pass
           'all'.
+
+      --autostop-reminder duration
+          Edit how long before the autostop deadline a reminder notification is
+          sent for workspaces created from this template, in Go duration format
+          (e.g. 1h, 30m). Set to 0 to disable.
 
       --autostop-requirement-weekdays [monday|tuesday|wednesday|thursday|friday|saturday|sunday|none]
           Edit the template autostop requirement weekdays - workspaces created

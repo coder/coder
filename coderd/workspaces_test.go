@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/http/httptest"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/singleflight"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -31,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -49,6 +53,50 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
+
+// TestWorkspacesListSingleAuthorizePrepare guards against reintroducing the
+// redundant OPA partial evaluation the GET /api/v2/workspaces handler used to
+// perform. The handler called AuthorizeSQLFilter to build a prepared
+// ResourceWorkspace authorizer, but the dbauthz GetAuthorizedWorkspaces wrapper
+// ignored it and re-prepared inside GetWorkspaces, so every request ran partial
+// evaluation twice. Partial-evaluation cost scales with the number of
+// organization-scoped roles the subject carries (see #21890), so the duplicate
+// prepare doubled an already expensive operation. A single list request must
+// prepare the ResourceWorkspace authorizer exactly once.
+func TestWorkspacesListSingleAuthorizePrepare(t *testing.T) {
+	t.Parallel()
+
+	authz := &coderdtest.RecordingAuthorizer{Wrapped: rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())}
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		Authorizer: authz,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	// Seed one workspace directly in the database. The authorization path the
+	// handler takes does not depend on how the workspace was built, so dbfake
+	// avoids the cost of a provisioner and real build.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner.UserID,
+		OrganizationID: owner.OrganizationID,
+	}).Do()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Reset immediately before the measured request so setup prepares are
+	// excluded. Counts are keyed by subject ID, so background work under system
+	// subjects is ignored.
+	authz.Reset()
+	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, res.Workspaces, 1)
+
+	// The exact count of 1 relies on this being the only request issued under the
+	// owner subject between the reset and this assertion, which holds because the
+	// test makes a single serial call.
+	count := authz.PrepareCount(owner.UserID.String(), policy.ActionRead, rbac.ResourceWorkspace.Type)
+	require.Equal(t, 1, count,
+		"GET /workspaces must prepare the ResourceWorkspace authorizer exactly once; a higher count means a redundant partial evaluation was reintroduced")
+}
 
 func TestWorkspace(t *testing.T) {
 	t.Parallel()
@@ -1466,6 +1514,249 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 	})
 }
 
+func TestCreateWorkspaceExternalAuth(t *testing.T) {
+	t.Parallel()
+
+	// The expected 403 message returned by createWorkspace when the workspace
+	// owner is missing required external auth.
+	const externalAuthRequiredMessage = "External authentication is required to create a workspace with this template."
+
+	// externalAuthVersion returns echo responses for a template version whose
+	// graph references the given external auth providers.
+	externalAuthVersion := func(providers ...*proto.ExternalAuthProviderResource) *echo.Responses {
+		return &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
+						ExternalAuthProviders: providers,
+					},
+				},
+			}},
+		}
+	}
+
+	t.Run("RequiredAuthMissing", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		req := codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       coderdtest.RandomUsername(t),
+		}
+		_, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+		require.Equal(t, "The workspace owner must authenticate with the following external auth providers: GitHub.", apiErr.Detail)
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "external_auth",
+			Detail: "github",
+		}}, apiErr.Validations)
+
+		// The rejection must happen before any workspace row is inserted.
+		_, err = memberClient.WorkspaceByOwnerAndName(ctx, codersdk.Me, req.Name, codersdk.WorkspaceOptions{})
+		apiErr = nil
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+
+		// Authenticating with the provider lifts the rejection.
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", memberClient)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		workspace, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, req)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, workspace.OwnerID)
+	})
+
+	t.Run("OwnerVsInitiator", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The initiating admin is authenticated with the provider, but the
+		// workspace owner (the member) is not. Token injection at build time
+		// uses the owner's links, so the owner's auth state is what matters.
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		req := codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       coderdtest.RandomUsername(t),
+		}
+		_, err := client.CreateUserWorkspace(ctx, member.Username, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+
+		// Once the owner authenticates, the same create succeeds.
+		resp = coderdtest.RequestExternalAuthCallback(t, "github", memberClient)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		workspace, err := client.CreateUserWorkspace(ctx, member.Username, req)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, workspace.OwnerID)
+	})
+
+	t.Run("OptionalProvider", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github", Optional: true}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Optional providers must not block creation even when the owner has
+		// never authenticated with them.
+		workspace, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       coderdtest.RandomUsername(t),
+		})
+		require.NoError(t, err)
+		require.Equal(t, member.ID, workspace.OwnerID)
+	})
+
+	t.Run("InvalidToken", func(t *testing.T) {
+		t.Parallel()
+		// The validation endpoint always reports the token as revoked. The
+		// external auth callback stores the link without validating it, so the
+		// link row exists but RefreshToken classifies it as invalid.
+		validateSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(validateSrv.Close)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				ValidateURL:              validateSrv.URL,
+				RefreshGroup:             new(singleflight.Group),
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		// Create the external auth link for the owner.
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", memberClient)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A link that fails validation counts as unauthenticated.
+		_, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       coderdtest.RandomUsername(t),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "external_auth",
+			Detail: "github",
+		}}, apiErr.Validations)
+	})
+
+	t.Run("DisplayNameFallback", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "fallback-provider",
+				Regex:                    regexp.MustCompile(`fallback\.example\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "fallback-provider"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Without a DisplayName, the response falls back to the provider ID.
+		_, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       coderdtest.RandomUsername(t),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+		require.Contains(t, apiErr.Detail, "fallback-provider")
+		require.Len(t, apiErr.Validations, 1)
+		require.Equal(t, "external_auth", apiErr.Validations[0].Field)
+		require.Equal(t, "fallback-provider", apiErr.Validations[0].Detail)
+	})
+}
+
 func TestWorkspaceByOwnerAndName(t *testing.T) {
 	t.Parallel()
 	t.Run("NotFound", func(t *testing.T) {
@@ -2576,6 +2867,105 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+	})
+
+	t.Run("IncludeAgentMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		// A named non-UTC zone on purpose: jsonb renders timestamptz
+		// in the session TimeZone, and the year-1 collected_at
+		// default renders named zones with LMT second-offsets that Go
+		// refuses to parse unless the query pins UTC.
+		store, ps := dbtestutil.NewDB(t, dbtestutil.WithTimezone("America/Caracas"))
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: store,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		build := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+		require.Len(t, build.Agents, 1)
+		agentID := build.Agents[0].ID
+
+		//nolint:gocritic // This is a test; only the agent API writes metadata.
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		collectedAt := dbtime.Now()
+		// Task_Status is mixed-case on purpose: requested keys are
+		// lowercased by the search parser, and the query matches stored
+		// keys case-insensitively. uncollected is registered but never
+		// reported, so it keeps the year-1 collected_at default.
+		for i, key := range []string{"Task_Status", "cpu", "unrequested", "uncollected"} {
+			err := store.InsertWorkspaceAgentMetadata(ctx, database.InsertWorkspaceAgentMetadataParams{
+				WorkspaceAgentID: agentID,
+				DisplayName:      key,
+				Key:              key,
+				Script:           "echo",
+				Timeout:          int64(time.Second),
+				Interval:         int64(time.Second),
+				// Reversed so the response order proves display_order
+				// sorting rather than insertion order.
+				DisplayOrder: int32(4 - i), //nolint:gosec // Tiny test constant.
+			})
+			require.NoError(t, err)
+			if key == "uncollected" {
+				continue
+			}
+			err = store.UpdateWorkspaceAgentMetadata(ctx, database.UpdateWorkspaceAgentMetadataParams{
+				WorkspaceAgentID: agentID,
+				Key:              []string{key},
+				Value:            []string{"value-" + key},
+				Error:            []string{""},
+				CollectedAt:      []time.Time{collectedAt},
+			})
+			require.NoError(t, err)
+		}
+
+		reqCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		findAgent := func(res codersdk.WorkspacesResponse) codersdk.WorkspaceAgent {
+			require.Len(t, res.Workspaces, 1)
+			require.Len(t, res.Workspaces[0].LatestBuild.Resources, 1)
+			require.Len(t, res.Workspaces[0].LatestBuild.Resources[0].Agents, 1)
+			return res.Workspaces[0].LatestBuild.Resources[0].Agents[0]
+		}
+
+		// Without the opt-in the response carries no metadata.
+		res, err := client.Workspaces(reqCtx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Empty(t, findAgent(res).Metadata)
+
+		// Opting in returns exactly the requested keys, ordered by
+		// display_order, with their collected values. The uncollected
+		// item must round-trip as Go's zero time rather than breaking
+		// the page.
+		res, err = client.Workspaces(reqCtx, codersdk.WorkspaceFilter{
+			IncludeAgentMetadata: []string{"task_status", "cpu", "uncollected"},
+		})
+		require.NoError(t, err)
+		metadata := findAgent(res).Metadata
+		require.Len(t, metadata, 3)
+		require.Equal(t, "uncollected", metadata[0].Description.Key)
+		require.Empty(t, metadata[0].Result.Value)
+		require.True(t, metadata[0].Result.CollectedAt.IsZero())
+		require.Equal(t, "cpu", metadata[1].Description.Key)
+		require.Equal(t, "value-cpu", metadata[1].Result.Value)
+		// The collection script is deliberately not exposed on the list
+		// endpoint; it can be long.
+		require.Empty(t, metadata[1].Description.Script)
+		require.Equal(t, "Task_Status", metadata[2].Description.Key)
+		require.Equal(t, "value-Task_Status", metadata[2].Result.Value)
+		require.WithinDuration(t, collectedAt, metadata[2].Result.CollectedAt, time.Second)
+
+		// Unknown keys are not an error; the metadata is just absent.
+		res, err = client.Workspaces(reqCtx, codersdk.WorkspaceFilter{
+			IncludeAgentMetadata: []string{"no_such_key"},
+		})
+		require.NoError(t, err)
+		require.Empty(t, findAgent(res).Metadata)
 	})
 
 	t.Run("HealthyFilter", func(t *testing.T) {
@@ -3838,6 +4228,49 @@ func TestWatchAllWorkspaceBuilds(t *testing.T) {
 	require.Equal(t, workspace2.ID, update.WorkspaceID)
 }
 
+func TestWatchAllWorkspaceBuildsAuthorization(t *testing.T) {
+	t.Parallel()
+
+	// Enable the workspace build updates experiment.
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.Experiments = []string{string(codersdk.ExperimentWorkspaceBuildUpdates)}
+		}),
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	t.Run("MemberForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		// A plain member has no deployment-wide workspace read permission and
+		// must not be able to open the all-builds stream.
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := memberClient.WatchAllWorkspaceBuilds(ctx)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+
+	t.Run("TemplateAdminAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		// Template admins have site-wide workspace read and may open the stream.
+		taClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		decoder, err := taClient.WatchAllWorkspaceBuilds(ctx)
+		require.NoError(t, err)
+		defer decoder.Close()
+	})
+}
+
 func mustLocation(t *testing.T, location string) *time.Location {
 	t.Helper()
 	loc, err := time.LoadLocation(location)
@@ -4587,7 +5020,24 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should be able to stop a workspace while it is dormant.
-		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		// Drain both audit entries emitted so far (the dormancy update and
+		// the stop build) before resetting the auditor. Audit logs are
+		// exported asynchronously relative to the API responses, so an entry
+		// landing after ResetLogs would break the exact count assertion
+		// below.
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return auditor.Contains(t, database.AuditLog{
+				ResourceID:   workspace.ID,
+				ResourceType: database.ResourceTypeWorkspace,
+				Action:       database.AuditActionWrite,
+			}) && auditor.Contains(t, database.AuditLog{
+				ResourceID:   workspace.LatestBuild.ID,
+				ResourceType: database.ResourceTypeWorkspaceBuild,
+				Action:       database.AuditActionStop,
+				StatusCode:   http.StatusOK,
+			})
+		}, testutil.IntervalFast)
 
 		// Reset the auditor
 		auditor.ResetLogs()
@@ -4610,16 +5060,20 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err, "fetch updated workspace")
 		require.Nil(t, updatedWs.DormantAt)
 
-		// There should be an audit log for both the dormancy update and the start.
-		require.Len(t, auditor.AuditLogs(), 2)
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			Action:       database.AuditActionWrite,
-			ResourceType: database.ResourceTypeWorkspace,
-		}))
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			Action:       database.AuditActionStart,
-			ResourceType: database.ResourceTypeWorkspaceBuild,
-		}))
+		// There should be an audit log for both the dormancy update and the
+		// start. Audit logs are written asynchronously to build completion,
+		// so poll until both appear.
+		require.Eventually(t, func() bool {
+			return len(auditor.AuditLogs()) == 2 &&
+				auditor.Contains(t, database.AuditLog{
+					Action:       database.AuditActionWrite,
+					ResourceType: database.ResourceTypeWorkspace,
+				}) &&
+				auditor.Contains(t, database.AuditLog{
+					Action:       database.AuditActionStart,
+					ResourceType: database.ResourceTypeWorkspaceBuild,
+				})
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 
@@ -4872,6 +5326,75 @@ func TestWorkspaceNotifications(t *testing.T) {
 			require.Contains(t, sent[0].Targets, workspace.ID)
 			require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 			require.Contains(t, sent[0].Targets, workspace.OwnerID)
+			// Auto-delete is not configured on this template, so the body must
+			// omit the deletion timeline.
+			require.NotContains(t, sent[0].Labels, "timeTilDelete")
+		})
+
+		t.Run("InitiatorNotOwnerWithAutoDelete", func(t *testing.T) {
+			t.Parallel()
+
+			// Given
+			var (
+				notifyEnq = &notificationstest.FakeEnqueuer{}
+				// 35 days sits solidly inside humanize.Time's "1 month"
+				// bucket (between 30 and 60 days), so the rendered label is
+				// deterministic regardless of microsecond-level timing
+				// differences.
+				timeTilDormantAutoDelete = 35 * 24 * time.Hour
+				client                   = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+					// AGPL templateScheduleStore drops TimeTilDormantAutoDelete
+					// when Set runs. The mock propagates it into the template
+					// row so the UPDATE in UpdateWorkspaceDormantDeletingAt
+					// can compute deleting_at.
+					TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+						SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+							template.TimeTilDormantAutoDelete = int64(options.TimeTilDormantAutoDelete)
+							return schedule.NewAGPLTemplateScheduleStore().Set(ctx, db, template, options)
+						},
+						GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+							return schedule.TemplateScheduleOptions{
+								UserAutostartEnabled:     false,
+								UserAutostopEnabled:      true,
+								DefaultTTL:               0,
+								AutostopRequirement:      schedule.TemplateAutostopRequirement{},
+								TimeTilDormantAutoDelete: timeTilDormantAutoDelete,
+							}, nil
+						},
+					},
+				})
+				user            = coderdtest.CreateFirstUser(t, client)
+				memberClient, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+				version         = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_               = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template        = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+					ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](timeTilDormantAutoDelete.Milliseconds())
+				})
+				workspace = coderdtest.CreateWorkspace(t, client, template.ID)
+				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			// When
+			err := memberClient.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: true,
+			})
+
+			// Then
+			require.NoError(t, err, "mark workspace as dormant")
+			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceDormant))
+			require.Len(t, sent, 1)
+			require.Contains(t, sent[0].Labels, "timeTilDelete")
+			require.Contains(t, sent[0].Labels["timeTilDelete"], "1 month",
+				"timeTilDelete must humanize the workspace's deleting_at, got %q",
+				sent[0].Labels["timeTilDelete"])
+			require.NotContains(t, sent[0].Labels["timeTilDelete"], "ago",
+				"timeTilDelete must be a future timestamp, got %q",
+				sent[0].Labels["timeTilDelete"])
 		})
 
 		t.Run("InitiatorIsOwner", func(t *testing.T) {
@@ -5584,6 +6107,59 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				sharedAdminUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+	})
+
+	//nolint:tparallel,paralleltest // Modifies package global rbac.workspaceACLDisabled.
+	t.Run("OrgAdminCanChangeOwnRole", func(t *testing.T) {
+		// Save and restore the global to avoid affecting other tests.
+		prevWorkspaceACLDisabled := rbac.WorkspaceACLDisabled()
+		rbac.SetWorkspaceACLDisabled(false)
+		t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
+
+		dv := coderdtest.DeploymentValues(t)
+
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
+		})
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		orgID := adminUser.OrganizationID
+		workspaceOwnerClient, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		orgAdminClient, orgAdminUser := coderdtest.CreateAnotherUser(t, adminClient, orgID, rbac.ScopedRoleOrgAdmin(orgID))
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, workspaceOwnerClient, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, workspaceOwnerClient, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// An org admin can share a workspace they do not own with themselves,
+		// because they hold workspace share permission across the organization
+		// independent of this workspace's ACL.
+		err := orgAdminClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				orgAdminUser.ID.String(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+
+		// They can also change and then remove their own role.
+		err = orgAdminClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				orgAdminUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		err = orgAdminClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				orgAdminUser.ID.String(): codersdk.WorkspaceRoleDeleted,
 			},
 		})
 		require.NoError(t, err)

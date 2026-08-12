@@ -10,6 +10,9 @@ SUBCOMMANDS:
                                 email and password and adds it to every
                                 organization.
     dbcrypt                     Manage database encryption.
+    fix-oidc-links              Reset OIDC linked IDs that do not match the
+                                expected issuer, allowing users to
+                                re-authenticate.
     postgres-builtin-serve      Run the built-in PostgreSQL deployment.
     postgres-builtin-url        Output the connection URL for the built-in
                                 PostgreSQL deployment.
@@ -115,7 +118,7 @@ AI GATEWAY OPTIONS:
           limit, and is currently the only supported value.
 
       --ai-gateway-dump-dir string, $CODER_AI_GATEWAY_DUMP_DIR
-          Base directory for dumping AI Bridge request/response pairs to disk
+          Base directory for dumping AI Gateway request/response pairs to disk
           for debugging. When set, each provider writes under a subdirectory
           named after the provider. Sensitive headers are redacted. Leave empty
           to disable.
@@ -166,7 +169,7 @@ AI GATEWAY OPTIONS:
           this option seeds provider configuration at startup only exactly once.
           It will not be used in service runtime. The AWS Bedrock API region to
           use. Constructs a base URL to use for the AWS Bedrock API in the form
-          of 'https://bedrock-runtime.<region>.amazonaws.com'.
+          of `https://bedrock-runtime.<region>.amazonaws.com`.
 
       --ai-gateway-bedrock-small-fastmodel string, $CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
           Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
@@ -255,6 +258,11 @@ AI GATEWAY PROXY OPTIONS:
       --ai-gateway-proxy-tls-key-file string, $CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE
           Path to the TLS private key file for the AI Gateway Proxy listener.
           Must be set together with AI Gateway Proxy TLS Certificate File.
+
+      --ai-gateway-proxy-target string, $CODER_AI_GATEWAY_PROXY_TARGET
+          Base URL of the AI Gateway to forward intercepted requests to.
+          Defaults to the embedded AI Gateway address at the Coder access URL
+          plus /api/v2/ai-gateway.
 
       --ai-gateway-proxy-upstream string, $CODER_AI_GATEWAY_PROXY_UPSTREAM
           URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)
@@ -455,8 +463,8 @@ NETWORKING OPTIONS:
           True-Client-Ip, X-Forwarded-For.
 
       --proxy-trusted-origins string-array, $CODER_PROXY_TRUSTED_ORIGINS
-          Origin addresses to respect "proxy-trusted-headers". e.g.
-          192.168.1.0/24.
+          Origin addresses to respect "proxy-trusted-headers" and
+          X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.
 
       --redirect-to-access-url bool, $CODER_REDIRECT_TO_ACCESS_URL
           Specifies whether to redirect requests that do not match the access
@@ -723,7 +731,7 @@ OAUTH2 / GITHUB OPTIONS:
 
       --oauth2-github-allowed-teams string-array, $CODER_OAUTH2_GITHUB_ALLOWED_TEAMS
           Teams inside organizations the user must be a member of to Login with
-          GitHub. Structured as: <organization-name>/<team-slug>.
+          GitHub. Structured as: `<organization-name>/<team-slug>`.
 
       --oauth2-github-client-id string, $CODER_OAUTH2_GITHUB_CLIENT_ID
           Client ID for Login with GitHub.
@@ -879,6 +887,12 @@ that data type.
           indefinitely). We advise keeping audit logs for at least a year, and
           in accordance with your compliance requirements.
 
+      --boundary-log-retention duration, $CODER_BOUNDARY_LOG_RETENTION (default: 0)
+          How long boundary audit log entries are retained. Boundary logs record
+          HTTP requests processed by a Boundary confinement proxy. Set to 0 to
+          disable automatic deletion (keep indefinitely). Adjust to match your
+          organization's regulatory requirements.
+
       --connection-logs-retention duration, $CODER_CONNECTION_LOGS_RETENTION (default: 0)
           How long connection log entries are retained. Set to 0 to disable
           (keep indefinitely).
@@ -903,7 +917,7 @@ TEMPLATE BUILDER OPTIONS:
           Disable the template builder feature for guided template creation.
           When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
-      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: https://registry.coder.com)
+      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: registry.coder.com)
           The base URL of the module registry used by the template builder for
           module source paths.
 
@@ -956,6 +970,9 @@ These options are only available in the Enterprise Edition.
       --browser-only bool, $CODER_BROWSER_ONLY
           Whether Coder only allows connections to workspaces via the browser.
 
+      --cluster-host string, $CODER_CLUSTER_HOST
+          Hostname or (more commonly) IP to reach this replica for clustering.
+
       --derp-server-relay-url url, $CODER_DERP_SERVER_RELAY_URL
           An HTTP URL that is accessible by other replicas to relay DERP
           traffic. Required for high availability.
@@ -973,6 +990,10 @@ These options are only available in the Enterprise Edition.
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.
+
+      --scim-use-legacy bool, $CODER_SCIM_USE_LEGACY (default: true)
+          Use the legacy SCIM implementation instead of the SCIM 2.0 handler.
+          This is provided for backward compatibility for existing users.
 
 ———
 Run `coder --help` for a list of global options.

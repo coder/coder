@@ -9,9 +9,9 @@
  * It was also simplified to make usage easier and reduce boilerplate.
  * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
  */
-import { useTheme } from "@emotion/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Avatar as AvatarPrimitive } from "radix-ui";
+import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 import { cn } from "#/utils/cn";
 
@@ -56,6 +56,12 @@ export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
 		fallback?: string;
+		/**
+		 * Alt text for the inner `<img>`. Defaults to `""` (decorative,
+		 * hidden from assistive tech). Pass a descriptive value when no
+		 * adjacent text identifies the content.
+		 */
+		alt?: string;
 		ref?: React.Ref<React.ComponentRef<typeof AvatarPrimitive.Root>>;
 	};
 
@@ -65,10 +71,11 @@ export const Avatar: React.FC<AvatarProps> = ({
 	variant,
 	src,
 	fallback,
+	alt = "",
 	children,
 	...props
 }) => {
-	const theme = useTheme();
+	const { externalImages } = useAppearance();
 
 	return (
 		<AvatarPrimitive.Root
@@ -77,8 +84,9 @@ export const Avatar: React.FC<AvatarProps> = ({
 		>
 			<AvatarPrimitive.Image
 				src={src}
+				alt={alt}
 				className="aspect-square size-full object-contain"
-				style={getExternalImageStylesFromUrl(theme.externalImages, src)}
+				style={getExternalImageStylesFromUrl(externalImages, src)}
 			/>
 			{fallback && (
 				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">

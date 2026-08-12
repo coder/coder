@@ -4,7 +4,7 @@
 # .tgz file at the specified path, and may optionally push it to the Coder OSS
 # repo.
 #
-# ./helm.sh [--version 1.2.3] [--chart coder|provisioner] [--output path/to/coder.tgz]
+# ./helm.sh [--version 1.2.3] [--chart coder|provisioner|ai-gateway] [--output path/to/coder.tgz]
 #
 # If no version is specified, defaults to the version from ./version.sh.
 #
@@ -56,8 +56,8 @@ fi
 if [[ "$chart" == "" ]]; then
 	chart="coder"
 fi
-if ! [[ "$chart" =~ ^(coder|provisioner)$ ]]; then
-	error "--chart value must be one of (coder, provisioner)"
+if ! [[ "$chart" =~ ^(coder|provisioner|ai-gateway)$ ]]; then
+	error "--chart value must be one of (coder, provisioner, ai-gateway)"
 fi
 
 if [[ "$output_path" == "" ]]; then

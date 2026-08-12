@@ -1,0 +1,88 @@
+{
+  "id": "jetbrains",
+  "display_name": "JetBrains Toolbox",
+  "description": "Add JetBrains IDE integrations to your Coder workspaces with configurable options.",
+  "icon": "/icon/jetbrains.svg",
+  "category": "IDE",
+  "tags": [
+    "ide",
+    "jetbrains",
+    "parameter"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "1.4.0",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The resource ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "agent_name",
+      "type": "string",
+      "description": "The name of a Coder agent. Needed for workspaces with multiple agents.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "channel",
+      "type": "string",
+      "description": "JetBrains IDE release channel. Valid values are release and eap.",
+      "default": "release",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "download_base_link",
+      "type": "string",
+      "description": "URL of the JetBrains download base link.",
+      "default": "https://download.jetbrains.com",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "folder",
+      "type": "string",
+      "description": "The directory to open in the IDE. e.g. /home/coder/project",
+      "required": true,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "major_version",
+      "type": "string",
+      "description": "The major version of the IDE. i.e. 2025.1",
+      "default": "latest",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "releases_base_link",
+      "type": "string",
+      "description": "URL of the JetBrains releases base link.",
+      "default": "https://data.services.jetbrains.com",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "tooltip",
+      "type": "string",
+      "description": "Markdown text that is displayed when hovering over workspace apps.",
+      "default": "You need to install [JetBrains Toolbox App](https://www.jetbrains.com/toolbox-app/) to use this button.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

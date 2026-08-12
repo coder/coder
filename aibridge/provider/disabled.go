@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 // DisabledStub is a Provider placeholder for a configured-but-disabled
@@ -42,6 +43,8 @@ func (*DisabledStub) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig 
 }
 func (*DisabledStub) CircuitBreakerConfig() *config.CircuitBreaker { return nil }
 func (*DisabledStub) APIDumpDir() string                           { return "" }
+func (*DisabledStub) CategorizeError(error) *recorder.ErrorType    { return nil }
+
 func (*DisabledStub) CreateInterceptor(_ http.ResponseWriter, _ *http.Request, _ trace.Tracer) (intercept.Interceptor, error) {
 	//nolint:nilnil // disabled providers never reach the interceptor.
 	return nil, nil

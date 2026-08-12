@@ -578,6 +578,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Used by example templates.",
 		env_name: "EXAMPLE_TOKEN",
 		file_path: "",
+		enabled: true,
 		created_at: "2026-04-28T16:30:00Z",
 		updated_at: "2026-04-30T16:30:00Z",
 	},
@@ -587,6 +588,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Mounted as a workspace file.",
 		env_name: "",
 		file_path: "~/.config/example/config.json",
+		enabled: true,
 		created_at: "2026-04-29T16:30:00Z",
 		updated_at: "2026-05-01T16:30:00Z",
 	},
@@ -596,15 +598,20 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Available as an environment variable and file.",
 		env_name: "SERVICE_API_KEY",
 		file_path: "/var/run/secrets/service-api-key",
+		enabled: true,
 		created_at: "2026-04-30T16:30:00Z",
 		updated_at: "2026-05-02T16:30:00Z",
 	},
 	{
+		// Mirrors a pre-migration secret that had both env_name and
+		// file_path empty. The migration flips such rows to
+		// enabled: false, so this is the shape they have after upgrade.
 		id: "secret-not-injected",
 		name: "SERVICE_PASSWORD",
 		description: "",
 		env_name: "",
 		file_path: "",
+		enabled: false,
 		created_at: "2026-05-01T16:30:00Z",
 		updated_at: "2026-05-03T16:30:00Z",
 	},
@@ -614,12 +621,35 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		description: "Used to exercise duplicate validation.",
 		env_name: "DUPLICATE_API_KEY",
 		file_path: "",
+		enabled: true,
 		created_at: "2026-05-01T18:30:00Z",
 		updated_at: "2026-05-03T18:30:00Z",
 	},
 ];
 
+export const MockImportedUserSecret: TypesGen.UserSecret = {
+	id: "imported-database-url",
+	name: "DATABASE_URL",
+	description: "",
+	env_name: "DATABASE_URL",
+	file_path: "",
+	enabled: true,
+	created_at: "2026-05-04T00:00:00Z",
+	updated_at: "2026-05-04T00:00:00Z",
+};
+
+export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
+	MockImportedUserSecret,
+	{
+		...MockImportedUserSecret,
+		id: "imported-api-token",
+		name: "API_TOKEN",
+		env_name: "API_TOKEN",
+	},
+];
+
 export const MockTasksTabVisible: boolean = false;
+export const MockAIGatewayEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -899,6 +929,7 @@ export const MockTemplate: TypesGen.Template = {
 	description: "This is a test description.",
 	default_ttl_ms: 24 * 60 * 60 * 1000,
 	activity_bump_ms: 1 * 60 * 60 * 1000,
+	time_til_autostop_notify_ms: 0,
 	autostop_requirement: {
 		days_of_week: ["sunday"],
 		weeks: 1,
@@ -918,6 +949,7 @@ export const MockTemplate: TypesGen.Template = {
 	created_by_name: "test_creator",
 	icon: "/icon/code.svg",
 	allow_user_cancel_workspace_jobs: true,
+	agents_allowed: true,
 	failure_ttl_ms: 0,
 	time_til_dormant_ms: 0,
 	time_til_dormant_autodelete_ms: 0,
@@ -1777,12 +1809,22 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-outdated-workspace-require-active-version",
-	outdated: true,
-	template_require_active_version: true,
-};
+export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
+	{
+		...MockWorkspace,
+		id: "test-outdated-workspace-require-active-version",
+		outdated: true,
+		template_require_active_version: true,
+	};
+
+export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
+	{
+		...MockOutdatedRunningWorkspaceRequireActiveVersion,
+		latest_build: {
+			...MockWorkspaceBuild,
+			status: "stopped",
+		},
+	};
 
 const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -1795,16 +1837,7 @@ const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	},
 };
 
-export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockOutdatedRunningWorkspaceRequireActiveVersion,
-		latest_build: {
-			...MockWorkspaceBuild,
-			status: "stopped",
-		},
-	};
-
-const _MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
 	latest_build: {
 		...MockWorkspaceBuild,
@@ -1827,12 +1860,6 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 			},
 		],
 	},
-};
-
-export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-non-classic-parameter-flow-workspace",
-	template_use_classic_parameter_flow: false,
 };
 
 // just over one page of workspaces
@@ -1900,20 +1927,19 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
 		ephemeral: false,
 	};
 
-export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
-	{
-		name: "fourth_parameter",
-		type: "string",
-		form_type: "input",
-		description: "This is fourth parameter",
-		description_plaintext: "Markdown: This is fourth parameter",
-		default_value: "def",
-		mutable: false,
-		icon: "/icon/database.svg",
-		options: [],
-		required: true,
-		ephemeral: false,
-	};
+const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter = {
+	name: "fourth_parameter",
+	type: "string",
+	form_type: "input",
+	description: "This is fourth parameter",
+	description_plaintext: "Markdown: This is fourth parameter",
+	default_value: "def",
+	mutable: false,
+	icon: "/icon/database.svg",
+	options: [],
+	required: true,
+	ephemeral: false,
+};
 
 const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	name: "fifth_parameter",
@@ -1946,6 +1972,24 @@ export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
 		required: true,
 		ephemeral: true,
 	};
+
+// Not required and the default is a blank string.
+const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter = {
+	name: "seventh_parameter",
+	type: "string",
+	form_type: "input",
+	description: "This is seventh parameter",
+	description_plaintext: "Markdown: This is seventh parameter",
+	default_value: "",
+	mutable: true,
+	icon: "/icon/folder.svg",
+	options: [],
+	validation_min: 1,
+	validation_max: 10,
+	validation_monotonic: "decreasing",
+	required: false,
+	ephemeral: false,
+};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
 	name: "first_variable",
@@ -3223,7 +3267,7 @@ export const MockGroup3: TypesGen.Group = {
 	total_member_count: 2,
 };
 
-const MockEveryoneGroup: TypesGen.Group = {
+export const MockEveryoneGroup: TypesGen.Group = {
 	// The "Everyone" group must have the same ID as a the organization it belongs
 	// to.
 	id: MockOrganization.id,
@@ -3277,6 +3321,7 @@ export const MockTemplateExample2: TypesGen.TemplateExample = {
 export const MockPermissions: Permissions = {
 	createTemplates: true,
 	createUser: true,
+	createWorkspace: true,
 	deleteTemplates: true,
 	updateTemplates: true,
 	viewAllUsers: true,
@@ -3302,6 +3347,7 @@ export const MockPermissions: Permissions = {
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
 	viewAnyAIProvider: true,
+	viewAIGatewayKeys: true,
 	createOAuth2App: true,
 	editOAuth2App: true,
 	deleteOAuth2App: true,
@@ -3312,6 +3358,7 @@ export const MockPermissions: Permissions = {
 export const MockNoPermissions: Permissions = {
 	createTemplates: false,
 	createUser: false,
+	createWorkspace: false,
 	deleteTemplates: false,
 	updateTemplates: false,
 	viewAllUsers: false,
@@ -3335,8 +3382,9 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
-	viewAnyAIBridgeInterception: true,
+	viewAnyAIBridgeInterception: false,
 	viewAnyAIProvider: false,
+	viewAIGatewayKeys: false,
 	createOAuth2App: false,
 	editOAuth2App: false,
 	deleteOAuth2App: false,
@@ -3422,6 +3470,12 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
 	value: "5",
 };
 
+// Has a blank value.
+export const MockWorkspaceBuildParameter7: TypesGen.WorkspaceBuildParameter = {
+	name: MockTemplateVersionParameter7.name,
+	value: "",
+};
+
 export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	name: "parameter1",
 	display_name: "Parameter 1",
@@ -3439,6 +3493,62 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	icon: "",
 	styling: {},
 	order: 0,
+};
+
+// A text parameter that is required and mutable.  Maps to
+// MockTemplateVersionParameter1.
+export const MockPreviewParameter1: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter1.name,
+	display_name: MockTemplateVersionParameter1.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter1.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter1.default_value },
+};
+
+// A number parameter that is required and mutable.  Maps to
+// MockTemplateVersionParameter2.
+export const MockPreviewParameter2: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter2.name,
+	display_name: MockTemplateVersionParameter2.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter2.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter2.default_value },
+};
+
+// A text parameter that is required and immutable.  Maps to
+// MockTemplateVersionParameter4.
+export const MockPreviewParameter4: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter4.name,
+	display_name: MockTemplateVersionParameter4.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter4.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter4.default_value },
+	mutable: false,
+};
+
+// A text parameter that is mutable, not required, and has a blank value.  Maps
+// to MockTemplateVersionParameter7.
+export const MockPreviewParameter7: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter7.name,
+	display_name: MockTemplateVersionParameter7.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter7.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter7.default_value },
+	required: MockTemplateVersionParameter7.required,
+	mutable: MockTemplateVersionParameter7.mutable,
+	ephemeral: MockTemplateVersionParameter7.ephemeral,
 };
 
 export const MockDropdownParameter: TypesGen.PreviewParameter = {
@@ -3476,7 +3586,7 @@ export const MockDropdownParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
-const MockTagSelectParameter: TypesGen.PreviewParameter = {
+export const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "tags",
 	display_name: "Tags",
@@ -3494,7 +3604,7 @@ const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	order: 4,
 };
 
-const MockSwitchParameter: TypesGen.PreviewParameter = {
+export const MockSwitchParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "enable_monitoring",
 	display_name: "Enable Monitoring",
@@ -3529,7 +3639,7 @@ export const MockSliderParameter: TypesGen.PreviewParameter = {
 	order: 2,
 };
 
-const MockMultiSelectParameter: TypesGen.PreviewParameter = {
+export const MockMultiSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "ides",
 	display_name: "IDEs",
@@ -3589,19 +3699,6 @@ export const MockValidationParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
-export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse =
-	{
-		id: 1,
-		parameters: [
-			MockDropdownParameter,
-			MockSliderParameter,
-			MockSwitchParameter,
-			MockTagSelectParameter,
-			MockMultiSelectParameter,
-		],
-		diagnostics: [],
-	};
-
 export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse =
 	{
 		id: 2,
@@ -3636,6 +3733,16 @@ export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.Templa
 		authenticated: true,
 		display_icon: "/icon/github.svg",
 		display_name: "GitHub",
+	};
+
+export const MockTemplateVersionExternalAuthAzure: TypesGen.TemplateVersionExternalAuth =
+	{
+		id: "azure",
+		type: "azure",
+		authenticate_url: "https://example.com/external-auth/azure",
+		authenticated: false,
+		display_icon: "/icon/azure.svg",
+		display_name: "Azure",
 	};
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
@@ -4750,16 +4857,20 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{
 		id: "1",
 		name: "foo",
-		callback_url: "http://localhost:3001",
+		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
 		endpoints: {
-			authorization: "http://localhost:3001/oauth2/authorize",
-			token: "http://localhost:3001/oauth2/token",
+			authorization: "http://127.0.0.1:3001/oauth2/authorize",
+			token: "http://127.0.0.1:3001/oauth2/token",
 			device_authorization: "",
-			token_revoke: "http://localhost:3001/oauth2/revoke",
+			token_revoke: "http://127.0.0.1:3001/oauth2/revoke",
 		},
 	},
 ];
+
+export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
+	dynamic_client_registration_enabled: false,
+};
 
 export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 	[
@@ -4769,9 +4880,9 @@ export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 			last_used_at: null,
 		},
 		{
-			id: "1",
+			id: "2",
 			last_used_at: "2022-12-16T20:10:45.637452Z",
-			client_secret_truncated: "foo",
+			client_secret_truncated: "bar",
 		},
 	];
 
@@ -4872,7 +4983,7 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			name: "Workspace Marked as Dormant",
 			title_template: 'Workspace "{{.Labels.name}}" marked as dormant',
 			body_template:
-				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
 			actions:
 				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
 			group: "Workspace Events",
@@ -4898,7 +5009,7 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			name: "Workspace Marked for Deletion",
 			title_template: 'Workspace "{{.Labels.name}}" marked for deletion',
 			body_template:
-				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
 			actions:
 				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
 			group: "Workspace Events",
@@ -5417,81 +5528,6 @@ export const MockDisplayNameTasks = [
 	},
 ] satisfies TypesGen.Task[];
 
-export const MockInterception: TypesGen.AIBridgeInterception = {
-	id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-	initiator: {
-		id: "1ebb7622-e6ea-45b4-b244-dda30afc7238",
-		username: "testuser",
-		avatar_url: "https://example.com/avatar.png",
-	},
-	provider: "openai",
-	provider_name: "openai",
-	model: "gpt-4o",
-	started_at: "2022-05-17T17:39:01.382927298Z",
-	ended_at: "2022-05-17T17:39:01.382927298Z",
-	token_usages: [
-		{
-			id: "32e7fd17-24be-46b9-b867-2f0adfd42aff",
-			interception_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-			provider_response_id: "res_1234567890",
-			input_tokens: 5,
-			output_tokens: 1,
-			cache_read_input_tokens: 3,
-			cache_write_input_tokens: 1,
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-	metadata: {},
-	user_prompts: [
-		{
-			id: "85154044-818e-4ee4-bac2-87f3ac8f066b",
-			interception_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-			provider_response_id: "res_1234567890",
-			prompt: "Hello OpenAI",
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-	tool_usages: [],
-	api_key_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-	client: "Claude Code",
-};
-
-export const MockInterceptionAnthropic: TypesGen.AIBridgeInterception = {
-	...MockInterception,
-	id: "e5610f5b-2d6c-43db-b1c0-1dfcc6531f04",
-	provider: "anthropic",
-	model: "claude-sonnet-4.5",
-	user_prompts: [
-		{
-			id: "c820f31f-0170-4044-8b7c-b1b18747b4fb",
-			interception_id: "e5610f5b-2d6c-43db-b1c0-1dfcc6531f04",
-			provider_response_id: "res_2345678901",
-			prompt: "Hello Anthropic",
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-};
-
-export const MockInterceptionCopilot: TypesGen.AIBridgeInterception = {
-	...MockInterception,
-	id: "22c9d31e-1a1f-464a-b397-562958599aa8",
-	provider: "copilot",
-	model: "claude-opus-4-5",
-	user_prompts: [
-		{
-			id: "c6c613d1-177e-416f-95b5-c7f0eeefb922",
-			interception_id: "22c9d31e-1a1f-464a-b397-562958599aa8",
-			provider_response_id: "res_3456789012",
-			prompt: "Hello Copilot",
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-};
-
 export const MockSession: TypesGen.AIBridgeSession = {
 	id: "c8f2df8c-149c-43e1-9d51-898daaa2c505",
 	initiator: {
@@ -5517,15 +5553,68 @@ export const MockSession: TypesGen.AIBridgeSession = {
 		cache_read_input_tokens: 980,
 		cache_write_input_tokens: 120,
 	},
+	network_calls: {
+		total: 23,
+		blocked: 2,
+	},
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
+
+export const MockAIBridgeSessionNetworkCalls: readonly TypesGen.AgentFirewallLog[] =
+	[
+		{
+			id: "netcall-1",
+			session_id: "firewall-session-1",
+			sequence_number: 1,
+			proto: "http",
+			method: "POST",
+			detail: "https://api.github.com/repos/coder/coder",
+			allowed: true,
+			matched_rule: "allow api.github.com",
+			created_at: "2026-03-09T09:28:16.000Z",
+		},
+		{
+			id: "netcall-2",
+			session_id: "firewall-session-1",
+			sequence_number: 2,
+			proto: "http",
+			method: "GET",
+			detail: "https://registry.npmjs.org/lodash",
+			allowed: false,
+			matched_rule: null,
+			created_at: "2026-03-09T09:28:17.000Z",
+		},
+		{
+			id: "netcall-3",
+			session_id: "firewall-session-1",
+			sequence_number: 3,
+			proto: "http",
+			method: "POST",
+			detail: "https://hooks.slack.com/services/T01",
+			allowed: false,
+			matched_rule: null,
+			created_at: "2026-03-09T09:28:18.000Z",
+		},
+		{
+			id: "netcall-4",
+			session_id: "firewall-session-1",
+			sequence_number: 4,
+			proto: "dns",
+			method: "A",
+			detail: "api.github.com",
+			allowed: true,
+			matched_rule: "allow api.github.com",
+			created_at: "2026-03-09T09:28:19.000Z",
+		},
+	];
 
 export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 	id: "7a5d6b6a-5f02-4a9c-9c4e-2b3e2a3d2f01",
 	type: "openai",
 	name: "openai",
 	display_name: "OpenAI",
+	icon: "",
 	base_url: "https://api.openai.com",
 	enabled: false,
 	api_keys: [
@@ -5545,6 +5634,7 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 	type: "anthropic",
 	name: "anthropic",
 	display_name: "Anthropic",
+	icon: "",
 	base_url: "https://api.anthropic.com",
 	enabled: false,
 	api_keys: [],
@@ -5554,15 +5644,17 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 };
 
 /**
- * Bedrock providers come over the wire with `type: "anthropic"` and a
- * `settings._type: "bedrock"` discriminator. `isBedrockProvider` and the
- * backend (see `coderd/ai_providers.go`) enforce this convention.
+ * Bedrock providers come over the wire with `type: "bedrock"` and a
+ * `settings._type: "bedrock"` discriminator. `isBedrockProvider` checks
+ * both the type and the settings discriminator, and also accepts legacy
+ * providers stored as `type: "anthropic"` with Bedrock settings.
  */
 export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",
-	type: "anthropic",
+	type: "bedrock",
 	name: "bedrock",
 	display_name: "Bedrock",
+	icon: "",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
 	enabled: true,
 	api_keys: [],
@@ -5582,6 +5674,7 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	type: "copilot",
 	name: "copilot",
 	display_name: "GitHub Copilot",
+	icon: "",
 	base_url: "https://api.business.githubcopilot.com",
 	enabled: true,
 	api_keys: [],
@@ -5596,3 +5689,28 @@ export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderBedrock,
 	MockAIProviderCopilot,
 ];
+
+export const MockAIGatewayKeys: TypesGen.AIGatewayKey[] = [
+	{
+		id: "1c2e6f4a-8b3d-4f1a-9c7e-2a5b8d6f0e11",
+		name: "primary-gateway",
+		key_prefix: "a1B2c3D4e5F",
+		created_at: "2024-05-01T14:00:00Z",
+		last_heartbeat_at: "2024-05-20T09:30:00Z",
+	},
+	{
+		id: "2d3f7a5b-9c4e-4a2b-8d6f-3b6c9e7f1a22",
+		name: "backup-gateway",
+		key_prefix: "z9Y8x7W6v5U",
+		created_at: "2024-05-10T08:15:00Z",
+	},
+];
+
+export const MockCreateAIGatewayKeyResponse: TypesGen.CreateAIGatewayKeyResponse =
+	{
+		id: "3e4a8b6c-0d5f-4b3c-9e7a-4c7d0f8a2b33",
+		name: "new-gateway",
+		key: "K3mNp7qRs2TvW9xY4zA6bC1dE8fG5hJ0kL3nM7pQ2rS",
+		key_prefix: "K3mNp7qRs2T",
+		created_at: "2024-05-28T12:00:00Z",
+	};

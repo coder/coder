@@ -61,6 +61,16 @@ type Options struct {
 	BuiltinPostgres  bool
 	Tunnel           bool
 
+	// SCIMEnabled is true when CODER_SCIM_AUTH_HEADER is set on the server.
+	// Must be derived from the pre-WithoutSecrets DeploymentValues because the
+	// SCIM API key is annotated as a secret and is cleared before the config
+	// is handed to the telemetry reporter.
+	SCIMEnabled bool
+	// SCIMUseLegacy is true when the legacy SCIM handler is selected via
+	// CODER_SCIM_USE_LEGACY. Not secret-scrubbed, but accepted alongside
+	// SCIMEnabled so both come from the same source.
+	SCIMUseLegacy bool
+
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
 }
@@ -332,26 +342,44 @@ func (r *remoteReporter) deployment() error {
 		r.options.Logger.Debug(r.ctx, "check IDP org sync", slog.Error(err))
 	}
 
+	scimEnabled := r.options.SCIMEnabled
+	scimUseLegacy := r.options.SCIMUseLegacy
+
+	agentsExperimentValues := make(map[string]json.RawMessage, len(agentsExperiments))
+	for _, exp := range agentsExperiments {
+		agentsExperimentValues[exp.name] = exp.collect(r.ctx, r.options)
+	}
+	agentsExperimentsJSON, err := json.Marshal(agentsExperimentValues)
+	if err != nil {
+		// Best-effort: the field is omitempty, so the deployment report
+		// proceeds without it.
+		r.options.Logger.Warn(r.ctx, "marshal agent experiments telemetry", slog.Error(err))
+		agentsExperimentsJSON = nil
+	}
+
 	data, err := json.Marshal(&Deployment{
-		ID:              r.options.DeploymentID,
-		Architecture:    sysInfo.Architecture,
-		BuiltinPostgres: r.options.BuiltinPostgres,
-		Containerized:   containerized,
-		Config:          r.options.DeploymentConfig,
-		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		InstallSource:   installSource,
-		Tunnel:          r.options.Tunnel,
-		OSType:          sysInfo.OS.Type,
-		OSFamily:        sysInfo.OS.Family,
-		OSPlatform:      sysInfo.OS.Platform,
-		OSName:          sysInfo.OS.Name,
-		OSVersion:       sysInfo.OS.Version,
-		CPUCores:        runtime.NumCPU(),
-		MemoryTotal:     mem.Total,
-		MachineID:       sysInfo.UniqueID,
-		StartedAt:       r.startedAt,
-		ShutdownAt:      r.shutdownAt,
-		IDPOrgSync:      &idpOrgSync,
+		ID:                r.options.DeploymentID,
+		Architecture:      sysInfo.Architecture,
+		BuiltinPostgres:   r.options.BuiltinPostgres,
+		Containerized:     containerized,
+		Config:            r.options.DeploymentConfig,
+		Kubernetes:        os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		InstallSource:     installSource,
+		Tunnel:            r.options.Tunnel,
+		OSType:            sysInfo.OS.Type,
+		OSFamily:          sysInfo.OS.Family,
+		OSPlatform:        sysInfo.OS.Platform,
+		OSName:            sysInfo.OS.Name,
+		OSVersion:         sysInfo.OS.Version,
+		CPUCores:          runtime.NumCPU(),
+		MemoryTotal:       mem.Total,
+		MachineID:         sysInfo.UniqueID,
+		StartedAt:         r.startedAt,
+		ShutdownAt:        r.shutdownAt,
+		IDPOrgSync:        &idpOrgSync,
+		SCIMEnabled:       &scimEnabled,
+		SCIMUseLegacy:     &scimUseLegacy,
+		AgentsExperiments: agentsExperimentsJSON,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -759,7 +787,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		summaries, err := r.generateAIBridgeInterceptionsSummaries(ctx)
 		if err != nil {
-			return xerrors.Errorf("generate AI Bridge interceptions telemetry summaries: %w", err)
+			return xerrors.Errorf("generate AI Gateway interceptions telemetry summaries: %w", err)
 		}
 		snapshot.AIBridgeInterceptionsSummaries = summaries
 		return nil
@@ -863,7 +891,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 		return nil, nil
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("insert AI Bridge interceptions telemetry lock (period_ending_at=%q): %w", endedAtBefore, err)
+		return nil, xerrors.Errorf("insert AI Gateway interceptions telemetry lock (period_ending_at=%q): %w", endedAtBefore, err)
 	}
 
 	// List the summary categories that need to be calculated.
@@ -872,7 +900,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 		EndedAtBefore: endedAtBefore, // exclusive
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("list AI Bridge interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", endedAtAfter, endedAtBefore, err)
+		return nil, xerrors.Errorf("list AI Gateway interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", endedAtAfter, endedAtBefore, err)
 	}
 
 	// Calculate and convert the summaries for all categories.
@@ -891,7 +919,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 				EndedAtBefore: endedAtBefore,
 			})
 			if err != nil {
-				return xerrors.Errorf("calculate AI Bridge interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, endedAtAfter, endedAtBefore, err)
+				return xerrors.Errorf("calculate AI Gateway interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, endedAtAfter, endedAtBefore, err)
 			}
 
 			// Double check that at least one interception was found in the
@@ -1484,6 +1512,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		AutostopRequirementWeeks:      dbTemplate.AutostopRequirementWeeks,
 		AutostartAllowedDays:          codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
 		RequireActiveVersion:          dbTemplate.RequireActiveVersion,
+		AgentsAllowed:                 dbTemplate.AgentsAllowed,
 		Deprecated:                    dbTemplate.Deprecated != "",
 		UseClassicParameterFlow:       ptr.Ref(dbTemplate.UseClassicParameterFlow),
 	}
@@ -1636,6 +1665,19 @@ type Deployment struct {
 	// While IDPOrgSync will always be set, it's nullable to make
 	// the struct backwards compatible with older coder versions.
 	IDPOrgSync *bool `json:"idp_org_sync"`
+	// SCIMEnabled is true when CODER_SCIM_AUTH_HEADER is set on the deployment.
+	// Reports configuration state, not license entitlement. Nullable so older
+	// Coder versions that do not emit the field decode as nil.
+	SCIMEnabled *bool `json:"scim_enabled"`
+	// SCIMUseLegacy is true when the legacy SCIM handler is selected via
+	// CODER_SCIM_USE_LEGACY instead of the SCIM 2.0 handler in
+	// enterprise/coderd/scim. Nullable for the same backward compatibility
+	// reason as SCIMEnabled.
+	SCIMUseLegacy *bool `json:"scim_use_legacy"`
+	// AgentsExperiments reports the state of the Coder Agents experiments as
+	// opaque per-experiment JSON, so rotating the reported set is a code-only
+	// change. Omitted by older Coder versions, so it decodes as nil there.
+	AgentsExperiments json.RawMessage `json:"agents_experiments,omitempty"`
 }
 
 type APIKey struct {
@@ -1814,6 +1856,7 @@ type Template struct {
 	AutostopRequirementWeeks       int64    `json:"autostop_requirement_weeks"`
 	AutostartAllowedDays           []string `json:"autostart_allowed_days"`
 	RequireActiveVersion           bool     `json:"require_active_version"`
+	AgentsAllowed                  bool     `json:"agents_allowed"`
 	Deprecated                     bool     `json:"deprecated"`
 	UseClassicParameterFlow        *bool    `json:"use_classic_parameter_flow"`
 }
@@ -2265,7 +2308,6 @@ func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow)
 		TotalReasoningTokens:     dbRow.TotalReasoningTokens,
 		TotalCacheCreationTokens: dbRow.TotalCacheCreationTokens,
 		TotalCacheReadTokens:     dbRow.TotalCacheReadTokens,
-		TotalCostMicros:          dbRow.TotalCostMicros,
 		TotalRuntimeMs:           dbRow.TotalRuntimeMs,
 		DistinctModelCount:       dbRow.DistinctModelCount,
 		CompressedMessageCount:   dbRow.CompressedMessageCount,
@@ -2297,6 +2339,129 @@ const (
 	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
 	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
 )
+
+// agentsExperiment is one entry in the Deployment.AgentsExperiments field.
+// Edit agentsExperiments to rotate the reported set without schema or
+// telemetry-server changes. Collectors are best-effort: they log and return
+// a degraded payload instead of erroring, so they can never fail a report.
+type agentsExperiment struct {
+	name    string
+	collect func(ctx context.Context, opts Options) json.RawMessage
+}
+
+var agentsExperiments = []agentsExperiment{
+	{name: "virtual_desktop", collect: CollectAgentsVirtualDesktop},
+	{name: "advisor", collect: CollectAgentsAdvisor},
+}
+
+const (
+	// AgentsExperimentAdvisorReuseChatModel reports that the advisor has no active
+	// dedicated model override and reuses the chat model at runtime.
+	AgentsExperimentAdvisorReuseChatModel = "advisor_reuse_chat_model"
+	// AgentsExperimentUnknown reports a value that could not be determined,
+	// e.g. after a transient DB error.
+	AgentsExperimentUnknown = "unknown"
+)
+
+// AgentsVirtualDesktopTelemetry is the value shape for the virtual_desktop
+// entry in Deployment.AgentsExperiments.
+type AgentsVirtualDesktopTelemetry struct {
+	Enabled     bool                       `json:"enabled"`
+	ComputerUse AgentsComputerUseTelemetry `json:"computer_use"`
+}
+
+type AgentsComputerUseTelemetry struct {
+	Provider       string `json:"provider"`
+	ProviderSource string `json:"provider_source"`
+}
+
+// AgentsAdvisorTelemetry is the value shape for the advisor entry in
+// Deployment.AgentsExperiments.
+type AgentsAdvisorTelemetry struct {
+	Enabled         bool   `json:"enabled"`
+	MaxUsesPerRun   int    `json:"max_uses_per_run"`
+	MaxOutputTokens int64  `json:"max_output_tokens"`
+	Provider        string `json:"provider"`
+	Model           string `json:"model"`
+}
+
+// CollectAgentsVirtualDesktop collects the virtual_desktop entry in
+// Deployment.AgentsExperiments. The chat-virtual-desktop experiment gates both
+// the desktop and computer use.
+func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
+	provider, err := opts.Database.GetChatComputerUseProvider(ctx)
+	providerSource := "configured"
+	switch {
+	case err != nil:
+		opts.Logger.Warn(ctx, "get chat computer use provider for telemetry", slog.Error(err))
+		provider = AgentsExperimentUnknown
+		providerSource = AgentsExperimentUnknown
+	case provider == "":
+		provider = string(codersdk.ChatComputerUseProviderAnthropic)
+		providerSource = "default"
+	}
+	val, err := json.Marshal(AgentsVirtualDesktopTelemetry{
+		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
+		ComputerUse: AgentsComputerUseTelemetry{
+			Provider:       provider,
+			ProviderSource: providerSource,
+		},
+	})
+	if err != nil {
+		opts.Logger.Warn(ctx, "marshal agent virtual desktop telemetry", slog.Error(err))
+		return nil
+	}
+	return val
+}
+
+// CollectAgentsAdvisor collects the advisor entry in
+// Deployment.AgentsExperiments.
+func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
+	payload := AgentsAdvisorTelemetry{
+		Enabled:  opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		Provider: AgentsExperimentUnknown,
+		Model:    AgentsExperimentUnknown,
+	}
+	var cfg codersdk.AdvisorConfig
+	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
+	if err != nil {
+		opts.Logger.Warn(ctx, "get chat advisor config for telemetry", slog.Error(err))
+	} else if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
+	} else {
+		payload.MaxUsesPerRun = max(cfg.MaxUsesPerRun, 0)
+		payload.MaxOutputTokens = max(cfg.MaxOutputTokens, 0)
+		payload.Provider, payload.Model = advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
+	}
+	val, err := json.Marshal(payload)
+	if err != nil {
+		opts.Logger.Warn(ctx, "marshal agent advisor telemetry", slog.Error(err))
+		return nil
+	}
+	return val
+}
+
+func advisorModelTelemetry(ctx context.Context, db database.Store, log slog.Logger, id uuid.UUID) (provider string, model string) {
+	if id == uuid.Nil {
+		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
+	}
+
+	cfg, err := db.GetEnabledChatModelConfigByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		// An inactive override; the runtime falls back to the chat model.
+		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
+	}
+	if err != nil {
+		log.Warn(ctx, "resolve chat advisor model config for telemetry", slog.Error(err))
+		return AgentsExperimentUnknown, AgentsExperimentUnknown
+	}
+	providerRow, err := db.GetAIProviderByID(ctx, cfg.AIProviderID.UUID)
+	if err != nil {
+		log.Warn(ctx, "resolve chat advisor model provider for telemetry", slog.Error(err))
+		return AgentsExperimentUnknown, cfg.Model
+	}
+	return string(providerRow.Type), cfg.Model
+}
 
 type TelemetryItem struct {
 	Key       string    `json:"key"`
@@ -2438,7 +2603,6 @@ type ChatMessageSummary struct {
 	TotalReasoningTokens     int64     `json:"total_reasoning_tokens"`
 	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
 	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
-	TotalCostMicros          int64     `json:"total_cost_micros"`
 	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 	DistinctModelCount       int64     `json:"distinct_model_count"`
 	CompressedMessageCount   int64     `json:"compressed_message_count"`

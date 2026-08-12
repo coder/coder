@@ -22,7 +22,7 @@ const AIBridgeSessionsLayout: FC<PropsWithChildren> = () => {
 					Review and audit AI activity, token usage, and prompt history across
 					sessions.{" "}
 					<Link
-						href={docs("/ai-coder/ai-bridge/audit")}
+						href={docs("/ai-coder/ai-gateway/audit")}
 						className="ml-auto"
 						target="_blank"
 					>

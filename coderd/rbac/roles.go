@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
@@ -222,9 +222,14 @@ func DefaultOrgMemberRoles() []string {
 	return []string{orgWorkspaceAccess}
 }
 
-// OrgWorkspaceAccessMemberPerms returns the elevation perms granted by the
-// organization-workspace-access role.
-func OrgWorkspaceAccessMemberPerms() []Permission {
+// orgWorkspaceAccessMemberPerms returns the member-scoped permissions
+// granted by the organization-workspace-access role: the ability to
+// create and operate your own workspaces in the organization. The
+// organization-member role intentionally does not include these
+// permissions (see OrgMemberPermissions), so workspace access is only
+// held by members that have this role, typically through the
+// organization's default_org_member_roles.
+func orgWorkspaceAccessMemberPerms() []Permission {
 	return Permissions(map[string][]policy.Action{
 		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
 
@@ -314,26 +319,37 @@ func allPermsExcept(excepts ...Objecter) []Permission {
 //
 // This map will be replaced by database storage defined by this ticket.
 // https://github.com/coder/coder/issues/1194
-var builtInRoles map[string]func(orgID uuid.UUID) Role
+//
+// Stored behind an atomic.Pointer so test setups that call
+// ReloadBuiltinRoles do not race with handlers that look up roles via
+// RoleByName, ReservedRoleName, OrganizationRoles, or SiteBuiltInRoles.
+// Production callers reload once at startup; tests reload per coderd.
+type builtInRoleMap = map[string]func(orgID uuid.UUID) Role
+
+var builtInRoles atomic.Pointer[builtInRoleMap]
+
+// loadBuiltinRoles returns the current built-in roles snapshot. The
+// returned map is safe to read concurrently because ReloadBuiltinRoles
+// publishes a fresh map via atomic.Pointer.Store instead of mutating in
+// place.
+func loadBuiltinRoles() builtInRoleMap {
+	if m := builtInRoles.Load(); m != nil {
+		return *m
+	}
+	// Return an empty map to prevent nil pointer dereference
+	return map[string]func(orgID uuid.UUID) Role{}
+}
 
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 	NoWorkspaceSharing   bool
 	NoChatSharing        bool
-
-	// MinimumImplicitMember removes the workspace-ops elevation
-	// (OrgWorkspaceAccessMemberPerms) from organization-member and
-	// organization-service-account. With it set, those two roles carry
-	// only the floor, and the elevation must be granted explicitly via
-	// the organization-workspace-access role (typically attached
-	// through default_org_member_roles).
-	MinimumImplicitMember bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
 // names, but some roles are built in. So these names are reserved
 func ReservedRoleName(name string) bool {
-	_, ok := builtInRoles[name]
+	_, ok := loadBuiltinRoles()[name]
 	return ok
 }
 
@@ -348,8 +364,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	if opts == nil {
 		opts = &RoleOptions{}
 	}
-
-	minimumImplicitMember.Store(opts.MinimumImplicitMember)
 
 	denyPermissions := []Permission{}
 	if opts.NoWorkspaceSharing {
@@ -389,12 +403,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
 			// Owners can inspect and delete personal skills for operability and
 			// abuse handling, but cannot create or edit user-authored instructions.
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 				ResourceUserSkill.Type:        {policy.ActionRead, policy.ActionDelete},
+				// Owners manage AI Gateway keys but cannot update them. The
+				// update action records last-used liveness and is reserved
+				// for the system actor authenticating Gateway replicas.
+				ResourceAIGatewayKey.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 				// PrebuiltWorkspaces are a subset of Workspaces.
 				// Explicitly setting PrebuiltWorkspace permissions for clarity.
 				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
@@ -515,7 +533,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		ByOrgID: map[string]OrgPermissions{},
 	}.withCachedRegoValue()
 
-	builtInRoles = map[string]func(orgID uuid.UUID) Role{
+	roles := builtInRoleMap{
 		// admin grants all actions to all resources.
 		owner: func(_ uuid.UUID) Role {
 			return ownerRole
@@ -561,7 +579,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): {
 						Org: append(
-							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat),
+							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration),
 							Permissions(map[string][]policy.Action{
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
@@ -704,7 +722,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ByOrgID: map[string]OrgPermissions{
 					organizationID.String(): {
 						Org:    []Permission{},
-						Member: OrgWorkspaceAccessMemberPerms(),
+						Member: orgWorkspaceAccessMemberPerms(),
 					},
 				},
 			}
@@ -733,6 +751,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			}
 		},
 	}
+
+	builtInRoles.Store(&roles)
 }
 
 // assignRoles is a map of roles that can be assigned if a user has a given
@@ -954,7 +974,7 @@ func CanAssignRole(subjectHasRoles ExpandableRoles, assignedRole RoleIdentifier)
 // api. We should maybe make an exported function that returns just the
 // human-readable content of the Role struct (name + display name).
 func RoleByName(name RoleIdentifier) (Role, error) {
-	roleFunc, ok := builtInRoles[name.Name]
+	roleFunc, ok := loadBuiltinRoles()[name.Name]
 	if !ok {
 		// No role found
 		return Role{}, xerrors.Errorf("role %q not found", name.String())
@@ -997,7 +1017,7 @@ func rolesByNames(roleNames []RoleIdentifier) ([]Role, error) {
 // the list from the builtins.
 func OrganizationRoles(organizationID uuid.UUID) []Role {
 	var roles []Role
-	for _, roleF := range builtInRoles {
+	for _, roleF := range loadBuiltinRoles() {
 		role := roleF(organizationID)
 		if role.Identifier.OrganizationID == organizationID {
 			roles = append(roles, role)
@@ -1013,7 +1033,7 @@ func OrganizationRoles(organizationID uuid.UUID) []Role {
 // the list from the builtins.
 func SiteBuiltInRoles() []Role {
 	var roles []Role
-	for _, roleF := range builtInRoles {
+	for _, roleF := range loadBuiltinRoles() {
 		// Must provide some non-nil uuid to filter out org roles.
 		role := roleF(uuid.New())
 		if !role.Identifier.IsOrgRole() {
@@ -1048,8 +1068,8 @@ func Permissions(perms map[string][]policy.Action) []Permission {
 		}
 	}
 	// Deterministic ordering of permissions
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].ResourceType < list[j].ResourceType
+	slices.SortFunc(list, func(a, b Permission) int {
+		return strings.Compare(a.ResourceType, b.ResourceType)
 	})
 	return list
 }
@@ -1118,6 +1138,16 @@ type OrgRolePermissions struct {
 // OrgMemberPermissions returns the permissions for the organization-member
 // system role, which can vary based on the organization's workspace sharing
 // settings.
+//
+// organization-member carries only the "floor": the minimum permission
+// set every member of an organization holds (read-self records,
+// notifications, and similar). It deliberately grants no workspace
+// access. The ability to create and use workspaces lives exclusively on
+// the organization-workspace-access role (see
+// orgWorkspaceAccessMemberPerms), which organizations attach to members
+// through default_org_member_roles or explicit assignment. This is what
+// makes restricted "gateway account" members possible: clear the
+// default roles and members keep the floor but cannot touch workspaces.
 func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 	// Organization-level permissions that all org members get.
 	orgPermMap := map[string][]policy.Action{
@@ -1158,7 +1188,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 
 	// Chat access requires the agents-access role and is intentionally
 	// not granted in the floor.
-	floor := Permissions(map[string][]policy.Action{
+	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},
 
@@ -1180,19 +1210,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
 	})
-
-	// Workspace-ops elevation. When MinimumImplicitMember is off, the
-	// elevation is bundled into organization-member here. When on, the
-	// elevation lives exclusively on organization-workspace-access; a
-	// user without that role then has only the floor. See
-	// OrgWorkspaceAccessMemberPerms for the perm set and the
-	// "Intentionally omitted" rationale.
-	var elevation []Permission
-	if !MinimumImplicitMember() {
-		elevation = OrgWorkspaceAccessMemberPerms()
-	}
-
-	memberPerms := slices.Concat(elevation, floor)
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
 		memberPerms = append(memberPerms, Permission{
@@ -1239,7 +1256,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	floor := Permissions(map[string][]policy.Action{
+	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},
 
@@ -1262,13 +1279,6 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
 	})
-
-	var elevation []Permission
-	if !MinimumImplicitMember() {
-		elevation = OrgWorkspaceAccessMemberPerms()
-	}
-
-	memberPerms := slices.Concat(elevation, floor)
 
 	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
 }

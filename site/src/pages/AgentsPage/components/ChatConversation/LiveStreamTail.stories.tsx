@@ -6,7 +6,7 @@ import {
 	buildReconnectState,
 	buildRetryState,
 	buildStreamRenderState,
-	FIXTURE_NOW,
+	pinFixtureClock,
 	textResponseStreamParts,
 } from "./storyFixtures";
 
@@ -24,20 +24,7 @@ const defaultArgs: React.ComponentProps<typeof LiveStreamTailContent> = {
 const meta: Meta<typeof LiveStreamTailContent> = {
 	title: "pages/AgentsPage/ChatConversation/LiveStreamTail",
 	component: LiveStreamTailContent,
-	decorators: [
-		(Story) => (
-			<div className="mx-auto w-full max-w-3xl py-6">
-				<Story />
-			</div>
-		),
-	],
-	beforeEach: () => {
-		const real = Date.now;
-		Date.now = () => FIXTURE_NOW;
-		return () => {
-			Date.now = real;
-		};
-	},
+	beforeEach: pinFixtureClock,
 };
 export default meta;
 type Story = StoryObj<typeof LiveStreamTailContent>;
@@ -53,32 +40,28 @@ export const EmptyConversationPrompt: Story = {
 	},
 };
 
-/** Usage-limit failures replace the idle prompt with the analytics CTA. */
 export const UsageLimitExceeded: Story = {
 	args: {
 		...defaultArgs,
 		liveStatus: buildLiveStatus({
 			persistedError: {
 				kind: "usage_limit",
-				message:
-					"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
+				message: "Your AI spend budget has been reached.",
 			},
 		}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/spend limit/i)).toBeVisible();
-		const link = canvas.getByRole("link", { name: /view usage/i });
-		expect(link).toBeVisible();
-		expect(link).toHaveAttribute("href", "/agents/analytics");
+		expect(
+			canvas.getByRole("heading", { name: /usage limit reached/i }),
+		).toBeVisible();
+		expect(canvas.getByText(/ai spend budget has been reached/i)).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: /view usage/i }),
+		).not.toBeInTheDocument();
 	},
 };
 
-/**
- * Provider quota errors use the standard ChatStatusCallout instead of the
- * "View usage" CTA (which links to Coder's analytics, not the provider's
- * billing page).
- */
 export const ProviderQuotaExceeded: Story = {
 	args: {
 		...defaultArgs,
@@ -100,7 +83,6 @@ export const ProviderQuotaExceeded: Story = {
 		expect(
 			canvas.queryByRole("link", { name: /view usage/i }),
 		).not.toBeInTheDocument();
-		// Should render ChatStatusCallout instead.
 		expect(
 			canvas.getByRole("heading", { name: /usage limit reached/i }),
 		).toBeVisible();
@@ -134,6 +116,42 @@ export const TerminalOverloadedError: Story = {
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
 		expect(canvas.getByRole("link", { name: /status/i })).toBeVisible();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
+	},
+};
+
+/** Content-filter refusals render as terminal errors without a retry countdown or status link. */
+export const TerminalContentFilterError: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			persistedError: {
+				kind: "content_filter",
+				message:
+					"Anthropic blocked this response under its content policy (cyber).",
+				detail:
+					"This request triggered restrictions on violative cyber content and was blocked under Anthropic's Usage Policy. To learn more, see https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback.",
+				provider: "anthropic",
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /response blocked/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(
+				/anthropic blocked this response under its content policy \(cyber\)\./i,
+			),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/this request triggered restrictions/i),
+		).toBeVisible();
+		expect(canvas.queryByText(/retrying in/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("link", { name: /status/i }),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -44,12 +44,11 @@ import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { docs } from "#/utils/docs";
 import {
-	formatTemplateActiveDevelopers,
+	formatTemplateActiveDevelopersLabel,
 	formatTemplateBuildTime,
 } from "#/utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
-import { TemplatesFilter } from "./TemplatesFilter";
-import type { TemplateFilterState } from "./TemplatesPage";
+import { type TemplateFilterState, TemplatesFilter } from "./TemplatesFilter";
 
 const TemplateHelpPopover: FC = () => {
 	return (
@@ -132,7 +131,9 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 	const navigate = useNavigate();
 
-	const developerCount = `${formatTemplateActiveDevelopers(template.active_user_count)} developer${template.active_user_count !== 1 ? "s" : ""}`;
+	const developerCount = formatTemplateActiveDevelopersLabel(
+		template.active_user_count,
+	);
 
 	const clickableRow = useClickableTableRow({
 		onClick: () => navigate(templatePageLink),
@@ -176,7 +177,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{formatTemplateBuildTime(template.build_time_stats.start.P50)}
 			</TableCell>
 
-			<TableCell data-chromatic="ignore" className="text-content-secondary">
+			<TableCell data-pixel="ignore" className="text-content-secondary">
 				{createDayString(template.updated_at)}
 			</TableCell>
 
@@ -196,6 +197,7 @@ interface TemplatesPageViewProps {
 	filterState: TemplateFilterState;
 	showOrganizations: boolean;
 	canCreateTemplates: boolean;
+	templateBuilderEnabled: boolean;
 	examples: TemplateExample[] | undefined;
 	templates: Template[] | undefined;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
@@ -206,6 +208,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	filterState,
 	showOrganizations,
 	canCreateTemplates,
+	templateBuilderEnabled,
 	examples,
 	templates,
 	workspacePermissions,
@@ -219,7 +222,13 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				actions={
 					canCreateTemplates && (
 						<Button asChild size="lg">
-							<RouterLink to="/starter-templates">
+							<RouterLink
+								to={
+									templateBuilderEnabled
+										? "/templates/new/builder"
+										: "/starter-templates"
+								}
+							>
 								<PlusIcon />
 								New template
 							</RouterLink>
@@ -266,6 +275,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 					{isEmpty ? (
 						<EmptyTemplates
 							canCreateTemplates={canCreateTemplates}
+							templateBuilderEnabled={templateBuilderEnabled}
 							examples={examples ?? []}
 							isUsingFilter={filterState.filter.used}
 						/>

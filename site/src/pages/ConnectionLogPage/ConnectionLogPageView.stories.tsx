@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
+import { expect, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -9,12 +10,13 @@ import {
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
+	MockPermissions,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { pixelWithTablet } from "#/testHelpers/pixel";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
 type FilterProps = ComponentProps<typeof ConnectionLogPageView>["filterProps"];
@@ -44,6 +46,7 @@ const meta: Meta<typeof ConnectionLogPageView> = {
 		],
 		isConnectionLogVisible: true,
 		filterProps: defaultFilterProps,
+		permissions: MockPermissions,
 	},
 };
 
@@ -51,7 +54,7 @@ export default meta;
 type Story = StoryObj<typeof ConnectionLogPageView>;
 
 export const ConnectionLog: Story = {
-	parameters: { chromatic: chromaticWithTablet },
+	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
 		connectionLogsQuery: mockSuccessResult,
 	},
@@ -91,5 +94,28 @@ export const NotVisible: Story = {
 	args: {
 		isConnectionLogVisible: false,
 		connectionLogsQuery: mockInitialRenderResult,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const NotVisibleWithoutLicenseAccess: Story = {
+	args: {
+		...NotVisible.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Learn about Premium" }),
+		).not.toBeInTheDocument();
 	},
 };

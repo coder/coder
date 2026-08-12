@@ -16,10 +16,11 @@ import { transformSync } from "@babel/core";
 // Resolve the site/ directory (ESM equivalent of __dirname + "..").
 const siteDir = new URL("..", import.meta.url).pathname;
 
-// Only AgentsPage is currently opted in to React Compiler. Add new
-// directories here as more pages are migrated.
+// Directories opted in to React Compiler. Keep this list in sync with
+// the include filter in vite.config.mts.
 const targetDirs = [
 	"src/pages/AgentsPage",
+	"src/pages/AIBridgePage",
 ];
 
 const skipPatterns = [".test.", ".stories.", ".jest."];

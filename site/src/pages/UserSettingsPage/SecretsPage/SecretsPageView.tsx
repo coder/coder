@@ -2,12 +2,12 @@ import { PlusIcon, RefreshCwIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import type {
 	CreateUserSecretRequest,
+	ImportUserSecretsRequest,
 	UpdateUserSecretRequest,
 	UserSecret,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
@@ -36,7 +36,12 @@ type SecretsPageViewProps = {
 		name: string,
 		request: UpdateUserSecretRequest,
 	) => Promise<UserSecret> | UserSecret;
+	onImportSecrets: (request: ImportUserSecretsRequest) => Promise<UserSecret[]>;
 	onDeleteSecret: (secret: UserSecret) => Promise<void> | void;
+	onToggleSecretEnabled: (
+		secret: UserSecret,
+		enabled: boolean,
+	) => Promise<void> | void;
 };
 
 type SecretDialogState =
@@ -55,7 +60,9 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 	onRefresh,
 	onCreateSecret,
 	onUpdateSecret,
+	onImportSecrets,
 	onDeleteSecret,
+	onToggleSecretEnabled,
 }) => {
 	const [dialogState, setDialogState] = useState<SecretDialogState>({
 		mode: "add",
@@ -99,11 +106,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 					</div>
 				}
 			>
-				<SettingsHeaderTitle
-					tooltip={<FeatureStageBadge contentType="beta" size="md" />}
-				>
-					Secrets
-				</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Secrets</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Secrets with an environment variable or file path are injected into
 					workspaces you own when they start. Each environment variable and file
@@ -127,6 +130,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 				onClose={closeSecretDialog}
 				onCreateSecret={onCreateSecret}
 				onUpdateSecret={onUpdateSecret}
+				onImportSecrets={onImportSecrets}
 			/>
 
 			{getSecretsError ? <ErrorAlert error={getSecretsError} /> : undefined}
@@ -148,6 +152,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 					onAddSecret={openAddSecret}
 					onEditSecret={openEditSecret}
 					onDeleteSecret={onDeleteSecret}
+					onToggleEnabled={onToggleSecretEnabled}
 				/>
 			</section>
 		</div>

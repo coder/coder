@@ -1,0 +1,6 @@
+{
+	"id": "aws-linux",
+	"display_name": "AWS EC2 (Linux)",
+	"os": "linux",
+	"default_context": {}
+}

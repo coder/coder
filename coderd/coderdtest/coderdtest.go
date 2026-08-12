@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -35,6 +36,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/assert"
@@ -93,6 +95,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -116,27 +119,31 @@ type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
-	AccessURL                      *url.URL
-	AppHostname                    string
-	AWSCertificates                awsidentity.Certificates
-	Authorizer                     rbac.Authorizer
-	AzureCertificates              azureidentity.Options
-	GithubOAuth2Config             *coderd.GithubOAuth2Config
-	RealIPConfig                   *httpmw.RealIPConfig
-	OIDCConfig                     *coderd.OIDCConfig
-	GoogleTokenValidator           *idtoken.Validator
-	SSHKeygenAlgorithm             gitsshkey.Algorithm
-	AutobuildTicker                <-chan time.Time
-	AutobuildStats                 chan<- autobuild.Stats
-	Auditor                        audit.Auditor
-	TLSCertificates                []tls.Certificate
-	ExternalAuthConfigs            []*externalauth.Config
-	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
-	RefreshEntitlements            func(ctx context.Context) error
-	TemplateScheduleStore          schedule.TemplateScheduleStore
-	Coordinator                    tailnet.Coordinator
-	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
-	ConnectionLogger               connectionlog.ConnectionLogger
+	AccessURL            *url.URL
+	AppHostname          string
+	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
+	AzureCertificates    azureidentity.Options
+	GithubOAuth2Config   *coderd.GithubOAuth2Config
+	RealIPConfig         *httpmw.RealIPConfig
+	OIDCConfig           *coderd.OIDCConfig
+	GoogleTokenValidator *idtoken.Validator
+	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	AutobuildTicker      <-chan time.Time
+	AutobuildStats       chan<- autobuild.Stats
+	Auditor              audit.Auditor
+	TLSCertificates      []tls.Certificate
+	ExternalAuthConfigs  []*externalauth.Config
+	TrialGenerator       func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// MCPOAuth2DiscoveryAllowedIPRanges exempts IP ranges from the MCP
+	// OAuth2 discovery SSRF guard. Defaults to loopback so tests can
+	// serve mock MCP servers via httptest.
+	MCPOAuth2DiscoveryAllowedIPRanges []netip.Prefix
+	RefreshEntitlements               func(ctx context.Context) error
+	TemplateScheduleStore             schedule.TemplateScheduleStore
+	Coordinator                       tailnet.Coordinator
+	CoordinatorResumeTokenProvider    tailnet.ResumeTokenProvider
+	ConnectionLogger                  connectionlog.ConnectionLogger
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
@@ -154,11 +161,14 @@ type Options struct {
 	IncludeProvisionerDaemon      bool
 	ChatdInstructionLookupTimeout time.Duration
 	ChatProviderAPIKeys           *chatprovider.ProviderAPIKeys
-	ProvisionerDaemonVersion      string
-	ProvisionerDaemonTags         map[string]string
-	MetricsCacheRefreshInterval   time.Duration
-	AgentStatsRefreshInterval     time.Duration
-	DeploymentValues              *codersdk.DeploymentValues
+	// ChatWorkerDisabled skips starting the chat daemon's background
+	// worker. Used in tests.
+	ChatWorkerDisabled          bool
+	ProvisionerDaemonVersion    string
+	ProvisionerDaemonTags       map[string]string
+	MetricsCacheRefreshInterval time.Duration
+	AgentStatsRefreshInterval   time.Duration
+	DeploymentValues            *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -168,7 +178,7 @@ type Options struct {
 	// test instances are running against the same database.
 	Database          database.Store
 	Pubsub            pubsub.Pubsub
-	ReplicaSyncPubsub *pubsub.PGPubsub
+	ReplicaSyncPubsub pubsub.Pubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
 	// useful in certain tests where you want to intercept requests before
@@ -195,6 +205,7 @@ type Options struct {
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
+	Acquirer                           *provisionerdserver.Acquirer
 	TelemetryReporter                  telemetry.Reporter
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
@@ -286,15 +297,41 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		usageInserter.Store(&options.UsageInserter)
 	}
 	if options.Database == nil {
-		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+		var ps pubsub.Pubsub
+		options.Database, ps = dbtestutil.NewDB(t)
+		var ok bool
+		options.ReplicaSyncPubsub, ok = ps.(*pubsub.PGPubsub)
+		require.True(t, ok)
 	}
 	if options.ReplicaSyncPubsub == nil {
-		pgPubsub, ok := options.Pubsub.(*pubsub.PGPubsub)
-		require.True(t, ok, "ReplicaSyncPubsub must be a PGPubsub")
-		options.ReplicaSyncPubsub = pgPubsub
+		// To get here, the database must have been passed in, but not the ReplicSyncPubsub. We can't create a PGPubsub
+		// just from the database.Store since it could be anything including a mock. We need this to be independent from
+		// the main Pubsub in case it's NATS, since that uses the ReplicaSync to bootstrap the cluster. The in-mem
+		// pubsub satisfies these requirements.
+		options.ReplicaSyncPubsub = pubsub.NewInMemory()
 	}
+	if options.Pubsub == nil {
+		natsCtx, natsCancel := context.WithCancel(context.Background())
+		t.Cleanup(natsCancel)
+		natPS, err := natspubsub.New(natsCtx, *options.Logger, natspubsub.Options{ClusterPort: server.RANDOM_PORT})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = natPS.Close() })
+		options.Pubsub = natPS
+	}
+
 	if options.CoordinatorResumeTokenProvider == nil {
 		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
+	}
+
+	if options.MCPOAuth2DiscoveryAllowedIPRanges == nil {
+		// Tests serve their mock MCP and authorization servers on
+		// loopback, which the MCP OAuth2 discovery SSRF guard blocks
+		// by default. Tests exercising the guard itself pass a
+		// narrower (possibly empty, non-nil) allowlist.
+		options.MCPOAuth2DiscoveryAllowedIPRanges = []netip.Prefix{
+			netip.MustParsePrefix("127.0.0.0/8"),
+			netip.MustParsePrefix("::1/128"),
+		}
 	}
 
 	if options.NotificationsEnqueuer == nil {
@@ -591,20 +628,22 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
-			AgentInactiveDisconnectTimeout: testutil.WaitShort,
-			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
-			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
-			AccessURL:                      accessURL,
-			AppHostname:                    options.AppHostname,
-			AppHostnameRegex:               appHostnameRegex,
-			Logger:                         *options.Logger,
-			CacheDir:                       cacheDir,
-			RuntimeConfig:                  runtimeManager,
-			Database:                       options.Database,
-			Pubsub:                         options.Pubsub,
-			ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
-			ExternalAuthConfigs:            options.ExternalAuthConfigs,
-			UsageInserter:                  usageInserter,
+			AgentInactiveDisconnectTimeout:    testutil.WaitShort,
+			ChatdInstructionLookupTimeout:     options.ChatdInstructionLookupTimeout,
+			MCPOAuth2DiscoveryAllowedIPRanges: options.MCPOAuth2DiscoveryAllowedIPRanges,
+			ChatProviderAPIKeys:               options.ChatProviderAPIKeys,
+			ChatWorkerDisabled:                options.ChatWorkerDisabled,
+			AccessURL:                         accessURL,
+			AppHostname:                       options.AppHostname,
+			AppHostnameRegex:                  appHostnameRegex,
+			Logger:                            *options.Logger,
+			CacheDir:                          cacheDir,
+			RuntimeConfig:                     runtimeManager,
+			Database:                          options.Database,
+			Pubsub:                            options.Pubsub,
+			ReplicaSyncPubsub:                 options.ReplicaSyncPubsub,
+			ExternalAuthConfigs:               options.ExternalAuthConfigs,
+			UsageInserter:                     usageInserter,
 
 			Auditor:                            options.Auditor,
 			ConnectionLogger:                   options.ConnectionLogger,
@@ -651,6 +690,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
 			Clock:                              options.Clock,
+			Acquirer:                           options.Acquirer,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
@@ -1219,35 +1259,59 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 }
 
 // AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
-// from cancelation, an error, or from completing successfully.
+// from cancelation, an error, or from completing successfully. The wait is bounded by
+// testutil.WaitLong; use AwaitTemplateVersionJobCompletedWithTimeout to wait longer.
 func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
+	return AwaitTemplateVersionJobCompletedWithTimeout(t, client, version, testutil.WaitLong)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+// AwaitTemplateVersionJobCompletedWithTimeout waits up to timeout for the template
+// version build job to complete, polling at testutil.IntervalFast. Transient API errors
+// are logged and retried. Fails the test if the job does not complete in time.
+func AwaitTemplateVersionJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, version uuid.UUID, timeout time.Duration) codersdk.TemplateVersion {
+	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for template version %s build job to complete", version)
 	var templateVersion codersdk.TemplateVersion
-	require.Eventually(t, func() bool {
+	completed := testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
+		if err != nil {
+			t.Logf("failed to get template version %s: %v", version, err)
+			return false
+		}
 		t.Logf("template version job status: %s", templateVersion.Job.Status)
-		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitLong, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+		return templateVersion.Job.CompletedAt != nil
+	}, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	if !completed {
+		t.FailNow()
+	}
 	t.Logf("template version %s job has completed", version)
 	return templateVersion
 }
 
-// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
+// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed
+// status. The wait is bounded by testutil.WaitMedium; use
+// AwaitWorkspaceBuildJobCompletedWithTimeout to wait longer.
 func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
+	return AwaitWorkspaceBuildJobCompletedWithTimeout(t, client, build, testutil.WaitMedium)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
+// AwaitWorkspaceBuildJobCompletedWithTimeout waits up to timeout for a workspace
+// provision job to reach completed status, polling at testutil.IntervalFast. Transient
+// API errors are logged and retried. Fails the test if the job does not complete in time.
+func AwaitWorkspaceBuildJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, build uuid.UUID, timeout time.Duration) codersdk.WorkspaceBuild {
+	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
-	require.Eventually(t, func() bool {
+	completed := testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		if err != nil {
@@ -1259,7 +1323,10 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 			return false
 		}
 		return true
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast, "workspace build %s did not complete", build)
+	if !completed {
+		t.FailNow()
+	}
 	t.Logf("got workspace build job %s (status: %s)", build, workspaceBuild.Job.Status)
 	return workspaceBuild
 }

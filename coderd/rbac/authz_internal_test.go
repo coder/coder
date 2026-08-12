@@ -61,8 +61,25 @@ func TestFilterError(t *testing.T) {
 			Scope:  ScopeAll,
 		}
 
-		_, err := Filter(context.Background(), auth, subject, policy.ActionRead, []Object{ResourceUser, ResourceWorkspace})
+		_, err := Filter(context.Background(), auth, subject, policy.ActionRead, []Object{ResourceUser, ResourceWorkspace}, DefaultFilterThreshold)
 		require.ErrorContains(t, err, "object types must be uniform")
+	})
+
+	t.Run("NonPositiveThreshold", func(t *testing.T) {
+		t.Parallel()
+
+		auth := NewAuthorizer(prometheus.NewRegistry())
+		subject := Subject{
+			ID:     uuid.NewString(),
+			Roles:  RoleIdentifiers{},
+			Groups: []string{},
+			Scope:  ScopeAll,
+		}
+
+		for _, threshold := range []int{0, -1} {
+			_, err := Filter(context.Background(), auth, subject, policy.ActionRead, []Object{ResourceWorkspace}, threshold)
+			require.ErrorContains(t, err, "prepareThreshold must be positive")
+		}
 	})
 
 	t.Run("CancelledContext", func(t *testing.T) {
@@ -99,7 +116,7 @@ func TestFilterError(t *testing.T) {
 				ResourceUser,
 			}
 
-			_, err := Filter(ctx, auth, subject, policy.ActionRead, objects)
+			_, err := Filter(ctx, auth, subject, policy.ActionRead, objects, DefaultFilterThreshold)
 			require.ErrorIs(t, err, context.Canceled)
 		})
 
@@ -119,7 +136,7 @@ func TestFilterError(t *testing.T) {
 				bomb:     cancel,
 			}
 
-			_, err := Filter(ctx, auth, subject, policy.ActionRead, objects)
+			_, err := Filter(ctx, auth, subject, policy.ActionRead, objects, DefaultFilterThreshold)
 			require.ErrorIs(t, err, context.Canceled)
 		})
 	})
@@ -267,7 +284,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list, err := Filter(ctx, auth, actor, tc.Action, localObjects)
+			list, err := Filter(ctx, auth, actor, tc.Action, localObjects, DefaultFilterThreshold)
 			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {
@@ -307,23 +324,40 @@ func TestAuthorizeDomain(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 		},
 	}
 
 	testAuthorize(t, "UserACLList", user, []authTestCase{
 		{
-			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithACLUserList(map[string][]policy.Action{
 				user.ID: ResourceWorkspace.AvailableActions(),
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithACLUserList(map[string][]policy.Action{
 				user.ID: {policy.WildcardSymbol},
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
+		},
+		{
+			// User ACLs only grant permissions in organizations where the
+			// subject is currently a member.
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+				user.ID: ResourceWorkspace.AvailableActions(),
+			}),
+			actions: ResourceWorkspace.AvailableActions(),
+			allow:   false,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+				user.ID: {policy.WildcardSymbol},
+			}),
+			actions: ResourceWorkspace.AvailableActions(),
+			allow:   false,
 		},
 		{
 			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
@@ -451,6 +485,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -529,6 +564,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Scope: must(ExpandScope(ScopeApplicationConnect)),
 		Roles: Roles{
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -714,6 +750,154 @@ func TestAuthorizeDomain(t *testing.T) {
 		}))
 }
 
+// TestAuthorizeUserACLOrgMembership verifies that user ACL grants require org
+// membership, while site-wide roles still authorize independent of ACLs.
+func TestAuthorizeUserACLOrgMembership(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+
+	// Site template-admin, not a member of orgID.
+	siteTemplateAdmin := Subject{
+		ID:    "site-template-admin",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleTemplateAdmin())),
+		},
+	}
+	testAuthorize(t, "SiteTemplateAdminNotInOrg", siteTemplateAdmin, []authTestCase{
+		{
+			// Authorized by the site role, no ACL needed.
+			resource: ResourceTemplate.InOrg(orgID),
+			actions:  []policy.Action{policy.ActionUpdate},
+			allow:    true,
+		},
+		{
+			// Redundant ACL entry; still authorized by the site role.
+			resource: ResourceTemplate.InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				siteTemplateAdmin.ID: {policy.ActionUpdate},
+			}),
+			actions: []policy.Action{policy.ActionUpdate},
+			allow:   true,
+		},
+	})
+
+	// Site user-admin (no template perms), not a member of orgID.
+	siteUserAdmin := Subject{
+		ID:    "site-user-admin",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleUserAdmin())),
+		},
+	}
+	testAuthorize(t, "SiteUserAdminNotInOrg", siteUserAdmin, []authTestCase{
+		{
+			// No template role and no ACL entry: denied.
+			resource: ResourceTemplate.InOrg(orgID),
+			actions:  []policy.Action{policy.ActionUpdate},
+			allow:    false,
+		},
+		{
+			// An ACL grant must not authorize a non-member.
+			resource: ResourceTemplate.InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				siteUserAdmin.ID: {policy.ActionUpdate},
+			}),
+			actions: []policy.Action{policy.ActionUpdate},
+			allow:   false,
+		},
+	})
+
+	// Same site user-admin, now also a member of orgID.
+	siteUserAdminOrgMember := Subject{
+		ID:    "site-user-admin-org-member",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleUserAdmin())),
+			orgMemberRole(orgID),
+		},
+	}
+	testAuthorize(t, "SiteUserAdminOrgMember", siteUserAdminOrgMember, []authTestCase{
+		{
+			// Org membership alone does not grant template update.
+			resource: ResourceTemplate.InOrg(orgID),
+			actions:  []policy.Action{policy.ActionUpdate},
+			allow:    false,
+		},
+		{
+			// As an org member, the ACL grant takes effect.
+			resource: ResourceTemplate.InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				siteUserAdminOrgMember.ID: {policy.ActionUpdate},
+			}),
+			actions: []policy.Action{policy.ActionUpdate},
+			allow:   true,
+		},
+	})
+}
+
+// TestAuthorizeWorkspaceAccessCreationBan tests a user who is a member of a
+// single organization and holds both organization-workspace-access and
+// organization-workspace-creation-ban in that organization. The ban's
+// negative permissions must override the workspace create elevation granted
+// by workspace-access. Because the ban denies creation in the user's only
+// organization, the any_org check used by the UI must also deny creation.
+func TestAuthorizeWorkspaceAccessCreationBan(t *testing.T) {
+	t.Parallel()
+	defOrg := uuid.New()
+
+	user := Subject{
+		ID:    "me",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
+			must(RoleByName(ScopedRoleOrgWorkspaceCreationBan(defOrg))),
+		},
+	}
+
+	testAuthorize(t, "WorkspaceAccessWithCreationBan", user, []authTestCase{
+		// any_org create is denied: the only organization vote is the ban's
+		// negative, so the max vote across all organizations is a deny.
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}, allow: false},
+
+		// The banned actions are denied directly in the organization too.
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate, policy.ActionDelete}, allow: false},
+
+		// Non-banned workspace actions granted by workspace-access remain.
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionRead, policy.ActionUpdate}, allow: true},
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: []policy.Action{policy.ActionRead}, allow: true},
+	})
+
+	// The same user, now also a member of a second organization with
+	// workspace-access and no ban. One permissible organization out of two
+	// is enough for any_org to allow creation.
+	secondOrg := uuid.New()
+	userTwoOrgs := Subject{
+		ID:    "me",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
+			must(RoleByName(ScopedRoleOrgWorkspaceCreationBan(defOrg))),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(secondOrg))),
+		},
+	}
+
+	testAuthorize(t, "BannedInOneOfTwoOrgs", userTwoOrgs, []authTestCase{
+		// any_org create is allowed: the second organization votes to allow,
+		// and the max vote across all organizations wins.
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(userTwoOrgs.ID), actions: []policy.Action{policy.ActionCreate}, allow: true},
+
+		// The ban still denies creation in the banned organization.
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(userTwoOrgs.ID), actions: []policy.Action{policy.ActionCreate, policy.ActionDelete}, allow: false},
+
+		// Creation is allowed in the organization without the ban.
+		{resource: ResourceWorkspace.InOrg(secondOrg).WithOwner(userTwoOrgs.ID), actions: []policy.Action{policy.ActionCreate, policy.ActionDelete}, allow: true},
+	})
+}
+
 // TestAuthorizeLevels ensures level overrides are acting appropriately
 func TestAuthorizeLevels(t *testing.T) {
 	t.Parallel()
@@ -842,6 +1026,87 @@ func TestAuthorizeLevels(t *testing.T) {
 
 			{resource: ResourceWorkspace.WithOwner("not-me"), allow: false},
 		}))
+
+	// Org-level deny must block a member-level allow, member-level deny must win
+	// within an org, and org-level allow must override a member-level deny, all on
+	// owned in-org objects. These exercise the known-org set-difference gate.
+	denyOrg := uuid.New()       // member allows read; org denies read
+	memberDenyOrg := uuid.New() // member both allows and denies read (deny wins)
+	orgAllowOrg := uuid.New()   // org allows read; member denies read
+	user = Subject{
+		ID:    "me",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			{
+				Identifier: RoleIdentifier{Name: "member-allow", OrganizationID: defOrg},
+				ByOrgID: map[string]OrgPermissions{
+					defOrg.String(): {
+						Member: []Permission{{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+					},
+				},
+			},
+			{
+				Identifier: RoleIdentifier{Name: "member-allow-org-deny", OrganizationID: denyOrg},
+				ByOrgID: map[string]OrgPermissions{
+					denyOrg.String(): {
+						// Org denies only read; member allows read and update, so the
+						// deny is action-scoped (update stays allowed).
+						Org: []Permission{{Negate: true, ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+						Member: []Permission{
+							{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+							{ResourceType: ResourceWorkspace.Type, Action: policy.ActionUpdate},
+						},
+					},
+				},
+			},
+			{
+				Identifier: RoleIdentifier{Name: "member-deny-wins", OrganizationID: memberDenyOrg},
+				ByOrgID: map[string]OrgPermissions{
+					memberDenyOrg.String(): {
+						Member: []Permission{
+							{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+							{Negate: true, ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+						},
+					},
+				},
+			},
+			{
+				Identifier: RoleIdentifier{Name: "org-allow-member-deny", OrganizationID: orgAllowOrg},
+				ByOrgID: map[string]OrgPermissions{
+					orgAllowOrg.String(): {
+						Org:    []Permission{{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+						Member: []Permission{{Negate: true, ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+					},
+				},
+			},
+		},
+	}
+
+	testAuthorize(t, "OrgDenyBlocksMember", user,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []policy.Action{policy.ActionRead}
+			return c
+		}, []authTestCase{
+			// Member level allows the owned, in-org object.
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: true},
+			// Org-level deny blocks the owned object even though member allows it.
+			{resource: ResourceWorkspace.InOrg(denyOrg).WithOwner(user.ID), allow: false},
+			// Member-level deny wins over a member-level allow in the same org.
+			{resource: ResourceWorkspace.InOrg(memberDenyOrg).WithOwner(user.ID), allow: false},
+			// Org-level allow overrides a member-level deny, regardless of owner.
+			{resource: ResourceWorkspace.InOrg(orgAllowOrg).WithOwner(user.ID), allow: true},
+			{resource: ResourceWorkspace.InOrg(orgAllowOrg).WithOwner("not-me"), allow: true},
+			// The member grant does not extend to objects the subject does not own.
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), allow: false},
+			// Not a member of this org at all.
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID), allow: false},
+		}),
+		// The org-level deny is scoped to the action it names: update stays allowed
+		// in denyOrg because only read is denied.
+		[]authTestCase{
+			{resource: ResourceWorkspace.InOrg(denyOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionUpdate}, allow: true},
+		},
+	)
 }
 
 func TestAuthorizeScope(t *testing.T) {
@@ -885,6 +1150,7 @@ func TestAuthorizeScope(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 		},
 		Scope: must(ExpandScope(ScopeApplicationConnect)),
 	}
@@ -921,6 +1187,7 @@ func TestAuthorizeScope(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 		},
 		Scope: Scope{
 			Role: Role{
@@ -1010,6 +1277,7 @@ func TestAuthorizeScope(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 		},
 		Scope: Scope{
 			Role: Role{
@@ -1065,6 +1333,7 @@ func TestAuthorizeScope(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
 			orgMemberRole(defOrg),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(defOrg))),
 		},
 		Scope: must(ScopeNoUserData.Expand()),
 	}
@@ -1170,6 +1439,61 @@ func TestAuthorizeScope(t *testing.T) {
 			{resource: ResourceUser.WithOwner(user.ID), allow: false, actions: []policy.Action{policy.ActionUpdate}},
 		},
 	)
+
+	// Scope-level org deny must block a member-level allow, mirroring
+	// OrgDenyBlocksMember but through the scope's org/member permissions (the
+	// scope_org_member member_allow - org_deny fold). The roles allow both
+	// objects, so the scope is the deciding factor.
+	scopeAllowOrg := uuid.New()
+	scopeDenyOrg := uuid.New()
+	user = Subject{
+		ID: "me",
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			{
+				Identifier: RoleIdentifier{Name: "member-allow-a", OrganizationID: scopeAllowOrg},
+				ByOrgID: map[string]OrgPermissions{
+					scopeAllowOrg.String(): {
+						Member: []Permission{{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+					},
+				},
+			},
+			{
+				Identifier: RoleIdentifier{Name: "member-allow-b", OrganizationID: scopeDenyOrg},
+				ByOrgID: map[string]OrgPermissions{
+					scopeDenyOrg.String(): {
+						Member: []Permission{{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+					},
+				},
+			},
+		},
+		Scope: Scope{
+			Role: Role{
+				Identifier: RoleIdentifier{Name: "scope-org-deny"},
+				ByOrgID: map[string]OrgPermissions{
+					scopeAllowOrg.String(): {
+						Member: []Permission{{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+					},
+					scopeDenyOrg.String(): {
+						Org:    []Permission{{Negate: true, ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+						Member: []Permission{{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+					},
+				},
+			},
+			AllowIDList: []AllowListElement{AllowListAll()},
+		},
+	}
+
+	testAuthorize(t, "ScopeOrgDenyBlocksMember", user,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []policy.Action{policy.ActionRead}
+			return c
+		}, []authTestCase{
+			// Scope member-allow permits the owned in-org object.
+			{resource: ResourceWorkspace.InOrg(scopeAllowOrg).WithOwner(user.ID), allow: true},
+			// Scope org-level deny blocks it even though scope member allows.
+			{resource: ResourceWorkspace.InOrg(scopeDenyOrg).WithOwner(user.ID), allow: false},
+		}))
 }
 
 func TestScopeAllowList(t *testing.T) {

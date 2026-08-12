@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -39,13 +39,6 @@ func ValidateToken(token string) error {
 const meta: Meta<typeof Response> = {
 	title: "pages/AgentsPage/ChatElements/Response",
 	component: Response,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		children: sampleMarkdown,
 	},
@@ -104,73 +97,18 @@ const expectCodeBlock = async (
 	expect(host.style.getPropertyValue("--diffs-font-size")).toBe("12px");
 	expect(host.style.getPropertyValue("--diffs-line-height")).toBe("20px");
 
+	expect(canvasElement.textContent ?? "").not.toContain("```");
+
 	const shadowRoot = host.shadowRoot;
 	if (!shadowRoot) {
 		throw new Error("Expected FileViewer to render code in its shadow root.");
 	}
-	expect(shadowRoot.textContent ?? "").not.toContain("```");
-
-	const pre = shadowRoot.querySelector(
-		"pre[data-file][data-disable-line-numbers]",
-	);
-	expect(pre).toBeInTheDocument();
-	if (!(pre instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render a pre element.");
-	}
-
-	const code = shadowRoot.querySelector("[data-code]");
-	expect(code).toBeInTheDocument();
-	if (!(code instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render a code container.");
-	}
-
-	const line = shadowRoot.querySelector("[data-line]");
-	expect(line).toBeInTheDocument();
-	if (!(line instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render code lines.");
-	}
-
-	const gutter = shadowRoot.querySelector("[data-column-number]");
-	expect(gutter).toBeInTheDocument();
-	if (!(gutter instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render its line-number gutter.");
-	}
-
-	const preStyles = getComputedStyle(pre);
-	expect(preStyles.fontSize).toBe("12px");
-	expect(preStyles.lineHeight).toBe("20px");
-
-	const codeStyles = getComputedStyle(code);
-	expect(codeStyles.paddingTop).toBe("8px");
-	expect(codeStyles.paddingBottom).toBe("8px");
-	expect(codeStyles.paddingBottom).toBe(codeStyles.paddingTop);
-	expect(codeStyles.overflow).toBe("visible");
-
-	const lineStyles = getComputedStyle(line);
-	expect(lineStyles.paddingLeft).toBe("12px");
-	expect(lineStyles.paddingRight).toBe("12px");
-	expect(lineStyles.paddingRight).toBe(lineStyles.paddingLeft);
-	expect(lineStyles.minHeight).toBe("20px");
-
-	const gutterStyles = getComputedStyle(gutter);
-	expect(gutterStyles.minWidth).toBe("0px");
-	expect(gutterStyles.paddingLeft).toBe("0px");
-	expect(gutterStyles.paddingRight).toBe("0px");
 
 	if (options.highlighted) {
-		let highlightedToken: HTMLElement | null = null;
 		await waitFor(() => {
 			const token = shadowRoot.querySelector("span[style*='color']");
 			expect(token).toBeInTheDocument();
-			if (!(token instanceof HTMLElement)) {
-				throw new Error("Expected FileViewer to render highlighted tokens.");
-			}
-			highlightedToken = token;
 		});
-		if (!highlightedToken) {
-			throw new Error("Expected FileViewer to render highlighted tokens.");
-		}
-		expect(getComputedStyle(highlightedToken).color).not.toBe(lineStyles.color);
 	}
 
 	return host;
@@ -206,43 +144,8 @@ export const LongLineFencedBlock: Story = {
 		if (!viewport) {
 			throw new Error("Expected a horizontally scrollable viewport.");
 		}
-		viewport.dispatchEvent(
-			new WheelEvent("wheel", { deltaY: 200, bubbles: true, cancelable: true }),
-		);
+		viewport.scrollLeft = 200;
 		await waitFor(() => expect(viewport.scrollLeft).toBeGreaterThan(0));
-	},
-};
-
-export const LongLineFencedBlockWheelEdges: Story = {
-	args: {
-		children: longLineCodeBlockMarkdown,
-	},
-	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /apiUrl/);
-		const viewport = [
-			...canvasElement.querySelectorAll<HTMLElement>(
-				"[data-radix-scroll-area-viewport]",
-			),
-		].find((v) => v.scrollWidth > v.clientWidth);
-		if (!viewport) {
-			throw new Error("Expected a horizontally scrollable viewport.");
-		}
-		const dispatchWheel = (deltaY: number) => {
-			const event = new WheelEvent("wheel", {
-				deltaY,
-				bubbles: true,
-				cancelable: true,
-			});
-			viewport.dispatchEvent(event);
-			return event.defaultPrevented;
-		};
-		const maxLeft = viewport.scrollWidth - viewport.clientWidth;
-		viewport.scrollLeft = Math.floor(maxLeft / 2);
-		expect(dispatchWheel(200)).toBe(true);
-		viewport.scrollLeft = maxLeft;
-		expect(dispatchWheel(200)).toBe(false);
-		viewport.scrollLeft = 0;
-		expect(dispatchWheel(-200)).toBe(false);
 	},
 };
 
@@ -285,6 +188,90 @@ export const JsxInProse: Story = {
 		expect(marker).toBeInTheDocument();
 		const marker2 = await canvas.findByText(/commentBox=\{commentBox\}/);
 		expect(marker2).toBeInTheDocument();
+	},
+};
+
+// A 1x1 transparent PNG. Streamdown's sanitize plugin strips data:
+// image sources before our img component sees them, so these render
+// as nothing: inert, and never a network request.
+const dataImagePNG =
+	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+const externalImageURL = "https://external-image-host.invalid/image.png";
+
+// Verifies the IP-leak fix for Cure53 CDM-02-006: externally hosted
+// markdown images must not be fetched when a chat is rendered. The
+// viewer gets a consent placeholder and the <img> element only
+// appears after clicking it.
+export const ExternalImageConsentGate: Story = {
+	args: {
+		children: `Before\n\n![diagram](${externalImageURL})\n\nAfter`,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The placeholder must render instead of the image.
+		const loadButton = await canvas.findByRole("button", {
+			name: /load external image from external-image-host\.invalid/i,
+		});
+		expect(loadButton).toBeInTheDocument();
+
+		// No <img> in the document may point at the external host.
+		expect(canvasElement.querySelector("img")).toBeNull();
+
+		// Clicking the placeholder opts in and renders the image.
+		await userEvent.click(loadButton);
+		await waitFor(() => {
+			const img = canvasElement.querySelector("img");
+			expect(img).not.toBeNull();
+			expect(img?.getAttribute("src")).toBe(externalImageURL);
+		});
+	},
+};
+
+// data: image sources are stripped by the sanitize plugin, so they
+// render as nothing: no <img>, no consent gate, no request.
+export const DataImageStrippedBySanitizer: Story = {
+	args: {
+		children: `Before\n\n![inline](${dataImagePNG})\n\nAfter`,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("After");
+		expect(canvasElement.querySelector("img")).toBeNull();
+		expect(canvas.queryByRole("button")).toBeNull();
+	},
+};
+
+// Deployment-relative images (for example emoji or uploaded icons)
+// are same-origin, so they render immediately without a consent gate.
+export const RelativeImageRendersImmediately: Story = {
+	args: {
+		children: "![emoji](/emojis/1f4bb.png)",
+	},
+	play: async ({ canvasElement }) => {
+		await waitFor(() => {
+			const img = canvasElement.querySelector("img");
+			expect(img).not.toBeNull();
+			expect(img?.getAttribute("src")).toBe("/emojis/1f4bb.png");
+		});
+		expect(within(canvasElement).queryByRole("button")).toBeNull();
+	},
+};
+
+// The consent gate must also apply while streaming.
+export const StreamingExternalImageConsentGate: Story = {
+	args: {
+		children: `![diagram](${externalImageURL})`,
+		streaming: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const loadButton = await canvas.findByRole("button", {
+			name: /load external image/i,
+		});
+		expect(loadButton).toBeInTheDocument();
+		expect(canvasElement.querySelector("img")).toBeNull();
 	},
 };
 

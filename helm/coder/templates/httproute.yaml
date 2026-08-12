@@ -1,3 +1,13 @@
+{{- if and .Values.coder.httproute.enable .Values.coder.httproute.httpsRedirect.enable -}}
+{{- if empty .Values.coder.httproute.httpsRedirect.parentRefs -}}
+{{- fail "coder.httproute.httpsRedirect.parentRefs is required when coder.httproute.httpsRedirect.enable=true" -}}
+{{- end -}}
+{{- $httpsRedirectStatusCode := toString .Values.coder.httproute.httpsRedirect.statusCode -}}
+{{- if not (regexMatch "^(301|302|303|307|308)$" $httpsRedirectStatusCode) -}}
+{{- fail "coder.httproute.httpsRedirect.statusCode must be one of 301, 302, 303, 307, or 308." -}}
+{{- end -}}
+{{- end -}}
+
 {{- if .Values.coder.httproute.enable }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -24,4 +34,37 @@ spec:
     {{- with .Values.coder.httproute.wildcardHost }}
     - {{ . | quote }}
     {{- end }}
+  {{- if .Values.coder.httproute.httpsRedirect.enable }}
+{{- $httpsRedirectStatusCode := toString .Values.coder.httproute.httpsRedirect.statusCode }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: coder-https-redirect
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.coder.httproute.httpsRedirect.annotations | nindent 4 }}
+spec:
+  parentRefs:
+  {{- with .Values.coder.httproute.httpsRedirect.parentRefs }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - filters:
+      - requestRedirect:
+          scheme: https
+          statusCode: {{ $httpsRedirectStatusCode }}
+        type: RequestRedirect
+      matches:
+      - path:
+          type: PathPrefix
+          value: /
+  hostnames:
+    - {{ .Values.coder.httproute.host | quote }}
+    {{- with .Values.coder.httproute.wildcardHost }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- end }}
 {{- end }}

@@ -39,6 +39,11 @@ func (r *RootCmd) open() *serpent.Command {
 
 const vscodeDesktopName = "VS Code Desktop"
 
+// externalSessionTokenPlaceholder is the literal substring in an external
+// workspace-app URL that the CLI replaces with the user's session token
+// when the app belongs to a trusted (top-level) agent.
+const externalSessionTokenPlaceholder = "$SESSION_TOKEN"
+
 func (r *RootCmd) openVSCode() *serpent.Command {
 	var (
 		generateToken bool
@@ -387,8 +392,13 @@ func (r *RootCmd) openApp() *serpent.Command {
 			pathAppURL := strings.TrimPrefix(region.PathAppURL, baseURL.String())
 			appURL := buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 
-			if foundApp.External {
-				appURL = replacePlaceholderExternalSessionTokenString(client, appURL)
+			externalSubAgentApp := foundApp.External && agt.ParentID.Valid
+			if foundApp.External && !agt.ParentID.Valid {
+				// Template-defined apps run on a top-level agent and are
+				// admin-authored, so their URLs are trusted. Substitute the
+				// session token placeholder so the OS open handler receives
+				// a usable URL.
+				appURL = strings.ReplaceAll(appURL, externalSessionTokenPlaceholder, client.SessionToken())
 			}
 
 			// Check if we're inside a workspace.  Generally, we know
@@ -396,6 +406,18 @@ func (r *RootCmd) openApp() *serpent.Command {
 			insideAWorkspace := inv.Environ.Get("CODER") == "true"
 			if insideAWorkspace {
 				_, _ = fmt.Fprintf(inv.Stderr, "Please open the following URI on your local machine:\n\n")
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
+				return nil
+			}
+
+			// Sub-agent external app URLs are set at runtime. Only open
+			// sub-agent URLs that don't contain the placeholder to prevent
+			// token exfiltration.
+			if externalSubAgentApp && strings.Contains(appURL, externalSessionTokenPlaceholder) {
+				cliui.Warnf(inv.Stderr,
+					"This app was registered from inside the workspace rather than from the workspace template. "+
+						"Inspect the URL below carefully and, if you trust the source, substitute the $SESSION_TOKEN placeholder "+
+						"with your session token and manually open it:")
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
 				return nil
 			}
@@ -663,16 +685,4 @@ func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent coder
 		u.Path = "/"
 	}
 	return u.String()
-}
-
-// replacePlaceholderExternalSessionTokenString replaces any $SESSION_TOKEN
-// strings in the URL with the actual session token.
-// This is consistent behavior with the frontend. See: site/src/modules/resources/AppLink/AppLink.tsx
-func replacePlaceholderExternalSessionTokenString(client *codersdk.Client, appURL string) string {
-	if !strings.Contains(appURL, "$SESSION_TOKEN") {
-		return appURL
-	}
-
-	// We will just re-use the existing session token we're already using.
-	return strings.ReplaceAll(appURL, "$SESSION_TOKEN", client.SessionToken())
 }

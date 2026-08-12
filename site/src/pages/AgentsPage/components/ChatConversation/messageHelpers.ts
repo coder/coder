@@ -68,14 +68,19 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	const hasRenderableContent =
 		visibleBlocks.length > 0 ||
 		visibleTools.length > 0 ||
-		parsed.sources.length > 0;
+		parsed.sources.length > 0 ||
+		parsed.hookNotices.length > 0;
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");
+	const endsWithResponseBlock =
+		visibleBlocks.length > 0 &&
+		visibleBlocks[visibleBlocks.length - 1].type === "response";
 
 	return {
 		hasRenderableContent,
 		hasThinkingOnlyContent,
+		endsWithResponseBlock,
 	};
 };
 
@@ -139,9 +144,16 @@ export const deriveMessageDisplayState = ({
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
 	const hasFileBlocks = userFileBlocks.length > 0;
+	const { hasThinkingOnlyContent, endsWithResponseBlock } =
+		getRenderableContentState(parsed);
+	// The copy action row renders below the whole message, so assistant
+	// messages only get one when the last visible block is text.
+	// Otherwise the button would sit under a tool call with nothing
+	// copyable directly above it.
 	const hasCopyableContent =
-		Boolean(parsed.markdown.trim()) && !hasFileAttachments;
-	const { hasThinkingOnlyContent } = getRenderableContentState(parsed);
+		Boolean(parsed.markdown.trim()) &&
+		!hasFileAttachments &&
+		(isUser || endsWithResponseBlock);
 	const needsAssistantBottomSpacer =
 		!hideActions &&
 		!hasActiveStream &&
@@ -198,6 +210,7 @@ const mergeReadFileMessageGroup = (
 			tools: group.flatMap((entry) => entry.parsed.tools),
 			blocks: group.flatMap((entry) => entry.parsed.blocks),
 			sources: [],
+			hookNotices: [],
 		},
 	};
 };

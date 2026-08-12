@@ -32,9 +32,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -316,19 +318,8 @@ func TestAWSBedrockIntegration(t *testing.T) {
 			SmallFastModel:  "test-haiku",
 		}
 
-		bridgeServer := newBridgeTestServer(ctx, t, "http://unused",
-			withCustomProvider(provider.NewAnthropic(anthropicCfg("http://unused", apiKey), bedrockCfg)),
-		)
-
-		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, fixtures.Request(t, fixtures.AntSingleBuiltinTool))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Contains(t, string(body), "create anthropic client")
-		require.Contains(t, string(body), "region or base url required")
+		_, err := provider.NewAnthropic(ctx, anthropicCfg("http://unused", apiKey), bedrockCfg)
+		require.ErrorContains(t, err, "region or base url required")
 	})
 
 	t.Run("/v1/messages", func(t *testing.T) {
@@ -353,7 +344,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				}
 
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-					withCustomProvider(provider.NewAnthropic(anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+					withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
 				)
 
 				// Make API call to aibridge for Anthropic /v1/messages, which will be routed via AWS Bedrock.
@@ -387,7 +378,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 
 				// Verify PRM attribution is appended to the User-Agent header.
 				ua := received[0].Header.Get("User-Agent")
-				require.Contains(t, ua, "sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24",
+				require.Contains(t, ua, messages.BedrockPRMUserAgent,
 					"expected AWS PRM attribution in User-Agent header")
 
 				interceptions := bridgeServer.Recorder.RecordedInterceptions()
@@ -396,6 +387,62 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 			})
 		}
+	})
+
+	// The mantle protocol is a passthrough: the client's model is forwarded in the body
+	// without remapping, only SigV4 signing (service "bedrock-mantle") is applied.
+	t.Run("mantle/v1/messages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+		upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+
+		// Mantle needs only region + credentials for signing (no Model fields:
+		// the client supplies the model).
+		bedrockCfg := &config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-access-key",
+			AccessKeySecret: "test-secret-key",
+			BaseURL:         upstream.URL + "/anthropic", // Use the mock server.
+			Protocol:        config.BedrockProtocolMantle,
+		}
+		// The client's model must be forwarded unchanged.
+		wantModel := gjson.GetBytes(fix.Request(), "model").String()
+		require.NotEmpty(t, wantModel)
+
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+		)
+
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, fix.Request())
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		received := upstream.ReceivedRequests()
+		require.Len(t, received, 1)
+
+		// Native passthrough: /anthropic Messages path, model kept in the body
+		// unchanged.
+		require.Equal(t, "/anthropic/v1/messages", received[0].Path)
+		require.Equal(t, wantModel, gjson.GetBytes(received[0].Body, "model").String(),
+			"model should be forwarded unchanged")
+
+		// SigV4-signed for the bedrock-mantle service.
+		authHeader := received[0].Header.Get("Authorization")
+		require.True(t, strings.HasPrefix(authHeader, "AWS4-HMAC-SHA256"), "missing SigV4 auth: %q", authHeader)
+		require.Contains(t, authHeader, "/bedrock-mantle/aws4_request",
+			"signature must be scoped to the bedrock-mantle service")
+
+		require.Contains(t, received[0].Header.Get("User-Agent"),
+			messages.BedrockPRMUserAgent)
+
+		interceptions := bridgeServer.Recorder.RecordedInterceptions()
+		require.Len(t, interceptions, 1)
+		require.Equal(t, wantModel, interceptions[0].Model)
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
 
 	// Tests that Bedrock-incompatible fields are stripped and adaptive thinking
@@ -413,13 +460,15 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		}
 
 		cases := []struct {
-			name               string
-			model              string
-			smallFastModel     string
-			expectThinkingType string
-			expectBudgetTokens int64    // 0 means budget_tokens should not be present
-			expectKeptFields   []string // fields from strippableFields expected to survive
-			expectedBetaFlags  []string // values expected in the anthropic_beta array in the forwarded body
+			name                string
+			model               string
+			smallFastModel      string
+			expectThinkingType  string
+			expectEffort        string
+			expectBudgetTokens  int64    // 0 means budget_tokens should not be present
+			sendThinkingEnabled bool     // send enabled thinking with budget_tokens instead of the fixture's adaptive thinking
+			expectKeptFields    []string // fields from strippableFields expected to survive
+			expectedBetaFlags   []string // values expected in the anthropic_beta array in the forwarded body
 		}{
 			// "beddel" matches no model prefix, so adaptive thinking is converted
 			// to enabled with budget, and all model-gated beta flags are stripped.
@@ -427,6 +476,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				name:               "beddel",
 				model:              "beddel",
 				smallFastModel:     "modrock",
+				expectEffort:       "",
 				expectThinkingType: "enabled",
 				expectBudgetTokens: 16000, // 32000 * 0.5 (medium effort)
 				expectedBetaFlags:  []string{"interleaved-thinking-2025-05-14"},
@@ -436,6 +486,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				name:               "opus-4.5",
 				model:              "anthropic.claude-opus-4-5-20250514-v1:0",
 				smallFastModel:     "anthropic.claude-haiku-4-5-20241022-v1:0",
+				expectEffort:       "medium",
 				expectThinkingType: "enabled",
 				expectBudgetTokens: 16000,
 				expectKeptFields:   []string{"output_config"},
@@ -446,6 +497,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				name:               "sonnet-4.5",
 				model:              "anthropic.claude-sonnet-4-5-20241022-v2:0",
 				smallFastModel:     "anthropic.claude-haiku-4-5-20241022-v1:0",
+				expectEffort:       "",
 				expectThinkingType: "enabled",
 				expectBudgetTokens: 16000,
 				expectKeptFields:   []string{"context_management"},
@@ -456,9 +508,22 @@ func TestAWSBedrockIntegration(t *testing.T) {
 			{
 				name:               "opus-4.6",
 				model:              "anthropic.claude-opus-4-6-20260619-v1:0",
+				expectEffort:       "",
 				smallFastModel:     "anthropic.claude-haiku-4-5-20241022-v1:0",
 				expectThinkingType: "adaptive",
 				expectedBetaFlags:  []string{"interleaved-thinking-2025-05-14"},
+			},
+			// Sonnet 5 requires adaptive thinking, so legacy enabled thinking is
+			// converted and output_config.effort is preserved.
+			{
+				name:                "sonnet-5",
+				model:               "us.anthropic.claude-sonnet-5",
+				smallFastModel:      "anthropic.claude-haiku-4-5-20241022-v1:0",
+				expectEffort:        "medium",
+				expectThinkingType:  "adaptive",
+				sendThinkingEnabled: true,
+				expectKeptFields:    []string{"output_config"},
+				expectedBetaFlags:   []string{"interleaved-thinking-2025-05-14"},
 			},
 		}
 
@@ -483,11 +548,18 @@ func TestAWSBedrockIntegration(t *testing.T) {
 					}
 
 					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-						withCustomProvider(provider.NewAnthropic(anthropicCfg(upstream.URL, apiKey), bCfg)),
+						withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bCfg)),
 					)
 
 					reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
 					require.NoError(t, err)
+					if tc.sendThinkingEnabled {
+						reqBody, err = sjson.SetBytes(reqBody, "thinking", map[string]any{
+							"type":          "enabled",
+							"budget_tokens": 16000,
+						})
+						require.NoError(t, err)
+					}
 
 					// Send with Anthropic-Beta header containing flags that should be filtered.
 					resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody, http.Header{
@@ -515,6 +587,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 					} else {
 						assert.False(t, gjson.GetBytes(body, "thinking.budget_tokens").Exists(), "budget_tokens should not be present")
 					}
+					assert.Equal(t, tc.expectEffort, gjson.GetBytes(body, "output_config.effort").String(), "effort mismatch")
 
 					// The Bedrock SDK middleware moves Anthropic-Beta from the header
 					// into the body as "anthropic_beta".
@@ -637,7 +710,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		bCfg.Region = region
 
 		bridgeServer := newBridgeTestServer(ctx, t, mockEgressProxy.URL,
-			withCustomProvider(provider.NewAnthropic(anthropicCfg(mockEgressProxy.URL, apiKey), bCfg)),
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(mockEgressProxy.URL, apiKey), bCfg)),
 		)
 
 		// Sends a bridge request through a mock egress proxy that
@@ -762,6 +835,41 @@ func TestOpenAIChatCompletions(t *testing.T) {
 				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 			})
 		}
+	})
+
+	t.Run("streaming cumulative usage with injected tool", func(t *testing.T) {
+		t.Parallel()
+
+		bridgeServer, mockMCP, resp := setupInjectedToolTest(
+			t,
+			fixtures.OaiChatStreamingCumulativeUsageInjectedTool,
+			true,
+			defaultTracer,
+			pathOpenAIChatCompletions,
+			nil,
+		)
+		defer resp.Body.Close()
+
+		sp := aibridge.NewSSEParser()
+		require.NoError(t, sp.Parse(resp.Body))
+
+		var finalUsage gjson.Result
+		events := sp.MessageEvents()
+		for i := len(events) - 1; i >= 0; i-- {
+			if usage := gjson.Get(events[i].Data, "usage"); usage.Exists() {
+				finalUsage = usage
+				break
+			}
+		}
+
+		require.True(t, finalUsage.Exists())
+		require.EqualValues(t, 6000, finalUsage.Get("prompt_tokens").Int())
+		require.EqualValues(t, 30, finalUsage.Get("completion_tokens").Int())
+		require.EqualValues(t, 6030, finalUsage.Get("total_tokens").Int())
+		require.EqualValues(t, 12000, bridgeServer.Recorder.TotalInputTokens())
+		require.EqualValues(t, 60, bridgeServer.Recorder.TotalOutputTokens())
+		require.Len(t, mockMCP.getCallsByTool(mockToolName), 1)
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
 
 	t.Run("streaming injected tool call edge cases", func(t *testing.T) {
@@ -2292,7 +2400,7 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
-				return provider.NewAnthropic(cfg, nil)
+				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
 			streaming: true,
@@ -2303,7 +2411,7 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
-				return provider.NewAnthropic(cfg, nil)
+				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
 			streaming: false,
@@ -2377,4 +2485,66 @@ func extractSigV4Field(authHeader, prefix string) string {
 		val = val[:end]
 	}
 	return strings.TrimSpace(val)
+}
+
+// TestTokenUsageRecordedWithoutMCPProxier asserts that an interception records
+// token usage when no MCP server proxier is configured. Upstream reports usage
+// independently of tool injection, and coderd/aibridged tolerates a nil
+// proxier when proxier construction fails, so usage must not depend on one.
+func TestTokenUsageRecordedWithoutMCPProxier(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                                      string
+		fixture                                   []byte
+		path                                      string
+		expectedInputTokens, expectedOutputTokens int64
+	}{
+		{
+			name:                 "openai responses",
+			fixture:              fixtures.OaiResponsesStreamingSimple,
+			path:                 pathOpenAIResponses,
+			expectedInputTokens:  11,
+			expectedOutputTokens: 18,
+		},
+		{
+			name:                 "anthropic messages",
+			fixture:              fixtures.AntSimple,
+			path:                 pathAnthropicMessages,
+			expectedInputTokens:  18,
+			expectedOutputTokens: 241,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			fix := fixtures.Parse(t, tc.fixture)
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, func(c *bridgeConfig) {
+				c.noMCPProxy = true
+			})
+
+			inputBefore := bridgeServer.Recorder.TotalInputTokens()
+			outputBefore := bridgeServer.Recorder.TotalOutputTokens()
+
+			reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
+			require.NoError(t, err)
+			resp, err := bridgeServer.makeRequest(t, http.MethodPost, tc.path, reqBody)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			_, err = io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			require.NotEmpty(t, bridgeServer.Recorder.RecordedTokenUsages(), "token usage must be recorded without an MCP proxier")
+			assert.EqualValues(t, tc.expectedInputTokens, bridgeServer.Recorder.TotalInputTokens()-inputBefore, "input tokens miscalculated")
+			assert.EqualValues(t, tc.expectedOutputTokens, bridgeServer.Recorder.TotalOutputTokens()-outputBefore, "output tokens miscalculated")
+		})
+	}
 }

@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -118,7 +117,7 @@ func (c *Client) GetWorkspaceAgentPortShares(ctx context.Context, workspaceID uu
 		return shares, ReadBodyAsError(res)
 	}
 
-	return shares, json.NewDecoder(res.Body).Decode(&shares)
+	return shares, ReadBodyAsJSON(res, &shares)
 }
 
 func (c *Client) UpsertWorkspaceAgentPortShare(ctx context.Context, workspaceID uuid.UUID, req UpsertWorkspaceAgentPortShareRequest) (WorkspaceAgentPortShare, error) {
@@ -132,7 +131,7 @@ func (c *Client) UpsertWorkspaceAgentPortShare(ctx context.Context, workspaceID 
 		return share, ReadBodyAsError(res)
 	}
 
-	return share, json.NewDecoder(res.Body).Decode(&share)
+	return share, ReadBodyAsJSON(res, &share)
 }
 
 func (c *Client) DeleteWorkspaceAgentPortShare(ctx context.Context, workspaceID uuid.UUID, req DeleteWorkspaceAgentPortShareRequest) error {

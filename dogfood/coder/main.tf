@@ -50,12 +50,9 @@ data "coder_workspace_preset" "pittsburgh" {
   description = "Development workspace hosted in United States with 2 prebuild instances"
   icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "us-pittsburgh"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)        = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 2
@@ -67,12 +64,9 @@ data "coder_workspace_preset" "cpt" {
   description = "Development workspace hosted in South Africa with 1 prebuild instance"
   icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "za-cpt"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)        = "za-cpt"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -84,12 +78,9 @@ data "coder_workspace_preset" "falkenstein" {
   description = "Development workspace hosted in Europe with 1 prebuild instance"
   icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "eu-helsinki"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)        = "eu-helsinki"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -101,24 +92,13 @@ data "coder_workspace_preset" "sydney" {
   description = "Development workspace hosted in Australia with 1 prebuild instance"
   icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "ap-sydney"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)        = "ap-sydney"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
   }
-}
-
-data "coder_parameter" "repo_base_dir" {
-  type        = "string"
-  name        = "Coder Repository Base Directory"
-  default     = "~"
-  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
-  mutable     = true
 }
 
 locals {
@@ -132,11 +112,20 @@ locals {
   }
 }
 
+data "coder_parameter" "repo_base_dir" {
+  type        = "string"
+  name        = "Coder Repository Base Directory"
+  default     = "~"
+  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
+  mutable     = true
+}
+
 data "coder_parameter" "image_type" {
   type        = "string"
   name        = "Coder Image"
-  default     = "codercom/oss-dogfood:latest"
+  default     = "ubuntu-latest"
   description = "The Docker image used to run your workspace."
+  mutable     = true
   option {
     icon  = "/icon/coder.svg"
     name  = "Ubuntu 26.04"
@@ -194,38 +183,6 @@ data "coder_parameter" "region" {
   }
 }
 
-data "coder_parameter" "res_mon_memory_threshold" {
-  type        = "number"
-  name        = "Memory usage threshold"
-  default     = 80
-  description = "The memory usage threshold used in resources monitoring to trigger notifications."
-  mutable     = true
-  validation {
-    min = 0
-    max = 100
-  }
-}
-
-data "coder_parameter" "res_mon_volume_threshold" {
-  type        = "number"
-  name        = "Volume usage threshold"
-  default     = 90
-  description = "The volume usage threshold used in resources monitoring to trigger notifications."
-  mutable     = true
-  validation {
-    min = 0
-    max = 100
-  }
-}
-
-data "coder_parameter" "res_mon_volume_path" {
-  type        = "string"
-  name        = "Volume path"
-  default     = "/home/coder"
-  description = "The path monitored in resources monitoring to trigger notifications."
-  mutable     = true
-}
-
 data "coder_parameter" "devcontainer_autostart" {
   type        = "bool"
   name        = "Automatically start devcontainer for coder/coder"
@@ -234,20 +191,20 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
-data "coder_parameter" "enable_ai_gateway" {
+data "coder_parameter" "enable_kvm" {
   type        = "bool"
-  name        = "Use AI Gateway"
-  default     = true
-  description = "If enabled, AI requests will be sent via AI Gateway."
+  name        = "Expose /dev/kvm to the workspace"
+  default     = false
+  description = "If enabled, the host's /dev/kvm device is mapped into the workspace container to allow hardware-accelerated VMs. Only works when the underlying host exposes /dev/kvm; leave disabled otherwise."
   mutable     = true
 }
 
-# Only used if AI Gateway is disabled.
 # dogfood/main.tf injects this value from a GH Actions secret;
 # `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY` and `TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY`.
+# Currently unused since AI Gateway is always enabled, but kept for emergency fallback.
 variable "anthropic_api_key" {
   type        = string
-  description = "The API key used to authenticate with the Anthropic API, if AI Bridge is disabled."
+  description = "The API key used to authenticate with the Anthropic API, if AI Gateway is disabled."
   default     = ""
   sensitive   = true
 }
@@ -329,25 +286,6 @@ data "coder_parameter" "ide_choices" {
   }
 }
 
-data "coder_parameter" "vscode_channel" {
-  count       = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") ? 1 : 0
-  type        = "string"
-  name        = "VS Code Desktop channel"
-  description = "Choose the VS Code Desktop channel"
-  mutable     = true
-  default     = "stable"
-  option {
-    value = "stable"
-    name  = "Stable"
-    icon  = "/icon/code.svg"
-  }
-  option {
-    value = "insiders"
-    name  = "Insiders"
-    icon  = "/icon/code-insiders.svg"
-  }
-}
-
 module "slackme" {
   count            = data.coder_workspace.me.start_count
   source           = "dev.registry.coder.com/coder/slackme/coder"
@@ -366,7 +304,7 @@ module "dotfiles" {
 module "git-config" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-config/coder"
-  version  = "1.0.33"
+  version  = "1.0.34"
   agent_id = coder_agent.dev.id
   # If you prefer to commit with a different email, this allows you to do so.
   allow_email_change = true
@@ -397,7 +335,7 @@ module "personalize" {
 module "mux" {
   count                = data.coder_workspace.me.start_count
   source               = "registry.coder.com/coder/mux/coder"
-  version              = "1.4.3"
+  version              = "1.5.0"
   agent_id             = coder_agent.dev.id
   subdomain            = true
   display_name         = "Mux"
@@ -411,7 +349,7 @@ module "mux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.5.0"
+  version                 = "1.5.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -421,7 +359,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.5.0"
+  version                 = "1.6.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -475,7 +413,7 @@ module "windsurf" {
 module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.1.4"
+  version    = "1.1.5"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -517,18 +455,18 @@ resource "coder_agent" "dev" {
       # and is recreated with the container on workspace restart.
       MISE_DATA_DIR : "/home/coder/.local/share/mise",
     },
-    data.coder_parameter.enable_ai_gateway.value ? {
-      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
+    {
+      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
+      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
-    } : {}
+    }
   )
   startup_script_behavior = "blocking"
 
   display_apps {
-    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "stable"
-    vscode_insiders = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "insiders"
+    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode")
+    vscode_insiders = false
   }
 
   # The following metadata blocks are optional. They are used to display
@@ -585,16 +523,16 @@ resource "coder_agent" "dev" {
   resources_monitoring {
     memory {
       enabled   = true
-      threshold = data.coder_parameter.res_mon_memory_threshold.value
+      threshold = 80
     }
     volume {
       enabled   = true
-      threshold = data.coder_parameter.res_mon_volume_threshold.value
-      path      = data.coder_parameter.res_mon_volume_path.value
+      threshold = 90
+      path      = "/home/coder"
     }
     volume {
       enabled   = true
-      threshold = data.coder_parameter.res_mon_volume_threshold.value
+      threshold = 90
       path      = "/var/lib/docker"
     }
   }
@@ -745,6 +683,22 @@ resource "coder_script" "install-deps" {
     # (site tests + the claude-code/codex MCP servers below).
     cd "${local.repo_dir}/site" && pnpm exec playwright install chromium
     npx --yes --package=@playwright/mcp@0.0.75 playwright-core install --no-shell chromium
+
+    # Keep this version pinned because the dashboard is embeddable only while
+    # it omits X-Frame-Options and CSP headers. This is not a documented
+    # contract, so verify those headers before updating.
+    npm install -g agent-browser@0.33.2
+    agent-browser install
+
+    # Keep the agent skill aligned with the installed CLI version.
+    skill_src="$(npm root -g)/agent-browser/skills/agent-browser"
+    for skill_dir in "$HOME/.claude/skills" "$HOME/.agents/skills"; do
+      mkdir -p "$skill_dir"
+      rm -rf "$skill_dir/agent-browser"
+      cp -r "$skill_src" "$skill_dir/agent-browser"
+    done
+
+    agent-browser dashboard start
   EOT
 }
 
@@ -950,6 +904,15 @@ resource "docker_container" "workspace" {
   capabilities {
     add = ["CAP_NET_ADMIN", "CAP_SYS_NICE"]
   }
+  # Gated behind a parameter because mapping /dev/kvm fails container creation
+  # on hosts that do not expose it.
+  dynamic "devices" {
+    for_each = data.coder_parameter.enable_kvm.value ? [1] : []
+    content {
+      host_path      = "/dev/kvm"
+      container_path = "/dev/kvm"
+    }
+  }
   # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"
@@ -1007,8 +970,8 @@ module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
   version           = "5.2.0"
-  enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
-  anthropic_api_key = data.coder_parameter.enable_ai_gateway.value ? "" : var.anthropic_api_key
+  enable_ai_gateway = true
+  anthropic_api_key = ""
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
   mcp               = <<-EOF
@@ -1039,11 +1002,11 @@ resource "coder_app" "claude" {
 
 module "codex" {
   source            = "dev.registry.coder.com/coder-labs/codex/coder"
-  version           = "5.1.0"
+  version           = "5.3.0"
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
-  enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
-  openai_api_key    = data.coder_parameter.enable_ai_gateway.value ? "" : var.openai_api_key
+  enable_ai_gateway = true
+  openai_api_key    = ""
   mcp               = <<-EOT
     [mcp_servers.playwright]
     command = "npx"
@@ -1064,4 +1027,24 @@ resource "coder_app" "codex" {
     cd "${local.repo_dir}"
     exec tmux new-session -A -s codex codex
   EOT
+}
+
+# Live view of agent browser sessions, served by the dashboard that
+# install-deps starts. The dashboard has no authentication, so restrict
+# it to the workspace owner. "preview" is reserved for apps that need
+# the iframe navigation toolbar.
+resource "coder_app" "agent_browser" {
+  agent_id     = coder_agent.dev.id
+  slug         = "agent-browser"
+  display_name = "Agent Browser"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f310.png" // 🌐
+  url          = "http://localhost:4848"
+  share        = "owner"
+  subdomain    = true
+  open_in      = "tab"
+  healthcheck {
+    url       = "http://localhost:4848/"
+    interval  = 5
+    threshold = 6
+  }
 }

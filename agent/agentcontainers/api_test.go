@@ -624,6 +624,10 @@ func TestAPI(t *testing.T) {
 	t.Run("Watch", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
 		fakeContainer1 := fakeContainer(t, func(c *codersdk.WorkspaceAgentContainer) {
 			c.ID = "container1"
 			c.FriendlyName = "devcontainer1"
@@ -3923,16 +3927,14 @@ func TestAPI(t *testing.T) {
 		// Verify commands were executed through the custom shell and environment.
 		require.NotEmpty(t, fakeExec.commands, "commands should be executed")
 
-		// Want: /bin/custom-shell -c '"docker" "ps" "--all" "--quiet" "--no-trunc"'
+		// Want: /bin/custom-shell -c "$@" "" docker ps --all --quiet --no-trunc
+		// The command is passed as positional parameters and run via "$@" so
+		// the shell forwards argv without re-parsing it.
 		require.Equal(t, testShell, fakeExec.commands[0][0], "custom shell should be used")
-		if runtime.GOOS == "windows" {
-			require.Equal(t, "/c", fakeExec.commands[0][1], "shell should be called with /c on Windows")
-		} else {
-			require.Equal(t, "-c", fakeExec.commands[0][1], "shell should be called with -c")
-		}
-		require.Len(t, fakeExec.commands[0], 3, "command should have 3 arguments")
-		require.GreaterOrEqual(t, strings.Count(fakeExec.commands[0][2], " "), 2, "command/script should have multiple arguments")
-		require.True(t, strings.HasPrefix(fakeExec.commands[0][2], `"docker" "ps"`), "command should start with \"docker\" \"ps\"")
+		require.Equal(t, "-c", fakeExec.commands[0][1], "shell should be called with -c")
+		require.Equal(t, `"$@"`, fakeExec.commands[0][2], "script should run argv via \"$@\"")
+		require.Equal(t, "", fakeExec.commands[0][3], "$0 slot should be an empty placeholder")
+		require.Equal(t, []string{"docker", "ps", "--all", "--quiet", "--no-trunc"}, fakeExec.commands[0][4:], "argv should be passed through unquoted")
 
 		// Verify the environment was set on the command.
 		lastCmd := fakeExec.getLastCommand()

@@ -78,7 +78,6 @@ main() {
 		[enterprise]="Enterprise"
 		[examples]="Examples"
 		[helm]="Helm"
-		[install.sh]="Installer"
 		[provisionersdk]="SDK"
 		[provisionerd]="Provisioner"
 		[provisioner]="Provisioner"
@@ -88,6 +87,8 @@ main() {
 		[support]="Support"
 		[tailnet]="Networking"
 	)
+	# shfmt (>=3.13) parses [install.sh] as floating-point arithmetic in array literals.
+	humanized_areas["install.sh"]="Installer"
 
 	# Get hashes for all cherry-picked commits between the selected ref
 	# and main. These are sorted by commit title so that we can group

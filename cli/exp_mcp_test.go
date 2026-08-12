@@ -16,15 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentapi "github.com/coder/agentapi-sdk-go"
-	"github.com/coder/coder/v2/agent"
-	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/agent/agentsocket"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
 )
@@ -560,24 +557,18 @@ func TestExpMcpServerOptionalUserToken(t *testing.T) {
 	cancelCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
 
-	// Create a test deployment with a workspace and agent.
-	client, db := coderdtest.NewWithDatabase(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
-		a[0].Apps = []*proto.App{{Slug: "test-app"}}
-		return a
-	}).Do()
-
-	// Start a real agent with the socket server enabled.
+	// Start a real socket server, but with a fake (Coderd) AgentAPI.
 	socketPath := testutil.AgentSocketPath(t)
-	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
-		o.SocketServerEnabled = true
-		o.SocketPath = socketPath
-	})
-	coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+	socketServer, err := agentsocket.NewServer(logger.Named("agentsocket"), agentsocket.WithPath(socketPath))
+	require.NoError(t, err)
+	defer func() {
+		_ = socketServer.Close()
+	}()
+	fCoderdAgentAPI := &fakeCoderdAgentAPI{
+		t:       t,
+		testCtx: ctx,
+	}
+	socketServer.SetAgentAPI(fCoderdAgentAPI)
 
 	inv, _ := clitest.New(t,
 		"exp", "mcp", "server",
@@ -603,7 +594,7 @@ func TestExpMcpServerOptionalUserToken(t *testing.T) {
 
 	// Ensure we get a valid response
 	var initializeResponse map[string]interface{}
-	err := json.Unmarshal([]byte(output), &initializeResponse)
+	err = json.Unmarshal([]byte(output), &initializeResponse)
 	require.NoError(t, err)
 	require.Equal(t, "2.0", initializeResponse["jsonrpc"])
 	require.Equal(t, 1.0, initializeResponse["id"])
@@ -709,45 +700,45 @@ func TestExpMcpReporter(t *testing.T) {
 		}
 	}
 
-	type test struct {
+	type testCase struct {
 		// event simulates an event from the screen watcher.
 		event *codersdk.ServerSentEvent
 		// state, summary, and uri simulate a tool call from the AI agent.
 		state    codersdk.WorkspaceAppStatusState
 		summary  string
 		uri      string
-		expected *codersdk.WorkspaceAppStatus
+		expected *agentproto.UpdateAppStatusRequest
 	}
 
 	runs := []struct {
 		name            string
-		tests           []test
+		testCases       []testCase
 		disableAgentAPI bool
 	}{
 		// In this run the AI agent starts with a state change but forgets to update
 		// that it finished.
 		{
 			name: "Active",
-			tests: []test{
+			testCases: []testCase{
 				// First the AI agent updates with a state change.
 				{
 					state:   codersdk.WorkspaceAppStatusStateWorking,
 					summary: "doing work",
 					uri:     "https://dev.coder.com",
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateWorking,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_WORKING,
 						Message: "doing work",
-						URI:     "https://dev.coder.com",
+						Uri:     "https://dev.coder.com",
 					},
 				},
 				// Terminal goes quiet but the AI agent forgot the update, and it is
 				// caught by the screen watcher.  Message and URI are preserved.
 				{
 					event: makeStatusEvent(agentapi.StatusStable),
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateIdle,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_IDLE,
 						Message: "doing work",
-						URI:     "https://dev.coder.com",
+						Uri:     "https://dev.coder.com",
 					},
 				},
 				// A stable update now from the watcher should be discarded, as it is a
@@ -779,19 +770,19 @@ func TestExpMcpReporter(t *testing.T) {
 				// agent activity.  This time the "working" update will not be skipped.
 				{
 					event: makeMessageEvent(1, agentapi.RoleUser),
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateWorking,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_WORKING,
 						Message: "doing work",
-						URI:     "https://dev.coder.com",
+						Uri:     "https://dev.coder.com",
 					},
 				},
 				// Watcher reports stable again.
 				{
 					event: makeStatusEvent(agentapi.StatusStable),
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateIdle,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_IDLE,
 						Message: "doing work",
-						URI:     "https://dev.coder.com",
+						Uri:     "https://dev.coder.com",
 					},
 				},
 			},
@@ -799,51 +790,51 @@ func TestExpMcpReporter(t *testing.T) {
 		// In this run the AI agent never sends any state changes.
 		{
 			name: "Inactive",
-			tests: []test{
+			testCases: []testCase{
 				// The "working" status from the watcher should be accepted, even though
 				// there is no new user message, because it is the first update.
 				{
 					event: makeStatusEvent(agentapi.StatusRunning),
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateWorking,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_WORKING,
 						Message: "",
-						URI:     "",
+						Uri:     "",
 					},
 				},
 				// Stable update should be accepted.
 				{
 					event: makeStatusEvent(agentapi.StatusStable),
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateIdle,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_IDLE,
 						Message: "",
-						URI:     "",
+						Uri:     "",
 					},
 				},
 				// Zero ID should be accepted.
 				{
 					event: makeMessageEvent(0, agentapi.RoleUser),
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateWorking,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_WORKING,
 						Message: "",
-						URI:     "",
+						Uri:     "",
 					},
 				},
 				// Stable again.
 				{
 					event: makeStatusEvent(agentapi.StatusStable),
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateIdle,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_IDLE,
 						Message: "",
-						URI:     "",
+						Uri:     "",
 					},
 				},
 				// Next ID.
 				{
 					event: makeMessageEvent(1, agentapi.RoleUser),
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateWorking,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_WORKING,
 						Message: "",
-						URI:     "",
+						Uri:     "",
 					},
 				},
 			},
@@ -853,12 +844,12 @@ func TestExpMcpReporter(t *testing.T) {
 			name: "IgnoreAgentState",
 			// AI agent reports that it is finished but the summary says it is doing
 			// work.
-			tests: []test{
+			testCases: []testCase{
 				{
 					state:   codersdk.WorkspaceAppStatusStateIdle,
 					summary: "doing work",
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateWorking,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_WORKING,
 						Message: "doing work",
 					},
 				},
@@ -867,16 +858,16 @@ func TestExpMcpReporter(t *testing.T) {
 				{
 					state:   codersdk.WorkspaceAppStatusStateIdle,
 					summary: "finished",
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateWorking,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_WORKING,
 						Message: "finished",
 					},
 				},
 				// Once the watcher reports stable, then we record idle.
 				{
 					event: makeStatusEvent(agentapi.StatusStable),
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateIdle,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_IDLE,
 						Message: "finished",
 					},
 				},
@@ -884,16 +875,16 @@ func TestExpMcpReporter(t *testing.T) {
 				{
 					state:   codersdk.WorkspaceAppStatusStateFailure,
 					summary: "something broke",
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateFailure,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_FAILURE,
 						Message: "something broke",
 					},
 				},
 				// After failure, watcher reports stable -> idle.
 				{
 					event: makeStatusEvent(agentapi.StatusStable),
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateIdle,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_IDLE,
 						Message: "something broke",
 					},
 				},
@@ -902,12 +893,12 @@ func TestExpMcpReporter(t *testing.T) {
 		// Final states pass through with AgentAPI enabled.
 		{
 			name: "AllowFinalStates",
-			tests: []test{
+			testCases: []testCase{
 				{
 					state:   codersdk.WorkspaceAppStatusStateWorking,
 					summary: "doing work",
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateWorking,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_WORKING,
 						Message: "doing work",
 					},
 				},
@@ -915,8 +906,8 @@ func TestExpMcpReporter(t *testing.T) {
 				{
 					state:   codersdk.WorkspaceAppStatusStateComplete,
 					summary: "all done",
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateComplete,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_COMPLETE,
 						Message: "all done",
 					},
 				},
@@ -925,20 +916,20 @@ func TestExpMcpReporter(t *testing.T) {
 		// When AgentAPI is not being used, we accept agent state updates as-is.
 		{
 			name: "KeepAgentState",
-			tests: []test{
+			testCases: []testCase{
 				{
 					state:   codersdk.WorkspaceAppStatusStateWorking,
 					summary: "doing work",
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateWorking,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_WORKING,
 						Message: "doing work",
 					},
 				},
 				{
 					state:   codersdk.WorkspaceAppStatusStateIdle,
 					summary: "finished",
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateIdle,
+					expected: &agentproto.UpdateAppStatusRequest{
+						State:   agentproto.UpdateAppStatusRequest_IDLE,
 						Message: "finished",
 					},
 				},
@@ -954,50 +945,20 @@ func TestExpMcpReporter(t *testing.T) {
 			ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitMedium))
 			logger := testutil.Logger(t)
 
-			// Create a test deployment and workspace.
-			client, db := coderdtest.NewWithDatabase(t, nil)
-			user := coderdtest.CreateFirstUser(t, client)
-			client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-			r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OrganizationID: user.OrganizationID,
-				OwnerID:        user2.ID,
-			}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
-				a[0].Apps = []*proto.App{
-					{
-						Slug: "vscode",
-					},
-				}
-				return a
-			}).Do()
-
-			// Start a real agent with the socket server enabled.
+			// Start a real socket server, but with a fake (Coderd) AgentAPI.
 			socketPath := testutil.AgentSocketPath(t)
-			_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
-				o.SocketServerEnabled = true
-				o.SocketPath = socketPath
-			})
-			coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
-
-			// Watch the workspace for changes.
-			watcher, err := client.WatchWorkspace(ctx, r.Workspace.ID)
+			socketServer, err := agentsocket.NewServer(logger.Named("agentsocket"), agentsocket.WithPath(socketPath))
 			require.NoError(t, err)
-			var lastAppStatus codersdk.WorkspaceAppStatus
-			nextUpdate := func() codersdk.WorkspaceAppStatus {
-				for {
-					select {
-					case <-ctx.Done():
-						require.FailNow(t, "timed out waiting for status update")
-					case w, ok := <-watcher:
-						require.True(t, ok, "watch channel closed")
-						if w.LatestAppStatus != nil && w.LatestAppStatus.ID != lastAppStatus.ID {
-							t.Logf("Got status update: %s > %s", lastAppStatus.State, w.LatestAppStatus.State)
-							lastAppStatus = *w.LatestAppStatus
-							return lastAppStatus
-						}
-					}
-				}
+			defer func() {
+				_ = socketServer.Close()
+			}()
+			requests := make(chan *agentproto.UpdateAppStatusRequest)
+			fCoderdAgentAPI := &fakeCoderdAgentAPI{
+				t:        t,
+				testCtx:  ctx,
+				requests: requests,
 			}
+			socketServer.SetAgentAPI(fCoderdAgentAPI)
 
 			args := []string{
 				"exp", "mcp", "server",
@@ -1053,25 +1014,25 @@ func TestExpMcpReporter(t *testing.T) {
 				sender = <-listening
 			}
 
-			for _, test := range run.tests {
-				if test.event != nil {
-					err := sender(*test.event)
+			for _, tc := range run.testCases {
+				if tc.event != nil {
+					err := sender(*tc.event)
 					require.NoError(t, err)
 				} else {
 					// Call the tool and ensure it works.
-					payload := fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"state": %q, "summary": %q, "link": %q}}}`, test.state, test.summary, test.uri)
+					payload := fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"state": %q, "summary": %q, "link": %q}}}`, tc.state, tc.summary, tc.uri)
 					stdin.WriteLine(payload)
 					output := stdout.ReadLine(ctx)
 					require.NotEmpty(t, output, "did not receive a response from coder_report_task")
 					// Ensure it is valid JSON.
-					_, err = json.Marshal(output)
+					_, err := json.Marshal(output)
 					require.NoError(t, err, "did not receive valid JSON from coder_report_task")
 				}
-				if test.expected != nil {
-					got := nextUpdate()
-					require.Equal(t, got.State, test.expected.State)
-					require.Equal(t, got.Message, test.expected.Message)
-					require.Equal(t, got.URI, test.expected.URI)
+				if tc.expected != nil {
+					got := testutil.RequireReceive(ctx, t, requests)
+					require.Equal(t, tc.expected.State, got.State)
+					require.Equal(t, tc.expected.Message, got.Message)
+					require.Equal(t, tc.expected.Uri, got.Uri)
 				}
 			}
 			cancel()
@@ -1082,53 +1043,22 @@ func TestExpMcpReporter(t *testing.T) {
 	t.Run("Reconnect", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Create a test deployment and workspace.
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user2.ID,
-		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
-			a[0].Apps = []*proto.App{
-				{
-					Slug: "vscode",
-				},
-			}
-			return a
-		}).Do()
-
-		// Start a real agent with the socket server enabled.
+		// Start a real socket server, but with a fake (Coderd) AgentAPI.
 		socketPath := testutil.AgentSocketPath(t)
-		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
-			o.SocketServerEnabled = true
-			o.SocketPath = socketPath
-		})
-		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
-
-		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
-
-		// Watch the workspace for changes.
-		watcher, err := client.WatchWorkspace(ctx, r.Workspace.ID)
+		socketServer, err := agentsocket.NewServer(logger.Named("agentsocket"), agentsocket.WithPath(socketPath))
 		require.NoError(t, err)
-		var lastAppStatus codersdk.WorkspaceAppStatus
-		nextUpdate := func() codersdk.WorkspaceAppStatus {
-			for {
-				select {
-				case <-ctx.Done():
-					require.FailNow(t, "timed out waiting for status update")
-				case w, ok := <-watcher:
-					require.True(t, ok, "watch channel closed")
-					if w.LatestAppStatus != nil && w.LatestAppStatus.ID != lastAppStatus.ID {
-						t.Logf("Got status update: %s > %s", lastAppStatus.State, w.LatestAppStatus.State)
-						lastAppStatus = *w.LatestAppStatus
-						return lastAppStatus
-					}
-				}
-			}
+		defer func() {
+			_ = socketServer.Close()
+		}()
+		requests := make(chan *agentproto.UpdateAppStatusRequest)
+		fCoderdAgentAPI := &fakeCoderdAgentAPI{
+			t:        t,
+			testCtx:  ctx,
+			requests: requests,
 		}
+		socketServer.SetAgentAPI(fCoderdAgentAPI)
 
 		// Mock AI AgentAPI server that supports disconnect/reconnect.
 		disconnect := make(chan struct{})
@@ -1193,15 +1123,15 @@ func TestExpMcpReporter(t *testing.T) {
 		toolPayload := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"coder_report_task","arguments":{"state":"working","summary":"doing work","link":""}}}`
 		stdin.WriteLine(toolPayload)
 		_ = stdout.ReadLine(ctx) // ignore response
-		got := nextUpdate()
-		require.Equal(t, codersdk.WorkspaceAppStatusStateWorking, got.State)
+		got := testutil.RequireReceive(ctx, t, requests)
+		require.Equal(t, agentproto.UpdateAppStatusRequest_WORKING, got.State)
 		require.Equal(t, "doing work", got.Message)
 
 		// Watcher sends stable, verify idle is reported.
 		err = sender(*makeStatusEvent(agentapi.StatusStable))
 		require.NoError(t, err)
-		got = nextUpdate()
-		require.Equal(t, codersdk.WorkspaceAppStatusStateIdle, got.State)
+		got = testutil.RequireReceive(ctx, t, requests)
+		require.Equal(t, agentproto.UpdateAppStatusRequest_IDLE, got.State)
 
 		// Disconnect the SSE connection by signaling the handler to return.
 		testutil.RequireSend(ctx, t, disconnect, struct{}{})
@@ -1213,16 +1143,34 @@ func TestExpMcpReporter(t *testing.T) {
 		toolPayload = `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"coder_report_task","arguments":{"state":"working","summary":"reconnected","link":""}}}`
 		stdin.WriteLine(toolPayload)
 		_ = stdout.ReadLine(ctx) // ignore response
-		got = nextUpdate()
-		require.Equal(t, codersdk.WorkspaceAppStatusStateWorking, got.State)
+		got = testutil.RequireReceive(ctx, t, requests)
+		require.Equal(t, agentproto.UpdateAppStatusRequest_WORKING, got.State)
 		require.Equal(t, "reconnected", got.Message)
 
 		// Verify the watcher still processes events after reconnect.
 		err = sender(*makeStatusEvent(agentapi.StatusStable))
 		require.NoError(t, err)
-		got = nextUpdate()
-		require.Equal(t, codersdk.WorkspaceAppStatusStateIdle, got.State)
-
-		cancel()
+		got = testutil.RequireReceive(ctx, t, requests)
+		require.Equal(t, agentproto.UpdateAppStatusRequest_IDLE, got.State)
 	})
+}
+
+// fakeAgentAPI implements just the UpdateAppStatus method of
+// DRPCAgentClient28 for testing. Calling any other method will panic.
+type fakeCoderdAgentAPI struct {
+	agentproto.DRPCAgentClient28
+	t        *testing.T
+	testCtx  context.Context
+	requests chan *agentproto.UpdateAppStatusRequest
+}
+
+func (f *fakeCoderdAgentAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
+	select {
+	case f.requests <- req:
+	case <-f.testCtx.Done():
+		f.t.Fatalf("textCtx expired before UpdateAppStatusRequest accepted")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return &agentproto.UpdateAppStatusResponse{}, nil
 }

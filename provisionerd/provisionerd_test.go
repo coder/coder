@@ -47,6 +47,20 @@ func closedWithin(c chan struct{}, d time.Duration) func() bool {
 	}
 }
 
+// assertNoErrorOrCanceled asserts that a send or receive on the AcquireJobWithCancel
+// stream succeeded, but tolerates context.Canceled. dRPC is racy and will
+// sometimes return context.Canceled even after it has successfully sent the
+// message, when the stream is canceled right away, e.g. a test that closes the
+// daemon immediately after acquisition. Swallowing it here is safe: a job that
+// was genuinely never delivered surfaces as a downstream failure when the test
+// waits on its completion signal. Any other error fails the test.
+func assertNoErrorOrCanceled(t *testing.T, err error) {
+	t.Helper()
+	if !xerrors.Is(err, context.Canceled) {
+		assert.NoError(t, err)
+	}
+}
+
 func TestProvisionerd(t *testing.T) {
 	t.Parallel()
 
@@ -110,7 +124,7 @@ func TestProvisionerd(t *testing.T) {
 							},
 						},
 					})
-					assert.NoError(t, err)
+					assertNoErrorOrCanceled(t, err)
 					return nil
 				},
 				updateJob: noopUpdateJob,
@@ -256,7 +270,7 @@ func TestProvisionerd(t *testing.T) {
 							},
 						},
 					})
-					assert.NoError(t, err)
+					assertNoErrorOrCanceled(t, err)
 					return nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
@@ -734,7 +748,7 @@ func TestProvisionerd(t *testing.T) {
 							},
 						},
 					})
-					assert.NoError(t, err)
+					assertNoErrorOrCanceled(t, err)
 					return nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
@@ -817,7 +831,7 @@ func TestProvisionerd(t *testing.T) {
 							},
 						},
 					})
-					assert.NoError(t, err)
+					assertNoErrorOrCanceled(t, err)
 					return nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
@@ -917,10 +931,10 @@ func TestProvisionerd(t *testing.T) {
 					if second.Load() {
 						job = &proto.AcquiredJob{}
 						_, err := stream.Recv()
-						assert.NoError(t, err)
+						assertNoErrorOrCanceled(t, err)
 					}
 					err := stream.Send(job)
-					assert.NoError(t, err)
+					assertNoErrorOrCanceled(t, err)
 					return nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
@@ -999,7 +1013,7 @@ func TestProvisionerd(t *testing.T) {
 					if second.Load() {
 						completeOnce.Do(func() { close(completeChan) })
 						_, err := stream.Recv()
-						assert.NoError(t, err)
+						assertNoErrorOrCanceled(t, err)
 						return nil
 					}
 					job := &proto.AcquiredJob{
@@ -1015,7 +1029,7 @@ func TestProvisionerd(t *testing.T) {
 						},
 					}
 					err := stream.Send(job)
-					assert.NoError(t, err)
+					assertNoErrorOrCanceled(t, err)
 					return nil
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
@@ -1095,9 +1109,9 @@ func TestProvisionerd(t *testing.T) {
 					logger.Info(ctx, "provisioner stage: AcquiredJob")
 					if len(ops) > 0 {
 						_, err := stream.Recv()
-						assert.NoError(t, err)
+						assertNoErrorOrCanceled(t, err)
 						err = stream.Send(&proto.AcquiredJob{})
-						assert.NoError(t, err)
+						assertNoErrorOrCanceled(t, err)
 						return nil
 					}
 					ops = append(ops, "AcquireJob")
@@ -1114,7 +1128,7 @@ func TestProvisionerd(t *testing.T) {
 							},
 						},
 					})
-					assert.NoError(t, err)
+					assertNoErrorOrCanceled(t, err)
 					return nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
@@ -1394,12 +1408,7 @@ func (a *acquireOne) acquireWithCancel(stream proto.DRPCProvisionerDaemon_Acquir
 		return nil
 	}
 	err := stream.Send(a.job)
-	// dRPC is racy, and sometimes will return context.Canceled after it has successfully sent the message if we cancel
-	// right away, e.g. in unit tests that complete. So, just swallow the error in that case. If we are canceled before
-	// the job was acquired, presumably something else in the test will have failed.
-	if !xerrors.Is(err, context.Canceled) {
-		assert.NoError(a.t, err)
-	}
+	assertNoErrorOrCanceled(a.t, err)
 	return nil
 }
 

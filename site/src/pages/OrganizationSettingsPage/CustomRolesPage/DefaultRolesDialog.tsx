@@ -76,8 +76,10 @@ const ActiveDefaultRolesDialog: FC<ActiveProps> = ({
 				<DialogHeader>
 					<DialogTitle>Edit default roles</DialogTitle>
 					<DialogDescription>
-						These roles are attached to every member of this organization. Use
-						an empty selection to grant new members only the floor.
+						These roles are granted to every member of this organization,
+						current and future. Removing a role removes it from all members that
+						are not assigned that role directly. Without Organization Workspace
+						Access, members cannot create or use workspaces.
 					</DialogDescription>
 				</DialogHeader>
 				<RoleSelector
@@ -85,6 +87,11 @@ const ActiveDefaultRolesDialog: FC<ActiveProps> = ({
 					availableRoles={availableRoles}
 					selectedRoles={selected}
 					onChange={setSelected}
+					disabledReason={(role) =>
+						role.built_in
+							? undefined
+							: "Only built-in roles are supported as organization default roles"
+					}
 				/>
 				<DialogFooter>
 					<DialogActions

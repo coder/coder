@@ -1,0 +1,9 @@
+coder:
+  image:
+    tag: v2.36.0
+aigateway:
+  keySecret:
+    name: key
+  listenerTLS:
+    name: listener
+    keyKey: ""

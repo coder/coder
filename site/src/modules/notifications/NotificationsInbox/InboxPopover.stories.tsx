@@ -66,9 +66,7 @@ export const OnRetry: Story = {
 		await expect(args.onRetry).toHaveBeenCalledTimes(1);
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };
 
@@ -86,9 +84,7 @@ export const OnMarkAllAsRead: Story = {
 		await expect(args.onMarkAllAsRead).toHaveBeenCalledTimes(1);
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };
 
@@ -111,8 +107,6 @@ export const OnMarkNotificationAsRead: Story = {
 		);
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };

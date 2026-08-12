@@ -396,6 +396,7 @@ type workspaceTargetFlags struct {
 	template         string
 	targetWorkspaces string
 	useHostLogin     bool
+	allowEmpty       bool
 }
 
 // attach adds the workspace target flags to the given options set.
@@ -463,6 +464,9 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 
 	// Validate range
 	if len(workspaces) == 0 {
+		if f.allowEmpty {
+			return nil, nil
+		}
 		return nil, xerrors.Errorf("no scaletest workspaces exist")
 	}
 	if targetEnd > len(workspaces) {

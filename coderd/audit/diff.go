@@ -25,6 +25,7 @@ type Auditable interface {
 		database.OAuth2ProviderApp |
 		database.OAuth2ProviderAppSecret |
 		database.PrebuildsSettings |
+		database.OAuth2ProviderSettings |
 		database.CustomRole |
 		database.AuditableOrganizationMember |
 		database.Organization |
@@ -33,13 +34,13 @@ type Auditable interface {
 		idpsync.GroupSyncSettings |
 		idpsync.RoleSyncSettings |
 		database.TaskTable |
-		database.AiSeatState |
+		database.AISeatState |
 		database.AIProvider |
 		database.AIProviderKey |
 		database.AIGatewayKey |
 		database.Chat |
-		database.AuditableGroupAiBudget |
-		database.AuditableUserAiBudgetOverride |
+		database.AuditableGroupAIBudget |
+		database.AuditableUserAIBudgetOverride |
 		database.UserSecret |
 		database.UserSkill
 }

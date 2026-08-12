@@ -215,19 +215,19 @@ func TestRoleByName(t *testing.T) {
 		testCases := []struct {
 			Role Role
 		}{
-			{Role: builtInRoles[owner](uuid.Nil)},
-			{Role: builtInRoles[member](uuid.Nil)},
-			{Role: builtInRoles[templateAdmin](uuid.Nil)},
-			{Role: builtInRoles[userAdmin](uuid.Nil)},
-			{Role: builtInRoles[auditor](uuid.Nil)},
+			{Role: loadBuiltinRoles()[owner](uuid.Nil)},
+			{Role: loadBuiltinRoles()[member](uuid.Nil)},
+			{Role: loadBuiltinRoles()[templateAdmin](uuid.Nil)},
+			{Role: loadBuiltinRoles()[userAdmin](uuid.Nil)},
+			{Role: loadBuiltinRoles()[auditor](uuid.Nil)},
 
-			{Role: builtInRoles[orgAdmin](uuid.New())},
-			{Role: builtInRoles[orgAdmin](uuid.New())},
-			{Role: builtInRoles[orgAdmin](uuid.New())},
+			{Role: loadBuiltinRoles()[orgAdmin](uuid.New())},
+			{Role: loadBuiltinRoles()[orgAdmin](uuid.New())},
+			{Role: loadBuiltinRoles()[orgAdmin](uuid.New())},
 
-			{Role: builtInRoles[orgAuditor](uuid.New())},
-			{Role: builtInRoles[orgAuditor](uuid.New())},
-			{Role: builtInRoles[orgAuditor](uuid.New())},
+			{Role: loadBuiltinRoles()[orgAuditor](uuid.New())},
+			{Role: loadBuiltinRoles()[orgAuditor](uuid.New())},
+			{Role: loadBuiltinRoles()[orgAuditor](uuid.New())},
 		}
 
 		for _, c := range testCases {

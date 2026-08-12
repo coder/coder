@@ -114,7 +114,7 @@ func TestRecordToolUsage(t *testing.T) {
 						Type:      "function_call",
 						CallID:    "call_abc",
 						Name:      "get_weather",
-						Arguments: "",
+						Arguments: oairesponses.ResponseOutputItemUnionArguments{OfString: ""},
 					},
 				},
 			},
@@ -138,13 +138,13 @@ func TestRecordToolUsage(t *testing.T) {
 						Type:      "function_call",
 						CallID:    "call_1",
 						Name:      "get_weather",
-						Arguments: `{"location": "NYC"}`,
+						Arguments: oairesponses.ResponseOutputItemUnionArguments{OfString: `{"location": "NYC"}`},
 					},
 					{
 						Type:      "function_call",
 						CallID:    "call_2",
 						Name:      "bad_json_args",
-						Arguments: `{"bad": args`,
+						Arguments: oairesponses.ResponseOutputItemUnionArguments{OfString: `{"bad": args`},
 					},
 					{
 						Type: "message",
@@ -161,7 +161,7 @@ func TestRecordToolUsage(t *testing.T) {
 						Type:      "function_call",
 						CallID:    "call_4",
 						Name:      "calculate",
-						Arguments: `{"a": 1, "b": 2}`,
+						Arguments: oairesponses.ResponseOutputItemUnionArguments{OfString: `{"a": 1, "b": 2}`},
 					},
 				},
 			},
@@ -198,6 +198,89 @@ func TestRecordToolUsage(t *testing.T) {
 					Args:           map[string]any{"a": float64(1), "b": float64(2)},
 					Injected:       false,
 				},
+			},
+		},
+		{
+			// Function/agentic tools expose both id and call_id; both are captured.
+			name: "function_call_captures_both_ids",
+			response: &oairesponses.Response{
+				ID: "resp_both",
+				Output: []oairesponses.ResponseOutputItemUnion{
+					{
+						Type:      "function_call",
+						ID:        "fc_item_1",
+						CallID:    "call_both",
+						Name:      "get_weather",
+						Arguments: oairesponses.ResponseOutputItemUnionArguments{OfString: `{"location": "NYC"}`},
+					},
+				},
+			},
+			expected: []*recorder.ToolUsageRecord{
+				{
+					InterceptionID: id.String(),
+					MsgID:          "resp_both",
+					ItemID:         "fc_item_1",
+					ToolCallID:     "call_both",
+					Tool:           "get_weather",
+					Args:           map[string]any{"location": "NYC"},
+					Injected:       false,
+				},
+			},
+		},
+		{
+			// Hosted tools only have id (no call_id) and usually no name, so
+			// the type is recorded as the tool name and ToolCallID is empty.
+			name: "hosted_tool_uses_item_id_no_call_id",
+			response: &oairesponses.Response{
+				ID: "resp_ws",
+				Output: []oairesponses.ResponseOutputItemUnion{
+					{
+						Type: "web_search_call",
+						ID:   "ws_abc",
+					},
+				},
+			},
+			expected: []*recorder.ToolUsageRecord{
+				{
+					InterceptionID: id.String(),
+					MsgID:          "resp_ws",
+					ItemID:         "ws_abc",
+					ToolCallID:     "",
+					Tool:           "web_search_call",
+					Injected:       false,
+				},
+			},
+		},
+		{
+			// Exercises every newly recorded tool type, the name-falls-back-to
+			// -type behavior, an explicit name override (mcp_call), and that
+			// non-tool output items (reasoning) are still skipped.
+			name: "all_additional_tool_types",
+			response: &oairesponses.Response{
+				ID: "resp_all",
+				Output: []oairesponses.ResponseOutputItemUnion{
+					{Type: "reasoning", ID: "rs_skip"},
+					{Type: "web_search_call", ID: "ws_1"},
+					{Type: "computer_call", ID: "cu_1", CallID: "call_cu"},
+					{Type: "local_shell_call", ID: "ls_1", CallID: "call_ls"},
+					{Type: "shell_call", ID: "sh_1", CallID: "call_sh"},
+					{Type: "apply_patch_call", ID: "ap_1", CallID: "call_ap"},
+					{Type: "code_interpreter_call", ID: "ci_1"},
+					{Type: "mcp_call", ID: "mcp_1", Name: "fetch"},
+					{Type: "file_search_call", ID: "fs_1"},
+					{Type: "image_generation_call", ID: "ig_1"},
+				},
+			},
+			expected: []*recorder.ToolUsageRecord{
+				{InterceptionID: id.String(), MsgID: "resp_all", ItemID: "ws_1", Tool: "web_search_call"},
+				{InterceptionID: id.String(), MsgID: "resp_all", ItemID: "cu_1", ToolCallID: "call_cu", Tool: "computer_call"},
+				{InterceptionID: id.String(), MsgID: "resp_all", ItemID: "ls_1", ToolCallID: "call_ls", Tool: "local_shell_call"},
+				{InterceptionID: id.String(), MsgID: "resp_all", ItemID: "sh_1", ToolCallID: "call_sh", Tool: "shell_call"},
+				{InterceptionID: id.String(), MsgID: "resp_all", ItemID: "ap_1", ToolCallID: "call_ap", Tool: "apply_patch_call"},
+				{InterceptionID: id.String(), MsgID: "resp_all", ItemID: "ci_1", Tool: "code_interpreter_call"},
+				{InterceptionID: id.String(), MsgID: "resp_all", ItemID: "mcp_1", Tool: "fetch"},
+				{InterceptionID: id.String(), MsgID: "resp_all", ItemID: "fs_1", Tool: "file_search_call"},
+				{InterceptionID: id.String(), MsgID: "resp_all", ItemID: "ig_1", Tool: "image_generation_call"},
 			},
 		},
 	}
@@ -318,6 +401,34 @@ func TestRecordTokenUsage(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Upstream violates the invariant that InputTokens includes
+			// CachedTokens. Input must clamp to 0 so it never panics a
+			// Prometheus counter when used as an increment.
+			name: "cached_tokens_exceed_input_tokens_clamps_to_zero",
+			response: &oairesponses.Response{
+				ID: "resp_clamp",
+				Usage: oairesponses.ResponseUsage{
+					InputTokens:  10,
+					OutputTokens: 20,
+					TotalTokens:  30,
+					InputTokensDetails: oairesponses.ResponseUsageInputTokensDetails{
+						CachedTokens: 40,
+					},
+				},
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID:       id.String(),
+				MsgID:                "resp_clamp",
+				Input:                0, // max(0, 10 input - 40 cached)
+				Output:               20,
+				CacheReadInputTokens: 40,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     30,
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -415,18 +526,18 @@ func TestMarkKeyOnError(t *testing.T) {
 			expectedState:  keypool.KeyStateTemporary,
 		},
 		{
-			// Auth failure: mark permanent.
-			name:           "401_marks_permanent",
+			// Auth failure: temporary cooldown so the key recovers.
+			name:           "401_marks_temporary",
 			err:            &openai.Error{StatusCode: http.StatusUnauthorized, Response: &http.Response{StatusCode: http.StatusUnauthorized}},
 			expectedReturn: true,
-			expectedState:  keypool.KeyStatePermanent,
+			expectedState:  keypool.KeyStateTemporary,
 		},
 		{
-			// Auth forbidden: mark permanent.
-			name:           "403_marks_permanent",
+			// Forbidden is per-request, not key-specific.
+			name:           "403_does_not_mark",
 			err:            &openai.Error{StatusCode: http.StatusForbidden, Response: &http.Response{StatusCode: http.StatusForbidden}},
-			expectedReturn: true,
-			expectedState:  keypool.KeyStatePermanent,
+			expectedReturn: false,
+			expectedState:  keypool.KeyStateValid,
 		},
 		{
 			// Server errors are not key-specific.
@@ -445,7 +556,7 @@ func TestMarkKeyOnError(t *testing.T) {
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
 
-			base := &responsesInterceptionBase{cfg: config.OpenAI{KeyPool: pool}, logger: slog.Make()}
+			base := &responsesInterceptionBase{cred: &intercept.CentralizedPool{Pool: pool}, logger: slog.Make()}
 
 			got := base.markKeyOnError(context.Background(), key, tc.err)
 			assert.Equal(t, tc.expectedReturn, got)

@@ -67,6 +67,9 @@ var (
 
 	//go:embed openai/chatcompletions/streaming_injected_tool_nonzero_index.txtar
 	OaiChatStreamingInjectedToolNonzeroIndex []byte
+
+	//go:embed openai/chatcompletions/streaming_cumulative_usage_injected_tool.txtar
+	OaiChatStreamingCumulativeUsageInjectedTool []byte
 )
 
 var (
@@ -90,6 +93,9 @@ var (
 
 	//go:embed openai/responses/blocking/custom_tool.txtar
 	OaiResponsesBlockingCustomTool []byte
+
+	//go:embed openai/responses/blocking/web_search.txtar
+	OaiResponsesBlockingWebSearch []byte
 
 	//go:embed openai/responses/blocking/conversation.txtar
 	OaiResponsesBlockingConversation []byte
@@ -122,6 +128,9 @@ var (
 
 	//go:embed openai/responses/streaming/builtin_tool.txtar
 	OaiResponsesStreamingBuiltinTool []byte
+
+	//go:embed openai/responses/streaming/web_search.txtar
+	OaiResponsesStreamingWebSearch []byte
 
 	//go:embed openai/responses/streaming/multi_reasoning_builtin_tool.txtar
 	OaiResponsesStreamingMultiReasoningBuiltinTool []byte

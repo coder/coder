@@ -9,8 +9,12 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - Observability and isolation: Use [Observability Guide for Agents](.claude/docs/OBSERVABILITY.md) for logs, tracing, and metrics, and [Development Isolation Guide for Agents](.claude/docs/DEV_ISOLATION.md) for ports, state, readiness, and cleanup.
 - Failures: Use [Agent Failure Catalog](.claude/docs/AGENT_FAILURES.md) for repeatable failure formats and seeded diagnostics.
 - Language and area docs: Use [Modern Go](.claude/docs/GO.md), [Testing Patterns and Best Practices](.claude/docs/TESTING.md), [Database Development Patterns](.claude/docs/DATABASE.md), [OAuth2 Development Guide](.claude/docs/OAUTH2.md), [Coder Architecture](.claude/docs/ARCHITECTURE.md), [Troubleshooting Guide](.claude/docs/TROUBLESHOOTING.md), [Documentation Style Guide](.claude/docs/DOCS_STYLE_GUIDE.md), and [Pull Request Description Style Guide](.claude/docs/PR_STYLE_GUIDE.md) when that area is in scope.
+- Docs content scope: Use [Coder Docs Content Guidelines](docs/.style/content-guidelines.md) to decide whether a piece of content belongs in `docs/` at all. The Documentation Style Guide above covers prose and formatting; the content guidelines govern scope and routing and supersede the style guide on conflicts.
 - Compatibility: `.agents/docs` symlinks to `.claude/docs` for agent runtimes that look there.
-- Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`.
+- Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`. For code under `site/src/`, the [Frontend Patterns](.claude/docs/FRONTEND_PATTERNS.md) rule contract (FE1 to FE10) applies.
+- Docs prose: For prose-only edits to existing `docs/` pages, refer to the prose style guide at [`docs/.style/style-guide/`](docs/.style/style-guide/README.md).
+  For supporting agent-specific guidance, refer to [`.claude/docs/DOCS_STYLE_GUIDE.md`](.claude/docs/DOCS_STYLE_GUIDE.md), which covers structure, research, and content patterns.
+- Docs authoring: For new, moved, or restructured `docs/` pages, or when unsure, load the [`write-docs` skill](.claude/skills/write-docs/SKILL.md) first. It points at the canonical content guidelines and the prose style guide above, then walks research, routing, Diátaxis mode, structure, and validation.
 
 ## Foundational rules
 
@@ -83,6 +87,10 @@ instructions focused on guardrails that agents should see immediately.
   [OAuth2 Development Guide](.claude/docs/OAUTH2.md). OAuth2 endpoints must
   use RFC-compliant errors such as `writeOAuth2Error(...)`, and public
   endpoints that need system access should use `dbauthz.AsSystemRestricted`.
+- **Chatd**: consult [Chatd Architecture](coderd/x/chatd/ARCHITECTURE.md) to
+  understand the architecture of the chatd subsystem. If you update the
+  chatd subsystem in ways that affect the architecture, you must update the
+  architecture document.
 - **API design**: Follow the API guardrails in
   [Development Workflows and Guidelines](.claude/docs/WORKFLOWS.md),
   including swagger annotations for new public HTTP endpoints.
@@ -96,6 +104,11 @@ instructions focused on guardrails that agents should see immediately.
 - **Frontend**: Read [Frontend Development Guidelines](site/AGENTS.md)
   before changing anything under `site/`. Reuse shared UI primitives when
   possible and prefer Storybook stories for component and page testing.
+- **GitHub Actions permissions**: Follow least privilege as recommended by
+  OpenSSF Scorecard. Do not set write permissions at the workflow
+  (top) level. Default every workflow to `permissions: {}` at the top level
+  and grant only the specific permissions each job needs under
+  `jobs.<id>.permissions`.
 
 ## Quick Reference
 
@@ -212,7 +225,9 @@ manually before starting work:
 - `.claude/docs/PR_STYLE_GUIDE.md` - PR description format (when writing PRs)
 - `.claude/docs/OAUTH2.md` - OAuth2 and RFC compliance (when touching auth)
 - `.claude/docs/TROUBLESHOOTING.md` - common failures and fixes (when stuck)
-- `.claude/docs/DOCS_STYLE_GUIDE.md` - docs conventions (when writing `docs/`)
+- `.claude/docs/DOCS_STYLE_GUIDE.md` - docs prose and formatting (when writing `docs/`)
+- `docs/.style/content-guidelines.md` - canonical content scope and routing rules (when writing `docs/`; governs on conflicts with the style guide)
+- `.claude/skills/write-docs/SKILL.md` - authoring workflow and guardrails (for new, moved, or restructured `docs/` pages)
 
 **For frontend work**, also read `site/AGENTS.md` before making any changes
 in `site/`.

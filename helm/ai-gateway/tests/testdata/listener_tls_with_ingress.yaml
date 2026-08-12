@@ -1,0 +1,14 @@
+coder:
+  image:
+    tag: v2.36.0
+  env:
+    - name: CODER_URL
+      value: http://coder.default.svc.cluster.local:80
+aigateway:
+  keySecret:
+    name: ai-gateway-key
+  listenerTLS:
+    name: listener-tls
+ingress:
+  enable: true
+  host: ai.example.com

@@ -3,7 +3,7 @@ import { type FC, useRef, useState } from "react";
 import type { UserSecret } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -11,6 +11,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Table,
 	TableBody,
@@ -21,6 +22,11 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { relativeTime } from "#/utils/time";
 
 type SecretsTableProps = {
@@ -34,6 +40,10 @@ type SecretsTableProps = {
 		returnFocusElement?: HTMLElement | null,
 	) => void;
 	onDeleteSecret: (secret: UserSecret) => Promise<void> | void;
+	onToggleEnabled: (
+		secret: UserSecret,
+		enabled: boolean,
+	) => Promise<void> | void;
 };
 
 export const SecretsTable: FC<SecretsTableProps> = ({
@@ -44,8 +54,25 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 	onAddSecret,
 	onEditSecret,
 	onDeleteSecret,
+	onToggleEnabled,
 }) => {
 	const [secretToDelete, setSecretToDelete] = useState<UserSecret>();
+	const [togglingSecretId, setTogglingSecretId] = useState<string | null>(null);
+
+	const handleToggle = (secret: UserSecret, enabled: boolean) => {
+		setTogglingSecretId(secret.id);
+		void Promise.resolve()
+			.then(() => onToggleEnabled(secret, enabled))
+			.catch(() => {
+				// onToggleEnabled reports failures with a toast before rejecting.
+				// Swallow the rejection here to avoid an unhandled promise rejection warning.
+			})
+			.finally(() => {
+				setTogglingSecretId((current) =>
+					current === secret.id ? null : current,
+				);
+			});
+	};
 
 	return (
 		<>
@@ -69,12 +96,13 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 			<Table aria-label="User secrets">
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[16%]">Name</TableHead>
-						<TableHead className="w-[14%]">Environment variable</TableHead>
-						<TableHead className="w-[18%]">File path</TableHead>
-						<TableHead className="w-[11%]">Type</TableHead>
-						<TableHead className="w-[23%]">Description</TableHead>
-						<TableHead className="w-[12%]">Updated</TableHead>
+						<TableHead className="w-[14%]">Name</TableHead>
+						<TableHead className="w-[13%]">Environment variable</TableHead>
+						<TableHead className="w-[16%]">File path</TableHead>
+						<TableHead className="w-[10%]">Type</TableHead>
+						<TableHead className="w-[20%]">Description</TableHead>
+						<TableHead className="w-[11%]">Updated</TableHead>
+						<TableHead className="w-[15%]">Enabled</TableHead>
 						<TableHead className="w-[1%]" />
 					</TableRow>
 				</TableHeader>
@@ -112,8 +140,15 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 										fallback="No description"
 									/>
 								</TableCell>
-								<TableCell data-chromatic="ignore">
+								<TableCell data-pixel="ignore">
 									{relativeTime(secret.updated_at)}
+								</TableCell>
+								<TableCell>
+									<EnabledToggle
+										secret={secret}
+										isPending={togglingSecretId === secret.id}
+										onToggle={handleToggle}
+									/>
 								</TableCell>
 								<TableCell>
 									<SecretRowActions
@@ -158,6 +193,66 @@ const SecretTypeBadge: FC<{ secret: UserSecret }> = ({ secret }) => {
 	}
 
 	return <Badge>not injected</Badge>;
+};
+
+type EnabledToggleProps = {
+	secret: UserSecret;
+	isPending: boolean;
+	onToggle: (secret: UserSecret, enabled: boolean) => void;
+};
+
+const EnabledToggle: FC<EnabledToggleProps> = ({
+	secret,
+	isPending,
+	onToggle,
+}) => {
+	const hasTarget = Boolean(secret.env_name) || Boolean(secret.file_path);
+	// An enabled secret must have at least one injection target. Prevent
+	// enabling a target-less secret; the user must add a target first.
+	const cannotEnable = !secret.enabled && !hasTarget;
+	const label = `Toggle secret ${secret.name}`;
+	const stateLabel = secret.enabled ? "Enabled" : "Disabled";
+
+	const control = (
+		<Switch
+			aria-label={label}
+			checked={secret.enabled}
+			disabled={isPending || cannotEnable}
+			onCheckedChange={(checked) => onToggle(secret, checked)}
+		/>
+	);
+
+	if (cannotEnable) {
+		return (
+			<div className="flex items-center gap-2">
+				<Tooltip>
+					<TooltipTrigger asChild>
+						{/*
+						 * Wrap the disabled Switch in a focusable span so the
+						 * tooltip can be triggered by keyboard and pointer.
+						 * biome-ignore lint/a11y/noNoninteractiveTabindex: needed to
+						 * surface the tooltip on a disabled control via keyboard focus.
+						 */}
+						<span tabIndex={0} className="inline-flex">
+							{control}
+						</span>
+					</TooltipTrigger>
+					<TooltipContent side="top">
+						Add an environment variable or file path before enabling this
+						secret.
+					</TooltipContent>
+				</Tooltip>
+				<span className="text-content-secondary text-xs">{stateLabel}</span>
+			</div>
+		);
+	}
+
+	return (
+		<div className="flex items-center gap-2">
+			{control}
+			<span className="text-content-secondary text-xs">{stateLabel}</span>
+		</div>
+	);
 };
 
 type SecretRowActionsProps = {

@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -343,13 +342,11 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		}
 		return nil, ReadBodyAsError(res)
 	}
-	// Align with the frame size of yamux.
-	conn.SetReadLimit(256 * 1024)
-
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	// Use background context because caller should close the client.
 	_, wsNetConn := WebsocketNetConn(context.Background(), conn, websocket.MessageBinary)
+	conn.SetReadLimit(drpcsdk.YamuxDefaultStreamWindowSize)
 	session, err := yamux.Client(wsNetConn, config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, "")
@@ -411,6 +408,25 @@ func ReservedProvisionerKeyNames() []string {
 	}
 }
 
+// IsReservedProvisionerKey reports whether the given ID is one of the reserved
+// provisioner keys (built-in, user-auth, PSK). Reserved keys are created by the
+// system and cannot be deleted.
+func IsReservedProvisionerKey(id uuid.UUID) bool {
+	switch id {
+	case ProvisionerKeyUUIDBuiltIn, ProvisionerKeyUUIDUserAuth, ProvisionerKeyUUIDPSK:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsDeletableProvisionerKey reports whether the given ID identifies a
+// provisioner key that can be deleted. The zero value and reserved keys cannot
+// be deleted.
+func IsDeletableProvisionerKey(id uuid.UUID) bool {
+	return id != uuid.Nil && !IsReservedProvisionerKey(id)
+}
+
 type CreateProvisionerKeyRequest struct {
 	Name string            `json:"name"`
 	Tags map[string]string `json:"tags"`
@@ -435,7 +451,7 @@ func (c *Client) CreateProvisionerKey(ctx context.Context, organizationID uuid.U
 		return CreateProvisionerKeyResponse{}, ReadBodyAsError(res)
 	}
 	var resp CreateProvisionerKeyResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ListProvisionerKeys lists all provisioner keys for an organization.
@@ -453,7 +469,7 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ProvisionerKey
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetProvisionerKey returns the provisioner key.
@@ -473,7 +489,7 @@ func (c *Client) GetProvisionerKey(ctx context.Context, pk string) (ProvisionerK
 		return ProvisionerKey{}, ReadBodyAsError(res)
 	}
 	var resp ProvisionerKey
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ListProvisionerKeyDaemons lists all provisioner keys with their associated daemons for an organization.
@@ -491,7 +507,7 @@ func (c *Client) ListProvisionerKeyDaemons(ctx context.Context, organizationID u
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ProvisionerKeyDaemons
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteProvisionerKey deletes a provisioner key.

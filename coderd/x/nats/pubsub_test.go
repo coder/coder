@@ -139,11 +139,9 @@ func TestPubsub(t *testing.T) {
 
 		var first, second error
 		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			first = ps.Close()
-		}()
+		})
 		wg.Wait()
 		second = ps.Close()
 		assert.NoError(t, first)

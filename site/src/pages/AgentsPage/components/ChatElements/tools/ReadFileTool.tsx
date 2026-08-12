@@ -2,6 +2,7 @@ import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
 import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { getPathBasename } from "../../../utils/path";
 import { asRecord, asString } from "../runtimeTypeUtils";
 import { ToolCall } from "./ToolCall";
 import {
@@ -81,7 +82,7 @@ export const ReadFileTool: React.FC<{
 }) => {
 	const hasContent = content.length > 0 || isError;
 	const isRunning = status === "running";
-	const filename = path.split("/").pop() || path;
+	const filename = getPathBasename(path);
 	const label = isRunning ? `Reading ${filename}…` : `Read ${filename}`;
 
 	return (

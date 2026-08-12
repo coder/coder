@@ -312,13 +312,14 @@ func workspaceACLToTable(ctx context.Context, acl *codersdk.WorkspaceACL) (strin
 			continue
 		}
 
-		for _, user := range group.Members {
-			outputRows = append(outputRows, workspaceShareRow{
-				User:  user.Username,
-				Group: group.Name,
-				Role:  group.Role,
-			})
-		}
+		// The ACL endpoint intentionally omits the group's member roster to
+		// avoid leaking member PII, so we display one row per group rather
+		// than one row per member.
+		outputRows = append(outputRows, workspaceShareRow{
+			User:  defaultGroupDisplay,
+			Group: group.Name,
+			Role:  group.Role,
+		})
 	}
 	out, err := formatter.Format(ctx, outputRows)
 	if err != nil {

@@ -42,8 +42,8 @@ func (r *RootCmd) scaletestBridge() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Use:   "bridge",
-		Short: "Generate load on the AI Bridge service.",
-		Long: `Generate load for AI Bridge testing. Supports two modes: 'bridge' mode routes requests through the Coder AI Bridge, 'direct' mode makes requests directly to an upstream URL (useful for baseline comparisons).
+		Short: "Generate load on the AI Gateway service.",
+		Long: `Generate load for AI Gateway testing. Supports two modes: 'bridge' mode routes requests through the Coder AI Gateway, 'direct' mode makes requests directly to an upstream URL (useful for baseline comparisons).
 
 Examples:
   # Test OpenAI API through bridge
@@ -100,7 +100,7 @@ Examples:
 				userConfig = createusers.Config{
 					OrganizationID: me.OrganizationIDs[0],
 				}
-				_, _ = fmt.Fprintln(inv.Stderr, "Bridge mode: creating users and making requests through AI Bridge...")
+				_, _ = fmt.Fprintln(inv.Stderr, "Bridge mode: creating users and making requests through AI Gateway...")
 			} else {
 				_, _ = fmt.Fprintf(inv.Stderr, "Direct mode: making requests directly to %s\n", upstreamURL)
 			}
@@ -210,7 +210,7 @@ Examples:
 			Flag:        "mode",
 			Env:         "CODER_SCALETEST_BRIDGE_MODE",
 			Default:     "direct",
-			Description: "Request mode: 'bridge' (create users and use AI Bridge) or 'direct' (make requests directly to upstream-url).",
+			Description: "Request mode: 'bridge' (create users and use AI Gateway) or 'direct' (make requests directly to upstream-url).",
 			Value:       serpent.EnumOf(&mode, string(bridge.RequestModeBridge), string(bridge.RequestModeDirect)),
 		},
 		{

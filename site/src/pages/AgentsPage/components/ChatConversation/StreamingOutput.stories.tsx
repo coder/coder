@@ -6,7 +6,7 @@ import {
 	buildReconnectState,
 	buildRetryState,
 	buildStreamRenderState,
-	FIXTURE_NOW,
+	pinFixtureClock,
 } from "./storyFixtures";
 
 // StreamingOutput renders inside a ConversationItem > Message > MessageContent
@@ -15,20 +15,7 @@ import {
 const meta: Meta<typeof StreamingOutput> = {
 	title: "pages/AgentsPage/ChatConversation/StreamingOutput",
 	component: StreamingOutput,
-	decorators: [
-		(Story) => (
-			<div className="mx-auto w-full max-w-3xl py-6">
-				<Story />
-			</div>
-		),
-	],
-	beforeEach: () => {
-		const real = Date.now;
-		Date.now = () => FIXTURE_NOW;
-		return () => {
-			Date.now = real;
-		};
-	},
+	beforeEach: pinFixtureClock,
 };
 export default meta;
 type Story = StoryObj<typeof StreamingOutput>;
@@ -56,7 +43,7 @@ export const ReconnectingAfterDisconnect: Story = {
 			expect(canvasElement.textContent).toMatch(/reconnecting in \d+s/i);
 		});
 		expect(canvas.queryByText("Unexpected error")).not.toBeInTheDocument();
-		expect(canvas.getByTestId("live-activity-slot")).not.toBeVisible();
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 		expect(canvas.queryByText("Thinking...")).not.toBeInTheDocument();
 	},
 };
@@ -79,7 +66,7 @@ export const RetryWithVisibleReason: Story = {
 		expect(
 			canvas.getByText(/anthropic returned an unexpected error/i),
 		).toBeVisible();
-		expect(canvas.getByTestId("live-activity-slot")).not.toBeVisible();
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 		expect(canvas.queryByText("Thinking...")).not.toBeInTheDocument();
 		expect(canvas.getByText(/attempt 1/i)).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
@@ -97,7 +84,6 @@ export const RetryRateLimited: Story = {
 				attempt: 3,
 				error: "Anthropic is rate limiting requests.",
 				kind: "rate_limit",
-				delayMs: 3000,
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),
@@ -130,7 +116,6 @@ export const RetryInvalidTimestamp: Story = {
 				attempt: 3,
 				error: "Anthropic is rate limiting requests.",
 				kind: "rate_limit",
-				delayMs: 3000,
 				retryingAt: "not-a-date",
 			}),
 			isAwaitingFirstStreamChunk: true,
@@ -259,7 +244,7 @@ export const StartingShowsThinkingActivity: Story = {
 	},
 };
 
-export const ResponseKeepsActivitySlotReserved: Story = {
+export const ResponseDoesNotRenderActivitySlot: Story = {
 	args: {
 		streamState: responseStreamState.streamState,
 		streamTools: responseStreamState.streamTools,
@@ -267,7 +252,7 @@ export const ResponseKeepsActivitySlotReserved: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByTestId("live-activity-slot")).not.toBeVisible();
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 	},
 };
 
@@ -291,7 +276,7 @@ export const RunningToolsSuppressThinkingActivity: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByTestId("live-activity-slot")).not.toBeVisible();
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 		expect(
 			canvas.getByRole("button", { name: /expand command/i }),
 		).toBeVisible();

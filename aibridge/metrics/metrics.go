@@ -8,6 +8,8 @@ import (
 var baseLabels = []string{"provider", "model"}
 
 const (
+	PrometheusMetricPrefix = "coder_ai_gateway_"
+
 	InterceptionCountStatusFailed    = "failed"
 	InterceptionCountStatusCompleted = "completed"
 )
@@ -68,7 +70,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "duration_seconds",
 			Help: "The total duration of intercepted requests, in seconds. " +
 				"The majority of this time will be the upstream processing of the request. " +
-				"aibridge has no control over upstream processing time, so it's just an illustrative metric.",
+				"AI Gateway has no control over upstream processing time, so it's just an illustrative metric.",
 			// TODO: add docs around determining aibridge's *own* latency with distributed traces
 			//       once https://github.com/coder/aibridge/issues/26 lands.
 			Buckets: []float64{0.5, 2, 5, 15, 30, 60, 120},
@@ -106,7 +108,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		InjectedToolUseCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "injected_tool_invocations",
 			Name:      "total",
-			Help:      "The number of times an injected MCP tool was invoked by aibridge.",
+			Help:      "The number of times an injected MCP tool was invoked by AI Gateway.",
 		}, append(baseLabels, "server", "name")),
 		// Pessimistic cardinality: 3 providers, 5 models, 30 tools = up to 450.
 		NonInjectedToolUseCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
@@ -138,12 +140,12 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		// Key pool failover metrics.
 
-		// Pessimistic cardinality: 2 providers, 3 reasons = up to 6.
+		// Pessimistic cardinality: 2 providers, 2 reasons = up to 4.
 		KeyPoolStateTransitions: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "key_pool",
 			Name:      "state_transitions_total",
 			Help: "The number of API key state transitions during failover " +
-				"(reason: rate_limited, unauthorized, forbidden).",
+				"(reason: rate_limited, unauthorized).",
 		}, []string{"provider", "reason"}),
 		// Pessimistic cardinality: 2 providers, 2 outcomes = up to 4.
 		KeyPoolExhaustions: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{

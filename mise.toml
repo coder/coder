@@ -9,7 +9,7 @@ lockfile = true
 [tools]
 # Languages and runtimes.
 bun = "1.2.15"
-go = "1.26.4"
+go = "1.26.5"
 node = "22.19.0"
 pnpm = "10.33.2"
 
@@ -40,7 +40,15 @@ protoc-gen-go = "1.30.0"
 "go:mvdan.cc/sh/v3/cmd/shfmt" = "v3.12.0"
 
 # Infrastructure, release, and lint CLIs.
-actionlint = "1.7.10"
+# Source build: no release (latest v1.7.12) carries rhysd/actionlint#651, which
+# fixes a shellcheck-integration deadlock that hangs pre-commit hooks. Switch
+# back to a released `actionlint = "1.7.x"` pin once the fix ships.
+# A `[tool_alias]` would keep the short `actionlint` name, but `mise install
+# --locked actionlint` then fails with "No lockfile URL found": go-backend tools
+# record no URL in the lockfile, and aliasing makes `--locked` require one. Keep
+# the full backend key here and at call sites. Consequence: `mise exec
+# actionlint` resolves to the aqua release, so always use the full key.
+"go:github.com/rhysd/actionlint/cmd/actionlint" = "011a6d15e749bb3f2d771eed9c7aa0e7e3e10ee7"
 "aqua:ahmetb/kubectx/kubens" = "0.9.4"
 cosign = "2.4.3"
 # crane is the registry client `mise oci push` shells out to. Sourced
@@ -63,6 +71,7 @@ zizmor = "1.11.0"
 # `coder external-auth` into `gh`, and a mise shim earlier in
 # PATH would bypass it.
 "aqua:crate-ci/typos" = "1.46.1"
+"aqua:errata-ai/vale" = "3.7.1"
 "aqua:jj-vcs/jj" = "0.41.0"
 "aqua:watchexec/watchexec" = "2.5.1"
 doctl = "1.158.0"
@@ -71,6 +80,13 @@ lazygit = "0.61.1"
 # Pre-installs the binary so the upstream devcontainers-cli coder
 # module's `command -v devcontainer` short-circuit fires
 "npm:@devcontainers/cli" = "0.87.0"
+# Vercel CLI for deploying/previewing projects from dogfood workspaces.
+# Restricted to Linux/macOS because mise installs this through `npm:vercel`,
+# which spawns `node install.js` from cmd.exe on Windows. mise's `node` lives
+# only in the shim dir at install time, so `node` is not on PATH and the
+# install fails with `'node' is not recognized` (coder/internal#1596). The
+# CLI is only needed in dogfood workspaces, which are Linux.
+vercel = { version = "54.14.0", os = ["linux", "macos"] }
 # weekly-docs uses this pinned Puppeteer browser installer to install Chrome for
 # action-linkspector without resolving mutable npm metadata at runtime.
 "npm:@puppeteer/browsers" = "2.13.0"

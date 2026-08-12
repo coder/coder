@@ -18,7 +18,7 @@ Contains metrics that are **not** directly defined in the coder source code:
 - `go_*`: Go runtime metrics
 - `process_*`: Process metrics from prometheus/client_golang
 - `promhttp_*`: Prometheus HTTP handler metrics
-- `coder_aibridged_*`: Metrics from external dependencies
+- `coder_ai_gateway_*`: AI Gateway metrics are registered through prefixed registerer that the scanner does not resolve.
 
 > [!Note]
 > This file also contains edge cases where metric metadata cannot be accurately extracted by the scanner (e.g., labels determined by runtime logic).

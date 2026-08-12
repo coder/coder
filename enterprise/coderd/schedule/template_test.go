@@ -1385,6 +1385,77 @@ func TestTemplateUpdatePrebuilds(t *testing.T) {
 	}
 }
 
+// TestTemplateScheduleTimeTilAutostopNotify verifies that the enterprise
+// template schedule store round-trips the TimeTilAutostopNotify field through
+// Set/Get, and that the field participates in the no-op short-circuit
+// comparison in Set. If the short-circuit compared the wrong field, an update
+// that changes only TimeTilAutostopNotify would be silently swallowed.
+func TestTemplateScheduleTimeTilAutostopNotify(t *testing.T) {
+	t.Parallel()
+
+	var (
+		logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		db, _  = dbtestutil.NewDB(t)
+		ctx    = testutil.Context(t, testutil.WaitLong)
+		user   = dbgen.User(t, db, database.User{})
+		file   = dbgen.File(t, db, database.File{CreatedBy: user.ID})
+
+		templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			FileID:      file.ID,
+			InitiatorID: user.ID,
+			Tags:        database.StringMap{"foo": "bar"},
+		})
+		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			JobID:          templateJob.ID,
+			OrganizationID: templateJob.OrganizationID,
+		})
+		template = dbgen.Template(t, db, database.Template{
+			ActiveVersionID: templateVersion.ID,
+			CreatedBy:       user.ID,
+			OrganizationID:  templateJob.OrganizationID,
+		})
+	)
+
+	// Setup the template schedule store.
+	notifyEnq := notifications.NewNoopEnqueuer()
+	const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
+	userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
+	require.NoError(t, err)
+	userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
+	userQuietHoursStorePtr.Store(&userQuietHoursStore)
+	templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger, nil)
+
+	// baseOpts is reused across Set calls so that only TimeTilAutostopNotify
+	// differs between the first and second update. This is what exercises the
+	// no-op short-circuit guard: every other compared field stays identical.
+	baseOpts := agplschedule.TemplateScheduleOptions{
+		DefaultTTL: 24 * time.Hour,
+	}
+
+	// Set then Get round-trip: TimeTilAutostopNotify should persist.
+	firstOpts := baseOpts
+	firstOpts.TimeTilAutostopNotify = time.Hour
+	template, err = templateScheduleStore.Set(ctx, db, template, firstOpts)
+	require.NoError(t, err)
+
+	gotOpts, err := templateScheduleStore.Get(ctx, db, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, time.Hour, gotOpts.TimeTilAutostopNotify)
+
+	// No-op short-circuit guard: change ONLY TimeTilAutostopNotify and keep all
+	// other options identical. If the short-circuit compared the wrong field,
+	// this update would be treated as a no-op and the value would remain 1h.
+	secondOpts := baseOpts
+	secondOpts.TimeTilAutostopNotify = 2 * time.Hour
+	template, err = templateScheduleStore.Set(ctx, db, template, secondOpts)
+	require.NoError(t, err)
+
+	gotOpts, err = templateScheduleStore.Get(ctx, db, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, 2*time.Hour, gotOpts.TimeTilAutostopNotify)
+}
+
 func must[V any](v V, err error) V {
 	if err != nil {
 		panic(err)

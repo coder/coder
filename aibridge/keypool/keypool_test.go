@@ -1,6 +1,8 @@
 package keypool_test
 
 import (
+	"context"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -9,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	codertestutil "github.com/coder/coder/v2/testutil"
@@ -282,6 +285,17 @@ func TestMarkPermanent(t *testing.T) {
 	}
 }
 
+// markNextByStatus walks to the next available key and cools it down via
+// the given HTTP status (401 or 429), so the resulting cooldown carries the
+// same reason the failover path records at runtime.
+func markNextByStatus(t *testing.T, pool *keypool.Pool, walker *keypool.Walker, status int) {
+	t.Helper()
+	key, keyPoolErr := walker.Next()
+	require.Nil(t, keyPoolErr)
+	resp := &http.Response{StatusCode: status, Header: make(http.Header)}
+	pool.MarkKeyOnStatus(context.Background(), key, resp, slogtest.Make(t, nil))
+}
+
 func TestWalkerNext(t *testing.T) {
 	t.Parallel()
 
@@ -499,6 +513,35 @@ func TestWalkerNext(t *testing.T) {
 			expectedValid: []string{},
 			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 60 * time.Second},
 		},
+		{
+			// Given: key-0: temporary (401), key-1: temporary (401).
+			// Then: key-0: temporary, key-1: temporary.
+			// Every cooldown is an auth failure, so exhaustion is unauthorized.
+			name: "all_unauthorized_exhausted",
+			keys: []string{"key-0", "key-1"},
+			setup: func(t *testing.T, pool *keypool.Pool) {
+				walker := pool.Walker()
+				markNextByStatus(t, pool, walker, http.StatusUnauthorized)
+				markNextByStatus(t, pool, walker, http.StatusUnauthorized)
+			},
+			expectedValid: []string{},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindUnauthorized, RetryAfter: 60 * time.Second},
+		},
+		{
+			// Given: key-0: temporary (401), key-1: temporary (429).
+			// Then: key-0: temporary, key-1: temporary.
+			// A rate limit anywhere in the pool wins, so exhaustion is
+			// rate-limited despite the auth failure.
+			name: "mixed_unauthorized_and_rate_limited_exhausted",
+			keys: []string{"key-0", "key-1"},
+			setup: func(t *testing.T, pool *keypool.Pool) {
+				walker := pool.Walker()
+				markNextByStatus(t, pool, walker, http.StatusUnauthorized)
+				markNextByStatus(t, pool, walker, http.StatusTooManyRequests)
+			},
+			expectedValid: []string{},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 60 * time.Second},
+		},
 	}
 
 	const providerName = "test-provider"
@@ -534,10 +577,11 @@ func TestWalkerNext(t *testing.T) {
 			// exhaustion.
 			assert.Equal(t, len(tc.expectedValid), walker.Attempts())
 
-			// Exhaustion records one event whose outcome reflects the
-			// error kind: rate-limited keys can recover, permanent cannot.
+			// Exhaustion records one event whose outcome reflects the error
+			// kind: a rate limit can recover with a retry, an auth failure or
+			// permanent marking cannot.
 			wantOutcome := "rate_limited"
-			if tc.expectedErr.Kind == keypool.ErrorKindPermanent {
+			if tc.expectedErr.Kind == keypool.ErrorKindPermanent || tc.expectedErr.Kind == keypool.ErrorKindUnauthorized {
 				wantOutcome = "auth_failed"
 			}
 			gathered, err := reg.Gather()
@@ -619,11 +663,9 @@ func TestKeyConcurrent(t *testing.T) {
 			const numGoroutines = 10
 			var wg sync.WaitGroup
 			for r := range numGoroutines {
-				wg.Add(1)
-				go func(r int) {
-					defer wg.Done()
+				wg.Go(func() {
 					tc.run(r, key)
-				}(r)
+				})
 			}
 			wg.Wait()
 
@@ -658,7 +700,7 @@ func TestWalkerIndependence(t *testing.T) {
 	require.Nil(t, keyPoolErr)
 	assert.Equal(t, "key-1", key.Value())
 
-	// Simulate 401: mark key-1 permanent.
+	// Mark key-1 permanent.
 	key.MarkPermanent()
 
 	// Third attempt: walker advances to key-2.

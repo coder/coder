@@ -22,7 +22,7 @@ The Task details view shows the user's complete chat, workspace status and, buil
 ![VS Code IDE Extension Details View](../images/guides/ai-agents/vs_code_tasks_extension_details.png)
 
 > [!NOTE]
-> Both Community and Premium deployments include 1,000 Agent Workspace Builds for proof-of-concept use. Community deployments do not have access to [AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md). To scale beyond the 1,000 build limit or enable AI Governance features, the [AI Governance Add-On](./ai-governance.md) provides expanded usage pools that grow with your user count. [Contact us](https://coder.com/contact) to discuss pricing.
+> Both Community and Premium deployments include 1,000 Agent Workspace Builds for proof-of-concept use. Community deployments do not have access to [AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md). To scale beyond the 1,000 build limit or use AI Governance features, [AI Governance](./ai-governance.md), included with a Premium license, provides expanded usage pools that grow with your user count. [Contact us](https://coder.com/contact) to discuss pricing.
 
 ## Supported Agents (and Models)
 
@@ -54,7 +54,7 @@ Try prompts such as:
 - "document the project structure"
 - "change the primary color theme to purple"
 
-To import the template and begin configuring it, import the example [Run Coder Tasks on Docker](https://github.com/coder/coder/tree/main/examples/templates/tasks-docker) template.
+To import the template and begin configuring it, import the example [Run Coder Tasks on Docker](../../examples/templates/tasks-docker) template.
 
 ### Option 2&rpar; Create or Duplicate Your Own Template
 
@@ -63,7 +63,7 @@ A template becomes a Task-capable template if it defines a `coder_ai_task` resou
 > [!NOTE]
 > The `coder_ai_task` resource is not defined within the [Claude Code Module](https://registry.coder.com/modules/coder/claude-code?tab=readme). You need to define it yourself.
 
-```hcl
+```tf
 terraform {
   required_providers {
     coder = {

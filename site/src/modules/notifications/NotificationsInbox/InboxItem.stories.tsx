@@ -100,8 +100,6 @@ export const OnMarkNotificationAsRead: Story = {
 		);
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };

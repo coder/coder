@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-# Thin wrapper that invokes the Go release tool.
+# Thin wrapper that launches the interactive release wizard.
 # Usage: ./scripts/release.sh [flags]
 #
 # Flags are passed directly to the Go program.

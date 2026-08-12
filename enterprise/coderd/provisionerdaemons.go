@@ -21,10 +21,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -313,15 +315,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	// Align with the frame size of yamux.
-	conn.SetReadLimit(256 * 1024)
-
 	// Multiplexes the incoming connection using yamux.
 	// This allows multiple function calls to occur over
 	// the same connection.
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	conn.SetReadLimit(drpcsdk.YamuxDefaultStreamWindowSize)
 	defer wsNetConn.Close()
 	session, err := yamux.Server(wsNetConn, config)
 	if err != nil {
@@ -358,6 +358,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			OIDCConfig:          api.OIDCConfig,
 			AISeatTracker:       api.AGPL.AISeatTracker,
 			Clock:               api.Clock,
+			KeyID:               authRes.keyID,
+			SessionCancel:       srvCancel,
 		},
 		api.NotificationsEnqueuer,
 		&api.AGPL.PrebuildsReconciler,
@@ -391,8 +393,58 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		rl.WriteLog(ctx, http.StatusAccepted)
 	}
 
-	err = server.Serve(ctx, session)
-	srvCancel()
+	if codersdk.IsDeletableProvisionerKey(authRes.keyID) {
+		keyDeleted := func(ctx context.Context) (deleted bool, err error) {
+			_, err = api.Database.GetProvisionerKeyByID(ctx, authRes.keyID)
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true, nil
+			}
+			return false, err
+		}
+
+		closeSubscribe, err := api.Pubsub.SubscribeWithErr(
+			pubsub.ProvisionerKeyDeletedChannel(authRes.keyID),
+			func(_ context.Context, _ []byte, subErr error) {
+				// ErrDroppedMessages means the Postgres listener reconnected; a
+				// deletion published during the outage may not have been
+				// delivered, so query the key directly instead of relying on the
+				// notification.
+				if xerrors.Is(subErr, dbpubsub.ErrDroppedMessages) {
+					deleted, err := keyDeleted(authCtx)
+					if err != nil {
+						logger.Warn(ctx, "failed to re-check provisioner key after dropped messages",
+							slog.F("provisioner_key_id", authRes.keyID), slog.Error(err))
+						return
+					}
+					if !deleted {
+						return
+					}
+				}
+				logger.Info(ctx, "provisioner key deleted, terminating session",
+					slog.F("provisioner_key_id", authRes.keyID))
+				srv.TerminateSession()
+			},
+		)
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("subscribe to provisioner key deletion: %s", err))
+			return
+		}
+		defer closeSubscribe()
+
+		// Postgres LISTEN/NOTIFY does not deliver notifications published before
+		// registration, so re-check after subscribing.
+		if deleted, err := keyDeleted(authCtx); err != nil {
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("check provisioner key: %s", err))
+			return
+		} else if deleted {
+			logger.Info(ctx, "provisioner key no longer exists, closing connection",
+				slog.F("provisioner_key_id", authRes.keyID))
+			_ = conn.Close(websocket.StatusGoingAway, "provisioner key deleted")
+			return
+		}
+	}
+
+	err = server.Serve(srvCtx, session)
 	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
 	if err != nil && !xerrors.Is(err, io.EOF) {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))

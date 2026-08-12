@@ -28,12 +28,12 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"APIKey":                        {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"License":                       {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"Task":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AiSeatState":                   {codersdk.AuditActionCreate},
+	"AISeatState":                   {codersdk.AuditActionCreate},
 	"AIProvider":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AIProviderKey":                 {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AIGatewayKey":                  {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"AuditableGroupAiBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AuditableUserAiBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -130,6 +130,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"use_classic_parameter_flow":        ActionTrack,
 		"cors_behavior":                     ActionTrack,
 		"disable_module_cache":              ActionTrack,
+		"time_til_autostop_notify":          ActionTrack,
+		"agents_allowed":                    ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -213,6 +215,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"template_version_preset_id": ActionIgnore, // Never changes.
 		"has_ai_task":                ActionIgnore, // Never changes.
 		"has_external_agent":         ActionIgnore, // Never changes.
+		"notified_autostop_deadline": ActionIgnore, // Updated by the notification system, not by user action.
 	},
 	&database.AuditableGroup{}: {
 		"id":                      ActionTrack,
@@ -225,7 +228,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"source":                  ActionIgnore,
 		"chat_spend_limit_micros": ActionTrack,
 	},
-	&database.AuditableGroupAiBudget{}: {
+	&database.AuditableGroupAIBudget{}: {
 		"group_id":           ActionIgnore, // Group name is already included in the title.
 		"spend_limit_micros": ActionIgnore,
 		"spend_limit":        ActionTrack,  // Track spend_limit, which is the human-readable version.
@@ -233,7 +236,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
 		"updated_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
 	},
-	&database.AuditableUserAiBudgetOverride{}: {
+	&database.AuditableUserAIBudgetOverride{}: {
 		"user_id":            ActionIgnore, // Username is already included in the title.
 		"username":           ActionIgnore, // Username is already included in the title.
 		"group_id":           ActionTrack,
@@ -276,6 +279,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.PrebuildsSettings{}: {
 		"id":                    ActionIgnore,
 		"reconciliation_paused": ActionTrack,
+	},
+	&database.OAuth2ProviderSettings{}: {
+		"id":                                  ActionIgnore,
+		"dynamic_client_registration_enabled": ActionTrack,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
@@ -382,7 +389,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"field":   ActionTrack,
 		"mapping": ActionTrack,
 	},
-	&database.AiSeatState{}: {
+	&database.AISeatState{}: {
 		"user_id":                ActionTrack,
 		"first_used_at":          ActionTrack,
 		"last_event_type":        ActionTrack,
@@ -398,6 +405,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"type":            ActionTrack,
 		"name":            ActionTrack,
 		"display_name":    ActionTrack,
+		"icon":            ActionTrack,
 		"enabled":         ActionTrack,
 		"deleted":         ActionTrack,
 		"base_url":        ActionTrack,
@@ -415,12 +423,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":     ActionIgnore, // Changes; not useful in a diff.
 	},
 	&database.AIGatewayKey{}: {
-		"id":            ActionTrack,
-		"name":          ActionTrack,
-		"secret_prefix": ActionTrack,
-		"hashed_secret": ActionSecret, // Bearer token hash, never expose.
-		"created_at":    ActionIgnore, // Implicit; not useful in a diff.
-		"last_used_at":  ActionIgnore, // Bumped on every use.
+		"id":                ActionTrack,
+		"name":              ActionTrack,
+		"secret_prefix":     ActionTrack,
+		"hashed_secret":     ActionSecret, // Bearer token hash, never expose.
+		"created_at":        ActionIgnore, // Implicit; not useful in a diff.
+		"last_heartbeat_at": ActionIgnore, // Bumped on every heartbeat.
 	},
 	&database.TaskTable{}: {
 		"id":                  ActionTrack,
@@ -436,38 +444,53 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"deleted_at":          ActionIgnore, // Changes, but is implicit when a delete event is fired.
 	},
 	&database.Chat{}: {
-		"id":                    ActionTrack,
-		"owner_id":              ActionTrack,
-		"owner_username":        ActionIgnore,
-		"owner_name":            ActionIgnore,
-		"organization_id":       ActionIgnore, // Never changes after creation.
-		"workspace_id":          ActionTrack,
-		"build_id":              ActionIgnore, // Internal lifecycle.
-		"agent_id":              ActionIgnore, // Internal lifecycle.
-		"title":                 ActionSecret, // May contain sensitive content.
-		"status":                ActionIgnore, // Churns every message.
-		"worker_id":             ActionIgnore, // Internal.
-		"started_at":            ActionIgnore,
-		"heartbeat_at":          ActionIgnore, // Internal.
-		"created_at":            ActionIgnore, // Never changes.
-		"updated_at":            ActionIgnore, // Bumped on every mutation.
-		"parent_chat_id":        ActionIgnore, // Immutable after creation.
-		"root_chat_id":          ActionIgnore, // Immutable after creation.
-		"last_model_config_id":  ActionIgnore, // Churns every message.
-		"archived":              ActionTrack,
-		"last_error":            ActionIgnore, // Internal.
-		"last_turn_summary":     ActionIgnore, // Internal cached display text.
-		"mode":                  ActionTrack,
-		"mcp_server_ids":        ActionTrack,
-		"labels":                ActionTrack,
-		"user_acl":              ActionTrack,
-		"group_acl":             ActionTrack,
-		"pin_order":             ActionTrack,
-		"last_read_message_id":  ActionIgnore, // User-scoped read cursor.
-		"last_injected_context": ActionIgnore, // Internal lifecycle.
-		"dynamic_tools":         ActionIgnore, // Internal lifecycle.
-		"plan_mode":             ActionIgnore, // Can flip back and forth during a session.
-		"client_type":           ActionIgnore, // Set at creation.
+		"id":                          ActionTrack,
+		"owner_id":                    ActionTrack,
+		"owner_username":              ActionIgnore,
+		"owner_name":                  ActionIgnore,
+		"organization_id":             ActionIgnore, // Never changes after creation.
+		"workspace_id":                ActionTrack,
+		"build_id":                    ActionIgnore, // Internal lifecycle.
+		"agent_id":                    ActionIgnore, // Internal lifecycle.
+		"title":                       ActionSecret, // May contain sensitive content.
+		"status":                      ActionIgnore, // Churns every message.
+		"worker_id":                   ActionIgnore, // Internal.
+		"started_at":                  ActionIgnore,
+		"heartbeat_at":                ActionIgnore, // Internal.
+		"created_at":                  ActionIgnore, // Never changes.
+		"updated_at":                  ActionIgnore, // Bumped on every mutation.
+		"parent_chat_id":              ActionIgnore, // Immutable after creation.
+		"root_chat_id":                ActionIgnore, // Immutable after creation.
+		"last_model_config_id":        ActionIgnore, // Churns every message.
+		"last_reasoning_effort":       ActionIgnore, // Churns every message.
+		"archived":                    ActionTrack,
+		"last_error":                  ActionIgnore, // Internal.
+		"last_turn_summary":           ActionIgnore, // Internal cached display text.
+		"summary":                     ActionIgnore, // Internal cached display text, generated asynchronously.
+		"summary_generated_at":        ActionIgnore, // Internal freshness marker for the cached summary.
+		"mode":                        ActionTrack,
+		"mcp_server_ids":              ActionTrack,
+		"labels":                      ActionTrack,
+		"user_acl":                    ActionTrack,
+		"group_acl":                   ActionTrack,
+		"pin_order":                   ActionTrack,
+		"last_read_message_id":        ActionIgnore, // User-scoped read cursor.
+		"context_aggregate_hash":      ActionIgnore, // Agent-pushed context snapshot state.
+		"context_dirty_since":         ActionIgnore, // Agent-pushed context snapshot state.
+		"context_dirty_resources":     ActionIgnore, // Agent-pushed context snapshot state.
+		"context_error":               ActionIgnore, // Agent-pushed context snapshot state.
+		"dynamic_tools":               ActionIgnore, // Internal lifecycle.
+		"plan_mode":                   ActionIgnore, // Can flip back and forth during a session.
+		"client_type":                 ActionIgnore, // Set at creation.
+		"snapshot_version":            ActionIgnore, // Internal state machine version.
+		"history_version":             ActionIgnore, // Internal state machine version.
+		"queue_version":               ActionIgnore, // Internal state machine version.
+		"retry_state":                 ActionIgnore, // Internal transient retry UI state.
+		"retry_state_version":         ActionIgnore, // Internal state machine version.
+		"generation_attempt":          ActionIgnore, // Internal retry counter.
+		"runner_id":                   ActionIgnore, // Internal ownership identifier.
+		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
+		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,
@@ -485,6 +508,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"description": ActionTrack,
 		"env_name":    ActionTrack,
 		"file_path":   ActionTrack,
+		"enabled":     ActionTrack,
 
 		"value": ActionSecret,
 

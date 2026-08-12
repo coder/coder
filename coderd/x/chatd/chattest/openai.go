@@ -9,11 +9,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 // OpenAIHandler handles OpenAI API requests and returns a response.
@@ -48,13 +50,12 @@ type OpenAIWebSearchCall struct {
 // OpenAIRequest represents an OpenAI chat completion request.
 type OpenAIRequest struct {
 	*http.Request
-	Model              string          `json:"model"`
-	Messages           []OpenAIMessage `json:"messages"`
-	Stream             bool            `json:"stream,omitempty"`
-	Tools              []OpenAITool    `json:"tools,omitempty"`
-	Prompt             []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
-	Store              *bool           `json:"store,omitempty"`
-	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
+	Model    string          `json:"model"`
+	Messages []OpenAIMessage `json:"messages"`
+	Stream   bool            `json:"stream,omitempty"`
+	Tools    []OpenAITool    `json:"tools,omitempty"`
+	Prompt   []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
+	Store    *bool           `json:"store,omitempty"`
 	// RawBody holds the original request body so callers can inspect
 	// fields the typed struct does not expose, such as the Responses
 	// API "input" payload. It is populated before JSON decoding.
@@ -86,6 +87,44 @@ func (r *OpenAIRequest) UnmarshalJSON(data []byte) error {
 type OpenAIMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+}
+
+// UnmarshalJSON accepts both string content and the structured
+// content-part array the SDK emits for multi-part messages,
+// concatenating the text items with newlines.
+func (m *OpenAIMessage) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	m.Role = raw.Role
+	if len(raw.Content) == 0 {
+		m.Content = ""
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(raw.Content, &text); err == nil {
+		m.Content = text
+		return nil
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw.Content, &parts); err != nil {
+		return xerrors.Errorf("decode message content: %w", err)
+	}
+	var texts []string
+	for _, part := range parts {
+		if part.Type == "text" && part.Text != "" {
+			texts = append(texts, part.Text)
+		}
+	}
+	m.Content = strings.Join(texts, "\n")
+	return nil
 }
 
 // OpenAIToolFunction represents the function definition inside a tool.
@@ -331,21 +370,7 @@ func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunk
 		return
 	}
 
-	for {
-		var chunk OpenAIChunk
-		var ok bool
-		select {
-		case <-r.Context().Done():
-			log.Printf("writeChatCompletionsStreaming: request context canceled, stopping stream")
-			return
-		case chunk, ok = <-chunks:
-			if !ok {
-				_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
-				flusher.Flush()
-				return
-			}
-		}
-
+	writeChunk := func(chunk OpenAIChunk) bool {
 		choicesData := make([]map[string]interface{}, len(chunk.Choices))
 		for i, choice := range chunk.Choices {
 			choiceData := map[string]interface{}{
@@ -369,6 +394,9 @@ func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunk
 				delta["tool_calls"] = choice.ToolCalls
 			}
 			if choice.FinishReason != "" {
+				if choiceData["delta"] == nil {
+					choiceData["delta"] = map[string]interface{}{}
+				}
 				choiceData["finish_reason"] = choice.FinishReason
 			}
 			choicesData[i] = choiceData
@@ -384,13 +412,69 @@ func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunk
 
 		chunkBytes, err := json.Marshal(chunkData)
 		if err != nil {
-			return
+			return false
 		}
 
 		if _, err := fmt.Fprintf(w, "data: %s\n\n", chunkBytes); err != nil {
-			return
+			return false
 		}
 		flusher.Flush()
+		return true
+	}
+
+	seenChoiceIndexes := make(map[int]struct{})
+	var templateChunk OpenAIChunk
+	sawFinishReason := false
+	sawToolCalls := false
+
+	for {
+		var chunk OpenAIChunk
+		var ok bool
+		select {
+		case <-r.Context().Done():
+			log.Printf("writeChatCompletionsStreaming: request context canceled, stopping stream")
+			return
+		case chunk, ok = <-chunks:
+			if !ok {
+				if !sawFinishReason && len(seenChoiceIndexes) > 0 {
+					finishReason := "stop"
+					if sawToolCalls {
+						finishReason = "tool_calls"
+					}
+					choiceIndexes := make([]int, 0, len(seenChoiceIndexes))
+					for index := range seenChoiceIndexes {
+						choiceIndexes = append(choiceIndexes, index)
+					}
+					sort.Ints(choiceIndexes)
+					finishChoices := make([]OpenAIChunkChoice, 0, len(choiceIndexes))
+					for _, index := range choiceIndexes {
+						finishChoices = append(finishChoices, OpenAIChunkChoice{Index: index, FinishReason: finishReason})
+					}
+					if !writeChunk(OpenAIChunk{
+						ID:      templateChunk.ID,
+						Object:  templateChunk.Object,
+						Created: templateChunk.Created,
+						Model:   templateChunk.Model,
+						Choices: finishChoices,
+					}) {
+						return
+					}
+				}
+				_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
+				flusher.Flush()
+				return
+			}
+		}
+
+		templateChunk = chunk
+		for _, choice := range chunk.Choices {
+			seenChoiceIndexes[choice.Index] = struct{}{}
+			sawToolCalls = sawToolCalls || len(choice.ToolCalls) > 0
+			sawFinishReason = sawFinishReason || choice.FinishReason != ""
+		}
+		if !writeChunk(chunk) {
+			return
+		}
 	}
 }
 

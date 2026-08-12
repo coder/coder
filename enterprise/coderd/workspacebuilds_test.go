@@ -15,6 +15,67 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestWorkspaceBuildAfterTemplateAccessRevokedFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		},
+	})
+	memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	// Given: a member owns a workspace created from a template they can access.
+	version := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version.ID)
+
+	workspace, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+		TemplateID:        template.ID,
+		Name:              testutil.GetRandomNameHyphenated(t),
+		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
+		AutostartSchedule: ptr.Ref(""),
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, memberClient, workspace.LatestBuild.ID)
+
+	stopBuild, err := memberClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, memberClient, stopBuild.ID)
+
+	// When: the template ACL is changed so the member can no longer access it.
+	err = ownerClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+		GroupPerms: map[string]codersdk.TemplateRole{
+			owner.OrganizationID.String(): codersdk.TemplateRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = memberClient.Template(ctx, template.ID)
+	require.Error(t, err)
+	var tplErr *codersdk.Error
+	require.ErrorAs(t, err, &tplErr)
+	require.Equal(t, http.StatusNotFound, tplErr.StatusCode())
+	// Then: starting the existing workspace fails because the build path still
+	// requires template access.
+	_, err = memberClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+	})
+	require.Error(t, err)
+	apiErr, ok := codersdk.AsError(err)
+	require.True(t, ok)
+	require.Equal(t, http.StatusInternalServerError, apiErr.StatusCode())
+	require.Contains(t, apiErr.Message, "failed to fetch template")
+}
+
 func TestWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 

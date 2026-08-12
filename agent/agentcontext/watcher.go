@@ -3,10 +3,8 @@ package agentcontext
 import (
 	"context"
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -24,33 +22,27 @@ import (
 // uses so behavior is consistent across the agent.
 const DefaultWatchDebounce = 250 * time.Millisecond
 
-// WatcherOptions parameterizes the recursive watcher.
+// WatcherOptions parameterizes the watcher.
 type WatcherOptions struct {
 	Logger   slog.Logger
 	Clock    quartz.Clock
 	Debounce time.Duration
-	// MaxDepth caps the recursion depth when discovering
-	// subdirectories to watch. Zero defaults to
-	// DefaultMaxScanDepth. Callers wiring the watcher to a
-	// Resolver should pass the resolver's MaxDepth so the
-	// watcher never misses edits below the scan horizon.
-	MaxDepth int
 	// OnChange runs at most once per debounce window. The
 	// caller must not block; the recommended pattern is a
 	// non-blocking send on a re-resolve trigger channel.
 	OnChange func()
 }
 
-// Watcher is a recursive fsnotify wrapper. fsnotify does not
-// support recursive watches natively on Linux, so we walk every
-// scan root at sync time and register each subdirectory
-// individually. Inotify ENOSPC degrades the watcher into a
-// poll-only mode that still re-resolves on Sync calls.
+// Watcher is a fixed-location fsnotify wrapper. It watches only
+// the directories that can hold recognized resources (each scan
+// root plus its skill containers and immediate skill dirs) rather
+// than walking the tree, mirroring the resolver's fixed-location
+// discovery. Inotify ENOSPC degrades the watcher into a poll-only
+// mode that still re-resolves on Sync calls.
 type Watcher struct {
 	logger   slog.Logger
 	clock    quartz.Clock
 	debounce time.Duration
-	maxDepth int
 	onChange func()
 
 	mu        sync.Mutex
@@ -77,10 +69,6 @@ func NewWatcher(opts WatcherOptions) (*Watcher, error) {
 	if clock == nil {
 		clock = quartz.NewReal()
 	}
-	maxDepth := opts.MaxDepth
-	if maxDepth <= 0 {
-		maxDepth = DefaultMaxScanDepth
-	}
 
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -92,7 +80,6 @@ func NewWatcher(opts WatcherOptions) (*Watcher, error) {
 			logger:    opts.Logger,
 			clock:     clock,
 			debounce:  debounce,
-			maxDepth:  maxDepth,
 			onChange:  opts.OnChange,
 			watched:   make(map[string]struct{}),
 			degraded:  "fsnotify init failed: " + err.Error(),
@@ -106,7 +93,6 @@ func NewWatcher(opts WatcherOptions) (*Watcher, error) {
 		logger:    opts.Logger,
 		clock:     clock,
 		debounce:  debounce,
-		maxDepth:  maxDepth,
 		onChange:  opts.OnChange,
 		watcher:   w,
 		watched:   make(map[string]struct{}),
@@ -135,17 +121,18 @@ func (w *Watcher) Degraded() string {
 	return w.degraded
 }
 
-// Sync replaces the set of watched directories with a fresh
-// recursive walk of every scan root. Files are not watched
-// directly; watching the parent directory catches creates,
-// renames, removes, and writes that touch any recognized
-// basename. Files that are themselves scan roots are handled by
-// watching their parent.
+// Sync replaces the set of watched directories with the fixed
+// locations that can hold recognized resources: each scan root,
+// its skill containers, and the immediate skill subdirectories.
+// Files are not watched directly; watching the parent directory
+// catches creates, renames, removes, and writes that touch any
+// recognized basename. Files that are themselves scan roots are
+// handled by watching their parent.
 //
 // Sync is idempotent and safe to call repeatedly. The lock is
-// released around the recursive directory walk so concurrent
-// Close, schedule, and the run goroutine are not blocked by a
-// slow filesystem.
+// released around the directory scan so concurrent Close,
+// schedule, and the run goroutine are not blocked by a slow
+// filesystem.
 func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 	w.mu.Lock()
 	if w.closed {
@@ -168,9 +155,9 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 	}
 	w.mu.Unlock()
 
-	// collectDirs touches the filesystem (filepath.WalkDir on
-	// every scan root). Compute the desired set outside the
-	// mutex so a slow walk does not block the run goroutine,
+	// collectDirs touches the filesystem (stat/ReadDir on every
+	// scan root and skill container). Compute the desired set
+	// outside the mutex so it does not block the run goroutine,
 	// Close, or schedule.
 	desired := w.collectDirs(roots)
 
@@ -324,10 +311,13 @@ func (w *Watcher) schedule() {
 	w.mu.Unlock()
 }
 
-// collectDirs walks every scan root and returns the set of
-// directories to watch. The maximum depth uses the watcher's
-// configured maxDepth so it mirrors the resolver's horizon.
-func (w *Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
+// collectDirs returns the set of directories to watch. Discovery
+// is fixed-location, mirroring the resolver: for each scan root we
+// watch the root directory itself (catching top-level instruction
+// and .mcp.json changes), plus every existing skill container and
+// its immediate skill subdirectories (catching skill add/remove
+// and SKILL.md writes). The watcher never recurses the tree.
+func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, root := range roots {
 		if root.Path == "" {
@@ -346,25 +336,19 @@ func (w *Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 			out[filepath.Dir(root.Path)] = struct{}{}
 			continue
 		}
-		// Walk the directory and collect every descendant
-		// directory up to the depth cap.
-		rootDepth := strings.Count(filepath.Clean(root.Path), string(os.PathSeparator))
-		_ = filepath.WalkDir(root.Path, func(path string, d fs.DirEntry, err error) error {
+		out[root.Path] = struct{}{}
+		for _, container := range skillContainersFor(root.Path) {
+			out[container] = struct{}{}
+			entries, err := os.ReadDir(container)
 			if err != nil {
-				return nil
+				continue
 			}
-			if !d.IsDir() {
-				return nil
+			for _, e := range entries {
+				if e.IsDir() {
+					out[filepath.Join(container, e.Name())] = struct{}{}
+				}
 			}
-			if _, skip := skipDirNames[d.Name()]; skip && path != root.Path {
-				return fs.SkipDir
-			}
-			if strings.Count(path, string(os.PathSeparator))-rootDepth > w.maxDepth {
-				return fs.SkipDir
-			}
-			out[path] = struct{}{}
-			return nil
-		})
+		}
 	}
 	return out
 }

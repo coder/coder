@@ -3,11 +3,6 @@
 This guide walks platform teams and administrators through setting up Coder
 Agents, preparing your deployment, and running your first Coder Agent.
 
-> [!NOTE]
-> Coder Agents is in Beta. APIs, behavior, and configuration may change
-> between releases without notice; pin a release before broad rollout.
-> Use **Coder version 2.33.1 or greater**.
-
 ## Prerequisites
 
 Before you begin, confirm the following:
@@ -40,8 +35,7 @@ To configure Coder Agents:
 1. Navigate to **Admin settings** > **AI** and select **Providers**.
 1. Add or update a provider with its credentials and upstream endpoint, then
    save it.
-1. Navigate to the **Agents** page, open **Settings** > **Manage Agents**, and
-   select **Models**.
+1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Click **Add** and configure at least one model with its identifier, display
    name, and context limit.
 1. Click the **star icon** next to a model to set it as the default.
@@ -125,15 +119,24 @@ immediately with no provisioning delay.
 
 ## Optimize your templates
 
-The agent selects templates based on their **name and description** — it does
-not read Terraform. Clear, specific descriptions are the most important factor
-in whether the agent picks the right template.
+The agent selects templates based on their **name, description, and README**.
+It does not read Terraform. Clear, specific descriptions are the most important
+factor in whether the agent picks the right template.
 
 Update your template descriptions to include:
 
 - The language, framework, or stack the template targets.
 - Which repository or service it is for, if applicable.
 - What type of work it supports (backend, frontend, data pipeline, etc.).
+
+When 128 characters is not enough, put the most important routing context near
+the top of the template's
+[`README.md`](./platform-controls/template-optimization.md#put-routing-context-near-the-top-of-the-readme).
+The chat agent's template listing includes a bounded README excerpt (roughly the
+first 1,000 characters), and template detail includes the README (up to roughly
+8,000 characters). Both are reduced to plain text: frontmatter is stripped,
+link text is kept while link URLs are dropped, images and badges are dropped
+entirely, and code blocks and tables are preserved as text.
 
 **Good examples:**
 
@@ -159,10 +162,9 @@ credential scoping, and pre-installing dependencies.
 
 ### Plan for change between releases
 
-Coder Agents is under active development. APIs, behavior, and
-configuration may change between releases without notice. Pin a
-specific release before broad rollout and review the release notes
-before upgrading so changes do not surprise developers in production.
+Coder Agents is generally available.
+However, APIs, behavior, and configuration may change between releases.
+As always, you should review [release notes](https://github.com/coder/coder/releases) and the [changelog](https://coder.com/changelog) before upgrading, so changes do not affect production.
 
 ### Use HTTPS for push notifications
 
@@ -187,9 +189,8 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from **Agents** > **Settings** >
-**Manage Agents** > **Instructions**
-or via the API at `PUT /api/experimental/chats/config/system-prompt`.
+Configure the system prompt from **AI Settings** > **Coder Agents** > **Instructions**
+or via the API at `PUT /api/v2/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
 ### Understand the security model
@@ -217,8 +218,7 @@ sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Setting per-model token pricing under **Agents** > **Settings** >
-  **Manage Agents** > **Models** (Input Price, Output Price) to track spend.
+- Capping spend with [AI Gateway budgets](./platform-controls/spend-management.md).
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group
@@ -250,7 +250,7 @@ This is useful for building automations such as:
 **Quick example — create a Coder Agent via the API:**
 
 ```sh
-curl -X POST https://coder.example.com/api/experimental/chats \
+curl -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -262,18 +262,14 @@ curl -X POST https://coder.example.com/api/experimental/chats \
 
 Stream updates in real time by connecting to the WebSocket endpoint:
 
-```text
-GET /api/experimental/chats/{chat}/stream
+```txt
+GET /api/v2/chats/{chat}/stream
 ```
 
 For service-to-service automation, use
 [API keys](../../admin/users/sessions-tokens.md)
 rather than developer session tokens. Keep automation credentials
 narrowly scoped.
-
-> [!NOTE]
-> The Chats API is in beta and may change without notice.
-> See [Chats API](../../reference/api/chats.md) for the full endpoint reference.
 
 ### Add workspace context with AGENTS.md
 
@@ -313,7 +309,7 @@ Good feedback includes:
 - **Context** — screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
 
-Your input directly influences product direction during Beta.
+Your input directly influences product direction.
 
 ## Next steps
 

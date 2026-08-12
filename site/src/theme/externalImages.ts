@@ -45,7 +45,7 @@ export const forDarkThemes: ExternalImageModeStyles = {
 
 export const forLightThemes: ExternalImageModeStyles = {
 	// darken icons a little to make sure they have good contrast with the background
-	monochrome: { filter: "grayscale(100%) contrast(0%) brightness(70%)" },
+	monochrome: { filter: "grayscale(100%) contrast(0%) brightness(40%)" },
 	// do nothing to full-color icons
 	fullcolor: undefined,
 	// black on a dark background 🆘: invert, and then correct colors
@@ -117,7 +117,15 @@ export function getExternalImageStylesFromUrl(
 		return undefined;
 	}
 
-	const url = new URL(urlString, location.origin);
+	// While a user types a URL the value can be incomplete or invalid (e.g.
+	// "https:"). new URL() throws on those, so treat them as having no special
+	// styles instead of crashing the render.
+	let url: URL;
+	try {
+		url = new URL(urlString, location.origin);
+	} catch {
+		return undefined;
+	}
 
 	if (url.search) {
 		return parseImageParameters(modes, url.search);
@@ -163,6 +171,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/kasmvnc.svg", "whiteWithColor"],
 	["/icon/kilo-code.svg", "blackWithColor"],
 	["/icon/kiro.svg", "whiteWithColor"],
+	["/icon/linear.svg", "monochrome"],
 	["/icon/memory.svg", "monochrome"],
 	["/icon/mux.svg", "monochrome"],
 	["/icon/nexus-repository.svg", "blackWithColor"],

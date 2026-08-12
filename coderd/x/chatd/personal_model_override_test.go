@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -61,6 +62,25 @@ func TestParseChatPersonalModelOverride(t *testing.T) {
 			want: chatd.ParsedChatPersonalModelOverride{
 				Mode:          codersdk.ChatPersonalModelOverrideModeModel,
 				ModelConfigID: modelConfigID,
+			},
+		},
+		{
+			name:        "ModelWithReasoningEffort",
+			raw:         "model:" + modelConfigID.String() + ":high",
+			defaultMode: codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
+			want: chatd.ParsedChatPersonalModelOverride{
+				Mode:            codersdk.ChatPersonalModelOverrideModeModel,
+				ModelConfigID:   modelConfigID,
+				ReasoningEffort: ptr.Ref("high"),
+			},
+		},
+		{
+			name:        "ModelWithEmptyReasoningEffort",
+			raw:         "model:" + modelConfigID.String() + ":",
+			defaultMode: codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
+			want: chatd.ParsedChatPersonalModelOverride{
+				Mode:      codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
+				Malformed: true,
 			},
 		},
 		{

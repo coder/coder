@@ -1,5 +1,3 @@
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
 import { type FormikTouched, useFormik } from "formik";
 import { type FC, useEffect, useState } from "react";
 import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
@@ -12,13 +10,22 @@ import {
 	FormSection,
 	HorizontalForm,
 } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	StackLabel,
 	StackLabelHelperText,
 } from "#/components/StackLabel/StackLabel";
 import { Switch } from "#/components/Switch/Switch";
+import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
 	calculateAutostopRequirementDaysValue,
@@ -37,6 +44,7 @@ import { ScheduleDialog } from "./ScheduleDialog";
 import { TemplateScheduleAutostart } from "./TemplateScheduleAutostart";
 import {
 	ActivityBumpHelperText,
+	AutostopReminderHelperText,
 	DefaultTTLHelperText,
 	DormancyAutoDeletionTTLHelperText,
 	DormancyTTLHelperText,
@@ -52,11 +60,6 @@ const MS_DAY_CONVERSION = 86400000;
 const FAILURE_CLEANUP_DEFAULT = 7 * MS_DAY_CONVERSION;
 const INACTIVITY_CLEANUP_DEFAULT = 180 * MS_DAY_CONVERSION;
 const DORMANT_AUTODELETION_DEFAULT = 30 * MS_DAY_CONVERSION;
-/**
- * The default form field space is 4 but since this form is quite heavy I think
- * increase the space can make it feels lighter.
- */
-const FORM_FIELDS_GAP = "gap-16";
 
 export interface TemplateScheduleForm {
 	template: Template;
@@ -84,6 +87,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			// on display, convert from ms => hours
 			default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
 			activity_bump_ms: template.activity_bump_ms / MS_HOUR_CONVERSION,
+			time_til_autostop_notify_ms:
+				template.time_til_autostop_notify_ms / MS_HOUR_CONVERSION,
 			failure_ttl_ms: template.failure_ttl_ms,
 			time_til_dormant_ms: template.time_til_dormant_ms,
 			time_til_dormant_autodelete_ms: template.time_til_dormant_autodelete_ms,
@@ -149,6 +154,33 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 		form,
 		error,
 	);
+	const autostopDaysField = getFieldHelpers(
+		"autostop_requirement_days_of_week",
+		{
+			helperText: (
+				<AutostopRequirementDaysHelperText
+					days={form.values.autostop_requirement_days_of_week}
+				/>
+			),
+		},
+	);
+	const autostopDaysHelperId = `${autostopDaysField.id}-helper`;
+	const timeTilDormantField = getFieldHelpers("time_til_dormant_ms", {
+		helperText: <DormancyTTLHelperText ttl={form.values.time_til_dormant_ms} />,
+	});
+	const timeTilDormantAutodeleteField = getFieldHelpers(
+		"time_til_dormant_autodelete_ms",
+		{
+			helperText: (
+				<DormancyAutoDeletionTTLHelperText
+					ttl={form.values.time_til_dormant_autodelete_ms}
+				/>
+			),
+		},
+	);
+	const failureTtlField = getFieldHelpers("failure_ttl_ms", {
+		helperText: <FailureTTLHelperText ttl={form.values.failure_ttl_ms} />,
+	});
 
 	const now = new Date();
 	const weekFromNow = new Date(now);
@@ -201,12 +233,18 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			default_ttl_ms: form.values.default_ttl_ms
 				? form.values.default_ttl_ms * MS_HOUR_CONVERSION
 				: undefined,
-			// Activity bump has no effect without a default TTL, so
-			// discard any stale value when default autostop is off.
+			// Activity bump has no effect without a scheduled stop time, so
+			// discard any stale value when there is no default TTL AND users
+			// cannot customize autostop on their workspaces.
 			activity_bump_ms:
-				form.values.default_ttl_ms && form.values.activity_bump_ms
+				(form.values.default_ttl_ms || form.values.allow_user_autostop) &&
+				form.values.activity_bump_ms
 					? form.values.activity_bump_ms * MS_HOUR_CONVERSION
 					: undefined,
+			// 0 disables the reminder, so always send an explicit value.
+			time_til_autostop_notify_ms: form.values.time_til_autostop_notify_ms
+				? form.values.time_til_autostop_notify_ms * MS_HOUR_CONVERSION
+				: 0,
 			failure_ttl_ms: form.values.failure_ttl_ms,
 			time_til_dormant_ms: form.values.time_til_dormant_ms,
 			time_til_dormant_autodelete_ms:
@@ -245,7 +283,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			currentValues.autostop_requirement_weeks !== 1
 		) {
 			// This is async but we don't really need to await the value.
-			void setValues({
+			setValues({
 				...currentValues,
 				autostop_requirement_weeks: 1,
 			});
@@ -287,85 +325,139 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 				title="Autostop"
 				description="Define when workspaces created from this template are stopped."
 			>
-				<FormFields className={FORM_FIELDS_GAP}>
-					<TextField
-						{...getFieldHelpers("default_ttl_ms", {
+				<FormFields>
+					<FormField
+						field={getFieldHelpers("default_ttl_ms", {
 							helperText: (
 								<DefaultTTLHelperText ttl={form.values.default_ttl_ms} />
 							),
 						})}
-						disabled={isSubmitting}
-						fullWidth
-						inputProps={{ min: 0, step: 1 }}
 						label="Default autostop (hours)"
 						type="number"
+						disabled={isSubmitting}
+						min={0}
+						step={1}
+						className="w-full"
 					/>
 
-					<TextField
-						{...getFieldHelpers("activity_bump_ms", {
+					<FormField
+						field={getFieldHelpers("activity_bump_ms", {
 							helperText: (
 								<ActivityBumpHelperText
 									bump={form.values.activity_bump_ms}
 									defaultTTL={form.values.default_ttl_ms}
+									allowUserAutostop={form.values.allow_user_autostop}
 								/>
 							),
 						})}
-						disabled={isSubmitting || !form.values.default_ttl_ms}
-						fullWidth
-						inputProps={{ min: 0, step: 1 }}
 						label="Activity bump (hours)"
 						type="number"
+						disabled={
+							isSubmitting ||
+							(!form.values.default_ttl_ms && !form.values.allow_user_autostop)
+						}
+						min={0}
+						step={1}
+						className="w-full"
 					/>
 
-					<div className="flex flex-row gap-4 w-full">
-						<TextField
-							{...getFieldHelpers("autostop_requirement_days_of_week", {
-								helperText: (
-									<AutostopRequirementDaysHelperText
-										days={form.values.autostop_requirement_days_of_week}
-									/>
-								),
-							})}
-							disabled={isSubmitting}
-							fullWidth
-							select
-							value={form.values.autostop_requirement_days_of_week}
-							label="Days with required stop"
-						>
-							<MenuItem key="off" value="off">
-								Off
-							</MenuItem>
-							<MenuItem key="daily" value="daily">
-								Daily
-							</MenuItem>
-							<MenuItem key="saturday" value="saturday">
-								Saturday
-							</MenuItem>
-							<MenuItem key="sunday" value="sunday">
-								Sunday
-							</MenuItem>
-						</TextField>
+					<FormField
+						field={getFieldHelpers("time_til_autostop_notify_ms", {
+							helperText: (
+								<AutostopReminderHelperText
+									lead={form.values.time_til_autostop_notify_ms}
+									defaultTTL={form.values.default_ttl_ms}
+									autostopRequirementDaysOfWeek={
+										form.values.autostop_requirement_days_of_week
+									}
+									allowUserAutostop={form.values.allow_user_autostop}
+								/>
+							),
+						})}
+						label="Autostop reminder (hours)"
+						type="number"
+						disabled={isSubmitting}
+						min={0}
+						step={1}
+						className="w-full"
+					/>
 
-						<TextField
-							{...getFieldHelpers("autostop_requirement_weeks", {
-								helperText: (
-									<AutostopRequirementWeeksHelperText
-										days={form.values.autostop_requirement_days_of_week}
-										weeks={form.values.autostop_requirement_weeks}
-									/>
-								),
-							})}
-							disabled={
-								isSubmitting ||
-								!["saturday", "sunday"].includes(
-									form.values.autostop_requirement_days_of_week || "",
-								)
-							}
-							fullWidth
-							inputProps={{ min: 1, max: 16, step: 1 }}
-							label="Weeks between required stops"
-							type="number"
-						/>
+					<div className="grid grid-cols-2 gap-4 w-full items-start">
+						<div className="flex flex-col gap-2 min-w-0">
+							<Label htmlFor={autostopDaysField.id}>
+								Days with required stop
+							</Label>
+							<Select
+								value={form.values.autostop_requirement_days_of_week}
+								onValueChange={(value) => {
+									form.setFieldValue(
+										"autostop_requirement_days_of_week",
+										value,
+									);
+								}}
+								disabled={isSubmitting}
+							>
+								<SelectTrigger
+									id={autostopDaysField.id}
+									className={cn(
+										"w-full",
+										autostopDaysField.error && "border-border-destructive",
+									)}
+									aria-invalid={autostopDaysField.error}
+									aria-describedby={
+										autostopDaysField.helperText
+											? autostopDaysHelperId
+											: undefined
+									}
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="off">Off</SelectItem>
+									<SelectItem value="daily">Daily</SelectItem>
+									<SelectItem value="saturday">Saturday</SelectItem>
+									<SelectItem value="sunday">Sunday</SelectItem>
+								</SelectContent>
+							</Select>
+							{autostopDaysField.helperText && (
+								<span
+									id={autostopDaysHelperId}
+									className={cn(
+										"text-xs",
+										autostopDaysField.error
+											? "text-content-destructive"
+											: "text-content-secondary",
+									)}
+								>
+									{autostopDaysField.helperText}
+								</span>
+							)}
+						</div>
+
+						<div className="min-w-0">
+							<FormField
+								field={getFieldHelpers("autostop_requirement_weeks", {
+									helperText: (
+										<AutostopRequirementWeeksHelperText
+											days={form.values.autostop_requirement_days_of_week}
+											weeks={form.values.autostop_requirement_weeks}
+										/>
+									),
+								})}
+								label="Weeks between required stops"
+								type="number"
+								disabled={
+									isSubmitting ||
+									!["saturday", "sunday"].includes(
+										form.values.autostop_requirement_days_of_week || "",
+									)
+								}
+								min={1}
+								max={16}
+								step={1}
+								className="w-full"
+							/>
+						</div>
 					</div>
 
 					<div className="flex items-start">
@@ -443,7 +535,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					title="Dormancy"
 					description="When enabled, Coder will mark workspaces as dormant after a period of time with no connections. Dormant workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
 				>
-					<FormFields className={FORM_FIELDS_GAP}>
+					<FormFields>
 						<div className="flex flex-col gap-8">
 							<div className="flex items-start">
 								<Switch
@@ -458,19 +550,17 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							</div>
 
 							<DurationField
-								{...getFieldHelpers("time_til_dormant_ms", {
-									helperText: (
-										<DormancyTTLHelperText
-											ttl={form.values.time_til_dormant_ms}
-										/>
-									),
-								})}
 								label="Time until dormant"
 								valueMs={form.values.time_til_dormant_ms ?? 0}
 								onChange={(v) => form.setFieldValue("time_til_dormant_ms", v)}
 								disabled={
 									isSubmitting || !form.values.inactivity_cleanup_enabled
 								}
+								id={timeTilDormantField.id}
+								name={timeTilDormantField.name}
+								onBlur={timeTilDormantField.onBlur}
+								error={timeTilDormantField.error}
+								helperText={timeTilDormantField.helperText}
 							/>
 						</div>
 
@@ -496,13 +586,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								</Label>
 							</div>
 							<DurationField
-								{...getFieldHelpers("time_til_dormant_autodelete_ms", {
-									helperText: (
-										<DormancyAutoDeletionTTLHelperText
-											ttl={form.values.time_til_dormant_autodelete_ms}
-										/>
-									),
-								})}
 								label="Time until deletion"
 								valueMs={form.values.time_til_dormant_autodelete_ms ?? 0}
 								onChange={(v) =>
@@ -512,6 +595,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 									isSubmitting ||
 									!form.values.dormant_autodeletion_cleanup_enabled
 								}
+								id={timeTilDormantAutodeleteField.id}
+								name={timeTilDormantAutodeleteField.name}
+								onBlur={timeTilDormantAutodeleteField.onBlur}
+								error={timeTilDormantAutodeleteField.error}
+								helperText={timeTilDormantAutodeleteField.helperText}
 							/>
 						</div>
 
@@ -534,15 +622,15 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								</Label>
 							</div>
 							<DurationField
-								{...getFieldHelpers("failure_ttl_ms", {
-									helperText: (
-										<FailureTTLHelperText ttl={form.values.failure_ttl_ms} />
-									),
-								})}
 								label="Time until cleanup"
 								valueMs={form.values.failure_ttl_ms ?? 0}
 								onChange={(v) => form.setFieldValue("failure_ttl_ms", v)}
 								disabled={isSubmitting || !form.values.failure_cleanup_enabled}
+								id={failureTtlField.id}
+								name={failureTtlField.name}
+								onBlur={failureTtlField.onBlur}
+								error={failureTtlField.error}
+								helperText={failureTtlField.helperText}
 							/>
 						</div>
 					</FormFields>
@@ -584,6 +672,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					}
 					updateInactiveWorkspaces={(update: boolean) =>
 						form.setFieldValue("update_workspace_last_used_at", update)
+					}
+					dormantWorkspacesChecked={
+						form.values.update_workspace_dormant_at ?? false
+					}
+					inactiveWorkspacesChecked={
+						form.values.update_workspace_last_used_at ?? false
 					}
 					dormantValueChanged={
 						form.initialValues.time_til_dormant_ms !==

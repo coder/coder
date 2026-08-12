@@ -66,9 +66,7 @@ export const RetryAfterError: Story = {
 		});
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };
 

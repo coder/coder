@@ -151,14 +151,23 @@ type AuthCall struct {
 	callers []string
 }
 
+// PrepareCall is a recorded call to Authorizer.Prepare. Unlike AuthCall it has
+// no rbac.Object, only the object type string that Prepare receives.
+type PrepareCall struct {
+	Actor      rbac.Subject
+	Action     policy.Action
+	ObjectType string
+}
+
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
 // RecordingAuthorizer wraps any rbac.Authorizer and records all Authorize()
 // calls made. This is useful for testing as these calls can later be asserted.
 type RecordingAuthorizer struct {
 	sync.RWMutex
-	Called  []AuthCall
-	Wrapped rbac.Authorizer
+	Called   []AuthCall
+	Prepared []PrepareCall
+	Wrapped  rbac.Authorizer
 }
 
 type ActionObjectPair struct {
@@ -207,6 +216,22 @@ func (r *RecordingAuthorizer) AllCalls(actor *rbac.Subject) []AuthCall {
 		called = append(called, c)
 	}
 	return called
+}
+
+// PrepareCount returns how many Prepare calls were recorded for the given
+// subject, action, and object type. Counts are keyed by subject ID so a test
+// can isolate the prepares made on behalf of a specific user and ignore
+// background work performed under system subjects.
+func (r *RecordingAuthorizer) PrepareCount(subjectID string, action policy.Action, objectType string) int {
+	r.RLock()
+	defer r.RUnlock()
+	n := 0
+	for _, p := range r.Prepared {
+		if p.Actor.ID == subjectID && p.Action == action && p.ObjectType == objectType {
+			n++
+		}
+	}
+	return n
 }
 
 // AssertOutOfOrder asserts that the given actor performed the given action
@@ -305,11 +330,10 @@ func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subjec
 }
 
 func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
-	r.RLock()
-	defer r.RUnlock()
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
 	}
+	r.recordPrepare(subject, action, objectType)
 
 	prep, err := r.Wrapped.Prepare(ctx, subject, action, objectType)
 	if err != nil {
@@ -323,11 +347,23 @@ func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject,
 	}, nil
 }
 
-// Reset clears the recorded Authorize() calls.
+// recordPrepare is the internal method that records the Prepare() call.
+func (r *RecordingAuthorizer) recordPrepare(subject rbac.Subject, action policy.Action, objectType string) {
+	r.Lock()
+	defer r.Unlock()
+	r.Prepared = append(r.Prepared, PrepareCall{
+		Actor:      subject,
+		Action:     action,
+		ObjectType: objectType,
+	})
+}
+
+// Reset clears the recorded Authorize() and Prepare() calls.
 func (r *RecordingAuthorizer) Reset() {
 	r.Lock()
 	defer r.Unlock()
 	r.Called = nil
+	r.Prepared = nil
 }
 
 // PreparedRecorder is the prepared version of the RecordingAuthorizer.

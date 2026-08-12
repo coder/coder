@@ -41,7 +41,6 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	build-essential \
 	ca-certificates \
 	containerd.io \
-	crypto-policies \
 	curl \
 	docker-ce \
 	docker-ce-cli \
@@ -115,9 +114,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 		docker-ce-cli \
 		docker-compose-plugin && \
 	# Delete package cache to avoid consuming space in layer
-	apt-get clean && \
-	# Configure FIPS-compliant policies
-	update-crypto-policies --set FIPS
+	apt-get clean
 
 # Install Google Chrome directly from Google. Ubuntu 26.04 ships
 # chromium-browser as a snap-only package, which does not work in
@@ -277,3 +274,6 @@ ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder"
 
 # Increase memory allocation to NodeJS
 ENV NODE_OPTIONS="--max-old-space-size=8192"
+
+# This should be removed when we can upgrade to Playwright 1.61.
+ENV PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import semver from "semver";
 import type * as TypesGen from "#/api/typesGenerated";
-import { PillSpinner } from "#/components/Pill/Pill";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { getPendingStatusLabel } from "./provisionerJob";
 
 dayjs.extend(duration);
@@ -174,7 +174,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				text: "Loading",
 				type: "active",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			} as const;
 		case "running":
 			return {
@@ -186,13 +186,13 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "active",
 				text: "Starting",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			} as const;
 		case "stopping":
 			return {
 				type: "inactive",
 				text: "Stopping",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			} as const;
 		case "stopped":
 			return {
@@ -204,7 +204,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "danger",
 				text: "Deleting",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			} as const;
 		case "deleted":
 			return {
@@ -216,7 +216,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "inactive",
 				text: "Canceling",
-				icon: <PillSpinner />,
+				icon: <Spinner loading />,
 			} as const;
 		case "canceled":
 			return {
@@ -239,21 +239,30 @@ export const getDisplayWorkspaceStatus = (
 	}
 };
 
+export const getWorkspaceAgents = (
+	workspace: TypesGen.Workspace,
+): TypesGen.WorkspaceAgent[] => {
+	return workspace.latest_build.resources.flatMap(
+		(resource) => resource.agents ?? [],
+	);
+};
+
+export const findWorkspaceAgent = (
+	workspace: TypesGen.Workspace,
+	agentId: string,
+): TypesGen.WorkspaceAgent | undefined => {
+	return getWorkspaceAgents(workspace).find((agent) => agent.id === agentId);
+};
+
 export const getMatchingAgentOrFirst = (
 	workspace: TypesGen.Workspace,
 	agentName: string | undefined,
 ): TypesGen.WorkspaceAgent | undefined => {
-	return workspace.latest_build.resources
-		.map((resource) => {
-			if (!resource.agents || resource.agents.length === 0) {
-				return;
-			}
-			if (!agentName) {
-				return resource.agents[0];
-			}
-			return resource.agents.find((agent) => agent.name === agentName);
-		})
-		.filter((a) => a)[0];
+	const agents = getWorkspaceAgents(workspace);
+	if (!agentName) {
+		return agents[0];
+	}
+	return agents.find((agent) => agent.name === agentName);
 };
 
 export const mustUpdateWorkspace = (

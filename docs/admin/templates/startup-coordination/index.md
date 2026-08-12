@@ -26,7 +26,7 @@ The goal of startup script coordination is to provide a single reliable source o
 
 To start using workspace startup coordination, add calls to `coder exp sync (start|complete)` in your startup scripts where required:
 
-  ```bash
+  ```sh
   trap 'coder exp sync complete my-script' EXIT
   coder exp sync want my-script my-other-script
   coder exp sync start my-script

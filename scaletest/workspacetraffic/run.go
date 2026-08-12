@@ -137,9 +137,15 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	closeConn := func() error {
 		closeOnce.Do(func() {
 			closeErr = conn.Close()
-			if errors.Is(closeErr, io.EOF) {
+			switch {
+			case errors.Is(closeErr, io.EOF):
 				closeErr = nil
-			} else if closeErr != nil {
+			case errors.Is(closeErr, errRPTYGracefulCloseTimeout):
+				// The connection was closed, just not gracefully. Surface it
+				// in the logs but don't fail the run.
+				logger.Warn(ctx, "close agent connection", slog.Error(closeErr))
+				closeErr = nil
+			case closeErr != nil:
 				logger.Error(ctx, "close agent connection", slog.Error(closeErr))
 				closeErr = xerrors.Errorf("close agent connection: %w", closeErr)
 			}

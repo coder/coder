@@ -3,6 +3,8 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 type ProviderIconProps = {
 	provider: string;
+	icon?: string;
+	className?: string;
 };
 
 export const getProviderIcon = (provider: string): string | undefined => {
@@ -21,43 +23,21 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/google.svg";
 		case "vercel":
 			return "/icon/vercel.svg";
+		case "gemini":
+			return "/icon/gemini.svg";
 		default:
 			return undefined;
 	}
 };
 
-const getProviderName = (provider: string): string => {
-	switch (provider) {
-		case "openai":
-			return "OpenAI";
-		case "anthropic":
-			return "Anthropic";
-		case "bedrock":
-			return "AWS Bedrock";
-		case "azure":
-			return "Azure OpenAI";
-		case "copilot":
-			return "GitHub Copilot";
-		case "google":
-			return "Google";
-		case "openai-compat":
-			return "OpenAI-compatible";
-		case "openrouter":
-			return "OpenRouter";
-		case "vercel":
-			return "Vercel";
-		default:
-			return provider || "Unknown provider";
-	}
-};
-
-export const ProviderIcon: React.FC<ProviderIconProps> = ({ provider }) => {
-	const iconSrc = getProviderIcon(provider);
-	const name = getProviderName(provider);
+export const ProviderIcon: React.FC<ProviderIconProps> = ({
+	provider,
+	icon,
+	className = "size-icon-sm",
+}) => {
+	const iconSrc = icon || getProviderIcon(provider);
 	if (iconSrc === undefined) {
-		return (
-			<Building2Icon className="size-icon-sm flex-shrink-0" aria-label={name} />
-		);
+		return <Building2Icon className={`${className} flex-shrink-0`} />;
 	}
-	return <ExternalImage src={iconSrc} alt={name} className="size-icon-sm" />;
+	return <ExternalImage src={iconSrc} alt="" className={className} />;
 };

@@ -364,7 +364,9 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		tracing.Middleware(s.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
-		loggermw.Logger(s.Logger),
+		loggermw.Logger(s.Logger, func(r *http.Request) string {
+			return httpmw.EffectiveHost(s.Options.RealIPConfig, r)
+		}),
 		prometheusMW,
 
 		// HandleSubdomain is a middleware that handles all requests to the
@@ -598,7 +600,7 @@ func pingReplica(ctx context.Context, client http.Client, replica codersdk.Repli
 	const attempts = 2
 	var err error
 	for i := 0; i < attempts; i++ {
-		err = replicasync.PingPeerReplica(ctx, client, replica.RelayAddress)
+		err = replicasync.DERPPingPeerReplica(ctx, client, replica.RelayAddress)
 		if err == nil {
 			return nil
 		}

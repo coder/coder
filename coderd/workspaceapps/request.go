@@ -248,6 +248,9 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	)
 	if workspaceID, uuidErr := uuid.Parse(r.WorkspaceNameOrID); uuidErr == nil {
 		workspace, workspaceErr = db.GetWorkspaceByID(ctx, workspaceID)
+		if workspaceErr == nil && workspace.OwnerID != user.ID {
+			workspaceErr = sql.ErrNoRows
+		}
 	} else {
 		workspace, workspaceErr = db.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
 			OwnerID: user.ID,

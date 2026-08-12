@@ -156,7 +156,7 @@ export const ComboboxItem = ({
 			{children}
 			<CheckIcon
 				className={cn(
-					"ml-2 h-4 w-4 min-w-0 flex-shrink-0",
+					"ml-2 size-4 min-w-0 flex-shrink-0",
 					isSelected ? "opacity-100" : "opacity-0",
 				)}
 			/>

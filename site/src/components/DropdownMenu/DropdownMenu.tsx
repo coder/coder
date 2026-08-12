@@ -72,7 +72,7 @@ export const DropdownMenuRadioItem: React.FC<
 			{children}
 			<span className="absolute top-3.5 right-2 flex h-3.5 w-3.5 items-center justify-center">
 				<DropdownMenuPrimitive.ItemIndicator>
-					<CheckIcon className="h-4 w-4" />
+					<CheckIcon className="size-4" />
 				</DropdownMenuPrimitive.ItemIndicator>
 			</span>
 		</DropdownMenuPrimitive.RadioItem>

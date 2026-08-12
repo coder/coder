@@ -325,7 +325,7 @@ export const RightPanel = ({
 			data-testid="agents-right-panel"
 			style={
 				visualOpen && !visualExpanded
-					? ({ "--panel-width": `${width}px` } as React.CSSProperties)
+					? { "--panel-width": `${width}px` }
 					: undefined
 			}
 			className={cn(

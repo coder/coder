@@ -1,7 +1,9 @@
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type {
+	AgentFirewallLog,
 	AIBridgeAgenticAction,
+	AIBridgeSessionNetworkCallSummary,
 	AIBridgeThread,
 	MinimalUser,
 } from "#/api/typesGenerated";
@@ -21,6 +23,7 @@ import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { AgenticLoopTable } from "./AgenticLoopTable";
+import { NetworkCallsTable } from "./NetworkCallsTable";
 import { PromptTable } from "./PromptTable";
 import { ToolCallTable } from "./ToolCallTable";
 
@@ -319,7 +322,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 											</p>
 											<Link
 												href={docs(
-													"/ai-coder/ai-bridge/audit#human-vs-agent-attribution",
+													"/ai-coder/ai-gateway/audit#human-vs-agent-attribution",
 												)}
 												target="_blank"
 												className="text-sm"
@@ -408,6 +411,12 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 interface SessionTimelineProps {
 	initiator: MinimalUser;
 	threads: readonly AIBridgeThread[];
+	/**
+	 * Undefined when the session did not pass through Agent Firewall, in which
+	 * case the network calls panel is not rendered.
+	 */
+	networkCallSummary?: AIBridgeSessionNetworkCallSummary;
+	networkCalls: readonly AgentFirewallLog[];
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 	onFetchNextPage: () => void;
@@ -416,6 +425,8 @@ interface SessionTimelineProps {
 export const SessionTimeline: FC<SessionTimelineProps> = ({
 	initiator,
 	threads,
+	networkCallSummary,
+	networkCalls,
 	hasNextPage,
 	isFetchingNextPage,
 	onFetchNextPage,
@@ -524,6 +535,14 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* left vertical line */}
 				</div>
 				<div className="row-start-5 col-start-2 col-span-4">
+					{networkCallSummary && (
+						<div className="mb-4">
+							<NetworkCallsTable
+								summary={networkCallSummary}
+								calls={networkCalls}
+							/>
+						</div>
+					)}
 					{/* threads */}
 					<div className="[&>.thread-gap:last-child]:hidden">
 						{threads.map((thread) => (
@@ -563,23 +582,31 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* bottom right rounded corner */}
 				</div>
 
-				{/* row 7: sized intentionally to create the visual space below the timeline border */}
-				<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid h-4">
-					{/* vertical line */}
-				</div>
+				{/* rows 7-8: session end marker. Only rendered once every thread
+				    has loaded so "Session completed" cannot appear below
+				    still-loading threads and be mistaken for the end of the
+				    session. */}
+				{!hasNextPage && !isFetchingNextPage && (
+					<>
+						{/* row 7: sized intentionally to create the visual space below the timeline border */}
+						<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid h-4">
+							{/* vertical line */}
+						</div>
 
-				{/* row 8: session completed */}
-				<div className="row-start-8 col-start-2 relative">
-					<StatusIndicatorDot
-						variant="success"
-						className="absolute right-0 translate-x-1/2 translate-y-1/2"
-					/>
-				</div>
-				<div className="row-start-8 col-start-4 flex items-center">
-					<span className="text-content-success font-normal ml-4 text-sm py-1">
-						Session completed
-					</span>
-				</div>
+						{/* row 8: session completed */}
+						<div className="row-start-8 col-start-2 relative">
+							<StatusIndicatorDot
+								variant="success"
+								className="absolute right-0 translate-x-1/2 translate-y-1/2"
+							/>
+						</div>
+						<div className="row-start-8 col-start-4 flex items-center">
+							<span className="text-content-success font-normal ml-4 text-sm py-1">
+								Session completed
+							</span>
+						</div>
+					</>
+				)}
 			</div>
 		</div>
 	);

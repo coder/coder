@@ -1,23 +1,29 @@
-import Link from "@mui/material/Link";
 import type { FC, HTMLAttributes } from "react";
 import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { Pill } from "#/components/Pill/Pill";
+import { Link } from "#/components/Link/Link";
 import { cn } from "#/utils/cn";
 
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
 	example: TemplateExample;
 	activeTag?: string;
+	templateBuilderEnabled?: boolean;
 };
 
 export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 	example,
 	activeTag,
+	templateBuilderEnabled,
 	className,
 	...divProps
 }) => {
+	const useTemplateLink = templateBuilderEnabled
+		? `/templates/new/builder?base=${example.id}`
+		: `/templates/new?exampleId=${example.id}`;
+
 	return (
 		<div
 			className={cn(
@@ -37,15 +43,12 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				<div className="flex flex-wrap justify-end gap-2">
 					{example.tags.map((tag) => (
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
-							<Pill
-								className={cn(
-									"cursor-pointer border-border",
-									"hover:border-content-primary",
-									activeTag === tag && "!border-border-pending !bg-surface-sky",
-								)}
+							<Badge
+								variant={activeTag === tag ? "info" : "default"}
+								className="cursor-pointer no-underline hover:border-content-primary"
 							>
 								{tag}
-							</Pill>
+							</Badge>
 						</RouterLink>
 					))}
 				</div>
@@ -56,20 +59,20 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				<span className="block text-[13px] leading-[1.6] text-content-secondary">
 					{example.description}{" "}
 					<Link
-						component={RouterLink}
-						to={`/starter-templates/${example.id}`}
-						className="inline-block text-[13px] mt-1"
+						className="inline-block text-[13px] mt-1 p-0"
+						asChild
+						showExternalIcon={false}
 					>
-						Read more
+						<RouterLink to={`/starter-templates/${example.id}`}>
+							Read more
+						</RouterLink>
 					</Link>
 				</span>
 			</div>
 
 			<div className="mt-auto flex flex-col items-center gap-3 pt-6">
 				<Button asChild className="w-full">
-					<RouterLink to={`/templates/new?exampleId=${example.id}`}>
-						Use template
-					</RouterLink>
+					<RouterLink to={useTemplateLink}>Use template</RouterLink>
 				</Button>
 			</div>
 		</div>

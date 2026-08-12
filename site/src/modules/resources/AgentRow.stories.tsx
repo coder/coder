@@ -4,7 +4,6 @@ import { API } from "#/api/api";
 import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
 import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
-import { chromatic } from "#/testHelpers/chromatic";
 import * as M from "#/testHelpers/entities";
 import {
 	withDashboardProvider,
@@ -135,7 +134,6 @@ const meta: Meta<typeof AgentRow> = {
 	},
 	decorators: [withProxyProvider(), withDashboardProvider, withWebSocket],
 	parameters: {
-		chromatic,
 		queries: [
 			{
 				key: ["portForward", M.MockWorkspaceAgent.id],
@@ -216,7 +214,7 @@ export const ConnectingWithStartupLogs: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Agent is connecting (hasAgentIssues=true) but no script has failed.
+		// Agent is connecting (hasConnectivityIssues=true) but no script has failed.
 		// Old code snapped to the Startup Script tab; the fix keeps us on All Logs.
 		const allLogsTab = await canvas.findByRole("tab", { name: "All Logs" });
 		await waitFor(() =>

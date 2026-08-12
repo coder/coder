@@ -25,17 +25,17 @@ jobs:
     name: Flake Check
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     # This timeout must be greater than the Go test timeout set in `make test`
-    # (-timeout 20m) so we receive a goroutine trace before the runner kills
+    # (-timeout 25m) so we receive a goroutine trace before the runner kills
     # the job. Mirrors the test-go-pg job in ci.yaml.
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.head_sha || github.sha }}
@@ -46,9 +46,6 @@ jobs:
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go"
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/whichtests go:gotest.tools/gotestsum
@@ -70,6 +67,21 @@ jobs:
         with:
           install-args: "terraform"
 
+      # Exports EMBEDDED_PG_CACHE_DIR, which startBuiltinPostgres uses as a
+      # shared binary archive cache in tests.
+      - name: Setup Embedded Postgres Cache Paths
+        id: embedded-pg-cache
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/setup-embedded-pg-cache-paths
+
+      - name: Download Embedded Postgres Cache
+        id: download-embedded-pg-cache
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/embedded-pg-cache/download
+        with:
+          key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
+          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
+
       - name: Run targeted Go flake checks
         id: flake_check
         if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
@@ -83,6 +95,15 @@ jobs:
           run-regex: ${{ fromJSON(steps.selector.outputs.matrix).include[0].run_regex }}
           test-shuffle: "on"
           gotestsum-json-file: default
+
+      # The upload action only saves on main, so this is a no-op for PRs.
+      # A workflow_dispatch run on main seeds the cache that PR runs restore.
+      - name: Upload Embedded Postgres Cache
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/embedded-pg-cache/upload
+        with:
+          cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
+          cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
 
       - name: Publish Go test failure report
         if: failure() && steps.flake_check.outcome == 'failure' && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)

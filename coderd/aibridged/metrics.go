@@ -46,7 +46,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		ProvidersLastReloadSuccessTimestampSeconds: factory.NewGauge(prometheus.GaugeOpts{
 			Name: "providers_last_reload_success_timestamp_seconds",
-			Help: "Unix timestamp of the last provider reload that successfully refreshed the pool. A gap against coder_aibridged_providers_last_reload_timestamp_seconds means the loop is firing but the refresh function is failing.",
+			Help: "Unix timestamp of the last provider reload that successfully refreshed the pool. A gap against the providers_last_reload_timestamp_seconds gauge means the loop is firing but the refresh function is failing.",
 		}),
 	}
 }

@@ -147,6 +147,11 @@ const ATTACHMENT_RESPONSES = new Map<string, AttachmentResponse>([
 		},
 	],
 	["storybook-text-error", { body: "Temporary failure", status: 503 }],
+	[
+		"storybook-ios-share-report",
+		{ status: 200, body: "pdf-bytes", contentType: "application/pdf" },
+	],
+	["storybook-ios-error-report", { status: 500, body: "" }],
 ]);
 
 let attachmentFetchCounts = new Map<string, number>();
@@ -244,6 +249,7 @@ const buildParsedReadFileEntry = ({
 	content = "",
 	errorMessage,
 	isError = status === "error",
+	hookRewritten = false,
 }: {
 	messageId: number;
 	toolId: string;
@@ -252,6 +258,7 @@ const buildParsedReadFileEntry = ({
 	content?: string;
 	errorMessage?: string;
 	isError?: boolean;
+	hookRewritten?: boolean;
 }): ParsedMessageEntry => {
 	const args = { path };
 	const result =
@@ -289,10 +296,12 @@ const buildParsedReadFileEntry = ({
 					result,
 					isError,
 					status,
+					hookRewritten,
 				},
 			],
 			blocks: [{ type: "tool", id: toolId }],
 			sources: [],
+			hookNotices: [],
 		},
 	};
 };
@@ -396,13 +405,6 @@ const defaultArgs: Omit<
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/ChatConversation/ConversationTimeline",
 	component: ConversationTimeline,
-	decorators: [
-		(Story) => (
-			<div className="mx-auto w-full max-w-3xl py-6">
-				<Story />
-			</div>
-		),
-	],
 	beforeEach: () => {
 		attachmentFetchCounts = new Map();
 		mockAttachmentFetch();
@@ -410,6 +412,132 @@ const meta: Meta<typeof ConversationTimeline> = {
 };
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
+
+export const LifecycleHookNotice: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "system",
+				content: [
+					{
+						type: "hook-notice",
+						text: "Your organization requires an approval before deployment.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("note");
+		expect(notice).toBeVisible();
+		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
+		expect(
+			within(notice).getByText(
+				"Your organization requires an approval before deployment.",
+			),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SystemMessageWithoutHookNotice: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "system",
+				content: [{ type: "text", text: "Maintenance starts in ten minutes." }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("note");
+		expect(
+			within(notice).getByText("Maintenance starts in ten minutes."),
+		).toBeVisible();
+		expect(
+			within(notice).queryByText("Lifecycle hook"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const LifecycleHookNoticeOnUserMessage: Story = {
+	args: {
+		...defaultArgs,
+		urlTransform: (url) =>
+			url.replace("http://localhost:3000", "https://proxy.example.com"),
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "original prompt" },
+					{
+						type: "hook-notice",
+						text: "Deployment context was added: [policy](http://localhost:3000/policy)",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("note");
+		expect(notice).toBeVisible();
+		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
+		const prompt = canvas.getByText("original prompt");
+		expect(prompt).toBeVisible();
+		expect(
+			prompt.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		const link = within(notice).getByRole("link", { name: "policy" });
+		expect(link).toHaveAttribute("href", "https://proxy.example.com/policy");
+	},
+};
+
+export const LifecycleHookNoticeAfterEditedMessage: Story = {
+	args: {
+		...defaultArgs,
+		editingMessageId: 1,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "prompt being edited" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{ type: "text", text: "later prompt" },
+					{
+						type: "hook-notice",
+						text: "Deployment context was added: [policy](http://localhost:3000/policy)",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("prompt being edited")).toBeVisible();
+		const link = canvas.getByRole("link", { name: "policy" });
+		link.focus();
+		expect(link).not.toHaveFocus();
+	},
+};
 
 export const DurableListTemplatesToolLifecycle: Story = {
 	args: {
@@ -613,7 +741,7 @@ export const UserMessageWithExpiredImage: Story = {
 		// copy survives any operator-chosen retention window.
 		await hoverAndExpectTooltip(
 			expiredTile,
-			/deleted after the retention window/i,
+			/kept while any chat references them/i,
 		);
 	},
 };
@@ -934,7 +1062,7 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 
 		await hoverAndExpectTooltip(
 			expiredTile,
-			/deleted after the retention window/i,
+			/kept while any chat references them/i,
 		);
 	},
 };
@@ -1168,6 +1296,83 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "Copy message" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const AssistantMessageWithMismatchedExtensionFile: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here are the release notes." },
+					{
+						type: "file",
+						media_type: "application/pdf",
+						file_id: "storybook-mismatched-notes",
+						name: "release-notes.txt",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const downloadLink = canvas.getByRole("link", {
+			name: "Download release-notes.txt",
+		});
+		expect(downloadLink).toHaveAttribute("download", "release-notes.txt");
+	},
+};
+
+const iosDownloadStoryArgs: Story["args"] = buildStoryArgs(
+	buildUserMessage({
+		text: "I attached the deployment report.",
+		files: [
+			buildFilePart({
+				media_type: "application/pdf",
+				file_id: "storybook-ios-share-report",
+				name: "deployment-report.pdf",
+			}),
+		],
+	}),
+);
+
+export const DownloadInIOSStandaloneSharesFile: Story = {
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn().mockResolvedValue(undefined);
+		// Read-only Navigator values must be shadowed with removable own
+		// properties.
+		const overrides: Record<string, unknown> = {
+			userAgent:
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+			standalone: true,
+			share,
+			canShare: fn().mockReturnValue(true),
+		};
+		for (const [key, value] of Object.entries(overrides)) {
+			Object.defineProperty(navigator, key, { value, configurable: true });
+		}
+		try {
+			await userEvent.click(
+				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+			);
+			await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+			const shared: { files: File[] } = share.mock.calls[0][0];
+			expect(shared.files).toHaveLength(1);
+			expect(shared.files[0].name).toBe("deployment-report.pdf");
+			expect(shared.files[0].type).toBe("application/pdf");
+			expect(getAttachmentFetchCount("storybook-ios-share-report")).toBe(1);
+		} finally {
+			for (const key of Object.keys(overrides)) {
+				Reflect.deleteProperty(navigator, key);
+			}
+		}
 	},
 };
 
@@ -1629,6 +1834,64 @@ export const AssistantMessageCopyButton: Story = {
 	},
 };
 
+/**
+ * Assistant messages that end with a tool call get no copy button,
+ * because the action row would otherwise render directly below the
+ * tool row instead of below copyable text.
+ */
+export const NoCopyButtonAfterTrailingToolCall: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Run the tests" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Running the test suite now." },
+					{
+						type: "tool-call",
+						tool_call_id: "call-exec-1",
+						tool_name: "execute",
+						args: { command: "make test" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "call-exec-1",
+						tool_name: "execute",
+						result: { output: "ok" },
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Running the test suite now.");
+		// The assistant message ends with a tool call, so no copy button.
+		const actions = canvas.getAllByTestId("message-actions");
+		expect(actions).toHaveLength(1);
+		for (const actionRow of actions) {
+			expect(
+				within(actionRow).getByRole("button", { name: "Copy message" }),
+			).toBeInTheDocument();
+		}
+	},
+};
+
 /** Persisted ask-user-question answers survive reloads. */
 export const AskUserQuestionSubmittedAnswer: Story = {
 	args: {
@@ -1918,7 +2181,7 @@ export const MultiAssistantTurnCopyButton: Story = {
 };
 
 /**
- * Regression: thinking-only assistant messages must have consistent
+ * Thinking-only assistant messages must have consistent
  * bottom spacing before the next user bubble. A spacer div fills the
  * gap that would normally come from the invisible action bar.
  */
@@ -1957,6 +2220,40 @@ export const ThinkingOnlyAssistantSpacing: Story = {
 		// it should still have visible text and a spacer element.
 		expect(canvas.getByText("Explain this code")).toBeInTheDocument();
 		expect(canvas.getByText("Any progress?")).toBeInTheDocument();
+		expect(canvas.getByTestId("assistant-bottom-spacer")).toBeInTheDocument();
+	},
+};
+
+/** No following bubble to space against; the spacer would be a dangling blank. */
+export const NoSpacerAfterTrailingThinkingMessage: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Explain this code" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Let me think about this step by step.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Explain this code")).toBeInTheDocument();
+		expect(
+			canvas.queryByTestId("assistant-bottom-spacer"),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -2209,6 +2506,7 @@ export const ToolDisplayModesFromPreferences: Story = {
 						{ type: "tool", id: "edit-tool" },
 					],
 					sources: [],
+					hookNotices: [],
 				},
 			},
 		] satisfies ParsedMessageEntry[],
@@ -2404,6 +2702,89 @@ export const SequentialReadFilesCollapsed: Story = {
 		await waitFor(() => {
 			expect(firstFileButton).toHaveAttribute("aria-expanded", "true");
 		});
+	},
+};
+
+export const ReadFileRewrittenByHook: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-rewritten-1",
+				path: "site/src/redacted.ts",
+				status: "completed",
+				content: "export const redacted = true;\n",
+				hookRewritten: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const GroupedReadFilesRewrittenByHook: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-grouped-1",
+				path: "site/src/a.ts",
+				status: "completed",
+				content: "export const a = 1;\n",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-grouped-2",
+				path: "site/src/b.ts",
+				status: "completed",
+				content: "export const b = 2;\n",
+				hookRewritten: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		await step("group header shows the aggregate badge", async () => {
+			expect(await canvas.findByText("Modified by policy")).toBeVisible();
+		});
+		await step("expanded rows credit only the rewritten file", async () => {
+			await userEvent.click(
+				await canvas.findByRole("button", { name: /Read 2 files/ }),
+			);
+			expect(
+				await canvas.findByRole("button", { name: /Read b\.ts/ }),
+			).toBeVisible();
+			const attributed = canvas
+				.getAllByRole("group", { name: "Modified by policy" })
+				.map((group) => group.textContent ?? "");
+			expect(attributed.some((text) => text.includes("b.ts"))).toBe(true);
+			expect(attributed.some((text) => text.includes("a.ts"))).toBe(false);
+			expect(canvas.getAllByText("Modified by policy")).toHaveLength(2);
+		});
+	},
+};
+
+export const ReadFileNotRewrittenByHook: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-plain-1",
+				path: "site/src/plain.ts",
+				status: "completed",
+				content: "export const plain = true;\n",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText(/plain\.ts/)).toBeVisible();
+		expect(canvas.queryByText("Modified by policy")).not.toBeInTheDocument();
 	},
 };
 

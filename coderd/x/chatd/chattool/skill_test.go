@@ -35,6 +35,18 @@ func responseName(t *testing.T, resp fantasy.ToolResponse) string {
 	return payload.Name
 }
 
+// responseDir extracts the "dir" field from a read_skill response. It is
+// empty when the field is absent, as it is for personal skills.
+func responseDir(t *testing.T, resp fantasy.ToolResponse) string {
+	t.Helper()
+
+	var payload struct {
+		Dir string `json:"dir"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &payload))
+	return payload.Dir
+}
+
 func TestFormatResolvedSkillIndex(t *testing.T) {
 	t.Parallel()
 
@@ -120,51 +132,6 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 		assert.Contains(t, idx, "- personal/review: Personal")
 		assert.Contains(t, idx, "- workspace/review: Workspace")
 		assert.Contains(t, idx, "pass that qualified alias to read_skill")
-	})
-}
-
-func TestLoadSkillBody(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ReturnsBodyAndFiles", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		conn := agentconnmock.NewMockAgentConn(ctrl)
-
-		skill := chattool.SkillMeta{
-			Name:        "my-skill",
-			Description: "desc",
-			Dir:         "/work/.agents/skills/my-skill",
-		}
-
-		// Read the full SKILL.md.
-		conn.EXPECT().ReadFile(
-			gomock.Any(),
-			"/work/.agents/skills/my-skill/SKILL.md",
-			int64(0),
-			int64(64*1024+1),
-		).Return(
-			io.NopCloser(strings.NewReader(validSkillMD("my-skill", "desc"))),
-			"text/markdown",
-			nil,
-		)
-
-		// List supporting files.
-		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
-			workspacesdk.LSResponse{
-				Contents: []workspacesdk.LSFile{
-					{Name: "SKILL.md"},
-					{Name: "helper.md"},
-					{Name: "roles", IsDir: true},
-				},
-			}, nil,
-		)
-
-		content, err := chattool.LoadSkillBody(context.Background(), conn, skill, "SKILL.md")
-		require.NoError(t, err)
-		assert.Contains(t, content.Body, "Do the thing.")
-		assert.Equal(t, []string{"helper.md", "roles/"}, content.Files)
 	})
 }
 
@@ -309,29 +276,27 @@ func TestLoadSkillFile(t *testing.T) {
 func TestReadSkillTool(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ValidSkill", func(t *testing.T) {
+	t.Run("PinnedBodyFromMeta", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
 		conn := agentconnmock.NewMockAgentConn(ctrl)
 
+		// Meta carries the pushed SKILL.md, so the body is served from the
+		// pin: the conn must never be asked to ReadFile the SKILL.md. The
+		// supporting-file list is still a live, best-effort LS.
 		skills := []chattool.SkillMeta{{
 			Name:        "my-skill",
 			Description: "test",
 			Dir:         "/work/.agents/skills/my-skill",
+			Meta:        []byte(validSkillMD("my-skill", "test")),
 		}}
 
-		conn.EXPECT().ReadFile(
-			gomock.Any(), gomock.Any(), int64(0), gomock.Any(),
-		).Return(
-			io.NopCloser(strings.NewReader(validSkillMD("my-skill", "test"))),
-			"text/markdown",
-			nil,
-		)
 		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
 			workspacesdk.LSResponse{
 				Contents: []workspacesdk.LSFile{
 					{Name: "SKILL.md"},
+					{Name: "helper.md"},
 				},
 			}, nil,
 		)
@@ -351,6 +316,43 @@ func TestReadSkillTool(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
 		assert.Contains(t, resp.Content, "Do the thing.")
+		assert.Contains(t, resp.Content, "helper.md")
+		// Workspace skills expose the absolute skill directory so the
+		// model can reach supporting files with read_file/execute.
+		assert.Equal(t, "/work/.agents/skills/my-skill", responseDir(t, resp))
+	})
+
+	t.Run("PinnedBodyServedWhenWorkspaceUnreachable", func(t *testing.T) {
+		t.Parallel()
+
+		// With the body pinned, an unreachable workspace must not block
+		// read_skill: the body is returned and the file list degrades to empty.
+		skills := []chattool.SkillMeta{{
+			Name: "my-skill",
+			Dir:  "/work/.agents/skills/my-skill",
+			Meta: []byte(validSkillMD("my-skill", "test")),
+		}}
+
+		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return nil, xerrors.New("workspace is stopped")
+			},
+			GetSkills: func() []chattool.SkillMeta { return skills },
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill",
+			Input: `{"name":"my-skill"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Contains(t, resp.Content, "Do the thing.")
+		assert.Contains(t, resp.Content, `"files":[]`)
+		// The dir comes from the pinned SkillMeta, so it is still
+		// returned even when the workspace is unreachable and the file
+		// list degrades to empty.
+		assert.Equal(t, "/work/.agents/skills/my-skill", responseDir(t, resp))
 	})
 
 	t.Run("PersonalSkill", func(t *testing.T) {
@@ -389,6 +391,9 @@ func TestReadSkillTool(t *testing.T) {
 		assert.False(t, resp.IsError)
 		assert.Contains(t, resp.Content, "Personal instructions.")
 		assert.Contains(t, resp.Content, `"files":[]`)
+		// Personal skills are database-backed and have no directory.
+		assert.Empty(t, responseDir(t, resp))
+		assert.NotContains(t, resp.Content, `"dir"`)
 	})
 
 	t.Run("PersonalQualifiedAliasPreservesAlias", func(t *testing.T) {
@@ -442,15 +447,9 @@ func TestReadSkillTool(t *testing.T) {
 			Name:        "my-skill",
 			Description: "test",
 			Dir:         "/work/.agents/skills/my-skill",
+			Meta:        []byte(validSkillMD("my-skill", "test")),
 		}}
 
-		conn.EXPECT().ReadFile(
-			gomock.Any(), gomock.Any(), int64(0), gomock.Any(),
-		).Return(
-			io.NopCloser(strings.NewReader(validSkillMD("my-skill", "test"))),
-			"text/markdown",
-			nil,
-		)
 		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
 			workspacesdk.LSResponse{}, nil,
 		)
@@ -482,6 +481,7 @@ func TestReadSkillTool(t *testing.T) {
 		assert.False(t, resp.IsError)
 		assert.Equal(t, "workspace/my-skill", responseName(t, resp))
 		assert.Contains(t, resp.Content, "Do the thing.")
+		assert.Equal(t, "/work/.agents/skills/my-skill", responseDir(t, resp))
 	})
 
 	t.Run("CollisionAliasRoundTrip", func(t *testing.T) {
@@ -494,15 +494,9 @@ func TestReadSkillTool(t *testing.T) {
 			Name:        "deploy",
 			Description: "workspace deploy",
 			Dir:         "/work/.agents/skills/deploy",
+			Meta:        []byte(validSkillMD("deploy", "workspace deploy")),
 		}}
 
-		conn.EXPECT().ReadFile(
-			gomock.Any(), gomock.Any(), int64(0), gomock.Any(),
-		).Return(
-			io.NopCloser(strings.NewReader(validSkillMD("deploy", "workspace deploy"))),
-			"text/markdown",
-			nil,
-		)
 		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
 			workspacesdk.LSResponse{}, nil,
 		)
@@ -559,6 +553,7 @@ func TestReadSkillTool(t *testing.T) {
 		assert.False(t, workspaceResp.IsError)
 		workspaceName := responseName(t, workspaceResp)
 		assert.Equal(t, "workspace/deploy", workspaceName)
+		assert.Equal(t, "/work/.agents/skills/deploy", responseDir(t, workspaceResp))
 		workspaceResolved, err := resolveAlias(workspaceName)
 		require.NoError(t, err)
 		assert.Equal(t, skillspkg.SourceWorkspace, workspaceResolved.Source)

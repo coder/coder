@@ -4,7 +4,7 @@
 
 <div class="tabs">
 
-To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](https://github.com/coder/coder/tree/main/nix).
+To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](../../../flake.nix).
 Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 
 ### Nix
@@ -14,7 +14,7 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 1. After you've installed Nix, instantiate the development with the `nix-shell`
    command:
 
-   ```shell
+   ```sh
    cd ~/code/coder
 
    # https://nix.dev/tutorials/declarative-and-reproducible-developer-environments
@@ -31,7 +31,7 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
    [hooks configured](https://direnv.net/docs/hook.html), you can add `use nix`
    to `.envrc` to automatically instantiate the development environment:
 
-   ```shell
+   ```sh
    cd ~/code/coder
    echo "use nix" >.envrc
    direnv allow
@@ -41,7 +41,7 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
    [`direnv`](https://direnv.net/docs/hook.html) will prepare the environment
    for you:
 
-   ```shell
+   ```sh
    cd ~/code/coder
 
    direnv: loading ~/code/coder/.envrc
@@ -56,7 +56,7 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 
 ### Without Nix
 
-If you're not using the Nix environment, you can launch a local [DevContainer](https://github.com/coder/coder/tree/main/.devcontainer) to get a fully configured development environment.
+If you're not using the Nix environment, you can launch a local [DevContainer](../../../.devcontainer) to get a fully configured development environment.
 
 DevContainers are supported in tools like **VS Code** and **GitHub Codespaces**, and come preloaded with all required dependencies: Docker, Go, Node.js with `pnpm`, `mise`, and `make`.
 
@@ -114,7 +114,7 @@ the Makefile trigger the full targets as before.
    ./scripts/coder-dev.sh list
       ```
 
-   This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](https://github.com/coder/coder/blob/main/scripts/develop.sh) script for issues.
+   This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](../../../scripts/develop.sh) script for issues.
 
    > [!NOTE]
    > `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
@@ -212,7 +212,7 @@ be applied selectively or to discourage anyone from contributing.
 ## Releases
 
 Coder releases are managed entirely through the
-[`release.yaml`](https://github.com/coder/coder/blob/main/.github/workflows/release.yaml)
+[`release.yaml`](../../../.github/workflows/release.yaml)
 GitHub Actions workflow, triggered manually via "Run workflow" in the Actions
 tab. Release notes are automatically generated from commit titles and PR
 metadata.
@@ -232,7 +232,7 @@ RC tags can be created from `main` or from a release branch. The
 `create-release-branch` type creates `release/X.Y` and tags the next RC in one
 step, continuing the RC numbering sequence.
 
-```text
+```txt
 main:  --*--*--*--*--*--*--*--*--*--
               |  rc.0   rc.1  |
               |               +--- create-release-branch ---+
@@ -293,7 +293,7 @@ changes are within that directory. If changes span multiple top-level
 directories, omit the scope.
 
 A good rule of thumb for writing good commit messages is to recite:
-[If applied, this commit will ...](https://reflectoring.io/meaningful-commit-messages/).
+[If applied, this commit will ...](https://cbea.ms/git-commit/).
 
 **Note:** We lint PR titles to ensure they follow the Conventional Commits
 specification, however, it's still possible to merge PRs on GitHub with a badly
@@ -304,7 +304,7 @@ to use the original commit title instead of the PR title.
 
 When a merged PR on `main` should also ship in older releases, add the
 `backport` label to the PR. The
-[backport workflow](https://github.com/coder/coder/blob/main/.github/workflows/backport.yaml)
+[backport workflow](../../../.github/workflows/backport.yaml)
 will automatically detect the latest three `release/*` branches,
 cherry-pick the merge commit onto each one, and open PRs for
 review.
@@ -358,7 +358,7 @@ If `./scripts/develop.sh` exits with a "database migration conflict" error,
 it means the database has migrations from another branch that don't exist
 on the current one. You have two options:
 
-```shell
+```sh
 # Roll back the mismatched migrations (preserves your dev data):
 ./scripts/develop.sh --db-rollback
 
@@ -373,7 +373,7 @@ On macOS, a [direnv bug](https://github.com/direnv/direnv/issues/1345) can cause
 `error: creating directory` when you attempt to run, build, or test, add a
 `mkdir` line to your `.envrc`:
 
-```shell
+```sh
 use nix
 mkdir -p "$TMPDIR"
 ```

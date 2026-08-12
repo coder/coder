@@ -6,7 +6,7 @@ const stoppedWorkspaceError =
 
 describe("toolVisibility", () => {
 	describe("getExecuteRenderData", () => {
-		it("parses execute output and auth metadata from result payloads", () => {
+		it("parses execute output from result payloads", () => {
 			expect(
 				getExecuteRenderData(
 					{ command: "git fetch origin" },
@@ -14,18 +14,14 @@ describe("toolVisibility", () => {
 						output: " fetched ",
 						wall_duration_ms: "47200",
 						background_process_id: "process-1",
-						auth_required: true,
-						authenticate_url: "https://example.com/auth",
-						provider_display_name: "GitHub",
 					},
 				),
 			).toEqual({
 				command: "git fetch origin",
 				transcriptBlocks: [{ kind: "output", text: "fetched" }],
+				errorText: "",
 				durationMs: 47200,
 				isBackgrounded: true,
-				authenticateURL: "https://example.com/auth",
-				providerLabel: "GitHub",
 			});
 		});
 
@@ -67,7 +63,7 @@ describe("toolVisibility", () => {
 	});
 
 	describe("shouldRenderTool", () => {
-		it("hides execute rows with neither a command nor an auth prompt", () => {
+		it("hides execute rows without a command", () => {
 			expect(
 				shouldRenderTool({
 					name: "execute",
@@ -76,20 +72,6 @@ describe("toolVisibility", () => {
 					result: { output: "ignored" },
 				}),
 			).toBe(false);
-		});
-
-		it("keeps execute rows when auth is required even without a command", () => {
-			expect(
-				shouldRenderTool({
-					name: "execute",
-					status: "completed",
-					args: {},
-					result: {
-						auth_required: true,
-						authenticate_url: "https://example.com/auth",
-					},
-				}),
-			).toBe(true);
 		});
 
 		it("hides running wait_agent rows until chat_id is available", () => {
@@ -114,7 +96,7 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
-		it("hides running close_agent rows until chat_id is available", () => {
+		it("hides running close_agent (legacy alias) rows until chat_id is available", () => {
 			expect(
 				shouldRenderTool({
 					name: "close_agent",
@@ -123,6 +105,28 @@ describe("toolVisibility", () => {
 					result: { status: "running" },
 				}),
 			).toBe(false);
+		});
+
+		it("hides running interrupt_agent rows until chat_id is available", () => {
+			expect(
+				shouldRenderTool({
+					name: "interrupt_agent",
+					status: "running",
+					args: {},
+					result: { status: "running" },
+				}),
+			).toBe(false);
+		});
+
+		it("renders list_agents rows regardless of chat_id", () => {
+			expect(
+				shouldRenderTool({
+					name: "list_agents",
+					status: "running",
+					args: {},
+					result: undefined,
+				}),
+			).toBe(true);
 		});
 
 		it("renders running lifecycle rows once args provide the chat_id", () => {
@@ -136,7 +140,7 @@ describe("toolVisibility", () => {
 			).toBe(true);
 		});
 
-		it("renders completed lifecycle rows even if chat_id is absent", () => {
+		it("renders completed close_agent (legacy alias) rows even if chat_id is absent", () => {
 			expect(
 				shouldRenderTool({
 					name: "close_agent",

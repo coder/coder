@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockListeningPortsResponse,
 	MockPrimaryWorkspaceProxy,
@@ -36,7 +35,6 @@ const meta: Meta<typeof AgentDevcontainerCard> = {
 	},
 	decorators: [withProxyProvider(), withDashboardProvider],
 	parameters: {
-		chromatic,
 		queries: [
 			{
 				key: ["portForward", MockWorkspaceSubAgent.id],
@@ -129,6 +127,20 @@ export const NoContainerOrAgentOrName: Story = {
 	args: {
 		devcontainer: {
 			...MockWorkspaceAgentDevcontainer,
+			container: undefined,
+			agent: undefined,
+			name: "",
+		},
+		subAgents: [],
+	},
+};
+
+export const NoContainerOrAgentOrNameWithLongConfigPath: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			config_path:
+				"/home/coder/repos/coder/coder/.claude/worktrees/i-waited-for-some-things-and-i-got-some-banana-bread-at-work-today-dude/.devcontainer/devcontainer.json",
 			container: undefined,
 			agent: undefined,
 			name: "",

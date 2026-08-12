@@ -536,9 +536,7 @@ func setupPushTestWithOptions(ctx context.Context, t *testing.T, db database.Sto
 	server := httptest.NewServer(http.HandlerFunc(handlerFunc))
 	t.Cleanup(server.Close)
 
-	// Use an unrestricted HTTP client for tests. The default SSRF-safe
-	// client rejects loopback addresses, which blocks httptest.Server.
-	opts = append(opts, webpush.WithHTTPClient(http.DefaultClient))
+	opts = append(opts, webpush.WithHTTPClient(server.Client()))
 	manager, err := webpush.New(ctx, &logger, db, "http://example.com", opts...)
 	require.NoError(t, err, "Failed to create webpush manager")
 

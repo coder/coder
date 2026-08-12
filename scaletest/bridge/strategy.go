@@ -18,7 +18,7 @@ type requestModeStrategy interface {
 	Cleanup(ctx context.Context, id string, logs io.Writer) error
 }
 
-// bridgeStrategy creates users via Coder and routes requests through AI Bridge.
+// bridgeStrategy creates users via Coder and routes requests through AI Gateway.
 type bridgeStrategy struct {
 	client   *codersdk.Client
 	provider string
@@ -66,11 +66,11 @@ func (s *bridgeStrategy) Setup(ctx context.Context, id string, logs io.Writer) (
 
 	switch s.provider {
 	case "messages":
-		requestURL = fmt.Sprintf("%s/api/v2/aibridge/anthropic/v1/messages", s.client.URL)
+		requestURL = fmt.Sprintf("%s/api/v2/ai-gateway/anthropic/v1/messages", s.client.URL)
 	case "responses":
-		requestURL = fmt.Sprintf("%s/api/v2/aibridge/openai/v1/responses", s.client.URL)
+		requestURL = fmt.Sprintf("%s/api/v2/ai-gateway/openai/v1/responses", s.client.URL)
 	case "completions":
-		requestURL = fmt.Sprintf("%s/api/v2/aibridge/openai/v1/chat/completions", s.client.URL)
+		requestURL = fmt.Sprintf("%s/api/v2/ai-gateway/openai/v1/chat/completions", s.client.URL)
 	}
 	logger.Info(ctx, "bridge runner in bridge mode",
 		slog.F("url", requestURL),

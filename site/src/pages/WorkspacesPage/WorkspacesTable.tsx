@@ -1,5 +1,6 @@
 import {
 	BanIcon,
+	CircleAlertIcon,
 	CloudIcon,
 	EllipsisVerticalIcon,
 	ExternalLinkIcon,
@@ -38,7 +39,7 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
@@ -67,9 +68,11 @@ import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import {
 	getTerminalHref,
 	getVSCodeHref,
+	isAppUrlValid,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
+import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { abilitiesByWorkspaceStatus } from "#/modules/workspaces/actions";
 import { WorkspaceBuildCancelDialog } from "#/modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
@@ -93,6 +96,7 @@ interface WorkspacesTableProps {
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
+	canCreateWorkspace: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 	chatsByWorkspace?: Record<string, string>;
@@ -105,6 +109,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onCheckChange,
 	templates,
 	canCreateTemplate,
+	canCreateWorkspace,
 	onActionSuccess,
 	onActionError,
 	chatsByWorkspace,
@@ -167,6 +172,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								templates={templates}
 								isUsingFilter={isUsingFilter}
 								canCreateTemplate={canCreateTemplate}
+								canCreateWorkspace={canCreateWorkspace}
 							/>
 						</TableCell>
 					</TableRow>
@@ -368,7 +374,7 @@ const TableLoader: FC = () => {
 				</TableCell>
 				<TableCell className="w-0 ">
 					<div className="flex gap-1 justify-end">
-						<Skeleton className="h-10 w-10" />
+						<Skeleton className="size-10" />
 						<Button size="icon-lg" variant="subtle" disabled>
 							<EllipsisVerticalIcon aria-hidden="true" />
 						</Button>
@@ -509,7 +515,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<CloudIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -522,7 +528,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<PlayIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -535,7 +541,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<CloudIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -548,7 +554,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<PlayIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -655,15 +661,21 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
 	 * as having multiple resources with many agents, but they are not common. The
 	 * most common scenario is to have one single compute resource with one single
-	 * agent containing all the apps. Lets test this getting the apps for the
-	 * first resource, and first agent - they are sorted to return the compute
-	 * resource first - and see what customers and ourselves, using dogfood, think
-	 * about that.
+	 * agent containing all the apps. We get the apps from the first compute
+	 * resource (they are sorted to return the compute resource first).
+	 *
+	 * For multi-agent workspaces with sub-agents we show the apps from the parent
+	 * agent (the one without a `parent_id`). Sub-agents, such as those created by
+	 * devcontainers, are skipped so agent ordering does not determine which apps
+	 * appear.
+	 *
+	 * When a workspace has multiple parent-level agents we show the apps from the
+	 * first one only; aggregating apps across agents is tracked separately.
 	 */
 	const agent = workspace.latest_build.resources
 		.filter((r) => !r.hide)
 		.at(0)
-		?.agents?.at(0);
+		?.agents?.find((a) => a.parent_id === null);
 	if (!agent) {
 		return null;
 	}
@@ -759,15 +771,18 @@ const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
 	workspace,
 }) => {
 	const status = workspace.latest_app_status;
-	const agent = workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.find((a) => a?.id === status?.agent_id);
-	const app = agent?.apps.find((a) => a.id === status?.app_id);
+	const appWithAgent = status
+		? findWorkspaceAppWithAgent(workspace, status.agent_id, status.app_id)
+		: undefined;
 
 	return (
 		<>
-			{agent && app && (
-				<IconAppLink app={app} workspace={workspace} agent={agent} />
+			{appWithAgent && (
+				<IconAppLink
+					app={appWithAgent}
+					workspace={workspace}
+					agent={appWithAgent.agent}
+				/>
 			)}
 
 			{status?.uri && status?.uri !== "n/a" && (
@@ -794,6 +809,27 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 		workspace,
 		agent,
 	});
+
+	// A malformed external app URL can't be opened. Render a non-navigating
+	// icon with an explanatory tooltip instead of a broken link.
+	if (!isAppUrlValid(app)) {
+		return (
+			<BaseIconLink
+				key={app.id}
+				label={`${link.label} has an invalid URL`}
+				onClick={() => {}}
+			>
+				{app.icon ? (
+					<ExternalImage src={app.icon} />
+				) : (
+					<CircleAlertIcon
+						aria-hidden="true"
+						className="size-icon-sm text-content-warning"
+					/>
+				)}
+			</BaseIconLink>
+		);
+	}
 
 	return (
 		<BaseIconLink

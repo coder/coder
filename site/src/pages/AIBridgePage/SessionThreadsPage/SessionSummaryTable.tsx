@@ -1,11 +1,21 @@
-import type { MinimalUser } from "#/api/typesGenerated";
+import { BanIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import type {
+	AIBridgeSessionNetworkCallSummary,
+	AIBridgeSessionNetworkDomain,
+	MinimalUser,
+} from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
-import { AIBridgeClientIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
-import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
+import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
+import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 import { formatDateTime } from "#/utils/time";
+import {
+	NetworkMonitoringDisabled,
+	NetworkNoActivity,
+} from "../NetworkRequestStates";
 import { TokenBadges } from "../TokenBadges";
-import { getProviderDisplayName, getProviderIconName } from "../utils";
+import { getProviderDisplayName } from "../utils";
 
 const Separator = () => <div className="border-0 border-t border-solid my-1" />;
 
@@ -21,6 +31,16 @@ interface SessionSummaryTableProps {
 	threadCount: number;
 	toolCallCount: number;
 	tokenUsageMetadata?: Record<string, unknown>;
+	// networkCalls is undefined when the session did not pass through Agent
+	// Firewall, which renders as "Disabled".
+	networkCalls?: AIBridgeSessionNetworkCallSummary;
+	// networkDomains is undefined when the session contacted no destination
+	// hosts. totalCount is the number of distinct domains contacted, which
+	// renders as a "+N more" overflow beyond topDomain.
+	networkDomains?: {
+		readonly topDomain: AIBridgeSessionNetworkDomain;
+		readonly totalCount: number;
+	};
 }
 
 export const SessionSummaryTable = ({
@@ -35,11 +55,24 @@ export const SessionSummaryTable = ({
 	threadCount,
 	toolCallCount,
 	tokenUsageMetadata,
+	networkCalls,
+	networkDomains,
 }: SessionSummaryTableProps) => {
 	const durationInMs =
 		endTime !== undefined
 			? new Date(endTime).getTime() - new Date(startTime).getTime()
 			: undefined;
+
+	let networkCallsValue: ReactNode;
+	if (networkCalls === undefined) {
+		networkCallsValue = <NetworkMonitoringDisabled />;
+	} else if (networkCalls.total === 0) {
+		networkCallsValue = <NetworkNoActivity />;
+	} else {
+		networkCallsValue = (
+			<Badge>{networkCalls.total.toLocaleString("en-US")}</Badge>
+		);
+	}
 
 	return (
 		<dl className="text-sm text-content-secondary m-0 flex flex-col gap-y-2">
@@ -123,10 +156,7 @@ export const SessionSummaryTable = ({
 							key={p}
 							className="gap-1.5 max-w-full min-w-0 overflow-hidden"
 						>
-							<AIBridgeProviderIcon
-								provider={getProviderIconName(p)}
-								className="size-icon-xs"
-							/>
+							<AIBridgeProviderIcon provider={p} className="size-icon-xs" />
 							<span
 								className="truncate min-w-0 flex-1"
 								title={getProviderDisplayName(p)}
@@ -166,6 +196,53 @@ export const SessionSummaryTable = ({
 					<Badge>{toolCallCount}</Badge>
 				</dd>
 			</div>
+
+			<Separator />
+
+			<div className="flex items-center justify-between">
+				<dt className="shrink-0 font-normal whitespace-nowrap">
+					Network requests
+				</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary">
+					{networkCallsValue}
+				</dd>
+			</div>
+
+			{networkCalls !== undefined && networkCalls.total > 0 && (
+				<div className="flex items-center justify-between">
+					<dt className="shrink-0 font-normal whitespace-nowrap">
+						Blocked network requests
+					</dt>
+					<dd className="ml-4 min-w-0 truncate text-content-primary">
+						{networkCalls.blocked > 0 ? (
+							<Badge svgSize="xs" className="gap-1 text-content-warning">
+								<BanIcon className="flex-shrink-0" />
+								{networkCalls.blocked.toLocaleString("en-US")}
+							</Badge>
+						) : (
+							<Badge>{networkCalls.blocked.toLocaleString("en-US")}</Badge>
+						)}
+					</dd>
+				</div>
+			)}
+
+			{networkDomains !== undefined && (
+				<div className="flex items-start justify-between">
+					<dt className="shrink-0 font-normal whitespace-nowrap mt-px">
+						Top domains
+					</dt>
+					<dd className="ml-4 min-w-0 text-content-primary text-right">
+						<div className="truncate" title={networkDomains.topDomain.domain}>
+							{networkDomains.topDomain.domain}
+						</div>
+						{networkDomains.totalCount > 1 && (
+							<div className="text-content-secondary text-xs">
+								+{(networkDomains.totalCount - 1).toLocaleString("en-US")} more
+							</div>
+						)}
+					</dd>
+				</div>
+			)}
 		</dl>
 	);
 };

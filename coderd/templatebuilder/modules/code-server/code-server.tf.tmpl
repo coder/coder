@@ -1,0 +1,17 @@
+module "code-server" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/code-server/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  additional_args = {{ .Variables.additional_args }}
+  auto_install_extensions = {{ .Variables.auto_install_extensions }}
+  extensions_dir = {{ .Variables.extensions_dir }}
+  folder = {{ .Variables.folder }}
+  install_version = {{ .Variables.install_version }}
+  offline = {{ .Variables.offline }}
+  open_in = {{ .Variables.open_in }}
+  port = {{ .Variables.port }}
+  use_cached = {{ .Variables.use_cached }}
+  use_cached_extensions = {{ .Variables.use_cached_extensions }}
+  workspace = {{ .Variables.workspace }}
+}

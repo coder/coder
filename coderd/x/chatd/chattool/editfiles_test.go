@@ -582,6 +582,37 @@ func TestEditFiles_DeprecatedSearchReplaceFieldsStillWork(t *testing.T) {
 	assert.False(t, resp.IsError)
 }
 
+func TestEditFiles_DeprecatedFieldsAreCaseSensitive(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	targetPath := "/home/coder/main.go"
+	mockConn.EXPECT().
+		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path:  targetPath,
+				Edits: []workspacesdk.FileEdit{{}},
+			}},
+			IncludeDiff: true,
+		}).
+		Return(workspacesdk.FileEditResponse{}, nil)
+
+	tool := chattool.EditFiles(chattool.EditFilesOptions{
+		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+	})
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "edit_files",
+		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"SEARCH":"old","REPLACE":"replacement"}]}]}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+}
+
 func TestEditFiles_NewFieldNamesTakePrecedenceOverOld(t *testing.T) {
 	t.Parallel()
 

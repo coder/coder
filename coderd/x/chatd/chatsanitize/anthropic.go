@@ -466,15 +466,6 @@ func contentHasAnthropicSignedReasoning(content []fantasy.Content) bool {
 	return false
 }
 
-// IsAnthropicProviderExecutedToolCall reports whether toolCall is an
-// Anthropic provider-executed tool call.
-func IsAnthropicProviderExecutedToolCall(
-	provider string,
-	toolCall fantasy.ToolCallContent,
-) bool {
-	return provider == fantasyanthropic.Name && toolCall.ProviderExecuted
-}
-
 // ApplyAnthropicProviderToolGuard fail-closes unsafe Anthropic provider-tool
 // history immediately before a provider request is issued. It returns a
 // sanitized prompt on success, or nil with ErrAnthropicProviderToolPromptUnsafe

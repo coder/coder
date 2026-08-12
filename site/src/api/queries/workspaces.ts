@@ -17,6 +17,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
+	WorkspaceAgentListeningPortsResponse,
 	WorkspaceAgentLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
@@ -287,7 +288,6 @@ export const updateDeadline = (
 export const changeVersion = (
 	workspace: Workspace,
 	queryClient: QueryClient,
-	isDynamicParametersEnabled: boolean,
 ) => {
 	return {
 		mutationFn: ({
@@ -297,12 +297,7 @@ export const changeVersion = (
 			versionId: string;
 			buildParameters?: WorkspaceBuildParameter[];
 		}) => {
-			return API.changeWorkspaceVersion(
-				workspace,
-				versionId,
-				buildParameters,
-				isDynamicParametersEnabled,
-			);
+			return API.changeWorkspaceVersion(workspace, versionId, buildParameters);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
 			await updateWorkspaceBuild(build, queryClient);
@@ -317,16 +312,10 @@ export const updateWorkspace = (
 	return {
 		mutationFn: ({
 			buildParameters,
-			isDynamicParametersEnabled,
 		}: {
 			buildParameters?: WorkspaceBuildParameter[];
-			isDynamicParametersEnabled: boolean;
 		}) => {
-			return API.updateWorkspace(
-				workspace,
-				buildParameters,
-				isDynamicParametersEnabled,
-			);
+			return API.updateWorkspace(workspace, buildParameters);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
 			await updateWorkspaceBuild(build, queryClient);
@@ -495,6 +484,13 @@ export const agentLogs = (agentId: string) => {
 		queryFn: () => API.getWorkspaceAgentLogs(agentId),
 		...disabledRefetchOptions,
 	} satisfies UseQueryOptions<WorkspaceAgentLog[]>;
+};
+
+export const agentListeningPorts = (agentId: string) => {
+	return {
+		queryKey: ["portForward", agentId],
+		queryFn: () => API.getAgentListeningPorts(agentId),
+	} satisfies UseQueryOptions<WorkspaceAgentListeningPortsResponse>;
 };
 
 // workspace usage options

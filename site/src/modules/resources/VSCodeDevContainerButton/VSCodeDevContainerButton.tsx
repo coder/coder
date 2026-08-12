@@ -1,9 +1,13 @@
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import { type FC, useRef, useState } from "react";
+import { type FC, useId, useRef, useState } from "react";
 import { API } from "#/api/api";
 import type { DisplayApp } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import { AgentButton } from "../AgentButton";
@@ -24,83 +28,76 @@ type VSCodeVariant = "vscode" | "vscode-insiders";
 
 const VARIANT_KEY = "vscode-variant";
 
+const isVSCodeVariant = (value: string | null): value is VSCodeVariant => {
+	return value === "vscode" || value === "vscode-insiders";
+};
+
 export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 	props,
 ) => {
 	const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false);
-	const previousVariant = localStorage.getItem(VARIANT_KEY);
 	const [variant, setVariant] = useState<VSCodeVariant>(() => {
-		if (!previousVariant) {
-			return "vscode";
-		}
-		return previousVariant as VSCodeVariant;
+		const previousVariant = localStorage.getItem(VARIANT_KEY);
+		return isVSCodeVariant(previousVariant) ? previousVariant : "vscode";
 	});
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
+	const menuContentId = useId();
 
-	const selectVariant = (variant: VSCodeVariant) => {
-		localStorage.setItem(VARIANT_KEY, variant);
-		setVariant(variant);
-		setIsVariantMenuOpen(false);
+	const selectVariant = (nextVariant: VSCodeVariant) => {
+		localStorage.setItem(VARIANT_KEY, nextVariant);
+		setVariant(nextVariant);
 	};
 
 	const includesVSCodeDesktop = props.displayApps.includes("vscode");
 	const includesVSCodeInsiders = props.displayApps.includes("vscode_insiders");
 
 	return includesVSCodeDesktop && includesVSCodeInsiders ? (
-		<>
-			<div ref={menuAnchorRef} className="flex items-center gap-1">
-				{variant === "vscode" ? (
-					<VSCodeButton {...props} />
-				) : (
-					<VSCodeInsidersButton {...props} />
-				)}
+		<div ref={menuAnchorRef} className="inline-flex items-center gap-1">
+			{variant === "vscode" ? (
+				<VSCodeButton {...props} />
+			) : (
+				<VSCodeInsidersButton {...props} />
+			)}
 
-				<AgentButton
-					aria-controls={
-						isVariantMenuOpen ? "vscode-variant-button-menu" : undefined
-					}
-					aria-expanded={isVariantMenuOpen ? "true" : undefined}
-					aria-label="select VSCode variant"
-					aria-haspopup="menu"
-					onClick={() => {
-						setIsVariantMenuOpen(true);
-					}}
-					size="icon-lg"
-				>
-					<ChevronDownIcon open={isVariantMenuOpen} />
-				</AgentButton>
-			</div>
-
-			<Menu
+			<DropdownMenu
 				open={isVariantMenuOpen}
-				anchorEl={menuAnchorRef.current}
-				onClose={() => setIsVariantMenuOpen(false)}
-				css={{
-					"& .MuiMenu-paper": {
-						width: menuAnchorRef.current?.clientWidth,
-					},
-				}}
+				onOpenChange={setIsVariantMenuOpen}
 			>
-				<MenuItem
-					className="text-sm"
-					onClick={() => {
-						selectVariant("vscode");
-					}}
+				<DropdownMenuTrigger asChild>
+					<AgentButton
+						aria-controls={isVariantMenuOpen ? menuContentId : undefined}
+						aria-label="select VSCode variant"
+						size="icon-lg"
+					>
+						<ChevronDownIcon open={isVariantMenuOpen} />
+					</AgentButton>
+				</DropdownMenuTrigger>
+
+				<DropdownMenuContent
+					id={menuContentId}
+					align="end"
+					collisionPadding={16}
+					style={{ width: menuAnchorRef.current?.clientWidth }}
 				>
-					<VSCodeIcon className="w-3 h-3" />
-					{DisplayAppNameMap.vscode}
-				</MenuItem>
-				<MenuItem
-					className="text-sm"
-					onClick={() => {
-						selectVariant("vscode-insiders");
-					}}
-				>
-					<VSCodeInsidersIcon className="w-3 h-3" />
-					{DisplayAppNameMap.vscode_insiders}
-				</MenuItem>
-			</Menu>
-		</>
+					<DropdownMenuItem
+						onClick={() => {
+							selectVariant("vscode");
+						}}
+					>
+						<VSCodeIcon className="size-3" />
+						{DisplayAppNameMap.vscode}
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						onClick={() => {
+							selectVariant("vscode-insiders");
+						}}
+					>
+						<VSCodeInsidersIcon className="size-3" />
+						{DisplayAppNameMap.vscode_insiders}
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</div>
 	) : includesVSCodeDesktop ? (
 		<VSCodeButton {...props} />
 	) : includesVSCodeInsiders ? (

@@ -13,8 +13,8 @@ Content-Type: text/plain; charset=UTF-8
 Hi Bobby,
 
 Your workspace bobby-workspace has been marked as dormant (https://coder.co=
-m/docs/templates/schedule#dormancy-threshold-enterprise) due to inactivity =
-exceeding the dormancy threshold.
+m/docs/admin/templates/managing-templates/schedule#dormancy-threshold) due =
+to inactivity exceeding the dormancy threshold.
 
 This workspace will be automatically deleted in 24 hours if it remains inac=
 tive.
@@ -54,9 +54,9 @@ argin: 8px 0 32px; line-height: 1.5;">
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
         <p>Your workspace <strong>bobby-workspace</strong> has been marked =
-as <a href=3D"https://coder.com/docs/templates/schedule#dormancy-threshold-=
-enterprise"><strong>dormant</strong></a> due to inactivity exceeding the do=
-rmancy threshold.</p>
+as <a href=3D"https://coder.com/docs/admin/templates/managing-templates/sch=
+edule#dormancy-threshold"><strong>dormant</strong></a> due to inactivity ex=
+ceeding the dormancy threshold.</p>
 
 <p>This workspace will be automatically deleted in 24 hours if it remains i=
 nactive.</p>

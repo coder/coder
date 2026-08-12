@@ -44,8 +44,16 @@ export const TopbarButton: React.FC<ButtonProps> = ({ ...props }) => {
 	return <Button variant="outline" size="sm" {...props} />;
 };
 
-export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
-	return <div {...props} className="flex gap-2 items-center justify-center" />;
+export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = ({
+	className,
+	...props
+}) => {
+	return (
+		<div
+			{...props}
+			className={cn("flex gap-2 items-center justify-center", className)}
+		/>
+	);
 };
 
 export const TopbarDivider: FC<

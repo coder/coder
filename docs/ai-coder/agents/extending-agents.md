@@ -25,14 +25,21 @@ calls a tool.
 
 Two tools are registered when skills are present:
 
-| Tool              | Parameters                       | Description                                              |
-|-------------------|----------------------------------|----------------------------------------------------------|
-| `read_skill`      | `name` (string)                  | Returns the SKILL.md body and a list of supporting files |
-| `read_skill_file` | `name` (string), `path` (string) | Returns the content of a supporting file                 |
+| Tool              | Parameters                       | Description                                                                                                |
+|-------------------|----------------------------------|------------------------------------------------------------------------------------------------------------|
+| `read_skill`      | `name` (string)                  | Returns the SKILL.md body, the absolute skill directory (workspace skills), and a list of supporting files |
+| `read_skill_file` | `name` (string), `path` (string) | Returns the content of a supporting file                                                                   |
+
+For workspace skills, `read_skill` also returns `dir`, the absolute path to
+the skill directory in the workspace. The agent's `read_file` and `execute`
+tools operate on that same workspace filesystem, so you can join `dir` with a
+supporting file's relative path to read or run that file directly, for example
+to execute a bundled `scripts/` helper. `read_skill_file` remains available as
+a path-safe convenience for reading supporting files.
 
 ### Directory structure
 
-```text
+```txt
 .agents/skills/
 ├── deep-review/
 │   ├── SKILL.md
@@ -50,7 +57,7 @@ Two tools are registered when skills are present:
 Each `SKILL.md` starts with YAML frontmatter containing a `name` and an
 optional `description`, followed by the full instructions in markdown:
 
-```markdown
+```md
 ---
 name: deep-review
 description: "Multi-reviewer code review with domain-specific reviewers"
@@ -86,7 +93,7 @@ frontmatter with a kebab-case `name`, an optional `description`, and a
 markdown body. This keeps content portable between personal skills and
 workspace skills.
 
-```markdown
+```md
 ---
 name: personal-reviewer
 description: "Personal review guidance"

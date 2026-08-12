@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -54,7 +55,6 @@ func createOpenAIModelConfigForTest(
 	t.Helper()
 	provider := createOpenAIProviderForTest(ctx, t, client, apiKey, baseURL)
 	model, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:             string(provider.Type),
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4",
 		DisplayName:          "GPT-4",
@@ -66,20 +66,24 @@ func createOpenAIModelConfigForTest(
 }
 
 func TestChatStreamRelay(t *testing.T) {
+	// OpenAI Responses streaming events are buffered (not relayed) under AI
+	// Gateway routing while the agentic inner loop exists; see
+	// https://github.com/coder/aibridge/issues/223. Unskip once the
+	// reverse-proxy refactor lands and the follow-up tracking ticket is
+	// resolved.
 	t.Parallel()
+	t.Skip("chat stream relay buffers events under AI Gateway routing; see CODAGT-734 and https://github.com/coder/aibridge/issues/223")
 
 	t.Run("RelayMessagePartsAcrossReplicas", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-				}),
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -87,18 +91,18 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, firstAPI.AGPL, nil)
 
-		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-				}),
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, secondAPI.AGPL, nil)
 		secondClient.SetSessionToken(firstClient.SessionToken())
 
 		// Verify we have two replicas
@@ -220,14 +224,12 @@ func TestChatStreamRelay(t *testing.T) {
 
 		certificates := []tls.Certificate{testutil.GenerateTLSCertificate(t, "localhost")}
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:        db,
-				Pubsub:          pubsub,
-				TLSCertificates: certificates,
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-				}),
+				Database:         db,
+				Pubsub:           pubsub,
+				TLSCertificates:  certificates,
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -235,19 +237,19 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, firstAPI.AGPL, nil)
 
-		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:        db,
-				Pubsub:          pubsub,
-				TLSCertificates: certificates,
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-				}),
+				Database:         db,
+				Pubsub:           pubsub,
+				TLSCertificates:  certificates,
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, secondAPI.AGPL, nil)
 
 		// Authenticate the second client using cookies only, simulating
 		// browser WebSocket behavior. Browsers cannot set custom
@@ -406,13 +408,11 @@ func TestChatStreamRelay(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-				}),
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -420,18 +420,18 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, firstAPI.AGPL, nil)
 
-		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-				}),
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, secondAPI.AGPL, nil)
 
 		//nolint:gocritic // Test uses owner client session token for cookie-based relay auth.
 		sessionToken := firstClient.SessionToken()
@@ -562,11 +562,10 @@ func TestChatStreamRelay(t *testing.T) {
 
 		db, pubsub := dbtestutil.NewDB(t)
 		hostPrefixValues := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-			require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
 			dv.HTTPCookies.EnableHostPrefix = true
 			dv.HTTPCookies.Secure = true
 		})
-		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database:         db,
 				Pubsub:           pubsub,
@@ -578,8 +577,9 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, firstAPI.AGPL, nil)
 
-		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database:         db,
 				Pubsub:           pubsub,
@@ -588,6 +588,7 @@ func TestChatStreamRelay(t *testing.T) {
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, secondAPI.AGPL, nil)
 
 		//nolint:gocritic // Test uses owner client session token for cookie-based relay auth.
 		sessionToken := firstClient.SessionToken()
@@ -711,13 +712,11 @@ func TestChatStreamRelay(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-				}),
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -725,18 +724,18 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, firstAPI.AGPL, nil)
 
-		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-				}),
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, secondAPI.AGPL, nil)
 		secondClient.SetSessionToken(firstClient.SessionToken())
 
 		// Verify we have two replicas.
@@ -954,7 +953,6 @@ func TestChatModelConfigDefault(t *testing.T) {
 	firstModel, err := expClient.CreateChatModelConfig(
 		ctx,
 		codersdk.CreateChatModelConfigRequest{
-			Provider:             string(provider.Type),
 			AIProviderID:         &provider.ID,
 			Model:                "gpt-5-a",
 			DisplayName:          "GPT 5 A",
@@ -969,7 +967,6 @@ func TestChatModelConfigDefault(t *testing.T) {
 	secondModel, err := expClient.CreateChatModelConfig(
 		ctx,
 		codersdk.CreateChatModelConfigRequest{
-			Provider:             string(provider.Type),
 			AIProviderID:         &provider.ID,
 			Model:                "gpt-5-b",
 			DisplayName:          "GPT 5 B",
@@ -1099,7 +1096,6 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 
 	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
 	_, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:             string(provider.Type),
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
@@ -1169,7 +1165,6 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 
 	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
 	_, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:             string(provider.Type),
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",

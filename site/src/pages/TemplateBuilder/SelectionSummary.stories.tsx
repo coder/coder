@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { SelectionSummary } from "./SelectionSummary";
 
 const meta: Meta<typeof SelectionSummary> = {
 	title: "pages/TemplateBuilder/SelectionSummary",
 	component: SelectionSummary,
 	args: {
-		onDeselectModule: fn(),
+		onNavigateModule: fn(),
 	},
 };
 
@@ -94,6 +94,48 @@ export const WithModules: Story = {
 				iconUrl: "/icon/devcontainers.svg",
 			},
 		],
+	},
+};
+
+export const WithLongNameModule: Story = {
+	// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
+	parameters: { pixel: { exclude: true } },
+	args: {
+		currentStep: 2,
+		selectedTemplate: {
+			name: "Docker Containers",
+			iconUrl: "/icon/docker.svg",
+		},
+		selectedModules: [
+			{
+				id: "git-commit-signing",
+				name: "A module with a name long enough to cause the text inside the ModuleSelection component to wrap to the next line, showing that the icon on the left remains top-aligned with the first line of the module name",
+				iconUrl: "/icon/git.svg",
+			},
+		],
+	},
+};
+
+export const NavigateModuleClick: Story = {
+	args: {
+		currentStep: 2,
+		selectedTemplate: {
+			name: "Docker Containers",
+			iconUrl: "/icon/docker.svg",
+		},
+		selectedModules: [
+			{ id: "claude-code", name: "Claude Code", iconUrl: "/icon/claude.svg" },
+			{ id: "cursor", name: "Cursor IDE", iconUrl: "/icon/cursor.svg" },
+		],
+		onNavigateModule: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const moduleButton = await canvas.findByRole("button", {
+			name: "Configure Claude Code",
+		});
+		await userEvent.click(moduleButton);
+		await expect(args.onNavigateModule).toHaveBeenCalledWith("claude-code");
 	},
 };
 

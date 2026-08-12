@@ -1,9 +1,8 @@
 # Factory
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 Factort's Droid agent can be configured to use AI Gateway by setting up custom models for OpenAI and Anthropic.
 
@@ -20,7 +19,7 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
     {
       "model": "claude-sonnet-4-5-20250929",
       "displayName": "Claude (Coder AI Gateway)",
-      "baseUrl": "https://coder.example.com/api/v2/aibridge/anthropic",
+      "baseUrl": "https://coder.example.com/api/v2/ai-gateway/anthropic",
       "apiKey": "<your-coder-api-token>",
       "provider": "anthropic",
       "maxOutputTokens": 8192
@@ -28,7 +27,7 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
     {
       "model": "gpt-5.2-codex",
       "displayName": "GPT (Coder AI Gateway)",
-      "baseUrl": "https://coder.example.com/api/v2/aibridge/openai/v1",
+      "baseUrl": "https://coder.example.com/api/v2/ai-gateway/openai/v1",
       "apiKey": "<your-coder-api-token>",
       "provider": "openai",
       "maxOutputTokens": 16384
@@ -51,7 +50,7 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
     {
       "model": "claude-sonnet-4-5-20250929",
       "displayName": "Claude (Coder AI Gateway)",
-      "baseUrl": "https://coder.example.com/api/v2/aibridge/anthropic",
+      "baseUrl": "https://coder.example.com/api/v2/ai-gateway/anthropic",
       "apiKey": "<your-anthropic-api-key>",
       "provider": "anthropic",
       "maxOutputTokens": 8192,
@@ -62,7 +61,7 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
     {
       "model": "gpt-5.2-codex",
       "displayName": "GPT (Coder AI Gateway)",
-      "baseUrl": "https://coder.example.com/api/v2/aibridge/openai/v1",
+      "baseUrl": "https://coder.example.com/api/v2/ai-gateway/openai/v1",
       "apiKey": "<your-openai-api-key>",
       "provider": "openai",
       "maxOutputTokens": 16384,

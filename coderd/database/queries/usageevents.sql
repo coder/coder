@@ -20,6 +20,13 @@ SELECT EXISTS(
     SELECT 1 FROM usage_events WHERE id = @id
 )::bool;
 
+-- name: ListUsageEventCreatedAtsByTypeSince :many
+-- Used by the usage generator to find missing heartbeat buckets.
+SELECT created_at
+FROM usage_events
+WHERE event_type = @event_type
+  AND created_at >= @since::timestamptz;
+
 -- name: SelectUsageEventsForPublishing :many
 WITH usage_events AS (
     UPDATE

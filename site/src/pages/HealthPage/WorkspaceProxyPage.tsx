@@ -21,7 +21,7 @@ import {
 	Main,
 	Pill,
 } from "./Content";
-import { DismissWarningButton } from "./DismissWarningButton";
+import { MuteWarningsButton } from "./MuteWarningsButton";
 
 const WorkspaceProxyPage: FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
@@ -37,7 +37,7 @@ const WorkspaceProxyPage: FC = () => {
 					<HealthyDot severity={workspace_proxy.severity} />
 					Workspace Proxy
 				</HeaderTitle>
-				<DismissWarningButton healthcheck="WorkspaceProxy" />
+				<MuteWarningsButton healthcheck="WorkspaceProxy" />
 			</Header>
 
 			<Main>
@@ -53,6 +53,7 @@ const WorkspaceProxyPage: FC = () => {
 							key={warning.code}
 							severity="warning"
 							prominent
+							dismissible
 						>
 							{warning.message}
 						</Alert>
@@ -73,7 +74,7 @@ const WorkspaceProxyPage: FC = () => {
 						>
 							<header className="p-6 flex items-center justify-between gap-6">
 								<div className="flex items-center gap-6">
-									<div className="w-9 h-9 flex items-center justify-center">
+									<div className="size-9 flex items-center justify-center">
 										<ExternalImage
 											src={region.icon_url}
 											className="object-fill w-full h-full"
@@ -141,7 +142,7 @@ const WorkspaceProxyPage: FC = () => {
 										))}
 									</div>
 								)}
-								<span data-chromatic="ignore">
+								<span data-pixel="ignore">
 									{createDayString(region.updated_at)}
 								</span>
 							</div>

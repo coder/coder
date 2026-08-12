@@ -1,9 +1,8 @@
 # OpenCode
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 OpenCode supports both OpenAI and Anthropic models and can be configured to use AI Gateway by setting custom base URLs for each provider.
 
@@ -17,12 +16,12 @@ You can configure OpenCode to connect to AI Gateway by setting the following con
   "provider": {
     "anthropic": {
       "options": {
-        "baseURL": "https://coder.example.com/api/v2/aibridge/anthropic/v1"
+        "baseURL": "https://coder.example.com/api/v2/ai-gateway/anthropic/v1"
       }
     },
     "openai": {
       "options": {
-        "baseURL": "https://coder.example.com/api/v2/aibridge/openai/v1"
+        "baseURL": "https://coder.example.com/api/v2/ai-gateway/openai/v1"
       }
     }
   }
@@ -54,7 +53,7 @@ Set the following in `~/.config/opencode/opencode.json`, including the `X-Coder-
   "provider": {
     "anthropic": {
       "options": {
-        "baseURL": "https://coder.example.com/api/v2/aibridge/anthropic/v1",
+        "baseURL": "https://coder.example.com/api/v2/ai-gateway/anthropic/v1",
         "headers": {
           "X-Coder-AI-Governance-Token": "<your-coder-api-token>"
         }
@@ -62,7 +61,7 @@ Set the following in `~/.config/opencode/opencode.json`, including the `X-Coder-
     },
     "openai": {
       "options": {
-        "baseURL": "https://coder.example.com/api/v2/aibridge/openai/v1",
+        "baseURL": "https://coder.example.com/api/v2/ai-gateway/openai/v1",
         "headers": {
           "X-Coder-AI-Governance-Token": "<your-coder-api-token>"
         }

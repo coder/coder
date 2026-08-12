@@ -482,6 +482,8 @@ func nameFromSnakeCase(s string) string {
 			ret += "JWT"
 		case "idx":
 			ret += "Index"
+		case "ai":
+			ret += "AI"
 		case "api":
 			ret += "API"
 		case "uuid":

@@ -1,0 +1,6 @@
+{
+	"id": "aws-windows",
+	"display_name": "AWS EC2 (Windows)",
+	"os": "windows",
+	"default_context": {}
+}

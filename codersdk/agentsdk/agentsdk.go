@@ -85,7 +85,7 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	}
 
 	var gitSSHKey GitSSHKey
-	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
+	return gitSSHKey, codersdk.ReadBodyAsJSON(res, &gitSSHKey)
 }
 
 type Metadata struct {
@@ -716,7 +716,7 @@ func (c *Client) PostLogSource(ctx context.Context, req PostLogSourceRequest) (c
 		return codersdk.WorkspaceAgentLogSource{}, codersdk.ReadBodyAsError(res)
 	}
 	var logSource codersdk.WorkspaceAgentLogSource
-	return logSource, json.NewDecoder(res.Body).Decode(&logSource)
+	return logSource, codersdk.ReadBodyAsJSON(res, &logSource)
 }
 
 type ExternalAuthResponse struct {
@@ -724,6 +724,9 @@ type ExternalAuthResponse struct {
 	TokenExtra  map[string]interface{} `json:"token_extra"`
 	URL         string                 `json:"url"`
 	Type        string                 `json:"type"`
+	// ExpiresAt is the time the token expires, normalized to UTC (for
+	// example, "2024-06-01T15:04:05Z"). Zero value means no expiry.
+	ExpiresAt time.Time `json:"expires_at"`
 
 	// Deprecated: Only supported on `/workspaceagents/me/gitauth`
 	// for backwards compatibility.
@@ -784,7 +787,7 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 
 	var authResp ExternalAuthResponse
-	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
+	return authResp, codersdk.ReadBodyAsJSON(res, &authResp)
 }
 
 // LogsNotifyChannel returns the channel name responsible for notifying
@@ -990,65 +993,28 @@ func (s *SSEAgentReinitReceiver) Receive(ctx context.Context) (*Reinitialization
 	}
 }
 
-// AddChatContextRequest is the request body for adding chat context.
-type AddChatContextRequest struct {
-	// ChatID optionally identifies the chat to add context to.
-	// If empty, auto-detection is used (CODER_CHAT_ID env, the
-	// only active chat, or the only top-level active chat for this
-	// agent).
-	ChatID uuid.UUID `json:"chat_id,omitempty"`
-	// Parts are the context-file and skill parts to add.
-	Parts []codersdk.ChatMessagePart `json:"parts"`
+// RefreshChatContextResponse is the response for refreshing chat context.
+type RefreshChatContextResponse struct {
+	// Refreshed is the number of drifted chats that were re-pinned to the
+	// agent's latest context snapshot.
+	Refreshed int `json:"refreshed"`
 }
 
-// AddChatContextResponse is the response for adding chat context.
-type AddChatContextResponse struct {
-	ChatID uuid.UUID `json:"chat_id"`
-	Count  int       `json:"count"`
-}
-
-// ClearChatContextRequest is the request body for clearing chat context.
-type ClearChatContextRequest struct {
-	// ChatID optionally identifies the chat to clear context from.
-	// If empty, auto-detection is used (CODER_CHAT_ID env, the
-	// only active chat, or the only top-level active chat for this
-	// agent).
-	ChatID uuid.UUID `json:"chat_id,omitempty"`
-}
-
-// ClearChatContextResponse is the response for clearing chat context.
-type ClearChatContextResponse struct {
-	ChatID uuid.UUID `json:"chat_id"`
-}
-
-// AddChatContext adds context-file and skill parts to an active chat.
-func (c *Client) AddChatContext(ctx context.Context, req AddChatContextRequest) (AddChatContextResponse, error) {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/experimental/chat-context", req)
+// RefreshChatContext re-pins every drifted chat bound to this agent to the
+// agent's latest context snapshot, clearing their drift markers. It backs
+// the in-workspace `coder exp chat context refresh` (no chat argument),
+// which authenticates with the agent token rather than a user session.
+func (c *Client) RefreshChatContext(ctx context.Context) (RefreshChatContextResponse, error) {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/experimental/chat-context/refresh", nil)
 	if err != nil {
-		return AddChatContextResponse{}, xerrors.Errorf("execute request: %w", err)
+		return RefreshChatContextResponse{}, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return AddChatContextResponse{}, codersdk.ReadBodyAsError(res)
+		return RefreshChatContextResponse{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var resp AddChatContextResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// ClearChatContext soft-deletes context-file and skill messages from an active chat.
-func (c *Client) ClearChatContext(ctx context.Context, req ClearChatContextRequest) (ClearChatContextResponse, error) {
-	res, err := c.SDK.Request(ctx, http.MethodDelete, "/api/v2/workspaceagents/me/experimental/chat-context", req)
-	if err != nil {
-		return ClearChatContextResponse{}, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return ClearChatContextResponse{}, codersdk.ReadBodyAsError(res)
-	}
-
-	var resp ClearChatContextResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	var resp RefreshChatContextResponse
+	return resp, codersdk.ReadBodyAsJSON(res, &resp)
 }

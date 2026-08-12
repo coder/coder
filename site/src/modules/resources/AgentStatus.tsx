@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import type {
@@ -12,6 +11,7 @@ import {
 	HelpPopoverTitle,
 	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
@@ -75,7 +75,13 @@ const AgentWarningTooltip: FC<AgentWarningTooltipProps> = ({
 					{troubleshootingURL && (
 						<>
 							{" "}
-							<Link target="_blank" rel="noreferrer" href={troubleshootingURL}>
+							<Link
+								target="_blank"
+								rel="noreferrer"
+								href={troubleshootingURL}
+								className="p-0 mt-2"
+								showExternalIcon={false}
+							>
 								Troubleshoot
 							</Link>
 						</>
@@ -125,25 +131,6 @@ interface DevcontainerStatusProps {
 	parentAgent: WorkspaceAgent;
 	agent?: WorkspaceAgent;
 }
-
-const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => (
-	<AgentWarningTooltip
-		ariaLabel="Startup script timeout"
-		title={agentScriptMessages.start_timeout.title}
-		detail={agentScriptMessages.start_timeout.detail}
-		troubleshootingURL={agent.troubleshooting_url}
-	/>
-);
-
-const StartErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => (
-	<AgentWarningTooltip
-		ariaLabel="Startup script failed"
-		title={agentScriptMessages.start_error.title}
-		detail={agentScriptMessages.start_error.detail}
-		troubleshootingURL={agent.troubleshooting_url}
-		variant="warning"
-	/>
-);
 
 const ShuttingDownLifecycle: FC = () => {
 	return (
@@ -203,11 +190,13 @@ const ConnectedStatus: FC<AgentStatusProps> = ({ agent }) => {
 	if (agent.lifecycle_state === "ready") {
 		return <ReadyLifecycle />;
 	}
-	if (agent.lifecycle_state === "start_timeout") {
-		return <StartTimeoutLifecycle agent={agent} />;
-	}
-	if (agent.lifecycle_state === "start_error") {
-		return <StartErrorLifecycle agent={agent} />;
+	// Script errors and timeouts do not affect agent connectivity.
+	// These states are surfaced in the per-script log tabs instead.
+	if (
+		agent.lifecycle_state === "start_timeout" ||
+		agent.lifecycle_state === "start_error"
+	) {
+		return <ReadyLifecycle />;
 	}
 	if (agent.lifecycle_state === "shutting_down") {
 		return <ShuttingDownLifecycle />;

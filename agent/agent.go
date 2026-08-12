@@ -100,25 +100,25 @@ type Options struct {
 	IgnorePorts map[int]string
 	// ListeningPortsGetter is used to get the list of listening ports. Only
 	// tests should set this. If unset, a default that queries the OS will be used.
-	ListeningPortsGetter         ListeningPortsGetter
-	SSHMaxTimeout                time.Duration
-	TailnetListenPort            uint16
-	Subsystems                   []codersdk.AgentSubsystem
-	PrometheusRegistry           *prometheus.Registry
-	ReportMetadataInterval       time.Duration
-	ServiceBannerRefreshInterval time.Duration
-	BlockFileTransfer            bool
-	BlockReversePortForwarding   bool
-	BlockLocalPortForwarding     bool
-	Execer                       agentexec.Execer
-	Devcontainers                bool
-	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
-	GitAPIOptions                []agentgit.Option
-	Clock                        quartz.Clock
-	SocketServerEnabled          bool
-	SocketPath                   string // Path for the agent socket server socket
-	BoundaryLogProxySocketPath   string
-	ContextConfig                agentcontextconfig.Config
+	ListeningPortsGetter            ListeningPortsGetter
+	SSHMaxTimeout                   time.Duration
+	TailnetListenPort               uint16
+	Subsystems                      []codersdk.AgentSubsystem
+	PrometheusRegistry              *prometheus.Registry
+	ReportMetadataInterval          time.Duration
+	ServiceBannerRefreshInterval    time.Duration
+	BlockFileTransfer               bool
+	BlockReversePortForwarding      bool
+	BlockLocalPortForwarding        bool
+	Execer                          agentexec.Execer
+	Devcontainers                   bool
+	DevcontainerAPIOptions          []agentcontainers.Option // Enable Devcontainers for these to be effective.
+	GitAPIOptions                   []agentgit.Option
+	Clock                           quartz.Clock
+	SocketServerEnabled             bool
+	SocketPath                      string // Path for the agent socket server socket
+	AgentFirewallLogProxySocketPath string
+	ContextConfig                   agentcontextconfig.Config
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
 	// StatsReportInterval is the interval for the connstats callback
@@ -253,14 +253,14 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
-		devcontainers:              options.Devcontainers,
-		containerAPIOptions:        options.DevcontainerAPIOptions,
-		gitAPIOptions:              options.GitAPIOptions,
-		socketPath:                 options.SocketPath,
-		socketServerEnabled:        options.SocketServerEnabled,
-		boundaryLogProxySocketPath: options.BoundaryLogProxySocketPath,
-		contextConfig:              options.ContextConfig,
-		derpTLSConfig:              options.DERPTLSConfig,
+		devcontainers:                   options.Devcontainers,
+		containerAPIOptions:             options.DevcontainerAPIOptions,
+		gitAPIOptions:                   options.GitAPIOptions,
+		socketPath:                      options.SocketPath,
+		socketServerEnabled:             options.SocketServerEnabled,
+		agentFirewallLogProxySocketPath: options.AgentFirewallLogProxySocketPath,
+		contextConfig:                   options.ContextConfig,
+		derpTLSConfig:                   options.DERPTLSConfig,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -337,11 +337,11 @@ type agent struct {
 
 	logSender *agentsdk.LogSender
 
-	// boundaryLogProxy is a socket server that forwards boundary audit logs to coderd.
+	// agentFirewallLogProxy is a socket server that forwards Agent Firewall audit logs to coderd.
 	// It may be nil if there is a problem starting the server.
-	boundaryLogProxy           *boundarylogproxy.Server
-	boundaryLogProxySocketPath string
-	contextConfig              agentcontextconfig.Config
+	agentFirewallLogProxy           *boundarylogproxy.Server
+	agentFirewallLogProxySocketPath string
+	contextConfig                   agentcontextconfig.Config
 
 	prometheusRegistry *prometheus.Registry
 	// metrics are prometheus registered metrics that will be collected and
@@ -475,7 +475,7 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	pathStore := agentgit.NewPathStore()
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo))
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
@@ -495,7 +495,7 @@ func (a *agent) init() {
 		}
 		return ""
 	}, a.contextConfig)
-	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager, a.contextConfigAPI.MCPConfigFiles)
+	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
 
 	// agentcontext.Manager is the new consolidated resolver,
 	// watcher, and pusher. It coexists with contextConfigAPI
@@ -513,8 +513,19 @@ func (a *agent) init() {
 		Clock:          a.clock,
 		WorkingDir:     workingDirFn,
 		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
+		// The manager surfaces MCP servers and their tools as
+		// KindMCPServer resources by reading the shared MCP engine's
+		// catalog (a.mcpManager). That engine owns the single set of
+		// MCP server connections used for both discovery and tool-call
+		// execution, so each declared server is launched once.
+		MCPCatalog: func() []agentcontext.MCPServerStatus {
+			return mcpCatalogToContext(a.mcpManager.Catalog())
+		},
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
+	// Re-resolve and re-push KindMCPServer resources whenever the MCP
+	// engine's catalog changes (startup connect, .mcp.json edits).
+	a.mcpManager.SetOnReload(a.contextManager.Trigger)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -529,7 +540,7 @@ func (a *agent) init() {
 	)
 
 	a.initSocketServer()
-	a.startBoundaryLogProxyServer()
+	a.startAgentFirewallLogProxyServer()
 
 	// Start the agentcontext manager's resolver/watcher loop.
 	// It runs for the lifetime of the agent and is closed in
@@ -554,6 +565,7 @@ func (a *agent) initSocketServer() {
 	server, err := agentsocket.NewServer(
 		a.logger.Named("socket"),
 		agentsocket.WithPath(a.socketPath),
+		agentsocket.WithContextManager(a.contextManager),
 	)
 	if err != nil {
 		a.logger.Error(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
@@ -564,22 +576,21 @@ func (a *agent) initSocketServer() {
 	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
-// startBoundaryLogProxyServer starts the boundary log proxy socket server.
-func (a *agent) startBoundaryLogProxyServer() {
-	if a.boundaryLogProxySocketPath == "" {
-		a.logger.Warn(a.hardCtx, "boundary log proxy socket path not defined; not starting proxy")
+func (a *agent) startAgentFirewallLogProxyServer() {
+	if a.agentFirewallLogProxySocketPath == "" {
+		a.logger.Warn(a.hardCtx, "agent firewall log proxy socket path not defined; not starting proxy")
 		return
 	}
 
-	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath, a.prometheusRegistry)
+	proxy := boundarylogproxy.NewServer(a.logger, a.agentFirewallLogProxySocketPath, a.prometheusRegistry)
 	if err := proxy.Start(); err != nil {
-		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
+		a.logger.Warn(a.hardCtx, "failed to start agent firewall log proxy", slog.Error(err))
 		return
 	}
 
-	a.boundaryLogProxy = proxy
-	a.logger.Info(a.hardCtx, "boundary log proxy server started",
-		slog.F("socket_path", a.boundaryLogProxySocketPath))
+	a.agentFirewallLogProxy = proxy
+	a.logger.Info(a.hardCtx, "agent firewall log proxy server started",
+		slog.F("socket_path", a.agentFirewallLogProxySocketPath))
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -1217,13 +1228,13 @@ func (a *agent) run() (retErr error) {
 			return err
 		})
 
-	// Forward boundary audit logs to coderd if boundary log forwarding is enabled.
+	// Forward Agent Firewall audit logs to coderd if agent firewall log forwarding is enabled.
 	// These are audit logs so they should continue during graceful shutdown.
-	if a.boundaryLogProxy != nil {
+	if a.agentFirewallLogProxy != nil {
 		proxyFunc := func(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
-			return a.boundaryLogProxy.RunForwarder(ctx, aAPI)
+			return a.agentFirewallLogProxy.RunForwarder(ctx, aAPI)
 		}
-		connMan.startAgentAPI("boundary log proxy", gracefulShutdownBehaviorRemain, proxyFunc)
+		connMan.startAgentAPI("agent firewall log proxy", gracefulShutdownBehaviorRemain, proxyFunc)
 	}
 
 	// part of graceful shut down is reporting the final lifecycle states, e.g "ShuttingDown" so the
@@ -1540,11 +1551,16 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
 
+				// Startup finished (success or terminal failure): release
+				// the context gate. MCP servers connect below and
+				// re-trigger a push once up, so we don't block readiness
+				// on them.
+				a.contextManager.SetReady()
+
 				// Connect to workspace MCP servers after the
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it
 				// is properly awaited on shutdown.
-				a.mcpManager.MarkStartupSettled()
 				if mcpErr := a.mcpManager.Reload(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
 					a.logger.Warn(ctx, "failed to reload workspace MCP servers", slog.Error(mcpErr))
 				}
@@ -2274,31 +2290,33 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Redact env values. This endpoint is unauthenticated on loopback,
+	// reachable by any process regardless of Unix user. Keys are preserved
+	// so operators can still see which variables are configured.
+	debugManifest := *sdkManifest
+	if len(sdkManifest.EnvironmentVariables) > 0 {
+		envs := make(map[string]string, len(sdkManifest.EnvironmentVariables))
+		for k, v := range sdkManifest.EnvironmentVariables {
+			// Preserve empty values, which carry no secret, matching
+			// sanitizeEnv in support/support.go.
+			if v == "" {
+				envs[k] = v
+				continue
+			}
+			envs[k] = redactedManifestEnvValue
+		}
+		debugManifest.EnvironmentVariables = envs
+	}
+
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(sdkManifest); err != nil {
+	if err := json.NewEncoder(w).Encode(debugManifest); err != nil {
 		a.logger.Error(a.hardCtx, "write debug manifest", slog.Error(err))
 	}
 }
 
-func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
-	logPath := filepath.Join(a.logDir, "coder-agent.log")
-	f, err := os.Open(logPath)
-	if err != nil {
-		a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", logPath))
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
-		return
-	}
-	defer f.Close()
-
-	// Limit to 10MiB.
-	w.WriteHeader(http.StatusOK)
-	_, err = io.Copy(w, io.LimitReader(f, 10*1024*1024))
-	if err != nil && !errors.Is(err, io.EOF) {
-		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
-		return
-	}
-}
+// redactedManifestEnvValue matches the marker used by sanitizeEnv in
+// support/support.go so a support bundle and this endpoint agree.
+const redactedManifestEnvValue = "***REDACTED***"
 
 func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
@@ -2395,10 +2413,10 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "agentcontext manager close", slog.Error(err))
 	}
 
-	if a.boundaryLogProxy != nil {
-		err = a.boundaryLogProxy.Close()
+	if a.agentFirewallLogProxy != nil {
+		err = a.agentFirewallLogProxy.Close()
 		if err != nil {
-			a.logger.Warn(context.Background(), "close boundary log proxy", slog.Error(err))
+			a.logger.Warn(context.Background(), "close agent firewall log proxy", slog.Error(err))
 		}
 	}
 

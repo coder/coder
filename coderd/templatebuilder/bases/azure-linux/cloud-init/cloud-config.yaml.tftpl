@@ -1,0 +1,56 @@
+#cloud-config
+cloud_final_modules:
+- [scripts-user, always]
+bootcmd:
+  # work around https://github.com/hashicorp/terraform-provider-azurerm/issues/6117
+  - until [ -e /dev/disk/azure/scsi1/lun10 ]; do sleep 1; done
+device_aliases:
+  homedir: /dev/disk/azure/scsi1/lun10
+disk_setup:
+  homedir:
+    table_type: gpt
+    layout: true
+fs_setup:
+  - label: coder_home
+    filesystem: ext4
+    device: homedir.1
+mounts:
+  - ["LABEL=coder_home", "/home/${username}"]
+hostname: ${hostname}
+users:
+  - name: ${username}
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    groups: sudo
+    shell: /bin/bash
+packages:
+  - git
+write_files:
+  - path: /opt/coder/init
+    permissions: "0755"
+    encoding: b64
+    content: ${init_script}
+  - path: /etc/systemd/system/coder-agent.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Coder Agent
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      User=${username}
+      ExecStart=/opt/coder/init
+      Restart=always
+      RestartSec=10
+      TimeoutStopSec=90
+      KillMode=process
+
+      OOMScoreAdjust=-900
+      SyslogIdentifier=coder-agent
+
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - chown ${username}:${username} /home/${username}
+  - systemctl enable coder-agent
+  - systemctl start coder-agent

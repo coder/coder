@@ -32,6 +32,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -649,6 +651,72 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		stats := <-statCh
 		// Expect workspace to transition to stopped state for breaching
 		// failure TTL.
+		require.Len(t, stats.Transitions, 1)
+		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
+	})
+
+	// FailureTTLStopOK verifies that a workspace whose latest build is a failed
+	// stop is retried by issuing another stop after the failure TTL elapses.
+	t.Run("FailureTTLStopOK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			failureTTL = time.Minute
+		)
+
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		// The start build succeeds, but the stop build fails. This leaves the
+		// workspace's latest build as a failed stop.
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
+				proto.WorkspaceTransition_START: echo.ApplyComplete,
+				proto.WorkspaceTransition_STOP:  echo.ApplyFailed,
+			},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		stopBuild, err := client.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
+		tickTime := build.Job.CompletedAt.Add(failureTTL * 2)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
+		stats := <-statCh
+		// Expect the workspace to be stopped again for breaching failure TTL.
 		require.Len(t, stats.Transitions, 1)
 		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
 	})
@@ -1855,17 +1923,50 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		t.Helper()
 
 		var runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow
-		testutil.Eventually(ctx, t, func(context.Context) bool {
+		// Real time, not the mock clock: this measures wall-clock queueing of
+		// the prebuild's provisioner job, which is what regressed in PLAT-390.
+		start := time.Now()
+		polls := 0
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			polls++
+			// Reset per iteration. The rows are re-read every poll, so
+			// accumulating across polls would double count if an iteration
+			// appended rows and then returned early on an error, and the
+			// count could never match again.
+			runningPrebuilds = nil
+
 			rows, err := db.GetRunningPrebuiltWorkspaces(ctx)
 			if err != nil {
+				t.Logf("poll %d (%s elapsed): query failed: %v", polls, time.Since(start), err)
 				return false
 			}
 
 			for _, row := range rows {
 				runningPrebuilds = append(runningPrebuilds, row)
 
+				// Report how long the job waited to be picked up. queued_for is
+				// started_at minus created_at, both stamped from the real clock
+				// (wsbuilder and the acquirer respectively), so it is
+				// meaningful even though this test runs on a mock clock. A
+				// value near 30s means the provisioner_job_posted notification
+				// was lost and provisionerd only found the job via the
+				// acquirer's backup poll, which is what PLAT-390 was.
+				//
+				// Do not compute a duration against completed_at: that column
+				// is stamped by CompleteJob from the injected (mock) clock,
+				// while started_at comes from the real clock, so the
+				// subtraction mixes two time bases and is meaningless here.
+				if build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, row.ID); err == nil {
+					if job, err := db.GetProvisionerJobByID(ctx, build.JobID); err == nil {
+						t.Logf("poll %d (%s elapsed): prebuild %s ready=%t job=%s status=%s queued_for=%s",
+							polls, time.Since(start), row.ID, row.Ready, job.ID, job.JobStatus,
+							job.StartedAt.Time.Sub(job.CreatedAt))
+					}
+				}
+
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
 				if err != nil {
+					t.Logf("poll %d (%s elapsed): get agents failed: %v", polls, time.Since(start), err)
 					return false
 				}
 
@@ -1877,14 +1978,26 @@ func TestPrebuildsAutobuild(t *testing.T) {
 						ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
 					})
 					if err != nil {
+						t.Logf("poll %d (%s elapsed): mark agent ready failed: %v", polls, time.Since(start), err)
 						return false
 					}
 				}
 			}
 
-			t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), prebuildInstances)
+			t.Logf("poll %d (%s elapsed): found %d running prebuilds so far, want %d",
+				polls, time.Since(start), len(runningPrebuilds), prebuildInstances)
 			return len(runningPrebuilds) == prebuildInstances
 		}, testutil.IntervalSlow, "prebuilds not running")
+
+		// A prebuild here should be running within a second or two. A long wait
+		// with queued_for at or near a multiple of 30s means the job posting was
+		// lost and provisionerd fell back to the acquirer's backup poll.
+		if elapsed := time.Since(start); elapsed > 10*time.Second {
+			t.Logf("WARNING: prebuilds took %s (%d polls) to start running; "+
+				"check queued_for above, a value near 30s means the "+
+				"provisioner_job_posted notification was lost (PLAT-390)",
+				elapsed, polls)
+		}
 
 		return runningPrebuilds
 	}
@@ -1893,6 +2006,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		t *testing.T,
 		ctx context.Context,
 		db database.Store,
+		pb pubsub.Pubsub,
 		reconciler *prebuilds.StoreReconciler,
 		presets []codersdk.Preset,
 	) {
@@ -1907,6 +2021,22 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, actions)
 		require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
+
+		// StoreReconciler queues its "job posted" pubsub notification on an
+		// internal channel that only StoreReconciler.Run drains. These tests
+		// drive the reconciler directly and never start Run, so nothing
+		// publishes the notification and provisionerd would not see the job
+		// until the acquirer's 30 second backup poll. Publish on the
+		// reconciler's behalf. Posting a job that was already acquired is
+		// harmless: the acquirer re-queries and finds nothing.
+		jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Time{})
+		require.NoError(t, err)
+		for _, job := range jobs {
+			if job.JobStatus != database.ProvisionerJobStatusPending {
+				continue
+			}
+			require.NoError(t, provisionerjobs.PostJob(pb, job))
+		}
 	}
 
 	claimPrebuild := func(
@@ -2013,7 +2143,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Len(t, presets, 1)
 
 		// Given: Reconciliation loop runs and starts prebuilt workspace
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
 		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 		require.Len(t, runningPrebuilds, int(prebuildInstances))
 
@@ -2139,7 +2269,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Len(t, presets, 1)
 
 		// Given: Reconciliation loop runs and starts prebuilt workspace
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
 		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 		require.Len(t, runningPrebuilds, int(prebuildInstances))
 
@@ -2264,7 +2394,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Len(t, presets, 1)
 
 		// Given: Reconciliation loop runs and starts prebuilt workspace
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
 		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 		require.Len(t, runningPrebuilds, int(prebuildInstances))
 
@@ -2410,7 +2540,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Len(t, presets, 1)
 
 		// Given: reconciliation loop runs and starts prebuilt workspace
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
 		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 		require.Len(t, runningPrebuilds, int(prebuildInstances))
 
@@ -2493,12 +2623,21 @@ func TestPrebuildsAutobuild(t *testing.T) {
 
 		// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
 		clock := quartz.NewMock(t)
+		acquirerClock := quartz.NewMock(t)
 		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+		acquirerTickerTrap := acquirerClock.Trap().NewTicker("acquirer", "backup_poll")
 
 		// Setup
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 		logger := testutil.Logger(t)
+		acquirer := provisionerdserver.NewAcquirer(
+			ctx,
+			logger.Named("acquirer"),
+			db,
+			pb,
+			provisionerdserver.WithClock(acquirerClock),
+		)
 		tickCh := make(chan time.Time)
 		statsCh := make(chan autobuild.Stats)
 		notificationsNoop := notifications.NewNoopEnqueuer()
@@ -2510,6 +2649,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statsCh,
 				Clock:                    clock,
+				Acquirer:                 acquirer,
 				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(
 					agplUserQuietHoursScheduleStore(),
 					notificationsNoop,
@@ -2523,6 +2663,10 @@ func TestPrebuildsAutobuild(t *testing.T) {
 				},
 			},
 		})
+		// The Acquirer creates a fresh backup-poll ticker for the initial idle
+		// wait and again after completing the template import job. Release both
+		// so the second ticker exists before the clock advances below.
+		acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
 
 		// Setup Prebuild reconciler
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -2554,8 +2698,12 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, presets, 1)
 
+		acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
+		acquirerTickerTrap.Close()
+
 		// Given: reconciliation loop runs and starts prebuilt workspace in failed state
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
+		acquirerClock.Advance(30 * time.Second).MustWait(ctx)
 		var failedWorkspaceBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
 		require.Eventually(t, func() bool {
 			rows, err := db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
@@ -3167,8 +3315,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 
 	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, nil)
 
-	// This can take a while, so set a relatively long timeout.
-	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+	// This can take a while, so set a long timeout that outlasts the three
+	// build awaits below.
+	ctx := testutil.Context(t, 6*testutil.WaitSuperLong)
 
 	// Creating a template as a template admin must succeed
 	templateFiles := map[string]string{"main.tf": mainTfTemplate}
@@ -3184,7 +3333,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		UserVariableValues: []codersdk.VariableValue{},
 	})
 	require.NoError(t, err, "failed to create template version")
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	// Uncached Windows runners make real terraform builds much slower than
+	// the default await timeout.
+	coderdtest.AwaitTemplateVersionJobCompletedWithTimeout(t, templateAdmin, tv.ID, 2*testutil.WaitSuperLong)
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
 
 	// Set to dynamic params
@@ -3215,7 +3366,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	// Then: the build should succeed. The updated value of param_min should be
 	// used to validate param instead of the value defined in the temp
 	require.NoError(t, err, "failed to create workspace")
-	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+	// Same timeout reason as above.
+	createBuild := coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, ws.LatestBuild.ID, 2*testutil.WaitSuperLong)
 	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
 
 	// File should exist
@@ -3227,7 +3379,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	require.NoError(t, err)
-	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
+	// Same timeout reason as above.
+	build = coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, build.ID, 2*testutil.WaitSuperLong)
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 
 	logsCh, closeLogs, err := member.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
@@ -3461,8 +3614,9 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-	// This can take a while, so set a relatively long timeout.
-	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+	// This can take a while, so set a long timeout that outlasts both build
+	// awaits below.
+	ctx := testutil.Context(t, 4*testutil.WaitSuperLong)
 
 	emptyTar := testutil.CreateTar(t, map[string]string{"main.tf": ""})
 	emptyFi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(emptyTar))
@@ -3500,7 +3654,9 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 		TemplateID:         tpl.ID,
 	})
 	require.NoError(t, err, "failed to create template version")
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	// Uncached Windows runners make real terraform builds much slower than
+	// the default await timeout.
+	coderdtest.AwaitTemplateVersionJobCompletedWithTimeout(t, templateAdmin, tv.ID, 2*testutil.WaitSuperLong)
 
 	err = templateAdmin.UpdateActiveTemplateVersion(ctx, tpl.ID, codersdk.UpdateActiveTemplateVersion{
 		ID: tv.ID,
@@ -3517,7 +3673,8 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 		require.NoError(t, err, "failed to create workspace")
 		tagJSON, _ := json.Marshal(ws.LatestBuild.Job.Tags)
 		t.Logf("Created workspace build [%s] with tags: %s", ws.LatestBuild.Job.Type, tagJSON)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+		// Same timeout reason as above.
+		coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, ws.LatestBuild.ID, 2*testutil.WaitSuperLong)
 	}
 }
 
@@ -4409,6 +4566,69 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		require.Len(t, workspaceACL.Groups, 1)
 		require.Equal(t, workspaceACL.Groups[0].ID, group.ID)
 		require.Equal(t, workspaceACL.Groups[0].Role, codersdk.WorkspaceRoleAdmin)
+	})
+
+	// A user who has merely been shared a workspace must not be able to
+	// enumerate the full roster and PII of groups on that workspace's ACL.
+	// The endpoint returns the group identity and total member count only.
+	t.Run("GroupMembersNotReturned", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				DeploymentValues:         dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		orgID := adminUser.OrganizationID
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		sharedClient, sharedUser := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		_, member := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		group := coderdtest.CreateGroup(t, adminClient, orgID, "bloob", member)
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				sharedUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		// The low-privilege shared user can read the ACL, but must not see
+		// the group's member roster (which would expose member emails and
+		// other PII). Only the total member count is returned.
+		workspaceACL, err := sharedClient.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Groups, 1)
+		require.Equal(t, group.ID, workspaceACL.Groups[0].ID)
+		require.Equal(t, codersdk.WorkspaceRoleUse, workspaceACL.Groups[0].Role)
+		require.Equal(t, 1, workspaceACL.Groups[0].TotalMemberCount)
+		require.Empty(t, workspaceACL.Groups[0].Members)
+
+		// The workspace owner sees the same count-only shape; the roster is
+		// omitted for all callers.
+		workspaceACL, err = client.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Groups, 1)
+		require.Equal(t, 1, workspaceACL.Groups[0].TotalMemberCount)
+		require.Empty(t, workspaceACL.Groups[0].Members)
 	})
 
 	t.Run("UnknownIDs", func(t *testing.T) {

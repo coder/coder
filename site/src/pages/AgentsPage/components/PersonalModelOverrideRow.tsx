@@ -1,18 +1,10 @@
 import { useFormik } from "formik";
-import { Select as SelectPrimitive } from "radix-ui";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
-import type { ModelSelectorOption } from "./ChatElements";
+import { pickReasoningEffort } from "../utils/reasoningEffort";
+import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 import { SectionHeader } from "./SectionHeader";
 
@@ -35,6 +27,7 @@ export type SavePersonalOverride = (
 interface PersonalOverrideFormValues {
 	mode: PersonalOverrideMode;
 	model_config_id: string;
+	reasoning_effort: string;
 }
 
 interface PersonalModelOverrideRowProps {
@@ -65,12 +58,20 @@ const toFormValues = (
 	context: PersonalOverrideContext,
 ): PersonalOverrideFormValues => {
 	if (!overrideData || overrideData.is_malformed) {
-		return { mode: getDefaultMode(context), model_config_id: "" };
+		return {
+			mode: getDefaultMode(context),
+			model_config_id: "",
+			reasoning_effort: "",
+		};
 	}
 	return {
 		mode: overrideData.mode,
 		model_config_id:
 			overrideData.mode === "model" ? overrideData.model_config_id : "",
+		reasoning_effort:
+			overrideData.mode === "model"
+				? (overrideData.reasoning_effort ?? "")
+				: "",
 	};
 };
 
@@ -81,6 +82,9 @@ const toUpdateRequest = (
 		return {
 			mode: "model",
 			model_config_id: values.model_config_id,
+			...(values.reasoning_effort
+				? { reasoning_effort: values.reasoning_effort }
+				: {}),
 		};
 	}
 	return { mode: values.mode, model_config_id: "" };
@@ -88,10 +92,6 @@ const toUpdateRequest = (
 
 const getModelConfigLabel = (modelConfig: TypesGen.ChatModelConfig): string => {
 	return modelConfig.display_name.trim() || modelConfig.model || modelConfig.id;
-};
-
-const getModelOptionLabel = (option: ModelSelectorOption): string => {
-	return option.displayName.trim() || option.model || option.id;
 };
 
 const getModelConfigLabelByID = (
@@ -156,60 +156,11 @@ const getDeploymentDefaultDescription = (
 	);
 };
 
-const getSelectionLabel = ({
-	context,
-	deploymentDefault,
-	isInvalidRootDeploymentDefault,
-	modelConfigs,
-	modelOptions,
-	values,
-}: {
-	context: PersonalOverrideContext;
-	deploymentDefault?: TypesGen.ChatModelOverrideResponse;
-	isInvalidRootDeploymentDefault: boolean;
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	modelOptions: readonly ModelSelectorOption[];
-	values: PersonalOverrideFormValues;
-}): string => {
-	if (isInvalidRootDeploymentDefault) {
-		return "Invalid deployment default";
-	}
-
-	switch (values.mode) {
-		case "chat_default":
-			return `Chat default: ${getChatDefaultDescription(context, modelConfigs)}`;
-		case "deployment_default":
-			return `Deployment default: ${getDeploymentDefaultDescription(
-				deploymentDefault,
-				modelConfigs,
-			)}`;
-		case "model": {
-			const modelConfigID = values.model_config_id.trim();
-			const modelOption = modelOptions.find(
-				(option) => option.id === modelConfigID,
-			);
-			if (modelOption) {
-				return getModelOptionLabel(modelOption);
-			}
-			return modelConfigID === ""
-				? "Select..."
-				: getUnavailableModelLabel(modelConfigID, modelConfigs);
-		}
-	}
-};
-
 const isDefaultModeOption = (
 	value: string,
 ): value is Exclude<PersonalOverrideMode, "model"> => {
 	return value === "chat_default" || value === "deployment_default";
 };
-
-// Local separator for use inside SelectContent. Defined here instead of
-// in the core Select component so the styling stays scoped to this
-// feature until a shared design lands.
-const SelectSeparator: FC = () => (
-	<SelectPrimitive.Separator className="-mx-1 my-1 h-px bg-border" />
-);
 
 export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	context,
@@ -242,7 +193,21 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 		disabled || isSaving || isLoading || !hasLoadedOverride;
 	const canSave =
 		hasLoadedOverride && !disabled && (form.dirty || isMalformedOverride);
-	const defaultModeOptions = getDefaultModeOptions(context);
+	const defaultModeOptions = getDefaultModeOptions(context).map((mode) => {
+		const label =
+			mode === "deployment_default" ? "Deployment default" : "Chat default";
+		const modeDescription =
+			mode === "deployment_default"
+				? getDeploymentDefaultDescription(deploymentDefault, modelConfigs)
+				: getChatDefaultDescription(context, modelConfigs);
+		return {
+			id: mode,
+			provider: "defaults",
+			providerLabel: "Defaults",
+			model: mode,
+			displayName: `${label}: ${modeDescription}`,
+		};
+	});
 	const isInvalidRootDeploymentDefault =
 		context === "root" && overrideData?.mode === "deployment_default";
 	const isUnavailableSavedModel =
@@ -258,14 +223,17 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 		form.values.mode === "model"
 			? form.values.model_config_id
 			: form.values.mode;
-	const selectionLabel = getSelectionLabel({
-		context,
-		deploymentDefault,
-		isInvalidRootDeploymentDefault,
-		modelConfigs,
-		modelOptions,
-		values: form.values,
-	});
+	const selectedModelOption = modelOptions.find(
+		(option) => option.id === form.values.model_config_id,
+	);
+	const selectedReasoningEffort =
+		form.values.mode === "model" && selectedModelOption
+			? pickReasoningEffort(
+					form.values.reasoning_effort,
+					selectedModelOption.reasoningEfforts ?? [],
+					selectedModelOption.reasoningEffortDefault,
+				)
+			: undefined;
 	const canSaveSelection =
 		canSave &&
 		(form.values.mode !== "model" ||
@@ -276,69 +244,60 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 		<section aria-label={title} className="flex flex-col gap-3">
 			<SectionHeader label={title} description={description} level="section" />
 			<form className="flex flex-col gap-3" onSubmit={form.handleSubmit}>
-				<Select
+				<ModelSelector
+					options={[...defaultModeOptions, ...modelOptions]}
 					value={selectionValue}
 					onValueChange={(value) => {
 						if (isDefaultModeOption(value)) {
-							void form.setValues({ mode: value, model_config_id: "" });
+							void form.setValues({
+								mode: value,
+								model_config_id: "",
+								reasoning_effort: "",
+							});
 							return;
 						}
-						void form.setValues({ mode: "model", model_config_id: value });
+						const option = modelOptions.find((option) => option.id === value);
+						let reasoningEffort = "";
+						if (option) {
+							reasoningEffort =
+								pickReasoningEffort(
+									"",
+									option.reasoningEfforts ?? [],
+									option.reasoningEffortDefault,
+								) ?? "";
+						}
+						void form.setValues({
+							mode: "model",
+							model_config_id: value,
+							reasoning_effort: reasoningEffort,
+						});
 					}}
 					disabled={isFormDisabled}
-				>
-					<SelectTrigger
-						aria-label={`${title} behavior`}
-						className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm md:w-[18rem]"
-					>
-						<SelectValue placeholder="Select...">{selectionLabel}</SelectValue>
-					</SelectTrigger>
-					<SelectContent className="min-w-[18rem]">
-						{isInvalidRootDeploymentDefault && (
-							<>
-								<SelectItem value="deployment_default" disabled>
-									Invalid deployment default
-								</SelectItem>
-								<SelectSeparator />
-							</>
-						)}
-						<SelectGroup>
-							{defaultModeOptions.map((mode) => (
-								<DefaultModeSelectItem
-									key={mode}
-									mode={mode}
-									context={context}
-									deploymentDefault={deploymentDefault}
-									modelConfigs={modelConfigs}
-								/>
-							))}
-						</SelectGroup>
-						<SelectSeparator />
-						{isUnavailableSelectedModel && (
-							<>
-								<SelectItem value={form.values.model_config_id} disabled>
-									{getUnavailableModelLabel(
+					placeholder={
+						isInvalidRootDeploymentDefault
+							? "Invalid deployment default"
+							: isUnavailableSelectedModel
+								? getUnavailableModelLabel(
 										form.values.model_config_id,
 										modelConfigs,
-									)}
-								</SelectItem>
-								<SelectSeparator />
-							</>
-						)}
-						<SelectGroup>
-							{modelOptions.map((option) => (
-								<SelectItem key={option.id} value={option.id}>
-									{getModelOptionLabel(option)}
-								</SelectItem>
-							))}
-							{modelOptions.length === 0 && (
-								<SelectItem value="__empty_models__" disabled>
-									{isLoading ? "Loading models..." : "No enabled models found."}
-								</SelectItem>
-							)}
-						</SelectGroup>
-					</SelectContent>
-				</Select>
+									)
+								: "Select..."
+					}
+					triggerAriaLabel={`${title} behavior`}
+					emptyMessage="No matching models found."
+					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm md:w-[18rem]"
+					contentClassName="min-w-[18rem]"
+					reasoningEffort={selectedReasoningEffort}
+					onReasoningEffortChange={(value) =>
+						void form.setFieldValue("reasoning_effort", value)
+					}
+				/>
+				{modelOptions.length === 0 && (
+					<p role="status" className="m-0 text-xs text-content-secondary">
+						{isLoading ? "Loading models..." : "No enabled models found."}
+					</p>
+				)}
+
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage="The saved model is unavailable and will be ignored until you choose a valid model override."
@@ -372,37 +331,5 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 				)}
 			</form>
 		</section>
-	);
-};
-
-interface DefaultModeSelectItemProps {
-	mode: Exclude<PersonalOverrideMode, "model">;
-	context: PersonalOverrideContext;
-	deploymentDefault?: TypesGen.ChatModelOverrideResponse;
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
-}
-
-const DefaultModeSelectItem: FC<DefaultModeSelectItemProps> = ({
-	mode,
-	context,
-	deploymentDefault,
-	modelConfigs,
-}) => {
-	const label =
-		mode === "deployment_default" ? "Deployment default" : "Chat default";
-	const description =
-		mode === "deployment_default"
-			? getDeploymentDefaultDescription(deploymentDefault, modelConfigs)
-			: getChatDefaultDescription(context, modelConfigs);
-
-	return (
-		<SelectItem value={mode}>
-			<span className="flex min-w-0 flex-col">
-				<span className="truncate text-content-primary">{label}</span>
-				<span className="truncate text-content-secondary text-xs leading-tight">
-					{description}
-				</span>
-			</span>
-		</SelectItem>
 	);
 };

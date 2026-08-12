@@ -171,7 +171,7 @@ func updateCalendar(
 	for i, r := range rows {
 		if r.Major == newVer.Major && r.Minor == newVer.Minor {
 			rows[i].LatestRelease = fmt.Sprintf(
-				"[v%s](%s)",
+				"[%s](%s)",
 				newVer.String(),
 				fmt.Sprintf(releaseTagURLFmt, newVer.String()),
 			)

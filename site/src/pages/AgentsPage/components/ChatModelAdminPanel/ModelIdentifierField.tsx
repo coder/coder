@@ -1,5 +1,5 @@
 import type { FormikContextType } from "formik";
-import { CheckIcon, InfoIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import {
 	type FocusEvent,
 	type KeyboardEvent,
@@ -10,14 +10,9 @@ import {
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
-import { normalizeProvider } from "./helpers";
 import {
 	findKnownModelByCanonicalId,
 	findKnownModelByExactAlias,
@@ -37,6 +32,7 @@ type ModelIdentifierFieldProps = {
 	mode: ModelFormMode;
 	selectedProvider: string | null;
 	disabled: boolean;
+	controlClassName?: string;
 };
 
 type ModelIdentifierOption = {
@@ -69,6 +65,7 @@ export const ModelIdentifierField = ({
 	mode,
 	selectedProvider,
 	disabled,
+	controlClassName,
 }: ModelIdentifierFieldProps) => {
 	const [initialFormValues] = useState(() => form.initialValues);
 	const [open, setOpen] = useState(false);
@@ -383,7 +380,8 @@ export const ModelIdentifierField = ({
 					id={modelField.id}
 					name={modelField.name}
 					className={cn(
-						"h-9 text-[13px] placeholder:text-content-disabled",
+						"placeholder:text-content-disabled",
+						controlClassName,
 						hasError && "border-content-destructive",
 					)}
 					placeholder="e.g. gpt-5, claude-sonnet-4-5"
@@ -437,7 +435,8 @@ export const ModelIdentifierField = ({
 				onEnterEmpty={() => handleOpenChange(false)}
 				placeholder="e.g. gpt-5, claude-sonnet-4-5"
 				className={cn(
-					"h-9 text-[13px] placeholder:text-content-disabled",
+					"placeholder:text-content-disabled",
+					controlClassName,
 					hasError && "border-content-destructive",
 				)}
 				triggerAriaInvalid={hasError}
@@ -457,19 +456,14 @@ export const ModelIdentifierField = ({
 		>
 			<Label
 				htmlFor={modelField.id}
-				className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
+				className="flex items-center gap-1 leading-6 text-content-primary"
 			>
 				Model identifier{" "}
 				<span className="text-xs font-bold text-content-destructive">*</span>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<InfoIcon className="size-3 text-content-secondary" />
-					</TooltipTrigger>
-					<TooltipContent side="top" className="max-w-[240px]">
-						The model identifier sent to the provider API.
-					</TooltipContent>
-				</Tooltip>
 			</Label>
+			<p className="m-0 text-xs text-content-secondary">
+				The model identifier sent to the provider API.
+			</p>
 			{renderControl()}
 			{hasError && (
 				<p id={errorId} className="m-0 text-xs text-content-destructive">

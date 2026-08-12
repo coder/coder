@@ -1,9 +1,8 @@
 # Zed
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 Zed IDE supports AI Gateway via its `language_models` configuration in `settings.json`.
 
@@ -17,10 +16,10 @@ You can configure both Anthropic and OpenAI providers to point to AI Gateway.
 {
   "language_models": {
     "anthropic": {
-      "api_url": "https://coder.example.com/api/v2/aibridge/anthropic",
+      "api_url": "https://coder.example.com/api/v2/ai-gateway/anthropic",
     },
     "openai": {
-      "api_url": "https://coder.example.com/api/v2/aibridge/openai/v1",
+      "api_url": "https://coder.example.com/api/v2/ai-gateway/openai/v1",
     },
   },
   // optional settings to set favorite models for the AI

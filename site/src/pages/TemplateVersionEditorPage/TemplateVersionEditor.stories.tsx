@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { expect, within } from "storybook/test";
-import { chromatic } from "#/testHelpers/chromatic";
+import { expect, userEvent, within } from "storybook/test";
 import {
 	MockFailedProvisionerJob,
 	MockRunningProvisionerJob,
@@ -25,14 +24,14 @@ const meta: Meta<typeof TemplateVersionEditor> = {
 	component: TemplateVersionEditor,
 	decorators: [withDashboardProvider],
 	parameters: {
-		chromatic,
 		layout: "fullscreen",
 	},
 	args: {
 		activePath: "main.tf",
 		template: MockTemplate,
 		templateVersion: MockTemplateVersion,
-		defaultFileTree: MockTemplateVersionFileTree,
+		fileTree: MockTemplateVersionFileTree,
+		onFileTreeChange: action("onFileTreeChange"),
 		onPublish: action("onPublish"),
 		onConfirmPublish: action("onConfirmPublish"),
 		onCancelPublish: action("onCancelPublish"),
@@ -51,9 +50,8 @@ type Story = StoryObj<typeof TemplateVersionEditor>;
 export const Example: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("link", { name: "Back to the template" }),
-		).toBeVisible();
+		const backLink = canvas.getByRole("link", { name: "Back to the template" });
+		await expect(backLink).toBeVisible();
 	},
 };
 
@@ -165,9 +163,25 @@ export const WithError = {
 	},
 };
 
-export const PublishDialog = {
+export const PublishDialog: Story = {
 	args: {
 		isAskingPublishParameters: true,
+	},
+};
+
+export const PublishDialogActiveVersionHelp: Story = {
+	args: {
+		isAskingPublishParameters: true,
+	},
+	play: async ({ canvasElement }) => {
+		// The dialog and popover are portaled, so query against the document body.
+		const body = within(canvasElement.ownerDocument.body);
+		const trigger = await body.findByRole("button", { name: "More info" });
+		await userEvent.click(trigger);
+		await expect(await body.findByText("Active versions")).toBeInTheDocument();
+		await expect(
+			body.getByRole("link", { name: "Review the documentation" }),
+		).toBeInTheDocument();
 	},
 };
 

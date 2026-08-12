@@ -2,8 +2,8 @@ package chatd
 
 import (
 	"context"
+	"strings"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -13,6 +13,28 @@ import (
 )
 
 const titleGenerationOverrideContext = "title_generation"
+
+type parsedModelOverride struct {
+	modelConfigID   uuid.UUID
+	reasoningEffort *string
+}
+
+func parseModelOverride(raw string) (parsedModelOverride, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return parsedModelOverride{}, true
+	}
+	rawID, rawEffort, hasEffort := strings.Cut(trimmed, ":")
+	modelConfigID, err := uuid.Parse(rawID)
+	if err != nil || (hasEffort && rawEffort == "") {
+		return parsedModelOverride{}, false
+	}
+	parsed := parsedModelOverride{modelConfigID: modelConfigID}
+	if hasEffort {
+		parsed.reasoningEffort = &rawEffort
+	}
+	return parsed, true
+}
 
 func readTitleGenerationModelOverride(
 	ctx context.Context,
@@ -37,65 +59,52 @@ func readTitleGenerationModelOverride(
 func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
-) (database.ChatModelConfig, fantasy.LanguageModel, chatprovider.ProviderAPIKeys, resolvedModelRoute, bool, error) {
+) (database.ChatModelConfig, chatprovider.Model, aiGatewayModelRoute, bool, error) {
 	raw, err := readTitleGenerationModelOverride(ctx, p.db)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, xerrors.Errorf(
+		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, false, xerrors.Errorf(
 			"read title generation model override: %w",
 			err,
 		)
 	}
 
-	overrideProviderKeys := keys
-	modelConfig, overrideSet, err := p.resolveConfiguredModelOverride(
+	modelConfig, _, overrideEffort, overrideSet, err := p.resolveConfiguredModelOverride(
 		ctx,
 		titleGenerationOverrideContext,
 		raw,
 		chat.OwnerID,
 		p.resolveModelConfigAndNormalizedProvider,
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
-			if aiProviderID == uuid.Nil {
-				resolvedProviderKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
-				if err != nil || resolvedProviderKeys.Empty() {
-					resolvedProviderKeys = keys
-				}
-				overrideProviderKeys = resolvedProviderKeys
-				return resolvedProviderKeys, nil
-			}
-			resolvedProviderKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
-			if err != nil {
-				return chatprovider.ProviderAPIKeys{}, err
-			}
-			overrideProviderKeys = resolvedProviderKeys
-			return resolvedProviderKeys, nil
+			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
 		},
 		modelOverrideFailureModeHard,
 	)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, overrideSet, err
+		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, overrideSet, err
 	}
 	if !overrideSet {
-		return database.ChatModelConfig{}, nil, keys, resolvedModelRoute{}, false, nil
+		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, false, nil
 	}
+	modelConfig = withResolvedReasoningEffort(modelConfig, overrideEffort)
 
 	//nolint:gocritic // Title overrides need chatd-scoped provider reads for user-owned chats.
-	route, err := p.resolveModelRouteForConfig(dbauthz.AsChatd(ctx), chat.OwnerID, modelConfig, overrideProviderKeys)
+	route, err := p.resolveModelRouteForConfig(dbauthz.AsChatd(ctx), chat.OwnerID, modelConfig)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, true, err
+		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, true, err
 	}
 	model, err := p.newModel(ctx, modelClientRequest{
-		Chat:         chat,
-		ModelName:    modelConfig.Model,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
+		Chat:          chat,
+		ModelName:     modelConfig.Model,
+		UserAgent:     chatprovider.UserAgent(),
+		ExtraHeaders:  chatprovider.CoderHeaders(chat),
+		ConfigOptions: modelConfig.Options,
 	}, route, modelOpts)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, true, xerrors.Errorf(
+		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, true, xerrors.Errorf(
 			"create title generation model override: %w",
 			err,
 		)
 	}
-	return modelConfig, model, route.directProviderKeys(), route, true, nil
+	return modelConfig, model, route, true, nil
 }

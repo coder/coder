@@ -17,7 +17,7 @@ authenticate. After that, Coder will store and refresh tokens for future
 operations.
 
 <video autoplay playsinline loop>
-  <source src="https://github.com/coder/coder/blob/main/site/static/external-auth.mp4?raw=true" type="video/mp4">
+  <source src="../../../../site/static/external-auth.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
 
@@ -38,9 +38,16 @@ By default, the coder agent will configure native `git` authentication via the
 `GIT_ASKPASS` environment variable. Meaning, with no additional configuration,
 external authentication will work with native `git` commands.
 
+The providers your template declares also determine which token native `git` commands receive.
+For HTTPS Git operations, Coder selects from your template's declared providers first, and only matches against every provider configured on the deployment when none of the declared providers serve that host.
+If two of your template's declared providers match the same host, Coder refuses the request instead of guessing between them.
+Coder also refuses when none of your declared providers match the host and one of them is missing from the deployment's configuration, rather than fall back to a provider your template never declared.
+A missing declaration doesn't affect hosts that your other declared providers still serve.
+For the full rules, refer to [OAuth (external auth)](../../external-auth/index.md#oauth-external-auth).
+
 To check the auth token being used **from inside a running workspace**, run:
 
-```shell
+```sh
 # If the exit code is non-zero, then the user is not authenticated with the
 # external provider.
 coder external-auth access-token <external-auth-id>

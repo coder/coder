@@ -61,7 +61,7 @@ This could be due to a number of reasons, including but not limited to:
 To troubleshoot further, you can log into the machine running Coder and attempt
 to run the following command:
 
-```shell
+```sh
 curl -v ${CODER_ACCESS_URL}/healthz
 # Expected output:
 # *   Trying XXX.XXX.XXX.XXX:443
@@ -165,7 +165,7 @@ performance may be impacted for clients closest to the unhealthy DERP server.
 **Solution:** Ensure that the DERP server is available and reachable over the
 network, for example:
 
-```shell
+```sh
 curl -v "https://coder.company.com/derp"
 # Expected output:
 # *   Trying XXX.XXX.XXX.XXX
@@ -246,7 +246,7 @@ Access URL.
 1. Ensure that Coder's configured Access URL can be reached from the server
    running Coder, using standard troubleshooting tools like `curl`:
 
-   ```shell
+   ```sh
    curl -v "https://coder.company.com"
    ```
 

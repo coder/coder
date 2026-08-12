@@ -2,14 +2,7 @@
  * Copied from shadc/ui on 01/13/2025
  * @see {@link https://ui.shadcn.com/docs/components/chart}
  */
-import {
-	type CSSProperties,
-	createContext,
-	type Ref,
-	useContext,
-	useId,
-	useMemo,
-} from "react";
+import { createContext, type Ref, useContext, useId, useMemo } from "react";
 import * as RechartsPrimitive from "recharts";
 import { cn } from "#/utils/cn";
 
@@ -246,12 +239,10 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 														"my-0.5": nestLabel && indicator === "dashed",
 													},
 												)}
-												style={
-													{
-														"--color-bg": indicatorColor,
-														"--color-border": indicatorColor,
-													} as CSSProperties
-												}
+												style={{
+													"--color-bg": indicatorColor,
+													"--color-border": indicatorColor,
+												}}
 											/>
 										)
 									)}

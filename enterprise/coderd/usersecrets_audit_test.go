@@ -58,6 +58,7 @@ func TestUserSecretAuditDiffRedaction(t *testing.T) {
 		Name:        "createDiff-target",
 		Description: initialDescription,
 		Value:       initialValue,
+		EnvName:     "CREATE_DIFF_TARGET",
 	})
 	require.NoError(t, err)
 

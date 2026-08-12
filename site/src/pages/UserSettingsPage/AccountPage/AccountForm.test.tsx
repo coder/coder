@@ -14,6 +14,7 @@ describe("AccountForm", () => {
 			const mockInitialValues: UpdateUserProfileRequest = {
 				username: MockUserMember.username,
 				name: MockUserMember.name ?? MockUserMember.username,
+				avatar_url: MockUserMember.avatar_url ?? "",
 			};
 
 			// When
@@ -42,6 +43,7 @@ describe("AccountForm", () => {
 		const mockInitialValues: UpdateUserProfileRequest = {
 			username: MockUserMember.username,
 			name: MockUserMember.name ?? MockUserMember.username,
+			avatar_url: MockUserMember.avatar_url ?? "",
 		};
 
 		// When
@@ -65,6 +67,7 @@ describe("AccountForm", () => {
 			const mockInitialValues: UpdateUserProfileRequest = {
 				username: MockUserMember.username,
 				name: MockUserMember.name ?? MockUserMember.username,
+				avatar_url: MockUserMember.avatar_url ?? "",
 			};
 
 			// When

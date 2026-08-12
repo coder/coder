@@ -1,13 +1,17 @@
 package externalauth_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime/debug"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,8 +24,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -108,6 +116,7 @@ func TestRefreshToken(t *testing.T) {
 					return nil, xerrors.New("failure")
 				},
 			},
+			RefreshGroup: new(singleflight.Group),
 		}
 
 		_, err := config.RefreshToken(context.Background(), nil, database.ExternalAuthLink{
@@ -156,9 +165,10 @@ func TestRefreshToken(t *testing.T) {
 	// refresh attempts should ever happen. An invalid refresh token does
 	// not magically become valid at some point in the future.
 	//
-	// Internal retries are disabled in this subtest via RefreshRetryTimeout
-	// so each RefreshToken call results in exactly one IDP refresh attempt.
-	// The RefreshTokenWithBackoff subtest covers the retry-with-backoff path.
+	// Internal retries are disabled in this subtest via a negative
+	// RefreshRetryTimeout so each RefreshToken call results in exactly one
+	// IDP refresh attempt. The RefreshTokenWithBackoff subtest covers the
+	// retry-with-backoff path.
 	t.Run("RefreshRetries", func(t *testing.T) {
 		t.Parallel()
 
@@ -182,9 +192,10 @@ func TestRefreshToken(t *testing.T) {
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
-				// Disable transient-error retries so the assertion below
-				// (1 IDP call per RefreshToken) holds.
-				cfg.RefreshRetryTimeout = time.Nanosecond
+				// Negative timeout disables retries (1 IDP call per RefreshToken).
+				// A tiny positive timeout is unreliable on coarse-clock platforms
+				// (Windows).
+				cfg.RefreshRetryTimeout = -1
 			},
 		})
 
@@ -333,13 +344,95 @@ func TestRefreshToken(t *testing.T) {
 			"permanent failures should not be retried")
 	})
 
-	// ConcurrentRefreshRace tests that when multiple concurrent requests
-	// race to refresh the same token, the loser does not poison the
-	// database with a cached "bad_refresh_token" failure. This
-	// reproduces the issue described in coder/coder#17069 where
-	// providers with single-use refresh tokens (e.g., GitHub Apps)
-	// reject the second refresh attempt, and the resulting error was
-	// incorrectly cached.
+	// ConcurrentRefreshGroup tests that when requests try to refresh a token
+	// while another request is pending, they wait on the first caller and share
+	// the result instead of all attempting to perform the refresh.
+	t.Run("ConcurrentRefreshGroup", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		parallelRequests := 5
+		ch := make(chan string)
+		refreshedToken := &oauth2.Token{
+			AccessToken:  "winner-access-token",
+			RefreshToken: "winner-refresh-token",
+			Expiry:       time.Now().Add(time.Hour),
+		}
+
+		var refreshCalls atomic.Int64
+		config := &externalauth.Config{
+			InstrumentedOAuth2Config: &testutil.OAuth2Config{
+				// The first call to refresh will succeed and all others will fail.  The
+				// first will wait for all callers to join the group before returning.
+				TokenSourceFunc: func() (*oauth2.Token, error) {
+					if refreshCalls.Add(1) == 1 {
+						// Wait for all the other calls to be subscribed, to prevent
+						// the test from flaking.
+						subscribed := 1
+						for {
+							<-ch
+							subscribed++
+							if subscribed >= parallelRequests {
+								return refreshedToken, nil
+							}
+						}
+					}
+					return nil, xerrors.New("bad_refresh_token")
+				},
+			},
+			RefreshGroup: &group{
+				notify: ch,
+			},
+		}
+
+		link := database.ExternalAuthLink{OAuthExpiry: expired}
+		refreshedLink := database.ExternalAuthLink{
+			OAuthAccessToken:  refreshedToken.AccessToken,
+			OAuthRefreshToken: refreshedToken.RefreshToken,
+			OAuthExpiry:       refreshedToken.Expiry,
+		}
+
+		// The single winning call will update the link.
+		mDB.EXPECT().UpdateExternalAuthLink(gomock.Any(), gomock.Cond(func(params database.UpdateExternalAuthLinkParams) bool {
+			return params.ProviderID == link.ProviderID && params.UserID == link.UserID
+		})).Return(refreshedLink, nil).Times(1)
+
+		// When we fire off all requests in parallel...
+		ctx := testutil.Context(t, testutil.WaitLong)
+		var eg errgroup.Group
+		results := make([]database.ExternalAuthLink, parallelRequests)
+		for i := range parallelRequests {
+			eg.Go(func() error {
+				result, err := config.RefreshToken(ctx, mDB, link)
+				results[i] = result
+				return err
+			})
+		}
+
+		// No call should error.
+		err := eg.Wait()
+		require.NoError(t, err)
+
+		// All calls should have picked up the winning token.
+		for i := range parallelRequests {
+			require.Equal(t, refreshedLink, results[i])
+		}
+
+		// Only one refresh call should have actually been made.
+		require.Equal(t, int64(1), refreshCalls.Load())
+	})
+
+	// ConcurrentRefreshRace tests what happens a request reads the refresh token
+	// from the database, then another request finishes and updates the token and
+	// releases the refresh group lock before this request can join.
+	//
+	// This request will then fail with `bad_refresh_token` for providers that
+	// have single-use refresh tokens.  It should re-read the token from the
+	// database after making this failed request to check whether the token was
+	// updated by another request and returns that rather than incorrectly
+	// recording in the database that the request failed.
 	t.Run("ConcurrentRefreshRace", func(t *testing.T) {
 		t.Parallel()
 
@@ -382,6 +475,106 @@ func TestRefreshToken(t *testing.T) {
 		require.NoError(t, err, "loser should succeed using the winner's token")
 		require.Equal(t, "winner-access-token", result.OAuthAccessToken)
 		require.Equal(t, "winner-refresh-token", result.OAuthRefreshToken)
+	})
+
+	// ConcurrentContextCancel tests that if one request is canceled, it does not
+	// cancel other requests waiting on it.
+	t.Run("ConcurrentContextCanceled", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		parallelRequests := 5
+		ch := make(chan string)
+
+		var refreshCalls atomic.Int64
+		ctx := testutil.Context(t, testutil.WaitLong)
+		cancelOnRefresh, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		// Use to know when the first call has started the group, so we know which
+		// context we can cancel.
+		listening := make(chan struct{})
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					if refreshCalls.Add(1) == 1 {
+						close(listening)
+						// Wait for all the other calls to be subscribed, to prevent
+						// the test from flaking.
+						subscribed := 1
+						for {
+							<-ch
+							subscribed++
+							if subscribed >= parallelRequests {
+								// Cancel the parent context after refresh succeeds
+								// but before the DB save and validation.
+								cancel()
+								return nil
+							}
+						}
+					}
+					// Should never reach here.
+					return xerrors.New("bad_refresh_token")
+				}),
+				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+					return jwt.MapClaims{}, nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				cfg.RefreshGroup = &group{notify: ch}
+			},
+			DB: db,
+		})
+
+		oldAccessToken := link.OAuthAccessToken
+		oldRefreshToken := link.OAuthRefreshToken
+		link.OAuthExpiry = expired
+
+		var wg sync.WaitGroup
+		// Start the first call with the cancelable context.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx := oidc.ClientContext(cancelOnRefresh, fake.HTTPClient(nil))
+			_, err := config.RefreshToken(ctx, db, link)
+			assert.ErrorIs(t, err, context.Canceled)
+		}()
+
+		// Wait for it to start the group, to make sure the callback above is
+		// canceling the right context (if we fire them all at once, any one of them
+		// could start the group).
+		<-listening
+
+		// Now we can fire off the remaining requests.
+		for range parallelRequests - 1 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ctx := oidc.ClientContext(ctx, fake.HTTPClient(nil))
+				result, err := config.RefreshToken(ctx, db, link)
+				assert.NoError(t, err)
+				assert.NotEqual(t, oldAccessToken, result.OAuthAccessToken)
+				assert.NotEqual(t, oldRefreshToken, result.OAuthRefreshToken)
+			}()
+		}
+
+		wg.Wait()
+
+		// DB link should have been updated.
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, oldAccessToken, dbLink.OAuthAccessToken,
+			"DB should have the new access token despite context cancellation")
+		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
+			"DB should have the new refresh token despite context cancellation")
+
+		// Only one refresh call should have actually been made.
+		require.Equal(t, int64(1), refreshCalls.Load())
 	})
 
 	// ValidateFailure tests if the token is no longer valid with a 401 response.
@@ -663,18 +856,21 @@ func TestRefreshToken(t *testing.T) {
 		link.OAuthExpiry = expired
 
 		_, err := config.RefreshToken(ctx, db, link)
-		require.NoError(t, err)
+		require.ErrorIs(t, err, context.Canceled)
 		require.Equal(t, int64(1), refreshCalls.Load())
 
-		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
-			ProviderID: link.ProviderID,
-			UserID:     link.UserID,
-		})
-		require.NoError(t, err)
-		require.NotEqual(t, oldAccessToken, dbLink.OAuthAccessToken,
-			"DB should have the new access token despite context cancellation")
-		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
-			"DB should have the new refresh token despite context cancellation")
+		require.Eventually(t, func() bool {
+			dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+				ProviderID: link.ProviderID,
+				UserID:     link.UserID,
+			})
+			if err != nil {
+				return false
+			}
+			return err == nil &&
+				dbLink.OAuthAccessToken != oldAccessToken &&
+				dbLink.OAuthRefreshToken != oldRefreshToken
+		}, testutil.WaitShort, testutil.IntervalFast, "never saw refresh token db updated")
 	})
 
 	// SaveBeforeValidate_RateLimited tests the full path: refresh
@@ -848,6 +1044,149 @@ func TestRefreshToken(t *testing.T) {
 	})
 }
 
+// TestRefreshTokenWithScopes verifies the refresh path echoes Config.Scopes on
+// the token-endpoint request and preserves the prior refresh_token when the
+// authorization server omits a new one (RFC 6749 §6).
+func TestRefreshTokenWithScopes(t *testing.T) {
+	t.Parallel()
+
+	// fakeAS returns an http.Client + a pointer the test can read after
+	// RefreshToken returns. The roundTripper captures the form body of every
+	// outbound request and replies with tokenJSON to refresh requests.
+	fakeAS := func(t *testing.T, tokenJSON []byte) (*http.Client, *url.Values) {
+		t.Helper()
+		captured := &url.Values{}
+		client := &http.Client{Transport: roundTripper(func(req *http.Request) (*http.Response, error) {
+			body, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+			values, err := url.ParseQuery(string(body))
+			require.NoError(t, err)
+			if values.Get("grant_type") == "refresh_token" {
+				*captured = values
+			}
+			rec := httptest.NewRecorder()
+			rec.Header().Set("Content-Type", "application/json")
+			rec.WriteHeader(http.StatusOK)
+			_, err = rec.Write(tokenJSON)
+			return rec.Result(), err
+		})}
+		return client, captured
+	}
+
+	newConfig := func(t *testing.T, scopes []string) *externalauth.Config {
+		t.Helper()
+		instrument := promoauth.NewFactory(prometheus.NewRegistry())
+		configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+			ID:           "test",
+			Type:         codersdk.EnhancedExternalAuthProviderAzureDevopsEntra.String(),
+			ClientID:     "id",
+			ClientSecret: "secret",
+			AuthURL:      "https://login.microsoftonline.com/tenant/oauth2/authorize",
+			TokenURL:     "https://login.microsoftonline.com/tenant/oauth2/token",
+			Scopes:       scopes,
+		}}, &url.URL{Scheme: "https", Host: "coder.example.com"})
+		require.NoError(t, err)
+		return configs[0]
+	}
+
+	expired := dbtime.Now().Add(-time.Hour)
+
+	// mockDBPassthrough returns a mock store that echoes the
+	// UpdateExternalAuthLink params back as a populated ExternalAuthLink,
+	// letting the test read what RefreshToken decided to persist.
+	mockDBPassthrough := func(t *testing.T) database.Store {
+		t.Helper()
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().UpdateExternalAuthLink(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, p database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+				return database.ExternalAuthLink{
+					ProviderID:        p.ProviderID,
+					UserID:            p.UserID,
+					OAuthAccessToken:  p.OAuthAccessToken,
+					OAuthRefreshToken: p.OAuthRefreshToken,
+					OAuthExpiry:       p.OAuthExpiry,
+				}, nil
+			}).AnyTimes()
+		return mDB
+	}
+
+	t.Run("EchoesConfiguredScopesOnRefresh", func(t *testing.T) {
+		t.Parallel()
+		client, captured := fakeAS(t,
+			[]byte(`{"access_token":"new","refresh_token":"new-r","token_type":"bearer","expires_in":3600}`))
+		cfg := newConfig(t, []string{"openid", "offline_access", "api://app/session:role-any"})
+
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client)
+		_, err := cfg.RefreshToken(ctx, mockDBPassthrough(t), database.ExternalAuthLink{
+			OAuthAccessToken:  "old",
+			OAuthRefreshToken: "old-r",
+			OAuthExpiry:       expired,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, "refresh_token", captured.Get("grant_type"))
+		require.Equal(t, "old-r", captured.Get("refresh_token"))
+		require.Equal(t, "openid offline_access api://app/session:role-any", captured.Get("scope"),
+			"refresh request must echo configured scopes joined by space")
+	})
+
+	t.Run("OmitsScopeParamWhenScopesEmpty", func(t *testing.T) {
+		t.Parallel()
+		client, captured := fakeAS(t,
+			[]byte(`{"access_token":"new","refresh_token":"new-r","token_type":"bearer","expires_in":3600}`))
+		cfg := newConfig(t, nil)
+
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client)
+		_, err := cfg.RefreshToken(ctx, mockDBPassthrough(t), database.ExternalAuthLink{
+			OAuthAccessToken:  "old",
+			OAuthRefreshToken: "old-r",
+			OAuthExpiry:       expired,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, "refresh_token", captured.Get("grant_type"))
+		require.Equal(t, "old-r", captured.Get("refresh_token"))
+		require.Empty(t, captured.Get("scope"),
+			"refresh request must not send a scope param when Config.Scopes is empty")
+	})
+
+	t.Run("PreservesPriorRefreshTokenWhenASOmitsNewOne", func(t *testing.T) {
+		t.Parallel()
+		// Token response intentionally omits refresh_token.
+		client, _ := fakeAS(t,
+			[]byte(`{"access_token":"new","token_type":"bearer","expires_in":3600}`))
+		cfg := newConfig(t, nil)
+
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client)
+		link, err := cfg.RefreshToken(ctx, mockDBPassthrough(t), database.ExternalAuthLink{
+			OAuthAccessToken:  "old",
+			OAuthRefreshToken: "prior-r",
+			OAuthExpiry:       expired,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "prior-r", link.OAuthRefreshToken,
+			"prior refresh_token must be preserved when AS omits a new one (RFC 6749 §6)")
+	})
+
+	t.Run("AcceptsRotatedRefreshTokenWhenASReturnsOne", func(t *testing.T) {
+		t.Parallel()
+		client, _ := fakeAS(t,
+			[]byte(`{"access_token":"new","refresh_token":"rotated-r","token_type":"bearer","expires_in":3600}`))
+		cfg := newConfig(t, nil)
+
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client)
+		link, err := cfg.RefreshToken(ctx, mockDBPassthrough(t), database.ExternalAuthLink{
+			OAuthAccessToken:  "old",
+			OAuthRefreshToken: "prior-r",
+			OAuthExpiry:       expired,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "rotated-r", link.OAuthRefreshToken,
+			"rotated refresh_token from AS must be persisted")
+	})
+}
+
 func TestValidateToken(t *testing.T) {
 	t.Parallel()
 
@@ -855,15 +1194,67 @@ func TestValidateToken(t *testing.T) {
 	// (X-RateLimit-Remaining, Retry-After) that the FakeIDP's
 	// WithDynamicUserInfo hook does not expose.
 
-	newValidateConfig := func(t *testing.T, validateURL string) *externalauth.Config {
+	const providerName = "test-validate"
+
+	// newLoggedConfig returns a config plus the buffer capturing its logs.
+	newLoggedConfig := func(t *testing.T, validateURL string) (*externalauth.Config, *bytes.Buffer) {
 		t.Helper()
 		f := promoauth.NewFactory(prometheus.NewRegistry())
-		return &externalauth.Config{
-			InstrumentedOAuth2Config: f.New("test-validate", &oauth2.Config{}),
-			ID:                       "test-validate",
-			Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
-			ValidateURL:              validateURL,
+		logs := &bytes.Buffer{}
+		logger := slog.Make(slogjson.Sink(logs)).Leveled(slog.LevelDebug)
+		// ConvertConfig wires the named logger as production does.
+		configs, err := externalauth.ConvertConfig(logger, f, []codersdk.ExternalAuthConfig{{
+			ID:           providerName,
+			Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			ClientID:     "id",
+			ClientSecret: "secret",
+			ValidateURL:  validateURL,
+		}}, &url.URL{})
+		require.NoError(t, err)
+		return configs[0], logs
+	}
+
+	type logEntry struct {
+		Level  string `json:"level"`
+		Msg    string `json:"msg"`
+		Fields struct {
+			ProviderType string `json:"provider_type"`
+			StatusCode   int    `json:"status_code"`
+			Reason       string `json:"reason"`
+			Suppressed   int64  `json:"suppressed"`
+		} `json:"fields"`
+	}
+
+	// rateLimitWarnings returns only the rate-limited-validation warnings.
+	rateLimitWarnings := func(t *testing.T, logs string) []logEntry {
+		t.Helper()
+		var out []logEntry
+		for _, line := range strings.Split(strings.TrimSpace(logs), "\n") {
+			if line == "" {
+				continue
+			}
+			var entry logEntry
+			require.NoError(t, json.Unmarshal([]byte(line), &entry))
+			if strings.Contains(entry.Msg, "validation endpoint rate-limited") {
+				out = append(out, entry)
+			}
 		}
+		return out
+	}
+
+	// requireRateLimitLog asserts exactly one WARN line with the given
+	// status code and reason.
+	requireRateLimitLog := func(t *testing.T, logs string, wantStatus int, wantReason string) {
+		t.Helper()
+		warnings := rateLimitWarnings(t, logs)
+		require.Len(t, warnings, 1, "expected exactly one rate-limit warning, got: %q", logs)
+		entry := warnings[0]
+		assert.Equal(t, "WARN", entry.Level)
+		assert.Equal(t, codersdk.EnhancedExternalAuthProviderGitHub.String(), entry.Fields.ProviderType)
+		assert.Equal(t, wantStatus, entry.Fields.StatusCode)
+		assert.Equal(t, wantReason, entry.Fields.Reason)
+		assert.EqualValues(t, 0, entry.Fields.Suppressed,
+			"a lone warning should report no suppressed occurrences")
 	}
 
 	newToken := func() *oauth2.Token {
@@ -896,12 +1287,13 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, logs := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.True(t, valid, "rate-limited 403 should be treated as optimistically valid")
 		assert.Nil(t, user)
+		requireRateLimitLog(t, logs.String(), http.StatusForbidden, "rate_limit_headers")
 	})
 
 	// RetryAfter: 403 with Retry-After header (secondary rate limit)
@@ -915,12 +1307,13 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, logs := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.True(t, valid, "rate-limited 403 with Retry-After should be optimistically valid")
 		assert.Nil(t, user)
+		requireRateLimitLog(t, logs.String(), http.StatusForbidden, "rate_limit_headers")
 	})
 
 	// Forbidden_WithNonZeroRateLimit: a 403 with non-zero
@@ -937,12 +1330,13 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, logs := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.False(t, valid, "403 with non-zero rate limit remaining means token is invalid")
 		assert.Nil(t, user)
+		assert.Empty(t, rateLimitWarnings(t, logs.String()), "a genuine revocation should not log a rate-limit warning")
 	})
 
 	// Forbidden_NoRateLimitHeaders: a plain 403 without rate-limit
@@ -955,12 +1349,13 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, logs := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.False(t, valid, "plain 403 without rate-limit headers means token is invalid")
 		assert.Nil(t, user)
+		assert.Empty(t, rateLimitWarnings(t, logs.String()), "a plain 403 should not log a rate-limit warning")
 	})
 
 	// Unauthorized: 401 is always a token revocation regardless of
@@ -973,7 +1368,7 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, _ := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
@@ -994,7 +1389,7 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, _ := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
@@ -1013,12 +1408,50 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, logs := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.True(t, valid, "429 should be treated as optimistically valid")
 		assert.Nil(t, user)
+		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "status_code")
+	})
+
+	// Throttled: repeated rate-limited validations within the throttle
+	// interval emit a single warning.
+	t.Run("Throttled", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		}))
+		t.Cleanup(srv.Close)
+
+		config, logs := newLoggedConfig(t, srv.URL)
+		ctx := newValidateCtx(t)
+		for range 3 {
+			valid, _, err := config.ValidateToken(ctx, newToken())
+			require.NoError(t, err)
+			assert.True(t, valid)
+		}
+		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "status_code")
+	})
+
+	t.Run("Confirmed", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{}`))
+		}))
+		t.Cleanup(srv.Close)
+
+		config, logs := newLoggedConfig(t, srv.URL)
+		valid, _, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "200 means the provider confirmed the token")
+		assert.Empty(t, rateLimitWarnings(t, logs.String()), "a confirmed validation should not log a rate-limit warning")
 	})
 }
 
@@ -1081,41 +1514,45 @@ func TestRevokeToken(t *testing.T) {
 
 	t.Run("RevokeTokenRFC_Timeout", func(t *testing.T) {
 		t.Parallel()
+		handlerStarted := make(chan bool, 1)
 		revokeExited := make(chan bool, 1)
-		testTimeout := make(chan bool, 1)
-		handlerDone := make(chan bool)
-
-		go func() {
-			time.Sleep(5 * time.Second)
-			testTimeout <- true
-		}()
 
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithRevokeTokenRFC(func() (int, error) {
-					defer func() {
-						handlerDone <- true
-					}()
-
-					select {
-					case <-testTimeout:
-						t.Error("test timeout reached before context timeout")
-						return http.StatusOK, nil
-					case <-revokeExited:
-						return http.StatusOK, nil
-					}
+					handlerStarted <- true
+					<-revokeExited
+					return http.StatusOK, nil
 				}),
 				oidctest.WithServing(),
 			},
 		})
 
+		// Always unblock the handler so it can return. Must be
+		// registered after setupOauth2Test so LIFO runs it first.
+		t.Cleanup(func() {
+			select {
+			case revokeExited <- true:
+			default:
+			}
+		})
+
 		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
-		config.RevokeTimeout = time.Millisecond * 10
+		// A short timeout forces the request's deadline to fire while
+		// the handler is blocked in-flight, exercising the revoke
+		// timeout path.
+		config.RevokeTimeout = 100 * time.Millisecond
 		revoked, err := config.RevokeToken(ctx, link)
+		// Make sure request has reached the handler before asserting.
+		// NOTE: if this flakes again, increase config.RevokeTimeout.
+		select {
+		case <-handlerStarted:
+		default:
+			t.Fatal("RevokeToken returned before revoke handler started")
+		}
 		revokeExited <- true
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 		require.False(t, revoked)
-		_ = testutil.RequireReceive(ctx, t, handlerDone)
 	})
 
 	t.Run("RevokeTokenGitHub_OK", func(t *testing.T) {
@@ -1171,7 +1608,7 @@ func TestExchangeWithClientSecret(t *testing.T) {
 	instrument := promoauth.NewFactory(prometheus.NewRegistry())
 	// This ensures a provider that requires the custom
 	// client secret exchange works.
-	configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+	configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 		// JFrog just happens to require this custom type.
 
 		Type:         codersdk.EnhancedExternalAuthProviderJFrog.String(),
@@ -1303,7 +1740,7 @@ func TestConvertYAML(t *testing.T) {
 	}} {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			output, err := externalauth.ConvertConfig(instrument, tc.Input, &url.URL{})
+			output, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, tc.Input, &url.URL{})
 			if tc.Error != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.Error)
@@ -1315,7 +1752,7 @@ func TestConvertYAML(t *testing.T) {
 
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
-		config, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+		config, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
@@ -1329,7 +1766,7 @@ func TestConvertYAML(t *testing.T) {
 
 	t.Run("RevokeTimeoutSet", func(t *testing.T) {
 		t.Parallel()
-		configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
@@ -1340,7 +1777,7 @@ func TestConvertYAML(t *testing.T) {
 
 	t.Run("SelfHostedGitLabAPIBaseURL", func(t *testing.T) {
 		t.Parallel()
-		configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
@@ -1463,6 +1900,7 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 		RevokeURL:                     fake.WellknownConfig().RevokeURL,
 		RevokeTimeout:                 1 * time.Second,
 		CodeChallengeMethodsSupported: []promoauth.Oauth2PKCEChallengeMethod{promoauth.PKCEChallengeMethodSha256},
+		RefreshGroup:                  new(singleflight.Group),
 	}
 	settings.ExternalAuthOpt(config)
 
@@ -1518,6 +1956,7 @@ func TestApplyDefaultsToConfig_CaseInsensitive(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			configs, err := externalauth.ConvertConfig(
+				testutil.Logger(t),
 				instrument,
 				[]codersdk.ExternalAuthConfig{{
 					Type:         tc.Type,
@@ -1538,4 +1977,167 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
+}
+
+var _ externalauth.SingleflightGroup = (*group)(nil)
+
+// The following has been copied from x/sync/singleflight but has been modified
+// to notify when callers join the group so the tests can be deterministic.
+
+// Copyright 2013 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// errGoexit indicates runtime.Goexit was called in
+// the user-given function.
+var errGoexit = xerrors.New("runtime.Goexit was called")
+
+// A panicError is an arbitrary value recovered from a panic
+// with the stack trace during the execution of the given function.
+type panicError struct {
+	value any
+	stack []byte
+}
+
+// Error implements error interface.
+func (p *panicError) Error() string {
+	return fmt.Sprintf("%v\n\n%s", p.value, p.stack)
+}
+
+func (p *panicError) Unwrap() error {
+	err, ok := p.value.(error)
+	if !ok {
+		return nil
+	}
+
+	return err
+}
+
+func newPanicError(v any) error {
+	stack := debug.Stack()
+
+	// The first line of the stack trace is of the form "goroutine N [status]:"
+	// but by the time the panic reaches Do the goroutine may no longer exist
+	// and its status will have changed. Trim out the misleading line.
+	if line := bytes.IndexByte(stack, '\n'); line >= 0 {
+		stack = stack[line+1:]
+	}
+	return &panicError{value: v, stack: stack}
+}
+
+// call is an in-flight or completed singleflight.Do call
+type call struct {
+	wg sync.WaitGroup
+
+	// These fields are written once before the WaitGroup is done
+	// and are only read after the WaitGroup is done.
+	val any
+	err error
+
+	// These fields are read and written with the singleflight
+	// mutex held before the WaitGroup is done, and are read but
+	// not written after the WaitGroup is done.
+	dups  int
+	chans []chan<- singleflight.Result
+}
+
+// group represents a class of work and forms a namespace in
+// which units of work can be executed with duplicate suppression.
+type group struct {
+	mu     sync.Mutex       // protects m
+	m      map[string]*call // lazily initialized
+	notify chan string
+}
+
+// DoChan is like Do but returns a channel that will receive the
+// results when they are ready.
+//
+// The returned channel will not be closed.
+func (g *group) DoChan(key string, fn func() (any, error)) <-chan singleflight.Result {
+	ch := make(chan singleflight.Result, 1)
+	g.mu.Lock()
+	if g.m == nil {
+		g.m = make(map[string]*call)
+	}
+	if c, ok := g.m[key]; ok {
+		c.dups++
+		c.chans = append(c.chans, ch)
+		g.notify <- key
+		g.mu.Unlock()
+		return ch
+	}
+	c := &call{chans: []chan<- singleflight.Result{ch}}
+	c.wg.Add(1)
+	g.m[key] = c
+	g.mu.Unlock()
+
+	go g.doCall(c, key, fn)
+
+	return ch
+}
+
+// doCall handles the single call for a key.
+func (g *group) doCall(c *call, key string, fn func() (any, error)) {
+	normalReturn := false
+	recovered := false
+
+	// use double-defer to distinguish panic from runtime.Goexit,
+	// more details see https://golang.org/cl/134395
+	defer func() {
+		// the given function invoked runtime.Goexit
+		if !normalReturn && !recovered {
+			c.err = errGoexit
+		}
+
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		c.wg.Done()
+		if g.m[key] == c {
+			delete(g.m, key)
+		}
+
+		//nolint:errorlint // Avoid changing the original code.
+		if e, ok := c.err.(*panicError); ok {
+			// In order to prevent the waiting channels from being blocked forever,
+			// needs to ensure that this panic cannot be recovered.
+			//nolint:revive // Avoid changing the original code.
+			if len(c.chans) > 0 {
+				go panic(e)
+				select {} // Keep this goroutine around so that it will appear in the crash dump.
+			} else {
+				panic(e)
+			}
+		} else if c.err == errGoexit { //nolint:revive // Avoid changing the original code.
+			// Already in the process of goexit, no need to call again
+		} else {
+			// Normal return
+			for _, ch := range c.chans {
+				ch <- singleflight.Result{Val: c.val, Err: c.err, Shared: c.dups > 0}
+			}
+		}
+	}()
+
+	func() {
+		defer func() {
+			if !normalReturn {
+				// Ideally, we would wait to take a stack trace until we've determined
+				// whether this is a panic or a runtime.Goexit.
+				//
+				// Unfortunately, the only way we can distinguish the two is to see
+				// whether the recover stopped the goroutine from terminating, and by
+				// the time we know that, the part of the stack trace relevant to the
+				// panic has been discarded.
+				if r := recover(); r != nil {
+					c.err = newPanicError(r)
+				}
+			}
+		}()
+
+		c.val, c.err = fn()
+		normalReturn = true
+	}()
+
+	if !normalReturn {
+		recovered = true
+	}
 }

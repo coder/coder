@@ -25,7 +25,6 @@ import { Link, type Location, NavLink } from "react-router";
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -63,6 +62,7 @@ import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
 const READ_SECTION_KEY = "Read";
+const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
 interface ChatsPanelProps {
 	readonly chats: readonly Chat[];
@@ -84,7 +84,6 @@ interface ChatsPanelProps {
 	readonly isCreating: boolean;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
-	readonly regeneratingTitleChatIds: readonly string[];
 	readonly isLoading: boolean;
 	readonly loadError?: unknown;
 	readonly onRetryLoad?: () => void;
@@ -98,6 +97,7 @@ interface ChatsPanelProps {
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
 	readonly location: Location;
+	readonly currentUserId: string;
 }
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
@@ -117,7 +117,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	isCreating,
 	isArchiving,
 	archivingChatId,
-	regeneratingTitleChatIds,
 	isLoading,
 	loadError,
 	onRetryLoad,
@@ -131,6 +130,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	isSettingsPanel,
 	isChatsActive,
 	location,
+	currentUserId,
 }) => {
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
@@ -156,6 +156,12 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const unpinnedChats = visibleRootIDs
 		.map((id) => chatById.get(id))
 		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
+	const sharedWithYouChats = unpinnedChats.filter(
+		(chat) => chat.shared && chat.owner_id !== currentUserId,
+	);
+	const unpinnedOwnedChats = unpinnedChats.filter(
+		(chat) => !chat.shared || chat.owner_id === currentUserId,
+	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -296,7 +302,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		activeChatId,
 		isArchiving,
 		archivingChatId,
-		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
@@ -312,26 +317,28 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					{
 						key: UNREAD_SECTION_KEY,
 						label: UNREAD_SECTION_KEY,
-						chats: unpinnedChats.filter((chat) => chat.has_unread),
+						chats: unpinnedOwnedChats.filter((chat) => chat.has_unread),
 					},
 					{
 						key: READ_SECTION_KEY,
 						label: READ_SECTION_KEY,
-						chats: unpinnedChats.filter((chat) => !chat.has_unread),
+						chats: unpinnedOwnedChats.filter((chat) => !chat.has_unread),
 					},
 				]
 			: TIME_GROUPS.map((group) => ({
 					key: group,
 					label: group,
-					chats: unpinnedChats.filter(
+					chats: unpinnedOwnedChats.filter(
 						(chat) => getTimeGroup(chat.updated_at) === group,
 					),
 				}))
 	).filter((section) => section.chats.length > 0);
 	const isShowingEmptyState = visibleRootIDs.length === 0;
+	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
+	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
 		? "No agents match these filters"
-		: sidebarFilters.archiveStatus === "archived"
+		: isViewingArchived
 			? "No archived agents"
 			: "No agents yet";
 	const clearResultFilters = () => {
@@ -361,7 +368,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
-						<FeatureStageBadge contentType="beta" size="xs" />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
 						<Button
@@ -423,7 +429,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				<div className="mx-2 pt-6 mb-1.5">
 					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
-							Chats
+							{chatsHeadingLabel}
 						</h2>
 						<div className="flex items-center gap-1">
 							{onOpenSearchDialog && (
@@ -432,7 +438,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									size="icon"
 									aria-label="Search chats"
 									onClick={onOpenSearchDialog}
-									className="h-7 w-7 sm:hidden"
+									className="size-7 sm:hidden"
 								>
 									<SearchIcon />
 								</Button>
@@ -557,6 +563,34 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 																</SortableContext>
 															</DndContext>
 														))}
+												</div>
+											)}
+											{sharedWithYouChats.length > 0 && (
+												<div className="[&:not(:first-child)]:mt-3">
+													<ChatSectionHeader
+														label={SHARED_WITH_YOU_SECTION_KEY}
+														count={sharedWithYouChats.length}
+														expanded={
+															!collapsedSections[SHARED_WITH_YOU_SECTION_KEY]
+														}
+														onToggle={() =>
+															toggleSection(SHARED_WITH_YOU_SECTION_KEY)
+														}
+														testId={getSectionToggleTestId(
+															SHARED_WITH_YOU_SECTION_KEY,
+														)}
+													/>
+													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
+														<div className="flex flex-col gap-0.5">
+															{sharedWithYouChats.map((chat) => (
+																<ChatTreeNode
+																	key={chat.id}
+																	chat={chat}
+																	isChildNode={false}
+																/>
+															))}
+														</div>
+													)}
 												</div>
 											)}
 											{chatSections.map((section) => {

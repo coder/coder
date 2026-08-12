@@ -56,7 +56,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 				}
 			>
 				<div className="flex flex-row gap-6 items-center">
-					<div className="h-12 w-12 flex items-center justify-center [&_img]:w-full">
+					<div className="size-12 flex items-center justify-center [&_img]:w-full">
 						<ExternalImage src={starterTemplate.icon} />
 					</div>
 					<div>

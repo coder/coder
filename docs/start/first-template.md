@@ -1,14 +1,14 @@
 # Your first template
 
-A common way to create a template is to begin with a starter template then
-modify it for your needs. Coder makes this easy with starter templates for
-popular development targets like Docker, Kubernetes, Azure, and so on. Once your
-template is up and running, you can edit it in the Coder dashboard. Coder even
+The fastest way to create a template is with the template builder. The builder
+guides you through selecting base infrastructure, adding modules for IDEs and
+tools, and configuring your template, all without writing Terraform. Once your
+template is up and running, you can edit it in the Coder dashboard. Coder
 handles versioning for you so you can publish official updates or revert to
 previous versions.
 
-In this tutorial, you'll create your first template from the Docker starter
-template.
+In this tutorial, you'll create your first template from the Docker base
+template using the template builder.
 
 ## Before you start
 
@@ -21,65 +21,35 @@ your local machine to continue.
 In your web browser, go to your Coder dashboard using the URL provided during
 setup to log in.
 
-## 2. Choose a starter template
+## 2. Open the template builder
 
-Select **Templates** to see the **Starter Templates**. Use the **Docker
-Containers** template by pressing **Use Template**.
+Select **Templates** then **New Template**. The template builder opens and
+displays a list of base infrastructure templates.
 
-![Starter Templates UI](../images/start/starter-templates.png)
+![Template builder base selection](../images/templatebuilder_01_bases.png)
 
-You can also a find a comprehensive list of starter templates in **Templates**
--> **Create Template** -> **Starter Templates**. s
+## 3. Select a base template
 
-## 3. Create your template
+Select the **Docker Containers** base template. This provides a working
+Docker-based workspace with the Coder agent pre-configured.
 
-In **Create template**, fill in **Name** and **Display name**, then select
-**Create template**.
+## 4. Add modules (optional)
 
-![Creating a template](../images/start/create-template.png)
+The builder shows a list of available modules grouped by category. You can add
+IDEs like **code-server** (VS Code in the browser) or tools like **git-clone**.
+For your first template, you can skip this step and add modules later.
 
-TODO:
+![Template builder module selection](../images/templatebuilder_02_modules.png)
 
-- add CLI guide for making a new template
-- refactor text below to be more beginner-friendly
+Select **Continue** to proceed.
 
-<!-- ## 4. Create a workspace from your template
+## 5. Create your template
 
-When the template is ready, select **Create Workspace**.
+On the final step, fill in **Name** and **Display name**, then select
+**Create Template**. Coder composes the Terraform configuration, validates it,
+and creates your template.
 
-![Template Preview](../images/start/template-preview.png)
-
-In **New workspace**, fill in **Name** then scroll down to select **Create
-Workspace**.
-
-![Create Workspace](../images/start/create-workspace.png)
-
-Coder starts your new workspace from your template.
-
-After a few seconds, your workspace is ready to use.
-
-![Workspace is ready](../images/templates/workspace-ready.png)
-
-## 5. Try out your new workspace
-
-This starter template lets you connect to your workspace in a few ways:
-
-- VS Code Desktop: Loads your workspace into
-  [VS Code Desktop](https://code.visualstudio.com/Download) installed on your
-  local computer.
-- code-server: Opens [browser-based VS Code](../user-guides/workspace-access/web-ides.md) with your
-  workspace.
-- Terminal: Opens a browser-based terminal with a shell in the workspace's
-  Docker instance.
-- SSH: Use SSH to log in to the workspace from your local machine. If you
-  haven't already, you'll have to install Coder on your local machine to
-  configure your SSH client.
-
-> [!TIP]
-> You can edit the template to let developers connect to a workspace in
-> [a few more ways](../user-guides/workspace-access/index.md).
-
-When you're done, you can stop the workspace. -->
+![Template builder customizations](../images/templatebuilder_04_customizations.png)
 
 ## 6. Modify your template
 

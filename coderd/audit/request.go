@@ -112,6 +112,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return "" // no target?
 	case database.PrebuildsSettings:
 		return "" // no target?
+	case database.OAuth2ProviderSettings:
+		return "" // no target?
 	case database.OAuth2ProviderApp:
 		return typed.Name
 	case database.OAuth2ProviderAppSecret:
@@ -132,7 +134,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return "Organization Role Sync"
 	case database.TaskTable:
 		return typed.Name
-	case database.AiSeatState:
+	case database.AISeatState:
 		return "AI Seat"
 	case database.AIProvider:
 		return typed.Name
@@ -140,9 +142,9 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.ID.String()
 	case database.AIGatewayKey:
 		return typed.Name
-	case database.AuditableGroupAiBudget:
+	case database.AuditableGroupAIBudget:
 		return typed.GroupName
-	case database.AuditableUserAiBudgetOverride:
+	case database.AuditableUserAIBudgetOverride:
 		return typed.Username
 	case database.Chat:
 		// Chat titles can contain sensitive content (secrets, internal
@@ -200,6 +202,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.PrebuildsSettings:
 		// Artificial ID for auditing purposes
 		return typed.ID
+	case database.OAuth2ProviderSettings:
+		// Artificial ID for auditing purposes
+		return typed.ID
 	case database.OAuth2ProviderApp:
 		return typed.ID
 	case database.OAuth2ProviderAppSecret:
@@ -220,7 +225,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return noID // Org field on audit log has org id
 	case database.TaskTable:
 		return typed.ID
-	case database.AiSeatState:
+	case database.AISeatState:
 		return typed.UserID
 	case database.AIProvider:
 		return typed.ID
@@ -228,9 +233,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.AIGatewayKey:
 		return typed.ID
-	case database.AuditableGroupAiBudget:
+	case database.AuditableGroupAIBudget:
 		return typed.GroupID
-	case database.AuditableUserAiBudgetOverride:
+	case database.AuditableUserAIBudgetOverride:
 		return typed.UserID
 	case database.Chat:
 		return typed.ID
@@ -273,6 +278,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeNotificationsSettings
 	case database.PrebuildsSettings:
 		return database.ResourceTypePrebuildsSettings
+	case database.OAuth2ProviderSettings:
+		return database.ResourceTypeOauth2ProviderSettings
 	case database.OAuth2ProviderApp:
 		return database.ResourceTypeOauth2ProviderApp
 	case database.OAuth2ProviderAppSecret:
@@ -293,18 +300,18 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeIdpSyncSettingsGroup
 	case database.TaskTable:
 		return database.ResourceTypeTask
-	case database.AiSeatState:
-		return database.ResourceTypeAiSeat
+	case database.AISeatState:
+		return database.ResourceTypeAISeat
 	case database.AIProvider:
 		return database.ResourceTypeAIProvider
 	case database.AIProviderKey:
 		return database.ResourceTypeAIProviderKey
 	case database.AIGatewayKey:
 		return database.ResourceTypeAIGatewayKey
-	case database.AuditableGroupAiBudget:
-		return database.ResourceTypeGroupAiBudget
-	case database.AuditableUserAiBudgetOverride:
-		return database.ResourceTypeUserAiBudgetOverride
+	case database.AuditableGroupAIBudget:
+		return database.ResourceTypeGroupAIBudget
+	case database.AuditableUserAIBudgetOverride:
+		return database.ResourceTypeUserAIBudgetOverride
 	case database.Chat:
 		return database.ResourceTypeChat
 	case database.UserSecret:
@@ -349,6 +356,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.PrebuildsSettings:
 		// Artificial ID for auditing purposes
 		return false
+	case database.OAuth2ProviderSettings:
+		// Artificial ID for auditing purposes
+		return false
 	case database.OAuth2ProviderApp:
 		return false
 	case database.OAuth2ProviderAppSecret:
@@ -369,7 +379,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.TaskTable:
 		return true
-	case database.AiSeatState:
+	case database.AISeatState:
 		return false
 	case database.AIProvider:
 		// AI providers are deployment-scoped, not org-scoped.
@@ -381,10 +391,10 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.AIGatewayKey:
 		// AI Gateway keys are deployment-scoped, not org-scoped.
 		return false
-	case database.AuditableGroupAiBudget:
+	case database.AuditableGroupAIBudget:
 		// Group AI budgets are org-scoped through their parent group.
 		return true
-	case database.AuditableUserAiBudgetOverride:
+	case database.AuditableUserAIBudgetOverride:
 		// User AI budget overrides are org-scoped through their
 		// attributed group.
 		return true

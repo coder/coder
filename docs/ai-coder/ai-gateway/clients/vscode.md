@@ -1,8 +1,7 @@
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 VS Code's native chat can be configured to use AI Gateway via the **Custom Endpoint** language model provider (VS Code 1.122+, Stable). GitHub sign-in is not required, so this works in air-gapped or restricted environments.
 
@@ -36,7 +35,7 @@ Set **API type** to `responses`.
         {
             "id": "gpt-5.5",
             "name": "GPT 5.5",
-            "url": "https://coder.example.com/api/v2/aibridge/openai",
+            "url": "https://coder.example.com/api/v2/ai-gateway/openai",
             "toolCalling": true,
             "vision": true,
             "thinking": true,
@@ -62,7 +61,7 @@ Set **API type** to `messages`.
         {
             "id": "claude-sonnet-4.6",
             "name": "Claude Sonnet 4.6",
-            "url": "https://coder.example.com/api/v2/aibridge/anthropic",
+            "url": "https://coder.example.com/api/v2/ai-gateway/anthropic",
             "toolCalling": true,
             "vision": true,
             "thinking": true,

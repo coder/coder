@@ -4,11 +4,11 @@ import {
 	getGeneralFields,
 	getProviderFields,
 	getProviderNames,
+	isFieldVisibleForProvider,
 	resolveProvider,
 	snakeToCamel,
 } from "#/api/chatModelOptions";
 import type * as TypesGen from "#/api/typesGenerated";
-import { pricingFieldNames } from "./pricingFields";
 
 // ── Preserved public types ─────────────────────────────────────
 
@@ -98,6 +98,37 @@ export function deepGet(obj: unknown, path: string[]): unknown {
 const hasObjectKeys = (value: Record<string, unknown>): boolean =>
 	Object.keys(value).length > 0;
 
+export const isVisibleWhenSatisfied = (
+	field: FieldSchema,
+	readSiblingValue: (jsonName: string) => unknown,
+): boolean =>
+	!field.visible_when || readSiblingValue(field.visible_when) === "true";
+
+// A field counts as "set" when it holds a non-empty value. JSON array fields
+// serialize to "[]" when empty, so that is treated as unset too.
+export const hasFieldValue = (raw: unknown): boolean => {
+	if (typeof raw !== "string") {
+		return false;
+	}
+	const trimmed = raw.trim();
+	return trimmed.length > 0 && trimmed !== "[]";
+};
+
+/**
+ * conflicts_with: disable the field while a mutually exclusive sibling holds
+ * a value, unless this field also has one so a both-set state stays
+ * recoverable.
+ */
+export const isFieldConflictDisabled = (
+	field: FieldSchema,
+	readSiblingValue: (jsonName: string) => unknown,
+): boolean =>
+	Boolean(field.conflicts_with) &&
+	!hasFieldValue(readSiblingValue(field.json_name)) &&
+	(field.conflicts_with ?? []).some((sibling) =>
+		hasFieldValue(readSiblingValue(sibling)),
+	);
+
 /**
  * Convert a form string value to its API representation based on
  * the field schema type. Empty strings yield `undefined` so
@@ -111,7 +142,7 @@ function convertFormValue(value: string, field: FieldSchema): unknown {
 		case "integer":
 			return Number.parseInt(trimmed, 10);
 		case "number":
-			return isNonNegativePricingField(field) ? trimmed : Number(trimmed);
+			return Number(trimmed);
 		case "boolean":
 			return trimmed === "true";
 		case "array":
@@ -157,7 +188,6 @@ function buildEmptyProviderState(provider: string): Record<string, unknown> {
 export const emptyModelConfigFormState: ModelConfigFormState = (() => {
 	const state: ModelConfigFormState = {};
 
-	// General fields (e.g. maxOutputTokens, cost.inputPricePerMillionTokens).
 	for (const field of getGeneralFields()) {
 		const camelSegments = field.json_name.split(".").map(snakeToCamel);
 		deepSet(state, camelSegments, "");
@@ -183,7 +213,6 @@ export const extractModelConfigFormState = (
 
 	const state: ModelConfigFormState = {};
 
-	// General fields may be nested (for example, cost.input_price_per_million_tokens).
 	for (const field of getGeneralFields()) {
 		const snakeSegments = field.json_name.split(".");
 		const camelSegments = snakeSegments.map(snakeToCamel);
@@ -236,23 +265,21 @@ export const buildInitialModelFormValues = (
 		: structuredClone(emptyModelConfigFormState),
 });
 
-function isNonNegativePricingField(field: FieldSchema): boolean {
-	return pricingFieldNames.has(field.json_name);
-}
+const reasoningEffortEnum =
+	getGeneralFields().find(
+		(field) => field.json_name === "reasoning_effort.default",
+	)?.enum ?? [];
 
-function isValidOptionalNumber(
-	value: string | undefined,
-	minimum?: number,
-): boolean {
+const reasoningEffortRank = (value: string): number =>
+	reasoningEffortEnum.indexOf(value.trim().toLowerCase());
+
+function isValidOptionalNumber(value: string | undefined): boolean {
 	const trimmed = value?.trim();
 	if (!trimmed) {
 		return true;
 	}
 
-	const parsed = Number(trimmed);
-	return (
-		Number.isFinite(parsed) && (minimum === undefined || parsed >= minimum)
-	);
+	return Number.isFinite(Number(trimmed));
 }
 
 // ── Schema-driven Yup validation ───────────────────────────────
@@ -277,16 +304,12 @@ function yupTestForField(field: FieldSchema): Yup.StringSchema {
 				},
 			);
 
-		case "number": {
-			const minimum = isNonNegativePricingField(field) ? 0 : undefined;
-			const errorMessage =
-				minimum === 0
-					? `${label} must be zero or greater.`
-					: `${label} must be a valid number.`;
-			return Yup.string().test("optional-number", errorMessage, (value) =>
-				isValidOptionalNumber(value, minimum),
+		case "number":
+			return Yup.string().test(
+				"optional-number",
+				`${label} must be a valid number.`,
+				(value) => isValidOptionalNumber(value),
 			);
-		}
 
 		case "boolean":
 			return Yup.string().test(
@@ -414,8 +437,39 @@ function buildYupSchema(
 	return Yup.object(shape) as Yup.ObjectSchema<Record<string, unknown>>;
 }
 
-// Pre-built general-fields schema.
-const generalFieldsSchema = buildYupSchema(getGeneralFields());
+// Pre-built general-fields schema with reasoning effort bounds.
+const generalFieldsSchema = buildYupSchema(getGeneralFields()).test(
+	"reasoning-effort-default-lte-max",
+	"Default reasoning effort must not exceed the max reasoning effort.",
+	function validate(value) {
+		const efforts = deepGet(value, ["reasoningEffort"]);
+		const defaultValue = deepGet(efforts, ["default"]);
+		const maxValue = deepGet(efforts, ["max"]);
+		const defaultSet =
+			typeof defaultValue === "string" && defaultValue.trim() !== "";
+		const maxSet = typeof maxValue === "string" && maxValue.trim() !== "";
+		if (defaultSet !== maxSet) {
+			return this.createError({
+				path: defaultSet ? "reasoningEffort.max" : "reasoningEffort.default",
+				message: "Default and max reasoning effort must both be set.",
+			});
+		}
+		if (!defaultSet || !maxSet) {
+			return true;
+		}
+		const defaultRank = reasoningEffortRank(defaultValue);
+		const maxRank = reasoningEffortRank(maxValue);
+		// Unset or invalid values are covered by the per-field enum tests.
+		if (defaultRank < 0 || maxRank < 0 || defaultRank <= maxRank) {
+			return true;
+		}
+		return this.createError({
+			path: "reasoningEffort.default",
+			message:
+				"Default reasoning effort must not exceed the max reasoning effort.",
+		});
+	},
+);
 
 // Cache of per-provider Yup schemas, built lazily.
 const providerSchemaCache = new Map<
@@ -472,8 +526,9 @@ export const buildModelConfigFromForm = (
 		fieldErrors,
 	);
 
+	const rawProvider = (provider ?? "").trim().toLowerCase();
 	// Resolve the canonical provider name through the alias table.
-	const resolved = resolveProvider((provider ?? "").trim().toLowerCase());
+	const resolved = resolveProvider(rawProvider);
 
 	// Validate provider-specific fields.
 	const providerFormState = form[resolved];
@@ -494,6 +549,9 @@ export const buildModelConfigFromForm = (
 	const modelConfig: Record<string, unknown> = {};
 
 	for (const field of getGeneralFields()) {
+		// Skip fields scoped to other providers so stale values left in form
+		// state are not serialized.
+		if (!isFieldVisibleForProvider(field, rawProvider)) continue;
 		const camelSegments = field.json_name.split(".").map(snakeToCamel);
 		const formValue = deepGet(form, camelSegments);
 		if (typeof formValue !== "string") continue;
@@ -507,7 +565,14 @@ export const buildModelConfigFromForm = (
 	if (providerFormState && typeof providerFormState === "object") {
 		const providerPayload: Record<string, unknown> = {};
 
+		const readProviderValue = (jsonName: string): unknown =>
+			deepGet(providerFormState, jsonName.split(".").map(snakeToCamel));
+
 		for (const field of getProviderFields(resolved)) {
+			// Skip fields hidden by an unsatisfied `visible_when` gate so
+			// stale values left in form state are not serialized.
+			if (!isVisibleWhenSatisfied(field, readProviderValue)) continue;
+
 			// Read the form value from the nested camelCase structure.
 			const camelSegments = field.json_name.split(".").map(snakeToCamel);
 			const formValue = deepGet(providerFormState, camelSegments);

@@ -16,9 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
+	codertestutil "github.com/coder/coder/v2/testutil"
 )
 
 // Common response bodies for circuit breaker tests.
@@ -68,9 +71,9 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			},
 			path: pathAnthropicMessages,
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
-				return provider.NewAnthropic(config.Anthropic{
+				return aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
 				}, nil)
 			},
@@ -88,7 +91,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
 				return provider.NewOpenAI(config.OpenAI{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderOpenAI, "test-key"),
 					CircuitBreaker: cbConfig,
 				})
 			},
@@ -125,7 +128,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			cbConfig := &config.CircuitBreaker{
 				FailureThreshold: 2,
 				Interval:         time.Minute,
-				Timeout:          50 * time.Millisecond,
+				Timeout:          codertestutil.IntervalMedium,
 				MaxRequests:      1,
 			}
 
@@ -235,9 +238,9 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			},
 			path: pathAnthropicMessages,
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
-				return provider.NewAnthropic(config.Anthropic{
+				return aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
 				}, nil)
 			},
@@ -254,7 +257,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
 				return provider.NewOpenAI(config.OpenAI{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderOpenAI, "test-key"),
 					CircuitBreaker: cbConfig,
 				})
 			},
@@ -282,7 +285,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			cbConfig := &config.CircuitBreaker{
 				FailureThreshold: 2,
 				Interval:         time.Minute,
-				Timeout:          50 * time.Millisecond,
+				Timeout:          codertestutil.IntervalMedium,
 				MaxRequests:      1,
 			}
 
@@ -372,9 +375,9 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			},
 			path: pathAnthropicMessages,
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
-				return provider.NewAnthropic(config.Anthropic{
+				return aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
 				}, nil)
 			},
@@ -392,7 +395,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
 				return provider.NewOpenAI(config.OpenAI{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderOpenAI, "test-key"),
 					CircuitBreaker: cbConfig,
 				})
 			},
@@ -430,7 +433,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			cbConfig := &config.CircuitBreaker{
 				FailureThreshold: 2,
 				Interval:         time.Minute,
-				Timeout:          50 * time.Millisecond,
+				Timeout:          codertestutil.IntervalMedium,
 				MaxRequests:      maxRequests, // Allow only 2 concurrent requests in half-open
 			}
 
@@ -471,12 +474,10 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			responses := make(chan int, totalRequests)
 
 			for i := 0; i < totalRequests; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					status := doRequest()
 					responses <- status
-				}()
+				})
 			}
 
 			wg.Wait()
@@ -553,9 +554,9 @@ func TestCircuitBreaker_PerModelIsolation(t *testing.T) {
 	}
 	ctx := t.Context()
 	bridgeServer := newBridgeTestServer(ctx, t, mockUpstream.URL,
-		withCustomProvider(provider.NewAnthropic(config.Anthropic{
+		withCustomProvider(aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 			BaseURL:        mockUpstream.URL,
-			Key:            "test-key",
+			KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 			CircuitBreaker: cbConfig,
 		}, nil)),
 		withMetrics(m),

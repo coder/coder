@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -328,6 +329,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
+// @Param user_id query string false "Owner to report external auth state for. Defaults to the requesting user." format(uuid)
 // @Success 200 {array} codersdk.TemplateVersionExternalAuth
 // @Router /api/v2/templateversions/{templateversion}/external-auth [get]
 func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Request) {
@@ -337,14 +339,54 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
 
+	ownerID := apiKey.UserID
+	externalAuthCtx := ctx
+	if q := r.URL.Query().Get("user_id"); q != "" && q != codersdk.Me {
+		id, err := uuid.Parse(q)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid user_id query parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		ownerID = id
+
+		// Verify that the user has permission to create a workspace on behalf of
+		// the proposed workspace owner. If so, use a system actor to perform later
+		// checks that the user is unlikely to have the other required permissions
+		// for.
+		if !api.Authorize(r, policy.ActionCreate,
+			rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(ownerID.String())) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		//nolint:gocritic // Authorized as create-workspace-for-owner above; the checker only reads/refreshes the owner's external auth links.
+		externalAuthCtx = dbauthz.AsExternalAuthCoordinator(ctx)
+	}
+
+	providers, err := api.templateVersionExternalAuthForUser(externalAuthCtx, templateVersion, ownerID)
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, providers)
+}
+
+// templateVersionExternalAuthForUser returns the external auth providers
+// referenced by the template version, with Authenticated reporting whether
+// the given user has a usable token for each provider. Failures are returned
+// as httperror response errors suitable for writing directly to an API
+// response.
+func (api *API) templateVersionExternalAuthForUser(ctx context.Context, templateVersion database.TemplateVersion, userID uuid.UUID) ([]codersdk.TemplateVersionExternalAuth, error) {
 	var rawProviders []database.ExternalAuthProvider
 	err := json.Unmarshal(templateVersion.ExternalAuthProviders, &rawProviders)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		return nil, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading auth config from database",
 			Detail:  err.Error(),
 		})
-		return
 	}
 
 	providers := make([]codersdk.TemplateVersionExternalAuth, 0)
@@ -357,21 +399,19 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 			}
 		}
 		if config == nil {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			return nil, httperror.NewResponseError(http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("The template version references a Git auth provider %q that no longer exists.", rawProvider.ID),
 				Detail:  "You'll need to update the template version to use a different provider.",
 			})
-			return
 		}
 
 		// This is the URL that will redirect the user with a state token.
 		redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/external-auth/%s", config.ID))
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return nil, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to parse access URL.",
 				Detail:  err.Error(),
 			})
-			return
 		}
 
 		provider := codersdk.TemplateVersionExternalAuth{
@@ -385,7 +425,7 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 
 		authLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: config.ID,
-			UserID:     apiKey.UserID,
+			UserID:     userID,
 		})
 		// If there isn't an auth link, then the user just isn't authenticated.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -393,27 +433,25 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 			continue
 		}
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return nil, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching external auth link.",
 				Detail:  err.Error(),
 			})
-			return
 		}
 
 		_, err = config.RefreshToken(ctx, api.Database, authLink)
 		if err != nil && !externalauth.IsInvalidTokenError(err) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return nil, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to refresh external auth token.",
 				Detail:  err.Error(),
 			})
-			return
 		}
 
 		provider.Authenticated = err == nil
 		providers = append(providers, provider)
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, providers)
+	return providers, nil
 }
 
 // @Summary Get template variables by template version

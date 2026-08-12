@@ -62,15 +62,6 @@ type interceptorCase struct {
 	newInterceptor func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor
 }
 
-// keyFromHeader reads the API key an upstream request carried in the named auth
-// header.
-func keyFromHeader(name string, h http.Header) string {
-	if name == "Authorization" {
-		return utils.ExtractBearerToken(h.Get(name))
-	}
-	return h.Get(name)
-}
-
 // interceptorCases is the set of interceptors the failover tests run against,
 // one entry per supported API.
 var interceptorCases = []interceptorCase{
@@ -88,13 +79,15 @@ var interceptorCases = []interceptorCase{
 		agenticStreamErrorEvent: "event: error",
 		streamDoneEvent:         "event: message_stop",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			cfg := config.Anthropic{BaseURL: upstreamURL + "/"}
-			cred := intercept.NewCredentialInfo(intercept.CredentialKindCentralized, "")
+			var cred intercept.Credential
 			if pool != nil {
-				cfg.KeyPool = pool
-			} else if byokKey != "" {
-				cfg.Key = byokKey
-				cred = intercept.NewCredentialInfo(intercept.CredentialKindBYOK, byokKey)
+				cred = &intercept.CentralizedPool{Pool: pool, Header: "X-Api-Key"}
+			} else {
+				cred = intercept.BYOK{Secret: byokKey, Header: "X-Api-Key"}
+			}
+			cfg := intercept.Config{
+				ProviderName: config.ProviderAnthropic,
+				BaseURL:      upstreamURL + "/",
 			}
 
 			payload, err := messages.NewRequestPayload(reqBody)
@@ -102,9 +95,9 @@ var interceptorCases = []interceptorCase{
 
 			id, tracer := uuid.New(), otel.Tracer("keyfailover")
 			if streaming {
-				return messages.NewStreamingInterceptor(id, payload, config.ProviderAnthropic, cfg, nil, http.Header{}, "X-Api-Key", tracer, cred)
+				return messages.NewStreamingInterceptor(id, payload, cfg, cred, nil, http.Header{}, tracer)
 			}
-			return messages.NewBlockingInterceptor(id, payload, config.ProviderAnthropic, cfg, nil, http.Header{}, "X-Api-Key", tracer, cred)
+			return messages.NewBlockingInterceptor(id, payload, cfg, cred, nil, http.Header{}, tracer)
 		},
 	},
 	{
@@ -121,13 +114,15 @@ var interceptorCases = []interceptorCase{
 		agenticStreamErrorEvent: `data: {"error"`,
 		streamDoneEvent:         "data: [DONE]",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			cfg := config.OpenAI{BaseURL: upstreamURL + "/"}
-			cred := intercept.NewCredentialInfo(intercept.CredentialKindCentralized, "")
+			var cred intercept.Credential
 			if pool != nil {
-				cfg.KeyPool = pool
-			} else if byokKey != "" {
-				cfg.Key = byokKey
-				cred = intercept.NewCredentialInfo(intercept.CredentialKindBYOK, byokKey)
+				cred = &intercept.CentralizedPool{Pool: pool, Header: "Authorization"}
+			} else {
+				cred = intercept.BYOK{Secret: byokKey, Header: "Authorization"}
+			}
+			cfg := intercept.Config{
+				ProviderName: config.ProviderOpenAI,
+				BaseURL:      upstreamURL + "/",
 			}
 
 			var req chatcompletions.ChatCompletionNewParamsWrapper
@@ -135,9 +130,9 @@ var interceptorCases = []interceptorCase{
 
 			id, tracer := uuid.New(), otel.Tracer("keyfailover")
 			if streaming {
-				return chatcompletions.NewStreamingInterceptor(id, &req, config.ProviderOpenAI, cfg, http.Header{}, "Authorization", tracer, cred)
+				return chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, http.Header{}, tracer)
 			}
-			return chatcompletions.NewBlockingInterceptor(id, &req, config.ProviderOpenAI, cfg, http.Header{}, "Authorization", tracer, cred)
+			return chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, http.Header{}, tracer)
 		},
 	},
 	{
@@ -159,13 +154,15 @@ var interceptorCases = []interceptorCase{
 		},
 		streamDoneEvent: "event: response.completed",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			cfg := config.OpenAI{BaseURL: upstreamURL + "/"}
-			cred := intercept.NewCredentialInfo(intercept.CredentialKindCentralized, "")
+			var cred intercept.Credential
 			if pool != nil {
-				cfg.KeyPool = pool
-			} else if byokKey != "" {
-				cfg.Key = byokKey
-				cred = intercept.NewCredentialInfo(intercept.CredentialKindBYOK, byokKey)
+				cred = &intercept.CentralizedPool{Pool: pool, Header: "Authorization"}
+			} else {
+				cred = intercept.BYOK{Secret: byokKey, Header: "Authorization"}
+			}
+			cfg := intercept.Config{
+				ProviderName: config.ProviderOpenAI,
+				BaseURL:      upstreamURL + "/",
 			}
 
 			payload, err := responses.NewRequestPayload(reqBody)
@@ -173,17 +170,16 @@ var interceptorCases = []interceptorCase{
 
 			id, tracer := uuid.New(), otel.Tracer("keyfailover")
 			if streaming {
-				return responses.NewStreamingInterceptor(id, payload, config.ProviderOpenAI, cfg, http.Header{}, "Authorization", tracer, cred)
+				return responses.NewStreamingInterceptor(id, payload, cfg, cred, http.Header{}, tracer)
 			}
-			return responses.NewBlockingInterceptor(id, payload, config.ProviderOpenAI, cfg, http.Header{}, "Authorization", tracer, cred)
+			return responses.NewBlockingInterceptor(id, payload, cfg, cred, http.Header{}, tracer)
 		},
 	},
 }
 
 // TestInterception_KeyFailover verifies that, within a single interception, the
-// centralized key pool fails over across keys (temporary on 429, permanent on
-// 401/403) and reports exhaustion, for every interceptor in both blocking and
-// streaming mode.
+// centralized key pool fails over across keys and reports exhaustion, for every
+// interceptor in both blocking and streaming mode.
 func TestInterception_KeyFailover(t *testing.T) {
 	t.Parallel()
 
@@ -233,33 +229,21 @@ func TestInterception_KeyFailover(t *testing.T) {
 			expectedTransitions: map[string]int{"rate_limited": 1},
 		},
 		{
-			// A 401 marks the key permanent and fails over to the next one.
+			// A 401 marks the key temporary and fails over to the next one.
 			name: "failover_after_401",
 			keys: []string{k0, k1},
 			responses: func(s testutil.UpstreamResponse) []testutil.UpstreamResponse {
 				return []testutil.UpstreamResponse{errResp(http.StatusUnauthorized, ""), s}
 			},
 			expectedStatus:      http.StatusOK,
-			expectedKeyStates:   []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStateValid},
+			expectedKeyStates:   []keypool.KeyState{keypool.KeyStateTemporary, keypool.KeyStateValid},
 			expectedSeenKeys:    []string{k0, k1},
 			expectedTransitions: map[string]int{"unauthorized": 1},
 		},
 		{
-			// A 403 marks the key permanent and fails over to the next one.
-			name: "failover_after_403",
-			keys: []string{k0, k1},
-			responses: func(s testutil.UpstreamResponse) []testutil.UpstreamResponse {
-				return []testutil.UpstreamResponse{errResp(http.StatusForbidden, ""), s}
-			},
-			expectedStatus:      http.StatusOK,
-			expectedKeyStates:   []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStateValid},
-			expectedSeenKeys:    []string{k0, k1},
-			expectedTransitions: map[string]int{"forbidden": 1},
-		},
-		{
 			// Every key is rate-limited, so the pool is exhausted and the
 			// smallest remaining cooldown is reported.
-			name: "all_keys_rate_limited",
+			name: "all_keys_temporary_blocked",
 			keys: []string{k0, k1, k2},
 			responses: func(testutil.UpstreamResponse) []testutil.UpstreamResponse {
 				return []testutil.UpstreamResponse{
@@ -281,7 +265,9 @@ func TestInterception_KeyFailover(t *testing.T) {
 			expectedExhaustions: map[string]int{"rate_limited": 1},
 		},
 		{
-			// Every key is unauthorized, so the pool is permanently exhausted.
+			// Every key is unauthorized. Each key cools down and recovers on
+			// its own, but while all keys are down the exhaustion surfaces as
+			// an auth failure (502) with no Retry-After.
 			name: "all_keys_unauthorized",
 			keys: []string{k0, k1},
 			responses: func(testutil.UpstreamResponse) []testutil.UpstreamResponse {
@@ -290,11 +276,25 @@ func TestInterception_KeyFailover(t *testing.T) {
 					errResp(http.StatusUnauthorized, ""),
 				}
 			},
-			expectedStatus:      http.StatusBadGateway,
-			expectedKeyStates:   []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStatePermanent},
-			expectedSeenKeys:    []string{k0, k1},
-			expectedTransitions: map[string]int{"unauthorized": 2},
-			expectedExhaustions: map[string]int{"auth_failed": 1},
+			expectedStatus:       http.StatusBadGateway,
+			expectedRetryAfter:   "",
+			expectedBodyContains: "all configured keys failed authentication. Contact your Administrator",
+			expectedKeyStates:    []keypool.KeyState{keypool.KeyStateTemporary, keypool.KeyStateTemporary},
+			expectedSeenKeys:     []string{k0, k1},
+			expectedTransitions:  map[string]int{"unauthorized": 2},
+			expectedExhaustions:  map[string]int{"auth_failed": 1},
+		},
+		{
+			// A 403 is a per-request authorization failure, so it is surfaced
+			// to the caller without marking the key or failing over.
+			name: "forbidden_no_failover",
+			keys: []string{k0, k1},
+			responses: func(testutil.UpstreamResponse) []testutil.UpstreamResponse {
+				return []testutil.UpstreamResponse{errResp(http.StatusForbidden, "")}
+			},
+			expectedStatus:    http.StatusForbidden,
+			expectedKeyStates: []keypool.KeyState{keypool.KeyStateValid, keypool.KeyStateValid},
+			expectedSeenKeys:  []string{k0},
 		},
 		{
 			// A 500 is not a key-specific failure, so it does not fail over.
@@ -365,13 +365,13 @@ func TestInterception_KeyFailover(t *testing.T) {
 
 					var seenKeys []string
 					for _, r := range upstream.ReceivedRequests() {
-						seenKeys = append(seenKeys, keyFromHeader(ic.authHeader, r.Header))
+						seenKeys = append(seenKeys, testutil.KeyFromHeader(ic.authHeader, r.Header))
 					}
 					assert.Equal(t, tc.expectedSeenKeys, seenKeys, "seen keys")
 
 					if len(tc.expectedSeenKeys) > 0 {
 						assert.Equal(t, utils.MaskSecret(tc.expectedSeenKeys[len(tc.expectedSeenKeys)-1]),
-							interceptor.Credential().Hint, "credential hint")
+							interceptor.Credential().Hint(), "credential hint")
 					}
 					if tc.expectedBodyContains != "" {
 						assert.Contains(t, w.Body.String(), tc.expectedBodyContains, "response body")
@@ -393,7 +393,7 @@ func TestInterception_KeyFailover(t *testing.T) {
 					gathered, err := reg.Gather()
 					require.NoError(t, err)
 					// One transition per marked key, by reason.
-					for _, reason := range []string{"rate_limited", "unauthorized", "forbidden"} {
+					for _, reason := range []string{"rate_limited", "unauthorized"} {
 						if want := tc.expectedTransitions[reason]; want > 0 {
 							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_state_transitions_total", ic.provider, reason))
 						} else {
@@ -540,13 +540,13 @@ func TestInterception_AgenticLoopFailover(t *testing.T) {
 
 					var seenKeys []string
 					for _, r := range upstream.ReceivedRequests() {
-						seenKeys = append(seenKeys, keyFromHeader(ic.authHeader, r.Header))
+						seenKeys = append(seenKeys, testutil.KeyFromHeader(ic.authHeader, r.Header))
 					}
 					assert.Equal(t, tc.expectedSeenKeys, seenKeys, "seen keys")
 
 					if len(tc.expectedSeenKeys) > 0 {
 						assert.Equal(t, utils.MaskSecret(tc.expectedSeenKeys[len(tc.expectedSeenKeys)-1]),
-							interceptor.Credential().Hint, "credential hint")
+							interceptor.Credential().Hint(), "credential hint")
 					}
 					if tc.expectedBodyContains != "" {
 						assert.Contains(t, w.Body.String(), tc.expectedBodyContains, "response body")
@@ -562,7 +562,7 @@ func TestInterception_AgenticLoopFailover(t *testing.T) {
 					gathered, err := reg.Gather()
 					require.NoError(t, err)
 					// One transition per marked key, by reason.
-					for _, reason := range []string{"rate_limited", "unauthorized", "forbidden"} {
+					for _, reason := range []string{"rate_limited", "unauthorized"} {
 						if want := tc.expectedTransitions[reason]; want > 0 {
 							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_state_transitions_total", ic.provider, reason))
 						} else {

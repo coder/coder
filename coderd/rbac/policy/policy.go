@@ -140,6 +140,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   "read and use a workspace proxy",
 		},
 	},
+	"workspace_build_orchestration": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a workspace build orchestration",
+			ActionRead:   "read a workspace build orchestration",
+			ActionUpdate: "update a workspace build orchestration",
+			ActionDelete: "delete a workspace build orchestration",
+		},
+	},
 	"license": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create a license",
@@ -434,6 +442,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create an AI Gateway key",
 			ActionRead:   "read AI Gateway keys",
+			ActionUpdate: "update an AI Gateway key",
 			ActionDelete: "delete an AI Gateway key",
 		},
 	},

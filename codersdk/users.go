@@ -224,6 +224,10 @@ func (r *CreateUserRequestWithOrgs) UnmarshalJSON(data []byte) error {
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
 	Name     string `json:"name" validate:"user_real_name"`
+	// AvatarURL is only applied for users whose login type is password or
+	// none. For other login types the avatar is synced from the identity
+	// provider on login, so a submitted value is ignored.
+	AvatarURL string `json:"avatar_url" format:"uri"`
 }
 
 type ValidateUserPasswordRequest struct {
@@ -495,7 +499,7 @@ func (c *Client) UserAutofillParameters(ctx context.Context, user string, templa
 	}
 
 	var params []UserParameter
-	return params, json.NewDecoder(res.Body).Decode(&params)
+	return params, ReadBodyAsJSON(res, &params)
 }
 
 // HasFirstUser returns whether the first user has been created.
@@ -534,7 +538,7 @@ func (c *Client) CreateFirstUser(ctx context.Context, req CreateFirstUserRequest
 		return CreateFirstUserResponse{}, ReadBodyAsError(res)
 	}
 	var resp CreateFirstUserResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // CreateUser
@@ -566,7 +570,7 @@ func (c *Client) CreateUserWithOrgs(ctx context.Context, req CreateUserRequestWi
 		return User{}, ReadBodyAsError(res)
 	}
 	var user User
-	return user, json.NewDecoder(res.Body).Decode(&user)
+	return user, ReadBodyAsJSON(res, &user)
 }
 
 // DeleteUser deletes a user.
@@ -595,7 +599,7 @@ func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateU
 		return User{}, ReadBodyAsError(res)
 	}
 	var resp User
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ValidateUserPassword validates the complexity of a user password and that it is secured enough.
@@ -609,7 +613,7 @@ func (c *Client) ValidateUserPassword(ctx context.Context, req ValidateUserPassw
 		return ValidateUserPasswordResponse{}, ReadBodyAsError(res)
 	}
 	var resp ValidateUserPasswordResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateUserStatus sets the user status to the given status
@@ -634,7 +638,7 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	}
 
 	var resp User
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetUserAppearanceSettings fetches the appearance settings for a user.
@@ -648,7 +652,7 @@ func (c *Client) GetUserAppearanceSettings(ctx context.Context, user string) (Us
 		return UserAppearanceSettings{}, ReadBodyAsError(res)
 	}
 	var resp UserAppearanceSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateUserAppearanceSettings updates the appearance settings for a user.
@@ -662,7 +666,7 @@ func (c *Client) UpdateUserAppearanceSettings(ctx context.Context, user string, 
 		return UserAppearanceSettings{}, ReadBodyAsError(res)
 	}
 	var resp UserAppearanceSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetUserPreferenceSettings fetches the preference settings for a user.
@@ -676,7 +680,7 @@ func (c *Client) GetUserPreferenceSettings(ctx context.Context, user string) (Us
 		return UserPreferenceSettings{}, ReadBodyAsError(res)
 	}
 	var resp UserPreferenceSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateUserPreferenceSettings updates the preference settings for a user.
@@ -690,7 +694,7 @@ func (c *Client) UpdateUserPreferenceSettings(ctx context.Context, user string, 
 		return UserPreferenceSettings{}, ReadBodyAsError(res)
 	}
 	var resp UserPreferenceSettings
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateUserPassword updates a user password.
@@ -718,7 +722,7 @@ func (c *Client) PostOrganizationMember(ctx context.Context, organizationID uuid
 		return OrganizationMember{}, ReadBodyAsError(res)
 	}
 	var member OrganizationMember
-	return member, json.NewDecoder(res.Body).Decode(&member)
+	return member, ReadBodyAsJSON(res, &member)
 }
 
 // DeleteOrganizationMember removes a user from an organization
@@ -796,7 +800,7 @@ func (c *Client) OrganizationMember(ctx context.Context, organizationIdent, user
 		return OrganizationMemberWithUserData{}, ReadBodyAsError(res)
 	}
 	var member OrganizationMemberWithUserData
-	return member, json.NewDecoder(res.Body).Decode(&member)
+	return member, ReadBodyAsJSON(res, &member)
 }
 
 // OrganizationMembers lists all members in an organization
@@ -814,7 +818,7 @@ func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UU
 		return nil, ReadBodyAsError(res)
 	}
 	var members []OrganizationMemberWithUserData
-	return members, json.NewDecoder(res.Body).Decode(&members)
+	return members, ReadBodyAsJSON(res, &members)
 }
 
 // OrganizationMembers lists filtered and paginated members in an organization
@@ -833,7 +837,7 @@ func (c *Client) OrganizationMembersPaginated(ctx context.Context, organizationI
 		return PaginatedMembersResponse{}, ReadBodyAsError(res)
 	}
 	var membersRes PaginatedMembersResponse
-	return membersRes, json.NewDecoder(res.Body).Decode(&membersRes)
+	return membersRes, ReadBodyAsJSON(res, &membersRes)
 }
 
 // UpdateUserRoles grants the userID the specified roles.
@@ -848,7 +852,7 @@ func (c *Client) UpdateUserRoles(ctx context.Context, user string, req UpdateRol
 		return User{}, ReadBodyAsError(res)
 	}
 	var resp User
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateOrganizationMemberRoles grants the userID the specified roles in an org.
@@ -863,7 +867,7 @@ func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organization
 		return OrganizationMember{}, ReadBodyAsError(res)
 	}
 	var member OrganizationMember
-	return member, json.NewDecoder(res.Body).Decode(&member)
+	return member, ReadBodyAsJSON(res, &member)
 }
 
 // UserRoles returns all roles the user has
@@ -877,7 +881,7 @@ func (c *Client) UserRoles(ctx context.Context, user string) (UserRoles, error) 
 		return UserRoles{}, ReadBodyAsError(res)
 	}
 	var roles UserRoles
-	return roles, json.NewDecoder(res.Body).Decode(&roles)
+	return roles, ReadBodyAsJSON(res, &roles)
 }
 
 // UserOIDCClaims returns the merged OIDC claims for the authenticated user.
@@ -891,7 +895,7 @@ func (c *Client) UserOIDCClaims(ctx context.Context) (OIDCClaimsResponse, error)
 		return OIDCClaimsResponse{}, ReadBodyAsError(res)
 	}
 	var resp OIDCClaimsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // LoginWithPassword creates a session token authenticating with an email and password.
@@ -906,7 +910,7 @@ func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordReq
 		return LoginWithPasswordResponse{}, ReadBodyAsError(res)
 	}
 	var resp LoginWithPasswordResponse
-	err = json.NewDecoder(res.Body).Decode(&resp)
+	err = ReadBodyAsJSON(res, &resp)
 	if err != nil {
 		return LoginWithPasswordResponse{}, err
 	}
@@ -961,7 +965,7 @@ func (c *Client) ConvertUserLoginType(ctx context.Context, user string, req Conv
 		return OAuthConversionResponse{}, ReadBodyAsError(res)
 	}
 	var resp OAuthConversionResponse
-	err = json.NewDecoder(res.Body).Decode(&resp)
+	err = ReadBodyAsJSON(res, &resp)
 	if err != nil {
 		return OAuthConversionResponse{}, err
 	}
@@ -992,7 +996,7 @@ func (c *Client) User(ctx context.Context, userIdent string) (User, error) {
 		return User{}, ReadBodyAsError(res)
 	}
 	var user User
-	return user, json.NewDecoder(res.Body).Decode(&user)
+	return user, ReadBodyAsJSON(res, &user)
 }
 
 // UserQuietHoursSchedule returns the quiet hours settings for the user. This
@@ -1007,7 +1011,7 @@ func (c *Client) UserQuietHoursSchedule(ctx context.Context, userIdent string) (
 		return UserQuietHoursScheduleResponse{}, ReadBodyAsError(res)
 	}
 	var resp UserQuietHoursScheduleResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpdateUserQuietHoursSchedule updates the quiet hours settings for the user.
@@ -1022,7 +1026,7 @@ func (c *Client) UpdateUserQuietHoursSchedule(ctx context.Context, userIdent str
 		return UserQuietHoursScheduleResponse{}, ReadBodyAsError(res)
 	}
 	var resp UserQuietHoursScheduleResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // Users returns all users according to the request parameters. If no parameters are set,
@@ -1042,7 +1046,7 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse,
 	}
 
 	var usersRes GetUsersResponse
-	return usersRes, json.NewDecoder(res.Body).Decode(&usersRes)
+	return usersRes, ReadBodyAsJSON(res, &usersRes)
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.
@@ -1056,7 +1060,7 @@ func (c *Client) OrganizationsByUser(ctx context.Context, user string) ([]Organi
 		return nil, ReadBodyAsError(res)
 	}
 	var orgs []Organization
-	return orgs, json.NewDecoder(res.Body).Decode(&orgs)
+	return orgs, ReadBodyAsJSON(res, &orgs)
 }
 
 func (c *Client) OrganizationByUserAndName(ctx context.Context, user string, name string) (Organization, error) {
@@ -1069,7 +1073,7 @@ func (c *Client) OrganizationByUserAndName(ctx context.Context, user string, nam
 		return Organization{}, ReadBodyAsError(res)
 	}
 	var org Organization
-	return org, json.NewDecoder(res.Body).Decode(&org)
+	return org, ReadBodyAsJSON(res, &org)
 }
 
 // AuthMethods returns types of authentication available to the user.
@@ -1085,5 +1089,5 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 	}
 
 	var userAuth AuthMethods
-	return userAuth, json.NewDecoder(res.Body).Decode(&userAuth)
+	return userAuth, ReadBodyAsJSON(res, &userAuth)
 }

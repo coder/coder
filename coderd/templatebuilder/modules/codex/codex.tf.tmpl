@@ -1,0 +1,24 @@
+
+variable "openai_api_key" {
+  description = "OpenAI API key for Codex CLI."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+module "codex" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder-labs/codex/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  base_config_toml = {{ .Variables.base_config_toml }}
+  codex_version = {{ .Variables.codex_version }}
+  enable_ai_gateway = {{ .Variables.enable_ai_gateway }}
+  icon = {{ .Variables.icon }}
+  install_codex = {{ .Variables.install_codex }}
+  mcp = {{ .Variables.mcp }}
+  model_reasoning_effort = {{ .Variables.model_reasoning_effort }}
+  openai_api_key = var.openai_api_key
+  post_install_script = {{ .Variables.post_install_script }}
+  pre_install_script = {{ .Variables.pre_install_script }}
+  workdir = {{ .Variables.workdir }}
+}

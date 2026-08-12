@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -69,7 +68,7 @@ func safeQueryParams(params url.Values) []slog.Field {
 	return fields
 }
 
-func Logger(log slog.Logger) func(next http.Handler) http.Handler {
+func Logger(log slog.Logger, hostResolver func(*http.Request) string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -79,9 +78,15 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 				panic(fmt.Sprintf("ResponseWriter not a *tracing.StatusWriter; got %T", rw))
 			}
 
+			host := r.Host
+			if hostResolver != nil {
+				host = hostResolver(r)
+			}
+
 			httplog := log.With(
 				slog.F("user_agent", r.Header.Get("User-Agent")),
-				slog.F("host", httpapi.RequestHost(r)),
+				slog.F("host", host),
+				slog.F("received_host", r.Host),
 				slog.F("path", r.URL.Path),
 				slog.F("proto", r.Proto),
 				slog.F("remote_addr", r.RemoteAddr),

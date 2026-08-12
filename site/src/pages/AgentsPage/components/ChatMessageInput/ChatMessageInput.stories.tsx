@@ -2,31 +2,26 @@ import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { type PropsWithChildren, useEffect } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput } from "./ChatMessageInput";
+import type { SkillMetadata } from "./SkillsTriggerMenu";
+import {
+	expectInsideListViewport,
+	expectNoVisibleText,
+	findVisibleText,
+	MockSkill,
+	MockSkills,
+} from "./storyHelpers";
 
-const now = "2026-05-08T00:00:00Z";
-
-const mockSkills: TypesGen.UserSkillMetadata[] = [
+// Override props keep skill menu stories deterministic without network calls.
+const mockWorkspaceSkills: SkillMetadata[] = [
 	{
-		id: "skill-reviewer",
-		name: "reviewer",
-		description: "Review changed files and suggest fixes.",
-		created_at: now,
-		updated_at: now,
+		name: "test-runner",
+		description: "Run the workspace test command.",
 	},
 	{
-		id: "skill-docs",
-		name: "docs",
-		description: "Draft docs for user-facing behavior.",
-		created_at: now,
-		updated_at: now,
-	},
-	{
-		id: "skill-plan",
-		name: "plan",
-		description: "",
-		created_at: now,
-		updated_at: now,
+		name: "workspace-docs",
+		description: "Use repository documentation conventions.",
 	},
 ];
 
@@ -36,7 +31,7 @@ const meta: Meta<typeof ChatMessageInput> = {
 	args: {
 		"aria-label": "Chat message input",
 		placeholder: "Message the agent",
-		personalSkillsOverride: mockSkills,
+		personalSkillsOverride: MockSkills,
 		onChange: fn(),
 		onEnter: fn(),
 	},
@@ -54,27 +49,6 @@ const meta: Meta<typeof ChatMessageInput> = {
 
 export default meta;
 type Story = StoryObj<typeof ChatMessageInput>;
-
-const findVisibleText = async (text: string) => {
-	let visibleElement: HTMLElement | undefined;
-	await waitFor(() => {
-		const matches = within(document.body).queryAllByText(text);
-		visibleElement = matches.find(
-			(element) => element.getClientRects().length > 0,
-		);
-		expect(visibleElement).toBeDefined();
-	});
-	return visibleElement as HTMLElement;
-};
-
-const expectNoVisibleText = async (text: string) => {
-	await waitFor(() => {
-		const matches = within(document.body).queryAllByText(text);
-		expect(
-			matches.every((element) => element.getClientRects().length === 0),
-		).toBe(true);
-	});
-};
 
 const expectNoVisibleTextImmediately = (text: string) => {
 	const matches = within(document.body).queryAllByText(text);
@@ -120,10 +94,26 @@ export const EmptySkills: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const editor = await typeInEditor(canvasElement, "/");
-		expect(await findVisibleText("No personal skills found.")).toBeDefined();
+		// "/" is plain text when the skills list is empty.
+		expectNoVisibleTextImmediately("No personal skills found.");
+		await userEvent.keyboard("{Enter}");
+		expect(args.onEnter).toHaveBeenCalledTimes(1);
+		expect(editor.textContent).toBe("/");
+	},
+};
+
+export const FilteredEmptyKeepsMenuOpen: Story = {
+	args: {
+		onEnter: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const editor = await typeInEditor(canvasElement, "/zzzz");
+		expect(
+			await findVisibleText("No personal skills match that query."),
+		).toBeDefined();
 		await userEvent.keyboard("{Enter}");
 		expect(args.onEnter).not.toHaveBeenCalled();
-		expect(editor.textContent).toBe("/");
+		expect(editor.textContent).toBe("/zzzz");
 	},
 };
 
@@ -158,6 +148,33 @@ export const ArrowKeysSelectHighlightedSkill: Story = {
 	},
 };
 
+// Enough skills to overflow the menu's max height so arrow-key
+// navigation has to scroll the list.
+const manyPersonalSkills: TypesGen.UserSkillMetadata[] = Array.from(
+	{ length: 15 },
+	(_, index) => ({
+		...MockSkill,
+		id: `skill-scroll-${index}`,
+		name: `skill-${String(index).padStart(2, "0")}`,
+	}),
+);
+
+export const ArrowKeysScrollMenuList: Story = {
+	args: {
+		personalSkillsOverride: manyPersonalSkills,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		const lastItem = await findVisibleText("/skill-14");
+		// ArrowUp wraps the highlight to the last item, below the fold.
+		await userEvent.keyboard("{ArrowUp}");
+		await expectInsideListViewport(lastItem);
+		// ArrowDown wraps back to the first item and its group heading.
+		await userEvent.keyboard("{ArrowDown}");
+		await expectInsideListViewport(await findVisibleText("Personal skills"));
+	},
+};
+
 export const TabSelectsSkill: Story = {
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/rev");
@@ -181,6 +198,110 @@ export const ClickSelectsSkill: Story = {
 	},
 };
 
+export const OpensWithPersonalAndWorkspaceSkills: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("Personal skills")).toBeDefined();
+		expect(await findVisibleText("Workspace skills")).toBeDefined();
+		expect(await findVisibleText("/reviewer")).toBeDefined();
+		expect(await findVisibleText("/workspace/test-runner")).toBeDefined();
+	},
+};
+
+export const ArrowDownSelectsWorkspaceSkill: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/");
+		await findVisibleText("/workspace/test-runner");
+		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/workspace/test-runner");
+		});
+	},
+};
+
+export const CollidingPersonalSkillInsertsQualifiedTrigger: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: [
+			{ name: "reviewer", description: "Workspace review process." },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/rev");
+		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
+		expect(await findVisibleText("/workspace/reviewer")).toBeDefined();
+		await userEvent.click(await findVisibleText("/personal/reviewer"));
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/personal/reviewer");
+		});
+	},
+};
+
+export const PersonalTriggersQualifiedWhileWorkspaceSkillsUnknown: Story = {
+	args: {
+		// No workspaceSkills: the chat detail has not resolved, so
+		// collisions are unknown.
+		hasWorkspace: true,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/rev");
+		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
+	},
+};
+
+export const EmptyPersonalKeepsMenuOpenWhileWorkspaceSkillsUnknown: Story = {
+	args: {
+		personalSkillsOverride: [],
+		// No workspaceSkills: closing the menu here would record the slash
+		// as dismissed, so skills arriving later could never reopen it.
+		hasWorkspace: true,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("Loading workspace skills...")).toBeDefined();
+	},
+};
+
+export const QualifiedPersonalQueryMatchesBareTrigger: Story = {
+	args: {
+		hasWorkspace: true,
+		// Workspace skills resolve without collisions, so personal items
+		// display bare triggers while the typed query stays qualified.
+		workspaceSkills: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/personal/rev");
+		expect(await findVisibleText("/reviewer")).toBeDefined();
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/reviewer");
+		});
+	},
+};
+
+export const UniqueWorkspaceQualifiedPrefixStaysSearchable: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/workspace/t");
+		expect(await findVisibleText("/workspace/test-runner")).toBeDefined();
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/workspace/test-runner");
+		});
+	},
+};
+
 export const EmptyDescriptionInsertsNameOnly: Story = {
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/pla");
@@ -195,18 +316,6 @@ export const EmptyDescriptionInsertsNameOnly: Story = {
 export const SlashInsideUrlDoesNotOpen: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "https://");
-		await expectNoVisibleText("/reviewer");
-	},
-};
-
-export const BackspaceClosesWithoutEmptyStateFlash: Story = {
-	play: async ({ canvasElement }) => {
-		const editor = await typeInEditor(canvasElement, "/");
-		await findVisibleText("/reviewer");
-		await userEvent.keyboard("{Backspace}");
-
-		expect(editor.textContent).toBe("");
-		expectNoVisibleTextImmediately("No personal skills found.");
 		await expectNoVisibleText("/reviewer");
 	},
 };
@@ -255,8 +364,141 @@ export const OutsideClickDismissesTriggerOnRefocus: Story = {
 	},
 };
 
-// Stories below verify that on mobile viewports, the personal skills
-// popup sits directly above the chat input rather than being clipped
+export const BackspaceClosesMenuWithoutRepositioning: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		await findVisibleText("/reviewer");
+		const popperWrapper = () =>
+			document.querySelector<HTMLElement>(
+				"[data-radix-popper-content-wrapper]",
+			);
+		const openRect = popperWrapper()?.getBoundingClientRect();
+		expect(openRect?.left).toBeGreaterThan(0);
+		await userEvent.keyboard("{Backspace}");
+		// The closing menu must hold its position through the exit
+		// animation instead of flashing at the viewport origin.
+		let wrapper = popperWrapper();
+		for (let frame = 0; wrapper && frame < 300; frame++) {
+			const rect = wrapper.getBoundingClientRect();
+			expect({ top: rect.top, left: rect.left }).toEqual({
+				top: openRect?.top,
+				left: openRect?.left,
+			});
+			await new Promise((resolve) => requestAnimationFrame(resolve));
+			wrapper = popperWrapper();
+		}
+		expect(wrapper).toBeNull();
+	},
+};
+
+// Built-in commands (e.g. /compact) render in a "Commands" group
+// ahead of personal skills when the parent provides slashCommands.
+export const CommandsGroupWithSkills: Story = {
+	args: {
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("Commands")).toBeDefined();
+		expect(await findVisibleText("/compact")).toBeDefined();
+		expect(await findVisibleText("Personal skills")).toBeDefined();
+		expect(await findVisibleText("/reviewer")).toBeDefined();
+	},
+};
+
+// Unlike the skills-only menu, "/" still opens when built-in commands
+// exist and the user has no personal skills.
+export const CommandsOnlyOpensWithEmptySkills: Story = {
+	args: {
+		personalSkillsOverride: [],
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("/compact")).toBeDefined();
+		expectNoVisibleTextImmediately("No personal skills found.");
+	},
+};
+
+export const EnterSelectsCommand: Story = {
+	args: {
+		personalSkillsOverride: [],
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/comp");
+		await findVisibleText("/compact");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/compact");
+		});
+	},
+};
+
+// Commands are first in the combined list, so the first ArrowDown
+// moves the highlight from the command into the skills group.
+export const ArrowKeysCrossCommandAndSkillGroups: Story = {
+	args: {
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/");
+		await findVisibleText("/compact");
+		await userEvent.keyboard("{ArrowDown}{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/docs");
+		});
+	},
+};
+
+// A workspace skill named like a built-in command owns the trigger
+// (read_skill resolves a bare /compact to it), so the command stands
+// down and only the skill entry is offered.
+export const CommandStandsDownForCollidingWorkspaceSkill: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: [
+			{ name: "compact", description: "Workspace compact process." },
+		],
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/comp");
+		expect(await findVisibleText("/workspace/compact")).toBeDefined();
+		expectNoVisibleTextImmediately("Commands");
+	},
+};
+
+// While workspace skills are still unknown, a collision cannot be
+// ruled out, so built-in commands are not offered yet.
+export const CommandsHiddenWhileWorkspaceSkillsUnknown: Story = {
+	args: {
+		hasWorkspace: true,
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
+		expectNoVisibleTextImmediately("Commands");
+	},
+};
+
+// A query that matches no command hides the Commands group but keeps
+// matching skills visible.
+export const CommandsFilteredOutBySkillQuery: Story = {
+	args: {
+		slashCommands: [COMPACT_SLASH_COMMAND],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/rev");
+		expect(await findVisibleText("/reviewer")).toBeDefined();
+		await expectNoVisibleText("/compact");
+		expectNoVisibleTextImmediately("Commands");
+	},
+};
+
+// Stories below verify that on mobile viewports, the skills popup
+// sits directly above the chat input rather than being clipped
 // above the visible viewport.
 
 const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
@@ -285,11 +527,10 @@ const mockMobileMatchMedia = (): (() => void) => {
 const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
 	{ length: 30 },
 	(_, index) => ({
+		...MockSkill,
 		id: `skill-${index}`,
 		name: `skill-${index}`,
 		description: `Long description for skill ${index} that explains what it does in detail.`,
-		created_at: now,
-		updated_at: now,
 	}),
 );
 
@@ -391,7 +632,7 @@ export const MobileAboveChatInput: Story = {
 	decorators: [MobileDecorator],
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [320] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();
@@ -424,7 +665,7 @@ export const MobileShiftedVisualViewport: Story = {
 	decorators: [MobileDecorator],
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();
@@ -460,7 +701,7 @@ export const MobileOffsetTopDoesNotCollapse: Story = {
 	decorators: [MobileDecorator],
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();
@@ -499,7 +740,7 @@ export const MobileLongListScrolls: Story = {
 	decorators: [MobileDecorator],
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [320] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();

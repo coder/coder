@@ -24,7 +24,6 @@ type PushRequest struct {
 	AggregateHash [32]byte
 	Resources     []Resource
 	Initial       bool
-	SchemaVersion uint64
 	SnapshotError string
 }
 
@@ -102,10 +101,20 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 	changes, unsub := m.SubscribeChanges()
 	defer unsub()
 
-	// First push uses the snapshot computed by NewManager.
+	// Until SetReady the snapshot is version 0: wait, don't push it.
 	initial := true
 	for {
 		snap := m.Snapshot()
+		if snap.Version == 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-m.closedCh:
+				return nil
+			case <-changes:
+			}
+			continue
+		}
 		req := snapshotToPushRequest(snap, initial)
 
 		err := pushWithRetry(ctx, p, req, initialBackoff, maxBackoff, clock, logger)
@@ -196,7 +205,6 @@ func snapshotToPushRequest(s Snapshot, initial bool) *PushRequest {
 		AggregateHash: s.AggregateHash,
 		Resources:     s.Resources,
 		Initial:       initial,
-		SchemaVersion: s.SchemaVersion,
 		SnapshotError: s.SnapshotError,
 	}
 }

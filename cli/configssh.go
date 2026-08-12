@@ -47,17 +47,27 @@ const (
 type sshConfigOptions struct {
 	waitEnum string
 	// Deprecated: moving away from prefix to hostnameSuffix
-	userHostPrefix      string
-	hostnameSuffix      string
-	sshOptions          []string
-	disableAutostart    bool
-	header              []string
-	headerCommand       string
-	removedKeys         map[string]bool
-	globalConfigPath    string
-	coderBinaryPath     string
-	skipProxyCommand    bool
-	forceUnixSeparators bool
+	userHostPrefix string
+	hostnameSuffix string
+	// userHostPrefixExplicit and hostnameSuffixExplicit distinguish an
+	// intentional empty value from "unset" (which falls back to the
+	// server default). Persisted across --use-previous-options runs.
+	userHostPrefixExplicit bool
+	hostnameSuffixExplicit bool
+	sshOptions             []string
+	disableAutostart       bool
+	noWildcard             bool
+	header                 []string
+	headerCommand          string
+	removedKeys            map[string]bool
+	globalConfigPath       string
+	coderBinaryPath        string
+	skipProxyCommand       bool
+	forceUnixSeparators    bool
+	// workspaceNames is populated when noWildcard is true. It holds the
+	// workspace names used to generate individual host entries. It is not
+	// persisted to the SSH config header.
+	workspaceNames []string
 }
 
 // addOptions expects options in the form of "option=value" or "option value".
@@ -105,9 +115,12 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 	}
 	return o.waitEnum == other.waitEnum &&
 		o.userHostPrefix == other.userHostPrefix &&
+		o.userHostPrefixExplicit == other.userHostPrefixExplicit &&
 		o.disableAutostart == other.disableAutostart &&
 		o.headerCommand == other.headerCommand &&
-		o.hostnameSuffix == other.hostnameSuffix
+		o.hostnameSuffix == other.hostnameSuffix &&
+		o.hostnameSuffixExplicit == other.hostnameSuffixExplicit &&
+		o.noWildcard == other.noWildcard
 }
 
 func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
@@ -142,26 +155,51 @@ func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
 		flags += " --disable-autostart=true"
 	}
 
+	// TODO: this function has grown complex enough that it would benefit from
+	// being rewritten using text/template rather than manual buf.WriteString
+	// and fmt.Fprintf calls.
+
 	// Prefix block:
 	if o.userHostPrefix != "" {
-		_, _ = buf.WriteString("Host")
+		if o.noWildcard {
+			for i, wsName := range o.workspaceNames {
+				if i > 0 {
+					_, _ = buf.WriteString("\n")
+				}
+				_, _ = fmt.Fprintf(buf, "Host %s%s\n", o.userHostPrefix, wsName)
+				for _, v := range o.sshOptions {
+					_, _ = buf.WriteString("\t")
+					_, _ = buf.WriteString(v)
+					_, _ = buf.WriteString("\n")
+				}
+				if !o.skipProxyCommand {
+					_, _ = buf.WriteString("\t")
+					_, _ = fmt.Fprintf(buf,
+						"ProxyCommand %s %s ssh --stdio%s --ssh-host-prefix %s %%h",
+						escapedCoderBinaryProxy, rootFlags, flags, o.userHostPrefix,
+					)
+					_, _ = buf.WriteString("\n")
+				}
+			}
+		} else {
+			_, _ = buf.WriteString("Host")
+			_, _ = buf.WriteString(" ")
+			_, _ = buf.WriteString(o.userHostPrefix)
+			_, _ = buf.WriteString("*\n")
 
-		_, _ = buf.WriteString(" ")
-		_, _ = buf.WriteString(o.userHostPrefix)
-		_, _ = buf.WriteString("*\n")
-
-		for _, v := range o.sshOptions {
-			_, _ = buf.WriteString("\t")
-			_, _ = buf.WriteString(v)
-			_, _ = buf.WriteString("\n")
-		}
-		if !o.skipProxyCommand && o.userHostPrefix != "" {
-			_, _ = buf.WriteString("\t")
-			_, _ = fmt.Fprintf(buf,
-				"ProxyCommand %s %s ssh --stdio%s --ssh-host-prefix %s %%h",
-				escapedCoderBinaryProxy, rootFlags, flags, o.userHostPrefix,
-			)
-			_, _ = buf.WriteString("\n")
+			for _, v := range o.sshOptions {
+				_, _ = buf.WriteString("\t")
+				_, _ = buf.WriteString(v)
+				_, _ = buf.WriteString("\n")
+			}
+			if !o.skipProxyCommand {
+				_, _ = buf.WriteString("\t")
+				_, _ = fmt.Fprintf(buf,
+					"ProxyCommand %s %s ssh --stdio%s --ssh-host-prefix %s %%h",
+					escapedCoderBinaryProxy, rootFlags, flags, o.userHostPrefix,
+				)
+				_, _ = buf.WriteString("\n")
+			}
 		}
 	}
 
@@ -169,22 +207,46 @@ func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
 	if o.hostnameSuffix == "" {
 		return nil
 	}
-	_, _ = fmt.Fprintf(buf, "\nHost *.%s\n", o.hostnameSuffix)
-	for _, v := range o.sshOptions {
-		_, _ = buf.WriteString("\t")
-		_, _ = buf.WriteString(v)
-		_, _ = buf.WriteString("\n")
-	}
-	// the ^^ options should always apply, but we only want to use the proxy command if Coder Connect is not running.
-	if !o.skipProxyCommand {
-		_, _ = fmt.Fprintf(buf, "\nMatch host *.%s !exec \"%s connect exists %%h\"\n",
-			o.hostnameSuffix, escapedCoderBinaryMatchExec)
-		_, _ = buf.WriteString("\t")
-		_, _ = fmt.Fprintf(buf,
-			"ProxyCommand %s %s ssh --stdio%s --hostname-suffix %s %%h",
-			escapedCoderBinaryProxy, rootFlags, flags, o.hostnameSuffix,
-		)
-		_, _ = buf.WriteString("\n")
+
+	if o.noWildcard {
+		for _, wsName := range o.workspaceNames {
+			hostname := wsName + "." + o.hostnameSuffix
+			_, _ = fmt.Fprintf(buf, "\nHost %s\n", hostname)
+			for _, v := range o.sshOptions {
+				_, _ = buf.WriteString("\t")
+				_, _ = buf.WriteString(v)
+				_, _ = buf.WriteString("\n")
+			}
+			// Options always apply; only use the proxy command when Coder Connect is not running.
+			if !o.skipProxyCommand {
+				_, _ = fmt.Fprintf(buf, "\nMatch host %s !exec \"%s connect exists %%h\"\n",
+					hostname, escapedCoderBinaryMatchExec)
+				_, _ = buf.WriteString("\t")
+				_, _ = fmt.Fprintf(buf,
+					"ProxyCommand %s %s ssh --stdio%s --hostname-suffix %s %%h",
+					escapedCoderBinaryProxy, rootFlags, flags, o.hostnameSuffix,
+				)
+				_, _ = buf.WriteString("\n")
+			}
+		}
+	} else {
+		_, _ = fmt.Fprintf(buf, "\nHost *.%s\n", o.hostnameSuffix)
+		for _, v := range o.sshOptions {
+			_, _ = buf.WriteString("\t")
+			_, _ = buf.WriteString(v)
+			_, _ = buf.WriteString("\n")
+		}
+		// Options above always apply; only use the proxy command when Coder Connect is not running.
+		if !o.skipProxyCommand {
+			_, _ = fmt.Fprintf(buf, "\nMatch host *.%s !exec \"%s connect exists %%h\"\n",
+				o.hostnameSuffix, escapedCoderBinaryMatchExec)
+			_, _ = buf.WriteString("\t")
+			_, _ = fmt.Fprintf(buf,
+				"ProxyCommand %s %s ssh --stdio%s --hostname-suffix %s %%h",
+				escapedCoderBinaryProxy, rootFlags, flags, o.hostnameSuffix,
+			)
+			_, _ = buf.WriteString("\n")
+		}
 	}
 	return nil
 }
@@ -207,12 +269,19 @@ func (o sshConfigOptions) asList() (list []string) {
 	}
 	if o.userHostPrefix != "" {
 		list = append(list, fmt.Sprintf("ssh-host-prefix: %s", o.userHostPrefix))
+	} else if o.userHostPrefixExplicit {
+		list = append(list, "ssh-host-prefix: (explicitly empty)")
 	}
 	if o.hostnameSuffix != "" {
 		list = append(list, fmt.Sprintf("hostname-suffix: %s", o.hostnameSuffix))
+	} else if o.hostnameSuffixExplicit {
+		list = append(list, "hostname-suffix: (explicitly empty)")
 	}
 	if o.disableAutostart {
 		list = append(list, fmt.Sprintf("disable-autostart: %v", o.disableAutostart))
+	}
+	if o.noWildcard {
+		list = append(list, "no-wildcard: true")
 	}
 	for _, opt := range o.sshOptions {
 		list = append(list, fmt.Sprintf("ssh-option: %s", opt))
@@ -267,6 +336,13 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			}
 			sshConfigOpts.header = r.header
 			sshConfigOpts.headerCommand = r.headerCommand
+			// Record whether the user explicitly set these this run, before
+			// any --use-previous-options/prompt logic below may replace
+			// sshConfigOpts wholesale with a prior run's saved options (which
+			// carry their own explicit bits, parsed back by
+			// sshConfigParseLastOptions).
+			sshConfigOpts.userHostPrefixExplicit = userSetOption(inv, "ssh-host-prefix")
+			sshConfigOpts.hostnameSuffixExplicit = userSetOption(inv, "hostname-suffix")
 
 			// Talk to the API early to prevent the version mismatch
 			// warning from being printed in the middle of a prompt.
@@ -395,6 +471,32 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
+			if configOptions.noWildcard {
+				// Fetch all workspaces to generate individual host entries.
+				var wsNames []string
+				offset := 0
+				const pageSize = 100
+				for {
+					res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+						Owner:  codersdk.Me,
+						Offset: offset,
+						Limit:  pageSize,
+					})
+					if err != nil {
+						return xerrors.Errorf("fetch workspaces: %w", err)
+					}
+					for _, ws := range res.Workspaces {
+						wsNames = append(wsNames, ws.Name)
+					}
+					if len(res.Workspaces) < pageSize {
+						break
+					}
+					offset += pageSize
+				}
+				configOptions.workspaceNames = wsNames
+			}
+
 			err = configOptions.writeToBuffer(buf)
 			if err != nil {
 				return err
@@ -560,6 +662,14 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			Default:     "false",
 		},
 		{
+			Flag: "no-wildcard",
+			Env:  "CODER_CONFIGSSH_NO_WILDCARD",
+			Description: "Generate an individual host entry for each workspace instead of a wildcard host block. " +
+				"This allows third-party tools and SSH clients to discover workspaces by reading the config file.",
+			Value:   serpent.BoolOf(&sshConfigOpts.noWildcard),
+			Default: "false",
+		},
+		{
 			Flag: "force-unix-filepaths",
 			Env:  "CODER_CONFIGSSH_UNIX_FILEPATHS",
 			Description: "By default, 'config-ssh' uses the os path separator when writing the ssh config. " +
@@ -600,11 +710,13 @@ func mergeSSHOptions(
 
 	configOptions.globalConfigPath = globalConfigPath
 	configOptions.coderBinaryPath = coderBinaryPath
-	// user config takes precedence
-	if user.userHostPrefix == "" {
+	// user config takes precedence, but only fall back to the server default
+	// when the user never set the option at all. An explicitly empty value
+	// (e.g. --ssh-host-prefix="") means the user wants that block omitted.
+	if user.userHostPrefix == "" && !user.userHostPrefixExplicit {
 		configOptions.userHostPrefix = coderd.HostnamePrefix
 	}
-	if user.hostnameSuffix == "" {
+	if user.hostnameSuffix == "" && !user.hostnameSuffixExplicit {
 		configOptions.hostnameSuffix = coderd.HostnameSuffix
 	}
 
@@ -648,14 +760,17 @@ func sshConfigWriteSectionHeader(w io.Writer, addNewline bool, o sshConfigOption
 	if o.waitEnum != "auto" {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "wait", o.waitEnum)
 	}
-	if o.userHostPrefix != "" {
+	if o.userHostPrefix != "" || o.userHostPrefixExplicit {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-host-prefix", o.userHostPrefix)
 	}
-	if o.hostnameSuffix != "" {
+	if o.hostnameSuffix != "" || o.hostnameSuffixExplicit {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "hostname-suffix", o.hostnameSuffix)
 	}
 	if o.disableAutostart {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%v\n", "disable-autostart", o.disableAutostart)
+	}
+	if o.noWildcard {
+		_, _ = fmt.Fprintf(&ow, "# :%s=%v\n", "no-wildcard", o.noWildcard)
 	}
 	for _, opt := range o.sshOptions {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-option", opt)
@@ -693,12 +808,16 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 				o.waitEnum = parts[1]
 			case "ssh-host-prefix":
 				o.userHostPrefix = parts[1]
+				o.userHostPrefixExplicit = true
 			case "hostname-suffix":
 				o.hostnameSuffix = parts[1]
+				o.hostnameSuffixExplicit = true
 			case "ssh-option":
 				o.sshOptions = append(o.sshOptions, parts[1])
 			case "disable-autostart":
 				o.disableAutostart, _ = strconv.ParseBool(parts[1])
+			case "no-wildcard":
+				o.noWildcard, _ = strconv.ParseBool(parts[1])
 			case "header":
 				o.header = append(o.header, parts[1])
 			case "header-command":

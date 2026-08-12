@@ -3,13 +3,10 @@ import {
 	MockStoppedWorkspace,
 	MockTemplate,
 	MockTemplateVersion2,
-	MockTemplateVersionParameter1,
-	MockTemplateVersionParameter2,
 	MockWorkspace,
 	MockWorkspaceBuild,
-	MockWorkspaceBuildParameter1,
 } from "#/testHelpers/entities";
-import { API, getURLWithSearchParams, MissingBuildParameters } from "./api";
+import { API, getURLWithSearchParams, ParameterValidationError } from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();
@@ -167,6 +164,96 @@ describe("api.ts", () => {
 		});
 	});
 
+	describe("AI spend requests", () => {
+		const window = {
+			period_start: "2026-07-01T00:00:00Z",
+			period_end: "2026-08-01T00:00:00Z",
+		};
+
+		// Each endpoint's request, URL path, and response for the given IDs.
+		const endpoints = [
+			{
+				name: "getOrganizationGroupsAISpend",
+				path: "/api/v2/organizations/my-org/groups/ai/spend",
+				request: (ids: string[]) =>
+					API.getOrganizationGroupsAISpend("my-org", ids),
+				response: (ids: string[]) => ({
+					...window,
+					groups: ids.map((id) => ({
+						group_id: id,
+						spend_micros: 0,
+						budget: null,
+					})),
+				}),
+			},
+			{
+				name: "getGroupMembersAISpend",
+				path: "/api/v2/groups/group-1/members/ai/spend",
+				request: (ids: string[]) => API.getGroupMembersAISpend("group-1", ids),
+				response: (ids: string[]) => ({
+					...window,
+					members: ids.map((id) => ({
+						user_id: id,
+						effective_group_id: null,
+						group_budget: null,
+						group_spend_micros: 0,
+					})),
+				}),
+			},
+		];
+
+		afterEach(() => {
+			// The suite doesn't auto-restore mocks; don't leak the stubs.
+			vi.restoreAllMocks();
+		});
+
+		describe.each(endpoints)("$name", ({ path, request, response }) => {
+			it("rejects an empty ID list without sending a request", async () => {
+				const getSpy = vi
+					.spyOn(axiosInstance, "get")
+					.mockResolvedValue({ data: {} });
+
+				await expect(request([])).rejects.toThrow(/must not be empty/);
+				expect(getSpy).not.toHaveBeenCalled();
+			});
+
+			it("sends a single request for up to 100 IDs", async () => {
+				const ids = Array.from({ length: 25 }, (_, i) => `id-${i}`);
+				const getSpy = vi
+					.spyOn(axiosInstance, "get")
+					.mockResolvedValueOnce({ data: response(ids) });
+
+				const result = await request(ids);
+
+				expect(getSpy).toHaveBeenCalledTimes(1);
+				expect(getSpy.mock.calls[0][0]).toContain(path);
+				expect(getSpy.mock.calls[0][0]).toContain(
+					encodeURIComponent(ids.join(",")),
+				);
+				expect(result).toStrictEqual(response(ids));
+			});
+
+			it("batches requests of 100 IDs and merges the results", async () => {
+				const ids = Array.from({ length: 150 }, (_, i) => `id-${i}`);
+				const getSpy = vi
+					.spyOn(axiosInstance, "get")
+					.mockResolvedValueOnce({ data: response(ids.slice(0, 100)) })
+					.mockResolvedValueOnce({ data: response(ids.slice(100)) });
+
+				const result = await request(ids);
+
+				expect(getSpy).toHaveBeenCalledTimes(2);
+				expect(getSpy.mock.calls[0][0]).toContain(
+					encodeURIComponent(ids.slice(0, 100).join(",")),
+				);
+				expect(getSpy.mock.calls[1][0]).toContain(
+					encodeURIComponent(ids.slice(100).join(",")),
+				);
+				expect(result).toStrictEqual(response(ids));
+			});
+		});
+	});
+
 	describe("update", () => {
 		describe("given a running workspace", () => {
 			it("stops with current version before starting with the latest version", async () => {
@@ -195,53 +282,61 @@ describe("api.ts", () => {
 				});
 			});
 
-			it("fails when having missing parameters", async () => {
-				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(
-					MockWorkspaceBuild,
-				);
-				vi.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
-				vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
-				vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
-					MockTemplateVersionParameter1,
-					{ ...MockTemplateVersionParameter2, mutable: false },
-				]);
+			it("fails when the server returns parameter validation errors", async () => {
+				const validationErrors = [
+					{ field: "first_parameter", detail: "First parameter is required" },
+					{
+						field: "second_parameter",
+						detail: "Second parameter is not valid",
+					},
+				];
 
-				let error = new Error();
+				vi.spyOn(API, "postWorkspaceBuild")
+					// First postWorkspaceBuild call is for the stop, which should succeed
+					.mockResolvedValueOnce({
+						...MockWorkspaceBuild,
+						transition: "stop",
+					})
+					// Second postWorkspaceBuild call is for the start, which should fail
+					// with validation errors.
+					.mockRejectedValueOnce({
+						isAxiosError: true,
+						response: {
+							status: 400,
+							data: {
+								message: "Invalid build parameters",
+								validations: validationErrors,
+							},
+						},
+					});
+				vi.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
+
+				let error: unknown;
 				try {
 					await API.updateWorkspace(MockWorkspace);
 				} catch (e) {
-					error = e as Error;
+					error = e;
 				}
 
-				expect(error).toBeInstanceOf(MissingBuildParameters);
-				// Verify if the correct missing parameters are being passed
-				expect((error as MissingBuildParameters).parameters).toEqual([
-					MockTemplateVersionParameter1,
-					{ ...MockTemplateVersionParameter2, mutable: false },
-				]);
+				expect(error).toBeInstanceOf(ParameterValidationError);
+				if (!(error instanceof ParameterValidationError)) {
+					throw new Error("expected a ParameterValidationError");
+				}
+				expect(error.versionId).toBe(MockTemplate.active_version_id);
+				expect(error.validations).toEqual(validationErrors);
 			});
 
-			it("creates a build with no parameters if it is already filled", async () => {
+			it("succeeds when the server accepts the build parameters", async () => {
 				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 					...MockWorkspaceBuild,
 					transition: "stop",
 				});
 				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 					...MockWorkspaceBuild,
-					template_version_id: MockTemplateVersion2.id,
+					template_version_id: MockTemplate.active_version_id,
 					transition: "start",
 				});
 				vi.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
-				vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([
-					MockWorkspaceBuildParameter1,
-				]);
-				vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
-					{
-						...MockTemplateVersionParameter1,
-						required: true,
-						mutable: false,
-					},
-				]);
 				await API.updateWorkspace(MockWorkspace);
 				expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
 					transition: "stop",
@@ -286,10 +381,6 @@ describe("api.ts", () => {
 				...MockProvisionerJob,
 				status: "succeeded",
 			});
-			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
-			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
-				[],
-			);
 			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 				...MockWorkspaceBuild,
 				template_version_id: MockTemplateVersion2.id,
@@ -308,10 +399,6 @@ describe("api.ts", () => {
 
 		it("does not stop workspace if already stopped", async () => {
 			vi.spyOn(API, "stopWorkspace");
-			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
-			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
-				[],
-			);
 			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 				...MockWorkspaceBuild,
 				template_version_id: MockTemplateVersion2.id,
@@ -335,40 +422,12 @@ describe("api.ts", () => {
 				...MockProvisionerJob,
 				status: "canceled",
 			});
-			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
-			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
-				[],
-			);
 			vi.spyOn(API, "postWorkspaceBuild");
 
 			await expect(
 				API.changeWorkspaceVersion(MockWorkspace, MockTemplateVersion2.id),
 			).rejects.toThrow("Workspace stop was canceled");
 			expect(API.postWorkspaceBuild).not.toHaveBeenCalled();
-		});
-
-		it("throws MissingBuildParameters for missing params", async () => {
-			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
-			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
-				MockTemplateVersionParameter1,
-				{ ...MockTemplateVersionParameter2, mutable: false },
-			]);
-
-			let error = new Error();
-			try {
-				await API.changeWorkspaceVersion(
-					MockStoppedWorkspace,
-					MockTemplateVersion2.id,
-				);
-			} catch (e) {
-				error = e as Error;
-			}
-
-			expect(error).toBeInstanceOf(MissingBuildParameters);
-			expect((error as MissingBuildParameters).parameters).toEqual([
-				MockTemplateVersionParameter1,
-				{ ...MockTemplateVersionParameter2, mutable: false },
-			]);
 		});
 	});
 
@@ -425,6 +484,7 @@ describe("api.ts", () => {
 			description: "Example token for tests",
 			env_name: secretName,
 			file_path: "",
+			enabled: true,
 			created_at: "2026-05-04T00:00:00Z",
 			updated_at: "2026-05-04T00:00:00Z",
 		};
@@ -547,6 +607,55 @@ describe("api.ts", () => {
 			expect(axiosInstance.patch).toHaveBeenCalledWith(
 				`/api/experimental/chats/${chatId}/acl`,
 				request,
+			);
+		});
+	});
+
+	describe("oauth2 provider settings", () => {
+		const settings: TypesGen.OAuth2ProviderSettings = {
+			dynamic_client_registration_enabled: true,
+		};
+
+		it("gets oauth2 provider settings", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: settings,
+			});
+
+			const result = await API.getOAuth2ProviderSettings();
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(
+				"/api/v2/oauth2-provider/settings",
+			);
+			expect(result).toStrictEqual(settings);
+		});
+
+		it("propagates errors when getting oauth2 provider settings", async () => {
+			const expectedError = new Error("request failed");
+			vi.spyOn(axiosInstance, "get").mockRejectedValueOnce(expectedError);
+
+			await expect(API.getOAuth2ProviderSettings()).rejects.toBe(expectedError);
+		});
+
+		it("updates oauth2 provider settings", async () => {
+			vi.spyOn(axiosInstance, "put").mockResolvedValueOnce({
+				data: settings,
+			});
+
+			const result = await API.putOAuth2ProviderSettings(settings);
+
+			expect(axiosInstance.put).toHaveBeenCalledWith(
+				"/api/v2/oauth2-provider/settings",
+				settings,
+			);
+			expect(result).toStrictEqual(settings);
+		});
+
+		it("propagates errors when updating oauth2 provider settings", async () => {
+			const expectedError = new Error("request failed");
+			vi.spyOn(axiosInstance, "put").mockRejectedValueOnce(expectedError);
+
+			await expect(API.putOAuth2ProviderSettings(settings)).rejects.toBe(
+				expectedError,
 			);
 		});
 	});

@@ -32,6 +32,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 529 from upstream"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider is temporarily overloaded.",
+				Detail:     "status 529 from upstream",
 				Kind:       codersdk.ChatErrorKindOverloaded,
 				Provider:   "",
 				Retryable:  true,
@@ -43,6 +44,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("anthropic overloaded_error"),
 			want: chaterror.ClassifiedError{
 				Message:    "Anthropic is temporarily overloaded.",
+				Detail:     "anthropic overloaded_error",
 				Kind:       codersdk.ChatErrorKindOverloaded,
 				Provider:   "anthropic",
 				Retryable:  true,
@@ -93,6 +95,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("invalid model"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "invalid model",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -133,10 +136,59 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
+			name: "AIBudget403ClassifiesAsUsageLimit",
+			err:  xerrors.New("status 403: AI budget of US$5.00 exceeded. Please contact an administrator for more details."),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
+				Detail:     "status 403: AI budget of US$5.00 exceeded. Please contact an administrator for more details.",
+				Kind:       codersdk.ChatErrorKindUsageLimit,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 403,
+			},
+		},
+		{
+			// The SDK message reduces to a bare status line, so the
+			// text/plain body is the only usage-limit signal.
+			name: "AIBudget403PlainTextBodyClassifiesAsUsageLimit",
+			err: testProviderError(
+				`POST "http://coder-aibridge/v1/messages": 403 Forbidden`,
+				403,
+				nil,
+				[]byte("HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nAI budget of US$10.00 exceeded. Please contact an administrator for more details.\n"),
+			),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
+				Detail:     "AI budget of US$10.00 exceeded. Please contact an administrator for more details.",
+				Kind:       codersdk.ChatErrorKindUsageLimit,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 403,
+			},
+		},
+		{
+			name: "HTMLBodyDoesNotBecomeDetail",
+			err: testProviderError(
+				`POST "https://example.com/v1/messages": 403 Forbidden`,
+				403,
+				nil,
+				[]byte("HTTP/1.1 403 Forbidden\r\nContent-Type: text/html\r\n\r\n<html><body>Forbidden</body></html>"),
+			),
+			want: chaterror.ClassifiedError{
+				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+				Detail:     `POST "https://example.com/v1/messages": 403 Forbidden`,
+				Kind:       codersdk.ChatErrorKindAuth,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 403,
+			},
+		},
+		{
 			name: "ForbiddenContextLengthClassifiesAsConfig",
 			err:  xerrors.New("forbidden: context length exceeded"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "forbidden: context length exceeded",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -148,6 +200,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 429 from upstream"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider is rate limiting requests.",
+				Detail:     "status 429 from upstream",
 				Kind:       codersdk.ChatErrorKindRateLimit,
 				Provider:   "",
 				Retryable:  true,
@@ -159,6 +212,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 429: invalid model"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "status 429: invalid model",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -170,6 +224,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 429: invalid model quota"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "status 429: invalid model quota",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -181,6 +236,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("service unavailable"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider is temporarily unavailable.",
+				Detail:     "service unavailable",
 				Kind:       codersdk.ChatErrorKindTimeout,
 				Provider:   "",
 				Retryable:  true,
@@ -192,6 +248,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 503: invalid model"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "status 503: invalid model",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -203,6 +260,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("service unavailable: model not found"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "service unavailable: model not found",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -214,6 +272,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("connection refused: unsupported model"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "connection refused: unsupported model",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -225,6 +284,7 @@ func TestClassify(t *testing.T) {
 			err:  context.DeadlineExceeded,
 			want: chaterror.ClassifiedError{
 				Message:    "The request timed out before it completed.",
+				Detail:     "context deadline exceeded",
 				Kind:       codersdk.ChatErrorKindTimeout,
 				Provider:   "",
 				Retryable:  false,
@@ -236,6 +296,7 @@ func TestClassify(t *testing.T) {
 			err:  errors.Join(chaterror.ErrProviderTransportReset, context.Canceled),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider is temporarily unavailable.",
+				Detail:     "provider transport reset context canceled",
 				Kind:       codersdk.ChatErrorKindTimeout,
 				Provider:   "",
 				Retryable:  true,
@@ -258,6 +319,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.Errorf("received status 500 from upstream: %w", context.Canceled),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider returned an unexpected error.",
+				Detail:     "received status 500 from upstream: context canceled",
 				Kind:       codersdk.ChatErrorKindGeneric,
 				Provider:   "",
 				Retryable:  true,
@@ -324,6 +386,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New(fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "anthropic")),
 			want: chaterror.ClassifiedError{
 				Message:    "The Anthropic provider has been disabled. Contact your Coder administrator.",
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "anthropic"),
 				Kind:       codersdk.ChatErrorKindProviderDisabled,
 				Provider:   "anthropic",
 				Retryable:  false,
@@ -488,6 +551,8 @@ func TestClassify_PatternCoverage(t *testing.T) {
 		{name: "QuotaLiteral", err: "quota", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "BillingLiteral", err: "billing", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "InsufficientQuotaLiteral", err: "insufficient_quota", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
+		{name: "AIBudgetExceededLiteral", err: "status 403: AI budget of US$10.00 exceeded", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
+		{name: "AIBudgetCheckFailedLiteral", err: "status 500: internal server error checking user AI budget", wantKind: codersdk.ChatErrorKindGeneric, wantRetry: true},
 		{name: "PaymentRequiredLiteral", err: "payment required", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "ForbiddenLiteral", err: "forbidden", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
 		{name: "InvalidModelLiteral", err: "invalid model", wantKind: codersdk.ChatErrorKindConfig, wantRetry: false},
@@ -663,6 +728,7 @@ func TestClassify_HTTP2TransportErrors(t *testing.T) {
 			require.Equal(t, codersdk.ChatErrorKindTimeout, classified.Kind, "Kind")
 			require.True(t, classified.Retryable, "Retryable")
 			require.Equal(t, tt.provider, classified.Provider, "Provider")
+			require.Equal(t, tt.err, classified.Detail, "Detail")
 			require.Equal(t, tt.wantMessage, classified.Message, "Message")
 		})
 	}
@@ -689,6 +755,7 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 			err:  peerReset(http2.ErrCodeInternal),
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 455; INTERNAL_ERROR; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -698,6 +765,7 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 			err:  peerReset(http2.ErrCodeRefusedStream),
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 455; REFUSED_STREAM; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -711,6 +779,7 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 			},
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 455; CANCEL; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -720,6 +789,7 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 			err:  peerReset(http2.ErrCodeEnhanceYourCalm),
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 455; ENHANCE_YOUR_CALM; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -729,6 +799,7 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 			err:  peerReset(http2.ErrCodeNo),
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 455; NO_ERROR; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -807,6 +878,7 @@ func TestClassify_HTTP2StreamIDDoesNotBecomeStatusCode(t *testing.T) {
 			},
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 401; INTERNAL_ERROR; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -820,6 +892,7 @@ func TestClassify_HTTP2StreamIDDoesNotBecomeStatusCode(t *testing.T) {
 			},
 			want: chaterror.ClassifiedError{
 				Message: "The chat request failed unexpectedly.",
+				Detail:  "stream error: stream ID 503; PROTOCOL_ERROR; received from peer",
 				Kind:    codersdk.ChatErrorKindGeneric,
 			},
 		},
@@ -828,6 +901,7 @@ func TestClassify_HTTP2StreamIDDoesNotBecomeStatusCode(t *testing.T) {
 			err:  xerrors.New("stream error: stream ID 401; INTERNAL_ERROR; received from peer"),
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 401; INTERNAL_ERROR; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -837,6 +911,7 @@ func TestClassify_HTTP2StreamIDDoesNotBecomeStatusCode(t *testing.T) {
 			err:  xerrors.New("stream error: stream ID 503; PROTOCOL_ERROR; received from peer"),
 			want: chaterror.ClassifiedError{
 				Message: "The chat request failed unexpectedly.",
+				Detail:  "stream error: stream ID 503; PROTOCOL_ERROR; received from peer",
 				Kind:    codersdk.ChatErrorKindGeneric,
 			},
 		},
@@ -1106,6 +1181,7 @@ func TestWithProviderUsesExplicitHint(t *testing.T) {
 	enriched := classified.WithProvider("azure openai")
 	require.Equal(t, chaterror.ClassifiedError{
 		Message:    "Azure OpenAI is rate limiting requests.",
+		Detail:     "openai received status 429 from upstream",
 		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "azure",
 		Retryable:  true,
@@ -1122,6 +1198,7 @@ func TestWithProviderAddsProviderWhenUnknown(t *testing.T) {
 	enriched := classified.WithProvider("openai")
 	require.Equal(t, chaterror.ClassifiedError{
 		Message:    "OpenAI is rate limiting requests.",
+		Detail:     "received status 429 from upstream",
 		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,
@@ -1241,6 +1318,160 @@ func TestClassify_UsesStructuredProviderDetailFromResponseDump(t *testing.T) {
 	}, classified)
 }
 
+func TestClassify_UsesTopLevelProviderMessage(t *testing.T) {
+	t.Parallel()
+
+	// Many providers return a bare top-level message rather than the
+	// nested error envelope. Surface that message directly instead of the
+	// raw provider error string.
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"message":"The provided request is not valid"}`),
+	))
+
+	require.Equal(t, "The provided request is not valid", classified.Detail)
+}
+
+func TestClassify_UnwrapsBedrockTransportWrapper(t *testing.T) {
+	t.Parallel()
+
+	// AWS Bedrock errors reach chatd wrapped twice: aibridge returns the
+	// nested Anthropic envelope, but error.message is itself the Anthropic
+	// SDK transport string that embeds the raw Bedrock body.
+	wrapped := `POST \"https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages\": 400 Bad Request {\"message\":\"The provided request is not valid\"}`
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+wrapped+`","type":"api_error"}}`),
+	)).WithProvider("bedrock")
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "AWS Bedrock returned an unexpected error.",
+		Detail:     "The provided request is not valid",
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   "bedrock",
+		Retryable:  false,
+		StatusCode: 400,
+	}, classified)
+}
+
+func TestClassify_DoesNotUnwrapNonTransportMessage(t *testing.T) {
+	t.Parallel()
+
+	// A plain nested message that does not match the transport wrapper
+	// prefix must pass through unchanged, braces and all.
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"Value {x} is not allowed."}}`),
+	))
+
+	require.Equal(t, "Value {x} is not allowed.", classified.Detail)
+}
+
+func TestClassify_UnwrapsTransportWrapperWithBraceInURL(t *testing.T) {
+	t.Parallel()
+
+	// A templated URL containing a brace must not be mistaken for the JSON
+	// body; the inner message is still extracted.
+	wrapped := `POST \"https://example.com/{resource}/invoke\": 400 Bad Request {\"message\":\"real error\"}`
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+wrapped+`"}}`),
+	))
+
+	require.Equal(t, "real error", classified.Detail)
+}
+
+func TestClassify_KeepsTransportWrapperWhenNoBody(t *testing.T) {
+	t.Parallel()
+
+	// When the message matches the transport prefix but has no JSON body at
+	// all after it, the wrapper is surfaced unchanged.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://example.com/api": 500 Internal Server Error`,
+		500,
+		nil,
+	))
+
+	require.Equal(t, `POST "https://example.com/api": 500 Internal Server Error`, classified.Detail)
+}
+
+func TestClassify_KeepsTransportWrapperWhenInnerBodyNotJSON(t *testing.T) {
+	t.Parallel()
+
+	// When the message matches the transport prefix but the trailing body
+	// has no extractable message, the wrapper is surfaced unchanged rather
+	// than dropped.
+	wrapped := `POST \"https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages\": 400 Bad Request {\"foo\":\"bar\"}`
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+wrapped+`"}}`),
+	))
+
+	require.Equal(t,
+		`POST "https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages": 400 Bad Request {"foo":"bar"}`,
+		classified.Detail)
+}
+
+func TestClassify_PrefersNestedMessageOverTopLevel(t *testing.T) {
+	t.Parallel()
+
+	// When both shapes are present, the nested error.message wins.
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"message":"top level","error":{"message":"nested wins"}}`),
+	))
+
+	require.Equal(t, "nested wins", classified.Detail)
+}
+
+// TestClassify_KeepsTopLevelMessageWhenErrorIsNonObject guards against a
+// regression where a single decode into a combined struct would fail (and
+// silently drop a usable top-level message) whenever "error" is present as a
+// non-object value such as a string code.
+func TestClassify_KeepsTopLevelMessageWhenErrorIsNonObject(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		429,
+		nil,
+		testProviderResponseDump(`{"message":"rate limited","error":"rate_limit"}`),
+	))
+
+	require.Equal(t, "rate limited", classified.Detail)
+}
+
+func TestClassify_AuthKeepsStructuredProviderDetail(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"invalid api key test-key",
+		401,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"Incorrect API key provided."}}`),
+	))
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+		Detail:     "Incorrect API key provided.",
+		Kind:       codersdk.ChatErrorKindAuth,
+		Retryable:  false,
+		StatusCode: 401,
+	}, classified)
+}
+
 func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 	t.Parallel()
 
@@ -1248,10 +1479,157 @@ func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 		"  image exceeds 5 MB maximum  ",
 		400,
 		nil,
-		testProviderResponseDump("not-json"),
 	))
 
 	require.Equal(t, "image exceeds 5 MB maximum", classified.Detail)
+}
+
+func TestClassify_AnthropicPlainTextBudgetBody(t *testing.T) {
+	t.Parallel()
+
+	// aibridge returns its budget error as a plain-text 403. The Anthropic
+	// adapter's Message is the SDK transport string without the body, so
+	// the budget text appears only in the dumped ResponseBody. Classify
+	// must still report a usage limit, not auth.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://api.example.com/v1/messages": 403 Forbidden`,
+		403,
+		nil,
+		[]byte("HTTP/1.1 403 Forbidden\r\n"+
+			"Content-Type: text/plain; charset=utf-8\r\n"+
+			"X-Content-Type-Options: nosniff\r\n"+
+			"\r\n"+
+			"AI budget of US$10.00 exceeded. Please contact an administrator for more details.\n"),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t,
+		"AI budget of US$10.00 exceeded. Please contact an administrator for more details.",
+		classified.Detail)
+}
+
+func TestClassify_ProviderResponseDumps(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		message       string
+		status        int
+		dump          []byte
+		wantDetail    string
+		wantKind      codersdk.ChatErrorKind
+		wantRetryable bool
+	}{
+		{
+			// Proxies and load balancers return HTML error pages with a
+			// text/html Content-Type. The text/plain gate keeps them out
+			// of the user-facing detail, so detail falls back to the
+			// provider message.
+			name:          "SkipsHTMLBody",
+			message:       "upstream failed",
+			status:        502,
+			dump:          testPlainDump("text/html", "<html><body>502 Bad Gateway</body></html>"),
+			wantDetail:    "upstream failed",
+			wantKind:      codersdk.ChatErrorKindTimeout,
+			wantRetryable: true,
+		},
+		{
+			name:          "SkipsWhitespaceOnlyBody",
+			message:       "upstream failed",
+			status:        400,
+			dump:          testPlainDump("text/plain", "  \n\t\n"),
+			wantDetail:    "upstream failed",
+			wantKind:      codersdk.ChatErrorKindGeneric,
+			wantRetryable: false,
+		},
+		{
+			name:          "PlainTextBodyFirstLineOnly",
+			status:        400,
+			dump:          testPlainDump("text/plain", "first line of the error\nsecond line\nthird line\n"),
+			wantDetail:    "first line of the error",
+			wantKind:      codersdk.ChatErrorKindGeneric,
+			wantRetryable: false,
+		},
+		{
+			// Valid JSON without an extractable message must not leak raw
+			// JSON into the user-facing detail, even when served as
+			// text/plain.
+			name:          "JSONBodyWithoutMessage",
+			message:       "upstream failed",
+			status:        400,
+			dump:          testPlainDump("text/plain", `{"type":"error"}`),
+			wantDetail:    "upstream failed",
+			wantKind:      codersdk.ChatErrorKindGeneric,
+			wantRetryable: false,
+		},
+		{
+			// A plain-text body feeds the same pattern matching as a JSON
+			// message, so "quota" beats the 503 timeout signal.
+			name:          "PlainTextQuotaBodyOn503",
+			status:        503,
+			dump:          testPlainDump("text/plain", "quota exceeded for this key\n"),
+			wantDetail:    "quota exceeded for this key",
+			wantKind:      codersdk.ChatErrorKindUsageLimit,
+			wantRetryable: false,
+		},
+		{
+			// A dump of a chunked response keeps the chunk framing.
+			// Parsing the dump as an HTTP response removes it, so the
+			// detail is the joined body, not a hex chunk-size line.
+			name:   "DechunksPlainTextBody",
+			status: 403,
+			dump: []byte("HTTP/1.1 403 Forbidden\r\n" +
+				"Content-Type: text/plain; charset=utf-8\r\n" +
+				"Transfer-Encoding: chunked\r\n" +
+				"\r\n" +
+				"16\r\nAI budget of US$10.00 \r\n" +
+				"9\r\nexceeded.\r\n" +
+				"0\r\n\r\n"),
+			wantDetail:    "AI budget of US$10.00 exceeded.",
+			wantKind:      codersdk.ChatErrorKindUsageLimit,
+			wantRetryable: false,
+		},
+		{
+			// Fantasy's Google adapter stores a raw message (not an HTTP
+			// dump) in ResponseBody. A blank line inside it is not a
+			// header/body separator: detail must fall back to the full
+			// trimmed Message, not the second paragraph.
+			name:          "GoogleRawMessageWithBlankLine",
+			message:       "google: model overloaded",
+			status:        500,
+			dump:          []byte("model overloaded\n\nplease try again later"),
+			wantDetail:    "google: model overloaded",
+			wantKind:      codersdk.ChatErrorKindOverloaded,
+			wantRetryable: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(testProviderError(tt.message, tt.status, nil, tt.dump))
+			require.Equal(t, tt.wantDetail, classified.Detail)
+			require.Equal(t, tt.wantKind, classified.Kind)
+			require.Equal(t, tt.wantRetryable, classified.Retryable)
+		})
+	}
+}
+
+func TestClassify_UnwrapsTransportWrapperInMessageFallback(t *testing.T) {
+	t.Parallel()
+
+	// When the response dump is unavailable, the detail falls back to
+	// providerErr.Message, which for Bedrock via aibridge is itself the SDK
+	// transport wrapper. It must be unwrapped to the clean inner message.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages": 400 Bad Request {"message":"The provided request is not valid"}`,
+		400,
+		nil,
+	))
+
+	require.Equal(t, "The provided request is not valid", classified.Detail)
 }
 
 func TestClassify_TruncatesProviderDetail(t *testing.T) {
@@ -1267,123 +1645,6 @@ func TestClassify_TruncatesProviderDetail(t *testing.T) {
 
 	require.Len(t, []rune(classified.Detail), 500)
 	require.True(t, strings.HasSuffix(classified.Detail, "…"))
-}
-
-func TestClassify_ChainBroken(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name            string
-		err             error
-		wantChainBroken bool
-		wantRetryable   bool
-		wantProvider    string
-		wantStatusCode  int
-	}{
-		{
-			name: "OpenAIPreviousResponseNotFoundBareString",
-			err: xerrors.New(
-				"Previous response with id 'resp_abc' not found.",
-			),
-			wantChainBroken: true,
-			wantRetryable:   true,
-			wantProvider:    "openai",
-			wantStatusCode:  0,
-		},
-		{
-			name: "OpenAIPreviousResponseNotFoundProviderError",
-			err: testProviderError(
-				"Previous response with id 'resp_096c70c5bb8d52bc0069fa11e0630c81a3ba210cddfa75bae9' not found.",
-				404,
-				nil,
-			),
-			wantChainBroken: true,
-			wantRetryable:   true,
-			wantProvider:    "openai",
-			wantStatusCode:  404,
-		},
-		{
-			name: "OpenAIPreviousResponseCaseInsensitive",
-			err: testProviderError(
-				"PREVIOUS RESPONSE WITH ID 'resp_abc' NOT FOUND.",
-				404,
-				nil,
-			),
-			wantChainBroken: true,
-			wantRetryable:   true,
-			wantProvider:    "openai",
-			wantStatusCode:  404,
-		},
-		{
-			name: "PreviousResponseWithoutNotFoundIsNotChainBroken",
-			err: testProviderError(
-				"Previous response with id 'resp_abc' is invalid.",
-				400,
-				nil,
-			),
-			wantChainBroken: false,
-		},
-		{
-			name: "UnrelatedNotFoundIsNotChainBroken",
-			err: testProviderError(
-				"resource not found",
-				404,
-				nil,
-			),
-			wantChainBroken: false,
-		},
-		{
-			name: "UnrelatedInvalidRequestIsNotChainBroken",
-			err: testProviderError(
-				"",
-				400,
-				nil,
-				testProviderResponseDump(`{"error":{"type":"invalid_request_error","message":"Image exceeds 5 MB maximum."}}`),
-			),
-			wantChainBroken: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			classified := chaterror.Classify(tt.err)
-			require.Equal(t, tt.wantChainBroken, classified.ChainBroken,
-				"chain broken flag mismatch")
-			if !tt.wantChainBroken {
-				return
-			}
-			require.Equal(t, tt.wantRetryable, classified.Retryable,
-				"chain-broken errors must be retryable so the loop"+
-					" can self-heal")
-			require.Equal(t, tt.wantProvider, classified.Provider)
-			require.Equal(t, tt.wantStatusCode, classified.StatusCode)
-			require.Equal(t, codersdk.ChatErrorKindGeneric, classified.Kind,
-				"chain-broken keeps the user-visible kind unchanged"+
-					" so we don't add a new codersdk surface")
-		})
-	}
-}
-
-func TestClassify_ChainBrokenSurvivesWithClassification(t *testing.T) {
-	t.Parallel()
-
-	original := chaterror.Classify(testProviderError(
-		"Previous response with id 'resp_abc' not found.",
-		404,
-		nil,
-	))
-	require.True(t, original.ChainBroken)
-
-	wrapped := chaterror.WithClassification(
-		xerrors.New("transport blew up"),
-		original,
-	)
-	round := chaterror.Classify(wrapped)
-	require.True(t, round.ChainBroken,
-		"WithClassification round-trips ChainBroken so the retry path"+
-			" can detect it after re-classification")
 }
 
 func TestClassify_MissingKeyPreClassified(t *testing.T) {
@@ -1408,6 +1669,106 @@ func TestClassify_MissingKeyPreClassified(t *testing.T) {
 	)
 }
 
+func TestClassify_BedrockCredentialResolutionDeadline(t *testing.T) {
+	t.Parallel()
+
+	// AIBridge writes credential resolution failures as a plain-text 500.
+	// The fantasy adapter's Error() returns only the SDK transport wrapper;
+	// the useful text lives solely in the response body (structured.detail).
+	// The "resolve aws credentials" pattern in configPatterns matches on
+	// the body, classifying this as a non-retryable config error instead
+	// of a retryable generic 500.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages": 500 Internal Server Error`,
+		500,
+		nil,
+		testPlainDump("text/plain", "create anthropic client: resolve AWS credentials: "+
+			"failed to refresh cached credentials, no EC2 IMDS role found, "+
+			"operation error ec2imds: GetMetadata, canceled, context deadline exceeded"),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, 500, classified.StatusCode)
+	require.Contains(t, classified.Detail, "context deadline exceeded")
+}
+
+func TestClassify_BedrockBodyOnlySignals(t *testing.T) {
+	t.Parallel()
+
+	// AIBridge returns plain-text 500 bodies for all client creation
+	// failures. The fantasy adapter's Error() returns only the transport
+	// wrapper, so the useful text lives solely in the response body.
+	// Signal patterns must check combinedText (wrapper + body) for these
+	// to classify as the correct kind instead of a retryable generic 500.
+	tests := []struct {
+		name     string
+		body     string
+		wantKind codersdk.ChatErrorKind
+		wantRet  bool
+	}{
+		{
+			name:     "OverloadedInBody",
+			body:     "upstream provider is overloaded, please retry",
+			wantKind: codersdk.ChatErrorKindOverloaded,
+			wantRet:  true,
+		},
+		{
+			name:     "AuthInBody",
+			body:     "unauthorized: the security token included in the request is invalid",
+			wantKind: codersdk.ChatErrorKindAuth,
+			wantRet:  false,
+		},
+		{
+			name:     "ConfigInBody",
+			body:     "create bedrock client: invalid model identifier for this region",
+			wantKind: codersdk.ChatErrorKindConfig,
+			wantRet:  false,
+		},
+		{
+			name:     "TimeoutInBody",
+			body:     "upstream gateway timed out waiting for a response",
+			wantKind: codersdk.ChatErrorKindTimeout,
+			wantRet:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(testProviderError(
+				`POST "https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages": 500 Internal Server Error`,
+				500,
+				nil,
+				testPlainDump("text/plain", tt.body),
+			))
+			require.Equal(t, tt.wantKind, classified.Kind, "kind")
+			require.Equal(t, tt.wantRet, classified.Retryable, "retryable")
+			require.Equal(t, 500, classified.StatusCode)
+		})
+	}
+}
+
+func TestClassify_ProviderDisabledBodyOnly(t *testing.T) {
+	t.Parallel()
+
+	// AIBridge writes the provider_disabled sentinel as a plain-text 503
+	// body. The fantasy adapter's Error() returns only the transport
+	// wrapper, so the sentinel lives solely in the response body.
+	// Without checking combinedText, the 503 status code would match the
+	// timeout rule and classify as retryable instead of non-retryable.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages": 503 Service Unavailable`,
+		503,
+		nil,
+		testPlainDump("text/plain", `provider_disabled: AI provider "anthropic" is disabled`),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindProviderDisabled, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, 503, classified.StatusCode)
+}
+
 func testProviderError(
 	message string,
 	statusCode int,
@@ -1424,6 +1785,12 @@ func testProviderError(
 		ResponseHeaders: headers,
 		ResponseBody:    body,
 	}
+}
+
+func testPlainDump(contentType, body string) []byte {
+	return []byte("HTTP/1.1 400 Bad Request\r\n" +
+		"Content-Type: " + contentType + "\r\n" +
+		"\r\n" + body)
 }
 
 func testProviderResponseDump(body string) []byte {

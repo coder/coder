@@ -172,6 +172,10 @@ spec:
               fieldPath: status.podIP
         - name: CODER_DERP_SERVER_RELAY_URL
           value: http://$(KUBE_POD_IP):8080
+        - name: CODER_CLUSTER_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}

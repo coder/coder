@@ -1,8 +1,9 @@
 # Database Encryption
 
-By default, Coder stores external user tokens in plaintext in the database.
-Database Encryption allows Coder administrators to encrypt these tokens at-rest,
-preventing attackers with database access from using them to impersonate users.
+By default, Coder stores external user tokens and other sensitive values in
+plaintext in the database. Database Encryption allows Coder administrators to
+encrypt these values at-rest, preventing attackers with database access from
+reading or misusing them.
 
 ## How it works
 
@@ -58,13 +59,13 @@ values using that key to a new key.
 
 - Generate a 32-byte random key and base64-encode it. For example:
 
-```shell
+```sh
 dd if=/dev/urandom bs=32 count=1 | base64
 ```
 
 - Store this key in a secure location (for example, a Kubernetes secret):
 
-```shell
+```sh
 kubectl create secret generic coder-external-token-encryption-keys --from-literal=keys=<key>
 ```
 

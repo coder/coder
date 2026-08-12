@@ -216,7 +216,7 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 			})
 		},
 		tracing.StatusWriterMiddleware,
-		loggermw.Logger(logger),
+		loggermw.Logger(logger, nil),
 	)
 
 	r.Route("/derp", func(r chi.Router) {

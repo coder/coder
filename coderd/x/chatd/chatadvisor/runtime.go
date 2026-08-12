@@ -61,14 +61,12 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	return &Runtime{cfg: normalized}, nil
 }
 
-// cloneProviderOptions returns a copy of opts with pointer entries for known,
-// in-place mutated provider option types replaced by a shallow struct copy.
-// chatloop mutates the OpenAI Responses entry (PreviousResponseID) on
-// chain-mode exit, so sharing the pointer with the parent run would let an
-// advisor call corrupt the parent's chain state. Value fields such as
-// Metadata and Include are still shared with the parent; nothing in this
-// package mutates them, but callers that need true deep-copy semantics must
-// handle those fields explicitly.
+// cloneProviderOptions returns a copy of opts with pointer entries for
+// known, in-place mutated provider option types replaced by shallow struct
+// copies, so a nested advisor call that disables Store does so on its own
+// copy rather than the parent run's entry. Value fields such as Metadata
+// and Include remain shared; callers that need true deep-copy semantics
+// must handle those fields explicitly.
 func cloneProviderOptions(opts fantasy.ProviderOptions) fantasy.ProviderOptions {
 	if opts == nil {
 		return nil
@@ -90,18 +88,14 @@ func cloneProviderOptions(opts fantasy.ProviderOptions) fantasy.ProviderOptions 
 	return cloned
 }
 
-// resetProviderOptionsForNestedCall strips inherited state from opts that
-// does not apply to an ephemeral advisor call. PreviousResponseID is
-// cleared so the nested call is not sent as a chain-mode continuation
-// (BuildAdvisorMessages sends the full history, not an incremental turn).
-// Store is forced off so the advisor call does not persist an orphan
-// response on the provider side. Must be called on a cloned map to avoid
-// mutating shared parent state.
+// resetProviderOptionsForNestedCall forces Store off so ephemeral advisor
+// calls leave no stored response behind on the provider. It mutates opts
+// in place, so it must be called on a cloned map, never on options shared
+// with the parent run.
 func resetProviderOptionsForNestedCall(opts fantasy.ProviderOptions) {
 	for _, value := range opts {
 		if typed, ok := value.(*fantasyopenai.ResponsesProviderOptions); ok && typed != nil {
 			storeDisabled := false
-			typed.PreviousResponseID = nil
 			typed.Store = &storeDisabled
 		}
 	}

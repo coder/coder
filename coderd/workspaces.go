@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -142,7 +143,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items)."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -157,7 +158,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout, apiKey.UserID)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -171,15 +172,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error preparing sql filter.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	// To show the requester's favorite workspaces first, we pass their userID and compare it to
 	// the workspace owner_id when ordering the rows.
 	filter.RequesterID = apiKey.UserID
@@ -187,7 +179,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	// We need the technical row to present the correct count on every page.
 	filter.WithSummary = true
 
-	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
+	// GetWorkspaces authorizes the query itself, so we don't prepare a SQL
+	// filter here.
+	workspaceRows, err := api.Database.GetWorkspaces(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -252,6 +246,10 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	if len(filter.IncludeAgentMetadata) > 0 {
+		attachAgentMetadata(ctx, api.Logger, wss, workspaceRows)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
@@ -370,7 +368,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
-// @Success 200 {object} codersdk.Workspace
+// @Success 201 {object} codersdk.Workspace
 // @Router /api/v2/organizations/{organization}/members/{user}/workspaces [post]
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -431,7 +429,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 // @Tags Workspaces
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
-// @Success 200 {object} codersdk.Workspace
+// @Success 201 {object} codersdk.Workspace
 // @Router /api/v2/users/{user}/workspaces [post]
 func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -547,52 +545,33 @@ func createWorkspace(
 		opts = &createWorkspaceOptions{}
 	}
 
-	template, err := requestTemplate(ctx, req, api.Database)
+	template, err := api.preflightWorkspaceCreate(ctx, owner.ID, req)
 	if err != nil {
 		return codersdk.Workspace{}, err
-	}
-
-	// This is a premature auth check to avoid doing unnecessary work if the user
-	// doesn't have permission to create a workspace.
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
-		// If this check fails, return a proper unauthorized error to the user to indicate
-		// what is going on.
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: "Unauthorized to create workspace.",
-			Detail: "You are unable to create a workspace in this organization. " +
-				"It is possible to have access to the template, but not be able to create a workspace. " +
-				"Please contact an administrator about your permissions if you feel this is an error.",
-		})
 	}
 
 	// Update audit log's organization
 	auditReq.UpdateOrganizationID(template.OrganizationID)
 
-	// Do this upfront to save work. If this fails, the rest of the work
-	// would be wasted.
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
-		return codersdk.Workspace{}, httperror.ErrResourceNotFound
+	// Required external auth is otherwise only enforced by client-side preflight
+	// checks in the CLI and UI, so API-created workspaces must be validated here
+	// before any workspace row is inserted or prebuilt workspace is claimed.
+	templateVersionID := req.TemplateVersionID
+	if templateVersionID == uuid.Nil {
+		templateVersionID = template.ActiveVersionID
 	}
-	// The user also needs permission to use the template. At this point they have
-	// read perms, but not necessarily "use". This is also checked in `db.InsertWorkspace`.
-	// Doing this up front can save some work below if the user doesn't have permission.
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUse, template) {
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
-			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
-				"Please contact an administrator about your permissions if you feel this is an error.",
+	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			return codersdk.Workspace{}, httperror.ErrResourceNotFound
+		}
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version.",
+			Detail:  err.Error(),
 		})
 	}
-
-	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
-	if templateAccessControl.IsDeprecated() {
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Template %q has been deprecated, and cannot be used to create a new workspace.", template.Name),
-			// Pass the deprecated message to the user.
-			Detail: templateAccessControl.Deprecated,
-		})
+	if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
+		return codersdk.Workspace{}, err
 	}
 
 	dbAutostartSchedule, err := validWorkspaceSchedule(req.AutostartSchedule)
@@ -890,6 +869,108 @@ func createWorkspace(
 	}
 
 	return w, nil
+}
+
+// requireWorkspaceOwnerExternalAuth returns a 403 response error when the
+// workspace owner has not authenticated with every required (non-optional)
+// external auth provider referenced by the template version. Token injection
+// at build time uses the owner's external auth links, so the owner is the
+// subject of the check even when another user initiates the build.
+func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateVersion database.TemplateVersion, ownerID uuid.UUID) error {
+	//nolint:gocritic // Reads/refreshes the external auth links. Necessary when admins create workspaces for other users.
+	providers, err := api.templateVersionExternalAuthForUser(dbauthz.AsExternalAuthCoordinator(ctx), templateVersion, ownerID)
+	if err != nil {
+		return err
+	}
+
+	var (
+		missingNames []string
+		validations  []codersdk.ValidationError
+	)
+	for _, provider := range providers {
+		if provider.Optional || provider.Authenticated {
+			continue
+		}
+		name := provider.DisplayName
+		if name == "" {
+			name = provider.ID
+		}
+		missingNames = append(missingNames, name)
+		validations = append(validations, codersdk.ValidationError{
+			Field:  "external_auth",
+			Detail: provider.ID,
+		})
+	}
+	if len(missingNames) == 0 {
+		return nil
+	}
+
+	return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+		Message: "External authentication is required to create a workspace with this template.",
+		Detail: fmt.Sprintf(
+			"The workspace owner must authenticate with the following external auth providers: %s.",
+			strings.Join(missingNames, ", "),
+		),
+		Validations: validations,
+	})
+}
+
+// preflightWorkspaceCreate resolves the template targeted by req and verifies
+// that the caller may create a workspace owned by ownerID using it. It performs
+// only side-effect-free authorization, so it is safe to call as an early gate:
+//
+//   - resolve the template (requestTemplate)
+//   - ActionCreate on a workspace in the template's organization for the owner
+//   - ActionUse on the template
+//   - reject deprecated templates
+//
+// It deliberately does not validate required external auth (that mutates the
+// owner's external auth links and is enforced separately) and does not touch
+// the audit request, so callers retain control over audit-organization
+// assignment and external-auth ordering. Both createWorkspace and tasksCreate
+// call it so these authorization gates cannot diverge.
+func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (database.Template, error) {
+	template, err := requestTemplate(ctx, req, api.Database)
+	if err != nil {
+		return database.Template{}, err
+	}
+
+	// This is a premature auth check to avoid doing unnecessary work if the
+	// user doesn't have permission to create a workspace.
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(ownerID.String())) {
+		// If this check fails, return a proper unauthorized error to the user
+		// to indicate what is going on.
+		return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: "Unauthorized to create workspace.",
+			Detail: "You are unable to create a workspace in this organization. " +
+				"It is possible to have access to the template, but not be able to create a workspace. " +
+				"Please contact an administrator about your permissions if you feel this is an error.",
+		})
+	}
+
+	// The user also needs permission to use the template. At this point they
+	// have read perms, but not necessarily "use". This is also checked in
+	// `db.InsertWorkspace`. Doing this up front can save some work below if the
+	// user doesn't have permission.
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUse, template) {
+		return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
+			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
+				"Please contact an administrator about your permissions if you feel this is an error.",
+		})
+	}
+
+	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
+	if templateAccessControl.IsDeprecated() {
+		return database.Template{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template %q has been deprecated, and cannot be used to create a new workspace.", template.Name),
+			// Pass the deprecated message to the user.
+			Detail: templateAccessControl.Deprecated,
+		})
+	}
+
+	return template, nil
 }
 
 func requestTemplate(ctx context.Context, req codersdk.CreateWorkspaceRequest, db database.Store) (database.Template, error) {
@@ -1448,29 +1529,24 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 			)
 		}
 
-		tmpl, tmplErr := api.Database.GetTemplateByID(ctx, newWorkspace.TemplateID)
-		if tmplErr != nil {
-			api.Logger.Warn(
-				ctx,
-				"failed to fetch the template of the workspace marked as dormant",
-				slog.Error(err),
-				slog.F("workspace_id", newWorkspace.ID),
-				slog.F("template_id", newWorkspace.TemplateID),
-			)
-		}
-
-		if initiatorErr == nil && tmplErr == nil {
-			dormantTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormant))
+		if initiatorErr == nil {
+			labels := map[string]string{
+				"name":   newWorkspace.Name,
+				"reason": "a " + initiator.Username + " request",
+			}
+			// DeletingAt is set by the UPDATE only when the template's
+			// time_til_dormant_autodelete is non-zero, so skip the label when
+			// auto-delete is disabled so the body omits the deletion
+			// timeline.
+			if newWorkspace.DeletingAt.Valid {
+				labels["timeTilDelete"] = humanize.Time(newWorkspace.DeletingAt.Time)
+			}
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
 				newWorkspace.OwnerID,
 				notifications.TemplateWorkspaceDormant,
-				map[string]string{
-					"name":           newWorkspace.Name,
-					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": humanize.Time(dormantTime),
-				},
+				labels,
 				"api",
 				newWorkspace.ID,
 				newWorkspace.OwnerID,
@@ -2188,6 +2264,20 @@ func (api *API) watchWorkspace(
 func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// This endpoint streams build events for every workspace in the deployment
+	// with no per-item filtering, so require deployment-wide read on workspaces.
+	// Without this, any authenticated user could enumerate all workspace names
+	// and observe build activity across organizations they do not belong to.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceWorkspace.All()) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not authorized to watch all workspace builds.",
+			Detail: "This requires permission to read all workspaces, which is granted by the " +
+				"Owner or Template Admin role. Please contact an administrator about your " +
+				"permissions if you feel this is an error.",
+		})
+		return
+	}
+
 	// Buffer enough updates to avoid blocking the pubsub callback while we're
 	// accepting the WebSocket connection. Accepting the connection signals to
 	// the client that the server is subscribed and ready to forward events.
@@ -2305,13 +2395,13 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This is largely based on the template ACL implementation, and is far from
-	// ideal. Usually, when we use the System context it's because we need to
-	// run some query that won't actually be exposed to the user. That is not
-	// the case here. This data goes directly to an unauthorized user. We are
-	// just straight up breaking security promises.
-	//
-	// TODO: This needs to be fixed before GA. Currently in beta.
+	// Callers are authorized to read this workspace, not necessarily the
+	// users and groups on its ACL. We deliberately use the System context to
+	// look up that data, but only return minimal identity information that is
+	// safe to expose to anyone who can read the ACL: MinimalUser for ACL users
+	// (no email or other PII) and group identity plus a member count for ACL
+	// groups (no member roster). This mirrors the chat ACL and template
+	// available-ACL endpoints.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
@@ -2323,7 +2413,8 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		userIDs = append(userIDs, id)
 	}
-	// For context see https://github.com/coder/coder/pull/19375
+	// ACL users are returned as MinimalUser, which contains no PII, so it is
+	// safe to fetch them under the System context.
 	// nolint:gocritic
 	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -2355,7 +2446,8 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// before making the DB call.
 	dbGroups := make([]database.GetGroupsRow, 0)
 	if len(groupIDs) > 0 {
-		// For context see https://github.com/coder/coder/pull/19375
+		// Group identity must be visible to anyone who can read the ACL so
+		// that owners and shared users can see and manage entries.
 		// nolint:gocritic
 		dbGroups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -2364,26 +2456,30 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Fetch member counts for all groups in a single query to avoid an N+1
+	// lookup. We intentionally do not populate the per-group member rosters:
+	// callers authorized to read the ACL are not necessarily authorized to
+	// read group membership, and the roster includes member PII. Only the
+	// total member count is returned (see Group.TotalMemberCount).
+	// nolint:gocritic
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	countByGroup := make(map[uuid.UUID]int64, len(countRows))
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+
 	groups := make([]codersdk.WorkspaceGroup, 0, len(dbGroups))
 	for _, it := range dbGroups {
-		var members []database.GroupMember
-		// For context see https://github.com/coder/coder/pull/19375
-		// nolint:gocritic
-		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
-			GroupID:       it.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
 		groups = append(groups, codersdk.WorkspaceGroup{
-			Group: db2sdk.Group(database.GetGroupsRow{
-				Group:                   it.Group,
-				OrganizationName:        it.OrganizationName,
-				OrganizationDisplayName: it.OrganizationDisplayName,
-			}, members, len(members)),
-			Role: convertToWorkspaceRole(workspaceACL.Groups[it.Group.ID.String()].Permissions),
+			Group: db2sdk.Group(it, nil, int(countByGroup[it.Group.ID])),
+			Role:  convertToWorkspaceRole(workspaceACL.Groups[it.Group.ID.String()].Permissions),
 		})
 	}
 
@@ -2430,10 +2526,16 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 
 	apiKey := httpmw.APIKey(r)
 	if _, ok := req.UserRoles[apiKey.UserID.String()]; ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "You cannot change your own workspace sharing role.",
-		})
-		return
+		// Block changing your own sharing role unless you can share any
+		// workspace in the organization. This keeps a user whose only access is
+		// this share from destructively demoting themselves, while letting org
+		// and deployment admins manage their own access.
+		if !api.Authorize(r, policy.ActionShare, rbac.ResourceWorkspace.InOrg(workspace.OrganizationID)) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "You cannot change your own workspace sharing role.",
+			})
+			return
+		}
 	}
 
 	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))
@@ -2658,6 +2760,44 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		builds:       apiBuilds,
 		allowRenames: api.Options.AllowWorkspaceRenames,
 	}, nil
+}
+
+// attachAgentMetadata maps the agent metadata the workspaces query
+// aggregated per workspace onto the agents in the converted response.
+// Each aggregated datum carries its workspace_agent_id. An unparsable
+// aggregate degrades to missing metadata for that workspace rather
+// than failing the page: the expansion is best-effort decoration on
+// top of the list.
+func attachAgentMetadata(ctx context.Context, logger slog.Logger, workspaces []codersdk.Workspace, rows []database.GetWorkspacesRow) {
+	byAgent := map[uuid.UUID][]database.WorkspaceAgentMetadatum{}
+	for _, row := range rows {
+		if len(row.AgentMetadata) == 0 {
+			continue
+		}
+		var metadata database.AgentMetadataAggregate
+		err := metadata.Scan(row.AgentMetadata)
+		if err != nil {
+			logger.Warn(ctx, "scan agent metadata, omitting it for the workspace",
+				slog.F("workspace_id", row.ID),
+				slog.Error(err),
+			)
+			continue
+		}
+		for _, datum := range metadata {
+			byAgent[datum.WorkspaceAgentID] = append(byAgent[datum.WorkspaceAgentID], datum)
+		}
+	}
+	for wi := range workspaces {
+		resources := workspaces[wi].LatestBuild.Resources
+		for ri := range resources {
+			for ai := range resources[ri].Agents {
+				agent := &resources[ri].Agents[ai]
+				if metadata, ok := byAgent[agent.ID]; ok {
+					agent.Metadata = convertWorkspaceAgentMetadata(metadata)
+				}
+			}
+		}
+	}
 }
 
 func convertWorkspaces(
@@ -2943,20 +3083,7 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 }
 
 func (api *API) publishWorkspaceUpdate(ctx context.Context, ownerID uuid.UUID, event wspubsub.WorkspaceEvent) {
-	err := event.Validate()
-	if err != nil {
-		api.Logger.Warn(ctx, "invalid workspace update event",
-			slog.F("workspace_id", event.WorkspaceID),
-			slog.F("event_kind", event.Kind), slog.Error(err))
-		return
-	}
-	msg, err := json.Marshal(event)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to marshal workspace update",
-			slog.F("workspace_id", event.WorkspaceID), slog.Error(err))
-		return
-	}
-	err = api.Pubsub.Publish(wspubsub.WorkspaceEventChannel(ownerID), msg)
+	err := wspubsub.PublishWorkspaceEvent(ctx, api.Pubsub, ownerID, event)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to publish workspace update",
 			slog.F("workspace_id", event.WorkspaceID), slog.Error(err))

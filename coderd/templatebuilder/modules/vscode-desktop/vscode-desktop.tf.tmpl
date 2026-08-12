@@ -1,0 +1,8 @@
+module "vscode-desktop" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/vscode-desktop/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  folder = {{ .Variables.folder }}
+  open_recent = {{ .Variables.open_recent }}
+}

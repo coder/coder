@@ -4,6 +4,11 @@ Coder server's primary configuration is done via environment variables. For a
 full list of the options, run `coder server --help` or see our
 [CLI documentation](../../reference/cli/server.md).
 
+> [!TIP]
+> Need to look up an exact environment variable, CLI flag, or YAML key for a
+> setting? See the [configuration reference](./configuration-reference.md) for
+> a searchable list of every option.
+
 ## Access URL
 
 `CODER_ACCESS_URL` is required if you are not using the tunnel. Set this to the
@@ -21,7 +26,7 @@ to reverse proxy your deployment for simple setup.
 
 You can change which port(s) Coder listens on.
 
-```shell
+```sh
 # Listen on port 80
 export CODER_HTTP_ADDRESS=0.0.0.0:80
 
@@ -41,10 +46,10 @@ coder server
 > [!TIP]
 > Learn more about the [importance and benefits of wildcard access URLs](../networking/wildcard-access-url.md)
 
-`CODER_WILDCARD_ACCESS_URL` is necessary for
-[port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard
-or running [coder_apps](../templates/index.md) on an absolute path. Set this to
-a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
+`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path.
+Set it to a wildcard hostname that resolves to Coder, such as `*.coder.example.com` or `*-coder.example.com`.
+The suffix form creates application hostnames such as `8080--main--myworkspace--john-coder.example.com`.
+It requires a DNS record and TLS certificate for `*.example.com`.
 
 > [!NOTE]
 > We do not recommend using a top-level-domain for Coder wildcard access
@@ -56,7 +61,7 @@ If you are providing TLS certificates directly to the Coder server, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
 1. Configure multiple certificates and keys via
-   [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
+   [`coder.tls.secretNames`](../../../helm/coder/values.yaml)
    in the Helm Chart, or
    [`--tls-cert-file`](../../reference/cli/server.md#--tls-cert-file) and
    [`--tls-key-file`](../../reference/cli/server.md#--tls-key-file) command line
@@ -83,7 +88,7 @@ working directory prior to step 1.
 
 1. Create the TLS secret in your Kubernetes cluster
 
-   ```shell
+   ```sh
    kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
    ```
 

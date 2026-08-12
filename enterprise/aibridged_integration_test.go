@@ -18,9 +18,12 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	aibtracing "github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
@@ -33,7 +36,16 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
+
+// singleKeyPool builds a centralized key pool containing a single key.
+func singleKeyPool(t *testing.T, name, key string) *keypool.Pool {
+	t.Helper()
+	pool, err := keypool.New(name, []string{key}, quartz.NewReal(), nil)
+	require.NoError(t, err)
+	return pool
+}
 
 var testTracer = otel.Tracer("aibridged_inttest")
 
@@ -151,6 +163,7 @@ func TestIntegration(t *testing.T) {
 					Type:                     "mock",
 					DisplayName:              "Mock",
 					MCPURL:                   mockMCPServer.URL,
+					RefreshGroup:             new(singleflight.Group),
 				},
 			},
 		},
@@ -183,7 +196,7 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := testutil.Logger(t)
-	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, Key: "test-centralized-key"})}
+	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-centralized-key")})}
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, tracer)
 	require.NoError(t, err)
 
@@ -383,7 +396,7 @@ func TestIntegrationWithMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := testutil.Logger(t)
-	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL})}
+	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-centralized-key")})}
 
 	// Create pool with metrics.
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, metrics, testTracer)
@@ -491,11 +504,12 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 	providers := []aibridge.Provider{
 		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 			BaseURL:        mockOpenAI.URL,
+			KeyPool:        singleKeyPool(t, config.ProviderOpenAI, "test-key"),
 			CircuitBreaker: cbConfig,
 		}),
-		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+		aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
 			BaseURL:        mockAnthropic.URL,
-			Key:            "test-key",
+			KeyPool:        singleKeyPool(t, config.ProviderAnthropic, "test-key"),
 			CircuitBreaker: cbConfig,
 		}, nil),
 	}
@@ -554,4 +568,94 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 
 	anthropicState := promtest.ToFloat64(metrics.CircuitBreakerState.WithLabelValues("anthropic", "/v1/messages", "claude-3-5-sonnet-20241022"))
 	require.Equal(t, 1.0, anthropicState, "Anthropic CircuitBreakerState should be 1 (open)")
+}
+
+// TestIntegrationRecordsUpstreamError validates that a failed interception
+// persists a categorized upstream error on its database row.
+func TestIntegrationRecordsUpstreamError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Mock upstreams that reject with 401 Unauthorized.
+	unauthorizedHandler := func(body string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("x-should-retry", "false")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(body))
+		}
+	}
+	mockOpenAI := httptest.NewServer(unauthorizedHandler(`{"error":{"message":"Incorrect API key","type":"invalid_request_error","code":"invalid_api_key"}}`))
+	t.Cleanup(mockOpenAI.Close)
+	mockAnthropic := httptest.NewServer(unauthorizedHandler(`{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}`))
+	t.Cleanup(mockAnthropic.Close)
+
+	db, ps := dbtestutil.NewDB(t)
+	client, _, api, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{Database: db, Pubsub: ps},
+	})
+
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	apiKey, err := userClient.CreateToken(ctx, "me", codersdk.CreateTokenRequest{
+		TokenName: fmt.Sprintf("test-key-%d", time.Now().UnixNano()),
+		Lifetime:  time.Hour,
+		Scope:     codersdk.APIKeyScopeCoderAll,
+	})
+	require.NoError(t, err)
+
+	aiBridgeClient, err := api.AGPL.CreateInMemoryAIBridgeServer(ctx)
+	require.NoError(t, err)
+
+	logger := testutil.Logger(t)
+	providers := []aibridge.Provider{
+		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-key")}),
+		aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{BaseURL: mockAnthropic.URL, KeyPool: singleKeyPool(t, config.ProviderAnthropic, "test-key")}, nil),
+	}
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
+	require.NoError(t, err)
+
+	srv, err := aibridged.New(ctx, pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+		return aiBridgeClient, nil
+	}, logger, testTracer)
+	require.NoError(t, err, "create new aibridged")
+	t.Cleanup(func() { _ = srv.Shutdown(ctx) })
+
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{"openai_blocking", "/openai/v1/chat/completions", `{"messages":[{"role":"user","content":"test"}],"model":"gpt-4","stream":false}`},
+		{"openai_streaming", "/openai/v1/chat/completions", `{"messages":[{"role":"user","content":"test"}],"model":"gpt-4","stream":true}`},
+		{"anthropic_blocking", "/anthropic/v1/messages", `{"messages":[{"role":"user","content":"test"}],"model":"claude-3-5-sonnet-20241022","max_tokens":100,"stream":false}`},
+		{"anthropic_streaming", "/anthropic/v1/messages", `{"messages":[{"role":"user","content":"test"}],"model":"claude-3-5-sonnet-20241022","max_tokens":100,"stream":true}`},
+	}
+
+	// Requests are fired sequentially: they share the centralized key pool and
+	// database, and the aggregate assertion below depends on all of them.
+	for _, tc := range cases {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, tc.path, bytes.NewBufferString(tc.body))
+		require.NoError(t, err)
+		req.Header.Add("Authorization", "Bearer "+apiKey.Key)
+		req.Header.Add("Accept", "application/json")
+
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		t.Logf("%s request: status=%d", tc.name, rec.Code)
+	}
+
+	// The interception rows should record the unauthorized upstream failure.
+	// Both blocking and streaming interceptors surface the centralized key-pool
+	// permanent exhaustion, which categorizes as unauthorized.
+	intcs, err := db.GetAIBridgeInterceptions(ctx)
+	require.NoError(t, err)
+	require.Len(t, intcs, len(cases))
+	for _, intc := range intcs {
+		require.True(t, intc.EndedAt.Valid, "interception %s should be ended", intc.ID)
+		require.True(t, intc.ErrorType.Valid, "interception %s should record an error type", intc.ID)
+		require.Equal(t, database.AibridgeInterceptionErrorTypeUnauthorized, intc.ErrorType.AIBridgeInterceptionErrorType)
+		require.True(t, intc.ErrorMessage.Valid, "interception %s should record an error message", intc.ID)
+		require.NotEmpty(t, intc.ErrorMessage.String)
+	}
 }
