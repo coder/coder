@@ -248,9 +248,17 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 // failure worth logging. It surfaces because the authorization check reads
 // the code before deleting it, and that read reports a missing row when a
 // concurrent attempt already revoked the code or it was reaped after expiry.
+//
+// The delete runs on a context detached from the request. The request context
+// is canceled when the client disconnects, so a caller that fails PKCE and
+// then drops the connection would otherwise leave its own code redeemable for
+// the rest of its lifetime, which is the replay this function prevents.
 func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeID uuid.UUID) {
+	revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+
 	//nolint:gocritic // OAuth2 system context, no authenticated user during token exchange
-	if err := db.DeleteOAuth2ProviderAppCodeByID(dbauthz.AsSystemOAuth2(ctx), codeID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := db.DeleteOAuth2ProviderAppCodeByID(dbauthz.AsSystemOAuth2(revokeCtx), codeID); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
 			rlogger.WithFields(slog.F("oauth2_pkce_failure_code_revoke_error", err.Error()))
 		}
