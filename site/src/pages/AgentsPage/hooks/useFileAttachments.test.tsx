@@ -1,4 +1,5 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { render, renderHook, waitFor } from "@testing-library/react";
+import type { FC } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	persistedAttachmentsStorageKey,
@@ -56,8 +57,6 @@ describe("useFileAttachments org scoping", () => {
 			{ initialProps: { orgId: "org-a" as string | undefined } },
 		);
 		expect(uploadedFileIds(result.current)).toStrictEqual(["file-a"]);
-
-		// A send after this switch must not carry org-a's file IDs.
 		rerender({ orgId: "org-b" });
 		await waitFor(() => {
 			expect(uploadedFileIds(result.current)).toStrictEqual([]);
@@ -65,5 +64,35 @@ describe("useFileAttachments org scoping", () => {
 		expect(
 			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
 		).not.toContain("file-a");
+	});
+
+	it("never exposes the previous org's file IDs in any render", async () => {
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
+		);
+		// Log the hook output of every render, including the
+		// intermediate commit between the org changing and the
+		// adoption effect running; that window must expose nothing.
+		const renderLog: { orgId: string; fileIds: string[] }[] = [];
+		const Probe: FC<{ orgId: string }> = ({ orgId }) => {
+			const result = useFileAttachments(orgId, { persist: true });
+			renderLog.push({ orgId, fileIds: uploadedFileIds(result) });
+			return null;
+		};
+		const { rerender } = render(<Probe orgId="org-a" />);
+		expect(renderLog.at(-1)).toStrictEqual({
+			orgId: "org-a",
+			fileIds: ["file-a"],
+		});
+
+		rerender(<Probe orgId="org-b" />);
+		await waitFor(() => {
+			expect(renderLog.at(-1)?.fileIds).toStrictEqual([]);
+		});
+		const leaked = renderLog.filter(
+			(entry) => entry.orgId === "org-b" && entry.fileIds.includes("file-a"),
+		);
+		expect(leaked).toStrictEqual([]);
 	});
 });

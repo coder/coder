@@ -293,13 +293,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		enabled: showOrganizations,
 	});
 	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
-	// Until the permitted query produces data (still loading, or failed),
-	// the org selection is provisional: block sending and attachment
-	// restoration so nothing acts on an org the user may not have.
+	// Treat the dashboard org as provisional until permissions resolve so
+	// sends and persisted attachments cannot use an unpermitted org.
 	const orgSelectionSettled =
 		!showOrganizations || permittedOrgsQuery.data !== undefined;
-	// A resolved-but-empty permitted set means chat creation is denied
-	// everywhere; effectiveOrg's dashboard fallback must not be sendable.
+	// Prevent effectiveOrg's dashboard fallback from bypassing an empty
+	// permitted set.
 	const noPermittedOrgs =
 		showOrganizations && permittedOrgsQuery.data?.length === 0;
 	const effectiveOrg =

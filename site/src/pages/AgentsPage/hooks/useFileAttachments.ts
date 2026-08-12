@@ -52,8 +52,7 @@ function restorePersistedAttachments(currentOrgId: string): {
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 } {
-	// Skip when org ID isn't loaded yet so we don't prune valid
-	// entries; restoration is deferred until the org is known.
+	// An unknown org must not prune entries persisted for the eventual org.
 	if (!currentOrgId) {
 		return {
 			attachments: [],
@@ -196,11 +195,9 @@ export function useFileAttachments(
 		() => new Map<File, UploadState>(),
 	);
 	const [previewUrls, setPreviewUrls] = useState(() => new Map<File, string>());
-	// Restore lazily on the first render with a known org rather than
-	// at mount: the caller's org can be provisional until permission
-	// checks resolve, and restoring with the wrong org prunes valid
-	// entries from storage. stateOrgId records which org the current
-	// attachment state belongs to.
+	// Delay restoration until an org is supplied. A provisional org would
+	// prune entries for the eventual org; stateOrgId tracks which org owns
+	// the in-memory attachment state.
 	const [stateOrgId, setStateOrgId] = useState<string | null>(
 		persist ? null : "",
 	);
@@ -279,10 +276,9 @@ export function useFileAttachments(
 	// file can't be resurrected. WeakSet lets entries get GC'd.
 	const abandonedResizesRef = useRef<WeakSet<File>>(new WeakSet());
 
-	// A permission refetch can change the caller's org without any user
-	// action. Attachments belong to the org they were uploaded to, so
-	// drop them (revoking blob previews) and restore the new org's
-	// persisted entries instead of sending stale file IDs cross-org.
+	// Permission refetches can change the caller's org without user action.
+	// Replace org-scoped attachment state so stale file IDs cannot be sent
+	// to another org.
 	const adoptOrganization = useEffectEvent((orgId: string) => {
 		for (const file of attachments) {
 			abandonedResizesRef.current.add(file);
@@ -541,11 +537,21 @@ export function useFileAttachments(
 		}
 	};
 
+	// Between a permission-driven org change committing and the
+	// adoption effect running, state still belongs to the previous
+	// org. Expose it as empty so a send in that window cannot pair
+	// the old org's file IDs with the new org.
+	const orgMismatch =
+		persist &&
+		stateOrgId !== null &&
+		Boolean(organizationId) &&
+		stateOrgId !== organizationId;
+
 	return {
-		attachments,
-		textContents,
-		uploadStates,
-		previewUrls,
+		attachments: orgMismatch ? [] : attachments,
+		textContents: orgMismatch ? new Map<File, string>() : textContents,
+		uploadStates: orgMismatch ? new Map<File, UploadState>() : uploadStates,
+		previewUrls: orgMismatch ? new Map<File, string>() : previewUrls,
 		handleAttach,
 		handleRemoveAttachment,
 		startUpload,

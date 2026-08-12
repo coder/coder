@@ -1217,9 +1217,6 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-
-		// No permitted org anywhere: chat creation must be blocked, not
-		// fall back to the dashboard default org.
 		await waitFor(
 			() => {
 				expect(canvas.getByText(/don't have permission/i)).toBeInTheDocument();
