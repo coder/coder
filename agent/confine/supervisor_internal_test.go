@@ -50,8 +50,12 @@ func TestChildEnvironment(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest // t.Setenv temporarily removes PATH to simulate a missing ip binary.
-func TestSupervisorNetNSFallback(t *testing.T) {
+// Namespace mode is a structural claim, so an environment that cannot
+// provide it must fail rather than quietly serve the weaker advisory
+// boundary that an earlier revision fell back to.
+//
+//nolint:paralleltest // t.Setenv temporarily removes PATH to simulate missing tooling.
+func TestSupervisorNetNSFailsClosed(t *testing.T) {
 	t.Setenv("PATH", "")
 	client := &fakeAgentClient{}
 	accessURL, err := url.Parse("https://coder.example.com")
@@ -65,14 +69,19 @@ func TestSupervisorNetNSFallback(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	netns, forced := supervisor.prepareNetwork(testutil.Context(t, testutil.WaitShort))
-	require.Nil(t, netns)
-	require.False(t, forced)
+	exitCode, err := supervisor.Run(testutil.Context(t, testutil.WaitShort))
+	require.Error(t, err)
+	require.Equal(t, 1, exitCode)
+	require.Contains(t, err.Error(), "network confinement unavailable")
+
 	client.mu.Lock()
 	defer client.mu.Unlock()
-	require.Len(t, client.logs, 1)
-	require.Contains(t, client.logs[0].Logs[0].Output, "using proxy-only advisory mode")
-	require.Equal(t, uuid.Nil, client.logs[0].LogSourceID)
+	for _, patch := range client.logs {
+		for _, entry := range patch.Logs {
+			require.NotContains(t, entry.Output, "using proxy-only advisory mode",
+				"forced confinement must not downgrade to advisory")
+		}
+	}
 }
 
 func TestEventBatcherDropsOldest(t *testing.T) {

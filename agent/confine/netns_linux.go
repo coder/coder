@@ -42,8 +42,6 @@ type NetworkNamespace struct {
 	configured    bool
 }
 
-type networkNamespace = NetworkNamespace
-
 type networkNamespaceTools struct {
 	ipPath        string
 	iptablesPath  string
@@ -212,10 +210,6 @@ func OpenNetworkNamespace(ctx context.Context, options NetworkNamespaceOptions) 
 		return nil, xerrors.Errorf("write netns resolver: %w", err)
 	}
 	return netns, nil
-}
-
-func newNetworkNamespace(ctx context.Context) (*networkNamespace, error) {
-	return OpenNetworkNamespace(ctx, NetworkNamespaceOptions{})
 }
 
 // HostIP returns the address host-side listeners must bind to.
@@ -400,14 +394,6 @@ func (n *NetworkNamespace) CommandArgs(args []string) ([]string, error) {
 	}
 	result := []string{n.ipPath, "netns", "exec", n.name}
 	return append(result, args...), nil
-}
-
-func (n *NetworkNamespace) execArgs(args []string) []string {
-	result, err := n.CommandArgs(args)
-	if err != nil {
-		return []string{n.ipPath, "netns", "exec", "__coder_confine_unconfigured__"}
-	}
-	return result
 }
 
 // Close removes host firewall rules, the namespace, veth pair, resolver

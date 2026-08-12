@@ -110,28 +110,32 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 		)
 	}
 
-	netns, forced := s.prepareNetwork(ctx)
-	if netns != nil {
+	forced := s.options.Mode == ModeNetNS
+	sessionID := uuid.New()
+	batcher := newEventBatcher(s.options.Client, s.options.Logger, sessionID, eventQueueSize)
+
+	// Namespace mode is a structural claim. Any failure to establish it is
+	// fatal rather than a downgrade to advisory: silently serving a weaker
+	// boundary than the shape attests would misreport the enforcement that
+	// actually applies.
+	var netns *NetworkNamespace
+	listenAddress := proxyListenAddress
+	if forced {
+		if err := PreflightNetworkNamespace(ctx); err != nil {
+			return 1, xerrors.Errorf("network confinement unavailable: %w", err)
+		}
+		opened, err := OpenNetworkNamespace(ctx, NetworkNamespaceOptions{})
+		if err != nil {
+			return 1, xerrors.Errorf("create network namespace: %w", err)
+		}
+		netns = opened
 		defer func() {
 			_ = netns.Close()
 		}()
+		listenAddress = net.JoinHostPort(netns.HostIP(), "0")
 	}
 
-	listenAddress := proxyListenAddress
-	if forced {
-		listenAddress = net.JoinHostPort(netns.hostIP, "0")
-	}
-
-	sessionID := uuid.New()
-	batcher := newEventBatcher(s.options.Client, s.options.Logger, sessionID, eventQueueSize)
 	proxy, err := ListenProxy(listenAddress, engine, batcher.Add)
-	if err != nil && forced {
-		_ = netns.Close()
-		netns = nil
-		forced = false
-		s.signalDegraded("AI egress network listener failed; using proxy-only advisory mode (degraded)", err)
-		proxy, err = ListenProxy(proxyListenAddress, engine, batcher.Add)
-	}
 	if err != nil {
 		return 1, xerrors.Errorf("start egress proxy: %w", err)
 	}
@@ -139,25 +143,48 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 		_ = proxy.Close()
 	}()
 
-	var sni *SNIListener
+	var (
+		sni   *SNIListener
+		relay *Relay
+	)
 	if forced {
-		sni, err = ListenSNI(net.JoinHostPort(netns.hostIP, "0"), engine, batcher.Add)
+		sni, err = ListenSNI(listenAddress, engine, batcher.Add)
 		if err != nil {
-			_ = proxy.Close()
-			_ = netns.Close()
-			netns = nil
-			forced = false
-			s.signalDegraded("AI egress SNI listener failed; using proxy-only advisory mode (degraded)", err)
-			proxy, err = ListenProxy(proxyListenAddress, engine, batcher.Add)
-			if err != nil {
-				return 1, xerrors.Errorf("start fallback egress proxy: %w", err)
-			}
+			return 1, xerrors.Errorf("start SNI listener: %w", err)
 		}
-	}
-	if sni != nil {
 		defer func() {
 			_ = sni.Close()
 		}()
+
+		// Transparent interception requires name resolution inside the
+		// namespace: a client must resolve a name before it can open the
+		// connection the platform intends to intercept.
+		// DNS decisions are logged rather than batched into the egress
+		// audit stream: ai_sandbox_network_events constrains protocol to
+		// connect, http, sni, and tcp, so a dns value needs a schema change
+		// before these can be retained server side.
+		relay, err = ListenRelay(listenAddress, engine, func(event DNSQueryEvent) {
+			s.options.Logger.Debug(ctx, "ai egress dns query",
+				slog.F("qname", event.QName),
+				slog.F("qtype", event.QType),
+				slog.F("decision", string(event.Decision)),
+				slog.F("policy_revision", event.PolicyRevision),
+			)
+		})
+		if err != nil {
+			return 1, xerrors.Errorf("start DNS relay: %w", err)
+		}
+		defer func() {
+			_ = relay.Close()
+		}()
+
+		ports, perr := listenerPorts(proxy.Addr(), sni.Addr(), relay.Addr())
+		if perr != nil {
+			return 1, perr
+		}
+		if err := netns.ConfigureEgress(ctx, ports); err != nil {
+			return 1, xerrors.Errorf("configure network confinement: %w", err)
+		}
 	}
 
 	s.options.Logger.Info(ctx, "ai egress proxy started",
@@ -179,7 +206,12 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 	childEnv := childEnvironment(s.options.Env, proxyURL, enforcement)
 	childArgs := append([]string(nil), s.options.ExecArgs...)
 	if forced {
-		childArgs = netns.execArgs(childArgs)
+		// Refuses when the namespace is unconfigured or closed, so a
+		// confinement failure cannot silently run the child unconfined.
+		childArgs, err = netns.CommandArgs(childArgs)
+		if err != nil {
+			return 1, xerrors.Errorf("build confined child arguments: %w", err)
+		}
 	}
 
 	var startedAt time.Time
@@ -232,16 +264,34 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 	return exitCode, forkErr
 }
 
-func (s *Supervisor) prepareNetwork(ctx context.Context) (*networkNamespace, bool) {
-	if s.options.Mode != ModeNetNS {
-		return nil, false
+// listenerPorts extracts the ports the namespace must redirect to. The
+// listeners bind an ephemeral port each, so the rules can only be built
+// after they are up.
+func listenerPorts(proxyAddr, sniAddr, relayAddr net.Addr) (NetworkNamespacePorts, error) {
+	var ports NetworkNamespacePorts
+	for _, entry := range []struct {
+		addr net.Addr
+		name string
+		out  *uint16
+	}{
+		{proxyAddr, "http proxy", &ports.HTTP},
+		{sniAddr, "sni listener", &ports.SNI},
+		{relayAddr, "dns relay", &ports.DNS},
+	} {
+		if entry.addr == nil {
+			return NetworkNamespacePorts{}, xerrors.Errorf("%s has no address", entry.name)
+		}
+		_, port, err := net.SplitHostPort(entry.addr.String())
+		if err != nil {
+			return NetworkNamespacePorts{}, xerrors.Errorf("parse %s address: %w", entry.name, err)
+		}
+		parsed, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			return NetworkNamespacePorts{}, xerrors.Errorf("parse %s port: %w", entry.name, err)
+		}
+		*entry.out = uint16(parsed)
 	}
-	netns, err := newNetworkNamespace(ctx)
-	if err != nil {
-		s.signalDegraded("AI egress network namespace setup failed; using proxy-only advisory mode (degraded)", err)
-		return nil, false
-	}
-	return netns, true
+	return ports, nil
 }
 
 func (s *Supervisor) signalDegraded(message string, cause error) {
