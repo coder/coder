@@ -223,20 +223,11 @@ func IsInvalidTokenError(err error) bool {
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
+// Tokens are then validated, whether or not they were refreshed.
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
-	// If the token is not expired and there is no validation URL, we can
-	// short-circuit since there is nothing to do.
-	token := &oauth2.Token{
-		AccessToken:  externalAuthLink.OAuthAccessToken,
-		RefreshToken: externalAuthLink.OAuthRefreshToken,
-		Expiry:       externalAuthLink.OAuthExpiry,
-	}
-	if c.ValidateURL == "" && token.Valid() {
-		return externalAuthLink, nil
-	}
-
-	// If the token is expired and refresh is disabled, we prompt the user to
+	// If the token is expired and refresh is disabled, prompt the user to
 	// authenticate manually again.
+	token := externalAuthLink.OAuthToken()
 	if c.NoRefresh && !token.Valid() {
 		return externalAuthLink, InvalidTokenError("token expired and refreshing is disabled")
 	}
@@ -245,7 +236,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// in-flight refresh.  Otherwise, the parallel calls will fail with a bad
 	// refresh token error as they can only be used once.
 	key := c.ID + ":" + externalAuthLink.UserID.String()
-	ch := c.RefreshGroup.DoChan(key, func() (newLink any, refreshErr error) {
+	ch := c.RefreshGroup.DoChan(key, func() (any, error) {
 		// Use a detached context so if a request is canceled or times out it does
 		// not cancel all the other requests as well.  The deadline is arbitrary but
 		// we give at least enough time for the refresh timeout then another 10
@@ -257,61 +248,21 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 		defer cancel()
 
-		lease := dbtime.Now().Add(timeout)
-
-		// There may be other replicas also wanting to refresh; try to get a lease
-		// on the row.  This also ensures we have the latest link.
-		var dblink database.ExternalAuthLink
-		initial := defaultRefreshLeaseInitialBackoff
-		if c.RefreshLeaseInitialBackoff > 0 {
-			initial = c.RefreshLeaseInitialBackoff
-		}
-		maximum := defaultRefreshLeaseMaxBackoff
-		if c.RefreshLeaseMaxBackoff > 0 {
-			maximum = c.RefreshLeaseMaxBackoff
-		}
-		r := retry.New(initial, maximum)
-		for {
-			var err error
-			dblink, err = db.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
-				ProviderID:            externalAuthLink.ProviderID,
-				UserID:                externalAuthLink.UserID,
-				RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
-			})
-			switch {
-			case errors.Is(err, sql.ErrNoRows):
-				// Something still holds the lock; keep waiting.
-				if !r.Wait(ctx) {
-					return externalAuthLink, ctx.Err()
-				}
-			case err != nil:
-				// Some kind of DB error.
-				return externalAuthLink, err
-			default:
-				// We now hold the lock.
-				goto refresh
-			}
+		// Although TokenSource().Token() will also check if the token is expired,
+		// do so ahead of time here to avoid the overhead of acquiring the lease
+		// when no refresh is required.  Also validate the token under this lock,
+		// since we already have it anyway.
+		if !token.Valid() {
+			return c.refreshAndValidateWithLease(ctx, db, externalAuthLink, timeout)
 		}
 
-	refresh:
-		defer func() {
-			refreshErr = errors.Join(refreshErr, db.ReleaseExternalAuthLinkRefreshLease(ctx, database.ReleaseExternalAuthLinkRefreshLeaseParams{
-				ProviderID:            externalAuthLink.ProviderID,
-				UserID:                externalAuthLink.UserID,
-				RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
-			}))
-		}()
-
-		// If we got a different token, it means something else refreshed either
-		// while we were waiting or before we got a hold of the lease but after we
-		// initially fetched the link.
-		if dblink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
-			return dblink, nil
-		}
-
-		// Otherwise the token has still not been updated; refresh it now.
-		newLink, refreshErr = c.innerRefreshToken(ctx, db, dblink, lease)
-		return newLink, refreshErr
+		// Validate the token even if we did not refresh.  This is done within the
+		// group but outside the lease, meaning multiple instances may validate at
+		// the same time, but the lock overhead seems greater than the overhead of
+		// occasional concurrent validation, and is not strictly necessary like it
+		// is with refreshing, so avoid the lock when not refreshing.
+		_, err := c.validateWithRetry(ctx, token)
+		return externalAuthLink, err
 	})
 	select {
 	case results := <-ch:
@@ -326,12 +277,71 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	}
 }
 
-func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink, lease time.Time) (database.ExternalAuthLink, error) {
-	existingToken := &oauth2.Token{
-		AccessToken:  externalAuthLink.OAuthAccessToken,
-		RefreshToken: externalAuthLink.OAuthRefreshToken,
-		Expiry:       externalAuthLink.OAuthExpiry,
+// refreshAndValidateWithLease wraps the refresh and subsequent validation with
+// concurrency protection between multiple instances by using a lease column on
+// the link's row.
+func (c *Config) refreshAndValidateWithLease(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink, timeout time.Duration) (newLink database.ExternalAuthLink, refreshErr error) {
+	lease := dbtime.Now().Add(timeout)
+
+	// There may be other replicas also wanting to refresh; try to get a lease
+	// on the row.  This also ensures we have the latest link.
+	var dblink database.ExternalAuthLink
+	initial := defaultRefreshLeaseInitialBackoff
+	if c.RefreshLeaseInitialBackoff > 0 {
+		initial = c.RefreshLeaseInitialBackoff
 	}
+	maximum := defaultRefreshLeaseMaxBackoff
+	if c.RefreshLeaseMaxBackoff > 0 {
+		maximum = c.RefreshLeaseMaxBackoff
+	}
+	r := retry.New(initial, maximum)
+	for {
+		var err error
+		dblink, err = db.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
+			ProviderID:            externalAuthLink.ProviderID,
+			UserID:                externalAuthLink.UserID,
+			RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
+		})
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			// Something still holds the lock; keep waiting.
+			if !r.Wait(ctx) {
+				return externalAuthLink, ctx.Err()
+			}
+		case err != nil:
+			// Some kind of DB error.
+			return externalAuthLink, err
+		default:
+			// We now hold the lock.
+			goto refresh
+		}
+	}
+
+refresh:
+	defer func() {
+		refreshErr = errors.Join(refreshErr, db.ReleaseExternalAuthLinkRefreshLease(ctx, database.ReleaseExternalAuthLinkRefreshLeaseParams{
+			ProviderID:            externalAuthLink.ProviderID,
+			UserID:                externalAuthLink.UserID,
+			RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
+		}))
+	}()
+
+	// If we got a different token, it means something else refreshed either
+	// while we were waiting or before we got a hold of the lease but after we
+	// initially fetched the link.
+	if dblink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
+		return dblink, nil
+	}
+
+	// Otherwise the token has still not been updated; refresh it now.
+	newLink, refreshErr = c.refreshAndValidateToken(ctx, db, dblink, lease)
+	return newLink, refreshErr
+}
+
+// refreshAndValidateToken does the actual token refresh, persists the result to
+// the database, then validates the token.
+func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink, lease time.Time) (database.ExternalAuthLink, error) {
+	existingToken := externalAuthLink.OAuthToken()
 
 	// This is additional defensive programming. Because TokenSource is an
 	// interface, we cannot be sure that the implementation will treat an 'IsZero'
@@ -426,78 +436,53 @@ func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, exter
 		return externalAuthLink, xerrors.Errorf("generate token extra: %w", err)
 	}
 
-	// Persist the refreshed token to the DB before validation. GitHub
-	// rotates refresh tokens on every use, so the old refresh token is
-	// already invalid on the IDP side. If we validated first and the
-	// validation endpoint was unavailable (e.g. rate-limited 403), the
-	// new token would be silently lost and the user would be forced to
-	// re-authenticate manually.
-	originalAccessToken := externalAuthLink.OAuthAccessToken
-	if token.AccessToken != originalAccessToken {
-		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-			ProviderID:             externalAuthLink.ProviderID,
-			UserID:                 externalAuthLink.UserID,
-			UpdatedAt:              dbtime.Now(),
-			OAuthAccessToken:       token.AccessToken,
-			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-			OAuthRefreshToken:      token.RefreshToken,
-			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-			OAuthExpiry:            token.Expiry,
-			OAuthExtra:             extra,
-			// If there was any failure before, we can clear it now.
-			OauthRefreshFailureReason: "",
-			// The row will only update if we hold the current lease.  This is
-			// somewhat redundant since if we lost the lease our context would be
-			// expired anyway, so it is not actually possible to get the
-			// sql.ErrNoRows that would result from this.
-			RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
-		})
-		if err != nil {
-			return updatedAuthLink, xerrors.Errorf("persist refreshed token: %w", err)
-		}
-		externalAuthLink = updatedAuthLink
-	}
-
-	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
-	// See the comment below why the retry and cancel is required.
-	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
-	defer retryCtxCancel()
-validate:
-	valid, user, err := c.ValidateToken(ctx, token)
+	// Persist the refreshed token to the DB before validation. GitHub rotates
+	// refresh tokens on every use, so the old refresh token is already invalid on
+	// the IDP side. If we validated first and the validation endpoint was
+	// unavailable (e.g. rate-limited 403), the new token would be silently lost
+	// and the user would be forced to re-authenticate manually.
+	updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
+		ProviderID:             externalAuthLink.ProviderID,
+		UserID:                 externalAuthLink.UserID,
+		UpdatedAt:              dbtime.Now(),
+		OAuthAccessToken:       token.AccessToken,
+		OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+		OAuthRefreshToken:      token.RefreshToken,
+		OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+		OAuthExpiry:            token.Expiry,
+		OAuthExtra:             extra,
+		// If there was any failure before, we can clear it now.
+		OauthRefreshFailureReason: "",
+		// The row will only update if we hold the current lease.  This is somewhat
+		// redundant since if we lost the lease our context would be expired anyway,
+		// so it is not actually possible to get the sql.ErrNoRows that would result
+		// from this.
+		RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
+	})
 	if err != nil {
-		return externalAuthLink, xerrors.Errorf("validate external auth token: %w", err)
-	}
-	if !valid {
-		// A customer using GitHub in Australia reported that validating immediately
-		// after refreshing the token would intermittently fail with a 401. Waiting
-		// a few milliseconds with the exact same token on the exact same request
-		// would resolve the issue. It seems likely that the write is not propagating
-		// to the read replica in time.
-		//
-		// We do an exponential backoff here to give the write time to propagate.
-		if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) && r.Wait(retryCtx) {
-			goto validate
-		}
-		// The token is no longer valid!
-		return externalAuthLink, InvalidTokenError("token failed to validate")
+		return updatedAuthLink, xerrors.Errorf("persist refreshed token: %w", err)
 	}
 
-	// Update the associated user's github.com user ID if the token
-	// is for github.com and validation returned user info.
-	if token.AccessToken != originalAccessToken && IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
+	user, err := c.validateWithRetry(ctx, token)
+	if err != nil {
+		return updatedAuthLink, err
+	}
+
+	// Update the associated user's github.com user ID if the token is for
+	// github.com and validation returned user info.
+	if IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
 		err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
-			ID: externalAuthLink.UserID,
+			ID: updatedAuthLink.UserID,
 			GithubComUserID: sql.NullInt64{
 				Int64: user.ID,
 				Valid: true,
 			},
 		})
 		if err != nil {
-			return externalAuthLink, xerrors.Errorf("update user github com user id: %w", err)
+			return updatedAuthLink, xerrors.Errorf("update user github com user id: %w", err)
 		}
 	}
-
-	return externalAuthLink, nil
+	return updatedAuthLink, nil
 }
 
 // refreshTokenWithRetry exchanges the refresh token for a new access token,
@@ -555,17 +540,48 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 	}
 }
 
+// validateWithRetry validates the provided link, retrying on failure.  On
+// success return the user info.
+func (c *Config) validateWithRetry(ctx context.Context, token *oauth2.Token) (*codersdk.ExternalAuthUser, error) {
+	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
+	// See the comment below why the retry and cancel is required.
+	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
+	defer retryCtxCancel()
+
+validate:
+	valid, user, err := c.ValidateToken(ctx, token)
+	if err != nil {
+		return nil, xerrors.Errorf("validate external auth token: %w", err)
+	}
+	if !valid {
+		// A customer using GitHub in Australia reported that validating immediately
+		// after refreshing the token would intermittently fail with a 401. Waiting
+		// a few milliseconds with the exact same token on the exact same request
+		// would resolve the issue. It seems likely that the write is not propagating
+		// to the read replica in time.
+		//
+		// We do an exponential backoff here to give the write time to propagate.
+		if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) && r.Wait(retryCtx) {
+			goto validate
+		}
+		// The token is no longer valid!
+		return nil, InvalidTokenError("token failed to validate")
+	}
+
+	return user, nil
+}
+
 // ValidateToken checks if the Git token provided is valid.
 // The user is optionally returned if the provider supports it.
 // Returns valid=true when: the provider confirmed the token,
 // no ValidateURL is configured, or the validation endpoint
 // returned a rate-limited response (403 with rate-limit headers
 // or 429).
-func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *codersdk.ExternalAuthUser, error) {
-	if link == nil {
+func (c *Config) ValidateToken(ctx context.Context, token *oauth2.Token) (bool, *codersdk.ExternalAuthUser, error) {
+	if token == nil {
 		return false, nil, xerrors.New("validate external auth token: token is nil")
 	}
-	if !link.Expiry.IsZero() && link.Expiry.Before(dbtime.Now()) {
+	if !token.Valid() {
 		return false, nil, nil
 	}
 
@@ -578,7 +594,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		return false, nil, err
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", link.AccessToken))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
 	if err != nil {
 		return false, nil, err

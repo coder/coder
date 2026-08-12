@@ -114,12 +114,8 @@ func TestRefreshToken(t *testing.T) {
 		// Zero time used
 		link.OAuthExpiry = time.Time{}
 
-		// Allow getting the lease.
-		mDB.EXPECT().AcquireExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
-			Return(link, nil).Times(1)
-		mDB.EXPECT().ReleaseExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
-			Return(nil).Times(1)
-
+		// Since the token is not expired, no refresh lease will be acquired and
+		// it will only be validated.
 		_, err := config.RefreshToken(ctx, mDB, link)
 		require.NoError(t, err)
 		require.True(t, validated, "token should have been validated")
@@ -762,14 +758,9 @@ func TestRefreshToken(t *testing.T) {
 			},
 		})
 
+		// Since the token is not expired, no refresh lease will be acquired and
+		// it will only be validated.
 		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
-
-		// Allow getting the lease.
-		mDB.EXPECT().AcquireExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
-			Return(link, nil).Times(1)
-		mDB.EXPECT().ReleaseExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
-			Return(nil).Times(1)
-
 		_, err := config.RefreshToken(ctx, mDB, link)
 		require.NoError(t, err)
 		require.Equal(t, 2, validateCalls, "token should have been attempted to be validated more than once")
@@ -798,14 +789,9 @@ func TestRefreshToken(t *testing.T) {
 			},
 		})
 
-		// Allow getting the lease.
-		mDB.EXPECT().AcquireExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
-			Return(link, nil).AnyTimes()
-		mDB.EXPECT().ReleaseExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
-			Return(nil).Times(1)
-
+		// Since the token is not expired, no refresh lease will be acquired and
+		// it will only be validated.
 		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
-
 		_, err := config.RefreshToken(ctx, mDB, link)
 		require.NoError(t, err)
 		require.Equal(t, 1, validateCalls, "token is validated")
