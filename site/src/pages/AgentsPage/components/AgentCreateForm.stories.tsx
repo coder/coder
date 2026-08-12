@@ -1218,35 +1218,16 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		// Wait for the permitted orgs query to resolve. The org picker
-		// should disappear since no org is permitted.
+		// No permitted org anywhere: chat creation must be blocked, not
+		// fall back to the dashboard default org.
 		await waitFor(
 			() => {
-				expect(
-					canvas.queryByTestId("compact-org-selector"),
-				).not.toBeInTheDocument();
+				expect(canvas.getByText(/don't have permission/i)).toBeInTheDocument();
 			},
 			{ timeout: 3000 },
 		);
-
-		// Type a message and submit the form.
-		const input = canvas.getByTestId("chat-message-input");
-		await userEvent.click(input);
-		await userEvent.keyboard("test message");
-		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
-
-		// Verify onCreateChat was called with a non-empty organizationId.
-		await waitFor(() => {
-			expect(args.onCreateChat).toHaveBeenCalled();
-		});
-		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
-			.calls[0]?.[0] as { organizationId: string } | undefined;
-		if (!options) {
-			throw new Error("Expected onCreateChat to receive options");
-		}
-		expect(options.organizationId).not.toBe("");
-		// It should fall back to the default org from the dashboard.
-		expect(options.organizationId).toBe(MockDefaultOrganization.id);
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		expect(args.onCreateChat).not.toHaveBeenCalled();
 	},
 };
 

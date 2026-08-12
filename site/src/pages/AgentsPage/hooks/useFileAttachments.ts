@@ -199,10 +199,13 @@ export function useFileAttachments(
 	// Restore lazily on the first render with a known org rather than
 	// at mount: the caller's org can be provisional until permission
 	// checks resolve, and restoring with the wrong org prunes valid
-	// entries from storage.
-	const [hasRestored, setHasRestored] = useState(!persist);
-	if (!hasRestored && organizationId) {
-		setHasRestored(true);
+	// entries from storage. stateOrgId records which org the current
+	// attachment state belongs to.
+	const [stateOrgId, setStateOrgId] = useState<string | null>(
+		persist ? null : "",
+	);
+	if (persist && stateOrgId === null && organizationId) {
+		setStateOrgId(organizationId);
 		const restored = restorePersistedAttachments(organizationId);
 		setAttachments(restored.attachments);
 		setUploadStates(restored.uploadStates);
@@ -275,6 +278,33 @@ export function useFileAttachments(
 	// checks this before swapping in a replacement so a dismissed
 	// file can't be resurrected. WeakSet lets entries get GC'd.
 	const abandonedResizesRef = useRef<WeakSet<File>>(new WeakSet());
+
+	// A permission refetch can change the caller's org without any user
+	// action. Attachments belong to the org they were uploaded to, so
+	// drop them (revoking blob previews) and restore the new org's
+	// persisted entries instead of sending stale file IDs cross-org.
+	const adoptOrganization = useEffectEvent((orgId: string) => {
+		for (const file of attachments) {
+			abandonedResizesRef.current.add(file);
+		}
+		revokePreviewUrls();
+		setTextContents(new Map());
+		setStateOrgId(orgId);
+		const restored = restorePersistedAttachments(orgId);
+		setAttachments(restored.attachments);
+		setUploadStates(restored.uploadStates);
+		setPreviewUrls(restored.previewUrls);
+	});
+	useEffect(() => {
+		if (
+			persist &&
+			stateOrgId &&
+			organizationId &&
+			stateOrgId !== organizationId
+		) {
+			adoptOrganization(organizationId);
+		}
+	}, [persist, stateOrgId, organizationId]);
 
 	type AttachItem = { file: File; needsResize: boolean };
 

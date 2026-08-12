@@ -298,6 +298,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// restoration so nothing acts on an org the user may not have.
 	const orgSelectionSettled =
 		!showOrganizations || permittedOrgsQuery.data !== undefined;
+	// A resolved-but-empty permitted set means chat creation is denied
+	// everywhere; effectiveOrg's dashboard fallback must not be sendable.
+	const noPermittedOrgs =
+		showOrganizations && permittedOrgsQuery.data?.length === 0;
 	const effectiveOrg =
 		selectedOrg && permittedOrgs.some((org) => org.id === selectedOrg.id)
 			? selectedOrg
@@ -376,7 +380,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		saveReasoningEffortForModel(selectedModel, value);
 	};
 
-	const isForbidden = !canCreateChat;
+	const isForbidden = !canCreateChat || noPermittedOrgs;
 
 	// Filter workspaces by the selected organization. We use
 	// client-side filtering of the full "owner:me" fetch rather
