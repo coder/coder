@@ -14627,7 +14627,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Token scopes (currently ignored)",
+                        "description": "Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted",
                         "name": "scope",
                         "in": "query"
                     }
@@ -14683,7 +14683,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Token scopes (currently ignored)",
+                        "description": "Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted",
                         "name": "scope",
                         "in": "query"
                     }

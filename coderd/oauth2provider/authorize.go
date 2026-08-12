@@ -78,12 +78,23 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 	return !appScope.Valid || appScope.String == ""
 }
 
-// validateRequestedScope checks each requested scope token is a recognized,
-// user-requestable scope (RFC 6749 §4.1.2.1 invalid_scope), and that the full
-// requested set is covered by the app's configured scope allowlist. If the
-// client requested no scope, it defaults to the app's allowlist (RFC 6749
-// §3.3). If the app has no allowlist configured, it preserves today's
-// unrestricted behavior.
+// validateRequestedScope negotiates the scope the authorization code will
+// carry. Every requested name must be in the external scope catalog (RFC 6749
+// §4.1.2.1 invalid_scope), and the request must be covered by the app's
+// configured allowlist.
+//
+// What each branch returns:
+//
+//	allowlist  request  result
+//	absent     absent   OAuth2ScopeUnrestricted, the pre-enforcement grant
+//	absent     present  the request, which is narrower than unrestricted
+//	present    absent   the whole allowlist (RFC 6749 §3.3 default)
+//	present    present  the request, once shown to be within the allowlist
+//
+// An allowlist is absent when NULL or empty, which noScopeAllowlist treats as
+// one state. An allowlist whose every entry falls outside the catalog is
+// rejected rather than read as absent, since falling back there would grant
+// strictly more than the allowlist ever permitted.
 //
 // The return value is written directly to a NOT NULL column whose CHECK
 // constraint also rejects the empty string, so it is a string rather than a
@@ -283,9 +294,9 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 		}
 
 		// Reject a scope the app can never be granted before the consent page
-		// renders, rather than after the user clicks Allow. This mirrors how
-		// the PKCE code_challenge requirement is already handled: inside
-		// extractAuthorizeParams, which both GET and POST call.
+		// renders, rather than after the user clicks Allow. Both handlers run
+		// the check for that reason. Only the POST side needs the negotiated
+		// value, since it is what persists it.
 		if _, err := validateRequestedScope(params.scope, app.Scope); err != nil {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusBadRequest,

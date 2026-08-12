@@ -68,7 +68,7 @@ func TestValidateRequestedScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
-			// AC3/AC16: the literal return value matters. "" is exactly what
+			// The literal return value matters. "" is exactly what
 			// the column's CHECK rejects, so asserting only "no error" would
 			// let a DB-level 500 through.
 			name:      "NoAllowlistOmittedRequestIsUnrestricted",
@@ -77,9 +77,8 @@ func TestValidateRequestedScope(t *testing.T) {
 			want:      database.OAuth2ScopeUnrestricted,
 		},
 		{
-			// AC16/Edge Case 22: '' is the DCR-registered encoding of the
-			// same "no allowlist configured" state NULL expresses for
-			// admin-created apps. Both must reach the same branch.
+			// '' is the DCR-registered encoding of the same "no allowlist
+			// configured" state NULL expresses for admin-created apps. Both must reach the same branch.
 			name:      "EmptyAllowlistBehavesAsNoAllowlist",
 			requested: nil,
 			appScope:  emptyAllowlist,
@@ -123,8 +122,8 @@ func TestValidateRequestedScope(t *testing.T) {
 			wantErr:   errScopeNotAllowed,
 		},
 		{
-			// Edge Case 20: catalog drift. The stale entry is dropped by the
-			// filter, and the surviving entry is still granted.
+			// Catalog drift. The stale entry is dropped by the filter, and
+			// the surviving entry is still granted.
 			name:      "StaleAllowlistEntryDroppedNotGranted",
 			requested: nil,
 			appScope:  sql.NullString{String: inCatalog + " " + notInCatalog, Valid: true},
@@ -141,8 +140,7 @@ func TestValidateRequestedScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
-			// AC15/Edge Case 19: the all-entries-dropped counterpart to the
-			// case above. Falling back to the unrestricted sentinel here would
+			// The all-entries-dropped counterpart to the case above. Falling back to the unrestricted sentinel here would
 			// grant strictly more than this allowlist ever permitted.
 			name:      "AllowlistFilteringToEmptyRejected",
 			requested: nil,
@@ -150,8 +148,8 @@ func TestValidateRequestedScope(t *testing.T) {
 			wantErr:   errNoGrantableScope,
 		},
 		{
-			// §4.2.2's compatibility break, in its most direct form: a DCR
-			// client requesting exactly what it registered.
+			// The accepted compatibility break in its most direct form: a
+			// DCR client requesting exactly what it registered.
 			name:      "NonCatalogScopeRequestedAsRegistered",
 			requested: []string{neverInCatalog},
 			appScope:  sql.NullString{String: neverInCatalog, Valid: true},

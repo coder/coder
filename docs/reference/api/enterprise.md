@@ -4780,13 +4780,13 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=str
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                       |
-|-----------------|-------|--------|----------|-----------------------------------|
-| `client_id`     | query | string | true     | Client ID                         |
-| `state`         | query | string | true     | A random unguessable string       |
-| `response_type` | query | string | true     | Response type                     |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization |
-| `scope`         | query | string | false    | Token scopes (currently ignored)  |
+| Name            | In    | Type   | Required | Description                                                                                                                     |
+|-----------------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`     | query | string | true     | Client ID                                                                                                                       |
+| `state`         | query | string | true     | A random unguessable string                                                                                                     |
+| `response_type` | query | string | true     | Response type                                                                                                                   |
+| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                               |
+| `scope`         | query | string | false    | Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted |
 
 #### Enumerated Values
 
@@ -4816,13 +4816,13 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=st
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                       |
-|-----------------|-------|--------|----------|-----------------------------------|
-| `client_id`     | query | string | true     | Client ID                         |
-| `state`         | query | string | true     | A random unguessable string       |
-| `response_type` | query | string | true     | Response type                     |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization |
-| `scope`         | query | string | false    | Token scopes (currently ignored)  |
+| Name            | In    | Type   | Required | Description                                                                                                                     |
+|-----------------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`     | query | string | true     | Client ID                                                                                                                       |
+| `state`         | query | string | true     | A random unguessable string                                                                                                     |
+| `response_type` | query | string | true     | Response type                                                                                                                   |
+| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                               |
+| `scope`         | query | string | false    | Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted |
 
 #### Enumerated Values
 

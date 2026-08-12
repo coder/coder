@@ -79,8 +79,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		})
 	}
 
-	// AC1: a scope outside the app's allowlist is rejected and no code is
-	// issued.
+	// A scope outside the app's allowlist is rejected and no code is issued.
 	t.Run("OutOfAllowlistRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -92,8 +91,9 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		requireInvalidScope(t, resp, reasonScopeNotAllowed)
 	})
 
-	// AC1's catalog half: a scope name the enforcement layer cannot evaluate is
-	// rejected on its own terms, not because of the allowlist.
+	// The catalog half of the same guarantee: a scope name the enforcement
+	// layer cannot evaluate is rejected on its own terms, not because of the
+	// allowlist.
 	t.Run("UnknownScopeRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -105,7 +105,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		requireInvalidScope(t, resp, reasonUnknownScope)
 	})
 
-	// AC2: omitting scope grants the app's full allowlist (RFC 6749 §3.3).
+	// Omitting scope grants the app's full allowlist (RFC 6749 §3.3).
 	t.Run("OmittedScopeDefaultsToAllowlist", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -156,8 +156,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, scopeInCatalog, persistedCodeScope(ctx, t, db, resp))
 	})
 
-	// AC3: apps with no configured allowlist keep today's unrestricted
-	// behavior. The persisted value is asserted literally, since '' is what the
+	// Apps with no configured allowlist keep today's unrestricted behavior. The persisted value is asserted literally, since '' is what the
 	// column's CHECK would reject.
 	t.Run("NoAllowlistStaysUnrestricted", func(t *testing.T) {
 		t.Parallel()
@@ -170,8 +169,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, database.OAuth2ScopeUnrestricted, persistedCodeScope(ctx, t, db, resp))
 	})
 
-	// AC16: NULL (admin-created apps) and '' (DCR apps that sent no scope) are
-	// one "no allowlist configured" state and must behave identically.
+	// NULL (admin-created apps) and '' (DCR apps that sent no scope) are one
+	// "no allowlist configured" state and must behave identically.
 	t.Run("NullAndEmptyAllowlistBehaveIdentically", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -190,8 +189,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, nullScope, emptyScope)
 	})
 
-	// Edge Case 20: an allowlist entry no longer in the catalog is dropped, not
-	// granted. Paired with AllowlistFilteringToEmptyRejected below, which is the
+	// An allowlist entry no longer in the catalog is dropped, not granted. Paired with AllowlistFilteringToEmptyRejected below, which is the
 	// same filter with no survivors.
 	t.Run("StaleAllowlistEntryDropped", func(t *testing.T) {
 		t.Parallel()
@@ -204,8 +202,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, scopeInCatalog, persistedCodeScope(ctx, t, db, resp))
 	})
 
-	// AC15: an allowlist whose every entry is dropped rejects rather than
-	// falling back to unrestricted, which would grant strictly more than the
+	// An allowlist whose every entry is dropped rejects rather than falling
+	// back to unrestricted, which would grant strictly more than the
 	// allowlist ever permitted.
 	t.Run("AllowlistFilteringToEmptyRejected", func(t *testing.T) {
 		t.Parallel()
@@ -218,8 +216,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
 
-	// AC8: the GET handler rejects before the consent page renders, so the user
-	// is never asked to approve a request that cannot succeed.
+	// The GET handler rejects before the consent page renders, so the user is
+	// never asked to approve a request that cannot succeed.
 	t.Run("ConsentPageNotRenderedForInvalidScope", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -242,9 +240,9 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 	})
 }
 
-// TestOAuth2AuthorizeDCRScopeCompatibility pins the compatibility break
-// §4.2.2 accepts: dynamic client registration performs no catalog validation,
-// so an app can register an allowlist this server cannot grant from. Both
+// TestOAuth2AuthorizeDCRScopeCompatibility pins an accepted compatibility
+// break: dynamic client registration performs no catalog validation, so an
+// app can register an allowlist this server cannot grant from. Both
 // directions fail, and both fail loudly with invalid_scope rather than
 // silently granting a scope dbauthz has no way to evaluate.
 func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
