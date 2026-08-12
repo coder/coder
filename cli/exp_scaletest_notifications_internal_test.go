@@ -4,11 +4,14 @@ package cli
 
 import (
 	"context"
+	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -20,11 +23,293 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/notifications"
 	"github.com/coder/coder/v2/testutil"
 )
+
+const testTokenName = "scaletest-notifications-test"
+
+// createScaletestUser creates a user whose name matches the scaletest pattern, so
+// it is eligible for reuse by selectExistingUsers.
+func createScaletestUser(ctx context.Context, t *testing.T, client *codersdk.Client, orgID uuid.UUID, id string, roles ...string) codersdk.User {
+	t.Helper()
+
+	pu := &preparedUser{origin: originCreated, id: id}
+	require.NoError(t, createAndLoginUser(ctx, client, orgID, pu))
+	require.True(t, strings.HasPrefix(pu.user.Username, loadtestutil.ScaleTestPrefix+"-"),
+		"created user must carry the scaletest username prefix reuse requires")
+	if len(roles) > 0 {
+		updated, err := client.UpdateUserRoles(ctx, pu.user.ID.String(), codersdk.UpdateRoles{Roles: roles})
+		require.NoError(t, err)
+		return updated
+	}
+	return pu.user
+}
+
+func TestSelectExistingUsers(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	const poolSize = 5
+	for i := range poolSize {
+		createScaletestUser(ctx, t, client, firstUser.OrganizationID, strconv.Itoa(i))
+	}
+
+	// Ineligible users that the filters must skip. Without these the role and
+	// service-account branches never execute and the assertions below are vacuous.
+	excludedAdmin := createScaletestUser(ctx, t, client, firstUser.OrganizationID, "admin", codersdk.RoleTemplateAdmin)
+	excludedOwner := createScaletestUser(ctx, t, client, firstUser.OrganizationID, "owner", codersdk.RoleOwner)
+	// Service accounts are a Premium feature and cannot be created against this
+	// AGPL test server, so that exclusion is covered by the filter alone.
+	// A non-scaletest user must be skipped even though it is otherwise eligible.
+	_, excludedRealUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	require.False(t, loadtestutil.IsScaleTestUser(excludedRealUser.Username, excludedRealUser.Email))
+
+	const userCount = 4
+	selected, err := selectExistingUsers(ctx, client, firstUser.UserID, userCount)
+	require.NoError(t, err)
+	require.Len(t, selected, userCount)
+
+	for _, u := range selected {
+		require.NotEqual(t, firstUser.UserID, u.ID, "the caller is excluded")
+		require.NotEqual(t, excludedAdmin.ID, u.ID, "existing template admins are excluded")
+		require.NotEqual(t, excludedOwner.ID, u.ID, "owners are excluded")
+		require.NotEqual(t, excludedRealUser.ID, u.ID, "non-scaletest users are excluded")
+		require.True(t, loadtestutil.IsScaleTestUser(u.Username, u.Email))
+		require.False(t, userHasRole(u, codersdk.RoleOwner))
+		require.False(t, userHasRole(u, codersdk.RoleTemplateAdmin))
+	}
+}
+
+func TestSelectExistingUsersFailsFast(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	// Plenty of users exist, but none of them are scaletest users, so none are
+	// eligible for reuse.
+	for range 3 {
+		coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	}
+	createScaletestUser(ctx, t, client, firstUser.OrganizationID, "0")
+
+	_, err := selectExistingUsers(ctx, client, firstUser.UserID, 5)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "requires 5 eligible users but only 1 are present")
+	require.Contains(t, err.Error(), "--reuse-users")
+}
+
+func TestPrepareAndRestoreUsers(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	metrics := notifications.NewMetrics(prometheus.NewRegistry())
+
+	// One reused user already holds a site role, which must survive the
+	// promote/restore round trip.
+	auditor := createScaletestUser(ctx, t, client, firstUser.OrganizationID, "auditor", rbac.RoleAuditor().Name)
+
+	const poolSize = 4
+	for i := range poolSize - 1 {
+		createScaletestUser(ctx, t, client, firstUser.OrganizationID, strconv.Itoa(i))
+	}
+
+	selected, err := selectExistingUsers(ctx, client, firstUser.UserID, poolSize)
+	require.NoError(t, err)
+
+	candidates := make([]preparedUser, len(selected))
+	var sawAuditor bool
+	for i, u := range selected {
+		isAdmin := u.ID == auditor.ID || i == 0
+		if u.ID == auditor.ID {
+			sawAuditor = true
+			require.True(t, userHasRole(u, codersdk.RoleAuditor))
+		}
+		candidates[i] = preparedUser{origin: originReused, user: u, isAdmin: isAdmin}
+	}
+	require.True(t, sawAuditor, "auditor should be among the selected users")
+
+	err = forEachUser(ctx, candidates, 2, func(ctx context.Context, pu *preparedUser) error {
+		return prepareUser(ctx, client, testTokenName, time.Hour, pu)
+	})
+	require.NoError(t, err)
+
+	for _, pu := range candidates {
+		require.NotEmpty(t, pu.sessionToken)
+		require.NotEmpty(t, pu.tokenID)
+
+		// The minted token must authenticate as the prepared user.
+		userClient := codersdk.New(client.URL, codersdk.WithSessionToken(pu.sessionToken))
+		me, err := userClient.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, pu.user.ID, me.ID)
+
+		// The token is named after the run so orphans can be found, and expires.
+		keys, err := client.Tokens(ctx, pu.user.ID.String(), codersdk.TokensFilter{})
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, testTokenName, keys[0].TokenName)
+		require.WithinDuration(t, time.Now().Add(time.Hour), keys[0].ExpiresAt, time.Minute)
+
+		got, err := client.User(ctx, pu.user.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, pu.isAdmin, userHasRole(got, codersdk.RoleTemplateAdmin))
+		if pu.user.ID == auditor.ID {
+			require.True(t, userHasRole(got, codersdk.RoleAuditor), "promotion preserves existing roles")
+		}
+	}
+
+	// A role granted while the run is in flight must survive cleanup, which is the
+	// reason cleanup subtracts template-admin instead of replaying a snapshot.
+	midRun := candidates[0]
+	current, err := currentRoleNames(ctx, client, midRun.user.ID)
+	require.NoError(t, err)
+	_, err = client.UpdateUserRoles(ctx, midRun.user.ID.String(), codersdk.UpdateRoles{
+		Roles: append(current, rbac.RoleUserAdmin().Name),
+	})
+	require.NoError(t, err)
+
+	err = forEachUserBestEffort(ctx, candidates, 2, func(ctx context.Context, pu *preparedUser) error {
+		return restoreUser(ctx, metrics, client, pu)
+	})
+	require.NoError(t, err)
+
+	for _, pu := range candidates {
+		got, err := client.User(ctx, pu.user.ID.String())
+		require.NoError(t, err)
+		require.False(t, userHasRole(got, codersdk.RoleTemplateAdmin), "template admin is removed")
+
+		if pu.user.ID == auditor.ID {
+			require.True(t, userHasRole(got, codersdk.RoleAuditor), "pre-existing roles are kept")
+		}
+		if pu.user.ID == midRun.user.ID {
+			require.True(t, userHasRole(got, codersdk.RoleUserAdmin), "roles granted mid-run are kept")
+		}
+
+		userClient := codersdk.New(client.URL, codersdk.WithSessionToken(pu.sessionToken))
+		_, err = userClient.User(ctx, codersdk.Me)
+		require.Error(t, err)
+	}
+
+	users, err := client.Users(ctx, codersdk.UsersRequest{})
+	require.NoError(t, err)
+	require.Len(t, users.Users, poolSize+1)
+}
+
+// TestRestoreUserWithoutRoleMakesNoWrite covers a user setup designated as an
+// admin but never reached, which is what a mid-setup abort leaves behind. Cleanup
+// must leave its roles alone rather than writing a role set it never changed.
+func TestRestoreUserWithoutRoleMakesNoWrite(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	metrics := notifications.NewMetrics(prometheus.NewRegistry())
+
+	user := createScaletestUser(ctx, t, client, firstUser.OrganizationID, "0", rbac.RoleAuditor().Name)
+	candidate := preparedUser{origin: originReused, user: user, isAdmin: true}
+
+	require.NoError(t, restoreUser(ctx, metrics, client, &candidate))
+
+	got, err := client.User(ctx, user.ID.String())
+	require.NoError(t, err)
+	require.True(t, userHasRole(got, codersdk.RoleAuditor), "existing roles are untouched")
+	require.False(t, userHasRole(got, codersdk.RoleTemplateAdmin))
+}
+
+// TestRestoreUserIgnoresUserItNeverPromoted covers the other direction: a user this
+// run never designated as an admin must keep a template-admin role granted by
+// anyone else, since removing it would be an unaudited privilege change this test
+// has no business making.
+func TestRestoreUserIgnoresUserItNeverPromoted(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	metrics := notifications.NewMetrics(prometheus.NewRegistry())
+
+	user := createScaletestUser(ctx, t, client, firstUser.OrganizationID, "0")
+	// Granted by someone else while the run was in flight.
+	_, err := client.UpdateUserRoles(ctx, user.ID.String(), codersdk.UpdateRoles{
+		Roles: []string{codersdk.RoleTemplateAdmin},
+	})
+	require.NoError(t, err)
+
+	candidate := preparedUser{origin: originReused, user: user, isAdmin: false}
+	require.NoError(t, restoreUser(ctx, metrics, client, &candidate))
+
+	got, err := client.User(ctx, user.ID.String())
+	require.NoError(t, err)
+	require.True(t, userHasRole(got, codersdk.RoleTemplateAdmin),
+		"a role this run never granted must survive cleanup")
+}
+
+// TestRestoreUserRemovesRoleCommittedDespiteError is the case a client-side record
+// of the promotion cannot cover: the role update commits on the server and the
+// client still sees an error. Cleanup must reconcile the account from the server's
+// state, or a real account keeps template-admin.
+func TestRestoreUserRemovesRoleCommittedDespiteError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	metrics := notifications.NewMetrics(prometheus.NewRegistry())
+
+	user := createScaletestUser(ctx, t, client, firstUser.OrganizationID, "0")
+
+	// The role update reaches the server and commits; only its response is broken,
+	// which is what a reset connection or a post-write deadline looks like here.
+	brokenClient := brokenResponseClient(t, client, http.MethodPut, "/roles")
+
+	pu := &preparedUser{origin: originReused, user: user, isAdmin: true}
+	err := prepareUser(ctx, brokenClient, testTokenName, time.Hour, pu)
+	require.ErrorContains(t, err, "promote to template admin")
+
+	// The promotion really happened despite the error the client saw.
+	got, err := client.User(ctx, user.ID.String())
+	require.NoError(t, err)
+	require.True(t, userHasRole(got, codersdk.RoleTemplateAdmin),
+		"the server committed the promotion")
+
+	// Cleanup reads that state and undoes it, even though this run recorded no
+	// successful promotion.
+	require.NoError(t, restoreUser(ctx, metrics, client, pu))
+
+	got, err = client.User(ctx, user.ID.String())
+	require.NoError(t, err)
+	require.False(t, userHasRole(got, codersdk.RoleTemplateAdmin),
+		"cleanup removes a role the server holds regardless of what the client recorded")
+}
+
+func TestPrepareUsersFatalOnFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// A user that does not exist makes token minting fail, which must be fatal.
+	candidate := preparedUser{
+		user: codersdk.User{ReducedUser: codersdk.ReducedUser{MinimalUser: codersdk.MinimalUser{ID: uuid.New()}}},
+	}
+
+	err := prepareUser(ctx, client, testTokenName, time.Hour, &candidate)
+	require.ErrorContains(t, err, "create token")
+	require.Empty(t, candidate.sessionToken)
+}
 
 func TestCreateAndDeleteUsers(t *testing.T) {
 	t.Parallel()
@@ -100,6 +385,29 @@ func failingPathClient(t *testing.T, target *codersdk.Client, failPath string) *
 	return client
 }
 
+// brokenResponseClient returns a client whose requests reach the real deployment
+// and take effect, but whose response to method+pathSuffix is replaced with an
+// error. That reproduces a write that commits server-side while the client sees a
+// failure, which no client-side record of the outcome can represent.
+func brokenResponseClient(t *testing.T, target *codersdk.Client, method, pathSuffix string) *codersdk.Client {
+	t.Helper()
+
+	proxy := httputil.NewSingleHostReverseProxy(target.URL)
+	proxy.ErrorLog = log.New(io.Discard, "", 0)
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		if resp.Request.Method == method && strings.HasSuffix(resp.Request.URL.Path, pathSuffix) {
+			return xerrors.New("injected response failure")
+		}
+		return nil
+	}
+	srv := httptest.NewServer(proxy)
+	t.Cleanup(srv.Close)
+
+	proxyURL, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	return codersdk.New(proxyURL, codersdk.WithSessionToken(target.SessionToken()))
+}
+
 // TestCreateAndLoginUserCapturesPartialUser covers why createAndLoginUser assigns
 // pu.user before checking the error: creation can succeed while a later step
 // fails, and cleanup needs the ID to reclaim the user.
@@ -136,6 +444,34 @@ func TestCreateAndLoginUserCapturesPartialUser(t *testing.T) {
 
 	// A candidate with no ID must be a no-op rather than an error.
 	require.NoError(t, deleteUser(ctx, metrics, client, &preparedUser{origin: originCreated, id: "never"}))
+}
+
+// TestRestoreUserContinuesAfterTokenFailure covers restoreUser's internal
+// continue-on-error: a failed token revoke must not stop the demotion, since
+// leaving template-admin on a user is the worse of the two residues.
+func TestRestoreUserContinuesAfterTokenFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	metrics := notifications.NewMetrics(prometheus.NewRegistry())
+
+	user := createScaletestUser(ctx, t, client, firstUser.OrganizationID, "0")
+	pu := &preparedUser{origin: originReused, user: user, isAdmin: true}
+	require.NoError(t, prepareUser(ctx, client, testTokenName, time.Hour, pu))
+
+	// A token ID that does not exist makes the revoke fail while leaving the
+	// promotion in place.
+	pu.tokenID = "0123456789"
+
+	err := restoreUser(ctx, metrics, client, pu)
+	require.Error(t, err, "the revoke failure is reported")
+
+	// The demotion still happened despite that failure.
+	got, err := client.User(ctx, pu.user.ID.String())
+	require.NoError(t, err)
+	require.False(t, userHasRole(got, codersdk.RoleTemplateAdmin))
 }
 
 func makeTestUsers(n int) []preparedUser {
@@ -333,6 +669,31 @@ func TestTriggerRecorder(t *testing.T) {
 		// Recording twice would panic on the closed channel, so it is rejected.
 		require.ErrorContains(t, rec.record(expectedID), "triggered more than once")
 	})
+}
+
+// TestUserSinksRefuseWrongOrigin covers the guards that keep the two cleanup paths
+// from crossing: deleting a reused account is unrecoverable, and restoring a
+// created one means the caller mixed up the paths.
+func TestUserSinksRefuseWrongOrigin(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	metrics := notifications.NewMetrics(prometheus.NewRegistry())
+
+	user := createScaletestUser(ctx, t, client, firstUser.OrganizationID, "0")
+
+	reused := &preparedUser{origin: originReused, user: user, isAdmin: true}
+	require.ErrorContains(t, deleteUser(ctx, metrics, client, reused), "did not create")
+
+	created := &preparedUser{origin: originCreated, user: user, isAdmin: true}
+	require.ErrorContains(t, restoreUser(ctx, metrics, client, created), "this run created")
+
+	// The refusal is real: the user still exists.
+	got, err := client.User(ctx, user.ID.String())
+	require.NoError(t, err)
+	require.Equal(t, user.ID, got.ID)
 }
 
 // createEmptyTemplate creates a template with the given name so a test can assert
