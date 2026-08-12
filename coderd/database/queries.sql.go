@@ -3656,39 +3656,6 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return err
 }
 
-const deleteAPIKeyByIDReturningRow = `-- name: DeleteAPIKeyByIDReturningRow :one
-DELETE FROM
-	api_keys
-WHERE
-	id = $1
-RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
-`
-
-// Returns sql.ErrNoRows when the key is already gone, which lets a caller
-// enforce single use of a refresh token by racing this delete. Returns the
-// whole row so a caller reads the deleted key's state from the same atomic
-// delete rather than trusting an earlier read.
-func (q *sqlQuerier) DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (APIKey, error) {
-	row := q.db.QueryRowContext(ctx, deleteAPIKeyByIDReturningRow, id)
-	var i APIKey
-	err := row.Scan(
-		&i.ID,
-		&i.HashedSecret,
-		&i.UserID,
-		&i.LastUsed,
-		&i.ExpiresAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.LoginType,
-		&i.LifetimeSeconds,
-		&i.IPAddress,
-		&i.TokenName,
-		&i.Scopes,
-		&i.AllowList,
-	)
-	return i, err
-}
-
 const deleteAPIKeysByUserID = `-- name: DeleteAPIKeysByUserID :exec
 DELETE FROM
 	api_keys
@@ -18899,35 +18866,6 @@ DELETE FROM oauth2_provider_app_codes WHERE id = $1
 func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppCodeByID, id)
 	return err
-}
-
-const deleteOAuth2ProviderAppCodeByIDReturningRow = `-- name: DeleteOAuth2ProviderAppCodeByIDReturningRow :one
-DELETE FROM oauth2_provider_app_codes WHERE id = $1 RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope
-`
-
-// Returns sql.ErrNoRows when the code is already gone, which lets a caller
-// enforce single use by racing this delete instead of reading first. Returns
-// the whole row so a caller reads the redeemed code's negotiated scope from
-// the same atomic delete rather than trusting an earlier read.
-func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
-	row := q.db.QueryRowContext(ctx, deleteOAuth2ProviderAppCodeByIDReturningRow, id)
-	var i OAuth2ProviderAppCode
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.SecretPrefix,
-		&i.HashedSecret,
-		&i.UserID,
-		&i.AppID,
-		&i.ResourceUri,
-		&i.CodeChallenge,
-		&i.CodeChallengeMethod,
-		&i.StateHash,
-		&i.RedirectUri,
-		&i.Scope,
-	)
-	return i, err
 }
 
 const deleteOAuth2ProviderAppCodesByAppAndUserID = `-- name: DeleteOAuth2ProviderAppCodesByAppAndUserID :exec

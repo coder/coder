@@ -114,11 +114,6 @@ type sqlcQuerier interface {
 	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
-	// Returns sql.ErrNoRows when the key is already gone, which lets a caller
-	// enforce single use of a refresh token by racing this delete. Returns the
-	// whole row so a caller reads the deleted key's state from the same atomic
-	// delete rather than trusting an earlier read.
-	DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (APIKey, error)
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.
@@ -166,11 +161,6 @@ type sqlcQuerier interface {
 	DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error
-	// Returns sql.ErrNoRows when the code is already gone, which lets a caller
-	// enforce single use by racing this delete instead of reading first. Returns
-	// the whole row so a caller reads the redeemed code's negotiated scope from
-	// the same atomic delete rather than trusting an earlier read.
-	DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error
 	// Filters directly on app_id rather than joining through app_secret_id,
