@@ -50,9 +50,8 @@ const GIT_NOT_SETUP_BODY =
 const GIT_STATUS_LOADING_TITLE = "Waiting for Git status";
 const GIT_STATUS_LOADING_BODY = "Checking the workspace for Git repositories.";
 
-// Horizontal padding on the toolbar (`px-3` = 12px). The switcher
-// dropdown subtracts this from the panel width so its right edge sits
-// flush with the toolbar's inner content area.
+// Toolbar horizontal padding (`px-3`), subtracted twice from the panel
+// width to size the switcher dropdown to the toolbar's inner content.
 const TOOLBAR_PADDING_PX = 12;
 
 interface DiffStats {
@@ -213,8 +212,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
 
-	// Track the panel width so the switcher dropdown can stretch across
-	// the full panel, matching the toolbar's horizontal extent.
+	// Track panel width so the switcher dropdown can stretch to match.
 	const panelRef = useRef<HTMLDivElement>(null);
 	const [panelWidth, setPanelWidth] = useState(0);
 	useEffect(() => {
@@ -457,10 +455,7 @@ interface GitViewSwitcherProps {
 	items: ReadonlyArray<ViewItem>;
 	activeItem?: ViewItem;
 	onSelect: (item: ViewItem) => void;
-	/**
-	 * Measured width of the git panel container. The dropdown menu uses
-	 * this to span the full panel width instead of the compact trigger.
-	 */
+	/** Measured width of the git panel container; sizes the dropdown. */
 	panelWidth: number;
 }
 
