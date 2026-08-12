@@ -119,6 +119,8 @@ To hard-delete a token, use the `--delete` flag:
 coder tokens remove --delete <name|id>
 ```
 
+Deleting the user that owns a token revokes every token that user holds at the same time.
+
 ## API Key Scopes
 
 API key scopes allow you to limit the permissions of a token to specific operations. By default, tokens are created with the `all` scope, granting full access to all actions the user can perform. For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.

@@ -89,5 +89,25 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 				</span>
 			);
 		}
+
+		case "tunnel": {
+			if (!web_info) return null;
+			const { user } = web_info;
+			const isOwnWorkspace = workspace_owner_username === user?.username;
+			return (
+				<span>
+					{/* Tunnel rows are only written for authenticated requests,
+					    so user should always be present. */}
+					{user?.username ?? "Unknown user"} established a tunnel to{" "}
+					{isOwnWorkspace ? "their" : `${workspace_owner_username}'s`}{" "}
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
+					</Link>{" "}
+					workspace
+				</span>
+			);
+		}
 	}
 };

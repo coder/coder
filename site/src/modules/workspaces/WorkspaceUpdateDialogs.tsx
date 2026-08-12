@@ -9,6 +9,7 @@ import type {
 	WorkspaceBuild,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -17,7 +18,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 
 type UseWorkspaceUpdateOptions = {

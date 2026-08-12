@@ -244,6 +244,7 @@ const buildParsedReadFileEntry = ({
 	content = "",
 	errorMessage,
 	isError = status === "error",
+	hookRewritten = false,
 }: {
 	messageId: number;
 	toolId: string;
@@ -252,6 +253,7 @@ const buildParsedReadFileEntry = ({
 	content?: string;
 	errorMessage?: string;
 	isError?: boolean;
+	hookRewritten?: boolean;
 }): ParsedMessageEntry => {
 	const args = { path };
 	const result =
@@ -289,10 +291,12 @@ const buildParsedReadFileEntry = ({
 					result,
 					isError,
 					status,
+					hookRewritten,
 				},
 			],
 			blocks: [{ type: "tool", id: toolId }],
 			sources: [],
+			hookNotices: [],
 		},
 	};
 };
@@ -403,6 +407,132 @@ const meta: Meta<typeof ConversationTimeline> = {
 };
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
+
+export const LifecycleHookNotice: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "system",
+				content: [
+					{
+						type: "hook-notice",
+						text: "Your organization requires an approval before deployment.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("note");
+		expect(notice).toBeVisible();
+		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
+		expect(
+			within(notice).getByText(
+				"Your organization requires an approval before deployment.",
+			),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SystemMessageWithoutHookNotice: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "system",
+				content: [{ type: "text", text: "Maintenance starts in ten minutes." }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("note");
+		expect(
+			within(notice).getByText("Maintenance starts in ten minutes."),
+		).toBeVisible();
+		expect(
+			within(notice).queryByText("Lifecycle hook"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const LifecycleHookNoticeOnUserMessage: Story = {
+	args: {
+		...defaultArgs,
+		urlTransform: (url) =>
+			url.replace("http://localhost:3000", "https://proxy.example.com"),
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "original prompt" },
+					{
+						type: "hook-notice",
+						text: "Deployment context was added: [policy](http://localhost:3000/policy)",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("note");
+		expect(notice).toBeVisible();
+		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
+		const prompt = canvas.getByText("original prompt");
+		expect(prompt).toBeVisible();
+		expect(
+			prompt.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		const link = within(notice).getByRole("link", { name: "policy" });
+		expect(link).toHaveAttribute("href", "https://proxy.example.com/policy");
+	},
+};
+
+export const LifecycleHookNoticeAfterEditedMessage: Story = {
+	args: {
+		...defaultArgs,
+		editingMessageId: 1,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "prompt being edited" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{ type: "text", text: "later prompt" },
+					{
+						type: "hook-notice",
+						text: "Deployment context was added: [policy](http://localhost:3000/policy)",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("prompt being edited")).toBeVisible();
+		const link = canvas.getByRole("link", { name: "policy" });
+		link.focus();
+		expect(link).not.toHaveFocus();
+	},
+};
 
 export const DurableListTemplatesToolLifecycle: Story = {
 	args: {
@@ -606,7 +736,7 @@ export const UserMessageWithExpiredImage: Story = {
 		// copy survives any operator-chosen retention window.
 		await hoverAndExpectTooltip(
 			expiredTile,
-			/deleted after the retention window/i,
+			/kept while any chat references them/i,
 		);
 	},
 };
@@ -927,7 +1057,7 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 
 		await hoverAndExpectTooltip(
 			expiredTile,
-			/deleted after the retention window/i,
+			/kept while any chat references them/i,
 		);
 	},
 };
@@ -2294,6 +2424,7 @@ export const ToolDisplayModesFromPreferences: Story = {
 						{ type: "tool", id: "edit-tool" },
 					],
 					sources: [],
+					hookNotices: [],
 				},
 			},
 		] satisfies ParsedMessageEntry[],
@@ -2489,6 +2620,89 @@ export const SequentialReadFilesCollapsed: Story = {
 		await waitFor(() => {
 			expect(firstFileButton).toHaveAttribute("aria-expanded", "true");
 		});
+	},
+};
+
+export const ReadFileRewrittenByHook: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-rewritten-1",
+				path: "site/src/redacted.ts",
+				status: "completed",
+				content: "export const redacted = true;\n",
+				hookRewritten: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Modified by policy")).toBeVisible();
+	},
+};
+
+export const GroupedReadFilesRewrittenByHook: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-grouped-1",
+				path: "site/src/a.ts",
+				status: "completed",
+				content: "export const a = 1;\n",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-grouped-2",
+				path: "site/src/b.ts",
+				status: "completed",
+				content: "export const b = 2;\n",
+				hookRewritten: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		await step("group header shows the aggregate badge", async () => {
+			expect(await canvas.findByText("Modified by policy")).toBeVisible();
+		});
+		await step("expanded rows credit only the rewritten file", async () => {
+			await userEvent.click(
+				await canvas.findByRole("button", { name: /Read 2 files/ }),
+			);
+			expect(
+				await canvas.findByRole("button", { name: /Read b\.ts/ }),
+			).toBeVisible();
+			const attributed = canvas
+				.getAllByRole("group", { name: "Modified by policy" })
+				.map((group) => group.textContent ?? "");
+			expect(attributed.some((text) => text.includes("b.ts"))).toBe(true);
+			expect(attributed.some((text) => text.includes("a.ts"))).toBe(false);
+			expect(canvas.getAllByText("Modified by policy")).toHaveLength(2);
+		});
+	},
+};
+
+export const ReadFileNotRewrittenByHook: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-plain-1",
+				path: "site/src/plain.ts",
+				status: "completed",
+				content: "export const plain = true;\n",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText(/plain\.ts/)).toBeVisible();
+		expect(canvas.queryByText("Modified by policy")).not.toBeInTheDocument();
 	},
 };
 

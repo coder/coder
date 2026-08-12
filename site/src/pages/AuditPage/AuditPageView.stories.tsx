@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
+import { expect, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -9,13 +10,14 @@ import {
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockAuditLog,
 	MockAuditLog2,
 	MockAuditLog3,
+	MockPermissions,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { pixelWithTablet } from "#/testHelpers/pixel";
 import { AuditPageView } from "./AuditPageView";
 
 type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
@@ -43,6 +45,7 @@ const meta: Meta<typeof AuditPageView> = {
 		isAuditLogVisible: true,
 		filterProps: defaultFilterProps,
 		showOrgDetails: false,
+		permissions: MockPermissions,
 	},
 };
 
@@ -50,7 +53,7 @@ export default meta;
 type Story = StoryObj<typeof AuditPageView>;
 
 export const AuditPage: Story = {
-	parameters: { chromatic: chromaticWithTablet },
+	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
 		auditsQuery: mockSuccessResult,
 	},
@@ -91,10 +94,33 @@ export const NotVisible: Story = {
 		isAuditLogVisible: false,
 		auditsQuery: mockInitialRenderResult,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const NotVisibleWithoutLicenseAccess: Story = {
+	args: {
+		...NotVisible.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Learn about Premium" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 export const MultiOrg: Story = {
-	parameters: { chromatic: chromaticWithTablet },
+	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
 		showOrgDetails: true,
 		auditsQuery: mockSuccessResult,

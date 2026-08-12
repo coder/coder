@@ -3,6 +3,7 @@ package chatd //nolint:testpackage // Exercises unexported generation helpers.
 import (
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -12,6 +13,39 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestExclusiveBatchRejected(t *testing.T) {
+	t.Parallel()
+
+	call := func(name string) fantasy.ToolCallContent {
+		return fantasy.ToolCallContent{ToolCallID: "call_" + name, ToolName: name}
+	}
+	exclusive := map[string]bool{"advisor": true}
+
+	cases := []struct {
+		name       string
+		toolCalls  []fantasy.ToolCallContent
+		exclusives map[string]bool
+		want       bool
+	}{
+		{name: "ExclusiveAlone", toolCalls: []fantasy.ToolCallContent{call("advisor")}, exclusives: exclusive},
+		{name: "NoExclusive", toolCalls: []fantasy.ToolCallContent{call("execute"), call("read_file")}, exclusives: exclusive},
+		{name: "NoExclusiveNames", toolCalls: []fantasy.ToolCallContent{call("advisor"), call("execute")}},
+		{
+			name:       "ExclusiveMixed",
+			toolCalls:  []fantasy.ToolCallContent{call("advisor"), call("execute")},
+			exclusives: exclusive,
+			want:       true,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, test.want, exclusiveBatchRejected(test.toolCalls, test.exclusives))
+		})
+	}
+}
 
 func TestCompactionMetricIdentity(t *testing.T) {
 	t.Parallel()

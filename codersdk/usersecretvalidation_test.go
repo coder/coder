@@ -29,11 +29,23 @@ func TestValidateCreateUserSecretRequest(t *testing.T) {
 		{
 			name: "MissingValue",
 			req: codersdk.CreateUserSecretRequest{
-				Name: "missing-value-secret",
+				Name:    "missing-value-secret",
+				EnvName: "MISSING_VALUE_SECRET",
 			},
 			want: []codersdk.ValidationError{{
 				Field:  "value",
 				Detail: "Value is required.",
+			}},
+		},
+		{
+			name: "MissingInjectionTarget",
+			req: codersdk.CreateUserSecretRequest{
+				Name:  "missing-target-secret",
+				Value: "value",
+			},
+			want: []codersdk.ValidationError{{
+				Field:  "env_name",
+				Detail: codersdk.UserSecretInjectionTargetRequiredDetail,
 			}},
 		},
 		{

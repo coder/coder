@@ -65,6 +65,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/authlink"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
@@ -973,6 +974,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			options.ExternalAuthConfigs, err = externalauth.ConvertConfig(
+				logger,
 				oauthInstrument,
 				mergedExternalAuthProviders,
 				vals.AccessURL.Value(),
@@ -1183,6 +1185,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
 				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, aibridgemetrics.PrometheusMetricPrefix, "coder_aibridged_")
 				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
+				costControlReg := prometheus.WrapRegistererWithPrefix("coder_ai_gateway_", coderAPI.PrometheusRegistry)
+				coderAPI.AIGatewayServerMetrics = aibridgedserver.NewMetrics(costControlReg)
+				if vals.Prometheus.Enable {
+					budgetPeriod := codersdk.NewAIBudgetPeriodFromString(vals.AI.BridgeConfig.BudgetPeriod)
+					closeBlockedUsersFunc := coderAPI.AIGatewayServerMetrics.StartBlockedUsersCollector(
+						ctx, logger.Named("aigateway_cost_control_metrics"), quartz.NewReal(),
+						coderAPI.Database, budgetPeriod, 0,
+					)
+					defer closeBlockedUsersFunc()
+				}
 				var unsubscribeProviderReload func()
 				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
 				if err != nil {

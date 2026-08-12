@@ -14,7 +14,11 @@ import {
 } from "#/components/InputGroup/InputGroup";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { isEveryoneGroup } from "#/modules/groups";
+import {
+	aiBudgetRangeError,
+	isEveryoneGroup,
+	maxAIBudgetDollars,
+} from "#/modules/groups";
 import { usdBudgetFormatter } from "#/utils/currency";
 import {
 	getFormHelpers,
@@ -34,10 +38,11 @@ type FormData = {
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),
 	quota_allowance: Yup.number().required().min(0).integer(),
-	// Optional: empty is unlimited. A value must be zero or more; 0 disables.
+	// Optional: empty is unlimited. A value must be within the range; 0 disables.
 	monthly_budget_per_member: Yup.number()
 		.transform((value, original) => (original === "" ? undefined : value))
-		.min(0, "Enter an amount of zero or more."),
+		.min(0, aiBudgetRangeError)
+		.max(maxAIBudgetDollars, aiBudgetRangeError),
 });
 
 interface AIBudgetFeedbackProps {
@@ -94,7 +99,7 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 				<span className="font-medium text-content-primary">
 					{usdBudgetFormatter.format(budgetAmount * memberCount)}
 				</span>
-				/month maximum, based on{" "}
+				/month, based on{" "}
 				<span className="font-medium text-content-primary">{memberCount}</span>{" "}
 				{memberCount === 1 ? "member" : "members"}.
 			</span>
@@ -244,6 +249,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 									onBlur={budgetField.onBlur}
 									type="number"
 									min="0"
+									max={maxAIBudgetDollars}
 									step="1"
 									placeholder="unlimited"
 									aria-invalid={budgetField.error}

@@ -10,7 +10,7 @@ import {
 } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
@@ -570,8 +570,8 @@ export const WithWorkspaces: Story = {
 		await userEvent.click(
 			body.getByText("Attach workspace").closest("button")!,
 		);
-		// Wait for the workspace combobox dropdown to appear so
-		// Chromatic captures it.
+		// Wait for the workspace combobox dropdown to appear so snapshot tests
+		// capture it.
 		await body.findByPlaceholderText("Search workspaces...");
 	},
 };
@@ -790,21 +790,21 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 	},
 };
 
-export const UsageLimitExceeded: Story = {
+export const HookDispatchFailed: Story = {
 	args: {
 		...defaultArgs,
 		createError: Object.assign(
-			new Error("Request failed with status code 409"),
+			new Error("Request failed with status code 502"),
 			{
 				isAxiosError: true,
 				response: {
-					status: 409,
-					statusText: "Conflict",
+					status: 502,
+					statusText: "Bad Gateway",
 					data: {
-						message: "Chat usage limit exceeded.",
-						spent_micros: 900_000,
-						limit_micros: 500_000,
-						resets_at: "2026-03-16T00:00:00Z",
+						kind: "hook_dispatch_failed",
+						message: "Chat lifecycle hook dispatch failed.",
+						detail:
+							"Lifecycle hook dispatch 00000000-0000-0000-0000-000000000001 failed (http_error).",
 					},
 					headers: {},
 					config: {},
@@ -813,6 +813,58 @@ export const UsageLimitExceeded: Story = {
 				toJSON: () => ({}),
 			},
 		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Lifecycle hook failed")).toBeVisible();
+		await expect(
+			canvas.getByText("Chat lifecycle hook dispatch failed."),
+		).toBeVisible();
+		await expect(
+			canvas.getByText(
+				"Lifecycle hook dispatch 00000000-0000-0000-0000-000000000001 failed (http_error).",
+			),
+		).toBeVisible();
+		await expect(canvas.queryByText("Stack Trace")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Response data")).not.toBeInTheDocument();
+	},
+};
+
+export const HookDenied: Story = {
+	args: {
+		...defaultArgs,
+		createError: Object.assign(
+			new Error("Request failed with status code 403"),
+			{
+				isAxiosError: true,
+				response: {
+					status: 403,
+					statusText: "Forbidden",
+					data: {
+						kind: "hook_denied",
+						message: "This prompt is blocked by policy.",
+					},
+					headers: {},
+					config: {},
+				},
+				config: {},
+				toJSON: () => ({}),
+			},
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("This prompt is blocked by policy."),
+		).toBeVisible();
+		await expect(
+			canvas.queryByText("Blocked by policy"),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Go to workspaces"),
+		).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Stack Trace")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Response data")).not.toBeInTheDocument();
 	},
 };
 

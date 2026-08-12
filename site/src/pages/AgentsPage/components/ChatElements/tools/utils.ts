@@ -1,7 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
-import { parsePatchFiles } from "@pierre/diffs";
 import * as Diff from "diff";
 import * as Yup from "yup";
+import { parseDiffString, stampCacheKey } from "../../DiffViewer/parseDiff";
 import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
 export type ToolStatus = "completed" | "error" | "running";
@@ -100,23 +100,6 @@ const isCommandReference = (value: string, command: string): boolean => {
 
 const normalizeCommandReference = (value: string): string =>
 	value.trim().toLowerCase().replace(/\s+/g, " ");
-
-export const toProviderLabel = (
-	providerDisplayName: string,
-	providerID: string,
-	providerType: string,
-): string => {
-	if (providerDisplayName) {
-		return providerDisplayName;
-	}
-	if (providerID) {
-		return providerID;
-	}
-	if (providerType) {
-		return providerType;
-	}
-	return "Git provider";
-};
 
 const roundToTenths = (value: number): number => Number(value.toFixed(1));
 
@@ -365,7 +348,7 @@ export function stripNoNewline(fileDiff: FileDiffMetadata): FileDiffMetadata {
 		(h) => h.noEOFCRDeletions || h.noEOFCRAdditions,
 	);
 	if (!needsStrip) return fileDiff;
-	return {
+	const stripped = {
 		...fileDiff,
 		hunks: fileDiff.hunks.map((h) => ({
 			...h,
@@ -373,6 +356,8 @@ export function stripNoNewline(fileDiff: FileDiffMetadata): FileDiffMetadata {
 			noEOFCRAdditions: false,
 		})),
 	};
+	stampCacheKey(stripped);
+	return stripped;
 }
 
 export function getFileViewerOptions(isDark: boolean) {
@@ -484,9 +469,7 @@ export const getFileContentForViewer = (
  */
 const parseSingleFileDiff = (raw: string): FileDiffMetadata | null => {
 	if (!raw) return null;
-	const parsed = parsePatchFiles(stripSvnIndexHeaders(raw));
-	if (!parsed.length || !parsed[0].files.length) return null;
-	return parsed[0].files[0];
+	return parseDiffString(stripSvnIndexHeaders(raw))[0] ?? null;
 };
 
 /**
@@ -551,35 +534,66 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 };
 
 /**
- * Builds a synthetic unified diff from edit pairs (normalized to
- * search/replace) for a single file. Each edit becomes a separate
- * `Diff.createPatch` call; the patches are concatenated and
- * parsed into a single FileDiffMetadata.
+ * Builds a synthetic unified diff from edit pairs for a single file.
+ * Each edit is diffed against only its own snippet, so lines can never
+ * correlate across edits.
  */
 export const buildEditDiff = (
 	path: string,
 	edits: Array<{ search: string; replace: string }>,
 ): FileDiffMetadata | null => {
 	if (!edits.length) return null;
+	const kept = edits.filter((edit) => edit.search);
 
 	// Strip leading slash so the a/ and b/ prefixes don't
 	// produce a double-slash that confuses the diff parser.
 	const diffPath = path.startsWith("/") ? path.slice(1) : path;
 
-	const patches: string[] = [];
-	for (const edit of edits) {
-		if (!edit.search) continue;
-		patches.push(Diff.createPatch(diffPath, edit.search, edit.replace, "", ""));
-	}
-	if (!patches.length) {
-		// All edits were skipped (empty search). Produce a
-		// header-only patch so the parser still returns a file
-		// entry with zero hunks.
-		patches.push(`--- ${diffPath}\n+++ ${diffPath}\n`);
+	if (!kept.length) {
+		// An empty patch still parses to a file entry with zero hunks.
+		return parseSingleFileDiff(Diff.createPatch(diffPath, "", "", "", ""));
 	}
 
-	return parseSingleFileDiff(patches.join(""));
+	let oldOffset = 0;
+	let newOffset = 0;
+	const hunks: Array<Diff.StructuredPatchHunk> = [];
+	for (const edit of kept) {
+		const structured = Diff.structuredPatch(
+			diffPath,
+			diffPath,
+			edit.search,
+			edit.replace,
+			"",
+			"",
+		);
+		for (const hunk of structured.hunks) {
+			hunks.push({
+				...hunk,
+				oldStart: hunk.oldStart + oldOffset,
+				newStart: hunk.newStart + newOffset,
+			});
+		}
+		oldOffset += snippetLineCount(edit.search);
+		newOffset += snippetLineCount(edit.replace);
+	}
+
+	const lines = [`--- ${diffPath}`, `+++ ${diffPath}`];
+	for (const hunk of hunks) {
+		lines.push(
+			`@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`,
+		);
+		lines.push(...hunk.lines);
+	}
+	return parseSingleFileDiff(`${lines.join("\n")}\n`);
 };
+
+// Lines a snippet contributes to the synthetic file: trailing newlines
+// terminate the last line rather than starting another, and an empty
+// snippet contributes none.
+const snippetLineCount = (snippet: string): number =>
+	snippet === ""
+		? 0
+		: snippet.split("\n").length - (snippet.endsWith("\n") ? 1 : 0);
 
 /**
  * Per-file result from the agent's FileEditResponse. `path` matches

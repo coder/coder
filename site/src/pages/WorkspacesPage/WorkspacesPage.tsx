@@ -23,6 +23,7 @@ import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { pageTitle } from "#/utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
+import { BatchStopConfirmation } from "./BatchStopConfirmation";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { useBatchActions } from "./batchActions";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
@@ -52,7 +53,7 @@ function useSafeSearchParams() {
 	>;
 }
 
-type BatchAction = "delete" | "update";
+type BatchAction = "delete" | "stop" | "update";
 
 const WorkspacesPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -163,12 +164,20 @@ const WorkspacesPage: FC = () => {
 	const checkedWorkspaces =
 		data?.workspaces.filter((w) => checkedWorkspaceIds.has(w.id)) ?? [];
 
+	// Bulk stop only affects running workspaces, so the confirmation dialog and
+	// the mutation should both operate on that subset to avoid over-reporting
+	// how many workspaces will actually be stopped.
+	const workspacesToStop = checkedWorkspaces.filter(
+		(w) => w.latest_build.status === "running",
+	);
+
 	return (
 		<>
 			<title>{pageTitle("Workspaces")}</title>
 
 			<WorkspacesPageView
 				canCreateTemplate={permissions.createTemplates}
+				canCreateWorkspace={permissions.createWorkspace}
 				canChangeVersions={permissions.updateTemplates}
 				checkedWorkspaces={checkedWorkspaces}
 				chatsByWorkspace={chatsByWorkspaceQuery.data}
@@ -196,7 +205,7 @@ const WorkspacesPage: FC = () => {
 				isRunningBatchAction={batchActions.isProcessing}
 				onBatchDeleteTransition={() => setActiveBatchAction("delete")}
 				onBatchStartTransition={() => batchActions.start(checkedWorkspaces)}
-				onBatchStopTransition={() => batchActions.stop(checkedWorkspaces)}
+				onBatchStopTransition={() => setActiveBatchAction("stop")}
 				onBatchUpdateTransition={() => {
 					// Just because batch-updating can be really dangerous
 					// action for running workspaces, we're going to invalidate
@@ -236,6 +245,17 @@ const WorkspacesPage: FC = () => {
 				onClose={() => setActiveBatchAction(undefined)}
 				onConfirm={async () => {
 					await batchActions.delete(checkedWorkspaces);
+					setActiveBatchAction(undefined);
+				}}
+			/>
+
+			<BatchStopConfirmation
+				isLoading={batchActions.isProcessing}
+				workspacesToStop={workspacesToStop}
+				open={activeBatchAction === "stop"}
+				onClose={() => setActiveBatchAction(undefined)}
+				onConfirm={async () => {
+					await batchActions.stop(workspacesToStop);
 					setActiveBatchAction(undefined);
 				}}
 			/>

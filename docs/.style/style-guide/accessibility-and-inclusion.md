@@ -166,7 +166,7 @@ Refer to UI elements by their label, not by their position on the screen.
 
 **Do**:
 
-> See the [Latin abbreviations rule](#latin-abbreviations) for the comma convention.
+> Refer to the [Latin abbreviations rule](#latin-abbreviations) for the comma convention.
 >
 > Add a `<small>` caption after the image.
 >
@@ -174,7 +174,7 @@ Refer to UI elements by their label, not by their position on the screen.
 
 **Don't**:
 
-> See the table below for the comma convention.
+> Refer to the table below for the comma convention.
 >
 > Add a `<small>` caption underneath the image.
 >
@@ -182,15 +182,15 @@ Refer to UI elements by their label, not by their position on the screen.
 
 Common replacements:
 
-| Avoid                        | Prefer                                                  |
-|------------------------------|---------------------------------------------------------|
-| see below                    | see the following section, see the `[Section](#anchor)` |
-| see above                    | see the previous section, see earlier                   |
-| top of the page              | beginning of the page                                   |
-| bottom of the page           | end of the page                                         |
-| the menu on the left         | the **Sidebar** menu                                    |
-| the right side of the screen | the **Details** panel                                   |
-| scroll down                  | scroll to the `[Section](#anchor)`, scroll to the end   |
+| Avoid                        | Prefer                                                            |
+|------------------------------|-------------------------------------------------------------------|
+| see below                    | refer to the following section, refer to the `[Section](#anchor)` |
+| see above                    | refer to the previous section, as described earlier               |
+| top of the page              | beginning of the page                                             |
+| bottom of the page           | end of the page                                                   |
+| the menu on the left         | the **Sidebar** menu                                              |
+| the right side of the screen | the **Details** panel                                             |
+| scroll down                  | scroll to the `[Section](#anchor)`, scroll to the end             |
 
 The rule covers prose.
 Idiomatic stack metaphors like "built on top of Terraform" and phrasal verbs like "set up", "back up", "log in", and "shut down" aren't directional and stay as-is.
@@ -224,6 +224,10 @@ Replace them with the literal meaning.
 > Run `coder login` to get the ball rolling.
 >
 > Coder ships with a default template out of the box.
+
+The rule covers developer idiom too.
+"Spin up a workspace" becomes "create a workspace", "tear down the deployment" becomes "delete the deployment", and "stand up a cluster" becomes "deploy a cluster".
+The figurative forms are so common in developer conversation that they no longer register as figurative, but they translate as badly as any other idiom.
 
 *Documentation-only.
 Planned Vale rule `Coder.Idioms`.*
@@ -406,7 +410,7 @@ Aim for a Flesch-Kincaid grade level of 8 to 10 in body prose.
 The target supports comprehension for non-native English readers, ESL audiences, and anyone skimming under time pressure.
 The reading-level rule decomposes into prose rules covered elsewhere in this guide:
 
-- Short sentences.
+- [Short sentences and paragraphs](./voice-and-tone.md#keep-sentences-and-paragraphs-short).
   Aim for 25 words or fewer.
 - [Active voice by default](./voice-and-tone.md#active-voice-by-default).
 - [Present tense by default](./voice-and-tone.md#present-tense-by-default).

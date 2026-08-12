@@ -1,10 +1,12 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { watchChat } from "#/api/api";
-import { chatMessagesKey, chatsKey } from "#/api/queries/chats";
+import {
+	chatListKey,
+	chatMessagesKey,
+	toChatListParams,
+} from "#/api/queries/chats";
 
-// The infinite query key used by useInfiniteQuery(infiniteChats())
-// is [...chatsKey, undefined] = ["chats", undefined].
-const infiniteChatsTestKey = [...chatsKey, undefined];
+const infiniteChatsTestKey = chatListKey(toChatListParams());
 
 type InfiniteData = {
 	pages: TypesGen.Chat[][];
@@ -908,6 +910,192 @@ describe("useChatStore", () => {
 		]);
 	});
 
+	it("collapses a multi-page cache to one page after history_reset", async () => {
+		const chatID = "chat-history-reset-multipage";
+		const initialMessages = [
+			buildMessage(chatID, 1, "user", "old prompt"),
+			buildMessage(chatID, 2, "assistant", "old answer"),
+			buildMessage(chatID, 3, "user", "stale prompt"),
+		];
+		const replacementMessage = buildMessage(chatID, 1, "user", "new prompt");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [
+				{
+					messages: [initialMessages[2], initialMessages[1]],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [initialMessages[0]],
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined, 2],
+		});
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: initialMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: initialMessages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		act(() => {
+			mockSocket.emitDataBatch([
+				{ type: "history_reset", chat_id: chatID },
+				{ type: "message", chat_id: chatID, message: replacementMessage },
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1]);
+		});
+
+		const cached = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		expect(cached?.pages).toHaveLength(1);
+		expect(cached?.pageParams).toHaveLength(1);
+		expect(cached?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			1,
+		]);
+		expect(cached?.pages[0]?.has_more).toBe(false);
+	});
+
+	it("updates an older page in place for a WS durable message without duplicating it into page 0", async () => {
+		const chatID = "chat-fanout-older-page";
+		const initialMessages = [
+			buildMessage(chatID, 1, "user", "old prompt"),
+			buildMessage(chatID, 2, "assistant", "old answer"),
+			buildMessage(chatID, 3, "user", "newest prompt"),
+		];
+		const updatedMessage = buildMessage(chatID, 1, "user", "edited prompt");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [
+				{
+					messages: [initialMessages[2], initialMessages[1]],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [initialMessages[0]],
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined, 2],
+		});
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: initialMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: initialMessages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					messagesByID: useChatSelector(store, selectMessagesByID),
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: updatedMessage,
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.messagesByID.get(1)?.content).toEqual(
+				updatedMessage.content,
+			);
+		});
+
+		const cached = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		expect(cached?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			3, 2,
+		]);
+		expect(cached?.pages[1]?.messages.map((message) => message.id)).toEqual([
+			1,
+		]);
+		expect(cached?.pages[1]?.messages[0]?.content).toEqual(
+			updatedMessage.content,
+		);
+	});
+
 	it("clears stream state when a new durable message arrives", async () => {
 		immediateAnimationFrame();
 
@@ -1524,6 +1712,81 @@ describe("useChatStore", () => {
 				type: "queue_update",
 				chat_id: chatID,
 				queued_messages: [],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([]);
+		});
+		const cachedData = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
+	});
+
+	it("caches the filtered queue when a queue_update still contains a suppressed message", async () => {
+		const chatID = "chat-1";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const initialChatMessagesData: TypesGen.ChatMessagesResponse = {
+			messages: [existingMessage],
+			queued_messages: [queuedMessage],
+			has_more: false,
+		};
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [initialChatMessagesData],
+			pageParams: [undefined],
+		});
+
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: initialChatMessagesData,
+					chatQueuedMessages: [queuedMessage],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					store,
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			result.current.store.suppressQueuedMessageID(queuedMessage.id);
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "queue_update",
+				chat_id: chatID,
+				queued_messages: [queuedMessage],
 			});
 		});
 
@@ -2212,6 +2475,245 @@ describe("useChatStore", () => {
 		// re-populated it.
 		await waitFor(() => {
 			expect(result.current.streamState).toBeNull();
+		});
+	});
+
+	it("applies a refetched status after acceptServerChatStatus", async () => {
+		const chatID = "chat-resync";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		const initialProps: { status: TypesGen.ChatStatus; updatedAt: number } = {
+			status: "waiting",
+			updatedAt: 1,
+		};
+		const { result, rerender } = renderHook(
+			({ status, updatedAt }: typeof initialProps) => {
+				const { store, acceptServerChatStatus } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: { ...buildChat(chatID), status },
+					chatRecordUpdatedAt: updatedAt,
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					acceptServerChatStatus,
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper, initialProps },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+		rerender({ status: "error", updatedAt: 1 });
+		expect(result.current.chatStatus).toBe("running");
+
+		act(() => {
+			result.current.acceptServerChatStatus();
+		});
+		rerender({ status: "waiting", updatedAt: 1 });
+		expect(result.current.chatStatus).toBe("running");
+		rerender({ status: "error", updatedAt: 2 });
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("error");
+		});
+	});
+
+	it("hydrates an unchanged status after a successful refetch", async () => {
+		const chatID = "chat-resync-same";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const chatRecord = { ...buildChat(chatID), status: "error" as const };
+
+		const { result, rerender } = renderHook(
+			({ updatedAt }: { updatedAt: number }) => {
+				const { store, acceptServerChatStatus } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord,
+					chatRecordUpdatedAt: updatedAt,
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					acceptServerChatStatus,
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper, initialProps: { updatedAt: 1 } },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		act(() => {
+			result.current.acceptServerChatStatus();
+		});
+		expect(result.current.chatStatus).toBe("running");
+		rerender({ updatedAt: 2 });
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("error");
+		});
+	});
+
+	it("ignores a resync armed by a request from a chat the user left", async () => {
+		const leftChatID = "chat-resync-left";
+		const activeChatID = "chat-resync-active";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		const { result, rerender } = renderHook(
+			({ chatID, updatedAt }: { chatID: string; updatedAt: number }) => {
+				const { store, acceptServerChatStatus } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: { ...buildChat(chatID), status: "waiting" },
+					chatRecordUpdatedAt: updatedAt,
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: () => {},
+					clearChatErrorReason: () => {},
+				});
+				return {
+					acceptServerChatStatus,
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{
+				wrapper,
+				initialProps: { chatID: leftChatID, updatedAt: 1 },
+			},
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(leftChatID, undefined);
+		});
+		// The in-flight request holds the callback from the render it started in.
+		const staleAcceptServerChatStatus = result.current.acceptServerChatStatus;
+
+		rerender({ chatID: activeChatID, updatedAt: 5 });
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(activeChatID, undefined);
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: activeChatID,
+				status: { status: "running" },
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		act(() => {
+			staleAcceptServerChatStatus();
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+	});
+
+	it("keeps a websocket status delivered while the resync refetch is in flight", async () => {
+		const chatID = "chat-resync-ws-race";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const chatRecord = { ...buildChat(chatID), status: "error" as const };
+
+		const { result, rerender } = renderHook(
+			({ updatedAt }: { updatedAt: number }) => {
+				const { store, acceptServerChatStatus } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord,
+					chatRecordUpdatedAt: updatedAt,
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: () => {},
+					clearChatErrorReason: () => {},
+				});
+				return {
+					acceptServerChatStatus,
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper, initialProps: { updatedAt: 1 } },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			result.current.acceptServerChatStatus();
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		rerender({ updatedAt: 2 });
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
 		});
 	});
 

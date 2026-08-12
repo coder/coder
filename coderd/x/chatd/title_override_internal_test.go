@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -70,7 +71,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 			nil,
 			"openai",
 			database.ChatModelConfig{Model: "fallback-chat-model"},
-			fallbackModel,
+			chatprovider.NewModel(fallbackModel, nil),
 			aiGatewayModelRoute{},
 			modelBuildOptions{},
 			generated,
@@ -120,7 +121,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T)
 		nil,
 		"openai",
 		database.ChatModelConfig{Model: "fallback-chat-model"},
-		fallbackModel,
+		chatprovider.NewModel(fallbackModel, nil),
 		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
@@ -169,7 +170,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideMalformedFallsThrough(t *
 		nil,
 		"openai",
 		database.ChatModelConfig{Model: "fallback-chat-model"},
-		fallbackModel,
+		chatprovider.NewModel(fallbackModel, nil),
 		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
@@ -256,7 +257,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		nil,
 		"openai",
 		database.ChatModelConfig{Model: "fallback-chat-model"},
-		fallbackModel,
+		chatprovider.NewModel(fallbackModel, nil),
 		aiGatewayModelRoute{},
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 		generated,
@@ -298,7 +299,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUnusableSkips(t *testi
 		nil,
 		"openai",
 		database.ChatModelConfig{Model: "fallback-chat-model"},
-		fallbackModel,
+		chatprovider.NewModel(fallbackModel, nil),
 		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
@@ -352,7 +353,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 		nil,
 		"openai",
 		database.ChatModelConfig{Model: "fallback-chat-model"},
-		fallbackModel,
+		chatprovider.NewModel(fallbackModel, nil),
 		aiGatewayModelRoute{},
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 		generated,
@@ -396,7 +397,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
+	require.True(t, model.Valid())
 	require.Equal(t, preferredConfig, gotConfig)
 }
 
@@ -445,7 +446,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
+	require.True(t, model.Valid())
 	require.Equal(t, preferredConfig, gotConfig)
 }
 
@@ -480,7 +481,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
+	require.True(t, model.Valid())
 	require.Equal(t, preferredConfig, gotConfig)
 }
 
@@ -512,7 +513,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
+	require.True(t, model.Valid())
 	require.Equal(t, overrideConfig, gotConfig)
 }
 
@@ -548,7 +549,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	require.Error(t, err)
 	require.ErrorContains(t, err, "resolve manual title generation model override")
 	require.ErrorContains(t, err, "credentials are unavailable")
-	require.Nil(t, model)
+	require.False(t, model.Valid())
 	require.Equal(t, database.ChatModelConfig{}, gotConfig)
 }
 
@@ -586,7 +587,6 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 		}, nil
 	})}
 
-	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(gomock.Any(), database.GetChatMessagesByChatIDAscPaginatedParams{
 		ChatID:   chat.ID,
 		AfterID:  0,
@@ -645,7 +645,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	require.Error(t, err)
 	require.ErrorContains(t, err, "resolve manual title generation model override")
 	require.ErrorContains(t, err, "title generation model override is unavailable")
-	require.Nil(t, model)
+	require.False(t, model.Valid())
 	require.Equal(t, database.ChatModelConfig{}, gotConfig)
 }
 

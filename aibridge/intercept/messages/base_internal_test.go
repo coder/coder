@@ -716,7 +716,7 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectRemovedFields: []string{"output_config", "metadata", "service_tier", "container", "inference_geo", "context_management"},
 		},
 
-		// Adaptive-only models (Opus 4.7+), see coder/aibridge#280. The
+		// Adaptive-only models, see coder/aibridge#280. The
 		// conversion drops budget_tokens and flips the type; an explicit
 		// output_config.effort from the caller is preserved, but none is
 		// fabricated when absent.
@@ -764,6 +764,21 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			bedrockModel:       "eu.anthropic.claude-opus-4-8",
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
 			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "sonnet_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-sonnet-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:                "regional_sonnet_5_model_keeps_adaptive_thinking_and_effort_and_strips_output_config_format",
+			bedrockModel:        "us.anthropic.claude-sonnet-5",
+			requestBody:         `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"medium","format":{"type":"json_schema","schema":{"type":"object"}}}}`,
+			expectThinkingType:  "adaptive",
+			expectEffort:        "medium",
+			expectKeptFields:    []string{"output_config", "output_config.effort"},
+			expectRemovedFields: []string{"output_config.format"},
 		},
 		{
 			// Opus 4.7 on Bedrock rejects output_config.format (structured

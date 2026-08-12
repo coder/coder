@@ -12,6 +12,7 @@ import {
 	mockClaude,
 	mockDisabledModel,
 	mockGPT5,
+	mockOrphanedModel,
 	mockProviderDisabledModel,
 } from "./testFixtures";
 
@@ -136,8 +137,36 @@ export const DisabledProviderModelsStillListed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("GPT-4o Secondary")).toBeInTheDocument();
-		await expect(canvas.getByText("OpenAI Secondary")).toBeInTheDocument();
+		// useClickableTableRow renders each row with role="button", not "row",
+		// so the row is queried by its clickable role.
+		const row = canvas.getByRole("button", { name: /GPT-4o Secondary/i });
+		await expect(within(row).getByText("OpenAI Secondary")).toBeInTheDocument();
+		// A model under a disabled provider is not usable, so the status
+		// column must show "Disabled" even though the stored enabled flag is
+		// true. Scope to the target row so a fixture change cannot pass this
+		// assertion via an unrelated "Disabled" cell.
+		await expect(within(row).getByText("Disabled")).toBeInTheDocument();
+	},
+};
+
+// An orphaned model is one whose ai_provider_id references a provider row
+// that has been deleted. In production `deriveProviderStates` drops such
+// models entirely, so the row reaches "Unset" via a map-miss and the
+// `?? false` fallback at ModelsPageView.tsx wiring. Reproduce that shape
+// here: the model appears in `models` but is not present in any
+// providerState.modelConfigs, so a `?? true` regression would flip this
+// story to "Enabled" and be caught.
+export const OrphanedModelShowsUnset: Story = {
+	args: {
+		models: [mockGPT5, mockOrphanedModel],
+		providerStates: [MockOpenAIProviderState],
+		providerTypeByID: new Map<string, string>([["prov-openai", "openai"]]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const row = canvas.getByRole("button", { name: /Orphaned Model/i });
+		await expect(within(row).getByText("Unset")).toBeInTheDocument();
+		await expect(within(row).getByText("Disabled")).toBeInTheDocument();
 	},
 };
 

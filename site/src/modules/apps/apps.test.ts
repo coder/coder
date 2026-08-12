@@ -8,6 +8,7 @@ import {
 	getAppHref,
 	getVSCodeHref,
 	isAppBlockedByMissingWildcard,
+	isAppUrlValid,
 	isWorkspaceAppEmbeddable,
 	openAppInNewWindow,
 	SESSION_TOKEN_PLACEHOLDER,
@@ -190,6 +191,49 @@ describe("getAppHref", () => {
 		expect(href).toBe(
 			`/path-base/@${MockWorkspace.owner_name}/test-workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
+	});
+
+	it("returns the raw URL without throwing when external app has an invalid URL", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: "my-repo",
+		};
+		let href = "";
+		expect(() => {
+			href = getAppHref(externalApp, {
+				host: "*.apps-host.tld",
+				path: "/path-base",
+				agent: MockWorkspaceAgent,
+				workspace: MockWorkspace,
+				token: "user-session-token",
+			});
+		}).not.toThrow();
+		expect(href).toBe("my-repo");
+	});
+});
+
+describe("isAppUrlValid", () => {
+	it("returns false for an external app with an unparsable URL", () => {
+		expect(isAppUrlValid(buildApp({ external: true, url: "my-repo" }))).toBe(
+			false,
+		);
+	});
+
+	it("returns true for an external app with a valid HTTP URL", () => {
+		expect(
+			isAppUrlValid(buildApp({ external: true, url: "https://example.com" })),
+		).toBe(true);
+	});
+
+	it("returns true for an external app with a valid custom scheme", () => {
+		expect(
+			isAppUrlValid(buildApp({ external: true, url: "vscode://open" })),
+		).toBe(true);
+	});
+
+	it("returns true for non-external apps", () => {
+		expect(isAppUrlValid(buildApp({ external: false }))).toBe(true);
 	});
 });
 

@@ -1,9 +1,11 @@
 import type { FC } from "react";
 import type { Region } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -16,6 +18,8 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
+import type { Permissions } from "#/modules/permissions";
+import { docs } from "#/utils/docs";
 import { ProxyRow } from "./WorkspaceProxyRow";
 
 interface WorkspaceProxyViewProps {
@@ -26,6 +30,8 @@ interface WorkspaceProxyViewProps {
 	hasLoaded: boolean;
 	preferredProxy?: Region;
 	selectProxyError?: unknown;
+	showPaywall: boolean;
+	permissions: Permissions;
 }
 
 export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
@@ -35,10 +41,18 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	isLoading,
 	hasLoaded,
 	selectProxyError,
+	showPaywall,
+	permissions,
 }) => {
 	return (
 		<div className="flex flex-col gap-4">
-			<SettingsHeader>
+			<SettingsHeader
+				actions={
+					<SettingsHeaderDocsLink
+						href={docs("/admin/networking/workspace-proxies")}
+					/>
+				}
+			>
 				<SettingsHeaderTitle>Workspace Proxies</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Workspace proxies improve terminal and web app connections to
@@ -46,28 +60,39 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			{Boolean(getWorkspaceProxiesError) && (
-				<ErrorAlert error={getWorkspaceProxiesError} />
-			)}
-			{Boolean(selectProxyError) && <ErrorAlert error={selectProxyError} />}
+			{showPaywall ? (
+				<PaywallPremium
+					message="Workspace Proxies"
+					description="Workspace proxies provide low-latency connections for geo-distributed teams. You need a Premium license to use this feature."
+					documentationLink={docs("/admin/networking/workspace-proxies")}
+					canViewPremium={permissions.viewAllLicenses}
+				/>
+			) : (
+				<>
+					{Boolean(getWorkspaceProxiesError) && (
+						<ErrorAlert error={getWorkspaceProxiesError} />
+					)}
+					{Boolean(selectProxyError) && <ErrorAlert error={selectProxyError} />}
 
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead className="w-[60%]">Proxy</TableHead>
-						<TableHead className="w-[20%]">Status</TableHead>
-						<TableHead className="w-[20%]">Latency</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					<ProxiesTableBody
-						proxies={proxies}
-						proxyLatencies={proxyLatencies}
-						isLoading={isLoading}
-						hasLoaded={hasLoaded}
-					/>
-				</TableBody>
-			</Table>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead className="w-[60%]">Proxy</TableHead>
+								<TableHead className="w-[20%]">Status</TableHead>
+								<TableHead className="w-[20%]">Latency</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							<ProxiesTableBody
+								proxies={proxies}
+								proxyLatencies={proxyLatencies}
+								isLoading={isLoading}
+								hasLoaded={hasLoaded}
+							/>
+						</TableBody>
+					</Table>
+				</>
+			)}
 		</div>
 	);
 };

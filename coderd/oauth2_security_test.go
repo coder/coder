@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -21,6 +22,7 @@ func TestOAuth2ClientIsolation(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	ctx := t.Context()
 
@@ -108,6 +110,7 @@ func TestOAuth2RegistrationTokenSecurity(t *testing.T) {
 	// independent OAuth2 apps with unique client names.
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	t.Run("InvalidTokenFormats", func(t *testing.T) {
 		t.Parallel()
@@ -209,6 +212,7 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := t.Context()
 
 		// Register a basic client
@@ -243,6 +247,7 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := t.Context()
 
 		// Test valid custom schemes per RFC 7591/8252
@@ -316,6 +321,7 @@ func TestOAuth2InformationDisclosure(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	ctx := t.Context()
 
@@ -399,6 +405,7 @@ func TestOAuth2ConcurrentSecurityOperations(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	ctx := t.Context()
 

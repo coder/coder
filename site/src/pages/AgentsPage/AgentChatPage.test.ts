@@ -1,16 +1,33 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import { createDeferred } from "#/testHelpers/deferred";
-import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
+import type {
+	ChatMessage,
+	ChatQueuedMessage,
+	Workspace,
+	WorkspaceApp,
+} from "#/api/typesGenerated";
 import {
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
+import {
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceApp,
+} from "#/testHelpers/entities";
+import {
+	buildInactiveChatQueueReconciliation,
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
 	getWorkspaceOptionsWithLinkedWorkspace,
+	isWatchedWorkspaceViewUnchanged,
+	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
+	settlePromotedQueueHead,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
@@ -231,7 +248,7 @@ describe("runPromoteQueuedMessage", () => {
 
 		const promote = vi.fn(async (_id: number) => undefined);
 		const clearChatErrorReason = vi.fn();
-		const handleUsageLimitError = vi.fn();
+		const onError = vi.fn();
 
 		await runPromoteQueuedMessage({
 			id: b.id,
@@ -239,7 +256,7 @@ describe("runPromoteQueuedMessage", () => {
 			promoteQueuedMessage: promote,
 			agentId: "chat-1",
 			clearChatErrorReason,
-			handleUsageLimitError,
+			onError,
 		});
 
 		expect(promote).toHaveBeenCalledWith(b.id);
@@ -262,7 +279,7 @@ describe("runPromoteQueuedMessage", () => {
 			throw apiError;
 		});
 		const clearChatErrorReason = vi.fn();
-		const handleUsageLimitError = vi.fn();
+		const onError = vi.fn();
 
 		await expect(
 			runPromoteQueuedMessage({
@@ -271,16 +288,288 @@ describe("runPromoteQueuedMessage", () => {
 				promoteQueuedMessage: promote,
 				agentId: "chat-1",
 				clearChatErrorReason,
-				handleUsageLimitError,
+				onError,
 			}),
 		).rejects.toBe(apiError);
 
-		expect(handleUsageLimitError).toHaveBeenCalledWith(apiError);
+		expect(onError).toHaveBeenCalledWith(apiError);
 
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
 		expect(snapshot.chatStatus).toBe("waiting");
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+	});
+});
+
+describe("reconcilePromotedQueueHead", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+	const userMessage: ChatMessage = { ...MockChatMessage, id: 10, role: "user" };
+	const toolMessage: ChatMessage = { ...MockChatMessage, id: 9, role: "tool" };
+
+	it("suppresses the captured head and appends the queued tail", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const tail = buildQueuedMessage(3, "C");
+		store.setQueuedMessages([a, b]);
+
+		const reconciled = reconcilePromotedQueueHead(
+			store,
+			[toolMessage, userMessage],
+			a.id,
+			tail,
+		);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([b.id, tail.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(reconciled?.map((m) => m.id)).toEqual([b.id, tail.id]);
+	});
+
+	it("does not suppress the rotated head when a queue_update already applied", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		store.setQueuedMessages([b, c]);
+
+		reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([b.id, c.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+		expect(snapshot.suppressedQueuedMessageIDs.has(c.id)).toBe(false);
+
+		store.applyAuthoritativeQueuedMessages([a, b, c]);
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
+			b.id,
+			c.id,
+		]);
+		store.applyAuthoritativeQueuedMessages([b, c]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("keeps the response tail when a stale snapshot arrived mid-request", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		// A pre-send snapshot lands while the POST is in flight; it cannot
+		// mention the tail the send just created.
+		store.setQueuedMessages([a]);
+		store.applyAuthoritativeQueuedMessages([a, b]);
+
+		const next = reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+
+		expect(next?.map((m) => m.id)).toEqual([b.id, c.id]);
+	});
+
+	it("drops the response tail once the server reported and removed it", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const c = buildQueuedMessage(3, "C");
+		store.applyAuthoritativeQueuedMessages([a, c]);
+		store.applyAuthoritativeQueuedMessages([a]);
+
+		const next = reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+
+		expect(next).toEqual([]);
+	});
+
+	it("omits the response tail when a newer queue update was observed", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		store.setQueuedMessages([a]);
+
+		const next = reconcilePromotedQueueHead(
+			store,
+			[userMessage],
+			a.id,
+			undefined,
+		);
+
+		expect(next).toEqual([]);
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
+	});
+
+	it("does nothing when no user row was inserted", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		store.setQueuedMessages([a]);
+
+		const reconciled = reconcilePromotedQueueHead(
+			store,
+			[toolMessage],
+			a.id,
+			buildQueuedMessage(2, "B"),
+		);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.size).toBe(0);
+		expect(reconciled).toBeUndefined();
+	});
+
+	it("does nothing when no head was captured before the send", () => {
+		const store = createChatStore();
+
+		const reconciled = reconcilePromotedQueueHead(
+			store,
+			[userMessage],
+			undefined,
+			buildQueuedMessage(1, "A"),
+		);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages).toEqual([]);
+		expect(snapshot.suppressedQueuedMessageIDs.size).toBe(0);
+		expect(reconciled).toBeUndefined();
+	});
+});
+
+describe("buildInactiveChatQueueReconciliation", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+	const userMessage: ChatMessage = {
+		...MockChatMessage,
+		id: 42,
+		role: "user",
+	};
+
+	it("keeps a message queued while the send was in flight", () => {
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+
+		const next = buildInactiveChatQueueReconciliation(
+			[a, b, c],
+			[a, b],
+			[userMessage],
+			a.id,
+			undefined,
+		);
+
+		expect(next?.map((m) => m.id)).toEqual([b.id, c.id]);
+	});
+
+	it("falls back to the pre-send queue when nothing is cached", () => {
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+
+		const next = buildInactiveChatQueueReconciliation(
+			undefined,
+			[a, b],
+			[userMessage],
+			a.id,
+			undefined,
+		);
+
+		expect(next?.map((m) => m.id)).toEqual([b.id]);
+	});
+});
+
+describe("settlePromotedQueueHead", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+	const chatID = "chat-abc-123";
+
+	it("restores a head the server still has queued", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => ({ messages: [], has_more: false, queued_messages: [a, b] }),
+		);
+
+		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id]);
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
+			a.id,
+			b.id,
+		]);
+	});
+
+	it("leaves the queue alone when the fetch fails", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(store, chatID, a.id, () =>
+			Promise.reject(new Error("offline")),
+		);
+
+		expect(settled).toBeUndefined();
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([b.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("returns the filtered queue the store applied", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		// An overlapping explicit promotion suppresses C, which the server has
+		// not deleted yet, so the caller must not cache it back.
+		store.suppressQueuedMessageID(c.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => ({
+				messages: [],
+				has_more: false,
+				queued_messages: [a, b, c],
+			}),
+		);
+
+		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id]);
+	});
+
+	it("discards a response that resolves after navigating to another chat", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => {
+				store.setActiveChatID("chat-other");
+				store.setQueuedMessages([]);
+				return { messages: [], has_more: false, queued_messages: [a, b] };
+			},
+		);
+
+		expect(settled).toBeUndefined();
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
 	});
 });
 
@@ -1113,5 +1402,62 @@ describe("sidebar tab persistence", () => {
 			expect(getPersistedSidebarTabId("chat-a")).toBeNull();
 			expect(getPersistedSidebarTabId("chat-b")).toBe("desktop");
 		});
+	});
+});
+
+describe("isWatchedWorkspaceViewUnchanged", () => {
+	const cloneWithApps = (apps: WorkspaceApp[]): Workspace => ({
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspace.latest_build,
+			resources: MockWorkspace.latest_build.resources.map((resource) => ({
+				...resource,
+				agents: resource.agents?.map((agent) =>
+					agent.id === MockWorkspaceAgent.id ? { ...agent, apps } : agent,
+				),
+			})),
+		},
+	});
+
+	it("is true for a fresh payload with only unwatched changes", () => {
+		const next: Workspace = {
+			...MockWorkspace,
+			last_used_at: "2024-01-01T00:00:00Z",
+		};
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(true);
+	});
+
+	it("is false when a bound-agent app changes health", () => {
+		const next = cloneWithApps([{ ...MockWorkspaceApp, health: "healthy" }]);
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(false);
+	});
+
+	it("is false when the bound agent gains an app", () => {
+		const next = cloneWithApps([
+			MockWorkspaceApp,
+			{ ...MockWorkspaceApp, id: "second-app", slug: "second-app" },
+		]);
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(false);
 	});
 });

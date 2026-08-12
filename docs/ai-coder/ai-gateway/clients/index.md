@@ -1,9 +1,8 @@
 # Client Configuration
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 Once AI Gateway is setup on your deployment, the AI coding tools used by your users will need to be configured to route requests via AI Gateway.
 
@@ -26,6 +25,11 @@ The exact configuration method varies by client, some use environment variables,
 - **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/ai-gateway/anthropic`
 
 Replace `coder.example.com` with your actual Coder deployment URL.
+
+If you run a [standalone AI Gateway](../standalone.md), point clients at the
+Gateway endpoint and drop the `/api/v2/ai-gateway` prefix, for example
+`https://ai-gateway.example.com/openai/v1` or
+`https://ai-gateway.example.com/anthropic`.
 
 ## Authentication
 

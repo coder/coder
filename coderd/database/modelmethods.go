@@ -474,6 +474,10 @@ func (r GetGroupMembersAISpendRow) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(r.UserID).InOrg(r.OrganizationID).WithOwner(r.UserID.String())
 }
 
+func (r ExportOrganizationAISpendRow) RBACObject() rbac.Object {
+	return rbac.ResourceGroupMember.WithID(r.UserID).InOrg(r.OrganizationID).WithOwner(r.UserID.String())
+}
+
 // PrebuiltWorkspaceResource defines the interface for types that can be identified as prebuilt workspaces
 // and converted to their corresponding prebuilt workspace RBAC object.
 type PrebuiltWorkspaceResource interface {
@@ -865,6 +869,18 @@ func (r CustomRole) RoleIdentifier() rbac.RoleIdentifier {
 }
 
 func (r GetAuthorizationUserRolesRow) RoleNames() ([]rbac.RoleIdentifier, error) {
+	names := make([]rbac.RoleIdentifier, 0, len(r.Roles))
+	for _, role := range r.Roles {
+		value, err := rbac.RoleNameFromString(role)
+		if err != nil {
+			return nil, xerrors.Errorf("convert role %q: %w", role, err)
+		}
+		names = append(names, value)
+	}
+	return names, nil
+}
+
+func (r GetActiveUsersAuthorizationRolesRow) RoleNames() ([]rbac.RoleIdentifier, error) {
 	names := make([]rbac.RoleIdentifier, 0, len(r.Roles))
 	for _, role := range r.Roles {
 		value, err := rbac.RoleNameFromString(role)

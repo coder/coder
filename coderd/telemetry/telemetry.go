@@ -1512,6 +1512,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		AutostopRequirementWeeks:      dbTemplate.AutostopRequirementWeeks,
 		AutostartAllowedDays:          codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
 		RequireActiveVersion:          dbTemplate.RequireActiveVersion,
+		AgentsAllowed:                 dbTemplate.AgentsAllowed,
 		Deprecated:                    dbTemplate.Deprecated != "",
 		UseClassicParameterFlow:       ptr.Ref(dbTemplate.UseClassicParameterFlow),
 	}
@@ -1855,6 +1856,7 @@ type Template struct {
 	AutostopRequirementWeeks       int64    `json:"autostop_requirement_weeks"`
 	AutostartAllowedDays           []string `json:"autostart_allowed_days"`
 	RequireActiveVersion           bool     `json:"require_active_version"`
+	AgentsAllowed                  bool     `json:"agents_allowed"`
 	Deprecated                     bool     `json:"deprecated"`
 	UseClassicParameterFlow        *bool    `json:"use_classic_parameter_flow"`
 }
@@ -2306,7 +2308,6 @@ func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow)
 		TotalReasoningTokens:     dbRow.TotalReasoningTokens,
 		TotalCacheCreationTokens: dbRow.TotalCacheCreationTokens,
 		TotalCacheReadTokens:     dbRow.TotalCacheReadTokens,
-		TotalCostMicros:          dbRow.TotalCostMicros,
 		TotalRuntimeMs:           dbRow.TotalRuntimeMs,
 		DistinctModelCount:       dbRow.DistinctModelCount,
 		CompressedMessageCount:   dbRow.CompressedMessageCount,
@@ -2602,7 +2603,6 @@ type ChatMessageSummary struct {
 	TotalReasoningTokens     int64     `json:"total_reasoning_tokens"`
 	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
 	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
-	TotalCostMicros          int64     `json:"total_cost_micros"`
 	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 	DistinctModelCount       int64     `json:"distinct_model_count"`
 	CompressedMessageCount   int64     `json:"compressed_message_count"`

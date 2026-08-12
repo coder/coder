@@ -1,9 +1,8 @@
 # Auditing AI Sessions
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is
+> included with a Premium license.
 
 AI Gateway groups intercepted requests into **sessions** and **threads** to show
 the causal relationships between human prompts and agent actions. This
@@ -49,12 +48,12 @@ not just what was called.
 
 The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists all sessions in
 reverse-chronological order. Each row shows the last prompt, initiator, provider,
-client, token usage, network calls, thread count, and timestamp.
+client, token usage, network requests, thread count, and timestamp.
 
-The network calls column reports the total and blocked
-[Agent Firewall](../agent-firewall/index.md) calls for the session. It shows
-`No activity` when the session made no calls, and `Disabled` when the session
-did not pass through Agent Firewall, so no network calls were monitored.
+The **Network Requests** column reports the total and blocked
+[Agent Firewall](../agent-firewall/index.md) requests for the session. It shows
+`No activity` when the session made no requests, and `Disabled` when the session
+did not pass through Agent Firewall, so no network requests were monitored.
 
 Select one to view its full details.
 
@@ -66,6 +65,20 @@ Click into a session to see a chronological causal chain of events.
 
 Within a thread, each step shows token usage, tool call details (including
 arguments and MCP server URLs), duration, and any errors or warnings.
+
+The **Session summary** card beside the timeline reports the session's
+[Agent Firewall](../agent-firewall/index.md) activity:
+
+- **Network requests** is the total number of requests the session made. It
+  shows `Disabled` when the session did not pass through Agent Firewall, so
+  monitoring was not active, and `No activity` when the session made no
+  requests.
+- **Blocked network requests** is the subset of those requests that the
+  allow-list denied. This row appears only when the session made at least one
+  request, and is highlighted when any were blocked.
+- **Top domains** names the destination host the session contacted most, and
+  appears whenever at least one domain was recorded. When the session contacted
+  more than one distinct domain, a `+N more` count follows.
 
 ![Session detail](../../images/aibridge/session_detail.png)
 

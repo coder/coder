@@ -236,8 +236,26 @@ func ValidateCreateUserSecretRequest(req CreateUserSecretRequest) []ValidationEr
 	if err := UserSecretFilePathValid(req.FilePath); err != nil {
 		validations = append(validations, ValidationError{Field: UserSecretFilePathField, Detail: err.Error()})
 	}
+	// An enabled secret must have an injection target. The agent
+	// manifest layer relies on this invariant so it can gate injection
+	// solely on the enabled flag; "stored but not injected" is
+	// expressed by enabled=false, not by clearing both targets.
+	// Disabled secrets may have no target (e.g. bulk imports of keys
+	// that cannot be env-injected).
+	if req.EnvName == "" && req.FilePath == "" && (req.Enabled == nil || *req.Enabled) {
+		validations = append(validations, ValidationError{
+			Field:  UserSecretEnvNameField,
+			Detail: UserSecretInjectionTargetRequiredDetail,
+		})
+	}
 	return validations
 }
+
+// UserSecretInjectionTargetRequiredDetail explains the injection-target
+// invariant. It is shared by the create validator above and the PATCH
+// handler's post-state check in coderd. The value is a user-facing
+// validation message, not a credential.
+const UserSecretInjectionTargetRequiredDetail = "An enabled secret must have at least one of env_name or file_path set. To keep a secret without injecting it, set enabled to false instead of clearing both targets." //nolint:gosec // G101: message text, not a hardcoded credential.
 
 // UserSecretNameValid validates a user secret name. Names are used in
 // API route path segments, so they must not include route separators.

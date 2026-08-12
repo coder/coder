@@ -38,7 +38,7 @@ Administrators have the following levers to configure appropriate access to vari
 - Configurable chat retention
 - Automatic chat archiving
 - Configurable system instructions
-- Observability via AI Gateway, part of Coder's AI Governance Add-On
+- Observability via AI Gateway, part of Coder's AI Governance features
 
 > [!CAUTION]
 > Coder Tasks is officially deprecated in 2.34. It remains supported through the 2.34 ESR support window

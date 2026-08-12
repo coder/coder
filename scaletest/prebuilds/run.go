@@ -32,6 +32,11 @@ type Runner struct {
 // scaletest prebuilds runner.
 const TemplatePrefix = "scaletest-prebuilds-template-"
 
+// workspacePollInterval is how often the creation and deletion phases poll the
+// workspaces endpoint. Each template's runner polls independently, so keep this
+// conservative to bound load on the deployment under high template counts.
+const workspacePollInterval = 5 * time.Second
+
 var (
 	_ harness.Runnable  = &Runner{}
 	_ harness.Cleanable = &Runner{}
@@ -160,14 +165,13 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 func (r *Runner) measureCreation(ctx context.Context, logger slog.Logger) error {
 	testStartTime := time.Now().UTC()
-	const workspacesPollInterval = 500 * time.Millisecond
 
 	targetNumWorkspaces := r.cfg.NumPresets * r.cfg.NumPresetPrebuilds
 
 	workspacesCtx, cancel := context.WithTimeout(ctx, r.cfg.PrebuildWorkspaceTimeout)
 	defer cancel()
 
-	tkr := r.cfg.Clock.TickerFunc(workspacesCtx, workspacesPollInterval, func() error {
+	tkr := r.cfg.Clock.TickerFunc(workspacesCtx, workspacePollInterval, func() error {
 		workspaces, err := r.client.Workspaces(workspacesCtx, codersdk.WorkspaceFilter{
 			Template: r.template.Name,
 		})
@@ -215,10 +219,7 @@ func (r *Runner) measureCreation(ctx context.Context, logger slog.Logger) error 
 
 func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error {
 	deletionStartTime := time.Now().UTC()
-	const (
-		deletionPollInterval = 500 * time.Millisecond
-		maxDeletionRetries   = 3
-	)
+	const maxDeletionRetries = 3
 
 	deletionCtx, cancel := context.WithTimeout(ctx, r.cfg.PrebuildWorkspaceTimeout)
 	defer cancel()
@@ -241,7 +242,7 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 	retryCount := make(map[uuid.UUID]int)
 	lastRetriedBuildID := make(map[uuid.UUID]uuid.UUID)
 
-	tkr := r.cfg.Clock.TickerFunc(deletionCtx, deletionPollInterval, func() error {
+	tkr := r.cfg.Clock.TickerFunc(deletionCtx, workspacePollInterval, func() error {
 		workspaces, err := r.client.Workspaces(deletionCtx, codersdk.WorkspaceFilter{
 			Template: r.template.Name,
 		})

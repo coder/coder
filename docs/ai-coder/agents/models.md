@@ -154,6 +154,22 @@ Click the **star icon** next to a model in the models list to make it the
 default. The default model is pre-selected when developers start a new chat.
 Only one model can be the default at a time.
 
+### Models with a missing or disabled provider
+
+The Models list reflects whether each model can actually be used:
+
+- When a model's connected provider has been deleted, the **Provider** column
+  shows **Unset** with an info tooltip that reads "The provider connected to
+  this model has been deleted."
+- When a model's provider is missing or disabled, the **Status** column
+  shows **Disabled**, regardless of the model's own enabled setting. Such a
+  model cannot serve chat requests.
+
+To reconnect a model to a working provider, open the model from the list,
+pick a new provider from the **Provider** dropdown, and click **Save**. The
+Save button is enabled as soon as the selected provider differs from the
+model's current provider, even if no other field is edited.
+
 ## Model options
 
 Every model has a set of general options and provider-specific options.
@@ -176,10 +192,6 @@ These options apply to all providers:
 | Top K                 | Limits token selection to the top K candidates.                                                  |
 | Presence Penalty      | Penalizes tokens that have already appeared in the conversation.                                 |
 | Frequency Penalty     | Penalizes tokens proportional to how often they have appeared.                                   |
-| Input Price           | Optional USD price metadata for input tokens, recorded per 1M tokens.                            |
-| Output Price          | Optional USD price metadata for output tokens, recorded per 1M tokens.                           |
-| Cache Read Price      | Optional USD price metadata for cache read tokens, recorded per 1M tokens.                       |
-| Cache Write Price     | Optional USD price metadata for cache creation/write tokens, recorded per 1M tokens.             |
 
 ### Provider-specific options
 
@@ -285,9 +297,9 @@ subagents always run on the administrator-configured computer-use model and
 reject explicit model selection.
 
 > [!NOTE]
-> Both override layers are experimental and may change between releases.
-> The same values are available through the experimental chat
-> configuration API under `/api/experimental/chats/config/`.
+> Both override layers may change between releases.
+> The same values are available through the chat
+> configuration API under `/api/v2/chats/config/`.
 
 ## User API keys (BYOK)
 

@@ -36,8 +36,8 @@ CODER_EXPERIMENTS=oauth2
 
 ### Method 1: Web UI
 
-1. Navigate to **Deployment Settings** → **OAuth2 Applications**
-2. Click **Create Application**
+1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+2. On the **Applications** tab, select **Add application**.
 3. Fill in the application details:
    - **Name**: Your application name
    - **Callback URL**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop)
@@ -66,6 +66,49 @@ curl -X POST \
   -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
   "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID/secrets"
 ```
+
+## Dynamic Client Registration
+
+Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**; an owner must turn it on before any client can self-register.
+
+Change the setting in the web UI:
+
+1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+2. Select the **Settings** tab.
+3. Select **Enable** or **Disable** next to **Dynamic Client Registration**.
+
+Enabling asks you to confirm first.
+Disabling does not.
+The tab is linkable directly at `https://$CODER_ACCESS_URL/deployment/oauth2-provider/apps?tab=settings`.
+
+Viewing the tab requires permission to view deployment configuration, and changing the setting requires permission to edit it.
+Without edit permission the button is present but inactive, and the page says why.
+
+Check or change the setting with the CLI:
+
+```sh
+coder oauth2-provider dcr enable
+coder oauth2-provider dcr disable
+```
+
+Or with the management API:
+
+```sh
+curl -X PUT \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"dynamic_client_registration_enabled": true}' \
+  "$CODER_URL/api/v2/oauth2-provider/settings"
+```
+
+```sh
+curl -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  "$CODER_URL/api/v2/oauth2-provider/settings"
+```
+
+Disabling only blocks *new* self-registrations. Applications that already
+registered while it was enabled keep authorizing and exchanging tokens
+normally; disabling does not revoke or otherwise affect them.
 
 ## Integration Patterns
 
@@ -217,6 +260,27 @@ curl -X DELETE \
   -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
   "$CODER_URL/oauth2/tokens?client_id=$CLIENT_ID"
 ```
+
+This ends existing sessions but leaves the application registered, so it can authorize again.
+
+### Delete an Application
+
+Deleting an application is a separate operation from revoking its tokens.
+It removes the registration itself, so the client cannot authorize again without being registered anew.
+
+In the web UI, navigate to **Deployment Settings** > **OAuth2 Applications**, select the application on the **Applications** tab, then select **Delete**.
+This requires permission to delete OAuth2 applications.
+
+Or with the management API:
+
+```sh
+curl -X DELETE \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID"
+```
+
+This is also how you remove clients that registered themselves while dynamic client registration was enabled.
+Turning the setting off stops new registrations; it does not remove the ones already there.
 
 ## Testing and Development
 

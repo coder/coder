@@ -7,7 +7,6 @@ import {
 	MockDropdownParameter,
 	MockDynamicParametersResponseWithError,
 	MockMultiSelectParameter,
-	MockPermissions,
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockPreviewParameter7,
@@ -21,6 +20,7 @@ import {
 	MockUserOwner,
 	MockValidationParameter,
 	MockWorkspace,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { checkParameters, editParameters } from "#/testHelpers/parameters";
 import {
@@ -54,6 +54,18 @@ describe("CreateWorkspacePage", () => {
 		mockSocket: MockWebSocket;
 		mockPublisher: MockWebSocketServer;
 	};
+
+	// checkAuthorization returns a boolean for each key it is asked about and no
+	// others, so the mock resolves every requested check from `overrides`,
+	// defaulting unlisted keys to false.
+	const mockCheckAuthorization = (overrides: Record<string, boolean> = {}) =>
+		vi
+			.spyOn(API, "checkAuthorization")
+			.mockImplementation(async ({ checks }) =>
+				Object.fromEntries(
+					Object.keys(checks).map((key) => [key, overrides[key] ?? false]),
+				),
+			);
 
 	// Mocks the required endpoints, most importantly the web socket, constructs
 	// the route with the required query parameters, then renders the page on that
@@ -222,7 +234,10 @@ describe("CreateWorkspacePage", () => {
 		vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		vi.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
-		vi.spyOn(API, "checkAuthorization").mockResolvedValue(MockPermissions);
+		mockCheckAuthorization({
+			createWorkspaceForUserID: true,
+			createWorkspaceForAny: true,
+		});
 	});
 
 	afterEach(() => {
@@ -633,6 +648,87 @@ describe("CreateWorkspacePage", () => {
 					screen.getByRole("button", { name: /create workspace/i }),
 				).toBeInTheDocument();
 			});
+		});
+	});
+
+	describe("Permissions", () => {
+		it("blocks the form behind a permission dialog when the user cannot create workspaces", async () => {
+			mockCheckAuthorization();
+
+			const { mockPublisher } = await renderPageWithSocket({});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
+
+			expect(
+				await screen.findByText(/you don't have permission to view this page/i),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("form", { name: /create workspace/i }),
+			).not.toBeInTheDocument();
+		});
+
+		it("blocks auto-creation without showing the consent dialog when the user cannot create workspaces", async () => {
+			mockCheckAuthorization();
+			const autoCreateSpy = vi.spyOn(API, "createWorkspace");
+
+			const { mockPublisher } = await renderPageWithSocket({
+				route: `/templates/${MockTemplate.name}/workspace?mode=auto`,
+			});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
+
+			expect(
+				await screen.findByText(/you don't have permission to view this page/i),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByText(/automatic workspace creation/i),
+			).not.toBeInTheDocument();
+			expect(autoCreateSpy).not.toHaveBeenCalled();
+		});
+
+		it("shows an error instead of the form when the permission check fails", async () => {
+			// Only reject the page's own check batch; the auth provider also
+			// calls checkAuthorization and must keep resolving.
+			vi.spyOn(API, "checkAuthorization").mockImplementation(
+				async ({ checks }) => {
+					if ("createWorkspaceForUserID" in checks) {
+						throw mockApiError({
+							message: "failed to check authorization",
+						});
+					}
+					return {};
+				},
+			);
+
+			const { mockPublisher } = await renderPageWithSocket({});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
+
+			expect(
+				await screen.findByRole("heading", {
+					name: /failed to check authorization/i,
+				}),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("form", { name: /create workspace/i }),
+			).not.toBeInTheDocument();
+			expect(
+				screen.queryByText(/you don't have permission to view this page/i),
+			).not.toBeInTheDocument();
+		});
+	});
+
+	describe("Load Errors", () => {
+		it("shows an error instead of the loader when the template fails to load", async () => {
+			vi.spyOn(API, "getTemplateByName").mockRejectedValue(
+				mockApiError({ message: "failed to load template" }),
+			);
+
+			renderCreateWorkspacePage();
+
+			expect(
+				await screen.findByRole("heading", {
+					name: /failed to load template/i,
+				}),
+			).toBeInTheDocument();
+			expect(screen.queryByTestId("loader")).not.toBeInTheDocument();
 		});
 	});
 
