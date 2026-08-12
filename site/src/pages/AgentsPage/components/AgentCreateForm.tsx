@@ -479,6 +479,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleWorkspaceChange(null);
 		resetAttachments();
 	});
+	// Permission updates can change effectiveOrg without invoking the selection handlers.
 	useEffect(() => {
 		if (previousEffectiveOrgId.current === effectiveOrg?.id) {
 			return;
@@ -535,6 +536,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								if (orgChanged && attachments.length > 0) {
 									setPendingOrgChange(newOrg);
 									return;
+								}
+								if (orgChanged) {
+									previousEffectiveOrgId.current = newOrg.id;
+									handleWorkspaceChange(null);
 								}
 								setSelectedOrg(newOrg);
 							}}
@@ -604,6 +609,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				hideCancel={false}
 				confirmText="Continue"
 				onConfirm={() => {
+					if (!pendingOrgChange) {
+						return;
+					}
+					previousEffectiveOrgId.current = pendingOrgChange.id;
+					resetAttachments();
+					handleWorkspaceChange(null);
 					setSelectedOrg(pendingOrgChange);
 					setPendingOrgChange(null);
 				}}
