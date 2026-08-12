@@ -2125,17 +2125,27 @@ func TestListChats_Search(t *testing.T) {
 		require.NotContains(t, ids, noMatch.ID)
 	})
 
-	t.Run("NoSearchableWordsReturns400", func(t *testing.T) {
+	t.Run("NoSearchableWordsReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-		ctx, client, _, _, _ := setup(t)
+		ctx, client, db, firstUser, modelConfig := setup(t)
 
-		_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+		// "or" is a real lexeme (an operator only between operands), so
+		// search:"or" matches the control chat; search:"!!!" has no lexemes and
+		// matches nothing.
+		control := createChat(t, db, firstUser, modelConfig.ID, "fix this or that")
+		backfillSearchTsv(ctx, t, db)
+
+		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: `search:"or"`,
+		})
+		require.NoError(t, err)
+		require.Contains(t, chatIDs(chats), control.ID)
+
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: `search:"!!!"`,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "search", sdkErr.Validations[0].Field)
-		require.Contains(t, sdkErr.Validations[0].Detail, "no searchable words")
+		require.NoError(t, err)
+		require.Empty(t, chats)
 	})
 
 	t.Run("ComposesWithRepoFilterAndArchivedDefault", func(t *testing.T) {
