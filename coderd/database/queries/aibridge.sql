@@ -260,7 +260,7 @@ FROM
 WITH
   -- We don't have FK relationships between the dependent tables and aibridge_interceptions, so we can't rely on DELETE CASCADE.
   to_delete AS (
-    SELECT id FROM aibridge_interceptions
+    SELECT id, session_id, initiator_id FROM aibridge_interceptions
     WHERE started_at < @before_time::timestamp with time zone
   ),
   -- CTEs are executed in order.
@@ -288,6 +288,22 @@ WITH
     DELETE FROM aibridge_interceptions
     WHERE id IN (SELECT id FROM to_delete)
     RETURNING 1
+  ),
+  -- Delete the session if:
+  -- There is a deleted interception linked to this session.
+  -- There are no interceptions linked to this session with a timestamp after the deletion timestamp.
+  --
+  -- Sibling CTEs share the same snapshot, so deleted interceptions are still visible when we delete the session.
+  sessions AS (
+    DELETE FROM aibridge_sessions s
+    WHERE (s.session_id, s.initiator_id) IN (SELECT session_id, initiator_id FROM to_delete)
+      AND NOT EXISTS (
+        SELECT 1 FROM aibridge_interceptions ai
+        WHERE ai.session_id = s.session_id
+          AND ai.initiator_id = s.initiator_id
+          AND ai.started_at >= @before_time::timestamp with time zone
+      )
+    RETURNING 1
   )
 -- Cumulative count.
 SELECT (
@@ -295,7 +311,8 @@ SELECT (
   (SELECT COUNT(*) FROM tool_usages) +
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
-  (SELECT COUNT(*) FROM interceptions)
+  (SELECT COUNT(*) FROM interceptions) +
+  (SELECT COUNT(*) FROM sessions)
 )::bigint as total_deleted;
 
 -- name: CountAIBridgeSessions :one
