@@ -50,10 +50,12 @@ type bridgeConfig struct {
 	metrics          *metrics.Metrics
 	tracer           trace.Tracer
 	mcpProxy         mcp.ServerProxier
-	noMCPProxy       bool
-	userID           string
-	metadata         recorder.Metadata
-	logger           slog.Logger
+	// noMCPProxy leaves the proxier nil instead of falling back to
+	// NoopMCPManager, which is non-nil and reports zero tools.
+	noMCPProxy bool
+	userID     string
+	metadata   recorder.Metadata
+	logger     slog.Logger
 }
 
 // bridgeTestServer wraps an httptest.Server running a RequestBridge.
@@ -119,13 +121,6 @@ func withTracer(t trace.Tracer) bridgeOption {
 // withMCP sets the MCP server proxier (default: NoopMCPManager).
 func withMCP(p mcp.ServerProxier) bridgeOption {
 	return func(c *bridgeConfig) { c.mcpProxy = p }
-}
-
-// withoutMCP runs the bridge with a nil MCP server proxier, matching a
-// deployment where proxier construction failed and injection degraded. This
-// differs from NoopMCPManager, which is non-nil and reports zero tools.
-func withoutMCP() bridgeOption {
-	return func(c *bridgeConfig) { c.noMCPProxy = true }
 }
 
 // withActor sets the actor ID and metadata for the BaseContext.
