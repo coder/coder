@@ -558,3 +558,16 @@ func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, e
 		ErrorDescription: description,
 	})
 }
+
+// WriteOAuth2RequestTooLarge reports a request body over limit as an RFC 6749
+// error, for the OAuth2 endpoints that read a form body rather than decoding
+// through Read. RFC 6749 defines no error code for a transport rejection, so
+// invalid_request is the closest compliant framing.
+//
+// The limit is the one carried by the *http.MaxBytesError that tripped, so a
+// caller of this function reports the bound that actually applied rather than
+// the one it assumes applied.
+func WriteOAuth2RequestTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64) {
+	WriteOAuth2Error(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.OAuth2ErrorCodeInvalidRequest,
+		fmt.Sprintf("Maximum request body size is %d bytes.", limit))
+}

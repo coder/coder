@@ -2,6 +2,7 @@ package httpmw
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -374,6 +375,7 @@ type errorWriter interface {
 	writeMissingClientID(ctx context.Context, rw http.ResponseWriter)
 	writeInvalidClientID(ctx context.Context, rw http.ResponseWriter, err error)
 	writeClientNotFound(ctx context.Context, rw http.ResponseWriter)
+	writeRequestTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64)
 }
 
 // codersdkErrorWriter writes standard codersdk errors for general API endpoints
@@ -402,6 +404,13 @@ func (*codersdkErrorWriter) writeClientNotFound(ctx context.Context, rw http.Res
 	})
 }
 
+func (*codersdkErrorWriter) writeRequestTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64) {
+	httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+		Message: "Request body too large.",
+		Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", limit),
+	})
+}
+
 // oauth2ErrorWriter writes OAuth2-compliant errors for OAuth2 endpoints
 type oauth2ErrorWriter struct{}
 
@@ -417,12 +426,28 @@ func (*oauth2ErrorWriter) writeClientNotFound(ctx context.Context, rw http.Respo
 	httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
 }
 
+func (*oauth2ErrorWriter) writeRequestTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64) {
+	httpapi.WriteOAuth2RequestTooLarge(ctx, rw, limit)
+}
+
 // extractOAuth2ProviderAppBase is the internal implementation that uses the strategy pattern
 // instead of a control flag to handle different error formats.
 func extractOAuth2ProviderAppBase(db database.Store, errWriter errorWriter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+
+			// POST /oauth2/tokens and POST /oauth2/revoke authenticate the
+			// client from the request body, so they cannot require an API key
+			// and the body below is read before any authorization decision.
+			// Bound it here, ahead of every reader: r.ParseForm below, and the
+			// handlers downstream, all read through this wrap.
+			//
+			// net/http caps an unwrapped urlencoded body at its own 10 MiB
+			// maxFormSize, which is 2.5x the ceiling every other endpoint
+			// carries. It defers to a *http.MaxBytesReader when it finds one,
+			// so installing one replaces that cap with this one.
+			r.Body = http.MaxBytesReader(rw, r.Body, httpapi.DefaultMaxRequestBodyBytes)
 
 			// App can come from a URL param, query param, or form value.
 			paramID := "app"
@@ -441,9 +466,19 @@ func extractOAuth2ProviderAppBase(db database.Store, errWriter errorWriter) func
 				paramAppID := r.URL.Query().Get("client_id")
 				if paramAppID == "" {
 					// Check the form params!
-					if r.ParseForm() == nil {
+					err := r.ParseForm()
+					if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
+						// An oversized body is a size failure and is reported as
+						// one. Falling through would report the client_id this
+						// body may well have carried as missing.
+						errWriter.writeRequestTooLarge(ctx, rw, maxBytesErr.Limit)
+						return
+					}
+					if err == nil {
 						paramAppID = r.Form.Get("client_id")
 					}
+					// Any other parse failure is not fatal here: the client_id
+					// may still arrive through HTTP Basic below.
 				}
 				if paramAppID == "" {
 					// RFC 6749 §2.3.1: confidential clients may authenticate via

@@ -572,9 +572,22 @@ func codersdkResponseBodyDecode(m dsl.Matcher) {
 // to opt out of having a bound. Outbound requests are exempt for a different
 // reason: this process wrote the body.
 //
+// The match list covers the ways a body is consumed today plus the ones a
+// contributor would reach for next. ParseForm and ParseMultipartForm are here
+// because net/http caps an unwrapped urlencoded body at its own 10 MiB
+// maxFormSize, larger than the ceiling httpapi.Read carries, and defers to a
+// *http.MaxBytesReader when it finds one.
+//
+// Binding a body to a local first, as in `body := r.Body`, defeats the match:
+// ruleguard compares selector expressions and does not follow aliases. The rule
+// is a nudge toward the idiom, not a proof that no unbounded read exists.
+//
 //nolint:unused,deadcode,varnamelen
 func unboundedRequestBody(m dsl.Matcher) {
+	m.Import("bufio")
+	m.Import("encoding/csv")
 	m.Import("encoding/json")
+	m.Import("encoding/xml")
 	m.Import("io")
 	m.Import("net/http")
 
@@ -583,6 +596,13 @@ func unboundedRequestBody(m dsl.Matcher) {
 		`$_ := json.NewDecoder($r.Body)`,
 		`$_ = json.NewDecoder($r.Body)`,
 		`io.ReadAll($r.Body)`,
+		`io.Copy($_, $r.Body)`,
+		`bufio.NewReader($r.Body)`,
+		`bufio.NewScanner($r.Body)`,
+		`xml.NewDecoder($r.Body)`,
+		`csv.NewReader($r.Body)`,
+		`$r.ParseForm()`,
+		`$r.ParseMultipartForm($_)`,
 	).
 		Where(
 			(m["r"].Type.Is("*http.Request") || m["r"].Type.Is("http.Request")) &&
@@ -614,6 +634,16 @@ func unboundedRequestBody(m dsl.Matcher) {
 				// reports 413 as an RFC 7591 error, which httpapi.Read cannot do.
 				!(m.File().PkgPath.Matches(`/coderd/oauth2provider$`) &&
 					m.File().Name.Matches(`^registration\.go$`)) &&
+				// oauth2.go installs the bound that the form parses on
+				// /oauth2/tokens and /oauth2/revoke read through, and reports 413
+				// as an RFC 6749 error. tokens.go and revoke.go parse the form
+				// again when client_id came from the query string, so the
+				// middleware had no reason to; both are reachable only under it
+				// and both translate its *http.MaxBytesError to the same 413.
+				!(m.File().PkgPath.Matches(`/coderd/httpmw$`) &&
+					m.File().Name.Matches(`^oauth2\.go$`)) &&
+				!(m.File().PkgPath.Matches(`/coderd/oauth2provider$`) &&
+					m.File().Name.Matches(`^(tokens|revoke)\.go$`)) &&
 				// The SCIM routes bound every body ahead of these handlers, in
 				// enterprise/coderd/scimroutes.go, because a SCIM rejection must
 				// be reported in SCIM's own error shape.

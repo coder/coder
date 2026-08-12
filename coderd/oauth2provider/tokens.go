@@ -136,6 +136,14 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 
 		req, validationErrs, err := extractTokenRequest(r, callbackURL)
 		if err != nil {
+			// ExtractOAuth2ProviderAppWithOAuth2Errors bounds the body, but it
+			// parses the form only when client_id is absent from the query
+			// string. When it is present, extractTokenRequest performs the first
+			// read and the bound trips here rather than in the middleware.
+			if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				httpapi.WriteOAuth2RequestTooLarge(ctx, rw, maxBytesErr.Limit)
+				return
+			}
 			if errors.Is(err, errConflictingClientAuth) {
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
 				return

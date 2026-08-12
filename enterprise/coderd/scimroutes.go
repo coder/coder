@@ -29,6 +29,11 @@ const scimMaxRequestBodyBytes = httpapi.DefaultMaxRequestBodyBytes
 // a SCIM-shaped 413 and passes the buffered body to next. The limit is enforced
 // on bytes read rather than on Content-Length, which is absent under chunked
 // transfer encoding and caller-controlled otherwise.
+//
+// This buffers, so it is mounted after the SCIM API key check on both
+// implementations. Mounting it ahead of authentication would let an
+// unauthenticated caller spend scimMaxRequestBodyBytes per request on a path
+// that has no rate limit, which is the exposure the bound exists to remove.
 func scimLimitRequestBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if r.Body == nil {
@@ -97,10 +102,14 @@ func (api *API) mountScimRoute(opt *Options, r chi.Router) error {
 			SCIMAPIKey: opt.SCIMAPIKey,
 			Auditor:    &api.AGPL.Auditor,
 		}
+		// The body bound runs after AuthMiddleware, which is a header
+		// comparison that never reads the body. A caller without the SCIM API
+		// key is rejected there having caused no read, and an authenticated
+		// caller still reaches the handler through the bound.
 		r.Mount("/v2", chi.Chain(
 			api.RequireFeatureMW(codersdk.FeatureSCIM),
-			scimLimitRequestBody,
 			legacySrv.AuthMiddleware,
+			scimLimitRequestBody,
 		).Handler(legacySrv.Handler()))
 		return nil
 	}
@@ -122,10 +131,13 @@ func (api *API) mountScimRoute(opt *Options, r chi.Router) error {
 	// internally. Chi's Route/Mount modifies its own routing context
 	// but not r.URL.Path, so we use http.StripPrefix to ensure the
 	// library sees paths like "/v2/Users" instead of "/scim/v2/Users".
+	//
+	// The body bound is passed to Handler rather than mounted here because this
+	// implementation authenticates inside its own handler. Handler runs it after
+	// the API key check, so an unauthenticated caller causes no read.
 	r.Mount("/", chi.Chain(
 		api.RequireFeatureMW(codersdk.FeatureSCIM),
-		scimLimitRequestBody,
 		middleware.StripPrefix("/scim"),
-	).Handler(scimSrv.Handler()))
+	).Handler(scimSrv.Handler(scimLimitRequestBody)))
 	return nil
 }

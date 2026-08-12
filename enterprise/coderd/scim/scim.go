@@ -11,6 +11,7 @@ import (
 	scimErrors "github.com/elimity-com/scim/errors"
 	"github.com/elimity-com/scim/optional"
 	"github.com/elimity-com/scim/schema"
+	"github.com/go-chi/chi/v5"
 
 	"cdr.dev/slog/v3"
 	agpl "github.com/coder/coder/v2/coderd"
@@ -109,8 +110,14 @@ func (s *Handler) authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (s *Handler) Handler() http.Handler {
-	return s.authMiddleware(s.srv)
+// Handler returns the SCIM 2.0 handler. Middleware passed as inner runs after
+// the SCIM API key check and before the SCIM server, so work that a caller can
+// trigger without authenticating stays out of reach of an unauthenticated
+// caller. The size bound on the request body is mounted this way: buffering a
+// body for a caller who is about to be rejected at the API key check is work an
+// unauthenticated caller should not be able to cause.
+func (s *Handler) Handler(inner ...func(http.Handler) http.Handler) http.Handler {
+	return s.authMiddleware(chi.Chain(inner...).Handler(s.srv))
 }
 
 func (s *Handler) verifyAuthHeader(r *http.Request) bool {

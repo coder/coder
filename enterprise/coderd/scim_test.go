@@ -730,6 +730,10 @@ func TestLegacyScimError(t *testing.T) {
 // scim route's own middleware, which must report the rejection in SCIM's error
 // shape rather than as a codersdk.Response.
 //
+// The bound buffers, so where it sits in the chain is part of what is asserted:
+// an authenticated caller gets 413, and an unauthenticated one gets 401 without
+// the body being buffered on its behalf.
+//
 //nolint:gocritic // SCIM authenticates via a special header and bypasses internal RBAC.
 func TestScimRequestBodyTooLarge(t *testing.T) {
 	t.Parallel()
@@ -746,7 +750,7 @@ func TestScimRequestBodyTooLarge(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			scimAPIKey := []byte("hi")
-			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 				SCIMAPIKey:    scimAPIKey,
 				UseLegacySCIM: tc.legacy,
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -779,6 +783,24 @@ func TestScimRequestBodyTooLarge(t *testing.T) {
 			require.Equal(t, []string{"urn:ietf:params:scim:api:messages:2.0:Error"}, scimErr.Schemas)
 			require.Equal(t, "413", scimErr.Status)
 			require.Contains(t, scimErr.Detail, strconv.Itoa(httpapi.DefaultMaxRequestBodyBytes))
+
+			// The same body without the SCIM API key is answered 401. A 413 here
+			// would mean the body was buffered before the key was checked, which
+			// would let an unauthenticated caller spend the limit per request on
+			// a route that carries no rate limit.
+			//
+			// Served through the mounted handler rather than the client, because
+			// rejecting at the key check reads none of the body and a client
+			// still writing an oversized one observes a connection reset rather
+			// than the response.
+			unauthed := httptest.NewRequest(http.MethodPost, "/scim/v2/Users", strings.NewReader(body))
+			unauthed.Header.Set("Content-Type", "application/scim+json")
+			rec := httptest.NewRecorder()
+
+			api.AGPL.RootHandler.ServeHTTP(rec, unauthed)
+
+			require.Equal(t, http.StatusUnauthorized, rec.Code,
+				"response body: %s", rec.Body.String())
 		})
 	}
 }
