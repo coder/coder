@@ -47,7 +47,17 @@ const meta: Meta<typeof TemplateVersionEditor> = {
 export default meta;
 type Story = StoryObj<typeof TemplateVersionEditor>;
 
-export const Example: Story = {};
+export const Example: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const backLink = canvas.getByRole("link", { name: "Back to the template" });
+		await expect(backLink).toBeVisible();
+		await expect(backLink).toHaveAttribute(
+			"aria-label",
+			"Back to the template",
+		);
+	},
+};
 
 export const UndefinedLogs: Story = {
 	args: {
