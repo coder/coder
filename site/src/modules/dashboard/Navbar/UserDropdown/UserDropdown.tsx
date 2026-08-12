@@ -21,23 +21,18 @@ import { cn } from "#/utils/cn";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 
-// The normal state keeps the standard avatar border. Elevated states use a
-// thicker border plus a notification-style corner badge with a distinct icon
-// per state, so the change is perceivable without relying on color alone.
+// The avatar always keeps the standard border. Elevated states show a
+// notification-style corner badge with a distinct icon per state, so the
+// change is perceivable without relying on color alone.
 const severityIndicators: Partial<
-	Record<
-		UsageSeverity,
-		{ border: string; badge: string; icon: JSX.Element; label: string }
-	>
+	Record<UsageSeverity, { badge: string; icon: JSX.Element; label: string }>
 > = {
 	warning: {
-		border: "border-2 border-content-warning",
 		badge: "bg-surface-orange text-highlight-orange",
 		icon: <TriangleAlertIcon aria-hidden className="size-3" />,
 		label: "AI spend is nearing its limit",
 	},
 	exceeded: {
-		border: "border-2 border-content-destructive",
 		badge: "bg-surface-red text-highlight-red",
 		icon: <OctagonAlertIcon aria-hidden className="size-3" />,
 		label: "AI spend limit exceeded",
@@ -97,7 +92,6 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 								fallback={user.username}
 								src={user.avatar_url}
 								size="lg"
-								className={indicator?.border}
 							/>
 							{indicator && (
 								<span
