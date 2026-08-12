@@ -1,9 +1,9 @@
 import type { FC } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -28,6 +28,7 @@ export const TemplateDataPageView: FC<TemplateDataPageViewProps> = ({
 	onRefresh,
 }) => {
 	const [isConfirmingRefresh, setIsConfirmingRefresh] = useState(false);
+	const refreshButtonRef = useRef<HTMLButtonElement>(null);
 	const importedAt = activeVersion.job.completed_at;
 
 	return (
@@ -56,6 +57,7 @@ export const TemplateDataPageView: FC<TemplateDataPageViewProps> = ({
 			{canRefresh && (
 				<div>
 					<Button
+						ref={refreshButtonRef}
 						disabled={isRefreshing}
 						onClick={() => setIsConfirmingRefresh(true)}
 					>
@@ -83,6 +85,12 @@ export const TemplateDataPageView: FC<TemplateDataPageViewProps> = ({
 				onConfirm={() => {
 					setIsConfirmingRefresh(false);
 					onRefresh();
+				}}
+				// Radix returns focus to its trigger on close, and this dialog has
+				// none, so focus would land on <body>.
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					refreshButtonRef.current?.focus();
 				}}
 			/>
 		</div>
