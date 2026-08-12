@@ -18,7 +18,7 @@ const aiGovernanceOverLimitWarningPrefix =
 const aiGovernanceNearLimitWarningPrefix =
 	LicenseAIGovernance90PercentWarningText.split("%d%%")[0];
 const AI_GOVERNANCE_NEAR_LIMIT_FALLBACK_MESSAGE =
-	"You are approaching your AI Governance add-on seat limit.";
+	"You are approaching your AI Governance seat limit.";
 
 const isAIGovernanceWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||

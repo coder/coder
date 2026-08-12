@@ -65,7 +65,7 @@ export const ActiveAIGovernanceAddOnUsage: Story = {
 		await expect(canvas.getByText("1,923")).toBeInTheDocument();
 		await expect(canvas.getByText("2,500")).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("heading", { name: "AI Governance add-on usage" }),
+			canvas.getByRole("heading", { name: "AI Governance usage" }),
 		).toBeInTheDocument();
 		await expect(canvas.getByText("512")).toBeInTheDocument();
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();
