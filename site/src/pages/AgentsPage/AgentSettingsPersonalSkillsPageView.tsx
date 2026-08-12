@@ -73,6 +73,10 @@ export interface AgentSettingsPersonalSkillsPageViewProps {
 	onCreate: () => void;
 	onEdit: (name: string) => void;
 	onDelete: (skill: UserSkillMetadata) => void;
+	onDownload: (skill: UserSkillMetadata) => void;
+	onExportAll: () => void;
+	downloadingSkillName?: string;
+	isExportingAll?: boolean;
 	editorState?: PersonalSkillEditorState;
 	deleteState?: PersonalSkillDeleteState;
 }
@@ -208,6 +212,10 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 	onCreate,
 	onEdit,
 	onDelete,
+	onDownload,
+	onExportAll,
+	downloadingSkillName,
+	isExportingAll = false,
 	editorState,
 	deleteState,
 }) => {
@@ -217,13 +225,27 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 			Add skill
 		</Button>
 	);
+	const headerActions = (
+		<div className="flex items-center gap-2">
+			<Button
+				size="sm"
+				variant="outline"
+				onClick={onExportAll}
+				disabled={isLoading || isExportingAll || skills.length === 0}
+			>
+				{isExportingAll && <Spinner className="size-4" loading />}
+				Export all
+			</Button>
+			{addSkillAction}
+		</div>
+	);
 
 	return (
 		<div className="flex flex-col gap-8">
 			<SectionHeader
 				label="Personal skills"
 				description="Reusable instructions your agents can pick when they need specialized guidance. Personal skills hold a single SKILL.md file. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace."
-				action={addSkillAction}
+				action={headerActions}
 			/>
 
 			{isAtLimit && (
@@ -282,6 +304,17 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 								<TableCell>{formatUpdatedAt(skill.updated_at)}</TableCell>
 								<TableCell>
 									<div className="flex justify-end gap-2">
+										<Button
+											size="xs"
+											variant="outline"
+											onClick={() => onDownload(skill)}
+											disabled={downloadingSkillName === skill.name}
+										>
+											{downloadingSkillName === skill.name && (
+												<Spinner className="size-4" loading />
+											)}
+											Download
+										</Button>
 										<Button
 											size="xs"
 											variant="outline"

@@ -197,19 +197,22 @@ func TestDispatcherTimeoutNoRetry(t *testing.T) {
 
 	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
 	var requests atomic.Int32
-	release := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	// A real server cannot guarantee the handler runs before the short
+	// dispatch deadline on a loaded machine, so the transport records the
+	// attempt synchronously. The successful response with a body that blocks
+	// until the deadline expires keeps the read-path timeout branch covered.
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requests.Add(1)
-		w.WriteHeader(http.StatusOK)
-		assert.NoError(t, http.NewResponseController(w).Flush())
-		<-release
-	}))
-	t.Cleanup(server.Close)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       contextBlockedBody{ctx: req.Context()},
+			Request:    req,
+		}, nil
+	})}
 
-	_, _, err := newTestDispatcher(t, server.Client(), server.URL, 50*time.Millisecond).Dispatch(
+	_, _, err := newTestDispatcher(t, client, "https://hooks.example.com/coder", 50*time.Millisecond).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
-	close(release)
 	assertDispatchErrorClass(t, err, ResultTimeout)
 	require.Equal(t, int32(1), requests.Load())
 }
@@ -708,6 +711,15 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
+
+type contextBlockedBody struct{ ctx context.Context }
+
+func (b contextBlockedBody) Read([]byte) (int, error) {
+	<-b.ctx.Done()
+	return 0, b.ctx.Err()
+}
+
+func (contextBlockedBody) Close() error { return nil }
 
 func TestDispatcherCapacityClassRequired(t *testing.T) {
 	t.Parallel()
