@@ -3,7 +3,6 @@ package oauth2provider_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	htmltemplate "html/template"
 	"io"
 	"net/http"
@@ -227,8 +226,13 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog+" template:read")
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		require.NotContains(t, readBody(t, resp), `id="allow-form"`,
+		body := readBody(t, resp)
+		require.NotContains(t, body, `id="allow-form"`,
 			"the consent page must not render for a scope the app cannot be granted")
+		// The counterpart to ErrorPageBlamesTheAppNotTheRequester: here the
+		// request really did ask for something outside the allowlist, so the
+		// page names the request.
+		require.Contains(t, body, descriptionRequestAtFault)
 
 		// Positive control: the same handler still renders the consent page for
 		// a request the app can be granted, so the assertion above is about the
@@ -278,6 +282,24 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 		defer resp.Body.Close()
 
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
+	})
+
+	// The user who lands on this page requested nothing wrong, and cannot make
+	// the request succeed by changing it, so the page must not tell them to.
+	t.Run("ErrorPageBlamesTheAppNotTheRequester", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, registration.ClientID, "")
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+		body := readBody(t, resp)
+		require.Contains(t, body, descriptionAppAtFault)
+		require.NotContains(t, body, descriptionRequestAtFault,
+			"the requester did not send a scope, so nothing about their request can be at fault")
+		require.Contains(t, body, "openid profile email",
+			"the warning must name the registered scopes the app owner has to change")
 	})
 }
 
@@ -342,8 +364,15 @@ func persistedCodeScope(ctx context.Context, t *testing.T, db database.Store, re
 // over the wire what errors.Is pins in the package's own tests.
 const (
 	reasonUnknownScope     = "unknown or unsupported scope"
-	reasonNoGrantableScope = "contains no grantable scope"
+	reasonNoGrantableScope = "none of the scopes registered for this app are supported"
 	reasonScopeNotAllowed  = "not in this app's allowed scope list"
+)
+
+// The two Invalid Scope page descriptions in authorize.go, which differ by who
+// is able to act on the failure.
+const (
+	descriptionRequestAtFault = "The requested scope is invalid or exceeds what this application is allowed to request."
+	descriptionAppAtFault     = "This application is not registered with a scope this deployment can grant."
 )
 
 // requireInvalidScope asserts the RFC 6749 §4.1.2.1 rejection, that it came
@@ -354,12 +383,8 @@ func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
 
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	require.Empty(t, resp.Header.Get("Location"), "a rejected request must not redirect with a code")
-
-	var errResp oauth2providertest.OAuth2Error
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&errResp))
-	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), errResp.Error)
-	require.Contains(t, errResp.ErrorDescription, wantReason,
-		"the rejection must come from the branch this case covers")
+	oauth2providertest.RequireOAuth2ErrorWithDescription(t, resp,
+		string(codersdk.OAuth2ErrorCodeInvalidScope), wantReason)
 }
 
 func readBody(t *testing.T, resp *http.Response) string {

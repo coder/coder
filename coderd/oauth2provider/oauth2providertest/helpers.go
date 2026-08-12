@@ -261,12 +261,32 @@ func ExchangeCodeForToken(t *testing.T, baseURL string, params TokenExchangePara
 func RequireOAuth2Error(t *testing.T, resp *http.Response, expectedError string) {
 	t.Helper()
 
+	errorResp := decodeOAuth2Error(t, resp)
+	require.Equal(t, expectedError, errorResp.Error, "unexpected OAuth2 error code")
+	require.NotEmpty(t, errorResp.ErrorDescription, "missing error description")
+}
+
+// RequireOAuth2ErrorWithDescription checks the same as RequireOAuth2Error and
+// additionally that the description contains descriptionContains. Use it when
+// one error code covers several rejection reasons and the test needs to pin
+// which one it hit, since the description is the only part of the response
+// that distinguishes them.
+func RequireOAuth2ErrorWithDescription(t *testing.T, resp *http.Response, expectedError, descriptionContains string) {
+	t.Helper()
+
+	errorResp := decodeOAuth2Error(t, resp)
+	require.Equal(t, expectedError, errorResp.Error, "unexpected OAuth2 error code")
+	require.Contains(t, errorResp.ErrorDescription, descriptionContains,
+		"the rejection did not come from the expected branch")
+}
+
+func decodeOAuth2Error(t *testing.T, resp *http.Response) OAuth2Error {
+	t.Helper()
+
 	var errorResp OAuth2Error
 	err := json.NewDecoder(resp.Body).Decode(&errorResp)
 	require.NoError(t, err, "failed to decode error response")
-
-	require.Equal(t, expectedError, errorResp.Error, "unexpected OAuth2 error code")
-	require.NotEmpty(t, errorResp.ErrorDescription, "missing error description")
+	return errorResp
 }
 
 // PerformTokenExchangeExpectingError performs a token exchange expecting an OAuth2 error

@@ -27,13 +27,21 @@ import (
 // Rejection reasons from validateRequestedScope. They are sentinels rather
 // than inline messages so a caller, and the tests, can tell which check
 // failed without matching on message text.
+//
+// Each is wrapped with the offending value ahead of it, because xerrors only
+// wraps without repeating the sentinel's own text when %w is the final verb.
+// These messages are rendered into error_description and onto the authorize
+// error page, so a doubled one is read by a person.
 var (
 	// errUnknownScope is returned for a scope name outside the external scope
 	// catalog, whether unrecognized entirely or recognized but internal-only.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
 	// errNoGrantableScope is returned when every entry of the app's allowlist
-	// falls outside the catalog, leaving nothing the app can be granted.
-	errNoGrantableScope = xerrors.New("this app's allowed scope list contains no grantable scope")
+	// falls outside the catalog, leaving nothing the app can be granted. The
+	// request is not at fault here and may have carried no scope at all, so
+	// the message names the registered list and the only remedy, which is
+	// re-registering the app.
+	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; re-register the app with supported scopes")
 	// errScopeNotAllowed is returned for a catalog scope the app's allowlist
 	// does not cover.
 	errScopeNotAllowed = xerrors.New("scope is not in this app's allowed scope list")
@@ -111,7 +119,7 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 	// the app has an allowlist to check against.
 	for _, s := range requested {
 		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
-			return "", xerrors.Errorf("%w: %q", errUnknownScope, s)
+			return "", xerrors.Errorf("%q: %w", s, errUnknownScope)
 		}
 	}
 
@@ -147,7 +155,10 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 		// all-entries-dropped counterpart to the single-stale-entry case the
 		// filter above handles, and it must not share the no-allowlist
 		// branch's fallback.
-		return "", errNoGrantableScope
+		//
+		// Named with the pre-filter list, since that is what was registered
+		// and what the app owner has to change.
+		return "", xerrors.Errorf("%v: %w", allowed, errNoGrantableScope)
 	}
 	// Canonicalized so the subset check below compares one spelling against
 	// one spelling: an allowlist entry of `all` covers a request for
@@ -166,7 +177,7 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 	}
 	for _, s := range requested {
 		if !allowedSet[string(rbac.CanonicalScopeName(rbac.ScopeName(s)))] {
-			return "", xerrors.Errorf("%w: %q", errScopeNotAllowed, s)
+			return "", xerrors.Errorf("%q: %w", s, errScopeNotAllowed)
 		}
 	}
 	return strings.Join(granted, " "), nil
@@ -298,11 +309,21 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 		// the check for that reason. Only the POST side needs the negotiated
 		// value, since it is what persists it.
 		if _, err := validateRequestedScope(params.scope, app.Scope); err != nil {
+			// errNoGrantableScope is the app's misconfiguration, not the
+			// request's: it fires on an allowlist with no supported entry,
+			// which the user reaches even when they requested no scope at
+			// all. Pointing them at their own request would name something
+			// they cannot change. The warning below carries the cause either
+			// way.
+			description := "The requested scope is invalid or exceeds what this application is allowed to request."
+			if errors.Is(err, errNoGrantableScope) {
+				description = "This application is not registered with a scope this deployment can grant. Its owner needs to re-register it before authorization can proceed."
+			}
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusBadRequest,
 				HideStatus:  false,
 				Title:       "Invalid Scope",
-				Description: "The requested scope is invalid or exceeds what this application is allowed to request.",
+				Description: description,
 				Warnings:    []string{err.Error()},
 				Actions: []site.Action{
 					{

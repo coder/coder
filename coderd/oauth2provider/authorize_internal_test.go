@@ -229,6 +229,13 @@ func TestValidateRequestedScope(t *testing.T) {
 			if test.wantErr != nil {
 				require.ErrorIs(t, err, test.wantErr)
 				assert.Empty(t, got, "a rejected request must not return a persistable scope")
+				// This message is rendered into error_description and onto
+				// the authorize error page, so it is read by a person.
+				// xerrors repeats the wrapped text unless %w is the final
+				// verb, which is easy to reintroduce and invisible to
+				// errors.Is.
+				assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
+					"the rejection reason must appear once, not doubled by the wrap")
 				return
 			}
 			require.NoError(t, err)
