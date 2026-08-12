@@ -61,40 +61,29 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// CreateAIAgent currently has a proof of concept stub for a body, but its
-	// validation is not part of the stub. The caller is an arbitrary process
-	// inside the workspace, so the request is untrusted, and it stays
-	// untrusted once the stub is replaced. These cases outlive the stub.
+	// CreateAIAgent currently has a proof of concept stub for a body. What it
+	// does reject, it must keep rejecting: a request with no credential is
+	// meaningless whatever handles it.
 	t.Run("CreateAIAgent", func(t *testing.T) {
 		t.Parallel()
 
 		for _, tc := range []struct {
-			name        string
-			workspaceID uuid.UUID
-			agentToken  []byte
-			markerPath  string
-			wantErr     string
+			name                string
+			workspaceCredential []byte
+			markerPath          string
+			wantErr             string
 		}{
 			{
-				name:        "NoWorkspaceID",
-				workspaceID: uuid.Nil,
-				agentToken:  []byte("token"),
-				markerPath:  "marker",
-				wantErr:     "workspace_id is required",
+				name:                "NoWorkspaceCredential",
+				workspaceCredential: nil,
+				markerPath:          "marker",
+				wantErr:             "workspace_credential is required",
 			},
 			{
-				name:        "NoAgentToken",
-				workspaceID: uuid.New(),
-				agentToken:  nil,
-				markerPath:  "marker",
-				wantErr:     "agent_token is required",
-			},
-			{
-				name:        "NoMarkerPath",
-				workspaceID: uuid.New(),
-				agentToken:  []byte("token"),
-				markerPath:  "",
-				wantErr:     "poc_marker_path is required",
+				name:                "NoMarkerPath",
+				workspaceCredential: []byte("credential"),
+				markerPath:          "",
+				wantErr:             "poc_marker_path is required",
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -118,7 +107,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 					markerPath = filepath.Join(t.TempDir(), markerPath)
 				}
 
-				err = client.CreateAIAgent(ctx, tc.workspaceID, tc.agentToken, markerPath)
+				err = client.CreateAIAgent(ctx, uuid.New(), tc.workspaceCredential, markerPath)
 				require.ErrorContains(t, err, tc.wantErr)
 				if markerPath != "" {
 					require.NoFileExists(t, markerPath,

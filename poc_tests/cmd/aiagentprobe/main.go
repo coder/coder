@@ -11,12 +11,13 @@
 //
 //	CODER_AGENT_SOCKET_PATH  where the workspace_agent listens
 //	CODER_WORKSPACE_ID       the workspace the AI agent belongs to
-//	CODER_AGENT_TOKEN        the workspace_agent credential
+//	CODER_AGENT_TOKEN        the credential issued to the workspace
 //	CODER_POC_MARKER_PATH    where the handler records that it was called
 //
 // The workspace identifier and the credential are sent with the call. Neither
 // is used for anything yet, since the handler is a stub, but the data path
-// they travel is the one the real call will use.
+// they travel is the one the real call will use. The credential is read as
+// bytes and passed on untouched.
 //
 // Exit status is meaningful: zero only if every step succeeded, including the
 // socket call. Any failure exits non-zero.
@@ -61,7 +62,7 @@ func run() error {
 	if err != nil {
 		return xerrors.Errorf("CODER_WORKSPACE_ID is not a uuid: %w", err)
 	}
-	agentToken, err := requiredEnv("CODER_AGENT_TOKEN")
+	workspaceCredential, err := requiredEnv("CODER_AGENT_TOKEN")
 	if err != nil {
 		return err
 	}
@@ -79,7 +80,7 @@ func run() error {
 	// socket writes it, so its presence proves the call arrived rather than
 	// merely that this executable ran. The path travels in the request only
 	// because that handler is still a stub.
-	if err := client.CreateAIAgent(ctx, workspaceID, []byte(agentToken), markerPath); err != nil {
+	if err := client.CreateAIAgent(ctx, workspaceID, []byte(workspaceCredential), markerPath); err != nil {
 		return xerrors.Errorf("create AI agent: %w", err)
 	}
 

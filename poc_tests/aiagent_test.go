@@ -149,10 +149,10 @@ func TestAIAgentIdentity(t *testing.T) {
 		// The handler repeats what it was given, so the marker shows the call
 		// arrived intact rather than merely that it arrived. The credential is
 		// compared by digest because the handler does not write it down.
-		tokenDigest := sha256.Sum256([]byte(r.AgentToken))
+		credentialDigest := sha256.Sum256([]byte(r.AgentToken))
 		wantMarker := "CreateAIAgent\n" +
 			"workspace_id=" + r.Workspace.ID.String() + "\n" +
-			"agent_token_sha256=" + hex.EncodeToString(tokenDigest[:]) + "\n"
+			"workspace_credential_sha256=" + hex.EncodeToString(credentialDigest[:]) + "\n"
 
 		contents, err := os.ReadFile(markerPath)
 		require.NoError(t, err)

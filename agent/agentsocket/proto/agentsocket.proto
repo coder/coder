@@ -15,9 +15,12 @@ message PingResponse {}
 message CreateAIAgentRequest {
   // workspace_id is the workspace the AI agent belongs to.
   bytes workspace_id = 1;
-  // agent_token is the credential of the workspace_agent this request is sent
-  // to. The caller holds it because it runs inside the same workspace.
-  bytes agent_token = 2;
+  // workspace_credential is the credential issued to the workspace. The caller
+  // holds it because it runs inside that workspace.
+  //
+  // It is an opaque blob. Nothing in transit may parse it, inspect it, or
+  // assume a shape for it.
+  bytes workspace_credential = 2;
   // poc_marker_path is a proof of concept stub and is not part of the intended
   // interface. The handler touches this path to show that it was called, so
   // that the call can be observed before there is anything downstream to

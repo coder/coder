@@ -81,19 +81,19 @@ func (c *Client) Ping(ctx context.Context) error {
 }
 
 // CreateAIAgent registers an AI agent created inside this workspace, on behalf
-// of the workspace identified by workspaceID and authenticated by agentToken.
+// of the workspace identified by workspaceID and authenticated by
+// workspaceCredential.
 //
-// agentToken is opaque: it is a uuid under token authentication and something
-// else under the instance identity methods, so it is passed through unparsed.
+// The credential is an opaque blob and is passed through untouched.
 //
 // pocMarkerPath is a proof of concept stub. The handler touches that path
 // instead of registering anything. Both the parameter and the stub go away
 // once the handler forwards to the control plane.
-func (c *Client) CreateAIAgent(ctx context.Context, workspaceID uuid.UUID, agentToken []byte, pocMarkerPath string) error {
+func (c *Client) CreateAIAgent(ctx context.Context, workspaceID uuid.UUID, workspaceCredential []byte, pocMarkerPath string) error {
 	_, err := c.client.CreateAIAgent(ctx, &proto.CreateAIAgentRequest{
-		WorkspaceId:   workspaceID[:],
-		AgentToken:    agentToken,
-		PocMarkerPath: pocMarkerPath,
+		WorkspaceId:         workspaceID[:],
+		WorkspaceCredential: workspaceCredential,
+		PocMarkerPath:       pocMarkerPath,
 	})
 	return err
 }
