@@ -165,13 +165,17 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndp
 			}
 		} else if isPublicClient {
 			// mailto, tel, and sms hand off to a mail client, dialer, or SMS
-			// app rather than returning control to the client, so they
-			// cannot deliver an authorization code the way a real redirect
-			// scheme does. validateScheme does not reject them, since
-			// they're harmless for a confidential client's redirect, which
-			// is never reached through a scheme like this; blocking them
-			// here is specific to public clients, which use the redirect
-			// URI's scheme as their only mechanism for regaining control.
+			// app rather than returning control to the application that
+			// started the flow. A public client has no other way to obtain
+			// its authorization code, so registering one of these would
+			// produce a client that can never complete authorization.
+			//
+			// This check runs only for public clients because that is how
+			// custom-scheme validation was scoped before this change, not
+			// because these three schemes are known to be safe for a
+			// confidential client's redirect; confidential clients were
+			// never subject to any scheme-shape check beyond validateScheme
+			// and remain so here.
 			switch uri.Scheme {
 			case "mailto", "tel", "sms":
 				return xerrors.Errorf("redirect URI at index %d: public clients may not use the %s scheme", i, uri.Scheme)
