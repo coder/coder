@@ -4,14 +4,19 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/miekg/dns"
 	"golang.org/x/xerrors"
 )
 
 const (
-	fallbackDNSUpstream = "1.1.1.1:53"
-	resolvConfPath      = "/etc/resolv.conf"
+	fallbackDNSUpstream             = "1.1.1.1:53"
+	resolvConfPath                  = "/etc/resolv.conf"
+	defaultDNSQueriesPerSecond      = 100
+	defaultDNSQueryBurst            = 200
+	defaultDNSMaxConcurrentUpstream = 64
+	defaultDNSTransportTimeout      = 5 * time.Second
 )
 
 // DNSQueryDecision describes the result of handling a DNS query.
@@ -42,12 +47,14 @@ type DNSQueryEvent struct {
 // Relay enforces DNS policy and forwards allowed queries to an upstream
 // resolver over UDP and TCP.
 type Relay struct {
-	udpServer *dns.Server
-	tcpServer *dns.Server
-	addr      net.Addr
-	policy    *PolicyEngine
-	onQuery   DNSQueryCallback
-	upstream  string
+	udpServer     *dns.Server
+	tcpServer     *dns.Server
+	addr          net.Addr
+	policy        *PolicyEngine
+	onQuery       DNSQueryCallback
+	upstream      string
+	limiter       *dnsTokenBucket
+	upstreamSlots chan struct{}
 
 	wg       sync.WaitGroup
 	close    sync.Once
@@ -80,18 +87,26 @@ func newRelay(address string, policy *PolicyEngine, onQuery DNSQueryCallback, up
 	}
 
 	relay := &Relay{
-		addr:     udpAddr,
-		policy:   policy,
-		onQuery:  onQuery,
-		upstream: upstream,
+		addr:          udpAddr,
+		policy:        policy,
+		onQuery:       onQuery,
+		upstream:      upstream,
+		limiter:       newDNSTokenBucket(defaultDNSQueriesPerSecond, defaultDNSQueryBurst),
+		upstreamSlots: make(chan struct{}, defaultDNSMaxConcurrentUpstream),
 	}
 	relay.udpServer = &dns.Server{
-		PacketConn: udpConn,
-		Handler:    relay,
+		PacketConn:    udpConn,
+		Handler:       relay,
+		ReadTimeout:   defaultDNSTransportTimeout,
+		WriteTimeout:  defaultDNSTransportTimeout,
+		MsgAcceptFunc: acceptDNSMessage,
 	}
 	relay.tcpServer = &dns.Server{
-		Listener: tcpListener,
-		Handler:  relay,
+		Listener:      tcpListener,
+		Handler:       relay,
+		ReadTimeout:   defaultDNSTransportTimeout,
+		WriteTimeout:  defaultDNSTransportTimeout,
+		MsgAcceptFunc: acceptDNSMessage,
 	}
 	if err := relay.start(relay.udpServer); err != nil {
 		_ = udpConn.Close()
@@ -125,23 +140,45 @@ func (r *Relay) Close() error {
 // ServeDNS enforces policy and forwards an accepted DNS query.
 func (r *Relay) ServeDNS(writer dns.ResponseWriter, request *dns.Msg) {
 	event := DNSQueryEvent{Decision: DNSQueryDecisionDenied}
-	if policy := r.policy.policy.Load(); policy != nil {
+	policy := r.policy.policy.Load()
+	if policy != nil {
 		event.PolicyRevision = policy.revision
 	}
-	if len(request.Question) != 1 {
-		writeDNSRcode(writer, request, dns.RcodeRefused)
+	defer func() {
 		r.emit(event)
+	}()
+
+	if request == nil {
+		event.Decision = DNSQueryDecisionError
+		return
+	}
+	if len(request.Question) > 0 {
+		event.QName = normalizeHost(request.Question[0].Name)
+		event.QType = request.Question[0].Qtype
+	}
+	if request.Opcode != dns.OpcodeQuery || len(request.Question) != 1 {
+		writeDNSRcode(writer, request, dns.RcodeRefused)
+		return
+	}
+	if !allowedDNSQueryType(event.QType) || !r.limiter.allow(time.Now()) {
+		writeDNSRcode(writer, request, dns.RcodeRefused)
 		return
 	}
 
-	question := request.Question[0]
-	event.QName = normalizeHost(question.Name)
-	event.QType = question.Qtype
-	decision := r.decideName(event.QName)
-	event.PolicyRevision = decision.Revision
+	decision := decideDNSName(policy, event.QName)
 	if !decision.Allowed {
 		writeDNSRcode(writer, request, dns.RcodeRefused)
-		r.emit(event)
+		return
+	}
+
+	select {
+	case r.upstreamSlots <- struct{}{}:
+		defer func() {
+			<-r.upstreamSlots
+		}()
+	default:
+		event.Decision = DNSQueryDecisionError
+		writeDNSRcode(writer, request, dns.RcodeServerFailure)
 		return
 	}
 
@@ -149,12 +186,10 @@ func (r *Relay) ServeDNS(writer dns.ResponseWriter, request *dns.Msg) {
 	if err != nil || response == nil {
 		event.Decision = DNSQueryDecisionError
 		writeDNSRcode(writer, request, dns.RcodeServerFailure)
-		r.emit(event)
 		return
 	}
 	event.Decision = DNSQueryDecisionAllowed
 	_ = writer.WriteMsg(response)
-	r.emit(event)
 }
 
 func (r *Relay) start(server *dns.Server) error {
@@ -177,8 +212,24 @@ func (r *Relay) start(server *dns.Server) error {
 	}
 }
 
-func (r *Relay) decideName(name string) Decision {
-	policy := r.policy.policy.Load()
+func acceptDNSMessage(header dns.Header) dns.MsgAcceptAction {
+	const responseBit = 1 << 15
+	if header.Bits&responseBit != 0 {
+		return dns.MsgIgnore
+	}
+	return dns.MsgAccept
+}
+
+func allowedDNSQueryType(queryType uint16) bool {
+	switch queryType {
+	case dns.TypeA, dns.TypeAAAA, dns.TypeCNAME, dns.TypeHTTPS, dns.TypeSVCB:
+		return true
+	default:
+		return false
+	}
+}
+
+func decideDNSName(policy *compiledPolicy, name string) Decision {
 	if policy == nil {
 		return Decision{}
 	}
@@ -196,14 +247,57 @@ func (r *Relay) decideName(name string) Decision {
 }
 
 func (r *Relay) exchange(request *dns.Msg) (*dns.Msg, error) {
-	udpClient := &dns.Client{Net: "udp"}
+	udpClient := &dns.Client{
+		Net:          "udp",
+		DialTimeout:  defaultDNSTransportTimeout,
+		ReadTimeout:  defaultDNSTransportTimeout,
+		WriteTimeout: defaultDNSTransportTimeout,
+	}
 	response, _, err := udpClient.Exchange(request, r.upstream)
 	if err != nil || response == nil || !response.Truncated {
 		return response, err
 	}
-	tcpClient := &dns.Client{Net: "tcp"}
+	tcpClient := &dns.Client{
+		Net:          "tcp",
+		DialTimeout:  defaultDNSTransportTimeout,
+		ReadTimeout:  defaultDNSTransportTimeout,
+		WriteTimeout: defaultDNSTransportTimeout,
+	}
 	response, _, err = tcpClient.Exchange(request, r.upstream)
 	return response, err
+}
+
+type dnsTokenBucket struct {
+	mu sync.Mutex
+
+	rate   float64
+	burst  float64
+	tokens float64
+	last   time.Time
+}
+
+func newDNSTokenBucket(queriesPerSecond, burst int) *dnsTokenBucket {
+	now := time.Now()
+	return &dnsTokenBucket{
+		rate:   float64(queriesPerSecond),
+		burst:  float64(burst),
+		tokens: float64(burst),
+		last:   now,
+	}
+}
+
+func (b *dnsTokenBucket) allow(now time.Time) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	elapsed := now.Sub(b.last).Seconds()
+	b.tokens = min(b.burst, b.tokens+elapsed*b.rate)
+	b.last = now
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
 }
 
 func writeDNSRcode(writer dns.ResponseWriter, request *dns.Msg, rcode int) {
