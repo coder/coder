@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"os"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -65,6 +66,30 @@ func (s *DRPCAgentSocketService) ClearAgentAPI() {
 // Ping responds to a ping request to check if the service is alive.
 func (*DRPCAgentSocketService) Ping(_ context.Context, _ *proto.PingRequest) (*proto.PingResponse, error) {
 	return &proto.PingResponse{}, nil
+}
+
+// CreateAIAgent registers an AI agent created inside this workspace.
+//
+// PROOF OF CONCEPT STUB. This does not register anything. It touches the path
+// given in the request so that a caller can observe that it was reached, and
+// returns an empty response.
+//
+// The next increment replaces the body with a call forwarding to the control
+// plane over s.agentAPI, in the manner of UpdateAppStatus below. When that
+// happens, delete this stub, delete the poc_marker_path field from the
+// request message, and let the marker move to whatever the control plane does.
+func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.CreateAIAgentRequest) (*proto.CreateAIAgentResponse, error) {
+	markerPath := req.GetPocMarkerPath()
+	if markerPath == "" {
+		return nil, xerrors.New("poc_marker_path is required while this handler is a stub")
+	}
+
+	if err := os.WriteFile(markerPath, []byte("CreateAIAgent\n"), 0o600); err != nil {
+		return nil, xerrors.Errorf("write poc marker %q: %w", markerPath, err)
+	}
+	s.logger.Info(ctx, "poc stub: CreateAIAgent called", slog.F("marker_path", markerPath))
+
+	return &proto.CreateAIAgentResponse{}, nil
 }
 
 // SyncStart starts a unit in the dependency graph.

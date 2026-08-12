@@ -9,6 +9,23 @@ message PingRequest {}
 
 message PingResponse {}
 
+// CreateAIAgentRequest asks the workspace_agent to register an AI agent that
+// has been created somewhere inside this workspace. It is sent by a process
+// running in the workspace, over the local socket.
+message CreateAIAgentRequest {
+  // poc_marker_path is a proof of concept stub and is not part of the intended
+  // interface. The handler touches this path to show that it was called, so
+  // that the call can be observed before there is anything downstream to
+  // observe. Remove it, and the stub in the handler, once the handler forwards
+  // to the control plane.
+  string poc_marker_path = 1;
+}
+
+// CreateAIAgentResponse will eventually carry the identifier the control plane
+// mints for the AI agent, and the credential it issues. It is empty while the
+// handler is a stub.
+message CreateAIAgentResponse {}
+
 message SyncStartRequest {
   string unit = 1;
 }
@@ -148,6 +165,8 @@ message ResyncContextResponse {
 service AgentSocket {
   // Ping the agent to check if it is alive.
   rpc Ping(PingRequest) returns (PingResponse);
+  // Register an AI agent created inside this workspace.
+  rpc CreateAIAgent(CreateAIAgentRequest) returns (CreateAIAgentResponse);
   // Report the start of a unit.
   rpc SyncStart(SyncStartRequest) returns (SyncStartResponse);
   // Declare a dependency between units.

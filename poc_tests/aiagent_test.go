@@ -23,30 +23,38 @@ import (
 // TestAIAgentIdentity is the acceptance test for work package WP1 in
 // poc_audit/work_breakdown.md. It is being built incrementally.
 //
-// Revision 2 proves the plumbing a real create-agent call will need: that a
-// startup script launched from the manifest can run an executable, that the
-// executable can reach the workspace_agent over its local socket, and that it
-// is handed the identifiers the eventual call must associate an AI agent with.
+// Revision 3 adds the first hop of the real path. A startup script launched
+// from the manifest runs an executable, and that executable calls CreateAIAgent
+// on the workspace_agent over its local socket.
 //
 // It still asserts nothing about AI agent identity, because none of that code
-// exists. The socket call is Ping, chosen because it changes no state.
+// exists. CreateAIAgent is reached, but the handler behind it is a stub in
+// agent/agentsocket/service.go that touches a file and returns. Each increment
+// moves that stub one hop further from the caller, until the last one replaces
+// it with the behavior itself.
+//
+// The marker is what the stub touches, so it is now evidence that the call
+// arrived at the workspace_agent rather than that the executable merely ran.
 //
 // The test passes on two independent conditions: the executable exited zero,
 // observed through the script timings the agent reports, and the marker file
-// it writes last is present.
+// the handler writes is present.
 //
 // # Checking that the marker assertion is load-bearing
 //
 // The two subtests below cover the probe's own failure handling, so they run
-// automatically. One check cannot: whether this test would notice if the probe
-// stopped writing the marker while still succeeding. Go has no expect-failure
-// mechanism, so that one is a manual procedure. Run it after changing what the
-// probe does or how success is observed.
+// automatically. One check cannot: whether this test would notice if the
+// marker stopped being written while the call still succeeded. Go has no
+// expect-failure mechanism, so that one is a manual procedure. Run it after
+// changing what the handler does or how success is observed.
 //
-//  1. In poc_tests/cmd/aiagentprobe/main.go, replace the os.WriteFile call
-//     that writes the marker with:
+//  1. In agent/agentsocket/service.go, in CreateAIAgent, redirect the write
+//     so that no marker appears where the test looks for it:
 //
-//     _, _ = markerPath, workspaceID
+//     os.WriteFile(markerPath+".disabled", ...)
+//
+//     Redirecting rather than deleting the call keeps the os import used, so
+//     the package still builds.
 //
 //  2. Run: go test ./poc_tests/ -run TestAIAgentIdentity -count=1
 //
@@ -123,20 +131,20 @@ func TestAIAgentIdentity(t *testing.T) {
 		})
 		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).AgentNames([]string{}).Wait()
 
-		// The probe writes the marker last, so its presence means the socket
-		// call succeeded and every variable was present.
+		// The marker is written by the CreateAIAgent handler inside the
+		// workspace_agent, so its presence means the call arrived there.
 		if !assert.Eventually(t, func() bool {
 			_, err := os.Stat(markerPath)
 			return err == nil
 		}, testutil.WaitLong, testutil.IntervalMedium) {
-			t.Fatalf("probe never wrote its marker at %q.\nscript log:\n%s",
+			t.Fatalf("CreateAIAgent never wrote its marker at %q.\nscript log:\n%s",
 				markerPath, readScriptLog(scriptLogPath))
 		}
 
 		contents, err := os.ReadFile(markerPath)
 		require.NoError(t, err)
-		require.Equal(t, r.Workspace.ID.String()+"\n", string(contents),
-			"marker should name the workspace the probe was told about")
+		require.Equal(t, "CreateAIAgent\n", string(contents),
+			"marker should name the handler that wrote it")
 
 		// Exit status is checked independently of the marker. The agent
 		// reports it, so a probe that wrote the marker and then failed would
