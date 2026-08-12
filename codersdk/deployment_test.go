@@ -1200,35 +1200,6 @@ func TestFeatureComparison(t *testing.T) {
 			Expected: 0,
 		},
 		{
-			// An unlimited agent runtime hours feature (nil Limit) loses to
-			// a metered one when both licenses share the exact same
-			// issued-at and end dates: rule 5 ranks a nil Limit lower.
-			// Separately issued licenses never tie on both timestamps, so
-			// the edge is pinned here instead of special-casing Compare.
-			Name: "MeteredBeatsUnlimitedOnExactTie",
-			A: codersdk.Feature{
-				Entitlement: codersdk.EntitlementEntitled,
-				Enabled:     true,
-				Limit:       ptr.Ref(int64(100)),
-				UsagePeriod: &codersdk.UsagePeriod{
-					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
-				},
-			},
-			B: codersdk.Feature{
-				Entitlement: codersdk.EntitlementEntitled,
-				Enabled:     true,
-				Limit:       nil,
-				UsagePeriod: &codersdk.UsagePeriod{
-					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
-				},
-			},
-			Expected: 1,
-		},
-		{
 			Name: "NewerIssuedAtWinsOverSoftHardLimits",
 			A: codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,

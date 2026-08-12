@@ -64,7 +64,7 @@ export const TwoWarnings: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("status")).toBeInTheDocument();
 		await expect(
-			canvas.getByText("Your license limits have been exceeded"),
+			canvas.getByText("Your license limits have been reached"),
 		).toBeInTheDocument();
 		await expect(
 			canvas.queryByRole("button", { name: "Show more" }),
@@ -343,6 +343,36 @@ export const AgentRuntimeHoursAllocationReached: Story = {
 	},
 };
 
+// The allocation warning fires at exact equality (actual >= allocation), so
+// a multi-message banner containing it must use a heading that stays
+// accurate when the allocation is reached but not exceeded.
+export const AgentRuntimeHoursAllocationReachedWithDiagnostic: Story = {
+	render: () =>
+		renderLicenseBanner({
+			errors: [LicenseManagedAgentUsageUnavailableErrorText],
+			warnings: [
+				formatLicenseMessage(
+					LicenseAgentRuntimeHoursAllocationReachedWarningText,
+					100,
+					100,
+				),
+			],
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("status");
+		await expect(
+			canvas.getByText("Your license limits have been reached"),
+		).toBeInTheDocument();
+		await expect(banner).toHaveTextContent(
+			"Your deployment has used 100 of the 100 Coder Agent runtime hours included in the current license term.",
+		);
+		await expect(banner).toHaveTextContent(
+			LicenseManagedAgentUsageUnavailableErrorText,
+		);
+	},
+};
+
 const playMutedDiagnostic =
 	(message: string): Story["play"] =>
 	async ({ canvasElement }) => {
@@ -393,7 +423,7 @@ export const UsageDiagnosticsOnlyHeading: Story = {
 		await expect(canvas.getByRole("status")).toBeInTheDocument();
 		await expect(canvas.getByText("License notices")).toBeInTheDocument();
 		await expect(
-			canvas.queryByText("Your license limits have been exceeded"),
+			canvas.queryByText("Your license limits have been reached"),
 		).not.toBeInTheDocument();
 		await expect(
 			canvas.queryByText("License errors require attention"),

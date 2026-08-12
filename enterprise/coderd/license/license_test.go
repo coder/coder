@@ -3045,7 +3045,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 			{unlimited, metered},
 			{metered, unlimited},
 		} {
-			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), order, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{})
+			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), order, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime())
 			require.NoError(t, err)
 
 			feature, ok := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
