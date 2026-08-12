@@ -76,6 +76,11 @@ const (
 	// the local llama.cpp server. It must match the AI provider name
 	// regex and be stable so restarts reuse the same provider.
 	llamaProviderName = "llama-cpp"
+	// llamaAnthropicProviderName is a mirrored Anthropic provider pointing
+	// at the same local llama.cpp server, which also serves the Anthropic
+	// Messages API at /v1/messages. It exposes the Anthropic API shape for
+	// clients that speak it (e.g. Claude Code).
+	llamaAnthropicProviderName = "llama-cpp-anthropic"
 	// llamaContextLimit is the chat context window exposed to Coder and
 	// passed to llama-server via -c. The two must match so the advertised
 	// limit reflects what the server actually supports.
@@ -785,13 +790,18 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		// Provider and model config need an admin client, so they are only
 		// possible when setup ran. The container still starts without it.
 		if started && client != nil {
-			provider, err := ensureLocalAIProvider(ctx, client)
-			if err != nil {
-				logger.Warn(ctx, "local AI provider setup failed, continuing",
-					slog.Error(err))
-			} else if err := ensureLocalAIModelConfig(ctx, codersdk.NewExperimentalClient(client), provider.ID, localAIModelName(cfg.localAIModel)); err != nil {
-				logger.Warn(ctx, "local AI model config setup failed, continuing",
-					slog.Error(err))
+			expClient := codersdk.NewExperimentalClient(client)
+			for _, spec := range localAIProviderSpecs(cfg) {
+				provider, err := ensureLocalAIProvider(ctx, client, spec)
+				if err != nil {
+					logger.Warn(ctx, "local AI provider setup failed, continuing",
+						slog.F("provider", spec.name), slog.Error(err))
+					continue
+				}
+				if err := ensureLocalAIModelConfig(ctx, expClient, provider.ID, spec.modelName); err != nil {
+					logger.Warn(ctx, "local AI model config setup failed, continuing",
+						slog.F("provider", spec.name), slog.Error(err))
+				}
 			}
 		}
 	}
@@ -1503,25 +1513,66 @@ func localAIModelName(repo string) string {
 	return strings.ToLower(repo)
 }
 
-// ensureLocalAIProvider ensures an openai-compatible AI provider named
-// llamaProviderName exists in Coder, pointing at the local llama.cpp server.
-// It reuses an existing provider by name so restarts do not create
+// localAIModelSpec describes one AI provider registered against the local
+// llama.cpp server. llama.cpp serves both the OpenAI-compatible API and the
+// Anthropic Messages API on the same host and port, so the two providers
+// share the endpoint but expose different API shapes.
+type localAIModelSpec struct {
+	// providerType is the Coder provider type (e.g. openai-compat,
+	// anthropic).
+	providerType codersdk.AIProviderType
+	// name is the provider name registered in Coder.
+	name string
+	// displayName is the human-facing provider name in the UI.
+	displayName string
+	// baseURL is where the provider's API lives. The OpenAI-compatible API
+	// is namespaced under /v1/, while the Anthropic Messages API lives at
+	// the server root and the SDK appends v1/messages itself.
+	baseURL string
+	// modelName is the model registered against this provider.
+	modelName string
+}
+
+// localAIProviderSpecs returns the two providers mirrored against the local
+// llama.cpp server, sharing the derived model name.
+func localAIProviderSpecs(cfg *devConfig) []localAIModelSpec {
+	modelName := localAIModelName(cfg.localAIModel)
+	return []localAIModelSpec{
+		{
+			providerType: codersdk.AIProviderTypeOpenAICompat,
+			name:         llamaProviderName,
+			displayName:  "Local llama.cpp",
+			baseURL:      fmt.Sprintf("http://localhost:%d/v1/", llamaPort),
+			modelName:    modelName,
+		},
+		{
+			providerType: codersdk.AIProviderTypeAnthropic,
+			name:         llamaAnthropicProviderName,
+			displayName:  "Local llama.cpp (Anthropic)",
+			baseURL:      fmt.Sprintf("http://localhost:%d/", llamaPort),
+			modelName:    modelName,
+		},
+	}
+}
+
+// ensureLocalAIProvider ensures an AI provider with the given spec exists in
+// Coder. It reuses an existing provider by name so restarts do not create
 // duplicates. Returns the provider.
-func ensureLocalAIProvider(ctx context.Context, client *codersdk.Client) (*codersdk.AIProvider, error) {
+func ensureLocalAIProvider(ctx context.Context, client *codersdk.Client, spec localAIModelSpec) (*codersdk.AIProvider, error) {
 	providers, err := client.AIProviders(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("listing AI providers: %w", err)
 	}
-	if p, ok := findLocalAIProvider(providers); ok {
+	if p, ok := findLocalAIProvider(providers, spec.name); ok {
 		return p, nil
 	}
 
 	p, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-		Type:        codersdk.AIProviderTypeOpenAICompat,
-		Name:        llamaProviderName,
-		DisplayName: "Local llama.cpp",
+		Type:        spec.providerType,
+		Name:        spec.name,
+		DisplayName: spec.displayName,
 		Enabled:     true,
-		BaseURL:     fmt.Sprintf("http://localhost:%d/v1/", llamaPort),
+		BaseURL:     spec.baseURL,
 		APIKeys:     []string{"local"},
 	})
 	if err != nil {
@@ -1531,7 +1582,7 @@ func ensureLocalAIProvider(ctx context.Context, client *codersdk.Client) (*coder
 			if listErr != nil {
 				return nil, xerrors.Errorf("re-listing AI providers after conflict: %w", listErr)
 			}
-			if p, ok := findLocalAIProvider(providers); ok {
+			if p, ok := findLocalAIProvider(providers, spec.name); ok {
 				return p, nil
 			}
 		}
@@ -1540,10 +1591,10 @@ func ensureLocalAIProvider(ctx context.Context, client *codersdk.Client) (*coder
 	return &p, nil
 }
 
-// findLocalAIProvider returns the configured provider when present.
-func findLocalAIProvider(providers []codersdk.AIProvider) (*codersdk.AIProvider, bool) {
+// findLocalAIProvider returns the provider with the given name when present.
+func findLocalAIProvider(providers []codersdk.AIProvider, name string) (*codersdk.AIProvider, bool) {
 	for i := range providers {
-		if providers[i].Name == llamaProviderName {
+		if providers[i].Name == name {
 			return &providers[i], true
 		}
 	}

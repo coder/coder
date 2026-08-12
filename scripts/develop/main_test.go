@@ -1106,7 +1106,7 @@ func TestLocalAIDockerRunArgs(t *testing.T) {
 func TestFindLocalAIProvider(t *testing.T) {
 	t.Parallel()
 
-	p, ok := findLocalAIProvider(nil)
+	p, ok := findLocalAIProvider(nil, llamaProviderName)
 	assert.False(t, ok)
 	assert.Nil(t, p)
 
@@ -1114,10 +1114,39 @@ func TestFindLocalAIProvider(t *testing.T) {
 		{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), Name: "other"},
 		{ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Name: llamaProviderName},
 	}
-	p, ok = findLocalAIProvider(providers)
+	p, ok = findLocalAIProvider(providers, llamaProviderName)
 	assert.True(t, ok)
 	require.NotNil(t, p)
 	assert.Equal(t, llamaProviderName, p.Name)
+
+	// Searching for a different name does not match.
+	p, ok = findLocalAIProvider(providers, llamaAnthropicProviderName)
+	assert.False(t, ok)
+	assert.Nil(t, p)
+}
+
+func TestLocalAIProviderSpecs(t *testing.T) {
+	t.Parallel()
+
+	cfg := &devConfig{localAIModel: "HuggingFaceTB/smollm-135M-instruct-v0.2-Q8_0-GGUF"}
+	specs := localAIProviderSpecs(cfg)
+
+	require.Len(t, specs, 2)
+
+	// OpenAI-compatible provider points at the /v1/ namespace.
+	openai := specs[0]
+	assert.Equal(t, codersdk.AIProviderTypeOpenAICompat, openai.providerType)
+	assert.Equal(t, llamaProviderName, openai.name)
+	assert.Equal(t, fmt.Sprintf("http://localhost:%d/v1/", llamaPort), openai.baseURL)
+	assert.Equal(t, "smollm-135m-instruct-v0.2-q8_0-gguf", openai.modelName)
+
+	// Mirrored Anthropic provider points at the server root; the SDK appends
+	// v1/messages itself.
+	anthropic := specs[1]
+	assert.Equal(t, codersdk.AIProviderTypeAnthropic, anthropic.providerType)
+	assert.Equal(t, llamaAnthropicProviderName, anthropic.name)
+	assert.Equal(t, fmt.Sprintf("http://localhost:%d/", llamaPort), anthropic.baseURL)
+	assert.Equal(t, "smollm-135m-instruct-v0.2-q8_0-gguf", anthropic.modelName)
 }
 
 func TestFindLocalAIModelConfig(t *testing.T) {
@@ -1212,34 +1241,54 @@ func newFakeClient(t *testing.T, api *fakeProviderModelAPI) *codersdk.Client {
 func TestEnsureLocalAIProvider(t *testing.T) {
 	t.Parallel()
 
-	t.Run("CreatesWhenAbsent", func(t *testing.T) {
-		t.Parallel()
-		api := &fakeProviderModelAPI{}
-		client := newFakeClient(t, api)
+	specs := []localAIModelSpec{
+		{
+			providerType: codersdk.AIProviderTypeOpenAICompat,
+			name:         llamaProviderName,
+			displayName:  "Local llama.cpp",
+			baseURL:      fmt.Sprintf("http://localhost:%d/v1/", llamaPort),
+			modelName:    "m",
+		},
+		{
+			providerType: codersdk.AIProviderTypeAnthropic,
+			name:         llamaAnthropicProviderName,
+			displayName:  "Local llama.cpp (Anthropic)",
+			baseURL:      fmt.Sprintf("http://localhost:%d/", llamaPort),
+			modelName:    "m",
+		},
+	}
 
-		p, err := ensureLocalAIProvider(context.Background(), client)
-		require.NoError(t, err)
-		require.NotNil(t, p)
-		assert.Equal(t, llamaProviderName, p.Name)
-		assert.Equal(t, codersdk.AIProviderTypeOpenAICompat, p.Type)
-		assert.Equal(t, fmt.Sprintf("http://localhost:%d/v1/", llamaPort), p.BaseURL)
-		assert.Len(t, api.providers, 1)
-	})
+	for _, spec := range specs {
+		spec := spec
+		t.Run("CreatesWhenAbsent/"+string(spec.providerType), func(t *testing.T) {
+			t.Parallel()
+			api := &fakeProviderModelAPI{}
+			client := newFakeClient(t, api)
 
-	t.Run("ReusesExisting", func(t *testing.T) {
-		t.Parallel()
-		api := &fakeProviderModelAPI{
-			providers: []codersdk.AIProvider{{ID: uuid.New(), Name: llamaProviderName}},
-		}
-		client := newFakeClient(t, api)
+			p, err := ensureLocalAIProvider(context.Background(), client, spec)
+			require.NoError(t, err)
+			require.NotNil(t, p)
+			assert.Equal(t, spec.name, p.Name)
+			assert.Equal(t, spec.providerType, p.Type)
+			assert.Equal(t, spec.baseURL, p.BaseURL)
+			assert.Len(t, api.providers, 1)
+		})
 
-		p, err := ensureLocalAIProvider(context.Background(), client)
-		require.NoError(t, err)
-		require.NotNil(t, p)
-		assert.Equal(t, llamaProviderName, p.Name)
-		// No duplicate was created.
-		assert.Len(t, api.providers, 1)
-	})
+		t.Run("ReusesExisting/"+string(spec.providerType), func(t *testing.T) {
+			t.Parallel()
+			api := &fakeProviderModelAPI{
+				providers: []codersdk.AIProvider{{ID: uuid.New(), Name: spec.name}},
+			}
+			client := newFakeClient(t, api)
+
+			p, err := ensureLocalAIProvider(context.Background(), client, spec)
+			require.NoError(t, err)
+			require.NotNil(t, p)
+			assert.Equal(t, spec.name, p.Name)
+			// No duplicate was created.
+			assert.Len(t, api.providers, 1)
+		})
+	}
 
 	t.Run("ReconcilesOnConflict", func(t *testing.T) {
 		t.Parallel()
@@ -1249,7 +1298,7 @@ func TestEnsureLocalAIProvider(t *testing.T) {
 		}
 		client := newFakeClient(t, api)
 
-		p, err := ensureLocalAIProvider(context.Background(), client)
+		p, err := ensureLocalAIProvider(context.Background(), client, localAIModelSpec{name: llamaProviderName})
 		require.NoError(t, err)
 		require.NotNil(t, p)
 		assert.Equal(t, llamaProviderName, p.Name)
