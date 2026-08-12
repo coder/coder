@@ -41,6 +41,20 @@ import (
 	"github.com/coder/serpent"
 )
 
+func privilegeDropHelper() *serpent.Command {
+	return &serpent.Command{
+		Use:    "privdrop-helper <configuration>",
+		Short:  "Launches a confined process under separate credentials.",
+		Hidden: true,
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			return confine.RunPrivilegeDropHelper(inv.Args)
+		},
+	}
+}
+
 func workspaceAgent() *serpent.Command {
 	var (
 		logDir                          string
