@@ -34,11 +34,11 @@ export const AIGovernanceUsersConsumption: FC<
 			<div className="flex items-center justify-center rounded-lg border border-solid p-4">
 				<div className="flex flex-col items-center justify-center">
 					<div className="flex flex-col items-center justify-center">
-						<span className="text-base">AI Governance add-on usage</span>
+						<span className="text-base">AI Governance usage</span>
 						<span className="text-content-secondary text-center max-w-[464px] mt-2">
 							AI Governance is not included in your current license. Contact{" "}
 							<Link href="mailto:sales@coder.com">sales</Link> to upgrade your
-							license and unlock this addon.
+							license and unlock AI Governance.
 						</span>
 					</div>
 				</div>
@@ -48,7 +48,7 @@ export const AIGovernanceUsersConsumption: FC<
 
 	return (
 		<SeatUsageBarCard
-			title="AI Governance add-on usage"
+			title="AI Governance usage"
 			actual={aiGovernanceUserFeature?.actual}
 			limit={effectiveLimit}
 		/>
