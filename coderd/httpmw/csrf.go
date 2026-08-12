@@ -3,7 +3,6 @@ package httpmw
 import (
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/justinas/nosurf"
@@ -40,26 +39,28 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 			http.Error(w, "Something is wrong with your CSRF token. Please refresh the page. If this error persists, try clearing your cookies.", http.StatusBadRequest)
 		}))
 
-		mw.ExemptRegexp(regexp.MustCompile("/api/v2/users/first"))
-
 		// Exempt all requests that do not require CSRF protection.
 		// All GET requests are exempt by default.
+		//
+		// Exemptions are exact-path matches ONLY. Unanchored regex
+		// exemptions were removed because nosurf matches them as
+		// substrings of the request path: a pattern like "derp/*"
+		// exempted every /api path merely containing "derp", including
+		// attacker-influenced segments such as usernames, and nosurf
+		// short-circuits before BOTH the token check and its same-origin
+		// validation on exempt paths.
+		//
+		// The removed exemptions were redundant:
+		//   - Agent, workspace-proxy, and provisioner-daemon requests
+		//     authenticate via headers/PSK and carry no session cookie,
+		//     so the ExemptFunc below already exempts them.
+		//   - /derp and /scim are not under /api, so the ExemptFunc
+		//     prefix check already exempts them.
+		//   - The dashboard sends X-CSRF-TOKEN on every request, so
+		//     browser flows on the previously exempted routes (e.g.
+		//     devcontainer recreate) pass the standard CSRF checks.
 		mw.ExemptPath("/api/v2/csp/reports")
-
-		// This should not be required?
-		mw.ExemptRegexp(regexp.MustCompile("/api/v2/users/first"))
-
-		// Agent authenticated routes
-		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/me/*"))
-		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/*"))
-		// Workspace Proxy routes
-		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceproxies/me/*"))
-		// Derp routes
-		mw.ExemptRegexp(regexp.MustCompile("derp/*"))
-		// Scim
-		mw.ExemptRegexp(regexp.MustCompile("api/v2/scim/*"))
-		// Provisioner daemon routes
-		mw.ExemptRegexp(regexp.MustCompile("/organizations/[^/]+/provisionerdaemons/*"))
+		mw.ExemptPath("/api/v2/users/first")
 
 		mw.ExemptFunc(func(r *http.Request) bool {
 			// Enforce CSRF on API routes and the OAuth2 authorize

@@ -71,6 +71,78 @@ func TestCSRFExemptList(t *testing.T) {
 			URL:    "https://coder.com/oauth2/register",
 			Exempt: true,
 		},
+		// Exact-path exemptions.
+		{
+			Name:   "CSPReports",
+			URL:    "https://coder.com/api/v2/csp/reports",
+			Exempt: true,
+		},
+		{
+			Name:   "FirstUser",
+			URL:    "https://coder.com/api/v2/users/first",
+			Exempt: true,
+		},
+		// Non-/api paths are exempt via the ExemptFunc prefix check.
+		{
+			Name:   "DERP",
+			URL:    "https://coder.com/derp",
+			Exempt: true,
+		},
+		{
+			Name:   "SCIM",
+			URL:    "https://coder.com/scim/v2/Users",
+			Exempt: true,
+		},
+		// Regression tests for the removed unanchored regex exemptions
+		// (previously exempt as substring matches): cookie-authenticated
+		// requests on these paths MUST be CSRF-protected. Attacker-chosen
+		// names (usernames, org names, task names) may legally contain
+		// substrings like "derp" or a "first" prefix.
+		{
+			Name:   "UsernameContainingDerp",
+			URL:    "https://coder.com/api/v2/users/derp-attacker/workspaces",
+			Exempt: false,
+		},
+		{
+			Name:   "UsernameWithFirstPrefix",
+			URL:    "https://coder.com/api/v2/users/firstuser/keys",
+			Exempt: false,
+		},
+		{
+			Name:   "TaskUserContainingDerp",
+			URL:    "https://coder.com/api/v2/tasks/derp-attacker",
+			Exempt: false,
+		},
+		{
+			Name:   "OrgNameContainingDerp",
+			URL:    "https://coder.com/api/v2/organizations/derp/members/someone/workspaces",
+			Exempt: false,
+		},
+		{
+			Name:   "WorkspaceAgentsDevcontainerRecreate",
+			URL:    "https://coder.com/api/v2/workspaceagents/8d3e19b7-4b9e-4a25-a367-927384ee6c2f/containers/devcontainers/dc/recreate",
+			Exempt: false,
+		},
+		{
+			Name:   "WorkspaceAgentsMe",
+			URL:    "https://coder.com/api/v2/workspaceagents/me/rpc",
+			Exempt: false,
+		},
+		{
+			Name:   "WorkspaceProxiesMe",
+			URL:    "https://coder.com/api/v2/workspaceproxies/me/register",
+			Exempt: false,
+		},
+		{
+			Name:   "ProvisionerDaemons",
+			URL:    "https://coder.com/api/v2/organizations/default/provisionerdaemons",
+			Exempt: false,
+		},
+		{
+			Name:   "SCIMUnderAPI",
+			URL:    "https://coder.com/api/v2/scim/v2/Users",
+			Exempt: false,
+		},
 	}
 
 	mw := httpmw.CSRF(codersdk.HTTPCookieConfig{})
@@ -88,6 +160,26 @@ func TestCSRFExemptList(t *testing.T) {
 			require.Equal(t, c.Exempt, exempt)
 		})
 	}
+
+	// Requests without a session cookie are not CSRF-relevant and are exempt
+	// via the ExemptFunc. This models agents, workspace proxies, and
+	// provisioner daemons, which authenticate with headers/PSK and carry no
+	// cookies; the removed regex exemptions for those routes were redundant
+	// with this behavior.
+	t.Run("NoSessionCookie", func(t *testing.T) {
+		t.Parallel()
+
+		for _, u := range []string{
+			"https://coder.com/api/v2/workspaceagents/me/rpc",
+			"https://coder.com/api/v2/workspaceproxies/me/register",
+			"https://coder.com/api/v2/organizations/default/provisionerdaemons",
+			"https://coder.com/api/v2/users/first",
+		} {
+			r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, u, nil)
+			require.NoError(t, err)
+			require.True(t, csrfmw.IsExempt(r), "no-cookie request to %s should be exempt", u)
+		}
+	})
 }
 
 // TestCSRFError verifies the error message returned to a user when CSRF
