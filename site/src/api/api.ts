@@ -1342,11 +1342,21 @@ class ApiMethods {
 					if (childBuild) {
 						return childBuild;
 					}
-				} catch {
-					// Tolerate transient poll failures; the deadline below is the
-					// only failure surface.
+				} catch (error) {
 					if (controller.signal.aborted) {
 						break;
+					}
+					// Keep polling through transient failures until the deadline,
+					// but surface permanent responses (auth loss, deleted
+					// workspace) immediately.
+					const isTransient =
+						isAxiosError(error) &&
+						(error.response === undefined ||
+							error.response.status >= 500 ||
+							error.response.status === 408 ||
+							error.response.status === 429);
+					if (!isTransient) {
+						throw error;
 					}
 				}
 				await delay(1000, controller.signal);

@@ -4,7 +4,6 @@ import { API } from "#/api/api";
 import { buildInfoKey } from "#/api/queries/buildInfo";
 import { templateVersion } from "#/api/queries/templates";
 import { agentListeningPorts } from "#/api/queries/workspaces";
-import type { Workspace } from "#/api/typesGenerated";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import * as Mocks from "#/testHelpers/entities";
 import {
@@ -22,18 +21,6 @@ const permissions: WorkspacePermissions = {
 	deleteFailedWorkspace: true,
 };
 
-const workspaceQueries = (workspace: Workspace) => [
-	{ key: buildInfoKey, data: Mocks.MockBuildInfo },
-	{
-		key: agentListeningPorts(Mocks.MockWorkspaceAgent.id).queryKey,
-		data: Mocks.MockListeningPortsResponse,
-	},
-	{
-		key: templateVersion(workspace.template_active_version_id).queryKey,
-		data: Mocks.MockTemplateVersion,
-	},
-];
-
 const meta: Meta<typeof WorkspaceReadyPage> = {
 	title: "pages/WorkspacePage/WorkspaceReadyPage",
 	component: WorkspaceReadyPage,
@@ -43,7 +30,6 @@ const meta: Meta<typeof WorkspaceReadyPage> = {
 		permissions,
 	},
 	parameters: {
-		queries: workspaceQueries(Mocks.MockWorkspace),
 		user: Mocks.MockUserOwner,
 	},
 	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
@@ -70,6 +56,24 @@ const openRestartDialog = async (canvasElement: HTMLElement) => {
 };
 
 export const RestartDialog: Story = {
+	parameters: {
+		queries: [
+			{ key: buildInfoKey, data: Mocks.MockBuildInfo },
+			{
+				key: agentListeningPorts(
+					Mocks.MockWorkspace.latest_build.resources.flatMap(
+						(resource) => resource.agents ?? [],
+					)[0].id,
+				).queryKey,
+				data: Mocks.MockListeningPortsResponse,
+			},
+			{
+				key: templateVersion(Mocks.MockWorkspace.template_active_version_id)
+					.queryKey,
+				data: Mocks.MockTemplateVersion,
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const dialog = await openRestartDialog(canvasElement);
 		expect(dialog).toHaveTextContent(/delete non-persistent data/);
@@ -84,7 +88,23 @@ export const RestartDialogOutdatedWorkspace: Story = {
 		workspace: Mocks.MockRunningOutdatedWorkspace,
 	},
 	parameters: {
-		queries: workspaceQueries(Mocks.MockRunningOutdatedWorkspace),
+		queries: [
+			{ key: buildInfoKey, data: Mocks.MockBuildInfo },
+			{
+				key: agentListeningPorts(
+					Mocks.MockRunningOutdatedWorkspace.latest_build.resources.flatMap(
+						(resource) => resource.agents ?? [],
+					)[0].id,
+				).queryKey,
+				data: Mocks.MockListeningPortsResponse,
+			},
+			{
+				key: templateVersion(
+					Mocks.MockRunningOutdatedWorkspace.template_active_version_id,
+				).queryKey,
+				data: Mocks.MockTemplateVersion,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const dialog = await openRestartDialog(canvasElement);
@@ -95,6 +115,24 @@ export const RestartDialogOutdatedWorkspace: Story = {
 };
 
 export const ConfirmRestart: Story = {
+	parameters: {
+		queries: [
+			{ key: buildInfoKey, data: Mocks.MockBuildInfo },
+			{
+				key: agentListeningPorts(
+					Mocks.MockWorkspace.latest_build.resources.flatMap(
+						(resource) => resource.agents ?? [],
+					)[0].id,
+				).queryKey,
+				data: Mocks.MockListeningPortsResponse,
+			},
+			{
+				key: templateVersion(Mocks.MockWorkspace.template_active_version_id)
+					.queryKey,
+				data: Mocks.MockTemplateVersion,
+			},
+		],
+	},
 	beforeEach: () => {
 		spyOn(API, "restartWorkspace").mockResolvedValue(undefined);
 	},

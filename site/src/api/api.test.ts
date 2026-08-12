@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from "axios";
 import {
 	MockProvisionerJob,
 	MockStoppedWorkspace,
@@ -516,7 +517,7 @@ describe("api.ts", () => {
 				.mockResolvedValue(MockProvisionerJob);
 			const getWorkspaceBuilds = vi
 				.spyOn(API, "getWorkspaceBuilds")
-				.mockRejectedValueOnce(new Error("network blip"))
+				.mockRejectedValueOnce(new AxiosError("Network Error", "ERR_NETWORK"))
 				.mockResolvedValue([childBuild]);
 
 			const restart = API.restartWorkspace({ workspace: MockWorkspace });
@@ -525,6 +526,26 @@ describe("api.ts", () => {
 
 			expect(getWorkspaceBuilds).toHaveBeenCalledTimes(2);
 			expect(waitForBuild).toHaveBeenNthCalledWith(2, childBuild);
+		});
+
+		it("rejects immediately when a builds request fails permanently", async () => {
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(stopBuild);
+			vi.spyOn(API, "waitForBuild").mockResolvedValue(MockProvisionerJob);
+			const forbidden = new AxiosError(
+				"Request failed with status code 403",
+				"ERR_BAD_REQUEST",
+				undefined,
+				undefined,
+				{ status: 403 } as AxiosResponse,
+			);
+			const getWorkspaceBuilds = vi
+				.spyOn(API, "getWorkspaceBuilds")
+				.mockRejectedValue(forbidden);
+
+			await expect(
+				API.restartWorkspace({ workspace: MockWorkspace }),
+			).rejects.toBe(forbidden);
+			expect(getWorkspaceBuilds).toHaveBeenCalledTimes(1);
 		});
 
 		it("skips intervening non-start builds when discovering the child", async () => {
