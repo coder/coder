@@ -1210,6 +1210,21 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
 	beforeEach: () => {
+		localStorage.clear();
+		// Another org's persisted attachment must survive a visit while
+		// the user has no chat permission anywhere.
+		localStorage.setItem(
+			"agents.persisted-attachments",
+			JSON.stringify([
+				{
+					fileId: "file-other-org",
+					fileName: "keep.txt",
+					fileType: "text/plain",
+					lastModified: 1000,
+					organizationId: MockOrganization2.id,
+				},
+			]),
+		);
 		mockPermittedOrganizations({
 			[MockDefaultOrganization.id]: false,
 			[MockOrganization2.id]: false,
@@ -1225,6 +1240,9 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		);
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 		expect(args.onCreateChat).not.toHaveBeenCalled();
+		expect(
+			localStorage.getItem("agents.persisted-attachments") ?? "",
+		).toContain("file-other-org");
 	},
 };
 

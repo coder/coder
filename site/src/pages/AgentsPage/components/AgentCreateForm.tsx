@@ -436,7 +436,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleRemoveAttachment,
 		resetAttachments,
 	} = useFileAttachments(
-		orgSelectionSettled ? organizationId || undefined : undefined,
+		// With no permitted org, effectiveOrg falls back to an org the
+		// user cannot chat in; restoring against it would prune other
+		// orgs' persisted attachments.
+		orgSelectionSettled && !noPermittedOrgs
+			? organizationId || undefined
+			: undefined,
 		{
 			persist: true,
 			provider: getProviderForModelOption(modelOptions, selectedModel),
