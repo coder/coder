@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AIBridgeThread } from "#/api/typesGenerated";
 import { MockAIBridgeSessionNetworkCalls } from "#/testHelpers/entities";
-import { matchesNetworkCallSearch, matchesThreadSearch } from "./sessionSearch";
+import {
+	matchesNetworkCallSearch,
+	matchesThreadSearch,
+	matchesThreadToolQuery,
+} from "./sessionSearch";
 
 const mockThread: AIBridgeThread = {
 	id: "thread-1",
@@ -75,6 +79,24 @@ describe("matchesThreadSearch", () => {
 	it("does not match a thread with no prompt when query is specific", () => {
 		const noPrompt: AIBridgeThread = { ...mockThread, prompt: undefined };
 		expect(matchesThreadSearch(noPrompt, "structure")).toBe(false);
+	});
+});
+
+describe("matchesThreadToolQuery", () => {
+	it("matches tool names", () => {
+		expect(matchesThreadToolQuery(mockThread, "list_directory")).toBe(true);
+	});
+
+	it("matches tool input JSON", () => {
+		expect(matchesThreadToolQuery(mockThread, "path")).toBe(true);
+	});
+
+	it("does not match prompt text alone", () => {
+		expect(matchesThreadToolQuery(mockThread, "summarize")).toBe(false);
+	});
+
+	it("returns false for an empty query", () => {
+		expect(matchesThreadToolQuery(mockThread, "")).toBe(false);
 	});
 });
 

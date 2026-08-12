@@ -15,45 +15,77 @@ import { formatDateTime } from "#/utils/time";
 
 interface NetworkCallsTableProps {
 	/**
-	 * Drives the header count and blocked badge. Reflects the whole session, so
-	 * its total can exceed the number of rows in `calls`, which is capped
-	 * server-side.
+	 * Reports the whole session's network call totals. The total can exceed the
+	 * number of rows in `calls`, which is capped server-side.
 	 */
 	summary: AIBridgeSessionNetworkCallSummary;
 	calls: readonly AgentFirewallLog[];
+	/**
+	 * When set, the table renders search results. `calls` holds only the
+	 * matching rows, and `loaded` is the number of network calls loaded before
+	 * filtering (the session total minus the server-side cap). `loaded` being
+	 * below `summary.total` indicates the search only covered a truncated
+	 * prefix.
+	 */
+	search?: { loaded: number };
 }
 
 export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
 	summary,
 	calls,
-}) => (
-	<Collapsible defaultOpen className="border border-solid rounded-md">
-		<div className="flex items-center justify-between gap-2 px-2 py-1">
-			<CollapsibleTrigger asChild>
-				<button
-					type="button"
-					className="group flex items-center gap-4 p-1 bg-transparent border-none cursor-pointer text-sm font-normal text-content-secondary"
-				>
-					<ChevronRightIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
-					<span>Network calls ({summary.total.toLocaleString("en-US")})</span>
-				</button>
-			</CollapsibleTrigger>
-			{summary.blocked > 0 && (
-				<Badge svgSize="xs" className="gap-1 text-content-warning">
-					<BanIcon className="flex-shrink-0" />
-					<span className="sr-only">Blocked network calls: </span>
-					{summary.blocked.toLocaleString("en-US")}
-				</Badge>
-			)}
-		</div>
+	search,
+}) => {
+	const matches = calls.length;
+	const blocked = search
+		? calls.filter((call) => !call.allowed).length
+		: summary.blocked;
 
-		<CollapsibleContent className="border-0 border-t border-solid">
-			<NetworkCallsList summary={summary} calls={calls} />
-		</CollapsibleContent>
-	</Collapsible>
-);
+	return (
+		<Collapsible defaultOpen className="border border-solid rounded-md">
+			<div className="flex items-center justify-between gap-2 px-2 py-1">
+				<CollapsibleTrigger asChild>
+					<button
+						type="button"
+						className="group flex items-center gap-4 p-1 bg-transparent border-none cursor-pointer text-sm font-normal text-content-secondary"
+					>
+						<ChevronRightIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
+						{search ? (
+							<span>
+								{matches.toLocaleString("en-US")}{" "}
+								{matches === 1 ? "match" : "matches"}
+							</span>
+						) : (
+							<span>
+								Network calls ({summary.total.toLocaleString("en-US")})
+							</span>
+						)}
+					</button>
+				</CollapsibleTrigger>
+				{blocked > 0 && (
+					<Badge svgSize="xs" className="gap-1 text-content-warning">
+						<BanIcon className="flex-shrink-0" />
+						<span className="sr-only">Blocked network calls: </span>
+						{blocked.toLocaleString("en-US")}
+					</Badge>
+				)}
+			</div>
 
-const NetworkCallsList: FC<NetworkCallsTableProps> = ({ summary, calls }) => {
+			<CollapsibleContent className="border-0 border-t border-solid">
+				<NetworkCallsList
+					calls={calls}
+					search={search}
+					sessionTotal={summary.total}
+				/>
+			</CollapsibleContent>
+		</Collapsible>
+	);
+};
+
+const NetworkCallsList: FC<{
+	calls: readonly AgentFirewallLog[];
+	search?: { loaded: number };
+	sessionTotal: number;
+}> = ({ calls, search, sessionTotal }) => {
 	if (calls.length === 0) {
 		return (
 			<p className="m-0 px-4 py-3 text-sm font-normal text-content-secondary">
@@ -62,7 +94,9 @@ const NetworkCallsList: FC<NetworkCallsTableProps> = ({ summary, calls }) => {
 		);
 	}
 
-	const hiddenCount = summary.total - calls.length;
+	const matches = calls.length;
+	const hiddenCount = sessionTotal - matches;
+	const isTruncated = search ? search.loaded < sessionTotal : hiddenCount > 0;
 
 	return (
 		<>
@@ -71,10 +105,17 @@ const NetworkCallsList: FC<NetworkCallsTableProps> = ({ summary, calls }) => {
 					<NetworkCallRow key={call.id} call={call} />
 				))}
 			</ul>
-			{hiddenCount > 0 && (
+			{isTruncated && (
 				<p className="m-0 px-4 py-2 text-xs font-normal text-content-secondary border-0 border-t border-solid">
-					Showing the first {calls.length.toLocaleString("en-US")} of{" "}
-					{summary.total.toLocaleString("en-US")} network calls.
+					{search
+						? `${matches.toLocaleString("en-US")} ${
+								matches === 1 ? "match" : "matches"
+							} within the first ${search.loaded.toLocaleString("en-US")} of ${sessionTotal.toLocaleString(
+								"en-US",
+							)} network calls.`
+						: `Showing the first ${matches.toLocaleString("en-US")} of ${sessionTotal.toLocaleString(
+								"en-US",
+							)} network calls.`}
 				</p>
 			)}
 		</>

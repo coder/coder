@@ -63,6 +63,11 @@ Select one to view its full details.
 
 Click into a session to see a chronological causal chain of events.
 
+A search input above the timeline filters the events by prompt text, tool
+names, tool inputs, and network call destinations. While a query is active,
+the timeline shows only matching events; a "No events match your search."
+message appears when nothing in the loaded events matches.
+
 Within a thread, each step shows token usage, tool call details (including
 arguments and MCP server URLs), duration, and any errors or warnings.
 

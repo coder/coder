@@ -118,7 +118,6 @@ export const SearchFiltersEvents: Story = {
 			name: /search session events/i,
 		});
 
-		// Both threads are visible before searching.
 		await expect(
 			canvas.getByText("Summarize the project structure"),
 		).toBeVisible();
@@ -126,7 +125,6 @@ export const SearchFiltersEvents: Story = {
 			canvas.getByText("Deploy the service to production"),
 		).toBeVisible();
 
-		// Search by prompt text: only the matching thread stays.
 		await userEvent.type(input, "deploy");
 		await expect(
 			canvas.getByText("Deploy the service to production"),
@@ -135,10 +133,9 @@ export const SearchFiltersEvents: Story = {
 			canvas.queryByText("Summarize the project structure"),
 		).not.toBeInTheDocument();
 
-		// Search by network destination: only matching rows stay.
 		await userEvent.clear(input);
 		await userEvent.type(input, "npmjs.org");
-		await canvas.findByText("Network calls (1)");
+		await canvas.findByText("1 match");
 		await expect(
 			canvas.getByText("https://registry.npmjs.org/lodash"),
 		).toBeVisible();
@@ -146,7 +143,6 @@ export const SearchFiltersEvents: Story = {
 			canvas.queryByText("https://api.github.com/repos/coder/coder"),
 		).not.toBeInTheDocument();
 
-		// Clear: everything returns.
 		await userEvent.clear(input);
 		await canvas.findByText("Network calls (4)");
 		await expect(

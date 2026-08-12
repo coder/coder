@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect } from "storybook/test";
+import { expect, fn } from "storybook/test";
 import type { AIBridgeThread } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
@@ -162,8 +162,7 @@ export const MultipleThreads: Story = {
 };
 
 // Filtering to a tool name keeps only the thread whose agentic loop contains a
-// matching tool call. The tool name is only visible once the agentic loop is
-// expanded, so assert on the thread prompt instead.
+// matching tool call. The agentic loop starts expanded, revealing the tool name.
 export const SearchFiltersThreads: Story = {
 	args: {
 		threads: [mockThread, mockThreadLong],
@@ -176,14 +175,15 @@ export const SearchFiltersThreads: Story = {
 			),
 		).toBeInTheDocument();
 		await expect(
-			canvas.queryByText("Summarize the project structure"),
+			canvas.queryByText(
+				"Can you check what files are in the project and summarize the structure?",
+			),
 		).not.toBeInTheDocument();
 	},
 };
 
 // While searching, the network panel header and rows reflect matches only.
-// "github.com" appears in two of the mock calls (api.github.com and the DNS
-// lookup for api.github.com), so the panel header shows the filtered count.
+// "npmjs.org" appears in one of the mock calls, so the header shows one match.
 export const SearchFiltersNetworkCalls: Story = {
 	args: {
 		networkCallSummary: { total: 4, blocked: 2 },
@@ -191,7 +191,7 @@ export const SearchFiltersNetworkCalls: Story = {
 		searchQuery: "npmjs.org",
 	},
 	play: async ({ canvas }) => {
-		await canvas.findByText("Network calls (1)");
+		await canvas.findByText("1 match");
 		await expect(
 			canvas.getByText("https://registry.npmjs.org/lodash"),
 		).toBeInTheDocument();
@@ -215,6 +215,27 @@ export const SearchNoMatches: Story = {
 			canvas.getByText("No events match your search."),
 		).toBeInTheDocument();
 		await expect(canvas.queryByText("Prompt")).not.toBeInTheDocument();
+	},
+};
+
+// A zero-match query on a session that still has pages to load must not
+// trigger the infinite-scroll cascade, so the empty state is stable instead
+// of draining every remaining page.
+export const SearchNoMatchesWithNextPage: Story = {
+	args: {
+		threads: [mockThread, mockThreadLong],
+		networkCallSummary: { total: 4, blocked: 2 },
+		networkCalls: MockAIBridgeSessionNetworkCalls,
+		searchQuery: "no-such-event",
+		hasNextPage: true,
+		isFetchingNextPage: false,
+		onFetchNextPage: fn(),
+	},
+	play: async ({ args, canvas }) => {
+		await expect(
+			canvas.getByText("No events match your search."),
+		).toBeInTheDocument();
+		await expect(args.onFetchNextPage).not.toHaveBeenCalled();
 	},
 };
 

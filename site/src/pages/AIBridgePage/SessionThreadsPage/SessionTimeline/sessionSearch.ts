@@ -1,22 +1,15 @@
-import type {
-	AgentFirewallLog,
-	AIBridgeAgenticAction,
-	AIBridgeThread,
-} from "#/api/typesGenerated";
+import type { AgentFirewallLog, AIBridgeThread } from "#/api/typesGenerated";
 
 /**
  * Pure session-search helpers. Matching is case-insensitive substring
- * matching over the strict field scope from AIGOV-462: prompt text, tool
- * names, tool input JSON, and network call destinations.
+ * matching over the strict field scope: prompt text, tool names, tool
+ * input JSON, and network call detail (URL for HTTP, host for DNS).
  */
 
 const normalizeQuery = (query: string): string => query.trim().toLowerCase();
 
-const matchesToolCalls = (
-	actions: readonly AIBridgeAgenticAction[],
-	q: string,
-) =>
-	actions.some((action) =>
+const matchesToolSearch = (thread: AIBridgeThread, q: string): boolean =>
+	thread.agentic_actions.some((action) =>
 		action.tool_calls.some(
 			(call) =>
 				call.tool.toLowerCase().includes(q) ||
@@ -33,9 +26,25 @@ export const matchesThreadSearch = (
 		return true;
 	}
 	return (
-		matchesToolCalls(thread.agentic_actions, q) ||
+		matchesToolSearch(thread, q) ||
 		(thread.prompt?.toLowerCase().includes(q) ?? false)
 	);
+};
+
+/**
+ * Returns true when the query matches a tool name or tool input in the
+ * thread's agentic loop. Used to surface why a thread matched when the
+ * match lives inside a collapsed section.
+ */
+export const matchesThreadToolQuery = (
+	thread: AIBridgeThread,
+	query: string,
+): boolean => {
+	const q = normalizeQuery(query);
+	if (q === "") {
+		return false;
+	}
+	return matchesToolSearch(thread, q);
 };
 
 export const matchesNetworkCallSearch = (

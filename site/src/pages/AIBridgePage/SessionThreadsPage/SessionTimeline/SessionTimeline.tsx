@@ -1,5 +1,5 @@
 import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
-import { type FC, useEffect, useMemo, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import type {
 	AgentFirewallLog,
 	AIBridgeAgenticAction,
@@ -25,7 +25,11 @@ import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { AgenticLoopTable } from "./AgenticLoopTable";
 import { NetworkCallsTable } from "./NetworkCallsTable";
 import { PromptTable } from "./PromptTable";
-import { matchesNetworkCallSearch, matchesThreadSearch } from "./sessionSearch";
+import {
+	matchesNetworkCallSearch,
+	matchesThreadSearch,
+	matchesThreadToolQuery,
+} from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
 
 interface ExpandableTextProps {
@@ -269,10 +273,19 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({ action }) => {
 interface ThreadItemProps {
 	thread: AIBridgeThread;
 	initiator: MinimalUser;
+	/**
+	 * When true, the agentic loop starts expanded so a search that matched a
+	 * tool call reveals why the thread surfaced.
+	 */
+	searchMatchedTool: boolean;
 }
 
-const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
-	const [agenticLoopOpen, setAgenticLoopOpen] = useState(false);
+const ThreadItem: FC<ThreadItemProps> = ({
+	thread,
+	initiator,
+	searchMatchedTool,
+}) => {
+	const [agenticLoopOpen, setAgenticLoopOpen] = useState(searchMatchedTool);
 
 	const durationInMs =
 		new Date(thread.ended_at ?? Date.now()).getTime() -
@@ -419,8 +432,8 @@ interface SessionTimelineProps {
 	networkCallSummary?: AIBridgeSessionNetworkCallSummary;
 	networkCalls: readonly AgentFirewallLog[];
 	/**
-	 * Search query applied across all event types. Non-empty values filter
-	 * threads and network calls to matches (see sessionSearch.ts).
+	 * Filters threads (prompt text, tool names, tool inputs) and network
+	 * calls (destination) to matches. See sessionSearch.ts.
 	 */
 	searchQuery: string;
 	hasNextPage: boolean;
@@ -442,17 +455,12 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 
 	const isSearching = searchQuery.trim() !== "";
 
-	const filteredThreads = useMemo(
-		() => threads.filter((thread) => matchesThreadSearch(thread, searchQuery)),
-		[threads, searchQuery],
+	const filteredThreads = threads.filter((thread) =>
+		matchesThreadSearch(thread, searchQuery),
 	);
 
-	const filteredNetworkCalls = useMemo(
-		() =>
-			networkCalls.filter((call) =>
-				matchesNetworkCallSearch(call, searchQuery),
-			),
-		[networkCalls, searchQuery],
+	const filteredNetworkCalls = networkCalls.filter((call) =>
+		matchesNetworkCallSearch(call, searchQuery),
 	);
 
 	const hasAnyMatches =
@@ -461,7 +469,10 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
 
-		if (!sentinel || !hasNextPage) {
+		// A client-only search cannot be satisfied by fetching more pages, and an
+		// empty filtered list would keep the sentinel intersecting and cascade
+		// page loads. Stop paginating while a search is active.
+		if (!sentinel || !hasNextPage || isSearching) {
 			return;
 		}
 
@@ -479,7 +490,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 		return () => {
 			observer.disconnect();
 		};
-	}, [hasNextPage, isFetchingNextPage, onFetchNextPage]);
+	}, [hasNextPage, isFetchingNextPage, isSearching, onFetchNextPage]);
 
 	return (
 		<div className="relative">
@@ -564,20 +575,11 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 						(!isSearching || filteredNetworkCalls.length > 0) && (
 							<div className="mb-4">
 								<NetworkCallsTable
-									// While searching, the panel header and blocked badge reflect
-									// the matching rows. Otherwise the session-scoped summary is
-									// preserved so the server truncation note stays accurate.
-									summary={
-										isSearching
-											? {
-													total: filteredNetworkCalls.length,
-													blocked: filteredNetworkCalls.filter(
-														(call) => !call.allowed,
-													).length,
-												}
-											: networkCallSummary
-									}
+									summary={networkCallSummary}
 									calls={filteredNetworkCalls}
+									search={
+										isSearching ? { loaded: networkCalls.length } : undefined
+									}
 								/>
 							</div>
 						)}
@@ -588,6 +590,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 								key={thread.id}
 								thread={thread}
 								initiator={initiator}
+								searchMatchedTool={matchesThreadToolQuery(thread, searchQuery)}
 							/>
 						))}
 					</div>
@@ -599,7 +602,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 							No events match your search.
 						</p>
 					)}
-					{/* infinite scroll sentinel — sits 200px below the last thread */}
+					{/* infinite scroll sentinel. Sits 200px below the last thread. */}
 					<div ref={sentinelRef} />
 					{isFetchingNextPage && (
 						<div className="flex items-center justify-center py-4 text-sm text-content-secondary">

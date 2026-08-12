@@ -127,3 +127,19 @@ export const Truncated: Story = {
 		).toBeInTheDocument();
 	},
 };
+
+// While searching, the header reports the match count and the note surfaces
+// that the search only covered the loaded (truncated) prefix.
+export const SearchTruncated: Story = {
+	args: {
+		summary: { total: 150, blocked: 2 },
+		calls: [MockAIBridgeSessionNetworkCalls[0]],
+		search: { loaded: 4 },
+	},
+	play: async ({ canvas }) => {
+		await canvas.findByText("1 match");
+		await expect(
+			canvas.getByText(/1 match within the first 4 of 150 network calls\./),
+		).toBeInTheDocument();
+	},
+};
