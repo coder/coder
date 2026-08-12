@@ -141,7 +141,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "all")
 		defer resp.Body.Close()
 
-		require.Equal(t, database.OAuth2ScopeUnrestricted, persistedCodeScope(ctx, t, db, resp))
+		require.Equal(t, string(database.ApiKeyScopeCoderAll), persistedCodeScope(ctx, t, db, resp))
 	})
 
 	// A repeated scope denotes one grant, so it is stored once.
@@ -166,7 +166,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
 		defer resp.Body.Close()
 
-		require.Equal(t, database.OAuth2ScopeUnrestricted, persistedCodeScope(ctx, t, db, resp))
+		require.Equal(t, string(database.ApiKeyScopeCoderAll), persistedCodeScope(ctx, t, db, resp))
 	})
 
 	// NULL (admin-created apps) and '' (DCR apps that sent no scope) are one
@@ -185,7 +185,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 
 		nullScope := persistedCodeScope(ctx, t, db, nullResp)
 		emptyScope := persistedCodeScope(ctx, t, db, emptyResp)
-		require.Equal(t, database.OAuth2ScopeUnrestricted, nullScope)
+		require.Equal(t, string(database.ApiKeyScopeCoderAll), nullScope)
 		require.Equal(t, nullScope, emptyScope)
 	})
 

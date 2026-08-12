@@ -3656,39 +3656,6 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return err
 }
 
-const deleteAPIKeyByIDReturningRow = `-- name: DeleteAPIKeyByIDReturningRow :one
-DELETE FROM
-	api_keys
-WHERE
-	id = $1
-RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
-`
-
-// Returns sql.ErrNoRows when the key is already gone, which lets a caller
-// enforce single use of a refresh token by racing this delete. Returns the
-// whole row so a caller reads the deleted key's state from the same atomic
-// delete rather than trusting an earlier read.
-func (q *sqlQuerier) DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (APIKey, error) {
-	row := q.db.QueryRowContext(ctx, deleteAPIKeyByIDReturningRow, id)
-	var i APIKey
-	err := row.Scan(
-		&i.ID,
-		&i.HashedSecret,
-		&i.UserID,
-		&i.LastUsed,
-		&i.ExpiresAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.LoginType,
-		&i.LifetimeSeconds,
-		&i.IPAddress,
-		&i.TokenName,
-		&i.Scopes,
-		&i.AllowList,
-	)
-	return i, err
-}
-
 const deleteAPIKeysByUserID = `-- name: DeleteAPIKeysByUserID :exec
 DELETE FROM
 	api_keys
@@ -7024,19 +6991,6 @@ type BatchUpsertChatHeartbeatsParams struct {
 func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUpsertChatHeartbeatsParams) error {
 	_, err := q.db.ExecContext(ctx, batchUpsertChatHeartbeats, pq.Array(arg.ChatIds), pq.Array(arg.RunnerIds))
 	return err
-}
-
-const chatSearchQueryIsEmpty = `-- name: ChatSearchQueryIsEmpty :one
-SELECT numnode(websearch_to_tsquery('simple', $1::text)) = 0 AS is_empty
-`
-
-// Reports whether search text tokenizes to an empty tsquery (e.g. '!!!').
-// Used to reject input that would silently match nothing.
-func (q *sqlQuerier) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error) {
-	row := q.db.QueryRowContext(ctx, chatSearchQueryIsEmpty, search)
-	var is_empty bool
-	err := row.Scan(&is_empty)
-	return is_empty, err
 }
 
 const countChatQueuedMessages = `-- name: CountChatQueuedMessages :one
@@ -11466,9 +11420,12 @@ WITH updated_chat AS (
         last_error = $5::jsonb,
         requires_action_deadline_at = $6::timestamptz,
         compaction_requested_at = $7::timestamptz,
+        history_version = CASE WHEN $8::boolean THEN snapshot_version ELSE history_version END,
+        generation_attempt = CASE WHEN $8::boolean THEN 0 ELSE generation_attempt END,
+        retry_state = CASE WHEN $8::boolean THEN NULL ELSE retry_state END,
         pin_order = CASE WHEN $2::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
-    WHERE id = $8::uuid
+    WHERE id = $9::uuid
     RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
 ),
 chats_expanded AS (
@@ -11536,6 +11493,7 @@ type UpdateChatExecutionStateParams struct {
 	LastError                pqtype.NullRawMessage `db:"last_error" json:"last_error"`
 	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
 	CompactionRequestedAt    sql.NullTime          `db:"compaction_requested_at" json:"compaction_requested_at"`
+	GrantHistoryEpoch        bool                  `db:"grant_history_epoch" json:"grant_history_epoch"`
 	ID                       uuid.UUID             `db:"id" json:"id"`
 }
 
@@ -11544,6 +11502,10 @@ type UpdateChatExecutionStateParams struct {
 // requires-action deadline, and the manual compaction request marker.
 // Callers compose this with transition mutations inside a single
 // ChatMachine.Update transaction.
+//
+// grant_history_epoch gives a turn that inserts no history the same
+// fresh retry budget and message part episode keys a history change
+// would grant, mirroring the chat_messages trigger postcondition.
 func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatExecutionState,
 		arg.Status,
@@ -11553,6 +11515,7 @@ func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateCha
 		arg.LastError,
 		arg.RequiresActionDeadlineAt,
 		arg.CompactionRequestedAt,
+		arg.GrantHistoryEpoch,
 		arg.ID,
 	)
 	var i Chat
@@ -18912,35 +18875,6 @@ DELETE FROM oauth2_provider_app_codes WHERE id = $1
 func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppCodeByID, id)
 	return err
-}
-
-const deleteOAuth2ProviderAppCodeByIDReturningRow = `-- name: DeleteOAuth2ProviderAppCodeByIDReturningRow :one
-DELETE FROM oauth2_provider_app_codes WHERE id = $1 RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope
-`
-
-// Returns sql.ErrNoRows when the code is already gone, which lets a caller
-// enforce single use by racing this delete instead of reading first. Returns
-// the whole row so a caller reads the redeemed code's negotiated scope from
-// the same atomic delete rather than trusting an earlier read.
-func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
-	row := q.db.QueryRowContext(ctx, deleteOAuth2ProviderAppCodeByIDReturningRow, id)
-	var i OAuth2ProviderAppCode
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.SecretPrefix,
-		&i.HashedSecret,
-		&i.UserID,
-		&i.AppID,
-		&i.ResourceUri,
-		&i.CodeChallenge,
-		&i.CodeChallengeMethod,
-		&i.StateHash,
-		&i.RedirectUri,
-		&i.Scope,
-	)
-	return i, err
 }
 
 const deleteOAuth2ProviderAppCodesByAppAndUserID = `-- name: DeleteOAuth2ProviderAppCodesByAppAndUserID :exec

@@ -337,21 +337,6 @@ func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
 }
 
-// ChatSearchQueryIsEmpty mocks base method.
-func (m *MockStore) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ChatSearchQueryIsEmpty", ctx, search)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ChatSearchQueryIsEmpty indicates an expected call of ChatSearchQueryIsEmpty.
-func (mr *MockStoreMockRecorder) ChatSearchQueryIsEmpty(ctx, search any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChatSearchQueryIsEmpty", reflect.TypeOf((*MockStore)(nil).ChatSearchQueryIsEmpty), ctx, search)
-}
-
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -673,21 +658,6 @@ func (m *MockStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 func (mr *MockStoreMockRecorder) DeleteAPIKeyByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeyByID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeyByID), ctx, id)
-}
-
-// DeleteAPIKeyByIDReturningRow mocks base method.
-func (m *MockStore) DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (database.APIKey, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAPIKeyByIDReturningRow", ctx, id)
-	ret0, _ := ret[0].(database.APIKey)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DeleteAPIKeyByIDReturningRow indicates an expected call of DeleteAPIKeyByIDReturningRow.
-func (mr *MockStoreMockRecorder) DeleteAPIKeyByIDReturningRow(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeyByIDReturningRow", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeyByIDReturningRow), ctx, id)
 }
 
 // DeleteAPIKeysByUserID mocks base method.
@@ -1075,21 +1045,6 @@ func (m *MockStore) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid
 func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppCodeByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderAppCodeByID", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderAppCodeByID), ctx, id)
-}
-
-// DeleteOAuth2ProviderAppCodeByIDReturningRow mocks base method.
-func (m *MockStore) DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOAuth2ProviderAppCodeByIDReturningRow", ctx, id)
-	ret0, _ := ret[0].(database.OAuth2ProviderAppCode)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DeleteOAuth2ProviderAppCodeByIDReturningRow indicates an expected call of DeleteOAuth2ProviderAppCodeByIDReturningRow.
-func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderAppCodeByIDReturningRow", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderAppCodeByIDReturningRow), ctx, id)
 }
 
 // DeleteOAuth2ProviderAppCodesByAppAndUserID mocks base method.

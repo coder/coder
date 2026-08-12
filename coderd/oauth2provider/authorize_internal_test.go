@@ -74,7 +74,7 @@ func TestValidateRequestedScope(t *testing.T) {
 			name:      "NoAllowlistOmittedRequestIsUnrestricted",
 			requested: nil,
 			appScope:  noAllowlist,
-			want:      database.OAuth2ScopeUnrestricted,
+			want:      string(database.ApiKeyScopeCoderAll),
 		},
 		{
 			// '' is the DCR-registered encoding of the same "no allowlist
@@ -82,7 +82,7 @@ func TestValidateRequestedScope(t *testing.T) {
 			name:      "EmptyAllowlistBehavesAsNoAllowlist",
 			requested: nil,
 			appScope:  emptyAllowlist,
-			want:      database.OAuth2ScopeUnrestricted,
+			want:      string(database.ApiKeyScopeCoderAll),
 		},
 		{
 			name:      "NoAllowlistExplicitRequestPassesThrough",

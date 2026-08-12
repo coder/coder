@@ -86,7 +86,7 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 // What each branch returns:
 //
 //	allowlist  request  result
-//	absent     absent   OAuth2ScopeUnrestricted, the pre-enforcement grant
+//	absent     absent   ApiKeyScopeCoderAll, the pre-enforcement grant
 //	absent     present  the request, which is narrower than unrestricted
 //	present    absent   the whole allowlist (RFC 6749 §3.3 default)
 //	present    present  the request, once shown to be within the allowlist
@@ -124,7 +124,7 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 			// Unrestricted, the same grant this app got before scope
 			// enforcement existed, but stated explicitly: an empty string
 			// would violate the column's CHECK.
-			return database.OAuth2ScopeUnrestricted, nil
+			return string(database.ApiKeyScopeCoderAll), nil
 		}
 		return strings.Join(granted, " "), nil
 	}
