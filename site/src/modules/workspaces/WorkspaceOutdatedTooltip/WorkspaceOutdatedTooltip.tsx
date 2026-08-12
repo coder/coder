@@ -104,13 +104,13 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 		<>
 			<HelpPopoverContent disablePortal={false}>
 				<HelpPopoverTitle>Outdated</HelpPopoverTitle>
-				<HelpPopoverText>
+				<HelpPopoverText className="text-xs font-normal">
 					This workspace version is outdated and a newer version is available.
 				</HelpPopoverText>
 
 				<div className="flex flex-col gap-2 py-2 text-xs font-normal">
 					<div className="leading-[1.6]">
-						<div className="text-content-primary font-semibold">
+						<div className="text-content-primary text-sm font-semibold">
 							New version
 						</div>
 						<div>
@@ -132,7 +132,9 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 					</div>
 
 					<div className="leading-[1.6]">
-						<div className="text-content-primary font-semibold">Message</div>
+						<div className="text-content-primary text-sm font-semibold">
+							Message
+						</div>
 						<div>
 							{activeVersion ? (
 								activeVersion.message || "No message"
