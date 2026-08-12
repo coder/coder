@@ -724,12 +724,12 @@ describe("filterPendingStreamState", () => {
 			new Set(["tc-1"]),
 		);
 		expect(filtered).not.toBeNull();
-		expect(filtered!.toolResults).toEqual({});
+		expect(filtered?.toolResults).toEqual({});
 		// The block referencing the dropped id must also be removed so the
 		// tail does not render a generic "Tool" placeholder.
-		expect(filtered!.blocks).toEqual([]);
+		expect(filtered?.blocks).toEqual([]);
 		expect(
-			buildStreamTools(filtered!.toolCalls, filtered!.toolResults),
+			buildStreamTools(filtered?.toolCalls, filtered?.toolResults),
 		).toEqual([]);
 	});
 
@@ -753,7 +753,7 @@ describe("filterPendingStreamState", () => {
 		// pending in the durable transcript.
 		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
 		expect(filtered).toBe(state);
-		const tools = buildStreamTools(filtered!.toolCalls, filtered!.toolResults);
+		const tools = buildStreamTools(filtered?.toolCalls, filtered?.toolResults);
 		expect(tools).toHaveLength(1);
 		expect(tools[0].status).toBe("completed");
 	});
@@ -781,10 +781,9 @@ describe("filterPendingStreamState", () => {
 			},
 			sources: [],
 		};
-		// Only tc-1 is pending in the durable transcript.
 		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
-		expect(Object.keys(filtered!.toolResults)).toEqual(["tc-2"]);
-		expect(filtered!.blocks).toEqual([{ type: "tool", id: "tc-2" }]);
+		expect(Object.keys(filtered?.toolResults ?? {})).toEqual(["tc-2"]);
+		expect(filtered?.blocks).toEqual([{ type: "tool", id: "tc-2" }]);
 	});
 
 	it("keeps non-tool blocks and other tool blocks while dropping the pending one", () => {
@@ -808,17 +807,16 @@ describe("filterPendingStreamState", () => {
 			sources: [],
 		};
 		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
-		expect(filtered!.blocks).toEqual([
+		expect(filtered?.blocks).toEqual([
 			{ type: "response", text: "Reading the file now." },
 			{ type: "tool", id: "tc-2" },
 		]);
-		expect(filtered!.toolResults).toEqual({});
-		expect(filtered!.toolCalls).toBe(state.toolCalls);
+		expect(filtered?.toolResults).toEqual({});
+		expect(filtered?.toolCalls).toBe(state.toolCalls);
 	});
 
 	it("returns the input reference when nothing is dropped", () => {
 		const state = pendingReadFileState();
-		// No pending ids, and a pending id that matches no stream entry.
 		expect(filterPendingStreamState(state, undefined)).toBe(state);
 		expect(filterPendingStreamState(state, new Set())).toBe(state);
 		expect(filterPendingStreamState(state, new Set(["tc-other"]))).toBe(state);
