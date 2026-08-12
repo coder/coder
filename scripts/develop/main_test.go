@@ -1068,7 +1068,7 @@ func TestLocalAIModelName(t *testing.T) {
 		repo string
 		want string
 	}{
-		{name: "DefaultRepo", repo: "HuggingFaceTB/smollm-135M-instruct-v0.2-Q8_0-GGUF", want: "smollm-135m-instruct-v0.2-q8_0-gguf"},
+		{name: "DefaultRepo", repo: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M", want: "qwen2.5-0.5b-instruct-gguf"},
 		{name: "QuantSuffixStripped", repo: "Some/Model-GGUF:Q5_K_M", want: "model-gguf"},
 		{name: "SingleSegment", repo: "TinyLlama", want: "tinyllama"},
 		{name: "AlreadyLower", repo: "org/small-model", want: "small-model"},
@@ -1085,19 +1085,21 @@ func TestLocalAIModelName(t *testing.T) {
 func TestLocalAIDockerRunArgs(t *testing.T) {
 	t.Parallel()
 
-	cfg := &devConfig{localAIModel: "HuggingFaceTB/smollm-135M-instruct-v0.2-Q8_0-GGUF"}
+	cfg := &devConfig{localAIModel: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"}
 	args := localAIDockerRunArgs(cfg, "/tmp/cache")
 
 	assert.Equal(t, "run", args[0])
 
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "--name "+llamaContainerName)
-	assert.Contains(t, joined, "-p 1234:1234")
+	assert.Contains(t, joined, "-p 9931:9931")
+	assert.Contains(t, joined, "--port 9931")
 	assert.Contains(t, joined, "-v /tmp/cache:/models")
 	assert.Contains(t, joined, "-e LLAMA_CACHE=/models")
 	assert.Contains(t, joined, llamaImage)
-	assert.Contains(t, joined, "-hf HuggingFaceTB/smollm-135M-instruct-v0.2-Q8_0-GGUF")
-	assert.Contains(t, joined, "-c 2048")
+	assert.Contains(t, joined, "-hf Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M")
+	assert.Contains(t, joined, "-c 32768")
+	assert.Contains(t, joined, "-fa on")
 	assert.Contains(t, joined, "--jinja")
 	// CPU-only image has no GPU backend, so --gpu-layers is omitted.
 	assert.NotContains(t, joined, "-ngl")
@@ -1128,7 +1130,7 @@ func TestFindLocalAIProvider(t *testing.T) {
 func TestLocalAIProviderSpecs(t *testing.T) {
 	t.Parallel()
 
-	cfg := &devConfig{localAIModel: "HuggingFaceTB/smollm-135M-instruct-v0.2-Q8_0-GGUF"}
+	cfg := &devConfig{localAIModel: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"}
 	specs := localAIProviderSpecs(cfg)
 
 	require.Len(t, specs, 2)
@@ -1138,7 +1140,7 @@ func TestLocalAIProviderSpecs(t *testing.T) {
 	assert.Equal(t, codersdk.AIProviderTypeOpenAICompat, openai.providerType)
 	assert.Equal(t, llamaProviderName, openai.name)
 	assert.Equal(t, fmt.Sprintf("http://localhost:%d/v1/", llamaPort), openai.baseURL)
-	assert.Equal(t, "smollm-135m-instruct-v0.2-q8_0-gguf", openai.modelName)
+	assert.Equal(t, "qwen2.5-0.5b-instruct-gguf", openai.modelName)
 
 	// Mirrored Anthropic provider points at the server root; the SDK appends
 	// v1/messages itself.
@@ -1146,7 +1148,7 @@ func TestLocalAIProviderSpecs(t *testing.T) {
 	assert.Equal(t, codersdk.AIProviderTypeAnthropic, anthropic.providerType)
 	assert.Equal(t, llamaAnthropicProviderName, anthropic.name)
 	assert.Equal(t, fmt.Sprintf("http://localhost:%d/", llamaPort), anthropic.baseURL)
-	assert.Equal(t, "smollm-135m-instruct-v0.2-q8_0-gguf", anthropic.modelName)
+	assert.Equal(t, "qwen2.5-0.5b-instruct-gguf", anthropic.modelName)
 }
 
 func TestFindLocalAIModelConfig(t *testing.T) {
@@ -1314,11 +1316,11 @@ func TestEnsureLocalAIModelConfig(t *testing.T) {
 		client := codersdk.NewExperimentalClient(newFakeClient(t, api))
 		providerID := uuid.New()
 
-		err := ensureLocalAIModelConfig(context.Background(), client, providerID, "smollm-135m-instruct-v0.2-q8_0-gguf")
+		err := ensureLocalAIModelConfig(context.Background(), client, providerID, "qwen2.5-0.5b-instruct-gguf")
 		require.NoError(t, err)
 		require.Len(t, api.configs, 1)
 		assert.Equal(t, providerID, api.configs[0].AIProviderID)
-		assert.Equal(t, "smollm-135m-instruct-v0.2-q8_0-gguf", api.configs[0].Model)
+		assert.Equal(t, "qwen2.5-0.5b-instruct-gguf", api.configs[0].Model)
 		assert.Equal(t, llamaContextLimit, api.configs[0].ContextLimit)
 	})
 
@@ -1327,12 +1329,12 @@ func TestEnsureLocalAIModelConfig(t *testing.T) {
 		providerID := uuid.New()
 		api := &fakeProviderModelAPI{
 			configs: []codersdk.ChatModelConfig{
-				{ID: uuid.New(), AIProviderID: providerID, Model: "smollm-135m-instruct-v0.2-q8_0-gguf"},
+				{ID: uuid.New(), AIProviderID: providerID, Model: "qwen2.5-0.5b-instruct-gguf"},
 			},
 		}
 		client := codersdk.NewExperimentalClient(newFakeClient(t, api))
 
-		err := ensureLocalAIModelConfig(context.Background(), client, providerID, "smollm-135m-instruct-v0.2-q8_0-gguf")
+		err := ensureLocalAIModelConfig(context.Background(), client, providerID, "qwen2.5-0.5b-instruct-gguf")
 		require.NoError(t, err)
 		// No duplicate was created.
 		assert.Len(t, api.configs, 1)

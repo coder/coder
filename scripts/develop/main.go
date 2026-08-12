@@ -57,21 +57,22 @@ const (
 	// 2113 (agent debug) already bound inside Coder workspaces.
 	defaultPrometheusPort = "2114"
 	// llamaPort is the fixed port the local llama.cpp server listens on.
-	// Coderd reaches it at http://localhost:1234. Only one local AI
+	// Coderd reaches it at http://localhost:9931. Only one local AI
 	// container can run per host, which is fine for a dev tool.
-	llamaPort int64 = 1234
+	llamaPort int64 = 9931
 	// llamaContainerName is the Docker container name for the local
 	// llama.cpp server, used for reuse detection and explicit cleanup
 	// on shutdown.
 	llamaContainerName = "coder-llama-server"
 	// llamaImage is the CPU-only llama.cpp server image. It is pinned to
 	// a release tag (not the daily :server tag) for reproducibility.
-	llamaImage = "ghcr.io/ggml-org/llama.cpp:server-b10375"
+	llamaImage = "ghcr.io/ggml-org/llama.cpp:server-b10380"
 	// defaultLocalAIModel is the default Hugging Face repo (optionally
-	// with a :quant suffix) served by --local-ai. It is a very small,
-	// Apache-2.0 licensed instruct model that runs fast in CPU inference
-	// and downloads in tens of seconds.
-	defaultLocalAIModel = "HuggingFaceTB/smollm-135M-instruct-v0.2-Q8_0-GGUF"
+	// with a :quant suffix) served by --local-ai. Qwen2.5-0.5B is a small
+	// model that stays fast in CPU inference while offering a 32K context
+	// window, which is far more usable than 2K-class models. Q4_K_M keeps
+	// the download small (~470 MB) with solid quality.
+	defaultLocalAIModel = "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
 	// llamaProviderName is the AI provider name registered in Coder for
 	// the local llama.cpp server. It must match the AI provider name
 	// regex and be stable so restarts reuse the same provider.
@@ -84,7 +85,7 @@ const (
 	// llamaContextLimit is the chat context window exposed to Coder and
 	// passed to llama-server via -c. The two must match so the advertised
 	// limit reflects what the server actually supports.
-	llamaContextLimit int64 = 2048
+	llamaContextLimit int64 = 32768
 	// portOffsetBuckets keeps the offset below 1000 while leaving
 	// enough hash buckets for common multi-worktree use.
 	portOffsetBuckets = 50
@@ -1494,8 +1495,9 @@ func localAIDockerRunArgs(cfg *devConfig, cacheDir string) []string {
 		"-hf", cfg.localAIModel,
 		"-c", strconv.FormatInt(llamaContextLimit, 10),
 		"--host", "0.0.0.0",
+		"--port", strconv.FormatInt(llamaPort, 10),
 		"--parallel", "1",
-		"-fa",
+		"-fa", "on",
 		"--jinja",
 	}
 }
