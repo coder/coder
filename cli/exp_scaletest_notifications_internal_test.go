@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/notifications"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 const testTokenName = "scaletest-notifications-test"
@@ -139,7 +140,7 @@ func TestPrepareAndRestoreUsers(t *testing.T) {
 	}
 	require.True(t, sawAuditor, "auditor should be among the selected users")
 
-	err = forEachUser(ctx, candidates, 2, func(ctx context.Context, pu *preparedUser) error {
+	err = forEachUser(ctx, progress{}, candidates, 2, func(ctx context.Context, pu *preparedUser) error {
 		return prepareUser(ctx, client, testTokenName, time.Hour, pu)
 	})
 	require.NoError(t, err)
@@ -179,7 +180,7 @@ func TestPrepareAndRestoreUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = forEachUserBestEffort(ctx, candidates, 2, func(ctx context.Context, pu *preparedUser) error {
+	err = forEachUserBestEffort(ctx, progress{}, candidates, 2, func(ctx context.Context, pu *preparedUser) error {
 		return restoreUser(ctx, metrics, client, pu)
 	})
 	require.NoError(t, err)
@@ -326,7 +327,7 @@ func TestCreateAndDeleteUsers(t *testing.T) {
 		candidates[i] = preparedUser{origin: originCreated, isAdmin: i < adminCount, id: strconv.Itoa(i)}
 	}
 
-	err := forEachUser(ctx, candidates, 2, func(ctx context.Context, pu *preparedUser) error {
+	err := forEachUser(ctx, progress{}, candidates, 2, func(ctx context.Context, pu *preparedUser) error {
 		return createAndLoginUser(ctx, client, firstUser.OrganizationID, pu)
 	})
 	require.NoError(t, err)
@@ -351,7 +352,7 @@ func TestCreateAndDeleteUsers(t *testing.T) {
 		require.Equal(t, i < adminCount, userHasRole(got, codersdk.RoleTemplateAdmin))
 	}
 
-	err = forEachUserBestEffort(ctx, candidates, 2, func(ctx context.Context, pu *preparedUser) error {
+	err = forEachUserBestEffort(ctx, progress{}, candidates, 2, func(ctx context.Context, pu *preparedUser) error {
 		return deleteUser(ctx, metrics, client, pu)
 	})
 	require.NoError(t, err)
@@ -506,7 +507,7 @@ func TestForEachUser(t *testing.T) {
 		// before the next starts and the assertion holds for any limit.
 		atLimit := make(chan struct{})
 		var once sync.Once
-		err := forEachUser(ctx, users, limit, func(_ context.Context, pu *preparedUser) error {
+		err := forEachUser(ctx, progress{}, users, limit, func(_ context.Context, pu *preparedUser) error {
 			n := inFlight.Add(1)
 			if n == int64(limit) {
 				once.Do(func() { close(atLimit) })
@@ -538,7 +539,7 @@ func TestForEachUser(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		called := false
-		err := forEachUser(ctx, nil, 3, func(context.Context, *preparedUser) error {
+		err := forEachUser(ctx, progress{}, nil, 3, func(context.Context, *preparedUser) error {
 			called = true
 			return nil
 		})
@@ -557,7 +558,7 @@ func TestForEachUser(t *testing.T) {
 		// Both users run concurrently under the limit. The second only fails once the
 		// first is known to be inside fn, so the first is guaranteed to observe the
 		// cancellation instead of being skipped before it starts.
-		err := forEachUser(ctx, users, 2, func(ctx context.Context, pu *preparedUser) error {
+		err := forEachUser(ctx, progress{}, users, 2, func(ctx context.Context, pu *preparedUser) error {
 			if pu.user.ID == users[0].user.ID {
 				close(siblingRunning)
 				select {
@@ -590,7 +591,7 @@ func TestForEachUserBestEffort(t *testing.T) {
 	)
 	// Every user is processed and its error joined; a failure never cancels the
 	// others, which is what stops one failed demotion abandoning the rest.
-	err := forEachUserBestEffort(ctx, users, 2, func(ctx context.Context, pu *preparedUser) error {
+	err := forEachUserBestEffort(ctx, progress{}, users, 2, func(ctx context.Context, pu *preparedUser) error {
 		mu.Lock()
 		processed++
 		if ctx.Err() != nil {
@@ -668,6 +669,83 @@ func TestTriggerRecorder(t *testing.T) {
 		require.NoError(t, rec.record(expectedID))
 		// Recording twice would panic on the closed channel, so it is rejected.
 		require.ErrorContains(t, rec.record(expectedID), "triggered more than once")
+	})
+}
+
+// chanWriter delivers each write to a channel so a test can wait for output
+// instead of polling, and so the reporter goroutine cannot race the assertions.
+type chanWriter struct {
+	ch chan string
+}
+
+func (c chanWriter) Write(p []byte) (int, error) {
+	c.ch <- string(p)
+	return len(p), nil
+}
+
+// TestProgressWatch covers the reporting that tells an operator a long phase is
+// working rather than hung. It uses a mock clock, so it proves the ticker fires
+// without waiting for real time to pass.
+func TestProgressWatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReportsOnTick", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		mClock := quartz.NewMock(t)
+		w := chanWriter{ch: make(chan string, 8)}
+		trap := mClock.Trap().NewTicker("progress")
+		defer trap.Close()
+
+		p := progress{w: w, clock: mClock, verb: "Prepared"}
+		var completed atomic.Int64
+		stop := p.watch(ctx, 10, &completed)
+		defer stop()
+
+		// Wait for the reporter to create its ticker before advancing.
+		trap.MustWait(ctx).MustRelease(ctx)
+
+		completed.Store(3)
+		mClock.Advance(progressInterval).MustWait(ctx)
+		require.Contains(t, testutil.TryReceive(ctx, t, w.ch), "Prepared 3/10 users")
+
+		// It keeps reporting, which is what distinguishes slow progress from a hang.
+		completed.Store(7)
+		mClock.Advance(progressInterval).MustWait(ctx)
+		require.Contains(t, testutil.TryReceive(ctx, t, w.ch), "Prepared 7/10 users")
+	})
+
+	t.Run("StopEndsReporting", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		mClock := quartz.NewMock(t)
+		w := chanWriter{ch: make(chan string, 8)}
+		trap := mClock.Trap().NewTicker("progress")
+		defer trap.Close()
+
+		p := progress{w: w, clock: mClock, verb: "Deleted"}
+		var completed atomic.Int64
+		stop := p.watch(ctx, 4, &completed)
+		trap.MustWait(ctx).MustRelease(ctx)
+
+		// stop waits for the reporter to exit, so no further output can arrive to
+		// interleave with the caller's own.
+		stop()
+		mClock.Advance(progressInterval).MustWait(ctx)
+		require.Empty(t, w.ch)
+	})
+
+	t.Run("ZeroValueReportsNothing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		var completed atomic.Int64
+		// The zero value has no writer, so watch must be a no-op rather than panic
+		// on its nil clock.
+		stop := progress{}.watch(ctx, 10, &completed)
+		stop()
 	})
 }
 

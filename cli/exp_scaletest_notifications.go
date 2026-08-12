@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/notifications"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -50,6 +52,9 @@ func runArtifactName(runID string) string {
 // scaletestIdleConnTimeout keeps pooled connections warm across the setup and
 // SMTP request phases instead of re-dialing per request.
 const scaletestIdleConnTimeout = 60 * time.Second
+
+// progressInterval is how often a long setup or cleanup phase reports progress.
+const progressInterval = 15 * time.Second
 
 // defaultPhaseTimeout bounds the setup and cleanup phases. Both flags take their
 // default from here so they cannot drift apart: the two phases do the same amount
@@ -287,10 +292,10 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					// stranded template behind.
 					_, _ = fmt.Fprintf(inv.Stderr,
 						"\nCleaning up %d users and the trigger template, bounded by --cleanup-timeout=%s.\n"+
-							"This can take several minutes at scale.\n"+
+							"This can take several minutes at scale and reports progress every %s.\n"+
 							"Please do not kill this process: users may be left with the template-admin\n"+
 							"role and live API tokens. Interrupt again to abort cleanup deliberately.\n",
-						len(run.users), cleanupTimeout)
+						len(run.users), cleanupTimeout, progressInterval)
 
 					cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 					defer cleanupCancel()
@@ -836,7 +841,7 @@ func (r *scaletestRun) createUsers(ctx context.Context) error {
 
 	_, _ = fmt.Fprintf(r.stderr, "Creating %d users (%d template admins) with %d concurrent workers...\n",
 		r.userCount, r.adminCount, r.concurrency)
-	return forEachUser(ctx, r.users, r.concurrency, func(ctx context.Context, pu *preparedUser) error {
+	return forEachUser(ctx, newProgress(r.stderr, "Created"), r.users, r.concurrency, func(ctx context.Context, pu *preparedUser) error {
 		if err := createAndLoginUser(ctx, createClient, r.orgID, pu); err != nil {
 			r.metrics.AddError("create_user")
 			return xerrors.Errorf("create user %q: %w", pu.id, err)
@@ -862,7 +867,7 @@ func (r *scaletestRun) prepareExistingUsers(ctx context.Context) error {
 	}
 
 	_, _ = fmt.Fprintf(r.stderr, "Preparing %d users with %d concurrent workers...\n", len(r.users), r.concurrency)
-	return forEachUser(ctx, r.users, r.concurrency, func(ctx context.Context, pu *preparedUser) error {
+	return forEachUser(ctx, newProgress(r.stderr, "Prepared"), r.users, r.concurrency, func(ctx context.Context, pu *preparedUser) error {
 		if err := prepareUser(ctx, r.setupClient, r.tokenName, r.tokenLifetime, pu); err != nil {
 			r.metrics.AddError("prepare_user")
 			return xerrors.Errorf("prepare user %q: %w", pu.user.ID, err)
@@ -878,11 +883,11 @@ func (r *scaletestRun) cleanupUsers(ctx context.Context) error {
 		return nil
 	}
 	if r.reuseUsers {
-		return forEachUserBestEffort(ctx, r.users, r.concurrency, func(ctx context.Context, pu *preparedUser) error {
+		return forEachUserBestEffort(ctx, newProgress(r.stderr, "Restored"), r.users, r.concurrency, func(ctx context.Context, pu *preparedUser) error {
 			return restoreUser(ctx, r.metrics, r.setupClient, pu)
 		})
 	}
-	return forEachUserBestEffort(ctx, r.users, r.concurrency, func(ctx context.Context, pu *preparedUser) error {
+	return forEachUserBestEffort(ctx, newProgress(r.stderr, "Deleted"), r.users, r.concurrency, func(ctx context.Context, pu *preparedUser) error {
 		return deleteUser(ctx, r.metrics, r.setupClient, pu)
 	})
 }
@@ -947,10 +952,67 @@ func boundPool(limit int) func(*http.Transport) {
 	}
 }
 
-// forEachUser runs fn once per user, at most limit at a time. The first error
-// cancels the shared context so in-flight and pending calls stop early, and that
-// error is returned. limit must be positive, which the CLI validates.
-func forEachUser(ctx context.Context, users []preparedUser, limit int, fn func(context.Context, *preparedUser) error) error {
+// progress periodically reports how far a long phase has got. Setup and cleanup
+// can each run for minutes at scale, and an operator who reads silence as a hang
+// may kill the process, which is the one exit the deferred cleanup cannot cover.
+//
+// The zero value reports nothing, which is what tests want.
+type progress struct {
+	w     io.Writer
+	clock quartz.Clock
+	verb  string
+}
+
+func newProgress(w io.Writer, verb string) progress {
+	return progress{w: w, clock: quartz.NewReal(), verb: verb}
+}
+
+// watch reports on a timer until the returned function is called, which waits for
+// the reporter to finish so its output cannot interleave with the caller's.
+//
+// The timer matters more than the count: if a phase wedges on one slow request
+// the count stops advancing, and only a ticking line separates that from slow
+// progress.
+func (p progress) watch(ctx context.Context, total int, completed *atomic.Int64) (stop func()) {
+	if p.w == nil || total == 0 {
+		return func() {}
+	}
+	clock := p.clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		started := clock.Now()
+		ticker := clock.NewTicker(progressInterval, "progress")
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_, _ = fmt.Fprintf(p.w, "  %s %d/%d users, %s elapsed\n",
+					p.verb, completed.Load(), total, clock.Since(started).Round(time.Second))
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-stopped
+	}
+}
+
+// forEachUser runs fn once per user, at most limit at a time, reporting progress
+// through p. The first error cancels the shared context so in-flight and pending
+// calls stop early, and that error is returned. limit must be positive, which the
+// CLI validates.
+func forEachUser(ctx context.Context, p progress, users []preparedUser, limit int, fn func(context.Context, *preparedUser) error) error {
+	var completed atomic.Int64
+	stopProgress := p.watch(ctx, len(users), &completed)
+	defer stopProgress()
+
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(limit)
 	for i := range users {
@@ -959,16 +1021,25 @@ func forEachUser(ctx context.Context, users []preparedUser, limit int, fn func(c
 			if err := egCtx.Err(); err != nil {
 				return err
 			}
-			return fn(egCtx, pu)
+			if err := fn(egCtx, pu); err != nil {
+				return err
+			}
+			completed.Add(1)
+			return nil
 		})
 	}
 	return eg.Wait()
 }
 
-// forEachUserBestEffort runs fn once per user, at most limit at a time. Every call
-// runs to completion even when one fails, and all returned errors are joined.
-// Cleanup uses this so a single failure cannot abandon the remaining users.
-func forEachUserBestEffort(ctx context.Context, users []preparedUser, limit int, fn func(context.Context, *preparedUser) error) error {
+// forEachUserBestEffort runs fn once per user, at most limit at a time, reporting
+// progress through p. Every call runs to completion even when one fails, and all
+// returned errors are joined. Cleanup uses this so a single failure cannot abandon
+// the remaining users.
+func forEachUserBestEffort(ctx context.Context, p progress, users []preparedUser, limit int, fn func(context.Context, *preparedUser) error) error {
+	var completed atomic.Int64
+	stopProgress := p.watch(ctx, len(users), &completed)
+	defer stopProgress()
+
 	var (
 		mu   sync.Mutex
 		errs error
@@ -984,6 +1055,7 @@ func forEachUserBestEffort(ctx context.Context, users []preparedUser, limit int,
 				mu.Unlock()
 				return nil
 			}
+			completed.Add(1)
 			return nil
 		})
 	}
