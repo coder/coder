@@ -80,23 +80,21 @@ func (*DRPCAgentSocketService) Ping(_ context.Context, _ *proto.PingRequest) (*p
 // plane over s.agentAPI, in the manner of UpdateAppStatus below. When that
 // happens, delete this stub, delete the poc_marker_path field from the
 // request message, and let the marker move to whatever the control plane does.
-// The validation stays: the caller is an arbitrary process inside the
-// workspace, so the request is untrusted regardless of what handles it.
+//
+// The workspace identifier is converted but not otherwise checked. Deciding
+// whether it names a workspace, and whether this caller may act for it, is
+// production work that this proof of concept does not do.
 func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.CreateAIAgentRequest) (*proto.CreateAIAgentResponse, error) {
 	workspaceID, err := uuid.FromBytes(req.GetWorkspaceId())
 	if err != nil {
 		return nil, xerrors.Errorf("workspace_id is not a uuid: %w", err)
 	}
-	if workspaceID == uuid.Nil {
-		return nil, xerrors.New("workspace_id is required")
-	}
 
-	// The token is not parsed. It is a uuid under token authentication, but
-	// the instance identity methods produce something else, so nothing here
-	// may assume a shape.
-	agentToken := req.GetAgentToken()
-	if len(agentToken) == 0 {
-		return nil, xerrors.New("agent_token is required")
+	// The credential is an opaque blob in transit. It is not parsed, inspected,
+	// or assumed to have a shape. Only its presence is required.
+	workspaceCredential := req.GetWorkspaceCredential()
+	if len(workspaceCredential) == 0 {
+		return nil, xerrors.New("workspace_credential is required")
 	}
 
 	markerPath := req.GetPocMarkerPath()
@@ -106,18 +104,17 @@ func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.C
 
 	// The marker names the handler and repeats what it was given, so that a
 	// caller can tell not only that the call arrived but that it arrived
-	// intact. The token appears as a digest: this is a credential, and a
-	// proof of concept about credentials should not be the thing that writes
-	// one to disk.
-	tokenDigest := sha256.Sum256(agentToken)
+	// intact. The credential appears as a digest: a proof of concept about
+	// credentials should not be the thing that writes one to disk.
+	credentialDigest := sha256.Sum256(workspaceCredential)
 	marker := "CreateAIAgent\nworkspace_id=" + workspaceID.String() +
-		"\nagent_token_sha256=" + hex.EncodeToString(tokenDigest[:]) + "\n"
+		"\nworkspace_credential_sha256=" + hex.EncodeToString(credentialDigest[:]) + "\n"
 	if err := os.WriteFile(markerPath, []byte(marker), 0o600); err != nil {
 		return nil, xerrors.Errorf("write poc marker %q: %w", markerPath, err)
 	}
 
-	// The token is deliberately absent from the log line, for the same reason
-	// it is absent from the marker.
+	// The credential is deliberately absent from the log line, for the same
+	// reason it is absent from the marker.
 	s.logger.Info(ctx, "poc stub: CreateAIAgent called",
 		slog.F("workspace_id", workspaceID), slog.F("marker_path", markerPath))
 
