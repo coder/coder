@@ -44,8 +44,6 @@ const linkStyles = {
 	base: "text-sm font-medium no-underline block h-full px-2 flex items-center transition-colors",
 	default: "text-content-secondary hover:text-content-primary",
 	active: "text-content-primary",
-	// Dimmed labels have no hover state; the color does not change on pointer
-	// over.
 	disabled: "text-content-secondary",
 };
 

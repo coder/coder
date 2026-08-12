@@ -113,7 +113,6 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 							<Link to={to}>{label}</Link>
 						</DropdownMenuItem>
 					) : (
-						// The message renders inline; no tooltip is attached to this item.
 						<DropdownMenuItem
 							key={label}
 							aria-disabled="true"

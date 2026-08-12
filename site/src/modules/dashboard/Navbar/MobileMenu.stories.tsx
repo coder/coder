@@ -120,8 +120,8 @@ export const WithoutWorkspaceAccess: Story = {
 		await body.findByText(/workspaces are not available/i);
 		const item = body.getByRole("menuitem", { name: /^Workspaces/ });
 		expect(item).toHaveAttribute("aria-disabled", "true");
-		// Disabled menu items are skipped by roving focus, so the item stays
-		// enabled and cancels selection instead.
+		// Radix removes items marked with its own `disabled` prop from roving
+		// focus, which puts the inline message out of keyboard reach.
 		expect(item).not.toHaveAttribute("data-disabled");
 	},
 };

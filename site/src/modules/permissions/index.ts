@@ -15,20 +15,10 @@ export const permissionChecks =
 	permissionChecksData as typeof permissionChecksData &
 		Record<string, AuthorizationCheck>;
 
-/**
- * Reads the workspace visibility gate. Permissions come from page metadata that
- * can predate a check, and a key that is absent reads as undefined; only an
- * explicit false hides workspace UI.
- */
 export const canViewWorkspaces = (permissions: Permissions): boolean => {
 	return permissions.viewWorkspaces !== false;
 };
 
-/**
- * Reads the template visibility gate. Template access is usually granted by a
- * per-template ACL, which an abstract permission check cannot evaluate, so
- * workspace visibility also allows templates.
- */
 export const canViewTemplates = (permissions: Permissions): boolean => {
 	return permissions.viewTemplates !== false || canViewWorkspaces(permissions);
 };
