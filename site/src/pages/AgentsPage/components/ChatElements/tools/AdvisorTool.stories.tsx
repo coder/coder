@@ -133,8 +133,6 @@ export const WithModelIntent: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The toggle's accessible name comes from the visible label (no
-		// aria-label override), so assistive tech announces the intent.
 		const toggle = canvas.getByRole("button", {
 			name: /Weighing a refactor tradeoff/,
 		});
@@ -182,9 +180,6 @@ export const LimitReached: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The exhausted budget is visible without expanding: the header shows a
-		// limit-specific label and warning icon rather than an apparent success,
-		// and the toggle's accessible name includes that status text.
 		const toggle = canvas.getByRole("button", {
 			name: /Advisor limit reached/,
 		});
