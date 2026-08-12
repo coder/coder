@@ -263,7 +263,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				// requested scope is validated against the app's allowlist,
 				// persisting it here would store unvalidated client input, so
 				// the code records an unrestricted grant.
-				Scope: database.OAuth2ScopeUnrestricted,
+				Scope: string(database.ApiKeyScopeCoderAll),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert oauth2 authorization code: %w", err)

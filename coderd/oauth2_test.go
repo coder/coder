@@ -442,7 +442,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 					HashedSecret: []byte(hashedCode),
 					AppID:        apps.Default.ID,
 					UserID:       user.ID,
-					Scope:        database.OAuth2ScopeUnrestricted,
+					Scope:        string(database.ApiKeyScopeCoderAll),
 				})
 				return err
 			},
@@ -733,7 +733,7 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 				AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 				APIKeyID:    newKey.ID,
 				UserID:      user.ID,
-				Scope:       database.OAuth2ScopeUnrestricted,
+				Scope:       string(database.ApiKeyScopeCoderAll),
 			})
 			require.NoError(t, err)
 
