@@ -149,17 +149,15 @@ func newReloadTestHarness(t *testing.T) *reloadTestHarness {
 	t.Helper()
 
 	recorder := &aibridgedRecorder{}
-	bridged := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Keep-alives are disabled so the proxy cannot reuse a stale pooled
+	// connection to aibridged, which would surface as a bare EOF on
+	// Windows (see AIGOV-430).
+	bridged := testutil.NewUnstartedHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		recorder.record(r.URL.Path)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("aibridged"))
 	}))
-	// The proxy reuses pooled connections to aibridged, but net/http will
-	// not retry a POST on a closed pooled conn, so a stale reuse fails
-	// with a bare EOF on Windows. Force a fresh conn per request.
-	// https://github.com/coder/internal/issues/1564 (AIGOV-430)
-	bridged.Config.SetKeepAlivesEnabled(false)
-	t.Cleanup(bridged.Close)
+	bridged.Start()
 
 	store := &providerStore{}
 	metrics := aibridgeproxyd.NewMetrics(prometheus.NewRegistry())
