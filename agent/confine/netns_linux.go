@@ -178,7 +178,9 @@ func OpenNetworkNamespace(ctx context.Context, options NetworkNamespaceOptions) 
 	}
 	defer func() {
 		if retErr != nil {
-			_ = netns.Close()
+			if cleanupErr := netns.Close(); cleanupErr != nil {
+				retErr = errors.Join(retErr, xerrors.Errorf("roll back network namespace: %w", cleanupErr))
+			}
 		}
 	}()
 
@@ -245,7 +247,9 @@ func (n *NetworkNamespace) ConfigureEgress(ctx context.Context, ports NetworkNam
 	}
 	defer func() {
 		if retErr != nil {
-			_ = n.closeLocked()
+			if cleanupErr := n.closeLocked(); cleanupErr != nil {
+				retErr = errors.Join(retErr, xerrors.Errorf("roll back network namespace egress: %w", cleanupErr))
+			}
 		}
 	}()
 
