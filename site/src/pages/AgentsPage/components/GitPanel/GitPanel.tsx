@@ -497,7 +497,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	// keep the "Working" prefix so the identifier reads as a status.
 	const showStateLabelInline = activeItem.kind === "local";
 	const triggerContent = (
-		<span className="flex h-full min-w-0 items-center gap-1.5 px-2 leading-none">
+		<span className="flex h-full min-w-0 items-center gap-1.5 px-2 leading-none text-content-primary">
 			<span
 				role="img"
 				aria-label={activeItem.iconLabel}
@@ -506,21 +506,19 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 				{activeItem.icon}
 			</span>
 			{showStateLabelInline && (
-				<span className="whitespace-nowrap font-medium text-content-primary">
+				<span className="whitespace-nowrap font-medium">
 					{activeItem.stateLabel}
 				</span>
 			)}
 			<span
 				className={cn(
 					"min-w-0 truncate",
-					showStateLabelInline
-						? "text-content-secondary"
-						: "font-medium text-content-primary",
+					showStateLabelInline ? "text-content-secondary" : "font-medium",
 				)}
 			>
 				{activeItem.triggerIdentifier}
 			</span>
-			<ChevronDownIcon className="size-3.5 shrink-0 text-content-secondary" />
+			<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
 		</span>
 	);
 
