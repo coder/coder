@@ -1001,6 +1001,63 @@ export const RestrictedUserKeepsPersistedWorkspace: Story = {
 	},
 };
 
+export const RestrictedUserKeepsPersistedAttachments: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem(
+			"agents.persisted-attachments",
+			JSON.stringify([
+				{
+					fileId: "file-permitted-org",
+					fileName: "notes.txt",
+					fileType: "text/plain",
+					lastModified: 1700000000000,
+					organizationId: MockOrganization2.id,
+				},
+			]),
+		);
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument();
+		});
+		const stored = localStorage.getItem("agents.persisted-attachments");
+		expect(stored).toContain("file-permitted-org");
+	},
+};
+
+export const OrganizationAuthorizationFailure: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem(emptyInputStorageKey, "draft message");
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		spyOn(API, "checkAuthorization").mockRejectedValue(
+			new Error("authorization check failed"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findAllByText(/authorization check failed/i);
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+	},
+};
+
 export const LoadingWorkspacesNeverSubmitsStoredWorkspace: Story = {
 	parameters: {
 		showOrganizations: true,

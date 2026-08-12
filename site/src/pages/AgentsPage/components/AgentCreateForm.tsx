@@ -293,6 +293,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		enabled: showOrganizations,
 	});
 	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
+	// Until the permitted query produces data (still loading, or failed),
+	// the org selection is provisional: block sending and attachment
+	// restoration so nothing acts on an org the user may not have.
+	const orgSelectionSettled =
+		!showOrganizations || permittedOrgsQuery.data !== undefined;
 	const effectiveOrg =
 		selectedOrg && permittedOrgs.some((org) => org.id === selectedOrg.id)
 			? selectedOrg
@@ -427,10 +432,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizationId || undefined, {
-		persist: true,
-		provider: getProviderForModelOption(modelOptions, selectedModel),
-	});
+	} = useFileAttachments(
+		orgSelectionSettled ? organizationId || undefined : undefined,
+		{
+			persist: true,
+			provider: getProviderForModelOption(modelOptions, selectedModel),
+		},
+	);
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -522,7 +530,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						isDisabled={
 							isCreating ||
 							isForbidden ||
-							(showOrganizations && permittedOrgsQuery.isLoading) ||
+							!orgSelectionSettled ||
 							isPersonalModelOverridesLoading ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)

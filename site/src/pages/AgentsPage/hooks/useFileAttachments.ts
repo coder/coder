@@ -53,8 +53,7 @@ function restorePersistedAttachments(currentOrgId: string): {
 	previewUrls: Map<File, string>;
 } {
 	// Skip when org ID isn't loaded yet so we don't prune valid
-	// entries. The initializer runs once, so callers must wait for
-	// the org ID before mounting.
+	// entries; restoration is deferred until the org is known.
 	if (!currentOrgId) {
 		return {
 			attachments: [],
@@ -192,19 +191,23 @@ export function useFileAttachments(
 		providerRef.current = provider;
 	}, [provider]);
 
-	const [restored] = useState(() =>
-		persist
-			? restorePersistedAttachments(organizationId ?? "")
-			: {
-					attachments: [] as File[],
-					uploadStates: new Map<File, UploadState>(),
-					previewUrls: new Map<File, string>(),
-				},
+	const [attachments, setAttachments] = useState<File[]>([]);
+	const [uploadStates, setUploadStates] = useState(
+		() => new Map<File, UploadState>(),
 	);
-
-	const [attachments, setAttachments] = useState<File[]>(restored.attachments);
-	const [uploadStates, setUploadStates] = useState(restored.uploadStates);
-	const [previewUrls, setPreviewUrls] = useState(restored.previewUrls);
+	const [previewUrls, setPreviewUrls] = useState(() => new Map<File, string>());
+	// Restore lazily on the first render with a known org rather than
+	// at mount: the caller's org can be provisional until permission
+	// checks resolve, and restoring with the wrong org prunes valid
+	// entries from storage.
+	const [hasRestored, setHasRestored] = useState(!persist);
+	if (!hasRestored && organizationId) {
+		setHasRestored(true);
+		const restored = restorePersistedAttachments(organizationId);
+		setAttachments(restored.attachments);
+		setUploadStates(restored.uploadStates);
+		setPreviewUrls(restored.previewUrls);
+	}
 	const [textContents, setTextContents] = useState(
 		() => new Map<File, string>(),
 	);
