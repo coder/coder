@@ -113,11 +113,11 @@ the Makefile trigger the full targets as before.
    ```
 
    This requires [Docker](https://docker.com) and runs a llama.cpp server that
-   serves an OpenAI-compatible API on http://localhost:1234. On first run it
-   downloads a small (~1 GB) model, so the first chat may be slow. It registers
-   an `llama-cpp` AI provider and a matching chat model in the dev instance.
-   Use `--local-ai-model <hf-repo>` (optionally with a `:quant` suffix) to
-   serve a different Hugging Face model, e.g.
+   serves an OpenAI-compatible API on http://localhost:1234. It downloads a very
+   small model (~150 MB) on first run and registers an `llama-cpp` AI provider
+   and a matching chat model in the dev instance. Use
+   `--local-ai-model <hf-repo>` (optionally with a `:quant` suffix) to serve a
+   different Hugging Face model, e.g.
    `./scripts/develop.sh --local-ai --local-ai-model Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF`.
 
 1. Verify Your Session

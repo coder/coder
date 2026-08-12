@@ -68,9 +68,10 @@ const (
 	// a release tag (not the daily :server tag) for reproducibility.
 	llamaImage = "ghcr.io/ggml-org/llama.cpp:server-b10375"
 	// defaultLocalAIModel is the default Hugging Face repo (optionally
-	// with a :quant suffix) served by --local-ai. It is a small,
-	// Apache-2.0 licensed instruct model that runs fast in CPU inference.
-	defaultLocalAIModel = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
+	// with a :quant suffix) served by --local-ai. It is a very small,
+	// Apache-2.0 licensed instruct model that runs fast in CPU inference
+	// and downloads in tens of seconds.
+	defaultLocalAIModel = "HuggingFaceTB/smollm-135M-instruct-v0.2-Q8_0-GGUF"
 	// llamaProviderName is the AI provider name registered in Coder for
 	// the local llama.cpp server. It must match the AI provider name
 	// regex and be stable so restarts reuse the same provider.
@@ -1483,7 +1484,6 @@ func localAIDockerRunArgs(cfg *devConfig, cacheDir string) []string {
 		"-hf", cfg.localAIModel,
 		"-c", strconv.FormatInt(llamaContextLimit, 10),
 		"--host", "0.0.0.0",
-		"-ngl", "0",
 		"--parallel", "1",
 		"-fa",
 		"--jinja",
