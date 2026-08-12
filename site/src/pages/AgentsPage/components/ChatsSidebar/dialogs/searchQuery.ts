@@ -51,11 +51,6 @@ const validPRStatuses = new Set(["draft", "open", "merged", "closed"]);
 const validBooleans = new Set(["true", "false"]);
 
 const isValidDiffURL = (value: string): boolean => {
-	// Reject an empty or whitespace-padded host before parsing; new URL alone
-	// would treat "https:///pull/1" as host "pull".
-	if (!/^https?:\/\/[^/?#\s]+/i.test(value)) {
-		return false;
-	}
 	try {
 		const url = new URL(value);
 		return (

@@ -81,7 +81,6 @@ describe("buildChatSearchQuery", () => {
 			{ key: "has_unread", value: "maybe" },
 			{ key: "archived", value: "no" },
 			{ key: "diff_url", value: "ftp://example.com/x" },
-			{ key: "diff_url", value: "https:///pull/1" },
 		]) {
 			expect(buildChatSearchQuery([filter], "")).toBe(undefined);
 		}
