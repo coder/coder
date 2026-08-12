@@ -1,5 +1,7 @@
+import { useFormik } from "formik";
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
+import * as Yup from "yup";
 import {
 	permittedOrganizations,
 	provisionerDaemons,
@@ -18,23 +20,44 @@ import {
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import { docs } from "#/utils/docs";
+import {
+	displayNameValidator,
+	iconValidator,
+	nameValidator,
+} from "#/utils/formUtils";
 import type {
+	CustomizationsFormValues,
 	SelectedBaseMeta,
 	TemplateBuilderWizardState,
 } from "./wizardState";
 
+export const TEMPLATE_CUSTOMIZATIONS_FORM_ID = "template-customizations-form";
+
+const MAX_DESCRIPTION_CHAR_LIMIT = 128;
+
+const validationSchema = Yup.object({
+	name: nameValidator("Template ID"),
+	display_name: displayNameValidator("Display name"),
+	description: Yup.string().max(
+		MAX_DESCRIPTION_CHAR_LIMIT,
+		"Please enter a description that is less than or equal to 128 characters.",
+	),
+	icon: iconValidator,
+	// An organization is always required: the page is gated on the create-
+	// template permission, so there is always at least one permitted org, and
+	// it is auto-selected when only one is available.
+	organization_id: Yup.string().required("Select an organization to continue."),
+});
+
 interface TemplateCustomizationsStepProps {
 	state: TemplateBuilderWizardState;
-	onChangeField: (
-		field: "organizationId" | "name" | "displayName" | "description" | "icon",
-		value: string,
-	) => void;
+	onCreate: (values: CustomizationsFormValues) => void;
 	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
 }
 
 export const TemplateCustomizationsStep: FC<
 	TemplateCustomizationsStepProps
-> = ({ state, onChangeField, onProvisionerStatusChange }) => {
+> = ({ state, onCreate, onProvisionerStatusChange }) => {
 	const permittedOrgsQuery = useQuery(
 		permittedOrganizations({
 			object: { resource_type: "template" },
@@ -43,6 +66,19 @@ export const TemplateCustomizationsStep: FC<
 	);
 	const orgOptions = permittedOrgsQuery.data ?? [];
 
+	const form = useFormik<CustomizationsFormValues>({
+		initialValues: {
+			organization_id: "",
+			name: state.name,
+			display_name: state.displayName,
+			description: state.description,
+			icon: state.icon,
+		},
+		validationSchema,
+		onSubmit: (values) => onCreate(values),
+	});
+
+	// Display object for the autocomplete; the Formik field only stores the id.
 	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
 
 	const { data: provisioners } = useQuery({
@@ -59,24 +95,51 @@ export const TemplateCustomizationsStep: FC<
 	}, [hasProvisioners, onProvisionerStatusChange]);
 
 	// Auto-select when exactly one org is available.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: form.setFieldValue is stable
 	useEffect(() => {
 		if (orgOptions.length === 1 && !selectedOrg) {
 			setSelectedOrg(orgOptions[0]);
-			onChangeField("organizationId", orgOptions[0].id);
+			void form.setFieldValue("organization_id", orgOptions[0].id);
 		}
-	}, [orgOptions, selectedOrg, onChangeField]);
+	}, [orgOptions, selectedOrg]);
 
 	const handleOrgChange = (org: Organization | null) => {
 		setSelectedOrg(org);
-		onChangeField("organizationId", org?.id ?? "");
+		void form.setFieldValue("organization_id", org?.id ?? "");
 	};
 
+	// Aggregate validation messages and show them at the top of the step so the
+	// horizontal two-column layout is not disturbed by inline field errors.
+	const errorMessages = Object.values(form.errors).filter(
+		(message): message is string => Boolean(message),
+	);
+	const showErrorSummary = form.submitCount > 0 && errorMessages.length > 0;
+
 	return (
-		<div className="min-w-[654px]">
+		<form
+			id={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
+			onSubmit={form.handleSubmit}
+			noValidate
+			className="min-w-[654px]"
+		>
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
 				Add additional configurations.
 			</TemplateBuilderSubtitle>
+
+			{showErrorSummary && (
+				<Alert severity="error" className="my-4">
+					{errorMessages.length === 1 ? (
+						errorMessages[0]
+					) : (
+						<ul className="m-0 pl-4 list-disc">
+							{errorMessages.map((message) => (
+								<li key={message}>{message}</li>
+							))}
+						</ul>
+					)}
+				</Alert>
+			)}
 
 			{showProvisionerWarning && <ProvisionerWarning />}
 
@@ -90,10 +153,10 @@ export const TemplateCustomizationsStep: FC<
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="template-display-name">Display name</Label>
 						<Input
+							{...form.getFieldProps("display_name")}
 							id="template-display-name"
-							value={state.displayName}
-							onChange={(e) => onChangeField("displayName", e.target.value)}
 							placeholder="My Template"
+							aria-invalid={Boolean(form.errors.display_name)}
 						/>
 					</div>
 
@@ -120,23 +183,25 @@ export const TemplateCustomizationsStep: FC<
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="template-description">Description</Label>
 						<Textarea
+							{...form.getFieldProps("description")}
 							id="template-description"
-							value={state.description}
-							onChange={(e) => onChangeField("description", e.target.value)}
 							placeholder="Describe what this template is for"
 							rows={3}
+							aria-invalid={Boolean(form.errors.description)}
 						/>
 						<p className="text-xs text-content-secondary">
 							Used by both humans and Agents to identify templates.
 						</p>
 
 						<IconField
-							value={state.icon}
+							value={form.values.icon}
 							onChange={(e) => {
 								const target = e.target as HTMLInputElement;
-								onChangeField("icon", target.value);
+								void form.setFieldValue("icon", target.value);
 							}}
-							onPickEmoji={(value) => onChangeField("icon", value)}
+							onPickEmoji={(value) => {
+								void form.setFieldValue("icon", value);
+							}}
 						/>
 					</div>
 
@@ -149,11 +214,11 @@ export const TemplateCustomizationsStep: FC<
 							</span>
 						</Label>
 						<Input
+							{...form.getFieldProps("name")}
 							id="template-name"
-							value={state.name}
-							onChange={(e) => onChangeField("name", e.target.value)}
 							placeholder="my-template"
 							aria-required
+							aria-invalid={Boolean(form.errors.name)}
 						/>
 						<p className="text-xs text-content-secondary">
 							Used to identify the template in URLs and the API.
@@ -161,7 +226,7 @@ export const TemplateCustomizationsStep: FC<
 					</div>
 				</div>
 			</div>
-		</div>
+		</form>
 	);
 };
 
