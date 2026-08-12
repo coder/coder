@@ -301,6 +301,20 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// permitted set.
 	const noPermittedOrgs =
 		showOrganizations && permittedOrgsQuery.data?.length === 0;
+	// Drop an explicit selection the moment a permission refetch
+	// invalidates it. Left latent, a later refetch that re-permits the
+	// org would silently switch back without user action, discarding
+	// the effective org's attachment state. Render-time state
+	// adjustment, not an effect, per the React "adjusting state when
+	// props change" pattern; effectiveOrg already ignores the invalid
+	// selection in this same render.
+	if (
+		selectedOrg &&
+		orgSelectionSettled &&
+		!permittedOrgs.some((org) => org.id === selectedOrg.id)
+	) {
+		setSelectedOrg(null);
+	}
 	const effectiveOrg =
 		selectedOrg && permittedOrgs.some((org) => org.id === selectedOrg.id)
 			? selectedOrg

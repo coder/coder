@@ -29,6 +29,19 @@ const renderAttachments = (initialProps: { orgId: string | undefined }) =>
 		{ initialProps },
 	);
 
+const mockDeferredUpload = (): ((value: { id: string }) => void) => {
+	let resolve: ((value: { id: string }) => void) | undefined;
+	vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
+		new Promise<{ id: string }>((res) => {
+			resolve = res;
+		}),
+	);
+	if (!resolve) {
+		throw new Error("Promise executor did not run synchronously");
+	}
+	return resolve;
+};
+
 describe("useFileAttachments org scoping", () => {
 	beforeEach(() => {
 		localStorage.clear();
@@ -118,12 +131,7 @@ describe("useFileAttachments org scoping", () => {
 	});
 
 	it("discards an upload that completes after another org was adopted", async () => {
-		let resolveUpload!: (value: { id: string }) => void;
-		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
-			new Promise<{ id: string }>((resolve) => {
-				resolveUpload = resolve;
-			}),
-		);
+		const resolveUpload = mockDeferredUpload();
 		const { result, rerender } = renderAttachments({ orgId: "org-a" });
 		act(() => {
 			result.current.startUpload(new File(["x"], "x.txt"));
@@ -144,12 +152,7 @@ describe("useFileAttachments org scoping", () => {
 	});
 
 	it("discards an upload that spans an org round trip", async () => {
-		let resolveUpload!: (value: { id: string }) => void;
-		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
-			new Promise<{ id: string }>((resolve) => {
-				resolveUpload = resolve;
-			}),
-		);
+		const resolveUpload = mockDeferredUpload();
 		const { result, rerender } = renderAttachments({ orgId: "org-a" });
 		act(() => {
 			result.current.startUpload(new File(["x"], "x.txt"));

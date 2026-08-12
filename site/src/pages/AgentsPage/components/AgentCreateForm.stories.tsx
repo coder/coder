@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
+import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import {
 	expect,
 	fn,
@@ -1132,6 +1134,88 @@ export const DelayedOrganizationAuthorization: Story = {
 		expect(dropFile("after.txt")).toBe(false);
 		await waitFor(() =>
 			expect(canvas.getByLabelText("Remove after.txt")).toBeInTheDocument(),
+		);
+	},
+};
+
+// Mutable so the play function can change results between refetches;
+// the story-level QueryClient lets it drive those refetches, which the
+// preview decorator's client (staleTime: Infinity, inaccessible from
+// play) cannot.
+const revocablePermissions: Record<string, boolean> = {};
+let revocableQueryClient: QueryClient | undefined;
+
+export const RevokedSelectionDoesNotResurrect: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	decorators: [
+		(Story) => {
+			const [queryClient] = useState(
+				() =>
+					new QueryClient({
+						defaultOptions: {
+							queries: {
+								staleTime: Number.POSITIVE_INFINITY,
+								retry: false,
+							},
+						},
+					}),
+			);
+			revocableQueryClient = queryClient;
+			return (
+				<QueryClientProvider client={queryClient}>
+					<Story />
+				</QueryClientProvider>
+			);
+		},
+	],
+	beforeEach: () => {
+		revocablePermissions[MockDefaultOrganization.id] = true;
+		revocablePermissions[MockOrganization2.id] = true;
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		spyOn(API, "checkAuthorization").mockImplementation(async () => ({
+			...revocablePermissions,
+		}));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByTestId("compact-org-selector");
+		await waitFor(() =>
+			expect(trigger).toHaveAccessibleName("Organization: My Organization"),
+		);
+		await userEvent.click(trigger);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /My Organization 2/ }),
+		);
+		await waitFor(() =>
+			expect(canvas.getByTestId("compact-org-selector")).toHaveAccessibleName(
+				"Organization: My Organization 2",
+			),
+		);
+
+		// A refetch revokes the selected org; with one permitted org
+		// left, the picker unmounts and the default becomes effective.
+		revocablePermissions[MockOrganization2.id] = false;
+		await revocableQueryClient?.invalidateQueries();
+		await waitFor(() =>
+			expect(
+				canvas.queryByTestId("compact-org-selector"),
+			).not.toBeInTheDocument(),
+		);
+
+		// A later refetch re-permits it. The revoked selection must not
+		// resurrect and switch orgs without user action.
+		revocablePermissions[MockOrganization2.id] = true;
+		await revocableQueryClient?.invalidateQueries();
+		await waitFor(() =>
+			expect(canvas.getByTestId("compact-org-selector")).toHaveAccessibleName(
+				"Organization: My Organization",
+			),
 		);
 	},
 };
