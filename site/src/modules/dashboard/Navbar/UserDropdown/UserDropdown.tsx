@@ -21,9 +21,7 @@ import { cn } from "#/utils/cn";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 
-// The avatar always keeps the standard border. Elevated states show a
-// notification-style corner badge with a distinct icon per state, so the
-// change is perceivable without relying on color alone.
+// Elevated states show a corner badge with a distinct icon per state.
 const severityIndicators: Partial<
 	Record<UsageSeverity, { badge: string; icon: JSX.Element; label: string }>
 > = {
