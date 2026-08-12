@@ -40,6 +40,7 @@ type DRPCAgentSocketClient interface {
 	DRPCConn() drpc.Conn
 
 	Ping(ctx context.Context, in *PingRequest) (*PingResponse, error)
+	CreateAIAgent(ctx context.Context, in *CreateAIAgentRequest) (*CreateAIAgentResponse, error)
 	SyncStart(ctx context.Context, in *SyncStartRequest) (*SyncStartResponse, error)
 	SyncWant(ctx context.Context, in *SyncWantRequest) (*SyncWantResponse, error)
 	SyncComplete(ctx context.Context, in *SyncCompleteRequest) (*SyncCompleteResponse, error)
@@ -68,6 +69,15 @@ func (c *drpcAgentSocketClient) DRPCConn() drpc.Conn { return c.cc }
 func (c *drpcAgentSocketClient) Ping(ctx context.Context, in *PingRequest) (*PingResponse, error) {
 	out := new(PingResponse)
 	err := c.cc.Invoke(ctx, "/coder.agentsocket.v1.AgentSocket/Ping", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentSocketClient) CreateAIAgent(ctx context.Context, in *CreateAIAgentRequest) (*CreateAIAgentResponse, error) {
+	out := new(CreateAIAgentResponse)
+	err := c.cc.Invoke(ctx, "/coder.agentsocket.v1.AgentSocket/CreateAIAgent", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
@@ -193,6 +203,7 @@ func (c *drpcAgentSocketClient) ResyncContext(ctx context.Context, in *ResyncCon
 
 type DRPCAgentSocketServer interface {
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
+	CreateAIAgent(context.Context, *CreateAIAgentRequest) (*CreateAIAgentResponse, error)
 	SyncStart(context.Context, *SyncStartRequest) (*SyncStartResponse, error)
 	SyncWant(context.Context, *SyncWantRequest) (*SyncWantResponse, error)
 	SyncComplete(context.Context, *SyncCompleteRequest) (*SyncCompleteResponse, error)
@@ -211,6 +222,10 @@ type DRPCAgentSocketServer interface {
 type DRPCAgentSocketUnimplementedServer struct{}
 
 func (s *DRPCAgentSocketUnimplementedServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentSocketUnimplementedServer) CreateAIAgent(context.Context, *CreateAIAgentRequest) (*CreateAIAgentResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -268,7 +283,7 @@ func (s *DRPCAgentSocketUnimplementedServer) ResyncContext(context.Context, *Res
 
 type DRPCAgentSocketDescription struct{}
 
-func (DRPCAgentSocketDescription) NumMethods() int { return 14 }
+func (DRPCAgentSocketDescription) NumMethods() int { return 15 }
 
 func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -282,6 +297,15 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 					)
 			}, DRPCAgentSocketServer.Ping, true
 	case 1:
+		return "/coder.agentsocket.v1.AgentSocket/CreateAIAgent", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentSocketServer).
+					CreateAIAgent(
+						ctx,
+						in1.(*CreateAIAgentRequest),
+					)
+			}, DRPCAgentSocketServer.CreateAIAgent, true
+	case 2:
 		return "/coder.agentsocket.v1.AgentSocket/SyncStart", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -290,7 +314,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*SyncStartRequest),
 					)
 			}, DRPCAgentSocketServer.SyncStart, true
-	case 2:
+	case 3:
 		return "/coder.agentsocket.v1.AgentSocket/SyncWant", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -299,7 +323,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*SyncWantRequest),
 					)
 			}, DRPCAgentSocketServer.SyncWant, true
-	case 3:
+	case 4:
 		return "/coder.agentsocket.v1.AgentSocket/SyncComplete", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -308,7 +332,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*SyncCompleteRequest),
 					)
 			}, DRPCAgentSocketServer.SyncComplete, true
-	case 4:
+	case 5:
 		return "/coder.agentsocket.v1.AgentSocket/SyncReady", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -317,7 +341,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*SyncReadyRequest),
 					)
 			}, DRPCAgentSocketServer.SyncReady, true
-	case 5:
+	case 6:
 		return "/coder.agentsocket.v1.AgentSocket/SyncStatus", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -326,7 +350,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*SyncStatusRequest),
 					)
 			}, DRPCAgentSocketServer.SyncStatus, true
-	case 6:
+	case 7:
 		return "/coder.agentsocket.v1.AgentSocket/SyncList", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -335,7 +359,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*SyncListRequest),
 					)
 			}, DRPCAgentSocketServer.SyncList, true
-	case 7:
+	case 8:
 		return "/coder.agentsocket.v1.AgentSocket/UpdateAppStatus", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -344,7 +368,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*proto1.UpdateAppStatusRequest),
 					)
 			}, DRPCAgentSocketServer.UpdateAppStatus, true
-	case 8:
+	case 9:
 		return "/coder.agentsocket.v1.AgentSocket/ContextSources", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -353,7 +377,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*ContextSourcesRequest),
 					)
 			}, DRPCAgentSocketServer.ContextSources, true
-	case 9:
+	case 10:
 		return "/coder.agentsocket.v1.AgentSocket/GetContextSource", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -362,7 +386,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*GetContextSourceRequest),
 					)
 			}, DRPCAgentSocketServer.GetContextSource, true
-	case 10:
+	case 11:
 		return "/coder.agentsocket.v1.AgentSocket/AddContextSource", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -371,7 +395,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*AddContextSourceRequest),
 					)
 			}, DRPCAgentSocketServer.AddContextSource, true
-	case 11:
+	case 12:
 		return "/coder.agentsocket.v1.AgentSocket/RemoveContextSource", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -380,7 +404,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*RemoveContextSourceRequest),
 					)
 			}, DRPCAgentSocketServer.RemoveContextSource, true
-	case 12:
+	case 13:
 		return "/coder.agentsocket.v1.AgentSocket/GetContextSnapshot", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -389,7 +413,7 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*ContextSnapshotRequest),
 					)
 			}, DRPCAgentSocketServer.GetContextSnapshot, true
-	case 13:
+	case 14:
 		return "/coder.agentsocket.v1.AgentSocket/ResyncContext", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentSocketServer).
@@ -417,6 +441,22 @@ type drpcAgentSocket_PingStream struct {
 }
 
 func (x *drpcAgentSocket_PingStream) SendAndClose(m *PingResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgentSocket_CreateAIAgentStream interface {
+	drpc.Stream
+	SendAndClose(*CreateAIAgentResponse) error
+}
+
+type drpcAgentSocket_CreateAIAgentStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgentSocket_CreateAIAgentStream) SendAndClose(m *CreateAIAgentResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
 		return err
 	}

@@ -79,6 +79,18 @@ func (c *Client) Ping(ctx context.Context) error {
 	return err
 }
 
+// CreateAIAgent registers an AI agent created inside this workspace.
+//
+// pocMarkerPath is a proof of concept stub. The handler touches that path
+// instead of registering anything. Both the parameter and the stub go away
+// once the handler forwards to the control plane.
+func (c *Client) CreateAIAgent(ctx context.Context, pocMarkerPath string) error {
+	_, err := c.client.CreateAIAgent(ctx, &proto.CreateAIAgentRequest{
+		PocMarkerPath: pocMarkerPath,
+	})
+	return err
+}
+
 // SyncStart starts a unit in the dependency graph.
 func (c *Client) SyncStart(ctx context.Context, unitName unit.ID) error {
 	_, err := c.client.SyncStart(ctx, &proto.SyncStartRequest{
