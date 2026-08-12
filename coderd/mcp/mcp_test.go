@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,7 +58,7 @@ func TestMCPHTTP_InitializeRequest(t *testing.T) {
 		"id":      1,
 		"method":  "initialize",
 		"params": map[string]any{
-			"protocolVersion": mcp.LATEST_PROTOCOL_VERSION,
+			"protocolVersion": "2025-06-18",
 			"capabilities":    map[string]any{},
 			"clientInfo": map[string]any{
 				"name":    "test-client",
@@ -97,7 +96,7 @@ func TestMCPHTTP_InitializeRequest(t *testing.T) {
 	result, ok := response["result"].(map[string]any)
 	require.True(t, ok)
 
-	assert.Equal(t, mcp.LATEST_PROTOCOL_VERSION, result["protocolVersion"])
+	assert.Equal(t, "2025-06-18", result["protocolVersion"])
 	assert.Contains(t, result, "capabilities")
 	assert.Contains(t, result, "serverInfo")
 }
