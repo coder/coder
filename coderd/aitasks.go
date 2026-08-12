@@ -1138,6 +1138,7 @@ type TaskLogSnapshotEnvelope struct {
 // @Param format query string true "Snapshot format" enums(agentapi)
 // @Param request body object true "Raw snapshot payload (structure depends on format parameter)"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceagents/me/tasks/{task}/log-snapshot [post]
 func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1218,6 +1219,15 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 	case "agentapi":
 		var payload agentapisdk.GetMessagesResponse
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			// An oversized payload is a size failure, not a malformed one, and
+			// reporting it as 413 matches httpapi.Read.
+			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+					Message: "Request body too large.",
+					Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", taskSnapshotMaxSize),
+				})
+				return
+			}
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Failed to decode request payload.",
 				Detail:  err.Error(),

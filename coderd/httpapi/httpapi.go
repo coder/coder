@@ -18,6 +18,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/websocket"
@@ -229,20 +230,46 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 	_ = enc.Encode(response)
 }
 
-// Read decodes JSON from the HTTP request into the value provided. It uses
-// go-validator to validate the incoming request body. ctx is used for tracing
-// and can be nil. Although tracing this function isn't likely too helpful, it
-// was done to be consistent with Write.
+// DefaultMaxRequestBodyBytes bounds the request body that a JSON endpoint will
+// decode. It exists so that a single request, including an unauthenticated one,
+// cannot exhaust server memory with an oversized body. Endpoints whose payloads
+// legitimately exceed it must call ReadLimit with an explicit limit instead of
+// raising this constant.
+const DefaultMaxRequestBodyBytes = 4 << 20 // 4 MiB
+
+// Read decodes JSON from the HTTP request into the value provided, reading at
+// most DefaultMaxRequestBodyBytes from the body. It uses go-validator to
+// validate the incoming request body. ctx is used for tracing and can be nil.
+// Although tracing this function isn't likely too helpful, it was done to be
+// consistent with Write.
 func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value interface{}) bool {
+	return ReadLimit(ctx, rw, r, DefaultMaxRequestBodyBytes, value)
+}
+
+// ReadLimit is Read with an explicit request body size limit, for the few
+// endpoints whose payloads legitimately exceed DefaultMaxRequestBodyBytes.
+//
+// Callers must use this rather than wrapping r.Body in an http.MaxBytesReader
+// themselves. Read installs its own limit, and nested readers compose as
+// tightest-wins, so the default would override a larger caller-supplied limit.
+func ReadLimit(ctx context.Context, rw http.ResponseWriter, r *http.Request, limit int64, value interface{}) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
+	r.Body = http.MaxBytesReader(rw, r.Body, limit)
 
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			// Record the limit on the request's existing log line rather than
+			// emitting one of its own. A caller can produce 413s at will, so a
+			// dedicated log line is an attacker-controlled log volume.
+			if requestLogger := loggermw.RequestLoggerFromContext(r.Context()); requestLogger != nil {
+				requestLogger.WithFields(slog.F("max_request_body_bytes", limit))
+			}
 			Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Request body too large.",
-				Detail:  err.Error(),
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", limit),
 			})
 			return false
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -57,8 +58,8 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 		defer commitAudit()
 
 		// Parse request
-		var req codersdk.OAuth2ClientRegistrationRequest
-		if !httpapi.Read(ctx, rw, r, &req) {
+		req, ok := readOAuth2ClientRegistrationRequest(ctx, rw, r)
+		if !ok {
 			return
 		}
 
@@ -272,8 +273,8 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 		}
 
 		// Parse request
-		var req codersdk.OAuth2ClientRegistrationRequest
-		if !httpapi.Read(ctx, rw, r, &req) {
+		req, ok := readOAuth2ClientRegistrationRequest(ctx, rw, r)
+		if !ok {
 			return
 		}
 
@@ -532,6 +533,34 @@ func generateRegistrationAccessToken() (plaintext string, hashed []byte, err err
 }
 
 // writeOAuth2RegistrationError writes RFC 7591 compliant error responses
+// readOAuth2ClientRegistrationRequest decodes a client registration request,
+// bounded by httpapi.DefaultMaxRequestBodyBytes, and reports failures as RFC
+// 7591 errors.
+//
+// It exists instead of httpapi.Read because these handlers route every other
+// error through writeOAuth2RegistrationError, and httpapi.Read reports a
+// codersdk.Response. Since http.MaxBytesReader surfaces the limit through the
+// decoder's error, the error shape belongs to whoever decodes, so the decode
+// happens here. RFC 7591 section 3.2.2 defines invalid_client_metadata and
+// friends for semantic validation rather than transport rejection, so
+// invalid_request is the closest compliant framing for both cases below.
+func readOAuth2ClientRegistrationRequest(ctx context.Context, rw http.ResponseWriter, r *http.Request) (codersdk.OAuth2ClientRegistrationRequest, bool) {
+	var req codersdk.OAuth2ClientRegistrationRequest
+
+	r.Body = http.MaxBytesReader(rw, r.Body, httpapi.DefaultMaxRequestBodyBytes)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusRequestEntityTooLarge, "invalid_request",
+				fmt.Sprintf("Maximum request body size is %d bytes.", httpapi.DefaultMaxRequestBodyBytes))
+			return req, false
+		}
+		writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest, "invalid_request",
+			"Request body must be valid JSON")
+		return req, false
+	}
+	return req, true
+}
+
 func writeOAuth2RegistrationError(_ context.Context, rw http.ResponseWriter, status int, errorCode, description string) {
 	// RFC 7591 error response format
 	errorResponse := map[string]string{

@@ -90,6 +90,18 @@ func Prometheus(register prometheus.Registerer, ws *WSMetrics) func(http.Handler
 		Help:      "Latency distribution of requests in seconds.",
 		Buckets:   []float64{0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500, 1, 5, 10, 30},
 	}, []string{"method", "path"})
+	// Series here exist only for routes that have actually rejected a body,
+	// which is what makes this readable at a glance where filtering
+	// requests_processed_total by code is not.
+	requestsTooLarge := factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "api",
+		Name:      "requests_too_large_total",
+		Help: "The total number of API requests rejected for exceeding the " +
+			"request body size limit. A sustained rate on one route is more " +
+			"often a limit set too tight for a legitimate payload than an " +
+			"attempt to exhaust memory.",
+	}, []string{"method", "path"})
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -130,6 +142,13 @@ func Prometheus(register prometheus.Registerer, ws *WSMetrics) func(http.Handler
 
 			requestsProcessed.WithLabelValues(statusStr, method, path).Inc()
 			dist.WithLabelValues(distOpts...).Observe(time.Since(start).Seconds())
+
+			// Counted on the status rather than at the point of rejection so
+			// that the SCIM and OAuth2 endpoints, which bound their bodies
+			// themselves to keep their own error shapes, are included.
+			if sw.Status == http.StatusRequestEntityTooLarge {
+				requestsTooLarge.WithLabelValues(method, path).Inc()
+			}
 		})
 	}
 }

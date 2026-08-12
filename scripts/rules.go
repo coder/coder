@@ -558,3 +558,81 @@ func codersdkResponseBodyDecode(m dsl.Matcher) {
 		).
 		Report("Use codersdk.ReadBodyAsJSON to decode typed API responses so non-JSON bodies produce a structured error. For responses that are intentionally not Coder API JSON, add a nolint:gocritic comment explaining why.")
 }
+
+// unboundedRequestBody reports an HTTP request body read without a size limit.
+// httpapi.Read and httpapi.ReadLimit bound the body they decode, so handlers
+// should decode through them. Reading r.Body directly bypasses that bound and
+// lets a single request allocate memory without limit (CWE-770), which is
+// reachable before authentication on the endpoints that authenticate by body.
+//
+// The rule covers the coderd HTTP API only. The agent, aibridge, and the
+// load-test mocks each serve separate ingress with their own error shapes and
+// their own limits, and bounding those is a different decision from this one.
+//
+// Wrapping r.Body in an http.MaxBytesReader before reading it is equally
+// correct, but it is textually indistinguishable from not doing so, so those
+// sites are enumerated below rather than detected. Adding an entry is the review
+// step that asserts the site installs its own bound and answers 413 when the
+// bound trips; it is not a way to opt out of having one.
+//
+// *http.Request also describes an outbound request, whose body this process
+// wrote and therefore already bounds. Those sites are exempt for that reason,
+// not because they install a limit.
+//
+//nolint:unused,deadcode,varnamelen
+func unboundedRequestBody(m dsl.Matcher) {
+	m.Import("encoding/json")
+	m.Import("io")
+	m.Import("net/http")
+
+	m.Match(
+		`json.NewDecoder($r.Body).Decode($_)`,
+		`$_ := json.NewDecoder($r.Body)`,
+		`$_ = json.NewDecoder($r.Body)`,
+		`io.ReadAll($r.Body)`,
+	).
+		Where(
+			(m["r"].Type.Is("*http.Request") || m["r"].Type.Is("http.Request")) &&
+				// Scoped to the coderd HTTP API, where httpapi.Read is the
+				// idiom. The agent, aibridge, and the load-test mocks serve
+				// their own ingress with their own error shapes and their own
+				// limits, so httpapi.Read is not the remedy there.
+				m.File().PkgPath.Matches(`/coderd(/|$)`) &&
+				!m.File().Name.Matches(`_test\.go$`) &&
+				// Packages named for testing hold fake servers and test doubles
+				// rather than production ingress, and some of them live outside
+				// _test.go files so other packages can import them.
+				!m.File().PkgPath.Matches(`test$`) &&
+
+				// Ingress that installs its own bound and reports 413:
+				//
+				// httpapi.ReadLimit holds the wrap that every handler decoding
+				// through httpapi.Read inherits its bound from.
+				!(m.File().PkgPath.Matches(`/coderd/httpapi$`) &&
+					m.File().Name.Matches(`^httpapi\.go$`)) &&
+				// csp.go bounds CSP reports at 64 KiB; files.go bounds template
+				// archive uploads at 100 MiB; aitasks.go bounds task log
+				// snapshots at 64 KiB; exp_chats.go bounds chat file uploads at
+				// 10 MiB. The latter two are binary uploads that no JSON limit
+				// should apply to.
+				!(m.File().PkgPath.Matches(`/coderd$`) &&
+					m.File().Name.Matches(`^(csp|files|aitasks|exp_chats)\.go$`)) &&
+				// registration.go bounds its body at the default limit and
+				// reports 413 as an RFC 7591 error, which httpapi.Read cannot do.
+				!(m.File().PkgPath.Matches(`/coderd/oauth2provider$`) &&
+					m.File().Name.Matches(`^registration\.go$`)) &&
+				// The SCIM routes bound every body ahead of these handlers, in
+				// enterprise/coderd/scimroutes.go, because a SCIM rejection must
+				// be reported in SCIM's own error shape.
+				!(m.File().PkgPath.Matches(`/enterprise/coderd/legacyscim$`) &&
+					m.File().Name.Matches(`^legacyscim\.go$`)) &&
+
+				// Outbound requests, not ingress:
+				//
+				// openai_compat_patches.go is an http.RoundTripper rewriting a
+				// request body this process built.
+				!(m.File().PkgPath.Matches(`/coderd/x/chatd/chatprovider$`) &&
+					m.File().Name.Matches(`^openai_compat_patches\.go$`)),
+		).
+		Report("Read request bodies with httpapi.Read or httpapi.ReadLimit so the body is size-bounded. If this handler must read r.Body directly, bound it with http.MaxBytesReader, answer 413 when the bound trips, and add the file to the allowlist in unboundedRequestBody in scripts/rules.go. If this is an outbound request rather than ingress, add it to the outbound group instead.")
+}

@@ -140,6 +140,44 @@ func TestPrometheus(t *testing.T) {
 		require.Equal(t, "GET", reqProcessed["method"])
 	})
 
+	// An oversized body is counted per route so that a limit set too tight for a
+	// legitimate payload is visible without waiting for a user report. The
+	// counter is keyed on the response status, so it covers handlers that bound
+	// their own bodies as well as those going through httpapi.Read.
+	t.Run("RequestTooLarge", func(t *testing.T) {
+		t.Parallel()
+		reg := prometheus.NewRegistry()
+		promMW := httpmw.Prometheus(reg, httpmw.NewWSMetrics(reg))
+
+		r := chi.NewRouter()
+		r.Use(httpmw.HTTPRoute)
+		r.Use(promMW)
+		r.Post("/api/v2/users/{user}/secrets/batch", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		})
+		r.Post("/api/v2/users/{user}/secrets", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+		})
+
+		for _, path := range []string{
+			"/api/v2/users/john/secrets/batch",
+			// A route that does not reject must not be counted.
+			"/api/v2/users/john/secrets",
+		} {
+			sw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+			r.ServeHTTP(sw, httptest.NewRequest("POST", path, nil))
+		}
+
+		metrics, err := reg.Gather()
+		require.NoError(t, err)
+		metricLabels := getMetricLabels(metrics)
+
+		tooLarge, ok := metricLabels["coderd_api_requests_too_large_total"]
+		require.True(t, ok, "coderd_api_requests_too_large_total metric not found")
+		require.Equal(t, "/api/v2/users/{user}/secrets/batch", tooLarge["path"])
+		require.Equal(t, "POST", tooLarge["method"])
+	})
+
 	t.Run("UnknownRoute", func(t *testing.T) {
 		t.Parallel()
 		reg := prometheus.NewRegistry()

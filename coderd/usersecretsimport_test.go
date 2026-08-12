@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -118,6 +119,42 @@ func TestImportUserSecretsBodyTooLarge(t *testing.T) {
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusRequestEntityTooLarge, sdkErr.StatusCode())
+}
+
+// TestImportUserSecretsBodyLargerThanDefaultLimit pins that this endpoint reads
+// bodies beyond httpapi.DefaultMaxRequestBodyBytes, up to its own 8 MiB limit.
+// The endpoint needs the larger limit because JSON escaping inflates the body: a
+// control character costs one byte in the secrets file and six bytes as a JSON
+// escape sequence on the wire, so a file within MaxSecretsFileBytes can still
+// arrive as a multi-megabyte request.
+//
+// The assertion is that the body reaches the handler's parser, evidenced by a
+// 400 naming the secrets-file limit, rather than being cut off in transport with
+// a 413. A successful import cannot be used to show this: the per-user
+// MaxUserSecretsTotalValueBytes budget caps stored values at 200 KiB, so no
+// importable payload reaches 4 MiB. This still fails if the endpoint is capped
+// at the default, which is what it exists to catch.
+func TestImportUserSecretsBodyLargerThanDefaultLimit(t *testing.T) {
+	t.Parallel()
+
+	req := codersdk.ImportUserSecretsRequest{
+		Format: codersdk.SecretsFileFormatEnv,
+		// Between the 4 MiB default and this endpoint's 8 MiB limit.
+		Content: strings.Repeat("a", 5<<20),
+	}
+	require.Greater(t, len(req.Content), httpapi.DefaultMaxRequestBodyBytes)
+	require.Less(t, len(req.Content), 8*codersdk.MaxSecretsFileBytes)
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	_, err := client.ImportUserSecrets(ctx, codersdk.Me, req)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Detail, fmt.Sprintf("%d bytes", codersdk.MaxSecretsFileBytes),
+		"the body must reach the secrets file parser rather than be rejected in transport")
 }
 
 // TestImportUserSecretsValidationRollback verifies that a single

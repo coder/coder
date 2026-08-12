@@ -1,8 +1,13 @@
 package coderd
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 
+	scimErrors "github.com/elimity-com/scim/errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/xerrors"
@@ -12,6 +17,56 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/legacyscim"
 	"github.com/coder/coder/v2/enterprise/coderd/scim"
 )
+
+// scimMaxRequestBodyBytes bounds a SCIM request body. SCIM does not decode
+// through httpapi.Read and so does not inherit its limit: the legacy handler
+// decodes r.Body directly, and the SCIM 2.0 library reads the whole body into
+// memory and discards the read error on PUT and PATCH. Neither would report an
+// oversized body as such, so the bound is enforced ahead of both.
+const scimMaxRequestBodyBytes = httpapi.DefaultMaxRequestBodyBytes
+
+// scimLimitRequestBody rejects a request body over scimMaxRequestBodyBytes with
+// a SCIM-shaped 413 and passes the buffered body to next. The limit is enforced
+// on bytes read rather than on Content-Length, which is absent under chunked
+// transfer encoding and caller-controlled otherwise.
+func scimLimitRequestBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.Body == nil {
+			next.ServeHTTP(rw, r)
+			return
+		}
+
+		// Reading a single byte past the limit is what separates an at-limit
+		// body from an oversized one.
+		body, err := io.ReadAll(io.LimitReader(r.Body, scimMaxRequestBodyBytes+1))
+		if err != nil {
+			writeSCIMError(rw, http.StatusBadRequest, "could not read request body")
+			return
+		}
+		if len(body) > scimMaxRequestBodyBytes {
+			writeSCIMError(rw, http.StatusRequestEntityTooLarge,
+				fmt.Sprintf("request body must not exceed %d bytes", scimMaxRequestBodyBytes))
+			return
+		}
+
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		next.ServeHTTP(rw, r)
+	})
+}
+
+// writeSCIMError writes an RFC 7644 section 3.12 error response. SCIM providers
+// parse that shape, so a codersdk.Response here would be a protocol violation
+// even with the right status.
+func writeSCIMError(rw http.ResponseWriter, status int, detail string) {
+	rw.Header().Set("Content-Type", "application/scim+json")
+	rw.WriteHeader(status)
+	_ = json.NewEncoder(rw).Encode(scimErrors.ScimError{
+		// RFC 7644 defines scimType keywords only for 400 responses.
+		ScimType: "",
+		Detail:   detail,
+		Status:   status,
+	})
+}
 
 func (api *API) mountScimRoute(opt *Options, r chi.Router) error {
 	if len(opt.SCIMAPIKey) == 0 {
@@ -44,6 +99,7 @@ func (api *API) mountScimRoute(opt *Options, r chi.Router) error {
 		}
 		r.Mount("/v2", chi.Chain(
 			api.RequireFeatureMW(codersdk.FeatureSCIM),
+			scimLimitRequestBody,
 			legacySrv.AuthMiddleware,
 		).Handler(legacySrv.Handler()))
 		return nil
@@ -68,6 +124,7 @@ func (api *API) mountScimRoute(opt *Options, r chi.Router) error {
 	// library sees paths like "/v2/Users" instead of "/scim/v2/Users".
 	r.Mount("/", chi.Chain(
 		api.RequireFeatureMW(codersdk.FeatureSCIM),
+		scimLimitRequestBody,
 		middleware.StripPrefix("/scim"),
 	).Handler(scimSrv.Handler()))
 	return nil
