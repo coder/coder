@@ -147,10 +147,15 @@ export const PullRequestAndWorkingChanges: Story = {
 		).toBeVisible();
 
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// Multi-item view: dropdown trigger shows the state pill and the
-		// identifier separated by a divider.
-		await expect(switcher).toHaveTextContent("Open");
+		// Dropdown PR trigger drops the state label; state stays legible
+		// via the icon color and its aria-label.
 		await expect(switcher).toHaveTextContent("PR #23020");
+		await expect(switcher).not.toHaveTextContent("Open");
+		await expect(
+			within(switcher).getByRole("img", {
+				name: "Pull request status: Open",
+			}),
+		).toBeInTheDocument();
 
 		const title = canvas.getByTestId("git-panel-pr-title");
 		await expect(title).toHaveTextContent(
@@ -247,10 +252,15 @@ export const DraftPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// Draft PR is paired with a working repo, so the switcher is a
-		// dropdown and keeps the visible state pill.
-		await expect(switcher).toHaveTextContent("Draft");
+		// Dropdown PR trigger drops the state label; state stays legible
+		// via the icon color and its aria-label.
 		await expect(switcher).toHaveTextContent("PR #22950");
+		await expect(switcher).not.toHaveTextContent("Draft");
+		await expect(
+			within(switcher).getByRole("img", {
+				name: "Pull request status: Draft",
+			}),
+		).toBeInTheDocument();
 	},
 };
 

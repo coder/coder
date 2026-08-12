@@ -99,7 +99,6 @@ interface ViewItemBase {
 	itemPrimary: string;
 	/** Secondary text in the dropdown item (e.g. PR title, repo name). */
 	itemSecondary?: string;
-	stateClasses: string;
 	icon: React.ReactNode;
 	/**
 	 * Accessible label for the state icon. Used on the single-item
@@ -274,7 +273,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 					triggerIdentifier: `PR #${prTab.prNumber}`,
 					itemPrimary: `PR #${prTab.prNumber}`,
 					itemSecondary: prTitle || undefined,
-					stateClasses: prStateClasses(prState, prDraft),
 					icon: (
 						<PrStateIcon
 							state={prState}
@@ -291,7 +289,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 					triggerIdentifier: remoteHeadBranch || "Branch",
 					itemPrimary: "Branch",
 					itemSecondary: remoteHeadBranch || undefined,
-					stateClasses: "text-content-secondary",
 					icon: <GitBranchIcon className="!size-3.5 shrink-0" />,
 					iconLabel: "Git view: Branch",
 				}
@@ -305,7 +302,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 		triggerIdentifier: repoLabel(repoRoot),
 		itemPrimary: "Working",
 		itemSecondary: repoLabel(repoRoot),
-		stateClasses: "text-content-secondary",
 		icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
 		iconLabel: `Git view: Working (${repoLabel(repoRoot)})`,
 	}));
@@ -495,27 +491,37 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 		);
 	}
 
-	// Dropdown trigger: two-part pill with the state on the left (colored
-	// via `stateClasses`) separated from the identifier by a divider, plus
-	// a chevron to indicate the dropdown.
+	// Dropdown trigger: bordered pill with the state icon, identifier,
+	// and chevron. The PR state label (Open/Draft/Merged/Closed) is
+	// dropped because the icon color already conveys it; local repos
+	// keep the "Working" prefix so the identifier reads as a status.
+	const showStateLabelInline = activeItem.kind === "local";
 	const triggerContent = (
-		<>
+		<span className="flex h-full min-w-0 items-center gap-1.5 px-2 leading-none">
+			<span
+				role="img"
+				aria-label={activeItem.iconLabel}
+				className="inline-flex size-3.5 shrink-0 items-center justify-center"
+			>
+				{activeItem.icon}
+			</span>
+			{showStateLabelInline && (
+				<span className="whitespace-nowrap font-medium text-content-primary">
+					{activeItem.stateLabel}
+				</span>
+			)}
 			<span
 				className={cn(
-					"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid border-border-default px-1.5 font-medium leading-none",
-					activeItem.stateClasses,
+					"min-w-0 truncate",
+					showStateLabelInline
+						? "text-content-secondary"
+						: "font-medium text-content-primary",
 				)}
 			>
-				<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
-					{activeItem.icon}
-				</span>
-				<span className="whitespace-nowrap">{activeItem.stateLabel}</span>
+				{activeItem.triggerIdentifier}
 			</span>
-			<span className="inline-flex min-w-0 items-center gap-1 pl-1.5 pr-1 text-content-primary">
-				<span className="truncate">{activeItem.triggerIdentifier}</span>
-				<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
-			</span>
-		</>
+			<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+		</span>
 	);
 
 	return (
