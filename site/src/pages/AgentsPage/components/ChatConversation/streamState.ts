@@ -236,30 +236,11 @@ const getStreamToolStatus = (
 
 /**
  * Drops result-only stream entries whose tool call is already rendered as
- * pending in the durable transcript. After the assistant message commits,
- * the stream state is cleared but the tool result still streams before the
- * tool step commits. Without this filter the result renders as a second row
- * next to the durable pending row: first an arg-less tool row (for example
- * "Read file"), or a generic "Tool" placeholder if only the result entry is
- * dropped while its block remains.
- *
- * Both the result entry and its `{ type: "tool", id }` block are removed so
- * nothing references the dropped id. Entries whose id also has an in-stream
- * tool call are kept: that is the normal streaming merge path, and keying on
- * the id (not the tool name) leaves a parallel second call to the same tool
- * untouched. Results still streaming (the advisor's result_delta parts) are
- * kept while they accumulate so the progressive advice UI keeps rendering;
- * the final result part is suppressed once it arrives.
- *
- * A state left with no visible content is normalized to null: every surviving
- * toolResult has a tool block, so empty blocks with no in-stream calls and no
- * sources means nothing remains. The live tail then renders nothing (no stray
- * generic Thinking shimmer) while the durable pending row stays visible,
- * instead of a non-null empty state that deriveLiveStatus would treat as
- * streaming.
- *
- * Returns the input reference unchanged when nothing is dropped so memoized
- * consumers do not re-render on every pending-call change.
+ * pending in the durable transcript, so the live tail does not show a
+ * duplicate row before the tool step commits. Still-streaming results are
+ * kept so progressive output keeps rendering, and a state left with no
+ * visible content becomes null so the tail renders nothing. See the
+ * filterPendingStreamState tests for the full behavior contract.
  */
 export const filterPendingStreamState = (
 	streamState: StreamState | null,
@@ -271,6 +252,8 @@ export const filterPendingStreamState = (
 	const toolResults: StreamState["toolResults"] = {};
 	let dropped = false;
 	for (const [id, result] of Object.entries(streamState.toolResults)) {
+		// Still-streaming results stay visible while they accumulate; the
+		// duplicate is only suppressed once the final result arrives.
 		if (
 			pendingToolCallIDs.has(id) &&
 			!streamState.toolCalls[id] &&
@@ -293,9 +276,11 @@ export const filterPendingStreamState = (
 				!streamState.toolResults[block.id]?.isStreaming
 			),
 	);
+	// Nothing visible remains.
 	if (
 		blocks.length === 0 &&
 		Object.keys(streamState.toolCalls).length === 0 &&
+		Object.keys(toolResults).length === 0 &&
 		streamState.sources.length === 0
 	) {
 		return null;
