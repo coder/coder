@@ -532,7 +532,6 @@ func generateRegistrationAccessToken() (plaintext string, hashed []byte, err err
 	return apikey.GenerateSecret(secretLength)
 }
 
-// writeOAuth2RegistrationError writes RFC 7591 compliant error responses
 // readOAuth2ClientRegistrationRequest decodes a client registration request,
 // bounded by httpapi.DefaultMaxRequestBodyBytes, and reports failures as RFC
 // 7591 errors.
@@ -555,13 +554,18 @@ func readOAuth2ClientRegistrationRequest(ctx context.Context, rw http.ResponseWr
 				fmt.Sprintf("Maximum request body size is %d bytes.", httpapi.DefaultMaxRequestBodyBytes))
 			return req, false
 		}
+		// The decoder's own text is the diagnosis a client integrator needs: it
+		// names the offending field and the type it expected. It describes the
+		// caller's own bytes, so it discloses nothing, and httpapi.Read has
+		// exposed it on every other endpoint for as long as it has existed.
 		writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest, "invalid_request",
-			"Request body must be valid JSON")
+			fmt.Sprintf("Request body must be valid JSON: %s", err))
 		return req, false
 	}
 	return req, true
 }
 
+// writeOAuth2RegistrationError writes RFC 7591 compliant error responses
 func writeOAuth2RegistrationError(_ context.Context, rw http.ResponseWriter, status int, errorCode, description string) {
 	// RFC 7591 error response format
 	errorResponse := map[string]string{
