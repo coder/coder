@@ -1,8 +1,6 @@
 package poctests_test
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,25 +23,33 @@ import (
 // TestAIAgentIdentity is the acceptance test for work package WP1 in
 // poc_audit/work_breakdown.md. It is being built incrementally.
 //
-// Revision 3 adds the first hop of the real path. A startup script launched
-// from the manifest runs an executable, and that executable calls CreateAIAgent
-// on the workspace_agent over its local socket, carrying the workspace
-// identifier and the workspace_agent credential.
+// Revision 4 completes the path from the workspace to the control plane. A
+// startup script launched from the manifest runs an executable, that
+// executable calls CreateAIAgent on the workspace_agent over its local socket,
+// and the workspace_agent forwards to coderd over its own authenticated
+// connection.
 //
 // It still asserts nothing about AI agent identity, because none of that code
-// exists. CreateAIAgent is reached, but the handler behind it is a stub in
-// agent/agentsocket/service.go that validates the request, touches a file, and
-// returns. Each increment moves that stub one hop further from the caller,
-// until the last one replaces it with the behavior itself. The data the call
-// carries is plumbed the same way, one hop at a time.
+// exists. The stub now lives in coderd, in coderd/agentapi/aiagent.go, where
+// it touches a file and returns. Each increment moves that stub one hop
+// further from the caller, until the last one replaces it with the behavior
+// itself.
 //
-// The marker is what the stub touches, and the stub repeats into it what it
-// was sent. So the marker is evidence that the call arrived at the
-// workspace_agent, and that it arrived intact.
+// What the two hops carry differs, and the difference is the point. The socket
+// request names the workspace and presents a credential, because the socket is
+// local IPC that authenticates nobody. The coderd request names neither:
+// coderd resolved the workspace, its owner, and this workspace_agent while
+// authenticating the connection. So the identifiers in the marker were never
+// sent by anyone. They are what coderd concluded.
 //
 // The test passes on two independent conditions: the executable exited zero,
 // observed through the script timings the agent reports, and the marker file
-// the handler writes holds what the handler was sent.
+// coderd writes holds the identifiers coderd resolved.
+//
+// The marker has reached its limit here. It survives this hop only because
+// this test runs coderd on the same host as the workspace, which no real
+// deployment does. The increment that persists an AI agent identity replaces
+// it with a database row, which is what the work breakdown calls for anyway.
 //
 // # Checking that the marker assertion is load-bearing
 //
@@ -53,8 +59,8 @@ import (
 // expect-failure mechanism, so that one is a manual procedure. Run it after
 // changing what the handler does or how success is observed.
 //
-//  1. In agent/agentsocket/service.go, in CreateAIAgent, redirect the write
-//     so that no marker appears where the test looks for it:
+//  1. In coderd/agentapi/aiagent.go, in CreateAIAgent, redirect the write so
+//     that no marker appears where the test looks for it:
 //
 //     os.WriteFile(markerPath+".disabled", ...)
 //
@@ -146,18 +152,19 @@ func TestAIAgentIdentity(t *testing.T) {
 				markerPath, readScriptLog(scriptLogPath))
 		}
 
-		// The handler repeats what it was given, so the marker shows the call
-		// arrived intact rather than merely that it arrived. The credential is
-		// compared by digest because the handler does not write it down.
-		credentialDigest := sha256.Sum256([]byte(r.AgentToken))
+		// coderd writes what it resolved while authenticating the connection,
+		// not what the caller sent. Neither identifier below appeared in any
+		// request, so matching them against the workspace this test built
+		// checks attribution rather than echo.
+		require.Len(t, r.Agents, 1, "the fake build should have exactly one agent")
 		wantMarker := "CreateAIAgent\n" +
 			"workspace_id=" + r.Workspace.ID.String() + "\n" +
-			"workspace_credential_sha256=" + hex.EncodeToString(credentialDigest[:]) + "\n"
+			"agent_id=" + r.Agents[0].ID.String() + "\n"
 
 		contents, err := os.ReadFile(markerPath)
 		require.NoError(t, err)
 		require.Equal(t, wantMarker, string(contents),
-			"marker should name the handler and repeat the workspace and credential it was sent")
+			"marker should carry the workspace and agent coderd resolved from the connection")
 
 		// Exit status is checked independently of the marker. The agent
 		// reports it, so a probe that wrote the marker and then failed would

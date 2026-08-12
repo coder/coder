@@ -2,10 +2,8 @@ package agentsocket
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"os"
 	"sync"
 
 	"github.com/google/uuid"
@@ -46,12 +44,12 @@ type DRPCAgentSocketService struct {
 	logger         slog.Logger
 
 	mu       sync.Mutex
-	agentAPI agentproto.DRPCAgentClient28
+	agentAPI agentproto.DRPCAgentClient211
 }
 
 // SetAgentAPI sets the agent API client used to forward requests
 // to coderd. This is called when the agent connects to coderd.
-func (s *DRPCAgentSocketService) SetAgentAPI(api agentproto.DRPCAgentClient28) {
+func (s *DRPCAgentSocketService) SetAgentAPI(api agentproto.DRPCAgentClient211) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.agentAPI = api
@@ -70,21 +68,24 @@ func (*DRPCAgentSocketService) Ping(_ context.Context, _ *proto.PingRequest) (*p
 	return &proto.PingResponse{}, nil
 }
 
-// CreateAIAgent registers an AI agent created inside this workspace.
+// CreateAIAgent registers an AI agent created inside this workspace, by
+// forwarding to coderd over the workspace_agent's own authenticated
+// connection.
 //
-// PROOF OF CONCEPT STUB. This does not register anything. It validates the
-// request, touches the path given in it so that a caller can observe that it
-// was reached, and returns an empty response.
+// The request this handler receives and the one it sends differ, and the
+// difference is the point. A caller on the socket must state the workspace and
+// present a credential, because the socket is local IPC with no authentication
+// of its own. coderd needs neither: it resolved the workspace, its owner, and
+// this workspace_agent while authenticating the connection being forwarded
+// over. Passing them on would be redundant, and passing a caller's credential
+// on would be worse than redundant.
 //
-// The next increment replaces the body with a call forwarding to the control
-// plane over s.agentAPI, in the manner of UpdateAppStatus below. When that
-// happens, delete this stub, delete the poc_marker_path field from the
-// request message, and let the marker move to whatever the control plane does.
-//
-// The workspace identifier is converted but not otherwise checked. Deciding
-// whether it names a workspace, and whether this caller may act for it, is
-// production work that this proof of concept does not do.
+// So this handler validates, and then drops, both. What crosses is the marker
+// path, which is itself a proof of concept stub living in coderd now.
 func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.CreateAIAgentRequest) (*proto.CreateAIAgentResponse, error) {
+	// Converted rather than validated. Deciding whether it names a workspace,
+	// and whether this caller may act for it, is production work that this
+	// proof of concept does not do.
 	workspaceID, err := uuid.FromBytes(req.GetWorkspaceId())
 	if err != nil {
 		return nil, xerrors.Errorf("workspace_id is not a uuid: %w", err)
@@ -92,31 +93,28 @@ func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.C
 
 	// The credential is an opaque blob in transit. It is not parsed, inspected,
 	// or assumed to have a shape. Only its presence is required.
-	workspaceCredential := req.GetWorkspaceCredential()
-	if len(workspaceCredential) == 0 {
+	if len(req.GetWorkspaceCredential()) == 0 {
 		return nil, xerrors.New("workspace_credential is required")
 	}
 
-	markerPath := req.GetPocMarkerPath()
-	if markerPath == "" {
-		return nil, xerrors.New("poc_marker_path is required while this handler is a stub")
+	s.mu.Lock()
+	api := s.agentAPI
+	s.mu.Unlock()
+
+	if api == nil {
+		return nil, ErrAgentAPINotConnected
 	}
 
-	// The marker names the handler and repeats what it was given, so that a
-	// caller can tell not only that the call arrived but that it arrived
-	// intact. The credential appears as a digest: a proof of concept about
-	// credentials should not be the thing that writes one to disk.
-	credentialDigest := sha256.Sum256(workspaceCredential)
-	marker := "CreateAIAgent\nworkspace_id=" + workspaceID.String() +
-		"\nworkspace_credential_sha256=" + hex.EncodeToString(credentialDigest[:]) + "\n"
-	if err := os.WriteFile(markerPath, []byte(marker), 0o600); err != nil {
-		return nil, xerrors.Errorf("write poc marker %q: %w", markerPath, err)
-	}
+	// The credential is deliberately absent from the log line. It is a
+	// credential, and this is a log.
+	s.logger.Info(ctx, "forwarding CreateAIAgent to coderd",
+		slog.F("workspace_id", workspaceID))
 
-	// The credential is deliberately absent from the log line, for the same
-	// reason it is absent from the marker.
-	s.logger.Info(ctx, "poc stub: CreateAIAgent called",
-		slog.F("workspace_id", workspaceID), slog.F("marker_path", markerPath))
+	if _, err := api.CreateAIAgent(ctx, &agentproto.CreateAIAgentRequest{
+		PocMarkerPath: req.GetPocMarkerPath(),
+	}); err != nil {
+		return nil, xerrors.Errorf("forward CreateAIAgent to coderd: %w", err)
+	}
 
 	return &proto.CreateAIAgentResponse{}, nil
 }

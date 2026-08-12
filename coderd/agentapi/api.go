@@ -59,6 +59,7 @@ type API struct {
 	*SubAgentAPI
 	*BoundaryLogsAPI
 	*ContextAPI
+	*AIAgentAPI
 	*tailnet.DRPCService
 
 	cachedWorkspaceFields *CachedWorkspaceFields
@@ -257,6 +258,13 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Clock:       opts.Clock,
 		Database:    opts.Database,
 		DirtyMarker: opts.ContextDirtyMarker,
+	}
+
+	api.AIAgentAPI = &AIAgentAPI{
+		AgentID:     agent.ID,
+		WorkspaceID: opts.WorkspaceID,
+		OwnerID:     opts.OwnerID,
+		Log:         opts.Log,
 	}
 
 	// Start background cache refresh loop to handle workspace changes

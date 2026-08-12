@@ -1158,7 +1158,7 @@ func TestExpMcpReporter(t *testing.T) {
 // fakeAgentAPI implements just the UpdateAppStatus method of
 // DRPCAgentClient28 for testing. Calling any other method will panic.
 type fakeCoderdAgentAPI struct {
-	agentproto.DRPCAgentClient28
+	agentproto.DRPCAgentClient211
 	t        *testing.T
 	testCtx  context.Context
 	requests chan *agentproto.UpdateAppStatusRequest

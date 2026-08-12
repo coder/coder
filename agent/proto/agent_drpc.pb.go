@@ -58,6 +58,7 @@ type DRPCAgentClient interface {
 	ReportBoundaryLogs(ctx context.Context, in *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
 	UpdateAppStatus(ctx context.Context, in *UpdateAppStatusRequest) (*UpdateAppStatusResponse, error)
 	PushContextState(ctx context.Context, in *PushContextStateRequest) (*PushContextStateResponse, error)
+	CreateAIAgent(ctx context.Context, in *CreateAIAgentRequest) (*CreateAIAgentResponse, error)
 }
 
 type drpcAgentClient struct {
@@ -241,6 +242,15 @@ func (c *drpcAgentClient) PushContextState(ctx context.Context, in *PushContextS
 	return out, nil
 }
 
+func (c *drpcAgentClient) CreateAIAgent(ctx context.Context, in *CreateAIAgentRequest) (*CreateAIAgentResponse, error) {
+	out := new(CreateAIAgentResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/CreateAIAgent", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -261,6 +271,7 @@ type DRPCAgentServer interface {
 	ReportBoundaryLogs(context.Context, *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
 	UpdateAppStatus(context.Context, *UpdateAppStatusRequest) (*UpdateAppStatusResponse, error)
 	PushContextState(context.Context, *PushContextStateRequest) (*PushContextStateResponse, error)
+	CreateAIAgent(context.Context, *CreateAIAgentRequest) (*CreateAIAgentResponse, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -341,9 +352,13 @@ func (s *DRPCAgentUnimplementedServer) PushContextState(context.Context, *PushCo
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) CreateAIAgent(context.Context, *CreateAIAgentRequest) (*CreateAIAgentResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 19 }
+func (DRPCAgentDescription) NumMethods() int { return 20 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -518,6 +533,15 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*PushContextStateRequest),
 					)
 			}, DRPCAgentServer.PushContextState, true
+	case 19:
+		return "/coder.agent.v2.Agent/CreateAIAgent", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					CreateAIAgent(
+						ctx,
+						in1.(*CreateAIAgentRequest),
+					)
+			}, DRPCAgentServer.CreateAIAgent, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -825,6 +849,22 @@ type drpcAgent_PushContextStateStream struct {
 }
 
 func (x *drpcAgent_PushContextStateStream) SendAndClose(m *PushContextStateResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_CreateAIAgentStream interface {
+	drpc.Stream
+	SendAndClose(*CreateAIAgentResponse) error
+}
+
+type drpcAgent_CreateAIAgentStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_CreateAIAgentStream) SendAndClose(m *CreateAIAgentResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

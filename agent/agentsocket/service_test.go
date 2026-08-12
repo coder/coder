@@ -17,9 +17,9 @@ import (
 )
 
 // fakeAgentAPI implements just the UpdateAppStatus method of
-// DRPCAgentClient28 for testing. Calling any other method will panic.
+// DRPCAgentClient211 for testing. Calling any other method will panic.
 type fakeAgentAPI struct {
-	agentproto.DRPCAgentClient28
+	agentproto.DRPCAgentClient211
 	updateAppStatus func(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error)
 }
 
@@ -61,9 +61,10 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// CreateAIAgent currently has a proof of concept stub for a body. What it
-	// does reject, it must keep rejecting: a request with no credential is
-	// meaningless whatever handles it.
+	// CreateAIAgent forwards to coderd. These cases cover what it does before
+	// forwarding, and both outlive the proof of concept: a request with no
+	// credential is meaningless whatever handles it, and there is nothing to
+	// forward over until the workspace_agent has a connection.
 	t.Run("CreateAIAgent", func(t *testing.T) {
 		t.Parallel()
 
@@ -80,10 +81,12 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				wantErr:             "workspace_credential is required",
 			},
 			{
-				name:                "NoMarkerPath",
+				// The server under test never had SetAgentAPI called, so a
+				// valid request reaches the forwarding guard.
+				name:                "NotConnectedToCoderd",
 				workspaceCredential: []byte("credential"),
-				markerPath:          "",
-				wantErr:             "poc_marker_path is required",
+				markerPath:          "marker",
+				wantErr:             "agent not connected to coderd",
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
