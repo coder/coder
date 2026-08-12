@@ -315,6 +315,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	) {
 		setSelectedOrg(null);
 	}
+	// Same rule for a pending change awaiting confirmation: closing the
+	// dialog prevents confirming into an org that was just revoked.
+	if (
+		pendingOrgChange &&
+		orgSelectionSettled &&
+		!permittedOrgs.some((org) => org.id === pendingOrgChange.id)
+	) {
+		setPendingOrgChange(null);
+	}
 	const effectiveOrg =
 		selectedOrg && permittedOrgs.some((org) => org.id === selectedOrg.id)
 			? selectedOrg
@@ -323,6 +332,24 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				initialOrg ??
 				null);
 	const organizationId = effectiveOrg?.id ?? "";
+	// A settled permission refetch that changes the effective org must
+	// also drop the stored workspace, mirroring user-driven org changes;
+	// left latent, it would resurrect and submit if the old org became
+	// effective again. Initial settlement records the org without
+	// clearing so a persisted workspace survives first load. Render-time
+	// state adjustment; the storage entry is removed post-commit below.
+	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
+	if (orgSelectionSettled && organizationId !== lastSettledOrgId) {
+		setLastSettledOrgId(organizationId);
+		if (lastSettledOrgId !== null) {
+			setSelectedWorkspaceId(null);
+		}
+	}
+	useEffect(() => {
+		if (selectedWorkspaceId === null) {
+			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+		}
+	}, [selectedWorkspaceId]);
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -529,23 +556,28 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
-					{showOrganizations && permittedOrgs.length > 1 && (
-						<CompactOrgSelector
-							value={effectiveOrg}
-							options={permittedOrgs}
-							onChange={(newOrg) => {
-								const orgChanged = newOrg.id !== effectiveOrg?.id;
-								if (orgChanged && attachments.length > 0) {
-									setPendingOrgChange(newOrg);
-									return;
-								}
-								if (orgChanged) {
-									handleWorkspaceChange(null);
-								}
-								setSelectedOrg(newOrg);
-							}}
-						/>
-					)}
+					{/* Hidden until settled: before then the list is the
+					    unfiltered dashboard fallback, and selecting a
+					    never-permitted org would destroy workspace state. */}
+					{showOrganizations &&
+						orgSelectionSettled &&
+						permittedOrgs.length > 1 && (
+							<CompactOrgSelector
+								value={effectiveOrg}
+								options={permittedOrgs}
+								onChange={(newOrg) => {
+									const orgChanged = newOrg.id !== effectiveOrg?.id;
+									if (orgChanged && attachments.length > 0) {
+										setPendingOrgChange(newOrg);
+										return;
+									}
+									if (orgChanged) {
+										handleWorkspaceChange(null);
+									}
+									setSelectedOrg(newOrg);
+								}}
+							/>
+						)}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
 						sendShortcut={sendShortcut}
@@ -620,10 +652,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					if (!pendingOrgChange) {
 						return;
 					}
+					setPendingOrgChange(null);
+					// A revoking refetch can land after this render's
+					// closure was created; re-check before destroying
+					// attachment and workspace state.
+					if (!permittedOrgs.some((org) => org.id === pendingOrgChange.id)) {
+						return;
+					}
 					resetAttachments();
 					handleWorkspaceChange(null);
 					setSelectedOrg(pendingOrgChange);
-					setPendingOrgChange(null);
 				}}
 				onClose={() => setPendingOrgChange(null)}
 			/>

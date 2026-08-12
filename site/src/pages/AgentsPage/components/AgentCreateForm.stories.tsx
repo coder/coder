@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
@@ -1128,7 +1128,13 @@ export const DelayedOrganizationAuthorization: Story = {
 		// restoration would silently discard it.
 		expect(dropFile("drop.txt")).toBe(true);
 		expect(canvas.queryByLabelText("Remove drop.txt")).not.toBeInTheDocument();
+		// The picker must also stay hidden: its pending-state option list
+		// is the unfiltered dashboard fallback.
+		expect(
+			canvas.queryByTestId("compact-org-selector"),
+		).not.toBeInTheDocument();
 		await waitFor(() => expect(sendButton).toBeEnabled(), { timeout: 3_000 });
+		await canvas.findByTestId("compact-org-selector");
 		// Positive control: once settled the same drop is accepted and
 		// attaches, so the pending-state assertions exercised a real path.
 		expect(dropFile("after.txt")).toBe(false);
@@ -1138,49 +1144,58 @@ export const DelayedOrganizationAuthorization: Story = {
 	},
 };
 
-// Mutable so the play function can change results between refetches;
-// the story-level QueryClient lets it drive those refetches, which the
+// Mutable so play functions can change results between refetches; the
+// story-level QueryClient lets them drive those refetches, which the
 // preview decorator's client (staleTime: Infinity, inaccessible from
 // play) cannot.
 const revocablePermissions: Record<string, boolean> = {};
 let revocableQueryClient: QueryClient | undefined;
+
+const withRevocableQueryClient: Decorator = (Story) => {
+	const [queryClient] = useState(
+		() =>
+			new QueryClient({
+				defaultOptions: {
+					queries: {
+						staleTime: Number.POSITIVE_INFINITY,
+						retry: false,
+					},
+				},
+			}),
+	);
+	revocableQueryClient = queryClient;
+	return (
+		<QueryClientProvider client={queryClient}>
+			<Story />
+		</QueryClientProvider>
+	);
+};
+
+const mockRevocablePermissions = (permissions: Record<string, boolean>) => {
+	for (const key of Object.keys(revocablePermissions)) {
+		delete revocablePermissions[key];
+	}
+	Object.assign(revocablePermissions, permissions);
+	spyOn(API, "getOrganizations").mockResolvedValue([
+		MockDefaultOrganization,
+		MockOrganization2,
+	]);
+	spyOn(API, "checkAuthorization").mockImplementation(async () => ({
+		...revocablePermissions,
+	}));
+};
 
 export const RevokedSelectionDoesNotResurrect: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
 	},
-	decorators: [
-		(Story) => {
-			const [queryClient] = useState(
-				() =>
-					new QueryClient({
-						defaultOptions: {
-							queries: {
-								staleTime: Number.POSITIVE_INFINITY,
-								retry: false,
-							},
-						},
-					}),
-			);
-			revocableQueryClient = queryClient;
-			return (
-				<QueryClientProvider client={queryClient}>
-					<Story />
-				</QueryClientProvider>
-			);
-		},
-	],
+	decorators: [withRevocableQueryClient],
 	beforeEach: () => {
-		revocablePermissions[MockDefaultOrganization.id] = true;
-		revocablePermissions[MockOrganization2.id] = true;
-		spyOn(API, "getOrganizations").mockResolvedValue([
-			MockDefaultOrganization,
-			MockOrganization2,
-		]);
-		spyOn(API, "checkAuthorization").mockImplementation(async () => ({
-			...revocablePermissions,
-		}));
+		mockRevocablePermissions({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: true,
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1217,6 +1232,118 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 				"Organization: My Organization",
 			),
 		);
+	},
+};
+
+export const RevokedOrgChangeClearsStoredWorkspace: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	decorators: [withRevocableQueryClient],
+	args: {
+		...defaultArgs,
+		workspaceOptions: [
+			{
+				...MockWorkspace,
+				id: "ws-default-org",
+				name: "default-workspace",
+				organization_id: MockDefaultOrganization.id,
+			},
+		],
+		workspaceCount: 1,
+	},
+	beforeEach: () => {
+		localStorage.setItem("agents.selected-workspace-id", "ws-default-org");
+		mockRevocablePermissions({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByLabelText("Remove workspace default-workspace"),
+			).toBeInTheDocument(),
+		);
+
+		// A refetch revokes the workspace's org, changing the effective
+		// org; the stored workspace must be dropped, not just masked.
+		revocablePermissions[MockDefaultOrganization.id] = false;
+		await revocableQueryClient?.invalidateQueries();
+		await waitFor(() =>
+			expect(
+				canvas.queryByLabelText("Remove workspace default-workspace"),
+			).not.toBeInTheDocument(),
+		);
+
+		// Re-permitting the org must not resurrect the workspace.
+		revocablePermissions[MockDefaultOrganization.id] = true;
+		await revocableQueryClient?.invalidateQueries();
+		await waitFor(() =>
+			expect(canvas.getByTestId("compact-org-selector")).toHaveAccessibleName(
+				"Organization: My Organization",
+			),
+		);
+		expect(
+			canvas.queryByLabelText("Remove workspace default-workspace"),
+		).not.toBeInTheDocument();
+		expect(localStorage.getItem("agents.selected-workspace-id")).toBeNull();
+	},
+};
+
+export const RevokedPendingOrgClosesConfirmDialog: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	decorators: [withRevocableQueryClient],
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem(
+			"agents.persisted-attachments",
+			JSON.stringify([
+				{
+					fileId: "file-default-org",
+					fileName: "notes.txt",
+					fileType: "text/plain",
+					lastModified: 1700000000000,
+					organizationId: MockDefaultOrganization.id,
+				},
+			]),
+		);
+		mockRevocablePermissions({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await waitFor(() =>
+			expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument(),
+		);
+		await userEvent.click(await canvas.findByTestId("compact-org-selector"));
+		await userEvent.click(
+			await screen.findByRole("option", { name: /My Organization 2/ }),
+		);
+		await body.findByText(
+			"Changing organization will remove your current attachments.",
+		);
+
+		// Revoking the pending org while its confirmation dialog is open
+		// must close the dialog before Continue can destroy attachments.
+		revocablePermissions[MockOrganization2.id] = false;
+		await revocableQueryClient?.invalidateQueries();
+		await waitFor(() =>
+			expect(
+				body.queryByText(
+					"Changing organization will remove your current attachments.",
+				),
+			).not.toBeInTheDocument(),
+		);
+		expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument();
 	},
 };
 
