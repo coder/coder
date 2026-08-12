@@ -2,11 +2,11 @@ package confine
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"io"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -23,24 +23,33 @@ var errClientHelloCaptured = xerrors.New("client hello captured")
 
 // SNIListener forwards TLS connections after applying policy to ClientHello SNI.
 type SNIListener struct {
-	listener net.Listener
-	policy   *PolicyEngine
-	event    EventCallback
-	closed   chan struct{}
-	wg       sync.WaitGroup
+	listener    net.Listener
+	policy      *PolicyEngine
+	event       EventCallback
+	destination DestinationOptions
+	closed      chan struct{}
+	wg          sync.WaitGroup
 }
 
 // ListenSNI starts an SNI passthrough listener on address.
 func ListenSNI(address string, policy *PolicyEngine, event EventCallback) (*SNIListener, error) {
+	return ListenSNIWithOptions(address, policy, event, DestinationOptions{})
+}
+
+// ListenSNIWithOptions starts an SNI passthrough listener with destination
+// validation options.
+func ListenSNIWithOptions(address string, policy *PolicyEngine, event EventCallback, options DestinationOptions) (*SNIListener, error) {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, xerrors.Errorf("listen sni proxy: %w", err)
 	}
+	options.AllowPrivateHost = normalizeHost(options.AllowPrivateHost)
 	server := &SNIListener{
-		listener: listener,
-		policy:   policy,
-		event:    event,
-		closed:   make(chan struct{}),
+		listener:    listener,
+		policy:      policy,
+		event:       event,
+		destination: options,
+		closed:      make(chan struct{}),
 	}
 	server.wg.Add(1)
 	go server.serve()
@@ -94,12 +103,22 @@ func (s *SNIListener) handle(client net.Conn) {
 		return
 	}
 	decision := s.policy.Decide(host, defaultHTTPSPort)
-	s.emit(host, decision)
 	if !decision.Allowed {
+		s.emit(host, decision)
 		return
 	}
 
-	upstream, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(defaultHTTPSPort)), 10*time.Second)
+	destination, err := s.destination.resolve(context.Background(), host, defaultHTTPSPort)
+	if errors.Is(err, errDestinationDenied) {
+		decision.Allowed = false
+		s.emit(host, decision)
+		return
+	}
+	s.emit(host, decision)
+	if err != nil {
+		return
+	}
+	upstream, err := destination.dial(context.Background(), "tcp")
 	if err != nil {
 		return
 	}

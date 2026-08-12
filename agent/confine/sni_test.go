@@ -3,6 +3,7 @@ package confine_test
 import (
 	"crypto/tls"
 	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,37 @@ func TestSNIListenerExtractsAndDenies(t *testing.T) {
 	require.Equal(t, "denied.example.com", event.Host)
 	require.Equal(t, 443, event.Port)
 	require.EqualValues(t, 15, event.PolicyRevision)
+}
+
+func TestSNIListenerRejectsRebindingToLoopback(t *testing.T) {
+	t.Parallel()
+
+	const host = "rebind-sni.test"
+	engine := confine.NewPolicyEngine("", 0)
+	engine.Update(codersdk.AIEgressPolicy{Revision: 21, Rules: []codersdk.AIEgressRule{{Host: host, Ports: []int{443}}}})
+	events := make(chan confine.NetworkEvent, 1)
+	listener, err := confine.ListenSNIWithOptions(
+		"127.0.0.1:0",
+		engine,
+		func(event confine.NetworkEvent) { events <- event },
+		confine.DestinationOptions{LookupNetIP: staticLookup(host, netip.MustParseAddr("127.0.0.1"))},
+	)
+	require.NoError(t, err)
+	defer listener.Close()
+
+	conn, err := net.Dial("tcp", listener.Addr().String())
+	require.NoError(t, err)
+	//nolint:gosec // The handshake is expected to be denied before certificate verification.
+	tlsConn := tls.Client(conn, &tls.Config{ServerName: host, InsecureSkipVerify: true})
+	require.Error(t, tlsConn.Handshake())
+	require.NoError(t, conn.Close())
+
+	event := <-events
+	require.Equal(t, agentsdk.AISandboxNetworkProtocolSNI, event.Protocol)
+	require.Equal(t, agentsdk.AISandboxNetworkEventActionDenied, event.Action)
+	require.Equal(t, host, event.Host)
+	require.Equal(t, 443, event.Port)
+	require.EqualValues(t, 21, event.PolicyRevision)
 }
 
 func TestSNIListenerDeniesMissingServerName(t *testing.T) {

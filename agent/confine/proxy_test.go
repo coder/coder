@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"sync"
@@ -37,7 +38,12 @@ func TestProxyCONNECTAllowedTLS(t *testing.T) {
 	engine := confine.NewPolicyEngine("", 0)
 	engine.Update(codersdk.AIEgressPolicy{Revision: 3, Rules: []codersdk.AIEgressRule{{Host: host, Ports: []int{port}}}})
 	events := make(chan confine.NetworkEvent, 1)
-	proxy, err := confine.ListenProxy("127.0.0.1:0", engine, func(event confine.NetworkEvent) { events <- event })
+	proxy, err := confine.ListenProxyWithOptions(
+		"127.0.0.1:0",
+		engine,
+		func(event confine.NetworkEvent) { events <- event },
+		confine.DestinationOptions{AllowPrivateHost: host},
+	)
 	require.NoError(t, err)
 	defer proxy.Close()
 
@@ -99,6 +105,40 @@ func TestProxyCONNECTDenied(t *testing.T) {
 	require.EqualValues(t, 0, event.PolicyRevision)
 }
 
+func TestProxyCONNECTRejectsRebindingToLoopback(t *testing.T) {
+	t.Parallel()
+
+	const host = "rebind-connect.test"
+	engine := confine.NewPolicyEngine("", 0)
+	engine.Update(codersdk.AIEgressPolicy{Revision: 18, Rules: []codersdk.AIEgressRule{{Host: host, Ports: []int{443}}}})
+	events := make(chan confine.NetworkEvent, 1)
+	proxy, err := confine.ListenProxyWithOptions(
+		"127.0.0.1:0",
+		engine,
+		func(event confine.NetworkEvent) { events <- event },
+		confine.DestinationOptions{LookupNetIP: staticLookup(host, netip.MustParseAddr("127.0.0.1"))},
+	)
+	require.NoError(t, err)
+	defer proxy.Close()
+
+	conn, err := net.Dial("tcp", proxy.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+	_, err = fmt.Fprintf(conn, "CONNECT %s:443 HTTP/1.1\r\nHost: %s:443\r\n\r\n", host, host)
+	require.NoError(t, err)
+	res, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodConnect})
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	require.Equal(t, http.StatusForbidden, res.StatusCode)
+
+	event := <-events
+	require.Equal(t, agentsdk.AISandboxNetworkProtocolConnect, event.Protocol)
+	require.Equal(t, agentsdk.AISandboxNetworkEventActionDenied, event.Action)
+	require.Equal(t, host, event.Host)
+	require.Equal(t, 443, event.Port)
+	require.EqualValues(t, 18, event.PolicyRevision)
+}
+
 func TestProxyHTTPOriginFormAllowed(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +155,12 @@ func TestProxyHTTPOriginFormAllowed(t *testing.T) {
 	engine := confine.NewPolicyEngine("", 0)
 	engine.Update(codersdk.AIEgressPolicy{Revision: 11, Rules: []codersdk.AIEgressRule{{Host: "localhost", Ports: []int{port}}}})
 	events := make(chan confine.NetworkEvent, 1)
-	proxy, err := confine.ListenProxy("127.0.0.1:0", engine, func(event confine.NetworkEvent) { events <- event })
+	proxy, err := confine.ListenProxyWithOptions(
+		"127.0.0.1:0",
+		engine,
+		func(event confine.NetworkEvent) { events <- event },
+		confine.DestinationOptions{AllowPrivateHost: "localhost"},
+	)
 	require.NoError(t, err)
 	defer proxy.Close()
 
@@ -171,6 +216,88 @@ func TestProxyHTTPOriginFormDenied(t *testing.T) {
 	require.EqualValues(t, 12, event.PolicyRevision)
 }
 
+func TestProxyHTTPRejectsRebindingToLoopback(t *testing.T) {
+	t.Parallel()
+
+	const host = "rebind-http.test"
+	engine := confine.NewPolicyEngine("", 0)
+	engine.Update(codersdk.AIEgressPolicy{Revision: 19, Rules: []codersdk.AIEgressRule{{Host: host, Ports: []int{80}}}})
+	events := make(chan confine.NetworkEvent, 1)
+	proxy, err := confine.ListenProxyWithOptions(
+		"127.0.0.1:0",
+		engine,
+		func(event confine.NetworkEvent) { events <- event },
+		confine.DestinationOptions{LookupNetIP: staticLookup(host, netip.MustParseAddr("127.0.0.1"))},
+	)
+	require.NoError(t, err)
+	defer proxy.Close()
+
+	conn, err := net.Dial("tcp", proxy.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+	_, err = fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host)
+	require.NoError(t, err)
+	res, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodGet})
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	require.Equal(t, http.StatusForbidden, res.StatusCode)
+
+	event := <-events
+	require.Equal(t, agentsdk.AISandboxNetworkProtocolHTTP, event.Protocol)
+	require.Equal(t, agentsdk.AISandboxNetworkEventActionDenied, event.Action)
+	require.Equal(t, host, event.Host)
+	require.Equal(t, 80, event.Port)
+	require.EqualValues(t, 19, event.PolicyRevision)
+}
+
+func TestProxyHTTPAllowsPrivateHostOptOut(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(rw, "private forwarded")
+	}))
+	defer upstream.Close()
+	upstreamURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+	_, port := splitHostPort(t, upstreamURL.Host)
+
+	const host = "private-coderd.test"
+	engine := confine.NewPolicyEngine("", 0)
+	engine.Update(codersdk.AIEgressPolicy{Revision: 20, Rules: []codersdk.AIEgressRule{{Host: host, Ports: []int{port}}}})
+	events := make(chan confine.NetworkEvent, 1)
+	proxy, err := confine.ListenProxyWithOptions(
+		"127.0.0.1:0",
+		engine,
+		func(event confine.NetworkEvent) { events <- event },
+		confine.DestinationOptions{
+			LookupNetIP:      staticLookup(host, netip.MustParseAddr("127.0.0.1")),
+			AllowPrivateHost: host,
+		},
+	)
+	require.NoError(t, err)
+	defer proxy.Close()
+
+	conn, err := net.Dial("tcp", proxy.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+	_, err = fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: %s:%d\r\nConnection: close\r\n\r\n", host, port)
+	require.NoError(t, err)
+	res, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodGet})
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "private forwarded", string(body))
+
+	event := <-events
+	require.Equal(t, agentsdk.AISandboxNetworkProtocolHTTP, event.Protocol)
+	require.Equal(t, agentsdk.AISandboxNetworkEventActionAllowed, event.Action)
+	require.Equal(t, host, event.Host)
+	require.Equal(t, port, event.Port)
+	require.EqualValues(t, 20, event.PolicyRevision)
+}
+
 func TestProxyHTTPOriginFormRejectsInvalidHost(t *testing.T) {
 	t.Parallel()
 
@@ -212,7 +339,12 @@ func TestProxyHTTPForward(t *testing.T) {
 	engine := confine.NewPolicyEngine("", 0)
 	engine.Update(codersdk.AIEgressPolicy{Revision: 9, Rules: []codersdk.AIEgressRule{{Host: host, Ports: []int{port}}}})
 	events := make(chan confine.NetworkEvent, 1)
-	proxy, err := confine.ListenProxy("127.0.0.1:0", engine, func(event confine.NetworkEvent) { events <- event })
+	proxy, err := confine.ListenProxyWithOptions(
+		"127.0.0.1:0",
+		engine,
+		func(event confine.NetworkEvent) { events <- event },
+		confine.DestinationOptions{AllowPrivateHost: host},
+	)
 	require.NoError(t, err)
 	defer proxy.Close()
 	proxyURL, err := url.Parse("http://" + proxy.Addr().String())
@@ -253,7 +385,12 @@ func TestProxyPolicyAtomicUpdate(t *testing.T) {
 	allow := codersdk.AIEgressPolicy{Revision: 1, Rules: []codersdk.AIEgressRule{{Host: host, Ports: []int{port}}}}
 	deny := codersdk.AIEgressPolicy{Revision: 2}
 	engine.Update(allow)
-	proxy, err := confine.ListenProxy("127.0.0.1:0", engine, nil)
+	proxy, err := confine.ListenProxyWithOptions(
+		"127.0.0.1:0",
+		engine,
+		nil,
+		confine.DestinationOptions{AllowPrivateHost: host},
+	)
 	require.NoError(t, err)
 	defer proxy.Close()
 	proxyURL, err := url.Parse("http://" + proxy.Addr().String())
@@ -306,6 +443,18 @@ func TestProxyPolicyAtomicUpdate(t *testing.T) {
 	close(errs)
 	for err := range errs {
 		require.NoError(t, err)
+	}
+}
+
+func staticLookup(expectedHost string, addresses ...netip.Addr) func(context.Context, string, string) ([]netip.Addr, error) {
+	return func(_ context.Context, network, host string) ([]netip.Addr, error) {
+		if network != "ip" {
+			return nil, xerrors.Errorf("unexpected lookup network %q", network)
+		}
+		if host != expectedHost {
+			return nil, xerrors.Errorf("unexpected lookup host %q", host)
+		}
+		return append([]netip.Addr(nil), addresses...), nil
 	}
 }
 
