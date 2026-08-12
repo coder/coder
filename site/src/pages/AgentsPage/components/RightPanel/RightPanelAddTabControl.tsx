@@ -19,7 +19,10 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
+import {
+	AGENT_BROWSER_APP_SLUG,
+	isWorkspaceAppEmbeddable,
+} from "#/modules/apps/apps";
 import { AppLink } from "#/modules/resources/AppLink/AppLink";
 import {
 	canShowPortForwarding,
@@ -78,7 +81,11 @@ export const RightPanelAddTabControl: FC<{
 	onOpenPort,
 }) => {
 	const [open, setOpen] = useState(false);
-	const userApps = agent?.apps.filter((app) => !app.hidden) ?? [];
+	// agent-browser already has the built-in Browser tab.
+	const userApps =
+		agent?.apps.filter(
+			(app) => !app.hidden && app.slug !== AGENT_BROWSER_APP_SLUG,
+		) ?? [];
 	const canCreateTerminal =
 		workspace !== undefined && agent !== undefined && isRunning;
 

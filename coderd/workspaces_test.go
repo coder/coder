@@ -2872,10 +2872,18 @@ func TestWorkspaceFilterManual(t *testing.T) {
 	t.Run("IncludeAgentMetadata", func(t *testing.T) {
 		t.Parallel()
 
-		client, db := coderdtest.NewWithDatabase(t, nil)
+		// A named non-UTC zone on purpose: jsonb renders timestamptz
+		// in the session TimeZone, and the year-1 collected_at
+		// default renders named zones with LMT second-offsets that Go
+		// refuses to parse unless the query pins UTC.
+		store, ps := dbtestutil.NewDB(t, dbtestutil.WithTimezone("America/Caracas"))
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: store,
+			Pubsub:   ps,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
 
-		build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		build := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
@@ -2887,9 +2895,10 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		collectedAt := dbtime.Now()
 		// Task_Status is mixed-case on purpose: requested keys are
 		// lowercased by the search parser, and the query matches stored
-		// keys case-insensitively.
-		for i, key := range []string{"Task_Status", "cpu", "unrequested"} {
-			err := db.InsertWorkspaceAgentMetadata(ctx, database.InsertWorkspaceAgentMetadataParams{
+		// keys case-insensitively. uncollected is registered but never
+		// reported, so it keeps the year-1 collected_at default.
+		for i, key := range []string{"Task_Status", "cpu", "unrequested", "uncollected"} {
+			err := store.InsertWorkspaceAgentMetadata(ctx, database.InsertWorkspaceAgentMetadataParams{
 				WorkspaceAgentID: agentID,
 				DisplayName:      key,
 				Key:              key,
@@ -2898,10 +2907,13 @@ func TestWorkspaceFilterManual(t *testing.T) {
 				Interval:         int64(time.Second),
 				// Reversed so the response order proves display_order
 				// sorting rather than insertion order.
-				DisplayOrder: int32(3 - i), //nolint:gosec // Tiny test constant.
+				DisplayOrder: int32(4 - i), //nolint:gosec // Tiny test constant.
 			})
 			require.NoError(t, err)
-			err = db.UpdateWorkspaceAgentMetadata(ctx, database.UpdateWorkspaceAgentMetadataParams{
+			if key == "uncollected" {
+				continue
+			}
+			err = store.UpdateWorkspaceAgentMetadata(ctx, database.UpdateWorkspaceAgentMetadataParams{
 				WorkspaceAgentID: agentID,
 				Key:              []string{key},
 				Value:            []string{"value-" + key},
@@ -2927,21 +2939,26 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.Empty(t, findAgent(res).Metadata)
 
 		// Opting in returns exactly the requested keys, ordered by
-		// display_order, with their collected values.
+		// display_order, with their collected values. The uncollected
+		// item must round-trip as Go's zero time rather than breaking
+		// the page.
 		res, err = client.Workspaces(reqCtx, codersdk.WorkspaceFilter{
-			IncludeAgentMetadata: []string{"task_status", "cpu"},
+			IncludeAgentMetadata: []string{"task_status", "cpu", "uncollected"},
 		})
 		require.NoError(t, err)
 		metadata := findAgent(res).Metadata
-		require.Len(t, metadata, 2)
-		require.Equal(t, "cpu", metadata[0].Description.Key)
-		require.Equal(t, "value-cpu", metadata[0].Result.Value)
+		require.Len(t, metadata, 3)
+		require.Equal(t, "uncollected", metadata[0].Description.Key)
+		require.Empty(t, metadata[0].Result.Value)
+		require.True(t, metadata[0].Result.CollectedAt.IsZero())
+		require.Equal(t, "cpu", metadata[1].Description.Key)
+		require.Equal(t, "value-cpu", metadata[1].Result.Value)
 		// The collection script is deliberately not exposed on the list
 		// endpoint; it can be long.
-		require.Empty(t, metadata[0].Description.Script)
-		require.Equal(t, "Task_Status", metadata[1].Description.Key)
-		require.Equal(t, "value-Task_Status", metadata[1].Result.Value)
-		require.WithinDuration(t, collectedAt, metadata[1].Result.CollectedAt, time.Second)
+		require.Empty(t, metadata[1].Description.Script)
+		require.Equal(t, "Task_Status", metadata[2].Description.Key)
+		require.Equal(t, "value-Task_Status", metadata[2].Result.Value)
+		require.WithinDuration(t, collectedAt, metadata[2].Result.CollectedAt, time.Second)
 
 		// Unknown keys are not an error; the metadata is just absent.
 		res, err = client.Workspaces(reqCtx, codersdk.WorkspaceFilter{

@@ -1,10 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
@@ -13,21 +14,11 @@ import (
 	"github.com/coder/serpent"
 )
 
-// route is an individual page object in the docs manifest.json.
-type route struct {
-	Title       string   `json:"title,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Path        string   `json:"path,omitempty"`
-	IconPath    string   `json:"icon_path,omitempty"`
-	State       []string `json:"state,omitempty"`
-	Children    []route  `json:"children,omitempty"`
-}
-
-// manifest describes the entire documentation index.
-type manifest struct {
-	Versions []string `json:"versions,omitempty"`
-	Routes   []route  `json:"routes,omitempty"`
-}
+// cliIndexRoute holds the "Command Line" manifest route's metadata so the
+// generated index page can mirror it through the shared docgenenv.FrontMatter
+// emitter (see the frontMatter template func in gen.go). main populates it
+// before genTree runs.
+var cliIndexRoute docgenenv.Route
 
 func deleteEmptyDirs(dir string) error {
 	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -74,6 +65,23 @@ func main() {
 		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
 	}
 
+	// Load the manifest up front so the generated index page can mirror the
+	// "Command Line" route's curated metadata (title/description/icon_path)
+	// instead of the root command name.
+	manifestPath := filepath.Join(docsDir, "manifest.json")
+	man, err := docgenenv.LoadManifest(manifestPath)
+	if err != nil {
+		flog.Fatalf("%v", err)
+	}
+	cmdLine := man.FindRoute("Reference", "Command Line")
+	if cmdLine == nil {
+		flog.Fatalf("could not find Command Line route in manifest %q", manifestPath)
+	}
+	// Mirror the whole "Command Line" route (minus its nav children) so the
+	// index page front matter carries every current and future per-page field
+	// automatically, the same way the API index mirrors its manifest route.
+	cliIndexRoute = cliIndexRouteFrom(*cmdLine)
+
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	if err != nil {
 		flog.Fatalf("creating command: %v", err)
@@ -113,57 +121,25 @@ func main() {
 		flog.Fatalf("deleting empty dirs: %v", err)
 	}
 
-	// Update manifest
-	manifestPath := filepath.Join(docsDir, "manifest.json")
-
-	manifestByt, err := os.ReadFile(manifestPath)
-	if err != nil {
-		flog.Fatalf("reading manifest: %v", err)
-	}
-
-	var manifest manifest
-	err = json.Unmarshal(manifestByt, &manifest)
-	if err != nil {
-		flog.Fatalf("unmarshalling manifest: %v", err)
-	}
-
-	var found bool
-	for i := range manifest.Routes {
-		rt := &manifest.Routes[i]
-		if rt.Title != "Reference" {
-			continue
+	// Rebuild the "Command Line" route's children from the generated pages.
+	// cmdLine aliases the manifest loaded above, so mutating it updates the
+	// manifest in place.
+	cmdLine.Children = nil
+	for path, cmd := range wroteMap {
+		relPath, err := filepath.Rel(docsDir, path)
+		if err != nil {
+			flog.Fatalf("getting relative path: %v", err)
 		}
-		for j := range rt.Children {
-			child := &rt.Children[j]
-			if child.Title != "Command Line" {
-				continue
-			}
-			child.Children = nil
-			found = true
-			for path, cmd := range wroteMap {
-				relPath, err := filepath.Rel(docsDir, path)
-				if err != nil {
-					flog.Fatalf("getting relative path: %v", err)
-				}
-				child.Children = append(child.Children, route{
-					Title:       fullName(cmd),
-					Description: cmd.Short,
-					Path:        relPath,
-				})
-			}
-			// Sort children by title because wroteMap iteration is
-			// non-deterministic.
-			sort.Slice(child.Children, func(i, j int) bool {
-				return child.Children[i].Title < child.Children[j].Title
-			})
-		}
+		child := cliCommandRoute(cmd)
+		child.Path = relPath
+		cmdLine.Children = append(cmdLine.Children, child)
 	}
+	// Sort children by title because wroteMap iteration is non-deterministic.
+	slices.SortFunc(cmdLine.Children, func(a, b docgenenv.Route) int {
+		return cmp.Compare(a.Title, b.Title)
+	})
 
-	if !found {
-		flog.Fatalf("could not find Command Line route in manifest")
-	}
-
-	manifestByt, err = json.MarshalIndent(manifest, "", "  ")
+	manifestByt, err := json.MarshalIndent(man, "", "  ")
 	if err != nil {
 		flog.Fatalf("marshaling manifest: %v", err)
 	}
