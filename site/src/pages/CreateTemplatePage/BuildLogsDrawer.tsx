@@ -67,7 +67,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 			>
 				<div className="flex h-full flex-col">
 					<header
-						className="flex items-center justify-between border-b border-border px-6 bg-surface-tertiary"
+						className="flex items-center justify-between border-b border-border px-6 bg-surface-secondary"
 						style={{ height: navHeight }}
 					>
 						<DrawerTitle className="m-0 text-base font-medium">
