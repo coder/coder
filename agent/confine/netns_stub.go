@@ -2,23 +2,7 @@
 
 package confine
 
-import (
-	"context"
-
-	"golang.org/x/xerrors"
-)
-
-// NetworkNamespaceOptions controls creation of a confined network namespace.
-type NetworkNamespaceOptions struct {
-	Pool string
-}
-
-// NetworkNamespacePorts identifies the host-side egress listeners.
-type NetworkNamespacePorts struct {
-	HTTP uint16
-	SNI  uint16
-	DNS  uint16
-}
+import "context"
 
 // NetworkNamespace is unavailable on non-Linux systems.
 type NetworkNamespace struct {
@@ -27,9 +11,14 @@ type NetworkNamespace struct {
 
 type networkNamespace = NetworkNamespace
 
+// PreflightNetworkNamespace reports that network namespaces require Linux.
+func PreflightNetworkNamespace(context.Context) error {
+	return unsupportedNetworkNamespace("network namespace confinement requires Linux", nil)
+}
+
 // OpenNetworkNamespace reports that network namespaces require Linux.
-func OpenNetworkNamespace(context.Context, NetworkNamespaceOptions) (*NetworkNamespace, error) {
-	return nil, xerrors.New("network namespace confinement requires Linux")
+func OpenNetworkNamespace(ctx context.Context, _ NetworkNamespaceOptions) (*NetworkNamespace, error) {
+	return nil, PreflightNetworkNamespace(ctx)
 }
 
 func newNetworkNamespace(ctx context.Context) (*networkNamespace, error) {
@@ -42,17 +31,21 @@ func (*NetworkNamespace) HostIP() string {
 }
 
 // ConfigureEgress reports that network namespaces require Linux.
-func (*NetworkNamespace) ConfigureEgress(context.Context, NetworkNamespacePorts) error {
-	return xerrors.New("network namespace confinement requires Linux")
+func (*NetworkNamespace) ConfigureEgress(ctx context.Context, _ NetworkNamespacePorts) error {
+	return PreflightNetworkNamespace(ctx)
 }
 
-// CommandArgs returns args unchanged on unsupported systems.
-func (*NetworkNamespace) CommandArgs(args []string) []string {
-	return args
+// CommandArgs reports that network namespaces require Linux.
+func (*NetworkNamespace) CommandArgs([]string) ([]string, error) {
+	return nil, unsupportedNetworkNamespace("network namespace confinement requires Linux", nil)
 }
 
 func (n *NetworkNamespace) execArgs(args []string) []string {
-	return n.CommandArgs(args)
+	result, err := n.CommandArgs(args)
+	if err != nil {
+		return []string{"false"}
+	}
+	return result
 }
 
 // Close is a no-op on unsupported systems.

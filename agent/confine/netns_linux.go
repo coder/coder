@@ -7,11 +7,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,52 +23,145 @@ import (
 
 var hostSubnetAllocator = newSubnetAllocator(listHostNetworkPrefixes)
 
-// NetworkNamespaceOptions controls creation of a confined network namespace.
-type NetworkNamespaceOptions struct {
-	// Pool is an IPv4 prefix divided into /30 networks. An empty value uses
-	// DefaultNetNSPool.
-	Pool string
-}
-
-// NetworkNamespacePorts identifies the host-side egress listeners.
-type NetworkNamespacePorts struct {
-	HTTP uint16
-	SNI  uint16
-	DNS  uint16
-}
-
 // NetworkNamespace is a named network namespace connected to the host by a
 // dedicated veth pair.
 type NetworkNamespace struct {
 	mu sync.Mutex
 
-	name         string
-	hostVeth     string
-	peerVeth     string
-	hostIP       string
-	peerIP       string
-	prefix       netip.Prefix
-	ipPath       string
-	iptablesPath string
-	closed       bool
-	configured   bool
+	name          string
+	hostVeth      string
+	peerVeth      string
+	hostIP        string
+	peerIP        string
+	prefix        netip.Prefix
+	ipPath        string
+	iptablesPath  string
+	ip6tablesPath string
+	ipv6Enabled   bool
+	hostRules     []installedFirewallRule
+	closed        bool
+	configured    bool
 }
 
 type networkNamespace = NetworkNamespace
+
+type networkNamespaceTools struct {
+	ipPath        string
+	iptablesPath  string
+	ip6tablesPath string
+	ipv6Enabled   bool
+}
+
+type installedFirewallRule struct {
+	commandPath string
+	deleteArgs  []string
+}
+
+// PreflightNetworkNamespace verifies that this host can enforce network
+// namespace confinement.
+func PreflightNetworkNamespace(ctx context.Context) error {
+	_, err := checkNetworkNamespaceSupport(ctx)
+	return err
+}
+
+func checkNetworkNamespaceSupport(ctx context.Context) (networkNamespaceTools, error) {
+	var tools networkNamespaceTools
+	var err error
+	tools.ipPath, err = exec.LookPath("ip")
+	if err != nil {
+		return tools, unsupportedNetworkNamespace("ip binary not found", err)
+	}
+	tools.iptablesPath, err = exec.LookPath("iptables")
+	if err != nil {
+		return tools, unsupportedNetworkNamespace("iptables binary not found", err)
+	}
+	tools.ip6tablesPath, err = exec.LookPath("ip6tables")
+	if err != nil {
+		return tools, unsupportedNetworkNamespace("ip6tables binary not found", err)
+	}
+
+	if err := probeFirewall(ctx, tools.iptablesPath, []string{"-p", "tcp", "-m", "multiport", "--dports", "80,443", "-m", "conntrack", "--ctstate", "NEW,ESTABLISHED", "-j", "ACCEPT"}); err != nil {
+		return tools, unsupportedNetworkNamespace("cannot modify host IPv4 firewall", err)
+	}
+	tools.ipv6Enabled, err = hostIPv6Enabled()
+	if err != nil {
+		return tools, unsupportedNetworkNamespace("cannot inspect host IPv6 state", err)
+	}
+	if tools.ipv6Enabled {
+		if err := probeFirewall(ctx, tools.ip6tablesPath, []string{"-j", "DROP"}); err != nil {
+			return tools, unsupportedNetworkNamespace("cannot modify host IPv6 firewall", err)
+		}
+	}
+
+	suffix, err := randomHex(4)
+	if err != nil {
+		return tools, unsupportedNetworkNamespace("cannot generate preflight namespace name", err)
+	}
+	name := "coder-confine-check-" + suffix
+	if err := runIP(ctx, tools.ipPath, "netns", "add", name); err != nil {
+		return tools, unsupportedNetworkNamespace("cannot create a network namespace", err)
+	}
+	cleanup := true
+	defer func() {
+		if cleanup {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), reportTimeout)
+			defer cancel()
+			_ = runIP(cleanupCtx, tools.ipPath, "netns", "del", name)
+		}
+	}()
+	if err := runIP(ctx, tools.ipPath, "netns", "del", name); err != nil {
+		return tools, unsupportedNetworkNamespace("cannot delete a network namespace", err)
+	}
+	cleanup = false
+	return tools, nil
+}
+
+func probeFirewall(ctx context.Context, commandPath string, ruleSpec []string) (retErr error) {
+	suffix, err := randomHex(4)
+	if err != nil {
+		return err
+	}
+	chain := "CODERCF" + suffix
+	if _, err := runCommandOutput(ctx, commandPath, "-w", "-N", chain); err != nil {
+		return err
+	}
+	defer func() {
+		if retErr != nil {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), reportTimeout)
+			defer cancel()
+			_, _ = runCommandOutput(cleanupCtx, commandPath, "-w", "-F", chain)
+			_, _ = runCommandOutput(cleanupCtx, commandPath, "-w", "-X", chain)
+		}
+	}()
+
+	rule := append([]string{"-w", "-A", chain}, ruleSpec...)
+	if _, err := runCommandOutput(ctx, commandPath, rule...); err != nil {
+		return err
+	}
+	if _, err := runCommandOutput(ctx, commandPath, "-w", "-F", chain); err != nil {
+		return err
+	}
+	if _, err := runCommandOutput(ctx, commandPath, "-w", "-X", chain); err != nil {
+		return err
+	}
+	return nil
+}
+
+func hostIPv6Enabled() (bool, error) {
+	contents, err := os.ReadFile("/proc/net/if_inet6")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return len(strings.TrimSpace(string(contents))) > 0, nil
+}
 
 // OpenNetworkNamespace creates an isolated network namespace. Call
 // ConfigureEgress after binding the host-side listeners and before starting a
 // process in the namespace.
 func OpenNetworkNamespace(ctx context.Context, options NetworkNamespaceOptions) (_ *NetworkNamespace, retErr error) {
-	ipPath, err := exec.LookPath("ip")
-	if err != nil {
-		return nil, xerrors.Errorf("find ip binary: %w", err)
-	}
-	iptablesPath, err := exec.LookPath("iptables")
-	if err != nil {
-		return nil, xerrors.Errorf("find iptables binary: %w", err)
-	}
-
 	poolValue := options.Pool
 	if poolValue == "" {
 		poolValue = DefaultNetNSPool
@@ -74,6 +169,10 @@ func OpenNetworkNamespace(ctx context.Context, options NetworkNamespaceOptions) 
 	pool, err := netip.ParsePrefix(poolValue)
 	if err != nil {
 		return nil, xerrors.Errorf("parse netns subnet pool %q: %w", poolValue, err)
+	}
+	tools, err := checkNetworkNamespaceSupport(ctx)
+	if err != nil {
+		return nil, err
 	}
 	lease, err := hostSubnetAllocator.Allocate(ctx, pool)
 	if err != nil {
@@ -86,14 +185,16 @@ func OpenNetworkNamespace(ctx context.Context, options NetworkNamespaceOptions) 
 		return nil, err
 	}
 	netns := &NetworkNamespace{
-		name:         "coder-confine-" + suffix,
-		hostVeth:     "cc-h-" + suffix,
-		peerVeth:     "cc-n-" + suffix,
-		hostIP:       lease.Host.String(),
-		peerIP:       lease.Peer.String(),
-		prefix:       lease.Prefix,
-		ipPath:       ipPath,
-		iptablesPath: iptablesPath,
+		name:          "coder-confine-" + suffix,
+		hostVeth:      "cc-h-" + suffix,
+		peerVeth:      "cc-n-" + suffix,
+		hostIP:        lease.Host.String(),
+		peerIP:        lease.Peer.String(),
+		prefix:        lease.Prefix,
+		ipPath:        tools.ipPath,
+		iptablesPath:  tools.iptablesPath,
+		ip6tablesPath: tools.ip6tablesPath,
+		ipv6Enabled:   tools.ipv6Enabled,
 	}
 	defer func() {
 		if retErr != nil {
@@ -114,7 +215,7 @@ func OpenNetworkNamespace(ctx context.Context, options NetworkNamespaceOptions) 
 		{"-n", netns.name, "route", "add", "default", "via", netns.hostIP, "dev", netns.peerVeth},
 	}
 	for _, args := range commands {
-		if err := runIP(ctx, ipPath, args...); err != nil {
+		if err := runIP(ctx, tools.ipPath, args...); err != nil {
 			return nil, err
 		}
 	}
@@ -143,12 +244,14 @@ func (n *NetworkNamespace) HostIP() string {
 	return n.hostIP
 }
 
-// ConfigureEgress installs the child-side redirection and filter rules.
+// ConfigureEgress installs child-side redirection rules and host-side
+// enforcement rules. Failure closes the namespace and removes partial state.
 func (n *NetworkNamespace) ConfigureEgress(ctx context.Context, ports NetworkNamespacePorts) (retErr error) {
 	if n == nil {
 		return xerrors.New("configure nil network namespace")
 	}
 	if err := ports.validate(); err != nil {
+		_ = n.Close()
 		return err
 	}
 
@@ -162,18 +265,50 @@ func (n *NetworkNamespace) ConfigureEgress(ctx context.Context, ports NetworkNam
 	}
 	defer func() {
 		if retErr != nil {
-			n.mu.Unlock()
-			_ = n.Close()
-			n.mu.Lock()
+			_ = n.closeLocked()
 		}
 	}()
 
+	for _, args := range hostIPv4Rules(n.hostVeth, n.hostIP, n.peerIP, ports) {
+		if err := n.insertHostRule(ctx, n.iptablesPath, args); err != nil {
+			return err
+		}
+	}
+	if n.ipv6Enabled {
+		for _, args := range hostIPv6Rules(n.hostVeth) {
+			if err := n.insertHostRule(ctx, n.ip6tablesPath, args); err != nil {
+				return err
+			}
+		}
+	}
 	for _, args := range childIPv4Rules(n.hostIP, ports) {
 		if err := runInNetworkNamespace(ctx, n.ipPath, n.name, n.iptablesPath, args...); err != nil {
 			return err
 		}
 	}
+	if n.ipv6Enabled {
+		for _, args := range childIPv6Rules() {
+			if err := runInNetworkNamespace(ctx, n.ipPath, n.name, n.ip6tablesPath, args...); err != nil {
+				return err
+			}
+		}
+	}
 	n.configured = true
+	return nil
+}
+
+func (n *NetworkNamespace) insertHostRule(ctx context.Context, commandPath string, args []string) error {
+	deleteArgs, err := deleteArgsForInsertedRule(args)
+	if err != nil {
+		return err
+	}
+	if _, err := runCommandOutput(ctx, commandPath, args...); err != nil {
+		return err
+	}
+	n.hostRules = append(n.hostRules, installedFirewallRule{
+		commandPath: commandPath,
+		deleteArgs:  deleteArgs,
+	})
 	return nil
 }
 
@@ -215,18 +350,74 @@ func childIPv4Rules(hostIP string, ports NetworkNamespacePorts) [][]string {
 	}
 }
 
-// CommandArgs returns argv that executes a command inside the namespace.
-func (n *NetworkNamespace) CommandArgs(args []string) []string {
+func childIPv6Rules() [][]string {
+	return [][]string{
+		{"-w", "-P", "INPUT", "DROP"},
+		{"-w", "-P", "OUTPUT", "DROP"},
+		{"-w", "-P", "FORWARD", "DROP"},
+	}
+}
+
+func hostIPv4Rules(hostVeth, hostIP, peerIP string, ports NetworkNamespacePorts) [][]string {
+	httpPort := strconv.FormatUint(uint64(ports.HTTP), 10)
+	sniPort := strconv.FormatUint(uint64(ports.SNI), 10)
+	dnsPort := strconv.FormatUint(uint64(ports.DNS), 10)
+	tcpListenerPorts := strings.Join([]string{httpPort, sniPort, dnsPort}, ",")
+
+	return [][]string{
+		{"-w", "-I", "INPUT", "1", "-i", hostVeth, "-j", "DROP"},
+		{"-w", "-I", "INPUT", "1", "-i", hostVeth, "-s", peerIP, "-d", hostIP, "-p", "udp", "--dport", dnsPort, "-m", "conntrack", "--ctstate", "NEW,ESTABLISHED", "-j", "ACCEPT"},
+		{"-w", "-I", "INPUT", "1", "-i", hostVeth, "-s", peerIP, "-d", hostIP, "-p", "tcp", "-m", "multiport", "--dports", tcpListenerPorts, "-m", "conntrack", "--ctstate", "NEW,ESTABLISHED", "-j", "ACCEPT"},
+		{"-w", "-I", "FORWARD", "1", "-i", hostVeth, "-j", "DROP"},
+		{"-w", "-I", "FORWARD", "1", "-o", hostVeth, "-j", "DROP"},
+	}
+}
+
+func hostIPv6Rules(hostVeth string) [][]string {
+	return [][]string{
+		{"-w", "-I", "INPUT", "1", "-i", hostVeth, "-j", "DROP"},
+		{"-w", "-I", "OUTPUT", "1", "-o", hostVeth, "-j", "DROP"},
+		{"-w", "-I", "FORWARD", "1", "-i", hostVeth, "-j", "DROP"},
+		{"-w", "-I", "FORWARD", "2", "-o", hostVeth, "-j", "DROP"},
+	}
+}
+
+func deleteArgsForInsertedRule(insertArgs []string) ([]string, error) {
+	if len(insertArgs) < 5 || insertArgs[0] != "-w" || insertArgs[1] != "-I" {
+		return nil, xerrors.Errorf("invalid inserted firewall rule: %v", insertArgs)
+	}
+	deleteArgs := []string{"-w", "-D", insertArgs[2]}
+	return append(deleteArgs, insertArgs[4:]...), nil
+}
+
+// CommandArgs returns argv that executes a command inside a fully configured
+// namespace.
+func (n *NetworkNamespace) CommandArgs(args []string) ([]string, error) {
+	if n == nil {
+		return nil, xerrors.New("execute in nil network namespace")
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.closed {
+		return nil, xerrors.New("execute in closed network namespace")
+	}
+	if !n.configured {
+		return nil, xerrors.New("execute in network namespace before egress is configured")
+	}
 	result := []string{n.ipPath, "netns", "exec", n.name}
-	return append(result, args...)
+	return append(result, args...), nil
 }
 
 func (n *NetworkNamespace) execArgs(args []string) []string {
-	return n.CommandArgs(args)
+	result, err := n.CommandArgs(args)
+	if err != nil {
+		return []string{n.ipPath, "netns", "exec", "__coder_confine_unconfigured__"}
+	}
+	return result
 }
 
-// Close removes the namespace, veth pair, resolver configuration, and subnet
-// lease. It is safe to call more than once.
+// Close removes host firewall rules, the namespace, veth pair, resolver
+// configuration, and subnet lease. It is safe to call more than once.
 func (n *NetworkNamespace) Close() error {
 	if n == nil {
 		return nil
@@ -234,23 +425,43 @@ func (n *NetworkNamespace) Close() error {
 
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.closed {
-		return nil
-	}
+	return n.closeLocked()
+}
+
+func (n *NetworkNamespace) closeLocked() error {
 	n.closed = true
 
 	ctx, cancel := context.WithTimeout(context.Background(), reportTimeout)
 	defer cancel()
+	var cleanupErrors []error
+	remainingRules := make([]installedFirewallRule, 0, len(n.hostRules))
+	for index := len(n.hostRules) - 1; index >= 0; index-- {
+		rule := n.hostRules[index]
+		if _, err := runCommandOutput(ctx, rule.commandPath, rule.deleteArgs...); err != nil && !isMissingFirewallRuleError(err) {
+			remainingRules = append(remainingRules, rule)
+			cleanupErrors = append(cleanupErrors, err)
+		}
+	}
+	slices.Reverse(remainingRules)
+	n.hostRules = remainingRules
 	if n.ipPath != "" {
 		_ = runIP(ctx, n.ipPath, "netns", "del", n.name)
 		_ = runIP(ctx, n.ipPath, "link", "del", n.hostVeth)
 	}
-	resolverErr := os.RemoveAll(filepath.Join("/etc/netns", n.name))
+	if err := os.RemoveAll(filepath.Join("/etc/netns", n.name)); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
+	}
 	if n.prefix.IsValid() {
 		hostSubnetAllocator.Release(n.prefix)
 		n.prefix = netip.Prefix{}
 	}
-	return resolverErr
+	return errors.Join(cleanupErrors...)
+}
+
+func isMissingFirewallRuleError(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "bad rule") ||
+		strings.Contains(message, "does a matching rule exist")
 }
 
 func listHostNetworkPrefixes(ctx context.Context) ([]netip.Prefix, error) {
