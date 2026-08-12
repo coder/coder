@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Outlet } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -8,6 +9,7 @@ import { API } from "#/api/api";
 import { templateByNameKey } from "#/api/queries/templates";
 import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
 import type { Workspace } from "#/api/typesGenerated";
+import { Toaster } from "#/components/Toaster/Toaster";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockPrebuiltWorkspace,
@@ -121,6 +123,62 @@ export const ApplyLaterKeepsUserOnSchedulePage: Story = {
 		);
 		expect(restartSpy).not.toHaveBeenCalled();
 		await canvas.findByLabelText("Enable Autostop");
+	},
+};
+
+export const RestartFailureShowsErrorToast: Story = {
+	parameters: {
+		// Confirming the restart navigates to the workspace page, so this
+		// story needs that route plus a layout-level Toaster that stays
+		// mounted across the navigation, like the production app root.
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/@${autostopDisabledWorkspace.owner_name}/${autostopDisabledWorkspace.name}/settings/schedule`,
+			},
+			routing: [
+				{
+					element: (
+						<>
+							<Outlet />
+							<Toaster />
+						</>
+					),
+					children: [
+						...reactRouterOutlet(
+							{ path: "/:username/:workspace/settings/schedule" },
+							<WorkspaceSchedulePage />,
+						),
+						{
+							path: "/:username/:workspace",
+							element: <div>Workspace Page</div>,
+						},
+					],
+				},
+			],
+		}),
+		queries: workspaceQueries(autostopDisabledWorkspace),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			autostopDisabledWorkspace,
+		);
+		spyOn(API, "restartWorkspace").mockRejectedValue(
+			new Error(
+				"The workspace stopped, but the server did not start it again.",
+			),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+		await user.click(await canvas.findByLabelText("Enable Autostop"));
+		await user.click(await canvas.findByRole("button", { name: /save/i }));
+		await body.findByText("Restart workspace?");
+		await user.click(await body.findByRole("button", { name: /^restart$/i }));
+		await body.findByText(
+			`Failed to restart workspace "${MockWorkspace.name}".`,
+		);
 	},
 };
 

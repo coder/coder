@@ -1329,10 +1329,9 @@ class ApiMethods {
 						{ since: stopBuild.created_at, limit: 25 },
 						controller.signal,
 					);
-					// Other builds (autostart, lifecycle cleanup, another actor)
-					// can land between the stop and the orchestrator's child, so
-					// the child is not guaranteed to be stop + 1. Builds arrive
-					// newest-first; the child is the oldest post-stop start build.
+					// Other actors (autostart, lifecycle cleanup) can insert builds
+					// between the stop and the orchestrator's child, so take the
+					// oldest post-stop start build from the newest-first response.
 					const childBuild = builds
 						.filter(
 							(build) =>
