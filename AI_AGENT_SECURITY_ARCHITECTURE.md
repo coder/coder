@@ -288,6 +288,160 @@ In `ValidateAPIKey` / subject construction path:
 - Seat counting / licensing treatment: explicitly out of scope (AGPL PoC),
   but note that `kind` gives the hook.
 
+### Design decisions and rejected alternatives
+
+The sections above describe the design. This section records why it has
+this shape, so a reviewer does not have to reconstruct the argument, and so
+a future change knows which constraint it is breaking.
+
+#### Real `users` rows, not a new principal type
+
+**Chosen:** AI agents are ordinary `users` rows marked `kind = 'ai_agent'`,
+with an `ai_agents` side table as the authoritative marker.
+
+**Rejected:** a separate principals table, or reusing service accounts.
+
+**Why:** every attribution surface in the product already keys on a user
+ID. `audit_logs.user_id`, `aibridge_interceptions.initiator_id`, API keys,
+and request logging all take a `uuid` that must resolve to a user. A new
+principal type would require touching each of those, and any surface
+missed would fail open by attributing agent activity to a human. Reusing
+the row type makes attribution work by default and makes a missed surface
+a visible bug rather than a silent misattribution.
+
+The cost is that agent rows appear in tables that assume humans, which is
+why they are excluded from user listings, organization and group member
+lists, dormancy, AI seat counts, and notifications. That exclusion work is
+real and was found by review rather than by design; a separate principal
+type would have avoided it. We judged silent misattribution to be the worse
+failure.
+
+#### Sponsor intersection, not roles of their own
+
+**Chosen:** the RBAC subject is built from the sponsoring human's live
+roles and groups, intersected with the agent key's scopes and allow list.
+
+**Rejected:** granting agent users their own roles and organization
+membership.
+
+**Why:** an agent with independent roles is a principal that can outlive,
+exceed, or drift from the human who created it. Intersection makes
+"an agent can never do more than its sponsor" a structural property rather
+than an operational promise. It also means there is no new authorization
+machinery to get wrong: the ceiling is enforced by the same code path that
+already evaluates human permissions.
+
+The consequence is that agents cannot be granted anything their sponsor
+lacks, including for legitimate reasons. If a future case needs that, it is
+a deliberate departure from this model, not a configuration change.
+
+#### Live role lookup, not a permission snapshot
+
+**Chosen:** roles are fetched per request through the normal subject
+construction path.
+
+**Rejected:** copying the sponsor's permissions onto the agent at mint
+time.
+
+**Why:** a snapshot has a revocation window. If a human is suspended or
+loses a role, any agent holding a snapshot keeps that access until
+something reconciles it, and reconciliation is exactly the kind of job that
+fails quietly. Live lookup makes suspension propagate on the agent's next
+request with no background work. Cascade suspend is a consequence of the
+design rather than a feature that has to be maintained.
+
+#### Authorization identity is the human, actor identity is the agent
+
+**Chosen:** `Subject.ID` is the sponsoring human; the API key belongs to
+the agent user.
+
+**Rejected:** making the agent the subject and bridging access through
+ACLs or ownership transfer.
+
+**Why:** owner-scoped permission checks match `resource.owner_id ==
+subject.ID`. An agent subject would fail every such check against its
+sponsor's own chats and workspaces, so it would need an ACL bridge on
+every owned resource. That bridge is both more code and a second place for
+access to be wrong. Splitting the two identities gets the permission
+behavior for free and still attributes actions to the agent, because
+attribution follows the key rather than the subject.
+
+This is the decision with the widest blast radius: it is why workspaces
+stay human-owned in Vertical 2, and why agent-owned workspaces were later
+rejected on compatibility grounds.
+
+#### One identity per delegation boundary
+
+**Chosen:** mint an identity when a human crosses into AI execution, and
+reuse it for everything that execution creates.
+
+**Rejected:** one identity per agent process, per session, or per
+workspace.
+
+Concretely, identities are minted only at a human-to-AI boundary: when a
+human creates a chat (a chat-origin identity), and when a human opts a
+workspace in through the `coder_ai_agent` parameter with no chat involved
+(a workspace-origin identity). When an AI agent creates resources, no new
+identity is minted; the created workspace, workspace agents, sandboxed
+child agents, and child chats bind to the requester's existing identity.
+
+**Why:** the question an auditor asks is "which delegation did this come
+from," not "which process ran it." Per-process identities fragment one
+human decision across many principals and make the audit trail harder to
+follow, not easier. Reuse gives one unbroken lineage per delegation: a
+chat that creates a workspace produces agents carrying the chat's identity,
+so the workspace's activity is traceable to the conversation that caused
+it.
+
+The tradeoff is coarser granularity. Two concurrent tasks in one chat share
+an identity and are distinguished by other event fields, not by principal.
+
+#### Non-interactive by construction
+
+**Chosen:** `login_type = 'none'`, empty email, generated username, no
+password, no organization membership.
+
+**Why:** an agent user that can authenticate interactively is a credential
+that can be phished, shared, or left behind. Making the login path
+structurally absent is stronger than relying on policy, and the empty email
+also keeps agents out of notification paths that assume a reachable human.
+
+#### Revocation is a soft delete
+
+**Chosen:** revoking an identity marks `ai_agents.deleted` and removes its
+keys; the user row and its audit history remain.
+
+**Rejected:** deleting the row.
+
+**Why:** audit records reference the agent by user ID. Hard deletion would
+either break those references or force the audit trail to be rewritten,
+and an audit trail that can be erased by revoking the principal it
+describes is not an audit trail. Soft deletion also lets the system
+distinguish "this identity was revoked" from "this identity never existed",
+which is what makes fail-closed resolution possible.
+
+#### Fail closed on resolution, everywhere
+
+**Chosen:** a `users.kind = 'ai_agent'` row without a live `ai_agents`
+record is refused, as is a deleted identity or a deleted, suspended, or
+non-human sponsor.
+
+**Why:** the conformance review found the opposite behavior in practice:
+chatd failed open to full-owner tools when identity resolution errored, and
+in-process tools discarded sponsor status so a suspended human could still
+act through their agent. Both passed their tests. Fail-closed resolution is
+stated as an invariant precisely because the failure mode is invisible
+until someone looks for it.
+
+#### Accepted deviation: agents may read their own owner
+
+`ChatAgentProfile` permits `user:read`, because an agent must be able to
+resolve the human it acts for. It does not permit `user:read_personal`,
+`user:update`, `user_secret:*`, `user_skill:*`, `api_key:*`,
+`coder:templates.author`, `coder:apikeys.manage_self`, `coder:all`, or a
+global `*:*` allow list. The validator rejects those; an earlier revision
+accepted `coder:all` and `*:*`, which the review caught.
+
 ### Invariants (drive tests from these)
 
 1. **Ceiling**: agent's effective permissions ⊆ owner's permissions at all
@@ -399,22 +553,16 @@ creates at most 1.
 
 #### Identity continuity
 
-AI identities are minted only at a human-to-AI boundary:
+The minting rule is an identity decision and is stated in Vertical 1 under
+"One identity per delegation boundary". Its consequences for this vertical:
 
-1. When a human creates a chat, mint a new chat-origin identity, as built in
-   Vertical 1.
-2. When a human opts a workspace in through the `coder_ai_agent` parameter
-   with no chat involved, mint a new workspace-origin identity, as built in
-   Vertical 1.
-3. When an AI agent creates resources, do not mint another identity. Bind
-   the created workspace, workspace agents, sandboxed child agents, or child
-   chats to the requester's existing identity.
-
-A chat-created workspace therefore remains owned by the chat sponsor, while
-all of its workspace agents carry the chat identity's user ID in
+A chat-created workspace remains owned by the chat sponsor, while all of
+its workspace agents carry the chat identity's user ID in
 `workspace_agents.ai_agent_id`. Child chats already reuse the root chat
 identity; Vertical 2 extends that precedent to workspace and sandbox
-creation. One delegation chain has one unbroken AI identity lineage.
+creation, so a workspace, its agents, and any sandboxed child inherit the
+identity of whichever delegation asked for them. One delegation chain has
+one unbroken AI identity lineage.
 
 ### Decisions
 
