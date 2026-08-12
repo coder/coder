@@ -124,7 +124,7 @@ func (s *Server) Close() error {
 
 // SetAgentAPI sets the agent API client used to forward requests
 // to coderd.
-func (s *Server) SetAgentAPI(api agentproto.DRPCAgentClient28) {
+func (s *Server) SetAgentAPI(api agentproto.DRPCAgentClient211) {
 	s.service.SetAgentAPI(api)
 }
 
