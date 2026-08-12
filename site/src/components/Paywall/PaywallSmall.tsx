@@ -30,7 +30,7 @@ const PaywallSmall = ({
 	return (
 		<Paywall
 			className={cn(
-				compact && "max-w-[770px] py-4 px-4 gap-[18px] min-h-[230px]",
+				compact && "max-w-[770px] p-4 gap-[18px] min-h-[230px]",
 				className,
 			)}
 			{...props}

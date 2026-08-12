@@ -90,7 +90,7 @@ export const PaywallTitle: FC<React.ComponentProps<"h5">> = ({
 }) => {
 	return (
 		<h5
-			className={cn("font-semibold font-inherit text-xl m-0", className)}
+			className={cn("font-semibold font-inherit text-xl mr-4", className)}
 			{...props}
 		>
 			{children}
@@ -105,7 +105,7 @@ export const PaywallDescription: FC<React.ComponentProps<"p">> = ({
 }) => {
 	return (
 		<p
-			className={cn("font-inherit max-w-md text-sm mb-4", className)}
+			className={cn("font-inherit max-w-md text-sm mb-4 mr-4", className)}
 			{...props}
 		>
 			{children}
@@ -124,7 +124,7 @@ export const PaywallDocumentationLink: FC<React.ComponentProps<"a">> = ({
 			href={href}
 			target="_blank"
 			rel="noreferrer"
-			className={cn("text-content-link font-medium", className)}
+			className={cn("text-content-link font-medium mr-4", className)}
 			{...props}
 		>
 			{children} <ExternalLinkIcon className="size-icon-xs" />
