@@ -27,7 +27,7 @@ import {
 import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
 
 const chatCreateOrganizationsQuery = permittedOrganizations({
-	object: { resource_type: "chat" },
+	object: { resource_type: "chat", owner_id: "me" },
 	action: "create",
 });
 
@@ -930,12 +930,24 @@ export const RestrictedMultiOrganizationUser: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
-		queries: [
-			{
-				key: chatCreateOrganizationsQuery.queryKey,
-				data: [MockOrganization2],
-			},
-		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		// Mirrors backend RBAC for roles like agents-access: chat:create
+		// is granted at member (owner) scope, so a check without
+		// owner_id "me" is denied in every org.
+		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(
+				Object.entries(checks).map(([id, check]) => [
+					id,
+					check.object.owner_id === "me" &&
+						check.object.organization_id === MockOrganization2.id,
+				]),
+			),
+		);
 	},
 	args: {
 		...defaultArgs,
