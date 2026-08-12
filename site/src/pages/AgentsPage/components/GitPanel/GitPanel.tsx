@@ -51,8 +51,8 @@ const GIT_STATUS_LOADING_TITLE = "Waiting for Git status";
 const GIT_STATUS_LOADING_BODY = "Checking the workspace for Git repositories.";
 
 // Horizontal padding on the toolbar (`px-3` = 12px). The switcher
-// dropdown uses this as a negative `alignOffset` so its left edge
-// lines up with the panel edge rather than the trigger's inset.
+// dropdown subtracts this from the panel width so its right edge sits
+// flush with the toolbar's inner content area.
 const TOOLBAR_PADDING_PX = 12;
 
 interface DiffStats {
@@ -545,8 +545,11 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				alignOffset={-TOOLBAR_PADDING_PX}
-				style={panelWidth > 0 ? { width: panelWidth } : undefined}
+				style={
+					panelWidth > 0
+						? { width: panelWidth - TOOLBAR_PADDING_PX * 2 }
+						: undefined
+				}
 				className="p-1"
 			>
 				{items.map((item) => {
