@@ -8241,14 +8241,13 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.NoError(t, err)
 
 		// Send another message with the SAME file.
-		msgResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "same file again"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
 			},
 		})
 		require.NoError(t, err)
-		require.Empty(t, msgResp.Warnings, "dedup below cap should not produce warnings")
 
 		// GET — should have exactly 1 file (deduped by SQL DISTINCT).
 		chatResult, err := client.GetChat(ctx, chat.ID)
@@ -8284,42 +8283,41 @@ func TestChatMessageWithFiles(t *testing.T) {
 		}
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
 		require.NoError(t, err)
-		require.Empty(t, chat.Warnings, "creating a chat at exactly the cap should not warn")
 		require.Len(t, chat.Files, codersdk.MaxChatFileIDs, "all files should be linked on creation")
 
 		// Upload one more file.
 		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
-		// Sending a message with the extra file should succeed
-		// (message goes through) but the file should NOT be linked
-		// (cap enforced in SQL). The response includes a warning.
-		msgResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		messagesBefore, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "one too many"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: extraResp.ID},
 			},
 		})
-		require.NoError(t, err)
-		require.NotEmpty(t, msgResp.Warnings, "response should warn about unlinked files")
-		require.Contains(t, msgResp.Warnings[0], "file linking skipped")
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		// The extra file should NOT appear in the chat's files.
+		messagesAfter, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, messagesAfter.Messages, len(messagesBefore.Messages), "rejected send should not persist a message")
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
 			"file count should not exceed the cap")
 
-		// Sending a message referencing an already-linked file
-		// should succeed with no warnings (dedup, no array growth).
-		msgResp2, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "re-reference existing"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: fileIDs[0]},
 			},
 		})
-		require.NoError(t, err)
-		require.Empty(t, msgResp2.Warnings, "re-referencing an existing file should not warn")
+		require.NoError(t, err, "re-referencing an already-linked file must not count against the cap")
 	})
 
 	t.Run("FileCapOnCreate", func(t *testing.T) {
@@ -8347,17 +8345,16 @@ func TestChatMessageWithFiles(t *testing.T) {
 		for _, fid := range fileIDs {
 			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: fid})
 		}
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
-		require.NoError(t, err, "chat creation should succeed even when cap is exceeded")
-		require.NotEmpty(t, chat.Warnings, "response should warn about unlinked files")
-		require.Contains(t, chat.Warnings[0], "file linking skipped")
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
+		require.Error(t, err, "chat creation over the cap should fail")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		// Only MaxChatFileIDs files should actually be linked.
-		// With SQL-level batch rejection, ALL files are rejected
-		// when the result would exceed the cap.
-		chatResult, err := client.GetChat(ctx, chat.ID)
+		chats, err := client.ListChats(ctx, nil)
 		require.NoError(t, err)
-		require.Empty(t, chatResult.Files, "no files should be linked when batch exceeds cap")
+		require.Empty(t, chats, "rejected create should not persist a chat")
 	})
 }
 
@@ -8770,7 +8767,7 @@ func TestPatchChatMessage(t *testing.T) {
 		}
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
 		require.NoError(t, err)
-		require.Empty(t, chat.Warnings, "all files should link on create")
+		require.Len(t, chat.Files, codersdk.MaxChatFileIDs)
 
 		// Find the user message.
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
@@ -8787,17 +8784,28 @@ func TestPatchChatMessage(t *testing.T) {
 		// Upload one more file and try to link via edit.
 		extra, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
-		edited, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "edit with extra file"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: extra.ID},
 			},
 		})
-		require.NoError(t, err)
-		require.NotEmpty(t, edited.Warnings, "edit should surface cap warning")
-		require.Contains(t, edited.Warnings[0], "file linking skipped")
+		require.Error(t, err, "edit over the cap should fail")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		// Verify the cap is still enforced.
+		messagesResult, err = client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var found bool
+		for _, msg := range messagesResult.Messages {
+			if msg.ID == userMessageID {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "original user message should survive a rejected edit")
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,

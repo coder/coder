@@ -1,9 +1,14 @@
-import Drawer from "@mui/material/Drawer";
 import { TriangleAlertIcon, XIcon } from "lucide-react";
 import type { FC } from "react";
 import { JobError } from "#/api/queries/templates";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import {
+	Drawer,
+	DrawerClose,
+	DrawerContent,
+	DrawerTitle,
+} from "#/components/Drawer/Drawer";
 import { Loader } from "#/components/Loader/Loader";
 import { AlertVariant } from "#/modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
@@ -15,15 +20,25 @@ type BuildLogsDrawerProps = {
 	error: unknown;
 	open: boolean;
 	onClose: () => void;
+	/** Invoked when the user opts to fill the missing template variables. */
+	onFillVariables: () => void;
+	/**
+	 * Forwarded to the drawer's `onCloseAutoFocus`. The drawer has no trigger,
+	 * so the parent owns where focus lands on close (e.g. the opener button).
+	 */
+	onCloseAutoFocus?: React.ComponentProps<
+		typeof DrawerContent
+	>["onCloseAutoFocus"];
 	templateVersion: TemplateVersion | undefined;
-	variablesSectionRef: React.RefObject<HTMLDivElement | null>;
 };
 
 export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	templateVersion,
 	error,
-	variablesSectionRef,
-	...drawerProps
+	open,
+	onClose,
+	onFillVariables,
+	onCloseAutoFocus,
 }) => {
 	const logs = useWatchVersionLogs(templateVersion);
 
@@ -37,52 +52,59 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	const hasLogs = logs && logs.length > 0;
 
 	return (
-		<Drawer anchor="right" {...drawerProps}>
-			<div className="flex h-full w-[800px] flex-col">
-				<header
-					className="flex items-center justify-between border-b border-border px-6"
-					style={{ height: navHeight }}
-				>
-					<h3 className="m-0 text-base font-medium">Creating template...</h3>
-					<Button size="icon-lg" variant="subtle" onClick={drawerProps.onClose}>
-						<XIcon />
-						<span className="sr-only">Close build logs</span>
-					</Button>
-				</header>
+		<Drawer
+			open={open}
+			onOpenChange={(isOpen) => {
+				if (!isOpen) {
+					onClose();
+				}
+			}}
+			direction="right"
+		>
+			<DrawerContent
+				className="!w-[min(800px,100%)] !max-w-full"
+				onCloseAutoFocus={onCloseAutoFocus}
+			>
+				<div className="flex h-full flex-col">
+					<header
+						className="flex items-center justify-between border-b border-border px-6 bg-surface-secondary"
+						style={{ height: navHeight }}
+					>
+						<DrawerTitle className="m-0 text-base font-medium">
+							Creating template...
+						</DrawerTitle>
+						<DrawerClose asChild>
+							<Button size="icon-lg" variant="subtle">
+								<XIcon />
+								<span className="sr-only">Close build logs</span>
+							</Button>
+						</DrawerClose>
+					</header>
 
-				{isMissingVariables ? (
-					<MissingVariablesBanner
-						onFillVariables={() => {
-							variablesSectionRef.current?.scrollIntoView({
-								behavior: "smooth",
-							});
-							const firstVariableInput =
-								variablesSectionRef.current?.querySelector("input");
-							firstVariableInput?.focus();
-							drawerProps.onClose();
-						}}
-					/>
-				) : (
-					<>
-						{(matchingProvisioners === 0 || !hasLogs) && (
-							<ProvisionerStatusAlert
-								matchingProvisioners={matchingProvisioners}
-								availableProvisioners={availableProvisioners}
-								tags={templateVersion?.job.tags ?? {}}
-								variant={AlertVariant.Inline}
-							/>
-						)}
+					{isMissingVariables ? (
+						<MissingVariablesBanner onFillVariables={onFillVariables} />
+					) : (
+						<>
+							{(matchingProvisioners === 0 || !hasLogs) && (
+								<ProvisionerStatusAlert
+									matchingProvisioners={matchingProvisioners}
+									availableProvisioners={availableProvisioners}
+									tags={templateVersion?.job.tags ?? {}}
+									variant={AlertVariant.Inline}
+								/>
+							)}
 
-						{hasLogs ? (
-							<section className="flex-1 overflow-auto bg-surface-primary">
-								<WorkspaceBuildLogs logs={logs} className="border-0" />
-							</section>
-						) : (
-							<Loader />
-						)}
-					</>
-				)}
-			</div>
+							{hasLogs ? (
+								<section className="flex-1 overflow-auto bg-surface-primary">
+									<WorkspaceBuildLogs logs={logs} className="border-0" />
+								</section>
+							) : (
+								<Loader />
+							)}
+						</>
+					)}
+				</div>
+			</DrawerContent>
 		</Drawer>
 	);
 };

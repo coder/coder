@@ -10,14 +10,20 @@ import { cn } from "#/utils/cn";
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
 	example: TemplateExample;
 	activeTag?: string;
+	templateBuilderEnabled?: boolean;
 };
 
 export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 	example,
 	activeTag,
+	templateBuilderEnabled,
 	className,
 	...divProps
 }) => {
+	const useTemplateLink = templateBuilderEnabled
+		? `/templates/new/builder?base=${example.id}`
+		: `/templates/new?exampleId=${example.id}`;
+
 	return (
 		<div
 			className={cn(
@@ -66,9 +72,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 
 			<div className="mt-auto flex flex-col items-center gap-3 pt-6">
 				<Button asChild className="w-full">
-					<RouterLink to={`/templates/new/builder?base=${example.id}`}>
-						Use template
-					</RouterLink>
+					<RouterLink to={useTemplateLink}>Use template</RouterLink>
 				</Button>
 			</div>
 		</div>

@@ -19,6 +19,19 @@ FROM
 WHERE
     id = $1;
 
+-- name: LockProvisionerKeyByIDForShare :one
+-- Locks the provisioner key row with FOR KEY SHARE for the remainder of the
+-- current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
+-- is held the key cannot be deleted, and a committed deletion is observed as
+-- no rows by later calls.
+SELECT
+    id
+FROM
+    provisioner_keys
+WHERE
+    id = $1
+FOR KEY SHARE;
+
 -- name: GetProvisionerKeyByHashedSecret :one
 SELECT
     *

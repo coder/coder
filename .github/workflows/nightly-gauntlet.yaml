@@ -28,7 +28,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -68,6 +68,11 @@ jobs:
           install-args: "go terraform"
 
       - name: Install Go mise tools
+        # retry.sh is a bash script, so an explicit shell is required for the
+        # Windows matrix entry. Under the default PowerShell shell the step
+        # reports success without running the install, so gotestsum is
+        # silently missing whenever the mise cache misses (coder/internal#1630).
+        shell: bash
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
 
       - name: Setup Embedded Postgres Cache Paths
