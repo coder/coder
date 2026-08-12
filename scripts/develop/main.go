@@ -30,6 +30,7 @@ import (
 	"github.com/joho/godotenv"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"tailscale.com/types/ptr"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
@@ -55,6 +56,29 @@ const (
 	// defaultPrometheusPort avoids 2112 (agent prometheus) and
 	// 2113 (agent debug) already bound inside Coder workspaces.
 	defaultPrometheusPort = "2114"
+	// llamaPort is the fixed port the local llama.cpp server listens on.
+	// Coderd reaches it at http://localhost:1234. Only one local AI
+	// container can run per host, which is fine for a dev tool.
+	llamaPort int64 = 1234
+	// llamaContainerName is the Docker container name for the local
+	// llama.cpp server, used for reuse detection and explicit cleanup
+	// on shutdown.
+	llamaContainerName = "coder-llama-server"
+	// llamaImage is the CPU-only llama.cpp server image. It is pinned to
+	// a release tag (not the daily :server tag) for reproducibility.
+	llamaImage = "ghcr.io/ggml-org/llama.cpp:server-b10375"
+	// defaultLocalAIModel is the default Hugging Face repo (optionally
+	// with a :quant suffix) served by --local-ai. It is a small,
+	// Apache-2.0 licensed instruct model that runs fast in CPU inference.
+	defaultLocalAIModel = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
+	// llamaProviderName is the AI provider name registered in Coder for
+	// the local llama.cpp server. It must match the AI provider name
+	// regex and be stable so restarts reuse the same provider.
+	llamaProviderName = "llama-cpp"
+	// llamaContextLimit is the chat context window exposed to Coder and
+	// passed to llama-server via -c. The two must match so the advertised
+	// limit reflects what the server actually supports.
+	llamaContextLimit int64 = 2048
 	// portOffsetBuckets keeps the offset below 1000 while leaving
 	// enough hash buckets for common multi-worktree use.
 	portOffsetBuckets = 50
@@ -134,6 +158,19 @@ func main() {
 				Env:         "CODER_DEV_PROMETHEUS_SERVER",
 				Description: "Run a Prometheus server to scrape and visualize metrics. Requires Docker. Linux only.",
 				Value:       serpent.BoolOf(&cfg.prometheusServer),
+			},
+			{
+				Flag:        "local-ai",
+				Env:         "CODER_DEV_LOCAL_AI",
+				Description: "Run a local llama.cpp server in Docker and register it as an openai-compatible provider for testing AI workflows. Requires Docker.",
+				Value:       serpent.BoolOf(&cfg.localAI),
+			},
+			{
+				Flag:        "local-ai-model",
+				Env:         "CODER_DEV_LOCAL_AI_MODEL",
+				Default:     defaultLocalAIModel,
+				Description: "Hugging Face repo (optionally with a :quant suffix) served by --local-ai.",
+				Value:       serpent.StringOf(&cfg.localAIModel),
 			},
 			{
 				Flag:        "agpl",
@@ -237,6 +274,8 @@ type devConfig struct {
 	coderMetricsPort  int64
 	portOffsetEnabled bool
 	prometheusServer  bool
+	localAI           bool
+	localAIModel      string
 	agpl              bool
 	accessURL         string
 	password          string
@@ -273,6 +312,13 @@ type portExplicit struct {
 }
 
 type portSource string
+
+// bannerOptions carries optional banner entries that are not fixed ports,
+// so the banner can be extended without multiplying boolean parameters.
+type bannerOptions struct {
+	// localAIStarted shows the local llama.cpp endpoint when running.
+	localAIStarted bool
+}
 
 const (
 	portSourceDefault  portSource = "default"
@@ -420,6 +466,30 @@ func (c *devConfig) validate() error {
 		for _, conflict := range conflicts {
 			if prometheusServerPort == conflict.val {
 				return xerrors.Errorf("%s %d conflicts with prometheus server", conflict.flag, conflict.val)
+			}
+		}
+	}
+	if !c.localAI && c.localAIModel != "" && c.localAIModel != defaultLocalAIModel {
+		return xerrors.New("--local-ai-model requires --local-ai")
+	}
+	if c.localAI {
+		conflicts := []struct {
+			flag string
+			val  int64
+		}{
+			{"--port", c.apiPort},
+			{"--web-port", c.webPort},
+			{"--prometheus-port", c.coderMetricsPort},
+		}
+		if c.useProxy {
+			conflicts = append(conflicts, struct {
+				flag string
+				val  int64
+			}{"--proxy-port", c.proxyPort})
+		}
+		for _, conflict := range conflicts {
+			if llamaPort == conflict.val {
+				return xerrors.Errorf("%s %d conflicts with local AI server", conflict.flag, conflict.val)
 			}
 		}
 	}
@@ -659,8 +729,17 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 			slog.Error(err))
 	}
 
+	var (
+		client *codersdk.Client
+		// prometheusServerStarted and localAIStarted track which optional
+		// Docker-backed services are running so the banner can advertise them.
+		prometheusServerStarted bool
+		localAIStarted          bool
+	)
+
 	if !cfg.skipSetup {
-		client, err := setupFirstUser(ctx, logger, cfg, apiURL)
+		var err error
+		client, err = setupFirstUser(ctx, logger, cfg, apiURL)
 		if err != nil {
 			return xerrors.Errorf("setup: %w", err)
 		}
@@ -686,7 +765,6 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		}
 	}
 
-	var prometheusServerStarted bool
 	if cfg.prometheusServer {
 		started, err := startPrometheusServer(ctx, logger, cfg)
 		if err != nil {
@@ -696,7 +774,28 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		prometheusServerStarted = started
 	}
 
-	printBanner(ctx, logger, cfg, prometheusServerStarted)
+	if cfg.localAI {
+		started, err := startLocalAI(ctx, logger, cfg)
+		if err != nil {
+			logger.Warn(ctx, "local AI setup failed, continuing",
+				slog.Error(err))
+		}
+		localAIStarted = started
+		// Provider and model config need an admin client, so they are only
+		// possible when setup ran. The container still starts without it.
+		if started && client != nil {
+			provider, err := ensureLocalAIProvider(ctx, client)
+			if err != nil {
+				logger.Warn(ctx, "local AI provider setup failed, continuing",
+					slog.Error(err))
+			} else if err := ensureLocalAIModelConfig(ctx, codersdk.NewExperimentalClient(client), provider.ID, localAIModelName(cfg.localAIModel)); err != nil {
+				logger.Warn(ctx, "local AI model config setup failed, continuing",
+					slog.Error(err))
+			}
+		}
+	}
+
+	printBanner(ctx, logger, cfg, prometheusServerStarted, bannerOptions{localAIStarted: localAIStarted})
 
 	// Block until a signal fires or a child process exits.
 	<-ctx.Done()
@@ -1274,6 +1373,219 @@ scrape_configs:
 	return true, nil
 }
 
+// startLocalAI runs the llama.cpp server image in Docker, serving an
+// OpenAI-compatible API on llamaPort. The model is downloaded on first run
+// by llama-server (via -hf) and cached in the mounted host directory.
+// It reuses the fixed-name container on restart and cleans it up when the
+// context is canceled. Returns true if the server was started or is already
+// running.
+func startLocalAI(ctx context.Context, logger slog.Logger, cfg *devConfig) (bool, error) {
+	// Verify Docker is available before attempting anything.
+	if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
+		logger.Warn(ctx, "docker not available, skipping local AI server",
+			slog.Error(err))
+		return false, nil
+	}
+
+	// If the port is already bound, check whether it is our container from
+	// a previous run. If so, reuse it.
+	if isPortBusy(ctx, llamaPort) {
+		out, err := exec.CommandContext(ctx, "docker", "inspect",
+			"-f", "{{.State.Running}}",
+			llamaContainerName).Output()
+		if err == nil && strings.TrimSpace(string(out)) == "true" {
+			logger.Info(ctx, "reusing existing local AI server",
+				slog.F("endpoint", fmt.Sprintf("http://localhost:%d", llamaPort)),
+				slog.F("model", cfg.localAIModel))
+			return true, nil
+		}
+		logger.Info(ctx, "local AI server port already in use, skipping",
+			slog.F("port", llamaPort))
+		return false, nil
+	}
+
+	// Remove any stopped leftover container from a previous run. Failure is
+	// fine; it just means the container doesn't exist.
+	rmCmd := exec.CommandContext(ctx, "docker", "rm", "-f", llamaContainerName) //nolint:gosec
+	rmCmd.Stdout = nil
+	rmCmd.Stderr = nil
+	_ = rmCmd.Run()
+
+	// Persist the downloaded model across dev environment restarts. The
+	// container may run as root or a non-root user, so the directory must be
+	// world-writable. os.MkdirAll applies the umask, so we chmod explicitly
+	// after creation.
+	llamaCacheDir := filepath.Join(cfg.configDir, "llama-hf")
+	if err := os.MkdirAll(llamaCacheDir, 0o777); err != nil {
+		return false, xerrors.Errorf("creating local AI cache directory: %w", err)
+	}
+	if err := os.Chmod(llamaCacheDir, 0o777); err != nil {
+		return false, xerrors.Errorf("chmod local AI cache directory: %w", err)
+	}
+
+	// Stop the container when the context is done. Registering this cleanup
+	// immediately means every later failure path can simply return without
+	// its own cleanup call.
+	context.AfterFunc(ctx, func() {
+		stopCmd := exec.Command("docker", "stop", "-t", "5", llamaContainerName) //nolint:gosec
+		stopCmd.Stdout = nil
+		stopCmd.Stderr = nil
+		_ = stopCmd.Run()
+	})
+
+	cmd := exec.CommandContext(ctx, "docker", localAIDockerRunArgs(cfg, llamaCacheDir)...) //nolint:gosec // args are controlled constants or our own dirs
+	named := logger.Named("llama")
+	w := &logWriter{logger: named}
+	cmd.Stdout = w
+	cmd.Stderr = w
+
+	named.Info(ctx, "starting local AI server",
+		slog.F("image", llamaImage),
+		slog.F("model", cfg.localAIModel),
+		slog.F("endpoint", fmt.Sprintf("http://localhost:%d", llamaPort)),
+		slog.F("note", "first chat may be slow while the model downloads"),
+	)
+
+	if err := cmd.Start(); err != nil {
+		return false, xerrors.Errorf("starting llama.cpp container: %w", err)
+	}
+
+	// Wait for the container in a separate goroutine. The local AI server is
+	// optional, so if it dies we just log a warning rather than tearing
+	// down the entire dev environment.
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			if ctx.Err() != nil {
+				// Normal shutdown: context was canceled.
+				named.Info(ctx, "local AI server stopped")
+				return
+			}
+			named.Warn(ctx, "local AI server exited", slog.Error(err))
+		} else {
+			named.Warn(ctx, "local AI server exited unexpectedly")
+		}
+	}()
+
+	return true, nil
+}
+
+// localAIDockerRunArgs builds the docker run argv for the llama.cpp server.
+// It is a pure function so the exact invocation is unit-testable.
+func localAIDockerRunArgs(cfg *devConfig, cacheDir string) []string {
+	return []string{
+		"run",
+		"--rm",
+		"--name", llamaContainerName,
+		"-p", fmt.Sprintf("%d:%d", llamaPort, llamaPort),
+		"-v", cacheDir + ":/models",
+		"-e", "LLAMA_CACHE=/models",
+		llamaImage,
+		"-hf", cfg.localAIModel,
+		"-c", strconv.FormatInt(llamaContextLimit, 10),
+		"--host", "0.0.0.0",
+		"-ngl", "0",
+		"--parallel", "1",
+		"-fa",
+		"--jinja",
+	}
+}
+
+// localAIModelName derives the Coder model name from a Hugging Face repo
+// reference. The repo may carry a :quant suffix, which references the GGUF
+// file and is not part of the served model identity, so it is stripped. The
+// last path segment is used so org/repo-style references collapse to the
+// repo name.
+func localAIModelName(repo string) string {
+	repo, _, _ = strings.Cut(repo, ":")
+	if i := strings.LastIndexByte(repo, '/'); i >= 0 {
+		repo = repo[i+1:]
+	}
+	return strings.ToLower(repo)
+}
+
+// ensureLocalAIProvider ensures an openai-compatible AI provider named
+// llamaProviderName exists in Coder, pointing at the local llama.cpp server.
+// It reuses an existing provider by name so restarts do not create
+// duplicates. Returns the provider.
+func ensureLocalAIProvider(ctx context.Context, client *codersdk.Client) (*codersdk.AIProvider, error) {
+	providers, err := client.AIProviders(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("listing AI providers: %w", err)
+	}
+	if p, ok := findLocalAIProvider(providers); ok {
+		return p, nil
+	}
+
+	p, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:        codersdk.AIProviderTypeOpenAICompat,
+		Name:        llamaProviderName,
+		DisplayName: "Local llama.cpp",
+		Enabled:     true,
+		BaseURL:     fmt.Sprintf("http://localhost:%d/v1/", llamaPort),
+		APIKeys:     []string{"local"},
+	})
+	if err != nil {
+		// A concurrent create may have won the race; reconcile by name.
+		if sdkErr, ok := codersdk.AsError(err); ok && sdkErr.StatusCode() == http.StatusConflict {
+			providers, listErr := client.AIProviders(ctx)
+			if listErr != nil {
+				return nil, xerrors.Errorf("re-listing AI providers after conflict: %w", listErr)
+			}
+			if p, ok := findLocalAIProvider(providers); ok {
+				return p, nil
+			}
+		}
+		return nil, xerrors.Errorf("creating AI provider: %w", err)
+	}
+	return &p, nil
+}
+
+// findLocalAIProvider returns the configured provider when present.
+func findLocalAIProvider(providers []codersdk.AIProvider) (*codersdk.AIProvider, bool) {
+	for i := range providers {
+		if providers[i].Name == llamaProviderName {
+			return &providers[i], true
+		}
+	}
+	return nil, false
+}
+
+// ensureLocalAIModelConfig ensures a chat model config exists for the given
+// provider and model name. It reuses an existing config by provider+model so
+// restarts do not accumulate duplicates.
+func ensureLocalAIModelConfig(ctx context.Context, expClient *codersdk.ExperimentalClient, providerID uuid.UUID, modelName string) error {
+	configs, err := expClient.ListChatModelConfigs(ctx)
+	if err != nil {
+		return xerrors.Errorf("listing chat model configs: %w", err)
+	}
+	if findLocalAIModelConfig(configs, providerID, modelName) {
+		return nil
+	}
+
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		AIProviderID: &providerID,
+		Model:        modelName,
+		DisplayName:  "Local " + modelName,
+		Enabled:      ptr.To(true),
+		ContextLimit: ptr.To(llamaContextLimit),
+	})
+	if err != nil {
+		return xerrors.Errorf("creating chat model config: %w", err)
+	}
+	return nil
+}
+
+// findLocalAIModelConfig reports whether a config already exists for the
+// given provider and model.
+func findLocalAIModelConfig(configs []codersdk.ChatModelConfig, providerID uuid.UUID, modelName string) bool {
+	for _, c := range configs {
+		if c.AIProviderID == providerID && c.Model == modelName {
+			return true
+		}
+	}
+	return false
+}
+
 func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
 	cmd := cfg.cmd(ctx, "pnpm", "--dir", "./site", "dev", "--host")
 	cmd.Env = append(cmd.Env,
@@ -1320,7 +1632,7 @@ func portSourceLabel(source portSource, offset int) string {
 	}
 }
 
-func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool) {
+func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool, opts bannerOptions) {
 	ifaces := []string{"localhost"}
 	if addrs, err := net.InterfaceAddrs(); err == nil {
 		for _, addr := range addrs {
@@ -1389,6 +1701,13 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, promet
 		for _, h := range ifaces {
 			line(indent(fmt.Sprintf("http://%s:%d", h, port)))
 		}
+	}
+	if opts.localAIStarted {
+		line(
+			"",
+			"Local AI:",
+			indent(fmt.Sprintf("http://localhost:%d (model %s)", llamaPort, localAIModelName(cfg.localAIModel))),
+		)
 	}
 	line(
 		"",

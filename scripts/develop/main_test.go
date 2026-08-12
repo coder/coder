@@ -5,7 +5,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,12 +19,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestLogWriter(t *testing.T) {
@@ -544,6 +550,75 @@ func TestDevConfigValidate(t *testing.T) {
 		assert.Contains(t, err.Error(), "--prometheus-port")
 		assert.Contains(t, err.Error(), "conflicts with prometheus server")
 	})
+
+	t.Run("LocalAIModelRequiresLocalAI", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.localAI = false
+		cfg.localAIModel = "Some/Other-Model-GGUF"
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--local-ai-model requires --local-ai")
+	})
+
+	t.Run("LocalAIModelDefaultWithoutLocalAIOK", func(t *testing.T) {
+		t.Parallel()
+		// The default model without --local-ai is not an error.
+		cfg := base()
+		cfg.localAI = false
+		cfg.localAIModel = defaultLocalAIModel
+		assert.NoError(t, cfg.validate())
+	})
+
+	t.Run("LocalAIWithSkipSetupAllowed", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.localAI = true
+		cfg.localAIModel = defaultLocalAIModel
+		cfg.skipSetup = true
+		assert.NoError(t, cfg.validate())
+	})
+
+	t.Run("LocalAIPortConflictWithAPI", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.localAI = true
+		cfg.apiPort = llamaPort
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--port")
+		assert.Contains(t, err.Error(), "conflicts with local AI server")
+	})
+
+	t.Run("LocalAIPortConflictWithWeb", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.localAI = true
+		cfg.webPort = llamaPort
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--web-port")
+		assert.Contains(t, err.Error(), "conflicts with local AI server")
+	})
+
+	t.Run("LocalAIPortConflictWithMetrics", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.localAI = true
+		cfg.coderMetricsPort = llamaPort
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--prometheus-port")
+		assert.Contains(t, err.Error(), "conflicts with local AI server")
+	})
+
+	t.Run("LocalAIValid", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.localAI = true
+		cfg.localAIModel = defaultLocalAIModel
+		assert.NoError(t, cfg.validate())
+	})
 }
 
 func TestDevConfigResolveEnv(t *testing.T) {
@@ -982,5 +1057,234 @@ func TestParseEnvFileFlag(t *testing.T) {
 		_, err := parseEnvFileFlag()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "--env-file requires a value")
+	})
+}
+
+func TestLocalAIModelName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		repo string
+		want string
+	}{
+		{name: "DefaultRepo", repo: "Qwen/Qwen2.5-1.5B-Instruct-GGUF", want: "qwen2.5-1.5b-instruct-gguf"},
+		{name: "QuantSuffixStripped", repo: "Some/Model-GGUF:Q5_K_M", want: "model-gguf"},
+		{name: "SingleSegment", repo: "TinyLlama", want: "tinyllama"},
+		{name: "AlreadyLower", repo: "org/small-model", want: "small-model"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, localAIModelName(tt.repo))
+		})
+	}
+}
+
+func TestLocalAIDockerRunArgs(t *testing.T) {
+	t.Parallel()
+
+	cfg := &devConfig{localAIModel: "Qwen/Qwen2.5-1.5B-Instruct-GGUF"}
+	args := localAIDockerRunArgs(cfg, "/tmp/cache")
+
+	assert.Equal(t, "run", args[0])
+
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "--name "+llamaContainerName)
+	assert.Contains(t, joined, "-p 1234:1234")
+	assert.Contains(t, joined, "-v /tmp/cache:/models")
+	assert.Contains(t, joined, "-e LLAMA_CACHE=/models")
+	assert.Contains(t, joined, llamaImage)
+	assert.Contains(t, joined, "-hf Qwen/Qwen2.5-1.5B-Instruct-GGUF")
+	assert.Contains(t, joined, "-c 2048")
+	assert.Contains(t, joined, "-ngl 0")
+	assert.Contains(t, joined, "--jinja")
+}
+
+func TestFindLocalAIProvider(t *testing.T) {
+	t.Parallel()
+
+	p, ok := findLocalAIProvider(nil)
+	assert.False(t, ok)
+	assert.Nil(t, p)
+
+	providers := []codersdk.AIProvider{
+		{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), Name: "other"},
+		{ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"), Name: llamaProviderName},
+	}
+	p, ok = findLocalAIProvider(providers)
+	assert.True(t, ok)
+	require.NotNil(t, p)
+	assert.Equal(t, llamaProviderName, p.Name)
+}
+
+func TestFindLocalAIModelConfig(t *testing.T) {
+	t.Parallel()
+
+	providerID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+
+	assert.False(t, findLocalAIModelConfig(nil, providerID, "m"))
+
+	configs := []codersdk.ChatModelConfig{
+		{AIProviderID: providerID, Model: "m"},
+	}
+	assert.True(t, findLocalAIModelConfig(configs, providerID, "m"))
+	assert.False(t, findLocalAIModelConfig(configs, providerID, "other"))
+	assert.False(t, findLocalAIModelConfig(configs, uuid.New(), "m"))
+}
+
+// fakeProviderModelAPI is an in-memory httptest server implementing the four
+// endpoints consumed by the local AI ensure flow. It lets us verify the
+// idempotent create-or-reuse behavior without a real coderd or Docker.
+type fakeProviderModelAPI struct {
+	mu        sync.Mutex
+	providers []codersdk.AIProvider
+	configs   []codersdk.ChatModelConfig
+	// conflictOnCreate forces POST /api/v2/ai/providers to return 409 to
+	// simulate a concurrent create losing the race.
+	conflictOnCreate bool
+}
+
+func (f *fakeProviderModelAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v2/ai/providers":
+		_ = json.NewEncoder(w).Encode(f.providers)
+	case r.Method == http.MethodPost && r.URL.Path == "/api/v2/ai/providers":
+		if f.conflictOnCreate {
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"message":"already exists"}`))
+			return
+		}
+		var req codersdk.CreateAIProviderRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		p := codersdk.AIProvider{
+			ID:          uuid.New(),
+			Type:        req.Type,
+			Name:        req.Name,
+			DisplayName: req.DisplayName,
+			Enabled:     req.Enabled,
+			BaseURL:     req.BaseURL,
+		}
+		f.providers = append(f.providers, p)
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(p)
+	case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/chats/model-configs":
+		_ = json.NewEncoder(w).Encode(f.configs)
+	case r.Method == http.MethodPost && r.URL.Path == "/api/experimental/chats/model-configs":
+		var req codersdk.CreateChatModelConfigRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		c := codersdk.ChatModelConfig{
+			ID:           uuid.New(),
+			AIProviderID: *req.AIProviderID,
+			Model:        req.Model,
+			DisplayName:  req.DisplayName,
+			ContextLimit: *req.ContextLimit,
+			Enabled:      *req.Enabled,
+		}
+		f.configs = append(f.configs, c)
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(c)
+	default:
+		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+func newFakeClient(t *testing.T, api *fakeProviderModelAPI) *codersdk.Client {
+	t.Helper()
+	srv := httptest.NewServer(api)
+	t.Cleanup(srv.Close)
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	return codersdk.New(u)
+}
+
+func TestEnsureLocalAIProvider(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreatesWhenAbsent", func(t *testing.T) {
+		t.Parallel()
+		api := &fakeProviderModelAPI{}
+		client := newFakeClient(t, api)
+
+		p, err := ensureLocalAIProvider(context.Background(), client)
+		require.NoError(t, err)
+		require.NotNil(t, p)
+		assert.Equal(t, llamaProviderName, p.Name)
+		assert.Equal(t, codersdk.AIProviderTypeOpenAICompat, p.Type)
+		assert.Equal(t, fmt.Sprintf("http://localhost:%d/v1/", llamaPort), p.BaseURL)
+		assert.Len(t, api.providers, 1)
+	})
+
+	t.Run("ReusesExisting", func(t *testing.T) {
+		t.Parallel()
+		api := &fakeProviderModelAPI{
+			providers: []codersdk.AIProvider{{ID: uuid.New(), Name: llamaProviderName}},
+		}
+		client := newFakeClient(t, api)
+
+		p, err := ensureLocalAIProvider(context.Background(), client)
+		require.NoError(t, err)
+		require.NotNil(t, p)
+		assert.Equal(t, llamaProviderName, p.Name)
+		// No duplicate was created.
+		assert.Len(t, api.providers, 1)
+	})
+
+	t.Run("ReconcilesOnConflict", func(t *testing.T) {
+		t.Parallel()
+		api := &fakeProviderModelAPI{
+			conflictOnCreate: true,
+			providers:        []codersdk.AIProvider{{ID: uuid.New(), Name: llamaProviderName}},
+		}
+		client := newFakeClient(t, api)
+
+		p, err := ensureLocalAIProvider(context.Background(), client)
+		require.NoError(t, err)
+		require.NotNil(t, p)
+		assert.Equal(t, llamaProviderName, p.Name)
+	})
+}
+
+func TestEnsureLocalAIModelConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreatesWhenAbsent", func(t *testing.T) {
+		t.Parallel()
+		api := &fakeProviderModelAPI{}
+		client := codersdk.NewExperimentalClient(newFakeClient(t, api))
+		providerID := uuid.New()
+
+		err := ensureLocalAIModelConfig(context.Background(), client, providerID, "qwen2.5-1.5b-instruct-gguf")
+		require.NoError(t, err)
+		require.Len(t, api.configs, 1)
+		assert.Equal(t, providerID, api.configs[0].AIProviderID)
+		assert.Equal(t, "qwen2.5-1.5b-instruct-gguf", api.configs[0].Model)
+		assert.Equal(t, llamaContextLimit, api.configs[0].ContextLimit)
+	})
+
+	t.Run("ReusesExisting", func(t *testing.T) {
+		t.Parallel()
+		providerID := uuid.New()
+		api := &fakeProviderModelAPI{
+			configs: []codersdk.ChatModelConfig{
+				{ID: uuid.New(), AIProviderID: providerID, Model: "qwen2.5-1.5b-instruct-gguf"},
+			},
+		}
+		client := codersdk.NewExperimentalClient(newFakeClient(t, api))
+
+		err := ensureLocalAIModelConfig(context.Background(), client, providerID, "qwen2.5-1.5b-instruct-gguf")
+		require.NoError(t, err)
+		// No duplicate was created.
+		assert.Len(t, api.configs, 1)
 	})
 }
