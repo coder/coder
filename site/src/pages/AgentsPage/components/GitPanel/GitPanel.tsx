@@ -497,7 +497,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	// keep the "Working" prefix so the identifier reads as a status.
 	const showStateLabelInline = activeItem.kind === "local";
 	const triggerContent = (
-		<span className="flex h-full min-w-0 items-center gap-1.5 px-2 leading-none text-content-primary">
+		<span className="flex h-full min-w-0 items-center gap-1.5 px-1 leading-none text-content-primary">
 			<span
 				role="img"
 				aria-label={activeItem.iconLabel}
