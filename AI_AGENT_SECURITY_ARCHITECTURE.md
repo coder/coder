@@ -145,12 +145,28 @@ CREATE UNIQUE INDEX idx_ai_agents_origin ON ai_agents (origin_type, origin_id)
 ```
 
 Design rule: **nothing may decide "is this an AI agent" from the users row
-alone**; the `ai_agents` row is the authoritative marker and must be loaded
-whenever `users.kind = 'ai_agent'`. A dangling kind without a metadata row
-is an auth error (fail closed, 401).
+alone**; the `ai_agents` row must be loaded whenever
+`users.kind = 'ai_agent'`. A dangling kind without a metadata row is an
+auth error (fail closed, 401).
 
-No `chats.ai_agent_id` column is needed: `(origin_type='chat',
-origin_id=chat.ID)` is the link, resolved via the unique partial index.
+Known deviation: in the current implementation `users.kind` is the
+runtime discriminator, not `ai_agents`. Authentication branches on the
+kind and only then loads the metadata row
+(`coderd/httpmw/apikey.go:500`), so the two markers can disagree in a
+direction that fails OPEN: an `ai_agents` row whose user is
+`kind = 'human'` skips delegation entirely and builds a direct human
+subject. Nothing in the schema ties the two together. The fix is typed
+composite foreign keys referencing `users (id, kind)`, which makes the
+mismatch unrepresentable; see `AI_AGENT_IDENTITY_SCHEMA_REVIEW.md`.
+
+This design originally held that no `chats.ai_agent_id` column was
+needed, on the grounds that `(origin_type='chat', origin_id=chat.ID)` is
+the link and is resolved through the unique partial index. That was
+wrong. Without a durable reference on the chat, "no row" is ambiguous
+between a chat that predates identities and a chat whose identity is
+missing, and chatd resolves that ambiguity by falling back to the
+sponsor's full subject. Workspaces already carry `ai_agent_id`; the
+asymmetry with chats is accidental rather than principled.
 
 #### 3. `audit_logs.on_behalf_of_user_id`
 
@@ -420,6 +436,34 @@ describes is not an audit trail. Soft deletion also lets the system
 distinguish "this identity was revoked" from "this identity never existed",
 which is what makes fail-closed resolution possible.
 
+Three qualifications the current implementation does not yet meet:
+
+- **Survival is conventional, not structural.** `ai_agents.owner_user_id`
+  is `ON DELETE CASCADE`, so hard-deleting a SPONSOR erases the identity
+  metadata that retained audit rows still reference. Nothing survives
+  because the schema guarantees it; it survives because no hard-delete
+  path currently exists. The V2 and V3 audit tables were deliberately
+  built with raw UUIDs and no foreign keys for exactly this reason, and
+  V1 was not held to the same standard. `ON DELETE RESTRICT` is the fix.
+- **Revocation is reversible.** `deleted` is a boolean that can be set
+  either direction, there is no revocation timestamp or reason, and the
+  agent's `users` row stays active afterwards. An immutable
+  `active | revoked` state with a timestamp and reason is the better
+  model, and is what Vertical 3 will want to query.
+- **Revocation is not applied on origin deletion.** Deleting a workspace
+  revokes its scoped key but leaves the workspace-origin identity
+  `deleted = false`. The lifecycle coupling is application code that was
+  never written rather than a database constraint.
+
+- **Resolution conflates two questions.** `Resolve` answers "may this
+  identity act", and `ResolveOnBehalfOf` reuses it to answer "who was
+  this identity acting for", so a delayed background audit written after
+  revocation silently loses sponsor lineage. These should be separate
+  entry points: authorization requires a live identity and sponsor,
+  attribution returns immutable provenance regardless of state.
+
+See `AI_AGENT_IDENTITY_SCHEMA_REVIEW.md` for the proposed DDL.
+
 #### Fail closed on resolution, everywhere
 
 **Chosen:** a `users.kind = 'ai_agent'` row without a live `ai_agents`
@@ -452,12 +496,29 @@ accepted `coder:all` and `*:*`, which the review caught.
    `user_id = agent user, on_behalf_of_user_id = owner`; audit queries by
    owner return both their own and their agents' actions.
 4. **Non-interactive**: agent users can never authenticate via
-   password/OIDC/GitHub (login_type none), never appear in default user
-   lists, never receive emails/notifications.
+   password/OIDC/GitHub (login_type none) and do not appear in default
+   user lists. Note the last two properties are enforced by query filters
+   rather than by the schema: listing queries filter on kind, but
+   mutation paths still accept agent user IDs, so an administrator can
+   assign organization or group membership and roles to an agent user,
+   and chat sharing can enqueue an inbox notification to one. Those
+   assignments do not affect agent authorization, which always uses the
+   sponsor's roles, but they are representable.
 5. **No self-escalation**: agent keys cannot create or modify API keys
    (scope exclusion), so an agent cannot mint itself a broader credential.
 6. **Fail closed**: `users.kind = 'ai_agent'` without a live `ai_agents`
-   row is an authentication error.
+   row is an authentication error. This holds for both authentication
+   middlewares. It does NOT currently hold in chatd, which treats a
+   missing row as a chat that predates identities and falls back to
+   running platform tools with the sponsor's full subject
+   (`coderd/x/chatd/chatd.go:3880-3890`). A durable per-chat identity
+   reference is required to distinguish a legacy chat from a corrupted
+   one.
+7. **Cascade suspend applies per connection, not per message**: subjects
+   are built when a request or connection is authenticated. A long-lived
+   DRPC or WebSocket session keeps the subject it was created with, so a
+   sponsor suspended mid-session retains access until that session ends.
+   New requests and reconnections see the change immediately.
 
 ### Implementation order
 
