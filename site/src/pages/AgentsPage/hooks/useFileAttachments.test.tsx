@@ -95,6 +95,27 @@ describe("useFileAttachments org scoping", () => {
 		expect(leaked).toStrictEqual([]);
 	});
 
+	it("reports adoption only after the post-commit effect", () => {
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
+		);
+		const log: { adopted: boolean; fileIds: string[] }[] = [];
+		const Probe: FC<{ orgId: string }> = ({ orgId }) => {
+			const result = useFileAttachments(orgId, { persist: true });
+			log.push({
+				adopted: result.organizationAdopted,
+				fileIds: uploadedFileIds(result),
+			});
+			return null;
+		};
+		render(<Probe orgId="org-a" />);
+		// The commit that supplies the org must not report adoption; the
+		// persisted file is only restored (and sendable) afterwards.
+		expect(log[0]).toStrictEqual({ adopted: false, fileIds: [] });
+		expect(log.at(-1)).toStrictEqual({ adopted: true, fileIds: ["file-a"] });
+	});
+
 	it("does not prune storage during a render that never commits", () => {
 		localStorage.setItem(
 			persistedAttachmentsStorageKey,

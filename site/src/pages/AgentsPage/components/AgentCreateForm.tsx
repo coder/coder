@@ -428,6 +428,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	};
 
 	const {
+		organizationAdopted,
 		attachments,
 		textContents,
 		uploadStates,
@@ -539,6 +540,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							isCreating ||
 							isForbidden ||
 							!orgSelectionSettled ||
+							// Until adoption, a send would omit persisted files
+							// the hook has not yet restored.
+							!organizationAdopted ||
 							isPersonalModelOverridesLoading ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
@@ -558,12 +562,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={setPlanModeEnabled}
 						attachments={attachments}
-						// Until the attachment hook has a real org, a dropped or
-						// pasted file cannot upload and would be discarded by
-						// restoration once the org settles.
-						onAttach={
-							orgSelectionSettled && !noPermittedOrgs ? handleAttach : undefined
-						}
+						// Until the attachment hook has adopted a real org, a
+						// dropped or pasted file cannot upload and would be
+						// discarded by restoration when adoption completes.
+						// Adoption implies the org settled and is permitted.
+						onAttach={organizationAdopted ? handleAttach : undefined}
 						onRemoveAttachment={handleRemoveAttachment}
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}

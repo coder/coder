@@ -162,6 +162,13 @@ function clearPersistedAttachments() {
 }
 
 interface UseFileAttachmentsReturn {
+	/**
+	 * True once the in-memory attachment state belongs to the supplied
+	 * organization. Adoption happens in a post-commit effect, so during
+	 * the commit that first supplies (or changes) the org this is false;
+	 * callers should keep attach and send controls disabled until then.
+	 */
+	organizationAdopted: boolean;
 	attachments: File[];
 	textContents: Map<File, string>;
 	uploadStates: Map<File, UploadState>;
@@ -538,6 +545,8 @@ export function useFileAttachments(
 		stateOrgId !== organizationId;
 
 	return {
+		organizationAdopted:
+			!persist || (Boolean(organizationId) && stateOrgId === organizationId),
 		attachments: orgMismatch ? [] : attachments,
 		textContents: orgMismatch ? new Map<File, string>() : textContents,
 		uploadStates: orgMismatch ? new Map<File, UploadState>() : uploadStates,
