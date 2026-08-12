@@ -327,6 +327,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				initialOrg ??
 				null);
 	const organizationId = effectiveOrg?.id ?? "";
+	// Record a settled fallback-derived org as the selection; left null, a
+	// later refetch that re-permits a revoked default would silently switch
+	// the form away from the org the user is composing under. Only permitted
+	// orgs are recorded, otherwise the invalidation above would clear the
+	// record on the next render and loop.
+	if (
+		orgSelectionSettled &&
+		!selectedOrg &&
+		effectiveOrg &&
+		permittedOrgs.some((org) => org.id === effectiveOrg.id)
+	) {
+		setSelectedOrg(effectiveOrg);
+	}
 	// Clear a workspace when a settled permission refetch changes org, but
 	// preserve it on initial settlement. Render-time adjustment prevents stale
 	// selection from resurfacing before localStorage is cleared post-commit.

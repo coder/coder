@@ -1269,11 +1269,14 @@ export const RevokedOrgChangeClearsStoredWorkspace: Story = {
 			).not.toBeInTheDocument(),
 		);
 
+		// Re-permitting the default must not switch the form away from
+		// the fallback org the user is now composing under, nor
+		// resurrect the cleared workspace.
 		revocablePermissions[MockDefaultOrganization.id] = true;
 		await revocableQueryClient?.invalidateQueries();
 		await waitFor(() =>
 			expect(canvas.getByTestId("compact-org-selector")).toHaveAccessibleName(
-				"Organization: My Organization",
+				"Organization: My Organization 2",
 			),
 		);
 		expect(
