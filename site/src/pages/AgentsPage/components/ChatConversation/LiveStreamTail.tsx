@@ -15,7 +15,7 @@ import {
 } from "./chatStore";
 import { deriveLiveStatus, type LiveStatusModel } from "./liveStatusModel";
 import { StreamingOutput } from "./StreamingOutput";
-import { buildStreamTools } from "./streamState";
+import { buildStreamTools, filterPendingStreamState } from "./streamState";
 import type { MergedTool, StreamState } from "./types";
 
 const shouldRenderStreamingSection = (liveStatus: LiveStatusModel): boolean =>
@@ -101,6 +101,7 @@ interface LiveStreamTailProps {
 	subagentVariants?: Map<string, SubagentVariant>;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	pendingToolCallIDs?: ReadonlySet<string>;
 }
 
 export const LiveStreamTail = ({
@@ -111,6 +112,7 @@ export const LiveStreamTail = ({
 	subagentVariants,
 	urlTransform,
 	mcpServers,
+	pendingToolCallIDs,
 }: LiveStreamTailProps) => {
 	const streamState = useChatSelector(store, selectStreamState);
 	const streamError = useChatSelector(store, selectStreamError);
@@ -124,12 +126,18 @@ export const LiveStreamTail = ({
 		store,
 		selectSubagentStatusOverrides,
 	);
+	// Hide result-only rows whose pending call is already rendered in the
+	// durable transcript, so the live tail does not flash a duplicate row.
+	const visibleStreamState = filterPendingStreamState(
+		streamState,
+		pendingToolCallIDs,
+	);
 	const streamTools = buildStreamTools(
-		streamState?.toolCalls,
-		streamState?.toolResults,
+		visibleStreamState?.toolCalls,
+		visibleStreamState?.toolResults,
 	);
 	const liveStatus = deriveLiveStatus({
-		streamState,
+		streamState: visibleStreamState,
 		retryState,
 		reconnectState,
 		streamError,
@@ -140,7 +148,7 @@ export const LiveStreamTail = ({
 	return (
 		<LiveStreamTailContent
 			isTranscriptEmpty={isTranscriptEmpty}
-			streamState={streamState}
+			streamState={visibleStreamState}
 			streamTools={streamTools}
 			liveStatus={liveStatus}
 			subagentTitles={subagentTitles}

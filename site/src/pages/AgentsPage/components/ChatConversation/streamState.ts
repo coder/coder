@@ -234,6 +234,55 @@ const getStreamToolStatus = (
 	return result.isError ? "error" : "completed";
 };
 
+/**
+ * Drops result-only stream entries whose tool call is already rendered as
+ * pending in the durable transcript. After the assistant message commits,
+ * the stream state is cleared but the tool result still streams before the
+ * tool step commits. Without this filter the result renders as a second row
+ * next to the durable pending row: first an arg-less tool row (for example
+ * "Read file"), or a generic "Tool" placeholder if only the result entry is
+ * dropped while its block remains.
+ *
+ * Both the result entry and its `{ type: "tool", id }` block are removed so
+ * nothing references the dropped id. Entries whose id also has an in-stream
+ * tool call are kept: that is the normal streaming merge path, and keying on
+ * the id (not the tool name) leaves a parallel second call to the same tool
+ * untouched. When every block is dropped the tail behaves as if no output
+ * has accumulated yet (the durable pending row above is already visible).
+ *
+ * Returns the input reference unchanged when nothing is dropped so memoized
+ * consumers do not re-render on every pending-call change.
+ */
+export const filterPendingStreamState = (
+	streamState: StreamState | null,
+	pendingToolCallIDs: ReadonlySet<string> | undefined,
+): StreamState | null => {
+	if (!streamState || !pendingToolCallIDs || pendingToolCallIDs.size === 0) {
+		return streamState;
+	}
+	const toolResults: StreamState["toolResults"] = {};
+	let dropped = false;
+	for (const [id, result] of Object.entries(streamState.toolResults)) {
+		if (pendingToolCallIDs.has(id) && !streamState.toolCalls[id]) {
+			dropped = true;
+			continue;
+		}
+		toolResults[id] = result;
+	}
+	if (!dropped) {
+		return streamState;
+	}
+	return {
+		...streamState,
+		blocks: streamState.blocks.filter(
+			(block) =>
+				block.type !== "tool" ||
+				!(pendingToolCallIDs.has(block.id) && !streamState.toolCalls[block.id]),
+		),
+		toolResults,
+	};
+};
+
 export const buildStreamTools = (
 	toolCalls: StreamState["toolCalls"] | null | undefined,
 	toolResults: StreamState["toolResults"] | null | undefined,

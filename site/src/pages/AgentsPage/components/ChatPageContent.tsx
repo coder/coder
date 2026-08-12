@@ -169,6 +169,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					subagentVariants={subagentVariants}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
+					pendingToolCallIDs={pendingToolCallIDs}
 				/>
 			</div>
 		</Profiler>

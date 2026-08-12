@@ -3,6 +3,7 @@ import {
 	applyMessagePartToStreamState,
 	buildStreamTools,
 	createEmptyStreamState,
+	filterPendingStreamState,
 } from "./streamState";
 import type { StreamState } from "./types";
 
@@ -699,6 +700,132 @@ describe("applyMessagePartToStreamState", () => {
 			isError: true,
 			status: "error",
 		});
+	});
+});
+
+describe("filterPendingStreamState", () => {
+	const pendingReadFileState = (): StreamState => ({
+		blocks: [{ type: "tool", id: "tc-1" }],
+		toolCalls: {},
+		toolResults: {
+			"tc-1": {
+				id: "tc-1",
+				name: "read_file",
+				result: { content: "file body" },
+				isError: false,
+			},
+		},
+		sources: [],
+	});
+
+	it("drops a result-only entry and its tool block for a pending durable call", () => {
+		const filtered = filterPendingStreamState(
+			pendingReadFileState(),
+			new Set(["tc-1"]),
+		);
+		expect(filtered).not.toBeNull();
+		expect(filtered!.toolResults).toEqual({});
+		// The block referencing the dropped id must also be removed so the
+		// tail does not render a generic "Tool" placeholder.
+		expect(filtered!.blocks).toEqual([]);
+		expect(
+			buildStreamTools(filtered!.toolCalls, filtered!.toolResults),
+		).toEqual([]);
+	});
+
+	it("keeps a result and block that share an id with an in-stream call", () => {
+		const state: StreamState = {
+			blocks: [{ type: "tool", id: "tc-1" }],
+			toolCalls: {
+				"tc-1": { id: "tc-1", name: "read_file", args: { path: "a.ts" } },
+			},
+			toolResults: {
+				"tc-1": {
+					id: "tc-1",
+					name: "read_file",
+					result: { content: "file body" },
+					isError: false,
+				},
+			},
+			sources: [],
+		};
+		// The normal streaming merge path wins even when the same id is
+		// pending in the durable transcript.
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(filtered).toBe(state);
+		const tools = buildStreamTools(filtered!.toolCalls, filtered!.toolResults);
+		expect(tools).toHaveLength(1);
+		expect(tools[0].status).toBe("completed");
+	});
+
+	it("keeps a result-only entry for a parallel call to the same tool with a different id", () => {
+		const state: StreamState = {
+			blocks: [
+				{ type: "tool", id: "tc-1" },
+				{ type: "tool", id: "tc-2" },
+			],
+			toolCalls: {},
+			toolResults: {
+				"tc-1": {
+					id: "tc-1",
+					name: "read_file",
+					result: { content: "first" },
+					isError: false,
+				},
+				"tc-2": {
+					id: "tc-2",
+					name: "read_file",
+					result: { content: "second" },
+					isError: false,
+				},
+			},
+			sources: [],
+		};
+		// Only tc-1 is pending in the durable transcript.
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(Object.keys(filtered!.toolResults)).toEqual(["tc-2"]);
+		expect(filtered!.blocks).toEqual([{ type: "tool", id: "tc-2" }]);
+	});
+
+	it("keeps non-tool blocks and other tool blocks while dropping the pending one", () => {
+		const state: StreamState = {
+			blocks: [
+				{ type: "response", text: "Reading the file now." },
+				{ type: "tool", id: "tc-1" },
+				{ type: "tool", id: "tc-2" },
+			],
+			toolCalls: {
+				"tc-2": { id: "tc-2", name: "bash", args: { command: "ls" } },
+			},
+			toolResults: {
+				"tc-1": {
+					id: "tc-1",
+					name: "read_file",
+					result: { content: "file body" },
+					isError: false,
+				},
+			},
+			sources: [],
+		};
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(filtered!.blocks).toEqual([
+			{ type: "response", text: "Reading the file now." },
+			{ type: "tool", id: "tc-2" },
+		]);
+		expect(filtered!.toolResults).toEqual({});
+		expect(filtered!.toolCalls).toBe(state.toolCalls);
+	});
+
+	it("returns the input reference when nothing is dropped", () => {
+		const state = pendingReadFileState();
+		// No pending ids, and a pending id that matches no stream entry.
+		expect(filterPendingStreamState(state, undefined)).toBe(state);
+		expect(filterPendingStreamState(state, new Set())).toBe(state);
+		expect(filterPendingStreamState(state, new Set(["tc-other"]))).toBe(state);
+	});
+
+	it("returns null for null stream state", () => {
+		expect(filterPendingStreamState(null, new Set(["tc-1"]))).toBeNull();
 	});
 });
 
