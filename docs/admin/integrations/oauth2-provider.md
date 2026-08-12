@@ -333,11 +333,24 @@ application's callback URL to a valid scheme (see
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
 
+### "public clients may not use the mailto/tel/sms scheme"
+
+This error appears during client registration when a public client
+(`token_endpoint_auth_method: none`) registers a redirect URI using the
+`mailto:`, `tel:`, or `sms:` scheme. These schemes hand off to a mail
+client, dialer, or SMS app instead of returning control to the
+application that started the flow, so a public client registered with
+one of them could never complete authorization. Register a redirect URI
+the client can actually receive control on instead, such as a custom
+scheme (`myapp://callback`) or a loopback HTTP address.
+
 ## Callback URL schemes
 
 Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications. The OS routes the redirect back to the registered application without requiring a running HTTP server.
 
 The following schemes are blocked for security reasons: `javascript:`, `data:`, `file:`, `ftp:`.
+
+Public clients (`token_endpoint_auth_method: none`) additionally cannot register `mailto:`, `tel:`, or `sms:` redirect URIs, since those schemes hand off to another app rather than returning an authorization code to the client. Confidential clients are not subject to this restriction.
 
 ## Security Considerations
 
@@ -346,7 +359,8 @@ The following schemes are blocked for security reasons: `javascript:`, `data:`, 
   (public and confidential)
 - **Validate redirect URLs**: Only register trusted redirect URIs. Dangerous
   schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the server,
-  but custom URI schemes for native apps (`myapp://`) are permitted
+  custom URI schemes for native apps (`myapp://`) are permitted, and public
+  clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
 
 ## Limitations
