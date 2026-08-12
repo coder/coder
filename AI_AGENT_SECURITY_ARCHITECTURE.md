@@ -652,7 +652,14 @@ through the same script contract, not privileged code paths:
 |-----------------------|-------------------------------|-------------------------------------------------------------------------------------|
 | netns supervisor      | Linux network namespace       | Used for AI-designated whole-workspace confinement; also usable as a sandbox script |
 | coder/sandbox         | libkrun microVM, KVM required | Flagship reference; per-sandbox MITM possible with a guest CA                       |
-| devcontainer retrofit | Container                     | No egress enforcement; attests `none`                                               |
+| rootless podman       | Container, user namespace     | Daemonless, so its processes stay descendants and inherit platform confinement      |
+| devcontainer retrofit | Container via a daemon socket | No egress enforcement; the daemon escapes confinement, so it attests `none`         |
+
+Placement in that table follows from the backend compatibility rule in
+"Host-side enforcement" below: a backend is confinable when every process
+that originates egress is a descendant the platform launched. Daemonless
+runtimes qualify; anything reached through a pre-existing privileged
+helper socket does not.
 
 #### coder/sandbox hardening list before production use
 
@@ -720,6 +727,170 @@ For an AI-designated workspace, the workspace-level supervisor confines the
 workspace interior. For a sandboxed agent, the parent workspace agent
 manages the selected sandbox backend and the bound child workspace agent
 runs inside it.
+
+#### Host-side enforcement: where the rules live
+
+The confinement above places the child in a namespace and the proxy
+outside it. That is necessary but not sufficient, because it leaves open
+where the firewall rules that force traffic to the proxy are installed.
+Putting them inside the child's namespace is the obvious choice and the
+wrong one.
+
+**Principle: enforcement rules live on the HOST side of the veth, in the
+supervisor's own namespace. Rules inside the confined namespace exist only
+to make traffic flow to the proxy, never to decide whether it may leave.**
+
+Netfilter rules are enforced by the kernel, so nothing inside the namespace
+can send a packet past them by being uncooperative. But a process holding
+`CAP_NET_ADMIN` **in the namespace that owns the rules** can simply delete
+them. If the rules are inside the child's namespace, the child's own
+privilege defeats them. If they are on the host side, the child may flush
+its own namespace freely: its traffic then leaves the veth undirected,
+meets the supervisor's default-deny, and is dropped. The child can break
+its own connectivity. It cannot widen it.
+
+This inversion has a consequence worth stating plainly, because it decides
+which sandbox technologies the platform can support:
+
+**`CAP_NET_ADMIN` inside the confined namespace becomes tolerable.** Sandbox
+backends that must create bridges, veths, or TAP devices to build their own
+boundary (rootful podman with netavark, TAP-based VMMs) stay compatible,
+because the privilege they need is confined to a namespace whose egress the
+platform controls from outside. A design that enforced from inside would
+have to strip that privilege and would therefore exclude them.
+
+Rules are installed on both sides, with different jobs:
+
+| Side                  | Purpose                                                                                                             | If the child subverts it                                             |
+|-----------------------|---------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| Child namespace       | Transparent redirection: DNAT outbound TCP to the supervisor's listeners, DNAT port 53 to the DNS relay             | Child loses interception and its traffic is dropped by the host side |
+| Host side of the veth | Enforcement: accept only the listener ports from the peer address, drop everything else, drop forwarding, drop IPv6 | Not reachable from inside the namespace                              |
+
+##### Routing: the child needs a default route
+
+An earlier form of this design specified a namespace with no default route,
+on the reasoning that no route means no egress. That is fail-closed but
+nonfunctional: for locally generated TCP, Linux resolves the route before
+the packet reaches the `OUTPUT` chain, so `connect()` fails with
+`ENETUNREACH` before any DNAT rule can redirect it. Transparent
+interception requires a default route through the veth, with the host-side
+rules providing the deny.
+
+##### Datapath
+
+The confined namespace gets a default route via the host veth address,
+plus DNAT rules that send port 80 to the transparent HTTP handler, port
+443 to the SNI listener, and port 53 to the DNS relay. Traffic already
+addressed to the supervisor's listeners returns early so proxy-aware
+clients are unaffected.
+
+The host side accepts, on that veth only, connections from the peer
+address to those listener ports, and drops everything else inbound and
+forwarded. IPv6 is disabled in the namespace or given equivalent rules;
+leaving it implicit creates an uncovered path because `iptables` is IPv4
+only. UDP other than the DNS relay and all ICMP are dropped, which closes
+QUIC on UDP 443 and ICMP as an unrecorded channel.
+
+##### Privilege: a separate problem from the rules
+
+Host-side enforcement removes the need to strip `CAP_NET_ADMIN` to protect
+the *rules*. It does not remove the need to protect the *supervisor*, which
+is a distinct concern with a distinct mitigation.
+
+The supervisor holds sockets created in the host network namespace and the
+agent's credentials. A socket carries the namespace it was created in, so
+obtaining one of the supervisor's file descriptors yields unfiltered egress
+without a packet ever crossing the veth. A confined process running as the
+same UID as the supervisor can reach them: `ptrace`, `process_vm_readv`,
+`pidfd_getfd`, `/proc/<pid>/mem`, or simply opening a credential file whose
+permissions assume a trust boundary that is not there.
+
+The requirement is therefore: **the confined process must not be able to
+attach to, read, or open anything belonging to the process enforcing its
+confinement.** A dedicated UID is the cheapest lever that closes all of
+those at once; a seccomp filter denying the FD-theft calls plus a PID and
+mount namespace hiding the supervisor and its sockets is the equivalent
+without the UID change. `no_new_privs` is required either way so setuid
+binaries cannot restore privilege after the drop, and inherited file
+descriptors must be closed explicitly at exec.
+
+This applies per shape. In the microVM shape the AI is behind a VM
+boundary and cannot reach the supervisor at all, so the drop is
+unnecessary. In the netns shape the AI shares a kernel and a process table
+with the supervisor, so it is load bearing. This is the same mitigation
+listed first in the threat-honesty note under "Audit stream and
+retention", restated here as a requirement rather than an aspiration.
+
+Note also the interaction with rootless container runtimes: `newuidmap`
+and `newgidmap` are setuid binaries, and `no_new_privs` makes the kernel
+ignore setuid bits. A rootless backend either prepares its user namespace
+before the drop or runs with a single-UID mapping.
+
+##### DNS is mandatory, and is a policy chokepoint
+
+Cooperative proxying never needed DNS in the namespace: the client hands
+the proxy a name and the proxy resolves it. Transparent interception
+inverts that. The client must resolve a name to an address before it can
+open the connection the platform intends to intercept, so without a
+working resolver there is nothing to intercept.
+
+The relay is therefore required, not optional, and it is a second policy
+decision point rather than a forwarder with logging. Names outside the
+policy are refused rather than resolved, queries are recorded as an
+activity signal that precedes any connection, and malformed or unnecessary
+query types are rejected. A relay that forwards by default is an egress
+channel in its own right: query names alone carry data out. Recording is
+not prevention.
+
+##### Failing closed and preflight
+
+Confinement must not degrade silently. The current supervisor falls back
+from namespace mode to advisory proxy-only mode when setup fails, which
+converts a structural claim into a cooperative one at runtime. For a shape
+that attests `forced`, setup failure is fatal.
+
+Because the mechanism depends on binaries and privileges that a workspace
+image may not carry (`ip`, `iptables` and `ip6tables` or `nft`, the ability
+to create namespaces and switch UID), the platform preflights them and
+reports the shape as unsupported when they are absent, rather than
+claiming an enforcement it is not performing.
+
+##### Backend compatibility
+
+The determining question is whether every process that originates egress
+is a descendant the platform launched, or whether the backend delegates to
+something that already exists outside the namespace.
+
+| Backend                                     | Confinable                      | Why                                                                                                                                                         |
+|---------------------------------------------|---------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Plain process, chroot, bubblewrap           | yes                             | Direct descendants                                                                                                                                          |
+| microVM with user-mode networking (libkrun) | yes                             | The VMM's host sockets are in the confined namespace; needs only `/dev/kvm` access                                                                          |
+| Rootless podman (pasta, slirp4netns)        | yes                             | Daemonless: `conmon` and the runtime are descendants; the userspace network helper holds its sockets in the confined namespace                              |
+| Rootful podman (netavark), TAP-based VMMs   | yes, with host-side enforcement | Requires `CAP_NET_ADMIN` inside, which host-side rules tolerate; nested interfaces need matching `PREROUTING` and `FORWARD` coverage                        |
+| Docker via a daemon socket                  | **no**                          | `dockerd` creates the container in its own namespace; a unix socket is not isolated by a network namespace, so the request escapes before any packet exists |
+
+Docker through a shared daemon socket cannot be confined by this
+mechanism and must be recorded as `advisory` or unsupported rather than
+`forced`. The same reasoning applies to any backend reached through a
+pre-existing privileged helper, including a sandbox runtime whose own
+daemon was started outside the namespace.
+
+##### What this changes in the current implementation
+
+- Enforcement rules move to the host side of the veth; child-side rules
+  become redirection only.
+- The namespace gains a default route through the veth.
+- Namespace addressing becomes per sandbox: the current fixed `/30` cannot
+  support two concurrent sandboxes.
+- `SandboxController` runs the admin script inside a namespace rather than
+  passing a proxy address to a cooperative script.
+- The script is launched through a privilege-dropping helper rather than
+  `sh -c` with the agent's environment and credentials.
+- A DNS relay is implemented and enforces policy.
+- The transparent HTTP path accepts origin-form requests, which is what
+  DNATed port 80 traffic looks like; the current proxy accepts only
+  absolute-form and would reject it.
+- Setup failure fails closed for `forced` shapes.
 
 #### Policy: two layers
 
@@ -802,12 +973,20 @@ cleanup. A session-to-event relationship may enforce its own retention-safe
 integrity, but deleting an identity must never delete egress audit records.
 
 Threat honesty: a network namespace beside its supervisor in the same
-container is a strong fence, not a wall. Mitigations in order are: run the AI
-as non-root with the supervisor under a different UID; drop `CAP_SYS_ADMIN`
-and `CAP_NET_ADMIN` where templates allow; use VM-class workspaces with an
+container is a strong fence, not a wall. Mitigations in order are: run the
+AI under a UID distinct from the supervisor, so it cannot attach to that
+process or open its credentials and host-namespace sockets; drop
+`CAP_SYS_ADMIN` and `CAP_SYS_PTRACE`; use VM-class workspaces with an
 infrastructure-enforced perimeter such as NetworkPolicy or security groups
 for the highest tier; retain the network namespace as defense in depth and
 an audit source. The template envelope selects the tier.
+
+`CAP_NET_ADMIN` is deliberately absent from that list. Once enforcement
+rules live on the host side of the veth (see "Host-side enforcement"), a
+confined process holding it can only reconfigure its own namespace, which
+breaks its connectivity rather than widening it. Keeping it available is
+what allows sandbox backends that build their own network boundary to run
+inside platform confinement.
 
 ### Credential plane
 
