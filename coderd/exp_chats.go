@@ -3388,9 +3388,10 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/experimental/chats/{chat}/compact [post]
 // @x-apidocgen {"skip": true}
 // @Description Experimental: this endpoint is subject to change.
-// @Description Requests a manual context compaction on an idle chat. The
-// @Description compaction runs asynchronously through the chat worker and
-// @Description bypasses the automatic usage threshold.
+// @Description Requests a manual context compaction on an idle or errored
+// @Description chat, clearing any stored error. The compaction runs
+// @Description asynchronously through the chat worker and bypasses the
+// @Description automatic usage threshold.
 func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -3431,12 +3432,9 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 				Detail:  "The chat has no conversation to summarize after the latest compaction.",
 			})
 		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
-			// Covers every non-waiting state: running, interrupting,
-			// requires-action, and error. "Busy" would misdescribe an
-			// errored chat, so keep the message state-neutral.
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Cannot compact the chat in its current state.",
-				Detail:  "Compaction is only available while the chat is idle.",
+				Detail:  "Compaction is not available while the chat is generating.",
 			})
 		default:
 			logger.Error(ctx, "failed to compact chat", slog.Error(err))
