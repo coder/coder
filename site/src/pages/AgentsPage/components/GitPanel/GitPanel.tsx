@@ -561,6 +561,9 @@ const PrimaryCta: FC<{
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	onCommit: (repoRoot: string) => void;
 }> = ({ effectiveView, prTab, pullRequestUrl, repositories, onCommit }) => {
+	const ctaClassName =
+		"inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-[13px] font-medium leading-none text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50";
+
 	if (effectiveView.type === "remote") {
 		if (!prTab || !pullRequestUrl) {
 			return null;
@@ -570,7 +573,7 @@ const PrimaryCta: FC<{
 				href={pullRequestUrl}
 				target="_blank"
 				rel="noreferrer"
-				className="inline-flex shrink-0 items-center gap-1 px-1 text-[13px] font-medium leading-5 text-content-link no-underline transition-colors hover:text-content-link/80 hover:underline"
+				className={ctaClassName}
 				aria-label={`View PR #${prTab.prNumber}`}
 			>
 				View PR
@@ -588,7 +591,7 @@ const PrimaryCta: FC<{
 			type="button"
 			onClick={() => onCommit(effectiveView.repoRoot)}
 			disabled={!repo.unified_diff}
-			className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-[13px] font-medium leading-none text-content-primary transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
+			className={cn(ctaClassName, "cursor-pointer")}
 		>
 			<CheckIcon className="size-3" />
 			Commit
