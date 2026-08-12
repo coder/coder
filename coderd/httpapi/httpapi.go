@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"mime"
 	"net/http"
 	"reflect"
 	"strings"
@@ -229,6 +230,38 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 	_ = enc.Encode(response)
 }
 
+// checkContentType enforces that JSON request bodies are declared as
+// application/json when the request is authenticated with a session cookie.
+//
+// This is a CSRF defense-in-depth measure: browsers send cross-origin POSTs
+// without a preflight only for "simple" content types (text/plain,
+// application/x-www-form-urlencoded, multipart/form-data). Decoding JSON
+// from such bodies would let any endpoint mistakenly exempted from the CSRF
+// middleware be forged from a cross-site page. A browser attacker cannot set
+// Content-Type: application/json without triggering a CORS preflight, and
+// cannot remove the victim's session cookie.
+//
+// Requests that do not carry a session cookie (agent, CLI, and API-token
+// clients) are unaffected, so scripts that omit the header keep working.
+func checkContentType(ctx context.Context, rw http.ResponseWriter, r *http.Request) bool {
+	if _, err := r.Cookie(codersdk.SessionTokenCookie); err != nil {
+		// No session cookie: not CSRF-relevant.
+		return true
+	}
+
+	contentType := r.Header.Get("Content-Type")
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err == nil && strings.EqualFold(mediaType, "application/json") {
+		return true
+	}
+
+	Write(ctx, rw, http.StatusUnsupportedMediaType, codersdk.Response{
+		Message: "Unsupported Content-Type.",
+		Detail:  fmt.Sprintf("Cookie-authenticated requests with a JSON body must set the %q header to %q, got %q.", "Content-Type", "application/json", contentType),
+	})
+	return false
+}
+
 // Read decodes JSON from the HTTP request into the value provided. It uses
 // go-validator to validate the incoming request body. ctx is used for tracing
 // and can be nil. Although tracing this function isn't likely too helpful, it
@@ -236,6 +269,10 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
+	if !checkContentType(ctx, rw, r) {
+		return false
+	}
 
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
