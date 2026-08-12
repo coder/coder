@@ -430,7 +430,7 @@ type UsagePeriod struct {
 // 2. The usage period has a greater end date (note: only certain features use usage periods)
 // 3. Graceful & capable > Entitled & not capable (only if both have "Actual" values)
 // 4. The entitlement is greater
-// 5. The limit is greater
+// 5. The limit is greater (except a nil limit on a usage period feature means unlimited, outranking any set limit)
 // 6. Enabled is greater than disabled
 // 7. The actual is greater
 //
@@ -474,11 +474,19 @@ func (f Feature) Compare(b Feature) int {
 		return entitlementDifference
 	}
 
-	// If the entitlement is the same, then we can compare the limits.
+	// If the entitlement is the same, then we can compare the limits. A nil
+	// limit on a usage period feature means unlimited, so it outranks any set
+	// limit; on other features a nil limit loses to a set one.
 	if f.Limit == nil && b.Limit != nil {
+		if bothHaveUsagePeriod {
+			return 1
+		}
 		return -1
 	}
 	if f.Limit != nil && b.Limit == nil {
+		if bothHaveUsagePeriod {
+			return -1
+		}
 		return 1
 	}
 	if f.Limit != nil && b.Limit != nil {
