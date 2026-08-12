@@ -9,6 +9,7 @@ import {
 	within,
 } from "storybook/test";
 import { API } from "#/api/api";
+import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
@@ -24,12 +25,10 @@ import {
 } from "../utils/reasoningEffort";
 import { AgentCreateForm } from "./AgentCreateForm";
 
-// Query key used by permittedOrganizations() in the form.
-const permittedOrgsKey = [
-	"organizations",
-	"permitted",
-	{ object: { resource_type: "chat", owner_id: "me" }, action: "create" },
-];
+const permittedOrgsKey = permittedOrganizationsKey({
+	object: { resource_type: "chat", owner_id: "me" },
+	action: "create",
+});
 
 const modelConfigID = "model-config-1";
 const claudeModelConfigID = "model-config-claude";
@@ -1136,6 +1135,17 @@ export const MemberScopedPermissionsShowOrgPicker: Story = {
 			{ name: /^Organization:/ },
 			{ timeout: 3000 },
 		);
-		expect(picker).toBeInTheDocument();
+		await userEvent.click(picker);
+		await screen.findByRole("option", {
+			name: MockDefaultOrganization.display_name,
+		});
+		await userEvent.click(
+			screen.getByRole("option", { name: MockOrganization2.display_name }),
+		);
+		expect(
+			canvas.getByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
 	},
 };
