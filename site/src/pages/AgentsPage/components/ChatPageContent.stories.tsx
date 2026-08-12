@@ -145,6 +145,51 @@ export const StreamedResultForPendingToolDoesNotDuplicate: Story = {
 	},
 };
 
+// A durable pending advisor call keeps streaming its result_delta parts
+// into the live tail: filterPendingStreamState preserves still-streaming
+// results so the progressive advice UI keeps rendering for the pending id.
+export const StreamedAdvisorAdviceForPendingToolStillRenders: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Plan the change" }]),
+			buildMessage(2, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "advisor-1",
+					tool_name: "advisor",
+					args: { question: "Is this migration safe?" },
+				},
+			]),
+		]);
+		store.setChatStatus("running");
+
+		store.applyMessageParts([
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-1",
+				tool_name: "advisor",
+				result_delta: "Use ",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-1",
+				tool_name: "advisor",
+				result_delta: "small steps.",
+			},
+		]);
+
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The accumulated advice text is the progressive surface the filter
+		// must keep, and it renders exactly once.
+		await canvas.findByText("Use small steps.");
+		expect(canvas.getAllByText("Use small steps.")).toHaveLength(1);
+	},
+};
+
 export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 	render: () => {
 		const store = createChatStore();

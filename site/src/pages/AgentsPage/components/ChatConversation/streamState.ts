@@ -247,8 +247,11 @@ const getStreamToolStatus = (
  * nothing references the dropped id. Entries whose id also has an in-stream
  * tool call are kept: that is the normal streaming merge path, and keying on
  * the id (not the tool name) leaves a parallel second call to the same tool
- * untouched. When every block is dropped the tail behaves as if no output
- * has accumulated yet (the durable pending row above is already visible).
+ * untouched. Results still streaming (the advisor's result_delta parts) are
+ * kept while they accumulate so the progressive advice UI keeps rendering;
+ * the final result part is suppressed once it arrives. When every block is
+ * dropped the tail behaves as if no output has accumulated yet (the durable
+ * pending row above is already visible).
  *
  * Returns the input reference unchanged when nothing is dropped so memoized
  * consumers do not re-render on every pending-call change.
@@ -263,7 +266,11 @@ export const filterPendingStreamState = (
 	const toolResults: StreamState["toolResults"] = {};
 	let dropped = false;
 	for (const [id, result] of Object.entries(streamState.toolResults)) {
-		if (pendingToolCallIDs.has(id) && !streamState.toolCalls[id]) {
+		if (
+			pendingToolCallIDs.has(id) &&
+			!streamState.toolCalls[id] &&
+			!result.isStreaming
+		) {
 			dropped = true;
 			continue;
 		}
@@ -277,7 +284,11 @@ export const filterPendingStreamState = (
 		blocks: streamState.blocks.filter(
 			(block) =>
 				block.type !== "tool" ||
-				!(pendingToolCallIDs.has(block.id) && !streamState.toolCalls[block.id]),
+				!(
+					pendingToolCallIDs.has(block.id) &&
+					!streamState.toolCalls[block.id] &&
+					!streamState.toolResults[block.id]?.isStreaming
+				),
 		),
 		toolResults,
 	};
