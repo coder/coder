@@ -143,6 +143,38 @@ describe("useFileAttachments org scoping", () => {
 		).not.toContain("file-x");
 	});
 
+	it("discards an upload that spans an org round trip", async () => {
+		let resolveUpload!: (value: { id: string }) => void;
+		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
+			new Promise<{ id: string }>((resolve) => {
+				resolveUpload = resolve;
+			}),
+		);
+		const { result, rerender } = renderAttachments({ orgId: "org-a" });
+		act(() => {
+			result.current.startUpload(new File(["x"], "x.txt"));
+		});
+
+		// A -> B -> A: stateOrgId matches the upload's org again, so only
+		// the adoption epoch can tell the completion is stale.
+		rerender({ orgId: "org-b" });
+		await waitFor(() => {
+			expect(result.current.organizationAdopted).toBe(true);
+		});
+		rerender({ orgId: "org-a" });
+		await waitFor(() => {
+			expect(result.current.organizationAdopted).toBe(true);
+		});
+		await act(async () => {
+			resolveUpload({ id: "file-x" });
+		});
+
+		expect(uploadedFileIds(result.current)).toStrictEqual([]);
+		expect(
+			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
+		).not.toContain("file-x");
+	});
+
 	it("does not prune storage during a render that never commits", () => {
 		localStorage.setItem(
 			persistedAttachmentsStorageKey,

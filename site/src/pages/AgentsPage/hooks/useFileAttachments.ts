@@ -223,14 +223,20 @@ export function useFileAttachments(
 		return () => revokePreviewUrls();
 	}, []);
 
-	// Upload completions capture the org they started under. By the time
-	// they resolve, adoption may have replaced state with another org's;
-	// applying then would leak an entry into the new org's map and
-	// persist the file ID under the abandoned org, where a later
-	// adoption flip could resurrect it.
+	// Bumped on every adoption. Upload completions capture the epoch they
+	// started under and are discarded after any adoption since, even an
+	// A-to-B-to-A round trip that restores the original stateOrgId;
+	// applying a stale completion would persist the file ID and let a
+	// later restoration resurrect an abandoned upload.
+	const adoptionEpochRef = useRef(0);
 	const commitUploadOutcome = useEffectEvent(
-		(file: File, uploadOrgId: string, state: UploadState) => {
-			if (persist && stateOrgId !== uploadOrgId) {
+		(
+			file: File,
+			uploadOrgId: string,
+			uploadEpoch: number,
+			state: UploadState,
+		) => {
+			if (persist && adoptionEpochRef.current !== uploadEpoch) {
 				return;
 			}
 			setUploadStates((prev) => new Map(prev).set(file, state));
@@ -252,13 +258,14 @@ export function useFileAttachments(
 		}
 
 		const uploadOrgId = organizationId;
+		const uploadEpoch = adoptionEpochRef.current;
 		const isImage = file.type.startsWith("image/");
 
 		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
 		void (async () => {
 			try {
 				const result = await API.experimental.uploadChatFile(file, uploadOrgId);
-				commitUploadOutcome(file, uploadOrgId, {
+				commitUploadOutcome(file, uploadOrgId, uploadEpoch, {
 					status: "uploaded",
 					fileId: result.id,
 				});
@@ -269,7 +276,7 @@ export function useFileAttachments(
 					void fetch(getChatFileURL(result.id));
 				}
 			} catch (err: unknown) {
-				commitUploadOutcome(file, uploadOrgId, {
+				commitUploadOutcome(file, uploadOrgId, uploadEpoch, {
 					status: "error",
 					error: formatAgentAttachmentUploadError(err),
 				});
@@ -288,6 +295,7 @@ export function useFileAttachments(
 	// restorePersistedAttachments prunes other orgs' localStorage entries,
 	// which must not happen from a render React may abandon.
 	const adoptOrganization = useEffectEvent((orgId: string) => {
+		adoptionEpochRef.current += 1;
 		for (const file of attachments) {
 			abandonedResizesRef.current.add(file);
 		}
