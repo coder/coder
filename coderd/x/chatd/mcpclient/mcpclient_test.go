@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1516,14 +1517,14 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		result       *mcp.CallToolResult
+		result       *sdkmcp.CallToolResult
 		wantContains []string
 	}{
 		{
 			name: "InvalidUTF8InTextContent",
-			result: &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.TextContent{
+			result: &sdkmcp.CallToolResult{
+				Content: []sdkmcp.Content{
+					&sdkmcp.TextContent{
 						Text: "Hello" + string([]byte{0xFF, 0xFE, 0x80}) + "World",
 					},
 				},
@@ -1532,10 +1533,10 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 		},
 		{
 			name: "InvalidUTF8InEmbeddedResourceText",
-			result: &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.EmbeddedResource{
-						Resource: mcp.TextResourceContents{
+			result: &sdkmcp.CallToolResult{
+				Content: []sdkmcp.Content{
+					&sdkmcp.EmbeddedResource{
+						Resource: &sdkmcp.ResourceContents{
 							Text: "Content" + string([]byte{0x80, 0x81, 0x82}),
 						},
 					},
@@ -1545,9 +1546,9 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 		},
 		{
 			name: "ValidUTF8PassesThrough",
-			result: &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.TextContent{
+			result: &sdkmcp.CallToolResult{
+				Content: []sdkmcp.Content{
+					&sdkmcp.TextContent{
 						Text: "Hello, 世界! 🌍",
 					},
 				},
@@ -1556,12 +1557,12 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 		},
 		{
 			name: "MultipleTextPartsAllSanitized",
-			result: &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.TextContent{
+			result: &sdkmcp.CallToolResult{
+				Content: []sdkmcp.Content{
+					&sdkmcp.TextContent{
 						Text: "Part1" + string([]byte{0xFF}),
 					},
-					mcp.TextContent{
+					&sdkmcp.TextContent{
 						Text: "Part2" + string([]byte{0xFE}),
 					},
 				},
