@@ -18,7 +18,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
-	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/websocket"
@@ -261,12 +260,7 @@ func ReadLimit(ctx context.Context, rw http.ResponseWriter, r *http.Request, lim
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			// Record the limit on the request's existing log line rather than
-			// emitting one of its own. A caller can produce 413s at will, so a
-			// dedicated log line is an attacker-controlled log volume.
-			if requestLogger := loggermw.RequestLoggerFromContext(r.Context()); requestLogger != nil {
-				requestLogger.WithFields(slog.F("max_request_body_bytes", limit))
-			}
+			RecordRequestBodyLimit(r.Context(), limit)
 			Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Request body too large.",
 				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", limit),
@@ -568,6 +562,7 @@ func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, e
 // caller of this function reports the bound that actually applied rather than
 // the one it assumes applied.
 func WriteOAuth2RequestTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64) {
+	RecordRequestBodyLimit(ctx, limit)
 	WriteOAuth2Error(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.OAuth2ErrorCodeInvalidRequest,
 		fmt.Sprintf("Maximum request body size is %d bytes.", limit))
 }

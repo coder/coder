@@ -550,6 +550,7 @@ func readOAuth2ClientRegistrationRequest(ctx context.Context, rw http.ResponseWr
 	r.Body = http.MaxBytesReader(rw, r.Body, httpapi.DefaultMaxRequestBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			httpapi.RecordRequestBodyLimit(ctx, httpapi.DefaultMaxRequestBodyBytes)
 			writeOAuth2RegistrationError(ctx, rw, http.StatusRequestEntityTooLarge, "invalid_request",
 				fmt.Sprintf("Maximum request body size is %d bytes.", httpapi.DefaultMaxRequestBodyBytes))
 			return req, false

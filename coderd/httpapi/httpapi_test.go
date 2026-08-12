@@ -801,3 +801,39 @@ func TestServerSentEventSender(t *testing.T) {
 		require.True(t, result.Success)
 	})
 }
+
+// TestRecordRequestBodyLimit covers the pairing that every 413-for-an-oversized-
+// body site depends on. The sites answer in their own error shapes, codersdk,
+// RFC 6749, RFC 7591 and RFC 7644, so what they share is this call rather than a
+// response writer. Both halves matter: the log field is what tells an operator
+// which limit tripped, and the tracker is what stops the metric attributing a
+// 413 to body size when it was raised for another reason.
+func TestRecordRequestBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RecordsFieldAndMarksTracker", func(t *testing.T) {
+		t.Parallel()
+		const limit = int64(4096)
+
+		ctrl := gomock.NewController(t)
+		requestLogger := loggermock.NewMockRequestLogger(ctrl)
+		requestLogger.EXPECT().
+			WithFields(slog.F("max_request_body_bytes", limit)).
+			Times(1)
+
+		tracker := &httpapi.RequestBodyLimitTracker{}
+		ctx := httpapi.WithRequestBodyLimitTracker(
+			loggermw.WithRequestLogger(context.Background(), requestLogger), tracker)
+
+		require.False(t, tracker.Exceeded())
+		httpapi.RecordRequestBodyLimit(ctx, limit)
+		require.True(t, tracker.Exceeded())
+	})
+
+	// The middleware that installs the tracker is not mounted on every route, so
+	// a call without one must not panic.
+	t.Run("NoTrackerInContext", func(t *testing.T) {
+		t.Parallel()
+		httpapi.RecordRequestBodyLimit(context.Background(), 4096)
+	})
+}

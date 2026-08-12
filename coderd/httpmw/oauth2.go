@@ -405,6 +405,7 @@ func (*codersdkErrorWriter) writeClientNotFound(ctx context.Context, rw http.Res
 }
 
 func (*codersdkErrorWriter) writeRequestTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64) {
+	httpapi.RecordRequestBodyLimit(ctx, limit)
 	httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 		Message: "Request body too large.",
 		Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", limit),

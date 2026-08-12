@@ -623,13 +623,12 @@ func unboundedRequestBody(m dsl.Matcher) {
 				// through httpapi.Read inherits its bound from.
 				!(m.File().PkgPath.Matches(`/coderd/httpapi$`) &&
 					m.File().Name.Matches(`^httpapi\.go$`)) &&
-				// csp.go bounds CSP reports at 64 KiB; files.go bounds template
-				// archive uploads at 100 MiB; aitasks.go bounds task log
-				// snapshots at 64 KiB; exp_chats.go bounds chat file uploads at
-				// 10 MiB. The latter two are binary uploads that no JSON limit
-				// should apply to.
+				// csp.go bounds CSP reports at 64 KiB. files.go bounds template
+				// archive uploads at 100 MiB and exp_chats.go bounds chat file
+				// uploads at 10 MiB; those two are binary uploads that no JSON
+				// limit should apply to.
 				!(m.File().PkgPath.Matches(`/coderd$`) &&
-					m.File().Name.Matches(`^(csp|files|aitasks|exp_chats)\.go$`)) &&
+					m.File().Name.Matches(`^(csp|files|exp_chats)\.go$`)) &&
 				// registration.go bounds its body at the default limit and
 				// reports 413 as an RFC 7591 error, which httpapi.Read cannot do.
 				!(m.File().PkgPath.Matches(`/coderd/oauth2provider$`) &&

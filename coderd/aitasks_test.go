@@ -2691,7 +2691,7 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 
 		var errResp codersdk.Response
 		json.NewDecoder(res.Body).Decode(&errResp)
-		require.Contains(t, errResp.Message, "Failed to decode request payload")
+		require.Contains(t, errResp.Message, "Request body must be valid JSON")
 	})
 
 	t.Run("InvalidAgentAPIPayload", func(t *testing.T) {

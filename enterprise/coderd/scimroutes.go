@@ -49,6 +49,7 @@ func scimLimitRequestBody(next http.Handler) http.Handler {
 			return
 		}
 		if len(body) > scimMaxRequestBodyBytes {
+			httpapi.RecordRequestBodyLimit(r.Context(), scimMaxRequestBodyBytes)
 			writeSCIMError(rw, http.StatusRequestEntityTooLarge,
 				fmt.Sprintf("request body must not exceed %d bytes", scimMaxRequestBodyBytes))
 			return

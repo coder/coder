@@ -61,6 +61,17 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(rw, r.Body, HTTPFileMaxBytes)
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
+		// An oversized body is a size failure rather than a read failure, and
+		// the 413 below for an oversized expanded archive is about the expanded
+		// bytes, which are not reached until this read succeeds.
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			httpapi.RecordRequestBodyLimit(ctx, HTTPFileMaxBytes)
+			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Request body too large.",
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", HTTPFileMaxBytes),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to read file from request.",
 			Detail:  err.Error(),

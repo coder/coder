@@ -97,11 +97,11 @@ func Prometheus(register prometheus.Registerer, ws *WSMetrics) func(http.Handler
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "requests_too_large_total",
-		Help: "The total number of API requests rejected for exceeding the " +
-			"request body size limit. A sustained rate on one route is more " +
-			"often a limit set too tight for a legitimate payload than an " +
-			"attempt to exhaust memory.",
-	}, []string{"method", "path"})
+		Help: "The total number of API requests answered 413, by the reason " +
+			"they were rejected. A sustained rate of reason=\"request_body\" " +
+			"on one route is more often a limit set too tight for a " +
+			"legitimate payload than an attempt to exhaust memory.",
+	}, []string{"method", "path", "reason"})
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -135,6 +135,14 @@ func Prometheus(register prometheus.Registerer, ws *WSMetrics) func(http.Handler
 				distOpts = []string{method}
 			}
 
+			// Counting by status rather than at the point of rejection reaches
+			// the SCIM and OAuth2 endpoints, which bound their bodies themselves
+			// to keep their own error shapes. It also reaches the 413s that have
+			// nothing to do with body size, such as agent log storage overflow,
+			// so the tracker separates the two.
+			bodyLimit := &httpapi.RequestBodyLimitTracker{}
+			r = r.WithContext(httpapi.WithRequestBodyLimitTracker(r.Context(), bodyLimit))
+
 			next.ServeHTTP(w, r)
 
 			distOpts = append(distOpts, path)
@@ -143,11 +151,12 @@ func Prometheus(register prometheus.Registerer, ws *WSMetrics) func(http.Handler
 			requestsProcessed.WithLabelValues(statusStr, method, path).Inc()
 			dist.WithLabelValues(distOpts...).Observe(time.Since(start).Seconds())
 
-			// Counted on the status rather than at the point of rejection so
-			// that the SCIM and OAuth2 endpoints, which bound their bodies
-			// themselves to keep their own error shapes, are included.
 			if sw.Status == http.StatusRequestEntityTooLarge {
-				requestsTooLarge.WithLabelValues(method, path).Inc()
+				reason := "other"
+				if bodyLimit.Exceeded() {
+					reason = "request_body"
+				}
+				requestsTooLarge.WithLabelValues(method, path, reason).Inc()
 			}
 		})
 	}

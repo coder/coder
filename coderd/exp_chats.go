@@ -5845,6 +5845,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
+			httpapi.RecordRequestBodyLimit(ctx, codersdk.MaxChatFileSizeBytes)
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "File too large.",
 				Detail:  fmt.Sprintf("Maximum file size is %d bytes.", codersdk.MaxChatFileSizeBytes),
