@@ -32,9 +32,9 @@ func setupAIModelPricesTest(t *testing.T) (*codersdk.Client, codersdk.CreateFirs
 	})
 }
 
-func newAIModelPrice(model string, input int64) codersdk.AIModelPriceUpsert {
+func newAIModelPrice(provider, model string, input int64) codersdk.AIModelPriceUpsert {
 	return codersdk.AIModelPriceUpsert{
-		Provider:   "anthropic",
+		Provider:   provider,
 		Model:      model,
 		InputPrice: &input,
 	}
@@ -43,59 +43,66 @@ func newAIModelPrice(model string, input int64) codersdk.AIModelPriceUpsert {
 func TestUpsertAIModelPrices(t *testing.T) {
 	t.Parallel()
 
-	t.Run("SetsPrices", func(t *testing.T) {
+	t.Run("LicenseEntitlement", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: anthropic/my-model, which the price book does not cover.
-		ownerClient, _ := setupAIModelPricesTest(t)
-		exp := codersdk.NewExperimentalClient(ownerClient)
+		// Given: a deployment without the AI Bridge feature.
+		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{},
+			},
+		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// When: it is priced with an input price only.
+		// When: an owner sets a price for anthropic/my-model.
 		//nolint:gocritic // Managing AI model prices is owner-only.
-		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
-			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("my-model", 3_000_000)},
-		}))
-
-		// Then: the input price is stored and the other three are null.
-		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
-			Provider: "anthropic",
-			Model:    "my-model",
+		err := codersdk.NewExperimentalClient(ownerClient).UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("anthropic", "my-model", 100)},
 		})
-		require.NoError(t, err)
-		require.Len(t, prices, 1)
-		require.Equal(t, int64(3_000_000), *prices[0].InputPrice)
-		require.Nil(t, prices[0].OutputPrice)
-		require.Nil(t, prices[0].CacheReadPrice)
-		require.Nil(t, prices[0].CacheWritePrice)
+
+		// Then: RequireFeatureMW rejects it as a Premium feature.
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Premium feature")
+	})
+	t.Run("Forbidden", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a member without ai_model_price:update.
+		ownerClient, owner := setupAIModelPricesTest(t)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: they set a price for anthropic/my-model.
+		err := codersdk.NewExperimentalClient(memberClient).UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("anthropic", "my-model", 100)},
+		})
+
+		// Then: the request is forbidden by ai_model_price:update.
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	})
 
-	t.Run("UpdatesAPriceItSet", func(t *testing.T) {
+	t.Run("RejectsAnOversizedBody", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: anthropic/my-model priced at 100 through this endpoint.
+		// Given: an entitled deployment and a body over the size cap.
 		ownerClient, _ := setupAIModelPricesTest(t)
-		exp := codersdk.NewExperimentalClient(ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
+		body := fmt.Sprintf(`{"prices":[{"provider":"anthropic","model":%q}]}`,
+			strings.Repeat("a", codersdk.MaxAIModelPricesBytes))
 
+		// When: the body is sent.
 		//nolint:gocritic // Managing AI model prices is owner-only.
-		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
-			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("my-model", 100)},
-		}))
-
-		// When: the same model is priced again at 200.
-		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
-			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("my-model", 200)},
-		}))
-
-		// Then: one row holds 200, rather than a second row being added.
-		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
-			Provider: "anthropic",
-			Model:    "my-model",
-		})
+		res, err := ownerClient.Request(ctx, http.MethodPost,
+			"/api/experimental/ai/model-prices", json.RawMessage(body))
 		require.NoError(t, err)
-		require.Len(t, prices, 1)
-		require.Equal(t, int64(200), *prices[0].InputPrice)
+		defer res.Body.Close()
+
+		// Then: it is rejected before the body is decoded.
+		require.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
 	})
 
 	t.Run("RejectsMalformedBody", func(t *testing.T) {
@@ -145,26 +152,6 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		}
 	})
 
-	t.Run("RejectsAnOversizedBody", func(t *testing.T) {
-		t.Parallel()
-
-		// Given: an entitled deployment and a body over the size cap.
-		ownerClient, _ := setupAIModelPricesTest(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		body := fmt.Sprintf(`{"prices":[{"provider":"anthropic","model":%q}]}`,
-			strings.Repeat("a", codersdk.MaxAIModelPricesBytes))
-
-		// When: the body is sent.
-		//nolint:gocritic // Managing AI model prices is owner-only.
-		res, err := ownerClient.Request(ctx, http.MethodPost,
-			"/api/experimental/ai/model-prices", json.RawMessage(body))
-		require.NoError(t, err)
-		defer res.Body.Close()
-
-		// Then: it is rejected before the body is decoded.
-		require.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
-	})
-
 	t.Run("RejectsInvalidPrices", func(t *testing.T) {
 		t.Parallel()
 
@@ -176,7 +163,7 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		// When: an entry carries an empty model name.
 		//nolint:gocritic // Managing AI model prices is owner-only.
 		err := exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
-			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("", 100)},
+			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("anthropic", "", 100)},
 		})
 
 		// Then: a 400 comes back naming the fields that failed.
@@ -205,8 +192,8 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		// empty model name.
 		err = exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
 			Prices: []codersdk.AIModelPriceUpsert{
-				newAIModelPrice("good-model", 100),
-				newAIModelPrice("", 100),
+				newAIModelPrice("anthropic", "good-model", 100),
+				newAIModelPrice("anthropic", "", 100),
 			},
 		})
 		require.Error(t, err)
@@ -217,71 +204,117 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		require.Len(t, after, len(before), "no price should have been written")
 	})
 
-	t.Run("Forbidden", func(t *testing.T) {
+	t.Run("SetsPrices", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: a member without ai_model_price:update.
-		ownerClient, owner := setupAIModelPricesTest(t)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		// Given: anthropic/my-model, which the price book does not cover.
+		ownerClient, _ := setupAIModelPricesTest(t)
+		exp := codersdk.NewExperimentalClient(ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// When: they set a price for anthropic/my-model.
-		err := codersdk.NewExperimentalClient(memberClient).UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
-			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("my-model", 100)},
-		})
+		// When: it is priced with an input price only.
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("anthropic", "my-model", 3_000_000)},
+		}))
 
-		// Then: the request is forbidden by ai_model_price:update.
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		// Then: the input price is stored and the other three are null.
+		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
+			Provider: "anthropic",
+			Model:    "my-model",
+		})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
+		require.Equal(t, int64(3_000_000), *prices[0].InputPrice)
+		require.Nil(t, prices[0].OutputPrice)
+		require.Nil(t, prices[0].CacheReadPrice)
+		require.Nil(t, prices[0].CacheWritePrice)
 	})
 
-	t.Run("LicenseEntitlement", func(t *testing.T) {
+	t.Run("UpdatesAPriceItSet", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: a deployment without the AI Bridge feature.
-		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{},
-			},
-		})
+		// Given: anthropic/my-model priced at 100 through this endpoint.
+		ownerClient, _ := setupAIModelPricesTest(t)
+		exp := codersdk.NewExperimentalClient(ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// When: an owner sets a price for anthropic/my-model.
 		//nolint:gocritic // Managing AI model prices is owner-only.
-		err := codersdk.NewExperimentalClient(ownerClient).UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
-			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("my-model", 100)},
-		})
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("anthropic", "my-model", 100)},
+		}))
 
-		// Then: RequireFeatureMW rejects it as a Premium feature.
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "Premium feature")
+		// When: the same model is priced again at 200.
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("anthropic", "my-model", 200)},
+		}))
+
+		// Then: the row is updated to 200.
+		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
+			Provider: "anthropic",
+			Model:    "my-model",
+		})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
+		require.Equal(t, int64(200), *prices[0].InputPrice)
+	})
+
+	t.Run("StoresAModelNameWithASeparator", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: an openrouter model whose ID carries a "/".
+		ownerClient, _ := setupAIModelPricesTest(t)
+		exp := codersdk.NewExperimentalClient(ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: it is priced.
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{
+				newAIModelPrice("openrouter", "anthropic/my-model", 100),
+			},
+		}))
+
+		// Then: the row is stored under the full model name, and filtering on
+		// it round-trips through the query parameter.
+		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
+			Provider: "openrouter", Model: "anthropic/my-model",
+		})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
+		require.Equal(t, "openrouter", prices[0].Provider)
+		require.Equal(t, "anthropic/my-model", prices[0].Model)
+		require.Equal(t, int64(100), *prices[0].InputPrice)
 	})
 }
 
 func TestListAIModelPrices(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ReturnsThePriceBook", func(t *testing.T) {
+	t.Run("ReturnsPriceBook", func(t *testing.T) {
 		t.Parallel()
 
 		// Given: a deployment seeded with the embedded price book at startup.
 		ownerClient, _ := setupAIModelPricesTest(t)
+		exp := codersdk.NewExperimentalClient(ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// When: the prices are listed.
 		//nolint:gocritic // Reading AI model prices is owner-only.
-		prices, err := codersdk.NewExperimentalClient(ownerClient).ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{})
+		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{})
 		require.NoError(t, err)
-
-		// Then: every seeded model comes back identified.
 		require.NotEmpty(t, prices, "the embedded price book is seeded at startup")
-		for _, price := range prices {
-			require.NotEmpty(t, price.Provider)
-			require.NotEmpty(t, price.Model)
-		}
+
+		// Then: a model the book covers comes back with all four prices.
+		seeded, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
+			Provider: "anthropic", Model: "claude-opus-5",
+		})
+		require.NoError(t, err)
+		require.Len(t, seeded, 1)
+		require.Equal(t, int64(5_000_000), *seeded[0].InputPrice)
+		require.Equal(t, int64(25_000_000), *seeded[0].OutputPrice)
+		require.Equal(t, int64(500_000), *seeded[0].CacheReadPrice)
+		require.Equal(t, int64(6_250_000), *seeded[0].CacheWritePrice)
 	})
 
 	t.Run("Filters", func(t *testing.T) {
@@ -296,8 +329,8 @@ func TestListAIModelPrices(t *testing.T) {
 		//nolint:gocritic // Managing AI model prices is owner-only.
 		require.NoError(t, exp.UpsertAIModelPrices(setupCtx, codersdk.UpsertAIModelPricesRequest{
 			Prices: []codersdk.AIModelPriceUpsert{
-				newAIModelPrice("model-a", 1),
-				newAIModelPrice("model-b", 2),
+				newAIModelPrice("anthropic", "model-a", 1),
+				newAIModelPrice("anthropic", "model-b", 2),
 				{Provider: "openai", Model: "model-a", InputPrice: ptr.Ref(int64(3))},
 			},
 		}))
@@ -305,9 +338,7 @@ func TestListAIModelPrices(t *testing.T) {
 		tests := []struct {
 			name   string
 			filter codersdk.AIModelPricesFilter
-			// want are models the filter must return. The price book is also
-			// seeded, so this is containment rather than the whole result.
-			want []string
+			want   []string
 		}{
 			{
 				name:   "NoFilter",

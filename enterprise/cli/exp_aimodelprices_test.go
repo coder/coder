@@ -44,8 +44,6 @@ func setupAIModelPricesCLI(t *testing.T) *codersdk.Client {
 func TestAIModelPricesUpdate(t *testing.T) {
 	t.Parallel()
 
-	// The input modes are rejected before any price is written, so one
-	// deployment serves every case.
 	t.Run("RejectsInvalidInput", func(t *testing.T) {
 		t.Parallel()
 
@@ -151,12 +149,16 @@ func TestAIModelPricesUpdate(t *testing.T) {
 		require.Contains(t, stdout.String(), "+ anthropic/my-model")
 		require.Contains(t, stdout.String(), "Updated prices for 1 model(s).")
 
+		// Then: every column in the document is stored, nulls included.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		prices, err := codersdk.NewExperimentalClient(client).ListAIModelPrices(ctx,
 			codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "my-model"})
 		require.NoError(t, err)
 		require.Len(t, prices, 1)
 		require.Equal(t, int64(100), *prices[0].InputPrice)
+		require.Equal(t, int64(200), *prices[0].OutputPrice)
+		require.Nil(t, prices[0].CacheReadPrice)
+		require.Nil(t, prices[0].CacheWritePrice)
 	})
 
 	t.Run("AppliesADocumentFromAFile", func(t *testing.T) {
@@ -188,8 +190,8 @@ func TestAIModelPricesUpdate(t *testing.T) {
 		inv, conf := newCLI(t,
 			"exp", "ai-model-prices", "update",
 			"--provider", "anthropic", "--model", "flag-model",
-			"--input-price", "100", "--output-price", "null",
-			"--cache-read-price", "null", "--cache-write-price", "null",
+			"--input-price", "100", "--output-price", "200",
+			"--cache-read-price", "300", "--cache-write-price", "null",
 			"--yes",
 		)
 		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
@@ -201,37 +203,44 @@ func TestAIModelPricesUpdate(t *testing.T) {
 		require.NoError(t, inv.Run())
 		require.Contains(t, stdout.String(), "Updated prices for 1 model(s).")
 
-		// Then: the null flags are stored as unknown, not zero.
+		// Then: each flag lands in its own column, and the null flag is stored
+		// as unknown rather than zero.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		prices, err := codersdk.NewExperimentalClient(client).ListAIModelPrices(ctx,
 			codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "flag-model"})
 		require.NoError(t, err)
 		require.Len(t, prices, 1)
 		require.Equal(t, int64(100), *prices[0].InputPrice)
-		require.Nil(t, prices[0].OutputPrice)
+		require.Equal(t, int64(200), *prices[0].OutputPrice)
+		require.Equal(t, int64(300), *prices[0].CacheReadPrice)
+		require.Nil(t, prices[0].CacheWritePrice)
 	})
 
 	t.Run("PreviewsAChangedPrice", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: anthropic/change-model already priced at $3.00 per mtok.
+		// Given: anthropic/change-model priced on all four columns.
 		client := setupAIModelPricesCLI(t)
+		exp := codersdk.NewExperimentalClient(client)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		input := int64(3_000_000)
 
 		//nolint:gocritic // Managing AI model prices is owner-only.
-		require.NoError(t, codersdk.NewExperimentalClient(client).UpsertAIModelPrices(ctx,
+		require.NoError(t, exp.UpsertAIModelPrices(ctx,
 			codersdk.UpsertAIModelPricesRequest{
 				Prices: []codersdk.AIModelPriceUpsert{{
-					Provider: "anthropic", Model: "change-model", InputPrice: &input,
+					Provider: "anthropic", Model: "change-model",
+					InputPrice:      new(int64(3_000_000)),
+					OutputPrice:     new(int64(15_000_000)),
+					CacheReadPrice:  new(int64(300_000)),
+					CacheWritePrice: new(int64(1_000_000)),
 				}},
 			}))
 
 		inv, conf := newCLI(t,
 			"exp", "ai-model-prices", "update",
 			"--provider", "anthropic", "--model", "change-model",
-			"--input-price", "5000000", "--output-price", "null",
-			"--cache-read-price", "null", "--cache-write-price", "null",
+			"--input-price", "5000000", "--output-price", "16000000",
+			"--cache-read-price", "400000", "--cache-write-price", "null",
 			"--yes",
 		)
 		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
@@ -239,36 +248,49 @@ func TestAIModelPricesUpdate(t *testing.T) {
 		var stdout bytes.Buffer
 		inv.Stdout = &stdout
 
-		// When: the input price is raised to $5.00.
+		// When: every price is changed, including one cleared to unknown.
 		require.NoError(t, inv.Run())
 
-		// Then: the plan marks it as a change and shows the transition.
+		// Then: the plan marks it as a change and shows each transition.
 		require.Contains(t, stdout.String(), "Plan: 1 to change.")
 		require.Contains(t, stdout.String(), "~ anthropic/change-model")
-		require.Contains(t, stdout.String(), "input_price")
 		require.Contains(t, stdout.String(), "$3.00 -> $5.00")
+		require.Contains(t, stdout.String(), "$15.00 -> $16.00")
+		require.Contains(t, stdout.String(), "$0.30 -> $0.40")
+		require.Contains(t, stdout.String(), "$1.00 -> -")
+
+		// Then: every column holds the new price, and the cleared one is unknown.
+		prices, err := exp.ListAIModelPrices(ctx,
+			codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "change-model"})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
+		require.Equal(t, int64(5_000_000), *prices[0].InputPrice)
+		require.Equal(t, int64(16_000_000), *prices[0].OutputPrice)
+		require.Equal(t, int64(400_000), *prices[0].CacheReadPrice)
+		require.Nil(t, prices[0].CacheWritePrice)
 	})
 
 	t.Run("ReportsNoChangesOnAReapply", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: a document that has already been applied.
 		client := setupAIModelPricesCLI(t)
-		for range 2 {
-			inv, conf := newCLI(t, "exp", "ai-model-prices", "update", "--yes")
+		apply := func() string {
+			inv, conf := newCLI(t, "exp", "ai-model-prices", "update")
 			clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
 
 			var stdout bytes.Buffer
 			inv.Stdin = strings.NewReader(aiModelPricesDocument)
 			inv.Stdout = &stdout
 			require.NoError(t, inv.Run())
-
-			// Then: the second run finds nothing to do.
-			if strings.Contains(stdout.String(), "No changes to apply.") {
-				return
-			}
+			return stdout.String()
 		}
-		t.Fatal("re-applying the same document should report no changes")
+
+		// Given: a document that has already been applied.
+		require.Contains(t, apply(), "Updated prices for 1 model(s).")
+
+		// When: the same document is applied again.
+		// Then: the diff is empty, so nothing is written.
+		require.Contains(t, apply(), "No changes to apply.")
 	})
 
 	t.Run("RejectsAModelInThePriceBook", func(t *testing.T) {
@@ -278,7 +300,7 @@ func TestAIModelPricesUpdate(t *testing.T) {
 		client := setupAIModelPricesCLI(t)
 		inv, conf := newCLI(t,
 			"exp", "ai-model-prices", "update",
-			"--provider", "anthropic", "--model", "claude-mythos-5",
+			"--provider", "anthropic", "--model", "claude-opus-5",
 			"--input-price", "100", "--output-price", "null",
 			"--cache-read-price", "null", "--cache-write-price", "null",
 			"--yes",
@@ -299,16 +321,18 @@ func TestAIModelPricesList(t *testing.T) {
 	t.Run("JSONCarriesRawMicros", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: a priced model.
+		// Given: a model priced on three columns, with one left unknown.
 		client := setupAIModelPricesCLI(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		input := int64(3_000_000)
 
 		//nolint:gocritic // Managing AI model prices is owner-only.
 		require.NoError(t, codersdk.NewExperimentalClient(client).UpsertAIModelPrices(ctx,
 			codersdk.UpsertAIModelPricesRequest{
 				Prices: []codersdk.AIModelPriceUpsert{{
-					Provider: "anthropic", Model: "json-model", InputPrice: &input,
+					Provider: "anthropic", Model: "json-model",
+					InputPrice:     new(int64(3_000_000)),
+					OutputPrice:    new(int64(15_000_000)),
+					CacheReadPrice: new(int64(300_000)),
 				}},
 			}))
 
@@ -322,26 +346,35 @@ func TestAIModelPricesList(t *testing.T) {
 		// When: the prices are listed as JSON.
 		require.NoError(t, inv.Run())
 
-		// Then: the raw micro-units come back, not the table's dollar strings.
+		// Then: every column comes back as raw micro-units, not the table's
+		// dollar strings, and the unknown one stays null.
 		var prices []codersdk.AIModelPrice
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &prices))
 		require.Len(t, prices, 1)
+		require.Equal(t, "anthropic", prices[0].Provider)
+		require.Equal(t, "json-model", prices[0].Model)
 		require.Equal(t, int64(3_000_000), *prices[0].InputPrice)
+		require.Equal(t, int64(15_000_000), *prices[0].OutputPrice)
+		require.Equal(t, int64(300_000), *prices[0].CacheReadPrice)
+		require.Nil(t, prices[0].CacheWritePrice)
 	})
 
 	t.Run("TableRendersDollarsPerMillionTokens", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: a priced model.
+		// Given: a model priced on three columns, one of them under a cent,
+		// with the fourth left unknown.
 		client := setupAIModelPricesCLI(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		input := int64(3_000_000)
 
 		//nolint:gocritic // Managing AI model prices is owner-only.
 		require.NoError(t, codersdk.NewExperimentalClient(client).UpsertAIModelPrices(ctx,
 			codersdk.UpsertAIModelPricesRequest{
 				Prices: []codersdk.AIModelPriceUpsert{{
-					Provider: "anthropic", Model: "mymodel", InputPrice: &input,
+					Provider: "anthropic", Model: "mymodel",
+					InputPrice:     new(int64(3_000_000)),
+					OutputPrice:    new(int64(15_000_000)),
+					CacheReadPrice: new(int64(3_600)),
 				}},
 			}))
 
@@ -355,9 +388,12 @@ func TestAIModelPricesList(t *testing.T) {
 		// When: the prices are listed as a table.
 		require.NoError(t, inv.Run())
 
-		// Then: prices are shown in dollars, and unknown ones as a dash.
+		// Then: each column is shown in dollars, a sub-cent price keeps enough
+		// decimals to stay distinct, and the unknown one shows as a dash.
 		require.Contains(t, stdout.String(), "mymodel")
 		require.Contains(t, stdout.String(), "$3.00")
+		require.Contains(t, stdout.String(), "$15.00")
+		require.Contains(t, stdout.String(), "$0.0036")
 		require.Contains(t, stdout.String(), "-")
 	})
 

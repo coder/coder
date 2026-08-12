@@ -78,9 +78,9 @@ func TestValidateAIModelPrices(t *testing.T) {
 			// The price book is re-applied on every restart, so this price
 			// would not survive one.
 			name: "ModelInPriceBook",
-			body: `{"prices":[{"provider":"anthropic","model":"claude-mythos-5",` + allPrices + `}]}`,
+			body: `{"prices":[{"provider":"anthropic","model":"claude-opus-5",` + allPrices + `}]}`,
 			want: []codersdk.ValidationError{
-				{Field: "prices[0]", Detail: "anthropic/claude-mythos-5 is priced by Coder's default price book. Overriding a default price is not supported."},
+				{Field: "prices[0]", Detail: "anthropic/claude-opus-5 is priced by Coder's default price book. Overriding a default price is not supported."},
 			},
 		},
 		{
@@ -126,7 +126,14 @@ func TestValidateAIModelPrices(t *testing.T) {
 		},
 		{
 			// Model names may carry a "/", as openrouter IDs do.
-			name: "SeparatorInAModelNameIsNotADuplicate",
+			name: "SeparatorInAModelNameIsAccepted",
+			body: `{"prices":[{"provider":"openrouter","model":"anthropic/my-model",` + allPrices + `}]}`,
+			want: nil,
+		},
+		{
+			// The two entries share a provider/model concatenation, so keying
+			// on the pair is what keeps them apart.
+			name: "SeparatorDoesNotCollideWithAProviderName",
 			body: `{"prices":[{"provider":"openrouter","model":"anthropic/my-model",` + allPrices + `},` +
 				`{"provider":"openrouter/anthropic","model":"my-model",` + allPrices + `}]}`,
 			want: []codersdk.ValidationError{

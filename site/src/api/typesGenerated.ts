@@ -357,7 +357,7 @@ export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
  * AIModelPrice is a per-model token price used by AI Gateway to compute the
  * cost of an interception.
  *
- * Prices are integer micro-units per million tokens, so 10000000 is $10.00 per
+ * Prices are integer micro-units per million tokens, so 1000000 is $1.00 per
  * million tokens. A nil price means the price is not known, which the cost
  * calculation treats the same as zero. Distinguish that from an explicit 0,
  * which declares the model free.

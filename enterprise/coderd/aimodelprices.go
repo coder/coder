@@ -105,8 +105,7 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate the whole request before writing anything, so a single bad
-	// entry cannot leave the table half-updated, and report every problem at
-	// once so a large payload can be fixed in one pass.
+	// entry cannot leave the table half-updated.
 	validations := validateAIModelPrices(req.Prices, rawReq.Prices)
 	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -148,6 +147,12 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// modelKey identifies a priced model.
+type modelKey struct {
+	provider string
+	model    string
 }
 
 // validateAIModelPrices reports every problem with the requested prices: a
@@ -233,8 +238,7 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 		}
 
 		// An entry sets all four columns, so an absent key would clear that
-		// price rather than leave it alone. An entry with no price keys at all
-		// is reported once below instead of four times here.
+		// price rather than leave it alone.
 		if present > 0 && present < len(named) {
 			for _, p := range named {
 				if _, ok := rawEntry[p.name]; ok {
@@ -268,10 +272,4 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 	}
 
 	return validations
-}
-
-// modelKey identifies a priced model.
-type modelKey struct {
-	provider string
-	model    string
 }

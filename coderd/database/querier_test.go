@@ -18896,8 +18896,7 @@ func TestGetAIModelPrices(t *testing.T) {
 	tests := []struct {
 		name   string
 		params database.GetAIModelPricesParams
-		// want is every returned row as "provider/model", in order.
-		want []string
+		want   []string
 	}{
 		{
 			name:   "NoFilterReturnsEveryPrice",
@@ -18925,8 +18924,6 @@ func TestGetAIModelPrices(t *testing.T) {
 			want:   nil,
 		},
 		{
-			// The columns are ANDed, so a provider and a model that each exist
-			// still match nothing when they are not the same row.
 			name:   "MismatchedProviderAndModel",
 			params: database.GetAIModelPricesParams{Provider: "openai", Model: "model-b"},
 			want:   nil,

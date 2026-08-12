@@ -62,6 +62,12 @@ func parseSeed(data []byte) ([]seedRow, error) {
 	return rows, nil
 }
 
+// modelKey identifies a priced model.
+type modelKey struct {
+	provider string
+	model    string
+}
+
 // defaultPricedModels indexes the embedded price book by provider and model.
 // Built on first use, since a deployment that never sets a price never needs
 // it.
@@ -76,11 +82,6 @@ var defaultPricedModels = sync.OnceValue(func() map[modelKey]struct{} {
 	}
 	return index
 })
-
-type modelKey struct {
-	provider string
-	model    string
-}
 
 // IsDefaultPriced reports whether the embedded price book already carries a
 // price for the model. Coder owns those prices and re-applies them on every

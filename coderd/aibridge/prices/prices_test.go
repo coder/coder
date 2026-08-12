@@ -304,7 +304,7 @@ func TestIsDefaultPriced(t *testing.T) {
 		{
 			name:     "ModelInThePriceBook",
 			provider: "anthropic",
-			model:    "claude-mythos-5",
+			model:    "claude-opus-5",
 			want:     true,
 		},
 		{
@@ -318,13 +318,13 @@ func TestIsDefaultPriced(t *testing.T) {
 			// another provider is a different entry.
 			name:     "SameModelUnderAnotherProvider",
 			provider: "openai",
-			model:    "claude-mythos-5",
+			model:    "claude-opus-5",
 			want:     false,
 		},
 		{
 			name:     "UnknownProvider",
 			provider: "unknown-provider",
-			model:    "claude-mythos-5",
+			model:    "claude-opus-5",
 			want:     false,
 		},
 		{
