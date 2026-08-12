@@ -58,7 +58,7 @@ func (w *chatWorker) refreshCapacityMetrics(ctx context.Context) {
 		return
 	}
 
-	limits, capped := w.opts.CapacityPolicy.Limits()
+	limits, capped := w.opts.AgentCapacityLimiter.Limits()
 	var queuedRoot, queuedSubagent int64
 	if capped && (active.ActiveRootCount >= limits.Root || active.ActiveSubagentCount >= limits.Subagent) {
 		queued, err := w.opts.Store.CountChatCapacityQueuedByPool(ctx, w.opts.HeartbeatStaleSeconds)

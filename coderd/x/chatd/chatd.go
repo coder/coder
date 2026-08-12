@@ -189,14 +189,14 @@ type Server struct {
 	configCacheUnsubscribe         func()
 	providerCacheUnsubscribe       func()
 
-	usageTracker        *workspacestats.UsageTracker
-	clock               quartz.Clock
-	metrics             *chatloop.Metrics
-	chatWorker          *chatWorker
-	messagePartBuffer   *messagepartbuffer.Buffer
-	streamSyncPoller    *streamSyncPoller
-	recordingSem        chan struct{}
-	agentCapacityPolicy AgentCapacityPolicy
+	usageTracker         *workspacestats.UsageTracker
+	clock                quartz.Clock
+	metrics              *chatloop.Metrics
+	chatWorker           *chatWorker
+	messagePartBuffer    *messagepartbuffer.Buffer
+	streamSyncPoller     *streamSyncPoller
+	recordingSem         chan struct{}
+	agentCapacityLimiter AgentCapacityLimiter
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
@@ -3051,7 +3051,7 @@ type Config struct {
 
 	PrometheusRegistry prometheus.Registerer
 
-	AgentCapacityLimiterFactory AgentCapacityLimiterFactory
+	AgentCapacityUnlock AgentCapacityUnlock
 
 	// OIDCTokenSource resolves the calling user's OIDC access
 	// token for MCP servers configured with auth_type=user_oidc.
@@ -3184,17 +3184,15 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	p.streamPartsDialer = streamPartsDialerForServer(workerID, localStreamPartsDialer, cfg.StreamPartsDialer)
 	p.streamSyncPoller = newStreamSyncPoller(ctx, cfg.Database, clk, cfg.Logger.Named("chatstream"))
 	p.streamSyncPoller.Start()
-	var agentCapacityLimiter AgentCapacityLimiter = noopAgentCapacityLimiter{}
+	agentCapacityLimiter := newAgentCapacityLimiter(
+		cfg.AgentCapacityUnlock,
+		int32(inFlightChatStaleAfter.Seconds()),
+	)
 	var agentCapacityMetrics *capacityMetrics
-	if cfg.AgentCapacityLimiterFactory != nil {
-		if limiter := cfg.AgentCapacityLimiterFactory(int32(inFlightChatStaleAfter.Seconds())); limiter != nil {
-			agentCapacityLimiter = limiter
-			if cfg.PrometheusRegistry != nil {
-				agentCapacityMetrics = newCapacityMetrics(cfg.PrometheusRegistry)
-			}
-		}
+	if cfg.PrometheusRegistry != nil {
+		agentCapacityMetrics = newCapacityMetrics(cfg.PrometheusRegistry)
 	}
-	p.agentCapacityPolicy = agentCapacityLimiter
+	p.agentCapacityLimiter = agentCapacityLimiter
 	chatWorker, err := newChatWorker(p, chatWorkerOptions{
 		WorkerID:              workerID,
 		Store:                 cfg.Database,
@@ -3202,8 +3200,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		Logger:                cfg.Logger.Named("chatworker"),
 		Clock:                 clk,
 		MessagePartBuffer:     p.messagePartBuffer,
-		AgentAdmission:        agentCapacityLimiter,
-		CapacityPolicy:        agentCapacityLimiter,
+		AgentCapacityLimiter:  agentCapacityLimiter,
 		CapacityMetrics:       agentCapacityMetrics,
 		AcquisitionInterval:   pendingChatAcquireInterval,
 		AcquisitionBatchSize:  maxChatsPerAcquire,
@@ -3329,7 +3326,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 // concurrent-agent capacity slot. It reports false when the deployment is
 // currently uncapped.
 func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) (bool, error) {
-	limits, capped := p.agentCapacityPolicy.Limits()
+	limits, capped := p.agentCapacityLimiter.Limits()
 	if !capped {
 		return false, nil
 	}

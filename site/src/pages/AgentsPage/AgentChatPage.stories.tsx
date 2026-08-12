@@ -1369,11 +1369,16 @@ const capacityPollingChat: TypesGen.Chat = {
 
 export const QueuedForCapacityAfterPolling: Story = {
 	parameters: {
-		queries: buildQueries(
-			capacityPollingChat,
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
+		queries: [
+			{ key: chatEntityKey(CHAT_ID), data: capacityPollingChat },
+			{
+				key: chatMessagesKey(CHAT_ID),
+				data: {
+					pages: [{ messages: [], queued_messages: [], has_more: false }],
+					pageParams: [undefined],
+				},
+			},
+		],
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue({

@@ -192,6 +192,7 @@ func (w *chatWorker) acquisitionLoop(
 }
 
 func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manager *runnerManager) {
+	// Fetch one batch from each pool so a full pool cannot hide work in the other.
 	rows, err := w.opts.Store.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
 		StaleSeconds: w.opts.HeartbeatStaleSeconds,
 		LimitCount:   w.opts.AcquisitionBatchSize * 2,
@@ -209,6 +210,7 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 		if acquired >= w.opts.AcquisitionBatchSize {
 			return
 		}
+		// Interrupting and requires-action chats bypass capacity so existing work can finish.
 		if row.Status == database.ChatStatusRunning && refusedPools[row.ParentChatID.Valid] {
 			continue
 		}
@@ -285,7 +287,7 @@ func (w *chatWorker) acquireCandidate(
 				return errSkipAcquire
 			}
 		}
-		admitted, err := w.opts.AgentAdmission.Admit(ctx, store, chat)
+		admitted, err := w.opts.AgentCapacityLimiter.Admit(ctx, store, chat)
 		if err != nil {
 			return xerrors.Errorf("agent admission: %w", err)
 		}

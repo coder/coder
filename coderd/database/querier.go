@@ -513,18 +513,9 @@ type sqlcQuerier interface {
 	// jsonb_array_elements never raises "cannot extract elements from a
 	// scalar". Backed by idx_chat_messages_user_prompts.
 	GetChatUserPromptsByChatID(ctx context.Context, arg GetChatUserPromptsByChatIDParams) ([]GetChatUserPromptsByChatIDRow, error)
-	// Returns chats that workers may try to acquire. Candidates must be:
-	//   - in a worker-runnable execution status;
-	//   - unarchived; and
-	//   - missing ownership, carrying inconsistent ownership, or lacking a
-	//     fresh heartbeat for the assigned runner.
-	//
-	// Missing ownership is worker_id IS NULL. Inconsistent ownership is
-	// runner_id IS NULL while worker_id is set. Stale ownership is no
-	// heartbeat row for (chat_id, runner_id), or one older than
-	// @stale_seconds by database time. Interrupting and requires_action
-	// candidates sort first. Remaining candidates interleave root and subagent
-	// FIFO queues ordered by updated_at.
+	// Returns a bounded, pool-interleaved set of chats that workers may acquire.
+	// Interrupting chats finish active work first. Requires-action chats follow so
+	// their runner can enforce the action deadline before new generations start.
 	GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error)
 	// Returns the global TTL for chat workspaces as a Go duration string.
 	// Returns "0s" (disabled) when no value has been configured.

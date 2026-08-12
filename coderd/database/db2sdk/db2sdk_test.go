@@ -757,8 +757,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
-	// These fields are populated outside the converter, so zero values are
-	// expected here.
+	// These fields are set outside db2sdk.Chat and intentionally remain zero.
 	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)

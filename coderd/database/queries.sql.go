@@ -8879,6 +8879,50 @@ func (q *sqlQuerier) GetChatUserPromptsByChatID(ctx context.Context, arg GetChat
 }
 
 const getChatWorkerAcquisitionCandidates = `-- name: GetChatWorkerAcquisitionCandidates :many
+WITH candidate_partitions AS (
+    SELECT true AS is_root, 'interrupting'::chat_status AS status, 0 AS status_priority, 0 AS pool_priority
+    UNION ALL
+    SELECT false, 'interrupting'::chat_status, 0, 1
+    UNION ALL
+    SELECT true, 'requires_action'::chat_status, 1, 0
+    UNION ALL
+    SELECT false, 'requires_action'::chat_status, 1, 1
+    UNION ALL
+    SELECT true, 'running'::chat_status, 2, 0
+    UNION ALL
+    SELECT false, 'running'::chat_status, 2, 1
+),
+candidates AS (
+    SELECT
+        candidate.id,
+        candidate_partitions.status_priority,
+        candidate_partitions.pool_priority,
+        ROW_NUMBER() OVER (
+            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_root
+            ORDER BY candidate.updated_at ASC, candidate.id ASC
+        ) AS pool_position
+    FROM candidate_partitions
+    CROSS JOIN LATERAL (
+        SELECT chats.id, chats.updated_at
+        FROM chats
+        WHERE (chats.parent_chat_id IS NULL) = candidate_partitions.is_root
+          AND chats.status = candidate_partitions.status
+          AND chats.archived = false
+          AND (
+              chats.worker_id IS NULL
+              OR chats.runner_id IS NULL
+              OR NOT EXISTS (
+                  SELECT 1
+                  FROM chat_heartbeats current_lease
+                  WHERE current_lease.chat_id = chats.id
+                    AND current_lease.runner_id = chats.runner_id
+                    AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+              )
+          )
+        ORDER BY chats.updated_at ASC, chats.id ASC
+        LIMIT $2::int
+    ) candidate
+)
 SELECT
     chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
     chat_heartbeats.heartbeat_at AS current_heartbeat_at,
@@ -8889,32 +8933,15 @@ SELECT
           AND current_lease.runner_id = chats_expanded.runner_id
           AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
     ) AS heartbeat_stale
-FROM chats_expanded
+FROM candidates
+JOIN chats_expanded ON chats_expanded.id = candidates.id
 LEFT JOIN chat_heartbeats
     ON chat_heartbeats.chat_id = chats_expanded.id
     AND chat_heartbeats.runner_id = chats_expanded.runner_id
-WHERE
-    chats_expanded.status IN ('running'::chat_status, 'interrupting'::chat_status, 'requires_action'::chat_status)
-    AND chats_expanded.archived = false
-    AND (
-        chats_expanded.worker_id IS NULL
-        OR chats_expanded.runner_id IS NULL
-        OR NOT EXISTS (
-            SELECT 1
-            FROM chat_heartbeats current_lease
-            WHERE current_lease.chat_id = chats_expanded.id
-              AND current_lease.runner_id = chats_expanded.runner_id
-              AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
-        )
-    )
 ORDER BY
-    (chats_expanded.status = 'interrupting'::chat_status) DESC,
-    (chats_expanded.status = 'requires_action'::chat_status) DESC,
-    ROW_NUMBER() OVER (
-        PARTITION BY (chats_expanded.parent_chat_id IS NULL)
-        ORDER BY chats_expanded.updated_at ASC, chats_expanded.id ASC
-    ) ASC,
-    (chats_expanded.parent_chat_id IS NULL) DESC,
+    candidates.status_priority ASC,
+    candidates.pool_position ASC,
+    candidates.pool_priority ASC,
     chats_expanded.id ASC
 LIMIT $2::int
 `
@@ -8976,18 +9003,9 @@ type GetChatWorkerAcquisitionCandidatesRow struct {
 	HeartbeatStale           bool                    `db:"heartbeat_stale" json:"heartbeat_stale"`
 }
 
-// Returns chats that workers may try to acquire. Candidates must be:
-//   - in a worker-runnable execution status;
-//   - unarchived; and
-//   - missing ownership, carrying inconsistent ownership, or lacking a
-//     fresh heartbeat for the assigned runner.
-//
-// Missing ownership is worker_id IS NULL. Inconsistent ownership is
-// runner_id IS NULL while worker_id is set. Stale ownership is no
-// heartbeat row for (chat_id, runner_id), or one older than
-// @stale_seconds by database time. Interrupting and requires_action
-// candidates sort first. Remaining candidates interleave root and subagent
-// FIFO queues ordered by updated_at.
+// Returns a bounded, pool-interleaved set of chats that workers may acquire.
+// Interrupting chats finish active work first. Requires-action chats follow so
+// their runner can enforce the action deadline before new generations start.
 func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.StaleSeconds, arg.LimitCount)
 	if err != nil {

@@ -273,8 +273,8 @@ type Options struct {
 	// Set by enterprise for HA deployments. Nil uses chatd's local
 	// in-process channel dialer.
 	ChatStreamPartsDialer chatd.StreamPartsDialer
-	// Enterprise builds set the deployment-wide concurrent-agent limits here.
-	ChatAgentCapacityLimiterFactory chatd.AgentCapacityLimiterFactory
+	// Enterprise builds set the licensing hook that can remove chat agent caps.
+	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
 	// ChatProviderAPIKeys overrides deployment-derived provider keys.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
@@ -943,7 +943,7 @@ func New(options *Options) *API {
 				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
-				AgentCapacityLimiterFactory:    options.ChatAgentCapacityLimiterFactory,
+				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
