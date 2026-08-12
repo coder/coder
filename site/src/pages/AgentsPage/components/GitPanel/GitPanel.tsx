@@ -484,10 +484,6 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 		);
 	}
 
-	// Dropdown trigger: bordered pill with the state icon, identifier,
-	// and chevron. The PR state label (Open/Draft/Merged/Closed) is
-	// dropped because the icon color already conveys it; local repos
-	// keep the "Working" prefix so the identifier reads as a status.
 	const showStateLabelInline = activeItem.kind === "local";
 	const triggerContent = (
 		<span className="flex h-full min-w-0 items-center gap-1.5 px-1 leading-none text-content-primary">
