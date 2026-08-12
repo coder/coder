@@ -1,7 +1,7 @@
 import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 
 const PAYWALL_AIGATEWAY_DESCRIPTION =
-	"AI Gateway provides auditable visibility into user prompts and LLM tool calls from developer tools within Coder Workspaces. AI Gateway requires a Premium license with AI Governance add-on.".trim();
+	"AI Gateway provides auditable visibility into user prompts and LLM tool calls from developer tools within Coder Workspaces. AI Gateway requires a Premium license with AI Governance add-on.";
 
 const PaywallAIGovernance = () => {
 	return (

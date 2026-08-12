@@ -11,9 +11,7 @@ const meta: Meta<typeof Supergraphic> = {
 			</div>
 		),
 	],
-	args: {
-		className: "absolute inset-0",
-	},
+	args: {},
 };
 
 export default meta;
@@ -21,9 +19,9 @@ type Story = StoryObj<typeof Supergraphic>;
 
 export const Default: Story = {};
 
-export const Faded: Story = {
+export const CustomFaded: Story = {
 	args: {
 		className:
-			"absolute inset-0 opacity-40 [mask-image:linear-gradient(to_right,transparent,black_40%)]",
+			"opacity-40 [mask-image:linear-gradient(to_right,transparent,black_40%)]",
 	},
 };

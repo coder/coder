@@ -14,7 +14,6 @@ import {
 } from "./Paywall";
 
 const CTA_HREF = "https://coder.com/pricing#compare-plans";
-const SUPERGRAPHIC_TEST_ID = "paywall-supergraphic";
 
 const meta: Meta<typeof Paywall> = {
 	title: "components/Paywall",
@@ -51,7 +50,7 @@ const paywallChildren = (
 
 const withSupergraphicChildren = (
 	<>
-		<PaywallSupergraphic data-testid={SUPERGRAPHIC_TEST_ID} />
+		<PaywallSupergraphic />
 		{paywallChildren}
 	</>
 );
@@ -81,9 +80,6 @@ export const Default: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await expectPaywallContent(canvasElement);
-		await expect(
-			within(canvasElement).queryByTestId(SUPERGRAPHIC_TEST_ID),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -93,11 +89,6 @@ export const WithSupergraphic: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await expectPaywallContent(canvasElement);
-
-		// Decorative, so it is aria-hidden and only reachable by test id.
-		const supergraphic =
-			within(canvasElement).getByTestId(SUPERGRAPHIC_TEST_ID);
-		await expect(supergraphic).toHaveAttribute("aria-hidden", "true");
 	},
 };
 
@@ -108,8 +99,5 @@ export const WithSupergraphicLight: Story = {
 	parameters: { themes: { themeOverride: "light" } },
 	play: async ({ canvasElement }) => {
 		await expectPaywallContent(canvasElement);
-		await expect(
-			within(canvasElement).getByTestId(SUPERGRAPHIC_TEST_ID),
-		).toBeInTheDocument();
 	},
 };

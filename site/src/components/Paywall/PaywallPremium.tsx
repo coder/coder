@@ -69,7 +69,7 @@ const PaywallPremium = ({
 			{...props}
 		>
 			<PaywallPremiumHeader>
-				<Supergraphic className="absolute inset-0 -z-10" />
+				<Supergraphic />
 				<PaywallTitle>{PREMIUM_DEFAULT_HERO}</PaywallTitle>
 				<p className="mt-3 mb-0 text-sm">{DEFAULT_HERO_SUBTITLE}</p>
 				{canViewPremium ? (

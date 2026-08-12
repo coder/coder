@@ -136,12 +136,7 @@ export const PaywallSupergraphic: FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
-	return (
-		<Supergraphic
-			className={cn("absolute inset-y-0 left-0 w-1/2 -z-10", className)}
-			{...props}
-		/>
-	);
+	return <Supergraphic className={cn("left-0 w-1/2", className)} {...props} />;
 };
 
 export const PaywallStack: FC<React.ComponentProps<"div">> = ({
