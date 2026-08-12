@@ -89,7 +89,7 @@
 					"skip": true
 				}
 			},
-			"put": {
+			"post": {
 				"consumes": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Upsert AI model prices",

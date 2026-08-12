@@ -108,7 +108,7 @@ const docTemplate = `{
                     "skip": true
                 }
             },
-            "put": {
+            "post": {
                 "consumes": [
                     "application/json"
                 ],

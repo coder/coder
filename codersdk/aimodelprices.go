@@ -24,6 +24,9 @@ type AIModelPrice struct {
 	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
 }
 
+// MaxAIModelPricesBytes bounds an upsert request body.
+const MaxAIModelPricesBytes = 1 << 20 // 1 MiB
+
 // UpsertAIModelPricesRequest sets prices for the listed models. Models absent
 // from the request are left untouched.
 type UpsertAIModelPricesRequest struct {
@@ -81,7 +84,7 @@ func (c *ExperimentalClient) ListAIModelPrices(ctx context.Context, filter AIMod
 // UpsertAIModelPrices sets prices for the models in req. The request is
 // rejected in full if any model fails validation.
 func (c *ExperimentalClient) UpsertAIModelPrices(ctx context.Context, req UpsertAIModelPricesRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/ai/model-prices", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/ai/model-prices", req)
 	if err != nil {
 		return err
 	}

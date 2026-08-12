@@ -20,6 +20,11 @@ func TestFormatMicros(t *testing.T) {
 		{name: "Zero", price: ptr(int64(0)), want: "$0.00"},
 		{name: "WholeDollars", price: ptr(int64(3_000_000)), want: "$3.00"},
 		{name: "Fractional", price: ptr(int64(2_500_000)), want: "$2.50"},
+		{name: "OneCent", price: ptr(int64(10_000)), want: "$0.01"},
+		{name: "UnderACent", price: ptr(int64(3_600)), want: "$0.0036"},
+		{name: "UnderACentTrailingZeros", price: ptr(int64(1_000)), want: "$0.001"},
+		{name: "UnderACentManyDecimals", price: ptr(int64(3_625)), want: "$0.003625"},
+		{name: "SmallestUnit", price: ptr(int64(1)), want: "$0.000001"},
 	}
 
 	for _, tt := range tests {
@@ -105,6 +110,14 @@ func TestDiffAIModelPrices(t *testing.T) {
 			additions, changes := diffAIModelPrices(tt.requested, tt.current)
 			require.Len(t, additions, tt.wantAdded)
 			require.Len(t, changes, tt.wantChanged)
+
+			// A change carries the requested price alongside the row it
+			// replaces, which is what the preview renders as "old -> new".
+			for i, change := range changes {
+				require.Equal(t, tt.requested[i], change.price)
+				require.Equal(t, tt.current[i].InputPrice, change.old.InputPrice)
+				require.Equal(t, tt.current[i].OutputPrice, change.old.OutputPrice)
+			}
 		})
 	}
 }

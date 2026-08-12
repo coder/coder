@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,13 +60,21 @@ func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param request body codersdk.UpsertAIModelPricesRequest true "Prices to set"
 // @Success 204
-// @Router /api/experimental/ai/model-prices [put]
+// @Router /api/experimental/ai/model-prices [post]
 // @x-apidocgen {"skip": true}
 func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	r.Body = http.MaxBytesReader(rw, r.Body, codersdk.MaxAIModelPricesBytes)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Request body too large.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to read request body.",
 			Detail:  err.Error(),
@@ -89,7 +98,7 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.UpsertAIModelPricesRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Request body has an invalid field.",
+			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),
 		})
 		return
@@ -121,23 +130,21 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		api.Logger.Error(ctx, "upsert ai model prices", slog.Error(err))
+		api.Logger.Error(ctx, "upsert ai model prices", slog.Error(err),
+			slog.F("user_id", httpmw.APIKey(r).UserID),
+			slog.F("count", len(req.Prices)),
+		)
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
 	// Model prices feed cost reporting and budget enforcement, so record who
-	// changed what.
+	// changed how many.
 	// TODO(ssncferreira): replace with audit logging once ai_model_price is an
 	// auditable resource (AIGOV-590).
-	models := make([]string, 0, len(req.Prices))
-	for _, price := range req.Prices {
-		models = append(models, price.Provider+"/"+price.Model)
-	}
 	api.Logger.Info(ctx, "ai model prices updated",
 		slog.F("user_id", httpmw.APIKey(r).UserID),
 		slog.F("count", len(req.Prices)),
-		slog.F("models", models),
 	)
 
 	rw.WriteHeader(http.StatusNoContent)
@@ -156,7 +163,7 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 	}
 
 	supportedProviders := strings.Join(providers.Supported, ", ")
-	seen := make(map[string]struct{}, len(requested))
+	seen := make(map[modelKey]struct{}, len(requested))
 	var validations []codersdk.ValidationError
 
 	for i, price := range requested {
@@ -250,15 +257,21 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 			})
 		}
 
-		key := price.Provider + "/" + price.Model
+		key := modelKey{provider: price.Provider, model: price.Model}
 		if _, duplicate := seen[key]; duplicate {
 			validations = append(validations, codersdk.ValidationError{
 				Field:  field,
-				Detail: fmt.Sprintf("%s appears more than once.", key),
+				Detail: fmt.Sprintf("%s/%s appears more than once.", price.Provider, price.Model),
 			})
 		}
 		seen[key] = struct{}{}
 	}
 
 	return validations
+}
+
+// modelKey identifies a priced model.
+type modelKey struct {
+	provider string
+	model    string
 }

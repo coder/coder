@@ -78,9 +78,9 @@ func TestValidateAIModelPrices(t *testing.T) {
 			// The price book is re-applied on every restart, so this price
 			// would not survive one.
 			name: "ModelInPriceBook",
-			body: `{"prices":[{"provider":"anthropic","model":"claude-opus-5",` + allPrices + `}]}`,
+			body: `{"prices":[{"provider":"anthropic","model":"claude-mythos-5",` + allPrices + `}]}`,
 			want: []codersdk.ValidationError{
-				{Field: "prices[0]", Detail: "anthropic/claude-opus-5 is priced by Coder's default price book. Overriding a default price is not supported."},
+				{Field: "prices[0]", Detail: "anthropic/claude-mythos-5 is priced by Coder's default price book. Overriding a default price is not supported."},
 			},
 		},
 		{
@@ -122,6 +122,15 @@ func TestValidateAIModelPrices(t *testing.T) {
 				`{"provider":"anthropic","model":"my-model",` + allPrices + `}]}`,
 			want: []codersdk.ValidationError{
 				{Field: "prices[1]", Detail: "anthropic/my-model appears more than once."},
+			},
+		},
+		{
+			// Model names may carry a "/", as openrouter IDs do.
+			name: "SeparatorInAModelNameIsNotADuplicate",
+			body: `{"prices":[{"provider":"openrouter","model":"anthropic/my-model",` + allPrices + `},` +
+				`{"provider":"openrouter/anthropic","model":"my-model",` + allPrices + `}]}`,
+			want: []codersdk.ValidationError{
+				{Field: "prices[1].provider", Detail: `Provider "openrouter/anthropic" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel.`},
 			},
 		},
 		{

@@ -341,7 +341,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
 			r.Get("/", api.listAIModelPrices)
-			r.Put("/", api.upsertAIModelPrices)
+			r.Post("/", api.upsertAIModelPrices)
 		})
 	})
 

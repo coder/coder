@@ -211,6 +211,44 @@ func TestAIModelPricesUpdate(t *testing.T) {
 		require.Nil(t, prices[0].OutputPrice)
 	})
 
+	t.Run("PreviewsAChangedPrice", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: anthropic/change-model already priced at $3.00 per mtok.
+		client := setupAIModelPricesCLI(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		input := int64(3_000_000)
+
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		require.NoError(t, codersdk.NewExperimentalClient(client).UpsertAIModelPrices(ctx,
+			codersdk.UpsertAIModelPricesRequest{
+				Prices: []codersdk.AIModelPriceUpsert{{
+					Provider: "anthropic", Model: "change-model", InputPrice: &input,
+				}},
+			}))
+
+		inv, conf := newCLI(t,
+			"exp", "ai-model-prices", "update",
+			"--provider", "anthropic", "--model", "change-model",
+			"--input-price", "5000000", "--output-price", "null",
+			"--cache-read-price", "null", "--cache-write-price", "null",
+			"--yes",
+		)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
+
+		var stdout bytes.Buffer
+		inv.Stdout = &stdout
+
+		// When: the input price is raised to $5.00.
+		require.NoError(t, inv.Run())
+
+		// Then: the plan marks it as a change and shows the transition.
+		require.Contains(t, stdout.String(), "Plan: 1 to change.")
+		require.Contains(t, stdout.String(), "~ anthropic/change-model")
+		require.Contains(t, stdout.String(), "input_price")
+		require.Contains(t, stdout.String(), "$3.00 -> $5.00")
+	})
+
 	t.Run("ReportsNoChangesOnAReapply", func(t *testing.T) {
 		t.Parallel()
 
@@ -240,7 +278,7 @@ func TestAIModelPricesUpdate(t *testing.T) {
 		client := setupAIModelPricesCLI(t)
 		inv, conf := newCLI(t,
 			"exp", "ai-model-prices", "update",
-			"--provider", "anthropic", "--model", "claude-opus-5",
+			"--provider", "anthropic", "--model", "claude-mythos-5",
 			"--input-price", "100", "--output-price", "null",
 			"--cache-read-price", "null", "--cache-write-price", "null",
 			"--yes",
@@ -303,12 +341,12 @@ func TestAIModelPricesList(t *testing.T) {
 		require.NoError(t, codersdk.NewExperimentalClient(client).UpsertAIModelPrices(ctx,
 			codersdk.UpsertAIModelPricesRequest{
 				Prices: []codersdk.AIModelPriceUpsert{{
-					Provider: "anthropic", Model: "table-model", InputPrice: &input,
+					Provider: "anthropic", Model: "mymodel", InputPrice: &input,
 				}},
 			}))
 
 		inv, conf := newCLI(t, "exp", "ai-model-prices", "list",
-			"--provider", "anthropic", "--model", "table-model")
+			"--provider", "anthropic", "--model", "mymodel")
 		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
 
 		var stdout bytes.Buffer
@@ -318,7 +356,7 @@ func TestAIModelPricesList(t *testing.T) {
 		require.NoError(t, inv.Run())
 
 		// Then: prices are shown in dollars, and unknown ones as a dash.
-		require.Contains(t, stdout.String(), "table-model")
+		require.Contains(t, stdout.String(), "mymodel")
 		require.Contains(t, stdout.String(), "$3.00")
 		require.Contains(t, stdout.String(), "-")
 	})

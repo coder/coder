@@ -170,13 +170,17 @@ func (r *RootCmd) aiModelPricesUpdate() *serpent.Command {
 				Command:     "coder exp ai-model-prices update prices.json",
 			},
 			agplcli.Example{
-				Description: "Read the document from stdin.",
+				Description: "Read the document from stdin, applied without confirmation.",
 				Command:     "coder exp ai-model-prices update < prices.json",
 			},
 			agplcli.Example{
 				Description: "Set prices for a single model.",
 				Command: "coder exp ai-model-prices update --provider anthropic --model my-model " +
 					"--input-price 3000000 --output-price 15000000 --cache-read-price 300000 --cache-write-price null",
+			},
+			agplcli.Example{
+				Description: "Set prices without confirmation.",
+				Command:     "coder exp ai-model-prices update prices.json --yes",
 			},
 		),
 		Middleware: serpent.Chain(serpent.RequireRangeArgs(0, 1)),
@@ -266,14 +270,14 @@ var modelPriceFlags = []string{"input-price", "output-price", "cache-read-price"
 // rejected rather than guessing which one the caller meant. Field-level rules
 // are enforced by the server.
 func readAIModelPrices(inv *serpent.Invocation, provider, model string) ([]codersdk.AIModelPriceUpsert, bool, error) {
-	setPrices := setModelPriceFlags(inv)
-	if provider == "" && model == "" && len(setPrices) == 0 {
+	providedFlags := userSetPriceFlags(inv)
+	if provider == "" && model == "" && len(providedFlags) == 0 {
 		return readAIModelPricesDocument(inv)
 	}
 	if len(inv.Args) > 0 {
 		return nil, false, xerrors.New("pass either a JSON document or the single-model flags, not both")
 	}
-	if err := validateModelPriceFlags(provider, model, setPrices); err != nil {
+	if err := validateModelPriceFlags(provider, model, providedFlags); err != nil {
 		return nil, false, err
 	}
 	price, err := modelPriceFromFlags(inv, provider, model)
@@ -283,25 +287,25 @@ func readAIModelPrices(inv *serpent.Invocation, provider, model string) ([]coder
 	return []codersdk.AIModelPriceUpsert{price}, false, nil
 }
 
-// setModelPriceFlags lists the price flags the caller supplied.
-func setModelPriceFlags(inv *serpent.Invocation) []string {
-	var set []string
+// userSetPriceFlags lists the price flags the caller supplied.
+func userSetPriceFlags(inv *serpent.Invocation) []string {
+	var provided []string
 	for _, name := range modelPriceFlags {
 		if opt := inv.Command.Options.ByFlag(name); opt != nil && opt.ValueSource != serpent.ValueSourceNone {
-			set = append(set, name)
+			provided = append(provided, name)
 		}
 	}
-	return set
+	return provided
 }
 
 // validateModelPriceFlags checks the flag combination names one complete model.
-func validateModelPriceFlags(provider, model string, setPrices []string) error {
+func validateModelPriceFlags(provider, model string, providedFlags []string) error {
 	if provider == "" || model == "" {
 		return xerrors.New("--provider and --model are both required to price a single model")
 	}
 	// An entry sets all four prices, so every flag is required. Leaving one out
 	// would clear that price rather than preserve it.
-	if len(setPrices) != len(modelPriceFlags) {
+	if len(providedFlags) != len(modelPriceFlags) {
 		return xerrors.Errorf("all price flags are required: --%s. Pass 'null' for a price you do not have",
 			strings.Join(modelPriceFlags, ", --"))
 	}
@@ -502,10 +506,16 @@ func namedPrices(price codersdk.AIModelPriceUpsert) []namedPrice {
 }
 
 // formatMicros renders a micro-unit price as dollars per million tokens. An
-// unknown price shows as "-", while a zero price shows as $0.00.
+// unknown price shows as "-", while a zero price shows as $0.00. A price under
+// a cent carries enough decimals to stay distinct from another price that also
+// rounds to $0.00.
 func formatMicros(price *int64) string {
 	if price == nil {
 		return "-"
 	}
-	return fmt.Sprintf("$%.2f", float64(*price)/1_000_000)
+	dollars := float64(*price) / 1_000_000
+	if *price > 0 && *price < 10_000 {
+		return strings.TrimRight(fmt.Sprintf("$%.6f", dollars), "0")
+	}
+	return fmt.Sprintf("$%.2f", dollars)
 }

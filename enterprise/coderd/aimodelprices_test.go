@@ -2,7 +2,9 @@ package coderd_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -103,19 +105,19 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		ownerClient, _ := setupAIModelPricesTest(t)
 
 		tests := []struct {
-			name        string
-			body        string
-			wantMessage string
+			name       string
+			body       string
+			wantDetail string
 		}{
 			{
-				name:        "NotAnArray",
-				body:        `{"prices": "not-an-array"}`,
-				wantMessage: "Request body must be valid JSON.",
+				name:       "NotAnArray",
+				body:       `{"prices": "not-an-array"}`,
+				wantDetail: "cannot unmarshal string",
 			},
 			{
-				name:        "WrongFieldType",
-				body:        `{"prices":[{"provider":"anthropic","model":"my-model","input_price":"abc","output_price":null,"cache_read_price":null,"cache_write_price":null}]}`,
-				wantMessage: "Request body has an invalid field.",
+				name:       "WrongFieldType",
+				body:       `{"prices":[{"provider":"anthropic","model":"my-model","input_price":"abc","output_price":null,"cache_read_price":null,"cache_write_price":null}]}`,
+				wantDetail: "input_price",
 			},
 		}
 
@@ -127,18 +129,40 @@ func TestUpsertAIModelPrices(t *testing.T) {
 				// When: the body is sent. json.RawMessage marshals verbatim, so
 				// it reaches the handler unchanged.
 				//nolint:gocritic // Managing AI model prices is owner-only.
-				res, err := ownerClient.Request(ctx, http.MethodPut,
+				res, err := ownerClient.Request(ctx, http.MethodPost,
 					"/api/experimental/ai/model-prices", json.RawMessage(tt.body))
 				require.NoError(t, err)
 				defer res.Body.Close()
 
-				// Then: the decode that failed names the problem.
+				// Then: the detail names the problem, since both decodes report
+				// the same message.
 				require.Equal(t, http.StatusBadRequest, res.StatusCode)
 				var sdkErr *codersdk.Error
 				require.ErrorAs(t, codersdk.ReadBodyAsError(res), &sdkErr)
-				require.Equal(t, tt.wantMessage, sdkErr.Message)
+				require.Equal(t, "Request body must be valid JSON.", sdkErr.Message)
+				require.Contains(t, sdkErr.Detail, tt.wantDetail)
 			})
 		}
+	})
+
+	t.Run("RejectsAnOversizedBody", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: an entitled deployment and a body over the size cap.
+		ownerClient, _ := setupAIModelPricesTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		body := fmt.Sprintf(`{"prices":[{"provider":"anthropic","model":%q}]}`,
+			strings.Repeat("a", codersdk.MaxAIModelPricesBytes))
+
+		// When: the body is sent.
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		res, err := ownerClient.Request(ctx, http.MethodPost,
+			"/api/experimental/ai/model-prices", json.RawMessage(body))
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		// Then: it is rejected before the body is decoded.
+		require.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
 	})
 
 	t.Run("RejectsInvalidPrices", func(t *testing.T) {
