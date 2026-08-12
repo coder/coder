@@ -15,6 +15,10 @@
 		"object": { "resource_type": "template", "any_org": true },
 		"action": "create"
 	},
+	"viewTemplates": {
+		"object": { "resource_type": "template", "any_org": true },
+		"action": "read"
+	},
 	"createWorkspace": {
 		"object": {
 			"resource_type": "workspace",

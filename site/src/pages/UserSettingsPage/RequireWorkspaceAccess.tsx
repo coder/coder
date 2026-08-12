@@ -1,16 +1,16 @@
 import type { FC } from "react";
 import { Navigate, Outlet } from "react-router";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { canViewWorkspaces } from "#/modules/permissions";
 
 /**
- * Guards user settings routes that only apply to workspaces. Users who cannot
- * read workspaces are sent to the account page, since those settings have no
- * effect for them.
+ * Renders the settings route it wraps, or redirects to the account page when
+ * the user cannot read workspaces.
  */
 export const RequireWorkspaceAccess: FC = () => {
 	const { permissions } = useAuthenticated();
 
-	if (!permissions.viewWorkspaces) {
+	if (!canViewWorkspaces(permissions)) {
 		return <Navigate to="/settings/account" replace />;
 	}
 

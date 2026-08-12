@@ -6,44 +6,55 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 
-// TODO(PLAT-460): placeholder copy, replace once the final upgrade message is
+// TODO(PLAT-460): placeholder copy, replace once the final messages are
 // available.
-export const restrictedNavTooltip =
-	"Workspaces are not available for your account. Contact your administrator to request access.";
+export const restrictedNavTooltips = {
+	workspaces:
+		"Workspaces are not available for your account. Contact your administrator to request access.",
+	templates:
+		"Templates are not available for your account. Contact your administrator to request access.",
+	tasks:
+		"Tasks are not available for your account. Contact your administrator to request access.",
+	agents:
+		"Agents need permission to create workspaces. Contact your administrator to request access.",
+} as const;
 
 type RestrictedNavItemProps = {
 	className?: string;
-	/**
-	 * Dimmed labels are not links, so they carry no keyboard affordance of their
-	 * own. Keeping the wrapper focusable makes the tooltip reachable without a
-	 * pointer. Set to -1 inside menus that already manage focus on the parent
-	 * item.
-	 */
-	tabIndex?: number;
+	message: string;
 	children: ReactNode;
 };
 
 /**
- * A navigation label rendered as dimmed, non-interactive text with a tooltip
- * describing why it cannot be opened.
+ * A dimmed, inert navigation label. The message is rendered as screen reader
+ * text and shown in a tooltip on hover or focus.
+ *
+ * The label is a button so that it is focusable and announced as unavailable.
+ * It performs no action. Callers supply the dimmed text color, so the focus
+ * ring stays at full strength.
  */
 export const RestrictedNavItem: FC<RestrictedNavItemProps> = ({
 	className,
-	tabIndex = 0,
+	message,
 	children,
 }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span
+				<button
+					type="button"
 					aria-disabled="true"
-					tabIndex={tabIndex}
-					className={cn("opacity-50 cursor-default", className)}
+					className={cn(
+						"bg-transparent border-0 p-0 font-inherit cursor-default",
+						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+						className,
+					)}
 				>
-					{children}
-				</span>
+					<span>{children}</span>
+					<span className="sr-only"> {message}</span>
+				</button>
 			</TooltipTrigger>
-			<TooltipContent>{restrictedNavTooltip}</TooltipContent>
+			<TooltipContent>{message}</TooltipContent>
 		</Tooltip>
 	);
 };

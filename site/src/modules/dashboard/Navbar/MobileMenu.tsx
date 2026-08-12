@@ -32,7 +32,7 @@ import {
 	canViewAdminSettings,
 } from "./AdminSettings";
 import { sortProxiesByLatency } from "./proxyUtils";
-import { RestrictedNavItem } from "./RestrictedNavItem";
+import { restrictedNavTooltips } from "./RestrictedNavItem";
 
 const itemStyles = {
 	default: "px-9 h-10 no-underline",
@@ -43,7 +43,9 @@ const itemStyles = {
 type MobileMenuProps = {
 	proxyContextValue?: ProxyContextValue;
 	adminPermissions: AdminSettingsPermissions;
+	canCreateWorkspace: boolean;
 	canViewWorkspaces: boolean;
+	canViewTemplates: boolean;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
@@ -53,13 +55,35 @@ type MobileMenuProps = {
 export const MobileMenu: FC<MobileMenuProps> = ({
 	adminPermissions,
 	proxyContextValue,
+	canCreateWorkspace,
 	canViewWorkspaces,
+	canViewTemplates,
 	user,
 	supportLinks,
 	onSignOut,
 	isDefaultOpen,
 }) => {
 	const [open, setOpen] = useState(isDefaultOpen);
+	const navItems = [
+		{
+			label: "Workspaces",
+			to: "/workspaces",
+			enabled: canViewWorkspaces,
+			message: restrictedNavTooltips.workspaces,
+		},
+		{
+			label: "Templates",
+			to: "/templates",
+			enabled: canViewTemplates,
+			message: restrictedNavTooltips.templates,
+		},
+		{
+			label: "Agents",
+			to: "/agents",
+			enabled: canCreateWorkspace,
+			message: restrictedNavTooltips.agents,
+		},
+	];
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -79,30 +103,27 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				className="w-screen border-0 border-b border-solid p-0 py-2"
 				sideOffset={17}
 			>
-				{canViewWorkspaces ? (
-					<>
-						<DropdownMenuItem asChild className={itemStyles.default}>
-							<Link to="/workspaces">Workspaces</Link>
+				{navItems.map(({ label, to, enabled, message }) =>
+					enabled ? (
+						<DropdownMenuItem
+							key={label}
+							asChild
+							className={itemStyles.default}
+						>
+							<Link to={to}>{label}</Link>
 						</DropdownMenuItem>
-						<DropdownMenuItem asChild className={itemStyles.default}>
-							<Link to="/templates">Templates</Link>
+					) : (
+						// Tooltips do not open on touch input, so the message is
+						// rendered inline.
+						<DropdownMenuItem
+							key={label}
+							disabled
+							className={cn(itemStyles.default, "h-auto flex-col items-start")}
+						>
+							{label}
+							<span className="text-xs text-content-secondary">{message}</span>
 						</DropdownMenuItem>
-						<DropdownMenuItem asChild className={itemStyles.default}>
-							<Link to="/agents">Agents</Link>
-						</DropdownMenuItem>
-					</>
-				) : (
-					<>
-						{["Workspaces", "Templates", "Agents"].map((label) => (
-							<DropdownMenuItem
-								key={label}
-								className={itemStyles.default}
-								onSelect={(event) => event.preventDefault()}
-							>
-								<RestrictedNavItem tabIndex={-1}>{label}</RestrictedNavItem>
-							</DropdownMenuItem>
-						))}
-					</>
+					),
 				)}
 				{canViewWorkspaces && (
 					<>

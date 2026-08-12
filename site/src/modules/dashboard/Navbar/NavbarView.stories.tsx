@@ -40,7 +40,9 @@ const meta: Meta<typeof NavbarView> = {
 			canViewHealth: true,
 		},
 		canCreateChat: true,
+		canCreateWorkspace: true,
 		canViewWorkspaces: true,
+		canViewTemplates: true,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
@@ -129,7 +131,9 @@ export const WithoutWorkspaceAccess: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: true,
+		canCreateWorkspace: false,
 		canViewWorkspaces: false,
+		canViewTemplates: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -141,7 +145,62 @@ export const WithoutWorkspaceAccess: Story = {
 		}
 
 		await userEvent.hover(canvas.getByText("Workspaces"));
-		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+		const body = within(canvasElement.ownerDocument.body);
+		const tooltip = await body.findByRole("tooltip");
+		expect(tooltip).toHaveTextContent(/workspaces are not available/i);
+
+		// The reason is part of the label's accessible name.
+		canvas.getByRole("button", {
+			name: /^Workspaces Workspaces are not available/i,
+		});
+	},
+};
+
+// An auditor can read templates while holding no workspace permission.
+export const TemplatesOnly: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
+	args: {
+		user: MockUserMember,
+		adminPermissions: { canViewAuditLog: true },
+		canCreateChat: false,
+		canCreateWorkspace: false,
+		canViewWorkspaces: false,
+		canViewTemplates: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("link", { name: "Templates" });
+		expect(
+			canvas.queryByRole("link", { name: "Workspaces" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+// A workspace creation ban leaves the workspace UI usable.
+export const WithoutWorkspaceCreation: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
+	args: {
+		user: MockUserMember,
+		adminPermissions: {},
+		canCreateChat: true,
+		canCreateWorkspace: false,
+		canViewWorkspaces: true,
+		canViewTemplates: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("link", { name: "Workspaces" });
+		expect(
+			canvas.queryByRole("link", { name: "Agents" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.hover(canvas.getByText("Agents"));
+		const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+			"tooltip",
+		);
+		expect(tooltip).toHaveTextContent(/permission to create workspaces/i);
 	},
 };
 

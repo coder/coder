@@ -23,8 +23,7 @@ interface AccountFormProps {
 	email: string;
 	isLoading: boolean;
 	/**
-	 * Controls whether the name field explains how templates read the value.
-	 * The explanation only makes sense to users who can use workspaces.
+	 * Adds the template property reference to the name field's helper text.
 	 */
 	showTemplateNameHelperText: boolean;
 	initialValues: UpdateUserProfileRequest;

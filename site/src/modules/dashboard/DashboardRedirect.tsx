@@ -1,18 +1,18 @@
 import type { FC } from "react";
 import { Navigate } from "react-router";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { canViewWorkspaces } from "#/modules/permissions";
 
 /**
- * Resolves the dashboard index route to a landing page based on the signed-in
- * user's permissions. Users who cannot read workspaces land on their account
- * settings.
+ * Redirects the dashboard index route to the workspaces page, or to account
+ * settings when the user cannot read workspaces.
  */
 export const DashboardRedirect: FC = () => {
 	const { permissions } = useAuthenticated();
 
 	return (
 		<Navigate
-			to={permissions.viewWorkspaces ? "/workspaces" : "/settings/account"}
+			to={canViewWorkspaces(permissions) ? "/workspaces" : "/settings/account"}
 			replace
 		/>
 	);

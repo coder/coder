@@ -4,15 +4,16 @@ import {
 } from "#/components/Sidebar/Sidebar";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { canViewWorkspaces } from "#/modules/permissions";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 
 export const Sidebar: React.FC = () => {
 	const { entitlements, experiments, buildInfo } = useDashboard();
 	const { permissions } = useAuthenticated();
-	const canViewWorkspaces = permissions.viewWorkspaces;
+	const showWorkspacePages = canViewWorkspaces(permissions);
 	const showSchedulePage =
 		entitlements.features.advanced_template_scheduling.enabled &&
-		canViewWorkspaces;
+		showWorkspacePages;
 	const showOAuth2Page =
 		experiments.includes("oauth2") || getPrereleaseFlag(buildInfo) === "devel";
 
@@ -39,7 +40,7 @@ export const Sidebar: React.FC = () => {
 				<SettingsSidebarNavItem href="security">
 					Security
 				</SettingsSidebarNavItem>
-				{canViewWorkspaces && (
+				{showWorkspacePages && (
 					<SettingsSidebarNavItem href="ssh-keys">
 						SSH Keys
 					</SettingsSidebarNavItem>

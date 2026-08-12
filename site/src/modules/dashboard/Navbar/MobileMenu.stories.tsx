@@ -41,6 +41,8 @@ const meta: Meta<typeof MobileMenu> = {
 		onSignOut: fn(),
 		isDefaultOpen: true,
 		canViewWorkspaces: true,
+		canViewTemplates: true,
+		canCreateWorkspace: true,
 		adminPermissions: {
 			canViewDeployment: true,
 			canViewOrganizations: true,
@@ -100,6 +102,8 @@ export const WithoutWorkspaceAccess: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canViewWorkspaces: false,
+		canViewTemplates: false,
+		canCreateWorkspace: false,
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -111,6 +115,11 @@ export const WithoutWorkspaceAccess: Story = {
 		expect(
 			body.queryByRole("menuitem", { name: /workspace proxy settings/i }),
 		).not.toBeInTheDocument();
+
+		// The reason is visible without hover.
+		await body.findByText(/workspaces are not available/i);
+		const item = body.getByRole("menuitem", { name: /^Workspaces/ });
+		expect(item).toHaveAttribute("aria-disabled", "true");
 	},
 };
 
