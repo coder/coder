@@ -199,11 +199,15 @@ func TestDispatcherTimeoutNoRetry(t *testing.T) {
 	var requests atomic.Int32
 	// A real server cannot guarantee the handler runs before the short
 	// dispatch deadline on a loaded machine, so the transport records the
-	// attempt synchronously and blocks until the deadline expires.
+	// attempt synchronously. The successful response with a body that blocks
+	// until the deadline expires keeps the read-path timeout branch covered.
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requests.Add(1)
-		<-req.Context().Done()
-		return nil, req.Context().Err()
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       contextBlockedBody{ctx: req.Context()},
+			Request:    req,
+		}, nil
 	})}
 
 	_, _, err := newTestDispatcher(t, client, "https://hooks.example.com/coder", 50*time.Millisecond).Dispatch(
@@ -707,6 +711,15 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
+
+type contextBlockedBody struct{ ctx context.Context }
+
+func (b contextBlockedBody) Read([]byte) (int, error) {
+	<-b.ctx.Done()
+	return 0, b.ctx.Err()
+}
+
+func (contextBlockedBody) Close() error { return nil }
 
 func TestDispatcherCapacityClassRequired(t *testing.T) {
 	t.Parallel()
