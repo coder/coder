@@ -101,10 +101,6 @@ export const WithSupergraphic: Story = {
 	},
 };
 
-/**
- * The artwork swaps assets with the active theme and the pixel matrix only
- * snapshots dark, so light needs its own story to get any coverage.
- */
 export const WithSupergraphicLight: Story = {
 	args: {
 		children: withSupergraphicChildren,

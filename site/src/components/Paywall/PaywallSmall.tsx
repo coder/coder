@@ -66,7 +66,7 @@ const PaywallSmall = ({
 					))}
 				</PaywallFeatures>
 				{canViewPremium ? (
-					<PaywallCTALink to={PREMIUM_PAGE_PATH}>
+					<PaywallCTALink to={PREMIUM_PAGE_PATH} className="w-full ml-0 mr-8">
 						Start trial for free
 					</PaywallCTALink>
 				) : (

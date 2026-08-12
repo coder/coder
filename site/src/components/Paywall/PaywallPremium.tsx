@@ -1,4 +1,5 @@
 import { ExternalLinkIcon } from "lucide-react";
+import type { FC } from "react";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
 import { cn } from "#/utils/cn";
 import {
@@ -17,6 +18,40 @@ import {
 
 const DEFAULT_HERO_SUBTITLE = "Start a 30-day trial today.";
 
+const PaywallPremiumHeader: FC<React.ComponentProps<"div">> = ({
+	children,
+	className,
+	...props
+}) => {
+	return (
+		<div
+			className={cn(
+				"relative isolate overflow-hidden rounded-lg py-12 mb-8",
+				"flex flex-col items-center justify-center px-6 text-center",
+				className,
+			)}
+			{...props}
+		>
+			{children}
+		</div>
+	);
+};
+
+const PaywallPremiumContent: FC<React.ComponentProps<"div">> = ({
+	children,
+	className,
+	...props
+}) => {
+	return (
+		<div
+			className={cn("flex flex-col md:flex-row gap-8 px-6 pb-6", className)}
+			{...props}
+		>
+			{children}
+		</div>
+	);
+};
+
 const PaywallPremium = ({
 	message,
 	description = PREMIUM_DEFAULT_DESCRIPTION,
@@ -33,7 +68,7 @@ const PaywallPremium = ({
 			)}
 			{...props}
 		>
-			<section className="relative isolate overflow-hidden rounded-lg flex flex-col items-center text-center py-12 px-6 mb-8">
+			<PaywallPremiumHeader>
 				<Supergraphic className="absolute inset-0 -z-10" />
 				<PaywallTitle>{PREMIUM_DEFAULT_HERO}</PaywallTitle>
 				<p className="mt-3 mb-0 text-sm">{DEFAULT_HERO_SUBTITLE}</p>
@@ -46,10 +81,10 @@ const PaywallPremium = ({
 						Contact your deployment administrator for Premium.
 					</PaywallGuidance>
 				)}
-			</section>
+			</PaywallPremiumHeader>
 
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-6 pb-6">
-				<div>
+			<PaywallPremiumContent>
+				<div className="flex-1">
 					<h3 className="m-0 font-semibold text-base leading-relaxed text-content-primary">
 						{description}
 					</h3>
@@ -63,12 +98,12 @@ const PaywallPremium = ({
 						<ExternalLinkIcon aria-hidden="true" className="size-icon-sm" />
 					</a>
 				</div>
-				<PaywallFeatures className="px-0" aria-label={message}>
+				<PaywallFeatures className="flex-1 px-0" aria-label={message}>
 					{features.map((feature) => (
 						<PaywallFeature key={feature}>{feature}</PaywallFeature>
 					))}
 				</PaywallFeatures>
-			</div>
+			</PaywallPremiumContent>
 		</div>
 	);
 };

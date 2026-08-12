@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import { PREMIUM_PRICING_LINK } from "#/components/Paywall/Paywall";
 import { PaywallPremium } from "./PaywallPremium";
-
-const PRICING_HREF = "https://coder.com/pricing";
 
 const meta: Meta<typeof PaywallPremium> = {
 	title: "components/Paywall/Premium",
@@ -35,7 +34,7 @@ export const CanViewLicenses: Story = {
 			name: "Learn more about premium",
 		});
 		await expect(pricing).toBeVisible();
-		await expect(pricing).toHaveAttribute("href", PRICING_HREF);
+		await expect(pricing).toHaveAttribute("href", PREMIUM_PRICING_LINK);
 		await expect(pricing).toHaveAttribute("target", "_blank");
 
 		await expect(
