@@ -1,8 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
 import {
-	MockCoderdTunnelConnectionLog,
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
 	MockWebConnectionLog,
@@ -43,19 +41,6 @@ export const WebUnauthenticatedFail: Story = {
 				slug_or_port: MockWebConnectionLog.web_info!.slug_or_port,
 			},
 		},
-	},
-};
-
-export const CoderdTunnel: Story = {
-	args: {
-		connectionLog: MockCoderdTunnelConnectionLog,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/Coder system established a tunnel to/),
-		).toBeVisible();
-		await expect(canvas.getByText("101")).toBeVisible();
 	},
 };
 

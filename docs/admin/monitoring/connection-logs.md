@@ -32,23 +32,18 @@ events for the same workspace and agent.
 
 The connection log records the authorization decision for each request to add a tunnel to a workspace agent.
 Accepted requests have status code `101`, and denied requests have status code `403`.
-User-initiated events include the authenticated user's identity, IP address, and user agent.
-Coder components also create tunnels for internal traffic, and these rows appear as system activity without a user.
+Tunnel events include the authenticated user's identity, IP address, and user agent.
 
 Keep the following in mind when interpreting tunnel events:
 
 - A tunnel event records an authorization decision, not how the tunnel was used.
   Clients such as `coder ssh`, `coder port-forward`, `coder ping`, `coder speedtest`, Coder Desktop, and IDE extensions can request tunnels.
-- System events use the client field to identify the source as `coderd` or `wsproxy/<name>`.
-  Coderd and workspace proxy tunnels are shared infrastructure that can carry workspace app and terminal traffic for multiple users.
-  User-attributed workspace app and port forwarding events remain the source for activity carried over these system tunnels.
 - Tunnel events are deduplicated per workspace agent, actor, IP address, client, and authorization result.
-  Clients and system components automatically re-request tunnels after network interruptions or server restarts.
+  Clients automatically re-request tunnels after network interruptions or server restarts.
   These requests do not produce new events while a session is active.
   A new event is recorded after one hour of inactivity, or when the actor, IP address, client, or result changes.
 - Like workspace app connections, tunnel events are point-in-time records.
   They have no close time and are excluded from `status:` filter results.
-- The `username` and `user_email` filters do not match system events because those events have no user.
 
 ## How to Filter Connection Logs
 
@@ -62,9 +57,9 @@ You can filter connection logs by the following parameters:
     For more connection types, refer to the
     [CoderSDK documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ConnectionType).
 - `username`: The name of the user who initiated the connection.
-   Results do not include agent-reported SSH or IDE sessions or system-initiated tunnel events.
+   Results do not include agent-reported SSH or IDE sessions.
 - `user_email`: The email of the user who initiated the connection.
-   Results do not include agent-reported SSH or IDE sessions or system-initiated tunnel events.
+   Results do not include agent-reported SSH or IDE sessions.
 - `connected_after`: The time after which the connection started.
    Uses the RFC3339Nano format.
 - `connected_before`: The time before which the connection started.

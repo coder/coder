@@ -7,7 +7,6 @@ import (
 
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/websocket"
@@ -62,12 +61,7 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 	defer nc.Close()
 
 	id := uuid.New()
-	proxy := httpmw.WorkspaceProxy(r)
-	onTunnelAuthorization := api.AGPL.SystemTunnelAuthorizationCallback(
-		"wsproxy/"+proxy.Name,
-		r.RemoteAddr,
-	)
-	err = api.tailnetService.ServeMultiAgentClient(ctx, version, nc, id, onTunnelAuthorization)
+	err = api.tailnetService.ServeMultiAgentClient(ctx, version, nc, id)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 	} else {

@@ -92,13 +92,8 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 
 		case "tunnel": {
 			if (!web_info) return null;
-			const { user, user_agent, status_code } = web_info;
-			const actor = (() => {
-				if (user) return user.username;
-				if (user_agent === "coderd") return "Coder system";
-				if (user_agent.startsWith("wsproxy/")) return "Workspace proxy";
-				return "System actor";
-			})();
+			const { user, status_code } = web_info;
+			const actor = user?.username ?? "Unknown user";
 			const action =
 				status_code >= 400
 					? "was denied a tunnel to"

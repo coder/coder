@@ -25,7 +25,7 @@ func NewClientService(options agpl.ClientServiceOptions) (*ClientService, error)
 	return &ClientService{ClientService: s}, nil
 }
 
-func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version string, conn net.Conn, id uuid.UUID, onTunnelAuthorization agpl.TunnelAuthorizationCallback) error {
+func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version string, conn net.Conn, id uuid.UUID) error {
 	major, _, err := apiversion.Parse(version)
 	if err != nil {
 		s.Logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
@@ -36,9 +36,7 @@ func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version strin
 		streamID := agpl.StreamID{
 			Name: id.String(),
 			ID:   id,
-			Auth: agpl.SingleTailnetCoordinateeAuth{
-				OnTunnelAuthorization: onTunnelAuthorization,
-			},
+			Auth: agpl.SingleTailnetCoordinateeAuth{},
 		}
 		return s.ServeConnV2(ctx, conn, streamID)
 	default:

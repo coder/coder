@@ -1374,24 +1374,9 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	apiKey, hasAPIKey := httpmw.APIKeyOptional(r)
-	proxy, hasProxy := httpmw.WorkspaceProxyOptional(r)
-	var onTunnelAuthorization tailnet.TunnelAuthorizationCallback
-	switch {
-	case hasAPIKey:
-		target := waws
-		onTunnelAuthorization = api.tunnelAuthorizationCallback(
-			apiKey.UserID,
-			r.RemoteAddr,
-			r.UserAgent(),
-			&target,
-		)
-	case hasProxy:
-		onTunnelAuthorization = api.SystemTunnelAuthorizationCallback("wsproxy/"+proxy.Name, r.RemoteAddr)
-	}
 	auth := tailnet.ClientCoordinateeAuth{
-		AgentID:               waws.WorkspaceAgent.ID,
-		OnTunnelAuthorization: onTunnelAuthorization,
+		AgentID: waws.WorkspaceAgent.ID,
+		Auditor: api.tunnelAuditor(r),
 	}
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",
@@ -1404,61 +1389,63 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	}
 }
 
-func (api *API) tunnelAuthorizationCallback(
-	userID uuid.UUID,
-	ip string,
-	userAgent string,
-	target *database.GetWorkspaceAgentAndWorkspaceByIDRow,
-) tailnet.TunnelAuthorizationCallback {
-	return func(agentID uuid.UUID, allowed bool) {
-		statusCode := int32(http.StatusForbidden)
-		if allowed {
-			statusCode = http.StatusSwitchingProtocols
-		}
-		// Authorization runs under the in-memory coordinator mutex, so the
-		// database write cannot happen inline.
-		go api.logTunnelConnection(agentID, statusCode, userID, ip, userAgent, target)
+type connectionLogTunnelAuditor struct {
+	api       *API
+	userID    uuid.UUID
+	ip        string
+	userAgent string
+}
+
+var _ tailnet.TunnelAuditor = connectionLogTunnelAuditor{}
+
+func (a connectionLogTunnelAuditor) Audit(agentID uuid.UUID, authorizationErr error) {
+	statusCode := int32(http.StatusSwitchingProtocols)
+	if authorizationErr != nil {
+		statusCode = http.StatusForbidden
+	}
+	// Authorization runs under the in-memory coordinator mutex, so the
+	// database write cannot happen inline.
+	go a.api.logTunnelConnection(agentID, statusCode, a.userID, a.ip, a.userAgent)
+}
+
+func (api *API) tunnelAuditor(r *http.Request) tailnet.TunnelAuditor {
+	subject, ok := dbauthz.ActorFromContext(r.Context())
+	if !ok || subject.Type != rbac.SubjectTypeUser {
+		return nil
+	}
+	userID, err := uuid.Parse(subject.ID)
+	if err != nil {
+		api.Logger.Error(r.Context(), "parse tunnel auditor user ID", slog.Error(err))
+		return nil
+	}
+	return connectionLogTunnelAuditor{
+		api:       api,
+		userID:    userID,
+		ip:        r.RemoteAddr,
+		userAgent: r.UserAgent(),
 	}
 }
 
-// SystemTunnelAuthorizationCallback records AddTunnel decisions without
-// attributing them to a database user.
-func (api *API) SystemTunnelAuthorizationCallback(source, ip string) tailnet.TunnelAuthorizationCallback {
-	return api.tunnelAuthorizationCallback(uuid.Nil, ip, source, nil)
-}
-
-func (api *API) logTunnelConnection(
-	agentID uuid.UUID,
-	statusCode int32,
-	userID uuid.UUID,
-	ip string,
-	userAgent string,
-	target *database.GetWorkspaceAgentAndWorkspaceByIDRow,
-) {
+func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID uuid.UUID, ip, userAgent string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	if target == nil || target.WorkspaceAgent.ID != agentID {
-		// nolint:gocritic // System context is needed to attribute denied and system tunnel decisions.
-		resolved, err := api.Database.GetWorkspaceAgentAndWorkspaceByID(dbauthz.AsSystemRestricted(ctx), agentID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				api.Logger.Warn(ctx, "skip tunnel connection log for unknown agent",
-					slog.F("agent_id", agentID),
-					slog.F("user_id", userID),
-					slog.F("source", userAgent),
-				)
-				return
-			}
-			api.Logger.Error(ctx, "resolve tunnel connection log target",
+	// nolint:gocritic // System context is needed to attribute denied tunnel decisions.
+	waws, err := api.Database.GetWorkspaceAgentAndWorkspaceByID(dbauthz.AsSystemRestricted(ctx), agentID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			api.Logger.Warn(ctx, "skip tunnel connection log for unknown agent",
 				slog.F("agent_id", agentID),
 				slog.F("user_id", userID),
-				slog.F("source", userAgent),
-				slog.Error(err),
 			)
 			return
 		}
-		target = &resolved
+		api.Logger.Error(ctx, "resolve tunnel connection log agent",
+			slog.F("agent_id", agentID),
+			slog.F("user_id", userID),
+			slog.Error(err),
+		)
+		return
 	}
 
 	staleInterval := api.Options.WorkspaceAppAuditSessionTimeout
@@ -1470,7 +1457,7 @@ func (api *API) logTunnelConnection(
 	newSession, err := api.Database.UpsertWorkspaceAppAuditSession(dbauthz.AsSystemRestricted(ctx), database.UpsertWorkspaceAppAuditSessionParams{
 		StaleIntervalMS: staleInterval.Milliseconds(),
 		ID:              uuid.New(),
-		AgentID:         target.WorkspaceAgent.ID,
+		AgentID:         agentID,
 		AppID:           uuid.Nil,
 		UserID:          userID,
 		Ip:              ip,
@@ -1482,10 +1469,10 @@ func (api *API) logTunnelConnection(
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "upsert tunnel audit session",
-			slog.F("workspace_id", target.WorkspaceTable.ID),
-			slog.F("agent_id", target.WorkspaceAgent.ID),
+			slog.F("workspace_id", waws.WorkspaceTable.ID),
+			slog.F("agent_id", waws.WorkspaceAgent.ID),
 			slog.F("user_id", userID),
-			slog.F("source", userAgent),
+			slog.F("user_agent", userAgent),
 			slog.Error(err),
 		)
 		return
@@ -1501,11 +1488,11 @@ func (api *API) logTunnelConnection(
 	err = (*logger).Upsert(ctx, database.UpsertConnectionLogParams{
 		ID:               uuid.New(),
 		Time:             now,
-		OrganizationID:   target.WorkspaceTable.OrganizationID,
-		WorkspaceOwnerID: target.WorkspaceTable.OwnerID,
-		WorkspaceID:      target.WorkspaceTable.ID,
-		WorkspaceName:    target.WorkspaceTable.Name,
-		AgentName:        target.WorkspaceAgent.Name,
+		OrganizationID:   waws.WorkspaceTable.OrganizationID,
+		WorkspaceOwnerID: waws.WorkspaceTable.OwnerID,
+		WorkspaceID:      waws.WorkspaceTable.ID,
+		WorkspaceName:    waws.WorkspaceTable.Name,
+		AgentName:        waws.WorkspaceAgent.Name,
 		Type:             database.ConnectionTypeTunnel,
 		IP:               database.ParseIP(ip),
 		Code:             sql.NullInt32{Int32: statusCode, Valid: true},
@@ -1518,10 +1505,10 @@ func (api *API) logTunnelConnection(
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "upsert tunnel connection log",
-			slog.F("workspace_id", target.WorkspaceTable.ID),
-			slog.F("agent_id", target.WorkspaceAgent.ID),
+			slog.F("workspace_id", waws.WorkspaceTable.ID),
+			slog.F("agent_id", waws.WorkspaceAgent.ID),
 			slog.F("user_id", userID),
-			slog.F("source", userAgent),
+			slog.F("user_agent", userAgent),
 			slog.Error(err),
 		)
 	}
@@ -2474,12 +2461,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 			sshPrep: sshPrep,
 			db:      api.Database,
 		},
-		OnTunnelAuthorization: api.tunnelAuthorizationCallback(
-			apiKey.UserID,
-			r.RemoteAddr,
-			r.UserAgent(),
-			nil,
-		),
+		Auditor: api.tunnelAuditor(r),
 	}
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",

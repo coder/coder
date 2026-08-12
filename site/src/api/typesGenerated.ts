@@ -3870,7 +3870,7 @@ export const ConnectionLogStatuses: ConnectionLogStatus[] = [
 export interface ConnectionLogWebInfo {
 	readonly user_agent: string;
 	/**
-	 * User is omitted if the connection event was unauthenticated or system-initiated.
+	 * User is omitted if the connection event was unauthenticated.
 	 */
 	readonly user: User | null;
 	readonly slug_or_port: string;

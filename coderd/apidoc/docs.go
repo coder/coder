@@ -18656,7 +18656,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "user": {
-                    "description": "User is omitted if the connection event was unauthenticated or system-initiated.",
+                    "description": "User is omitted if the connection event was unauthenticated.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.User"

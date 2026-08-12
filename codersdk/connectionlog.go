@@ -48,7 +48,7 @@ const (
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
 	// ConnectionTypeTunnel records accepted and denied tailnet tunnel
-	// requests made by authenticated users and Coder system components.
+	// requests made by authenticated users.
 	ConnectionTypeTunnel ConnectionType = "tunnel"
 )
 
@@ -72,7 +72,7 @@ func (s ConnectionLogStatus) Valid() bool {
 
 type ConnectionLogWebInfo struct {
 	UserAgent string `json:"user_agent"`
-	// User is omitted if the connection event was unauthenticated or system-initiated.
+	// User is omitted if the connection event was unauthenticated.
 	User       *User  `json:"user"`
 	SlugOrPort string `json:"slug_or_port"`
 	// StatusCode is the HTTP status code or tunnel authorization outcome.

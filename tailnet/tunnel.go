@@ -33,38 +33,24 @@ type CoordinateeAuth interface {
 	Authorize(ctx context.Context, req *proto.CoordinateRequest) error
 }
 
-// TunnelAuthorizationCallback observes AddTunnel authorization decisions.
-// Implementations must not block because authorization may run while the
-// coordinator mutex is held.
-type TunnelAuthorizationCallback func(agentID uuid.UUID, allowed bool)
+// TunnelAuditor records AddTunnel authorization decisions. Audit must not
+// block because authorization may run while the coordinator mutex is held.
+type TunnelAuditor interface {
+	Audit(agentID uuid.UUID, authorizationErr error)
+}
 
 // SingleTailnetCoordinateeAuth allows all tunnels because coderd and workspace
 // proxies may initiate a tunnel to any agent.
-type SingleTailnetCoordinateeAuth struct {
-	OnTunnelAuthorization TunnelAuthorizationCallback
-}
+type SingleTailnetCoordinateeAuth struct{}
 
-func (a SingleTailnetCoordinateeAuth) Authorize(_ context.Context, req *proto.CoordinateRequest) error {
-	var agentID uuid.UUID
-	err, report := func() (error, bool) {
-		tun := req.GetAddTunnel()
-		if tun == nil {
-			return nil, false
-		}
-		var err error
-		agentID, err = uuid.FromBytes(tun.Id)
-		return nil, err == nil
-	}()
-	if report && a.OnTunnelAuthorization != nil {
-		a.OnTunnelAuthorization(agentID, err == nil)
-	}
-	return err
+func (SingleTailnetCoordinateeAuth) Authorize(context.Context, *proto.CoordinateRequest) error {
+	return nil
 }
 
 // ClientCoordinateeAuth allows connecting to a single agent.
 type ClientCoordinateeAuth struct {
-	AgentID               uuid.UUID
-	OnTunnelAuthorization TunnelAuthorizationCallback
+	AgentID uuid.UUID
+	Auditor TunnelAuditor
 }
 
 func (c ClientCoordinateeAuth) Authorize(_ context.Context, req *proto.CoordinateRequest) error {
@@ -84,8 +70,8 @@ func (c ClientCoordinateeAuth) Authorize(_ context.Context, req *proto.Coordinat
 		}
 		return nil, true
 	}()
-	if report && c.OnTunnelAuthorization != nil {
-		c.OnTunnelAuthorization(agentID, authErr == nil)
+	if report && c.Auditor != nil {
+		c.Auditor.Audit(agentID, authErr)
 	}
 	if authErr != nil {
 		return authErr
@@ -143,8 +129,8 @@ func (a AgentCoordinateeAuth) authorizeNodePrefixes(prefixes []string) error {
 }
 
 type ClientUserCoordinateeAuth struct {
-	Auth                  TunnelAuthorizer
-	OnTunnelAuthorization TunnelAuthorizationCallback
+	Auth    TunnelAuthorizer
+	Auditor TunnelAuditor
 }
 
 func (a ClientUserCoordinateeAuth) Authorize(ctx context.Context, req *proto.CoordinateRequest) error {
@@ -164,8 +150,8 @@ func (a ClientUserCoordinateeAuth) Authorize(ctx context.Context, req *proto.Coo
 		}
 		return nil, true
 	}()
-	if report && a.OnTunnelAuthorization != nil {
-		a.OnTunnelAuthorization(agentID, authErr == nil)
+	if report && a.Auditor != nil {
+		a.Auditor.Audit(agentID, authErr)
 	}
 	if authErr != nil {
 		return authErr
