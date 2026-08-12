@@ -231,7 +231,7 @@ export const AIGovernanceNearLimit: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("status")).toHaveTextContent(
-			"You have used 95% of your AI Governance add-on seats.",
+			"You have used 95% of your AI Governance seats.",
 		);
 		await expect(
 			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
@@ -248,7 +248,7 @@ export const AIGovernanceOverLimitFromFeature: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("status")).toHaveTextContent(
-			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
+			/110 of 100 AI Governance seats \(10 over the limit\)/,
 		);
 	},
 };
@@ -263,7 +263,7 @@ export const AIGovernanceOverLimitGracePeriod: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("status")).toHaveTextContent(
-			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
+			/110 of 100 AI Governance seats \(10 over the limit\)/,
 		);
 	},
 };

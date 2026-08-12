@@ -78,9 +78,7 @@ test("hides AI Governance seat warnings for non-admin users", async () => {
 		permissions: MockNoPermissions,
 	});
 
-	expect(
-		screen.queryByText(/AI Governance add-on seats/),
-	).not.toBeInTheDocument();
+	expect(screen.queryByText(/AI Governance seats/)).not.toBeInTheDocument();
 });
 
 test("shows AI Governance over-limit warning in LicenseBanner for admin users", async () => {
@@ -91,9 +89,7 @@ test("shows AI Governance over-limit warning in LicenseBanner for admin users", 
 	});
 
 	expect(
-		screen.getByText(
-			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
-		),
+		screen.getByText(/110 of 100 AI Governance seats \(10 over the limit\)/),
 	).toBeInTheDocument();
 });
 
