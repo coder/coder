@@ -13,22 +13,11 @@
 // native element. The summary is flattened to text (any inline tags such as
 // `<code>` are dropped) because the title is passed as a string attribute.
 
-type MdastNode = {
-	type: string;
-	value?: string;
-	children?: MdastNode[];
-	[key: string]: unknown;
-};
+import { isHtml, type MdastNode } from "./mdast";
 
 const DETAILS_OPEN = /^<details\b[^>]*>/i;
 const DETAILS_CLOSE = /<\/details>\s*$/i;
 const SUMMARY = /<summary\b[^>]*>([\s\S]*?)<\/summary>/i;
-
-function isHtml(
-	node: MdastNode | undefined,
-): node is MdastNode & { value: string } {
-	return !!node && node.type === "html" && typeof node.value === "string";
-}
 
 function stripTags(html: string): string {
 	return html

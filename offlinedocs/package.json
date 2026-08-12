@@ -11,7 +11,8 @@
 		"lint": "pnpm run lint:types",
 		"lint:types": "pnpm sync && fumadocs-mdx && next typegen && tsc --noEmit",
 		"format": "prettier --cache --write './**/*.{css,js,jsx,json,mjs,ts,tsx,yaml,yml}'",
-		"format:check": "prettier --cache --check './**/*.{css,js,jsx,json,mjs,ts,tsx,yaml,yml}'"
+		"format:check": "prettier --cache --check './**/*.{css,js,jsx,json,mjs,ts,tsx,yaml,yml}'",
+		"test": "node --test 'scripts/**/*.test.mjs'"
 	},
 	"dependencies": {
 		"@phosphor-icons/react": "2.1.10",

@@ -34,21 +34,9 @@
 //     its labels and `persist`, so repeated sets (CLI/UI, Docker/Kubernetes,
 //     ...) stay in sync and survive reloads.
 
-type MdastNode = {
-	type: string;
-	value?: string;
-	depth?: number;
-	children?: MdastNode[];
-	[key: string]: unknown;
-};
+import { isHtml, type MdastNode } from "./mdast";
 
 const TABS_OPEN = /^<div\s+class="tabs"\s*>/i;
-
-function isHtml(
-	node: MdastNode | undefined,
-): node is MdastNode & { value: string } {
-	return !!node && node.type === "html" && typeof node.value === "string";
-}
 
 // Net `<div>` nesting change contributed by a raw html node's text.
 function divDelta(value: string): number {
