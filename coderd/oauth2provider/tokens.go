@@ -231,6 +231,15 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, errBadSecret
 	}
 
+	// The secret must belong to the app identified by the request's
+	// client_id, which is otherwise unauthenticated at this point (it is
+	// parsed straight from the request with no verification). Without this
+	// check, a valid secret for one app could mint a token attributed to a
+	// different app.
+	if dbSecret.AppID != app.ID {
+		return codersdk.OAuth2TokenResponse{}, errBadSecret
+	}
+
 	// Validate the authorization code.
 	code, err := ParseFormattedSecret(req.Code)
 	if err != nil {
@@ -246,6 +255,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 	equalCode := apikey.ValidateHash(dbCode.HashedSecret, code.Secret)
 	if !equalCode {
+		return codersdk.OAuth2TokenResponse{}, errBadCode
+	}
+
+	// The code must belong to the app identified by the request's
+	// client_id, for the same reason as the secret check above.
+	if dbCode.AppID != app.ID {
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
 
@@ -355,7 +370,8 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
 			RefreshHash: refreshToken.Hashed,
-			AppSecretID: dbSecret.ID,
+			AppID:       dbCode.AppID,
+			AppSecretID: uuid.NullUUID{UUID: dbSecret.ID, Valid: true},
 			APIKeyID:    newKey.ID,
 			UserID:      dbCode.UserID,
 			Audience:    dbCode.ResourceUri,
@@ -394,6 +410,16 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	}
 	equal := apikey.ValidateHash(dbToken.RefreshHash, token.Secret)
 	if !equal {
+		return codersdk.OAuth2TokenResponse{}, errBadToken
+	}
+
+	// The token must belong to the app identified by the request's
+	// client_id, which is otherwise unauthenticated at this point (it is
+	// parsed straight from the request with no verification). Without this
+	// check, a stolen refresh token could be refreshed under a different
+	// app's client_id, re-parenting the token's app_id and breaking the
+	// issuing app's ability to revoke it.
+	if dbToken.AppID != app.ID {
 		return codersdk.OAuth2TokenResponse{}, errBadToken
 	}
 
@@ -468,6 +494,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
 			RefreshHash: refreshToken.Hashed,
+			AppID:       dbToken.AppID,
 			AppSecretID: dbToken.AppSecretID,
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,

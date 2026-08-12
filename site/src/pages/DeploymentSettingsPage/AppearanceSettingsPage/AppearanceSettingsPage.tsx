@@ -62,6 +62,7 @@ const AppearanceSettingsPage: FC = () => {
 						entitlements.features.appearance.entitlement !== "not_entitled"
 					}
 					isPremium={hasPremiumLicense}
+					permissions={permissions}
 				/>
 			</RequirePermission>
 		</>

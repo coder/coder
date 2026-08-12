@@ -107,9 +107,11 @@ type Dispatcher struct {
 }
 
 // validateHookURL requires HTTPS because hook traffic carries sensitive data
-// and authorization tokens, and responses can control execution. Plain HTTP
-// is allowed only for loopback development consumers.
-func validateHookURL(raw string) error {
+// and authorization tokens, and responses can control execution. Loopback HTTP
+// is allowed by default; allowInsecure permits HTTP for any host.
+//
+//nolint:revive // allowInsecure is operator configuration, not caller control coupling.
+func validateHookURL(raw string, allowInsecure bool) error {
 	if raw == "" {
 		return nil
 	}
@@ -137,6 +139,9 @@ func validateHookURL(raw string) error {
 		if host == "" {
 			return xerrors.New("chat hook URL must include a host")
 		}
+		if allowInsecure {
+			return nil
+		}
 		if host == "localhost" {
 			return nil
 		}
@@ -155,6 +160,7 @@ func New(
 	logger slog.Logger,
 	client *http.Client,
 	hookURL string,
+	allowInsecureURL bool,
 	secret string,
 	timeout time.Duration,
 	deploymentID string,
@@ -174,7 +180,7 @@ func New(
 		logger:       logger.Named("chat_hook_dispatcher"),
 		client:       client,
 		hookURL:      hookURL,
-		hookURLErr:   validateHookURL(hookURL),
+		hookURLErr:   validateHookURL(hookURL, allowInsecureURL),
 		secret:       []byte(secret),
 		timeout:      timeout,
 		deploymentID: deploymentID,

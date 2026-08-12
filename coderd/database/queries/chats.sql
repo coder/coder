@@ -64,10 +64,6 @@ FROM chats_expanded
 ORDER BY (chats_expanded.id = @id::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC;
 
 -- name: UnarchiveChatByID :many
--- Unarchives a chat (and its children). Stale file references are
--- handled automatically by FK cascades on chat_file_links: when
--- dbpurge deletes a chat_files row, the corresponding
--- chat_file_links rows are cascade-deleted by PostgreSQL.
 WITH updated_chats AS (
     UPDATE chats SET
         archived = false,
@@ -338,11 +334,6 @@ SET search_tsv = COALESCE(
     to_tsvector('simple', chat_message_search_text(cm.content)),
     ''::tsvector)
 FROM batch WHERE cm.id = batch.id;
-
--- name: ChatSearchQueryIsEmpty :one
--- Reports whether search text tokenizes to an empty tsquery (e.g. '!!!').
--- Used to reject input that would silently match nothing.
-SELECT numnode(websearch_to_tsquery('simple', @search::text)) = 0 AS is_empty;
 
 -- name: GetChatByID :one
 SELECT *
@@ -1663,22 +1654,16 @@ SELECT * FROM chat_context_resources
 WHERE chat_id = @chat_id::uuid
 ORDER BY source ASC;
 
--- name: LinkChatFiles :one
--- LinkChatFiles inserts file associations into the chat_file_links
--- join table with deduplication (ON CONFLICT DO NOTHING). The INSERT
--- is conditional: it only proceeds when the total number of links
--- (existing + genuinely new) does not exceed max_file_links. Returns
--- the number of genuinely new file IDs that were NOT inserted due to
--- the cap. A return value of 0 means all files were linked (or were
--- already linked). A positive value means the cap blocked that many
--- new links.
+-- name: LinkChatFilesAfterLock :one
+-- LinkChatFilesAfterLock requires the chat row lock.
+-- The lock serializes cap checks. The result counts rejected new links.
 WITH current AS (
     SELECT COUNT(*) AS cnt
     FROM chat_file_links
     WHERE chat_id = @chat_id::uuid
 ),
 new_links AS (
-    SELECT @chat_id::uuid AS chat_id, unnest(@file_ids::uuid[]) AS file_id
+    SELECT DISTINCT @chat_id::uuid AS chat_id, unnest(@file_ids::uuid[]) AS file_id
 ),
 genuinely_new AS (
     SELECT nl.chat_id, nl.file_id
@@ -1988,6 +1973,12 @@ ORDER BY
     id DESC
 LIMIT
     1;
+
+-- name: LockChatByID :one
+SELECT id
+FROM chats
+WHERE id = @id::uuid
+FOR UPDATE;
 
 -- name: GetChatByIDForUpdate :one
 WITH locked_chat AS (

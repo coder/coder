@@ -10,7 +10,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -21,10 +20,12 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
@@ -39,6 +40,7 @@ interface CustomRolesPageViewProps {
 	canDeleteOrgRole: boolean;
 	canEditDefaultRoles: boolean;
 	isCustomRolesEnabled: boolean;
+	permissions: Permissions;
 	defaultRolesEntitled?: boolean;
 	availableOrgRoles?: AssignableRoles[];
 	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
@@ -55,6 +57,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	canDeleteOrgRole,
 	canEditDefaultRoles,
 	isCustomRolesEnabled,
+	permissions,
 	defaultRolesEntitled,
 	availableOrgRoles,
 	onUpdateDefaultRoles,
@@ -67,6 +70,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
 					documentationLink={docs("/admin/users/groups-roles")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
 			{onUpdateDefaultRoles && (
@@ -282,31 +286,27 @@ const RoleTableBody: FC<RoleTableProps> = ({
 	}
 	if (roles.length === 0) {
 		return (
-			<TableRow className="h-14">
-				<TableCell colSpan={999}>
-					<EmptyState
-						message="No custom roles yet"
-						description={
-							canCreateOrgRole && isCustomRolesEnabled
-								? "Create your first custom role"
-								: !isCustomRolesEnabled
-									? "Upgrade to a premium license to create a custom role"
-									: "You don't have permission to create a custom role"
-						}
-						cta={
-							canCreateOrgRole &&
-							isCustomRolesEnabled && (
-								<Button asChild>
-									<RouterLink to="create">
-										<PlusIcon />
-										Create custom role
-									</RouterLink>
-								</Button>
-							)
-						}
-					/>
-				</TableCell>
-			</TableRow>
+			<TableEmpty
+				message="No custom roles yet"
+				description={
+					canCreateOrgRole && isCustomRolesEnabled
+						? "Create your first custom role"
+						: !isCustomRolesEnabled
+							? "Upgrade to a premium license to create a custom role"
+							: "You don't have permission to create a custom role"
+				}
+				cta={
+					canCreateOrgRole &&
+					isCustomRolesEnabled && (
+						<Button asChild>
+							<RouterLink to="create">
+								<PlusIcon />
+								Create custom role
+							</RouterLink>
+						</Button>
+					)
+				}
+			/>
 		);
 	}
 	return (

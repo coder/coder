@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
@@ -13,7 +12,10 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { Label } from "#/components/Label/Label";
+import { Textarea } from "#/components/Textarea/Textarea";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
+import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 
 interface AnnouncementBannerDialogProps {
@@ -28,6 +30,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 	onUpdate,
 }) => {
 	const theme = useTheme();
+	const isCreating = banner.message === "";
 
 	const bannerForm = useFormik<{
 		message: string;
@@ -39,9 +42,15 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 		},
 		onSubmit: (banner) => onUpdate(banner),
 	});
-	const bannerFieldHelpers = getFormHelpers(bannerForm);
+	const getFieldHelpers = getFormHelpers(bannerForm);
+	const messageField = getFieldHelpers("message", {
+		helperText: "Markdown bold, italics, and links are supported.",
+	});
+	const messageHelperId = `${messageField.id}-helper`;
+	const messageErrorId = `${messageField.id}-error`;
 
 	const [showHuePicker, setShowHuePicker] = useState(false);
+	const previewMessage = bannerForm.values.message.trim();
 
 	return (
 		<Dialog
@@ -52,8 +61,10 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 				}
 			}}
 		>
-			{/* Banner preview */}
-			<div className="fixed top-0 left-0 right-0 z-[60]">
+			{/* Banner preview. Rendered outside DialogContent so its fixed
+			    positioning is relative to the viewport, not the dialog's
+			    transformed containing block. */}
+			<div className="pointer-events-none fixed top-0 right-0 left-0 z-[60]">
 				<AnnouncementBannerView
 					message={bannerForm.values.message}
 					backgroundColor={bannerForm.values.background_color}
@@ -70,21 +81,43 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 				</DialogHeader>
 
 				<div className="flex flex-col gap-4">
-					<div>
-						<h4 className="m-0 mb-2 text-base font-semibold text-content-primary">
-							Message
-						</h4>
-						<TextField
-							{...bannerFieldHelpers("message", {
-								helperText: "Markdown bold, italics, and links are supported.",
-							})}
-							fullWidth
-							multiline
-							inputProps={{
-								"aria-label": "Message",
-								placeholder: "Enter a message for the banner",
-							}}
+					<div className="flex flex-col gap-2">
+						<Label htmlFor={messageField.id}>Message</Label>
+						<Textarea
+							id={messageField.id}
+							name={messageField.name}
+							value={messageField.value}
+							onChange={messageField.onChange}
+							onBlur={messageField.onBlur}
+							rows={3}
+							placeholder="Enter a message for the banner"
+							aria-invalid={messageField.error}
+							aria-describedby={
+								messageField.error
+									? messageErrorId
+									: messageField.helperText
+										? messageHelperId
+										: undefined
+							}
+							className={cn(messageField.error && "border-border-destructive")}
 						/>
+						{messageField.error ? (
+							<span
+								id={messageErrorId}
+								className="text-xs text-content-destructive"
+							>
+								{messageField.helperText}
+							</span>
+						) : (
+							messageField.helperText && (
+								<span
+									id={messageHelperId}
+									className="text-xs text-content-secondary"
+								>
+									{messageField.helperText}
+								</span>
+							)
+						)}
 					</div>
 					<div>
 						<h4 className="m-0 mb-2 text-base font-semibold text-content-primary">
@@ -158,8 +191,8 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 					<DialogActions
 						cancelText="Cancel"
 						confirmLoading={bannerForm.isSubmitting}
-						confirmText="Update"
-						confirmDisabled={bannerForm.isSubmitting}
+						confirmText={isCreating ? "Create" : "Update"}
+						confirmDisabled={bannerForm.isSubmitting || previewMessage === ""}
 						onCancel={onCancel}
 						onConfirm={bannerForm.handleSubmit}
 					/>

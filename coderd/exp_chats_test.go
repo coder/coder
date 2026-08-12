@@ -932,6 +932,66 @@ func TestPostChats(t *testing.T) {
 	})
 }
 
+// TestChats_ForceOnMCPServerEnforced is the endpoint-level regression
+// test for Cure53 CDM-02-010: a regular user who strips force_on MCP
+// server IDs from mcp_server_ids when creating a chat or sending a
+// message must not be able to exclude those servers.
+func TestChats_ForceOnMCPServerEnforced(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	// An admin marks an MCP server as Force On.
+	forced, err := client.Client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "Forced Server",
+		Slug:          "forced-server",
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/forced",
+		AuthType:      "none",
+		Availability:  "force_on",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.NoError(t, err)
+
+	// A regular member tampers with the request by clearing
+	// mcp_server_ids (Cure53 CDM-02-010 reproduction).
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "test message",
+		}},
+		MCPServerIDs: []uuid.UUID{},
+	})
+	require.NoError(t, err)
+	require.Contains(t, chat.MCPServerIDs, forced.ID,
+		"force_on MCP server must be enforced on chat creation")
+
+	// Sending a message with an emptied list must not remove the
+	// forced server either.
+	_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "second message",
+		}},
+		MCPServerIDs: &[]uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	chatResult, err := memberClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Contains(t, chatResult.MCPServerIDs, forced.ID,
+		"force_on MCP server must survive a tampered mcp_server_ids update")
+}
+
 func TestPostChats_ClientType(t *testing.T) {
 	t.Parallel()
 
@@ -2065,17 +2125,27 @@ func TestListChats_Search(t *testing.T) {
 		require.NotContains(t, ids, noMatch.ID)
 	})
 
-	t.Run("NoSearchableWordsReturns400", func(t *testing.T) {
+	t.Run("NoSearchableWordsReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-		ctx, client, _, _, _ := setup(t)
+		ctx, client, db, firstUser, modelConfig := setup(t)
 
-		_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+		// "or" is a real lexeme (an operator only between operands), so
+		// search:"or" matches the control chat; search:"!!!" has no lexemes and
+		// matches nothing.
+		control := createChat(t, db, firstUser, modelConfig.ID, "fix this or that")
+		backfillSearchTsv(ctx, t, db)
+
+		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: `search:"or"`,
+		})
+		require.NoError(t, err)
+		require.Contains(t, chatIDs(chats), control.ID)
+
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: `search:"!!!"`,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "search", sdkErr.Validations[0].Field)
-		require.Contains(t, sdkErr.Validations[0].Detail, "no searchable words")
+		require.NoError(t, err)
+		require.Empty(t, chats)
 	})
 
 	t.Run("ComposesWithRepoFilterAndArchivedDefault", func(t *testing.T) {
@@ -8181,14 +8251,13 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.NoError(t, err)
 
 		// Send another message with the SAME file.
-		msgResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "same file again"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
 			},
 		})
 		require.NoError(t, err)
-		require.Empty(t, msgResp.Warnings, "dedup below cap should not produce warnings")
 
 		// GET — should have exactly 1 file (deduped by SQL DISTINCT).
 		chatResult, err := client.GetChat(ctx, chat.ID)
@@ -8224,42 +8293,41 @@ func TestChatMessageWithFiles(t *testing.T) {
 		}
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
 		require.NoError(t, err)
-		require.Empty(t, chat.Warnings, "creating a chat at exactly the cap should not warn")
 		require.Len(t, chat.Files, codersdk.MaxChatFileIDs, "all files should be linked on creation")
 
 		// Upload one more file.
 		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
-		// Sending a message with the extra file should succeed
-		// (message goes through) but the file should NOT be linked
-		// (cap enforced in SQL). The response includes a warning.
-		msgResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		messagesBefore, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "one too many"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: extraResp.ID},
 			},
 		})
-		require.NoError(t, err)
-		require.NotEmpty(t, msgResp.Warnings, "response should warn about unlinked files")
-		require.Contains(t, msgResp.Warnings[0], "file linking skipped")
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		// The extra file should NOT appear in the chat's files.
+		messagesAfter, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, messagesAfter.Messages, len(messagesBefore.Messages), "rejected send should not persist a message")
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
 			"file count should not exceed the cap")
 
-		// Sending a message referencing an already-linked file
-		// should succeed with no warnings (dedup, no array growth).
-		msgResp2, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "re-reference existing"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: fileIDs[0]},
 			},
 		})
-		require.NoError(t, err)
-		require.Empty(t, msgResp2.Warnings, "re-referencing an existing file should not warn")
+		require.NoError(t, err, "re-referencing an already-linked file must not count against the cap")
 	})
 
 	t.Run("FileCapOnCreate", func(t *testing.T) {
@@ -8287,17 +8355,16 @@ func TestChatMessageWithFiles(t *testing.T) {
 		for _, fid := range fileIDs {
 			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: fid})
 		}
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
-		require.NoError(t, err, "chat creation should succeed even when cap is exceeded")
-		require.NotEmpty(t, chat.Warnings, "response should warn about unlinked files")
-		require.Contains(t, chat.Warnings[0], "file linking skipped")
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
+		require.Error(t, err, "chat creation over the cap should fail")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		// Only MaxChatFileIDs files should actually be linked.
-		// With SQL-level batch rejection, ALL files are rejected
-		// when the result would exceed the cap.
-		chatResult, err := client.GetChat(ctx, chat.ID)
+		chats, err := client.ListChats(ctx, nil)
 		require.NoError(t, err)
-		require.Empty(t, chatResult.Files, "no files should be linked when batch exceeds cap")
+		require.Empty(t, chats, "rejected create should not persist a chat")
 	})
 }
 
@@ -8710,7 +8777,7 @@ func TestPatchChatMessage(t *testing.T) {
 		}
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
 		require.NoError(t, err)
-		require.Empty(t, chat.Warnings, "all files should link on create")
+		require.Len(t, chat.Files, codersdk.MaxChatFileIDs)
 
 		// Find the user message.
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
@@ -8727,17 +8794,28 @@ func TestPatchChatMessage(t *testing.T) {
 		// Upload one more file and try to link via edit.
 		extra, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
-		edited, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "edit with extra file"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: extra.ID},
 			},
 		})
-		require.NoError(t, err)
-		require.NotEmpty(t, edited.Warnings, "edit should surface cap warning")
-		require.Contains(t, edited.Warnings[0], "file linking skipped")
+		require.Error(t, err, "edit over the cap should fail")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		// Verify the cap is still enforced.
+		messagesResult, err = client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var found bool
+		for _, msg := range messagesResult.Messages {
+			if msg.ID == userMessageID {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "original user message should survive a rejected edit")
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
@@ -9914,9 +9992,10 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 		return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
 	})
 
-	client, api := newChatClientWithAPI(t)
+	client, _, api := newChatClientWithoutAIBridge(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfigWithBaseURL(t, client, baseURL)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -9969,9 +10048,10 @@ func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {
 		return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
 	})
 
-	client, api := newChatClientWithAPI(t)
+	client, _, api := newChatClientWithoutAIBridge(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfigWithBaseURL(t, client, baseURL)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 	uploadResp, err := client.UploadChatFile(
 		ctx,
@@ -14965,134 +15045,6 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		memberThresholds, err := memberClient.GetUserChatCompactionThresholds(ctx)
 		require.NoError(t, err)
 		require.Empty(t, memberThresholds.Thresholds)
-	})
-}
-
-//nolint:tparallel // Subtests share a single coderdtest instance and run sequentially.
-func TestChatTemplateAllowlist(t *testing.T) {
-	t.Parallel()
-
-	// Shared setup: one coderdtest instance with two real templates.
-	// Subtests that need valid template IDs use these.
-	client, store := newChatClientWithDatabase(t)
-	admin := coderdtest.CreateFirstUser(t, client.Client)
-	tmpl1 := dbgen.Template(t, store, database.Template{
-		OrganizationID: admin.OrganizationID,
-		CreatedBy:      admin.UserID,
-	})
-	tmpl2 := dbgen.Template(t, store, database.Template{
-		OrganizationID: admin.OrganizationID,
-		CreatedBy:      admin.UserID,
-	})
-	deprecatedTmpl := dbgen.Template(t, store, database.Template{
-		OrganizationID: admin.OrganizationID,
-		CreatedBy:      admin.UserID,
-	})
-	//nolint:gocritic // Owner context needed to deprecate the template in test setup.
-	ownerRoles, err := rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand()
-	require.NoError(t, err)
-	err = store.UpdateTemplateAccessControlByID(dbauthz.As(context.Background(), rbac.Subject{
-		ID:    "owner",
-		Roles: rbac.Roles(ownerRoles),
-		Scope: rbac.ExpandableScope(rbac.ScopeAll),
-	}), database.UpdateTemplateAccessControlByIDParams{
-		ID:         deprecatedTmpl.ID,
-		Deprecated: "this template is deprecated",
-	})
-	require.NoError(t, err, "deprecate template")
-
-	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
-	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		resp, err := client.GetChatTemplateAllowlist(ctx)
-		require.NoError(t, err)
-		require.Empty(t, resp.TemplateIDs)
-	})
-
-	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
-	t.Run("AdminCanSet", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		ids := []string{tmpl1.ID.String(), tmpl2.ID.String()}
-		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: ids})
-		require.NoError(t, err)
-		resp, err := client.GetChatTemplateAllowlist(ctx)
-		require.NoError(t, err)
-		require.ElementsMatch(t, ids, resp.TemplateIDs)
-	})
-
-	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
-	t.Run("AdminCanClear", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{}})
-		require.NoError(t, err)
-		resp, err := client.GetChatTemplateAllowlist(ctx)
-		require.NoError(t, err)
-		require.Empty(t, resp.TemplateIDs)
-	})
-
-	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
-	t.Run("NonAdminReadFails", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-		_, err := memberClient.GetChatTemplateAllowlist(ctx)
-		requireSDKError(t, err, http.StatusNotFound)
-	})
-
-	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
-	t.Run("NonAdminWriteFails", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-		// Uses a random UUID — hits 404 before template validation.
-		err := memberClient.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{uuid.NewString()}})
-		requireSDKError(t, err, http.StatusNotFound)
-	})
-
-	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
-	t.Run("UnauthenticatedFails", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		anonClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
-		// Uses a random UUID — hits 401 before template validation.
-		err := anonClient.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{uuid.NewString()}})
-		requireSDKError(t, err, http.StatusUnauthorized)
-	})
-
-	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
-	t.Run("InvalidUUIDRejected", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{"not-a-uuid"}})
-		requireSDKError(t, err, http.StatusBadRequest)
-	})
-
-	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
-	t.Run("NonexistentTemplateRejected", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{uuid.NewString()}})
-		requireSDKError(t, err, http.StatusBadRequest)
-	})
-
-	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
-	t.Run("DeprecatedTemplateRejected", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{
-			TemplateIDs: []string{deprecatedTmpl.ID.String()},
-		})
-		requireSDKError(t, err, http.StatusBadRequest)
-	})
-
-	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
-	t.Run("DeduplicatesIDs", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		id := tmpl1.ID.String()
-		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{
-			TemplateIDs: []string{id, id, id},
-		})
-		require.NoError(t, err)
-		resp, err := client.GetChatTemplateAllowlist(ctx)
-		require.NoError(t, err)
-		require.Len(t, resp.TemplateIDs, 1)
-		require.Equal(t, id, resp.TemplateIDs[0])
 	})
 }
 

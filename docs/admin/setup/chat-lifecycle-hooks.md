@@ -29,12 +29,13 @@ The experiment list is read at startup, so enabling or disabling it requires a `
 
 Set the following deployment options on `coder server`.
 
-| Environment variable      | CLI flag              | Default | Requirement                                                                                                                              |
-|---------------------------|-----------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `CODER_CHAT_HOOK_URL`     | `--chat-hook-url`     | Empty   | Use an `https` URL. Hooks are inactive when this value is empty.                                                                         |
-| `CODER_CHAT_HOOK_SECRET`  | `--chat-hook-secret`  | Empty   | Required when the hook URL is set, at least 32 bytes of cryptographically random data. Coder uses this shared secret to sign HS256 JWTs. |
-| `CODER_CHAT_HOOK_TIMEOUT` | `--chat-hook-timeout` | `1.5s`  | Must be greater than `0` and no more than `5s`. The timeout applies to each request.                                                     |
-| `CODER_CHAT_HOOK_ENABLED` | `--chat-hook-enabled` | `true`  | Set to `false` to stop dispatching without removing the URL or secret.                                                                   |
+| Environment variable             | CLI flag                     | Default | Requirement                                                                                                                                                      |
+|----------------------------------|------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `CODER_CHAT_HOOK_URL`            | `--chat-hook-url`            | Empty   | Use an `https` URL, or an `http` URL with `CODER_CHAT_HOOK_ALLOW_INSECURE`. Hooks are inactive when this value is empty.                                         |
+| `CODER_CHAT_HOOK_SECRET`         | `--chat-hook-secret`         | Empty   | Required when the hook URL is set, at least 32 bytes of cryptographically random data. Coder uses this shared secret to sign HS256 JWTs.                         |
+| `CODER_CHAT_HOOK_TIMEOUT`        | `--chat-hook-timeout`        | `1.5s`  | Must be greater than `0` and no more than `5s`. The timeout applies to each request.                                                                             |
+| `CODER_CHAT_HOOK_ENABLED`        | `--chat-hook-enabled`        | `true`  | Set to `false` to stop dispatching without removing the URL or secret.                                                                                           |
+| `CODER_CHAT_HOOK_ALLOW_INSECURE` | `--chat-hook-allow-insecure` | `false` | Set to `true` to allow a plain `http` hook URL. Plain HTTP lets an attacker on the network forge hook responses, so only enable it on a network you fully trust. |
 
 Treat `CODER_CHAT_HOOK_ENABLED=false` as the break-glass control.
 Changing deployment options requires the normal `coder server` configuration rollout for your installation.
@@ -42,7 +43,8 @@ Changing deployment options requires the normal `coder server` configuration rol
 Use a dedicated secret and rotate it through your existing secret-management process.
 Rotation is a hard cutover: Coder signs with exactly one secret, so dispatches fail until the consumer accepts the new value.
 Rotate during a maintenance window, or temporarily set `CODER_CHAT_HOOK_ENABLED=false` for the cutover if blocked chats are worse than unreviewed ones for your deployment.
-Coder requires the configured URL to use HTTPS.
+Coder requires the configured URL to use HTTPS unless `CODER_CHAT_HOOK_ALLOW_INSECURE` is set.
+Plain HTTP removes more than transport privacy: hook responses are what allow or deny tool calls and can rewrite prompts and tool inputs, so anyone on the network path can forge them. Coder logs a warning at startup when hooks run over plain HTTP.
 A TLS terminator can forward the request to a consumer over plain HTTP on a trusted local network.
 Configure the consumer with the same `CODER_CHAT_HOOK_URL` value, because that URL is the audience Coder signs into every dispatch.
 The consumer compares the `aud` claim against its configured audience and rejects a mismatch.
@@ -233,7 +235,7 @@ Agent hooks server listening on 127.0.0.1:8081 in log-only mode
 ```
 
 The reference server accepts optional TLS certificate and key paths.
-For local testing with plain HTTP, place an HTTPS reverse proxy in front of it because `CODER_CHAT_HOOK_URL` accepts only HTTPS URLs, and pass the proxy's URL as `--audience`.
+For local testing with plain HTTP, either set `CODER_CHAT_HOOK_ALLOW_INSECURE=true` and use the `http` URL directly, or place an HTTPS reverse proxy in front of the consumer and pass the proxy's URL as `--audience`.
 Run `go run ./scripts/agenthooks-server --help` for all flags and environment variable names.
 
 ## Audit dispatches

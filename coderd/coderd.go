@@ -13,6 +13,7 @@ import (
 	"math"
 	"net/http"
 	httppprof "net/http/pprof"
+	"net/netip"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -261,6 +262,13 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
+	// MCPOAuth2DiscoveryAllowedIPRanges exempts IP ranges from the
+	// SSRF guard applied to MCP OAuth2 metadata discovery and dynamic
+	// client registration, which refuse private/internal destinations
+	// by default. This is a seam for tests, which serve their mock MCP
+	// servers on loopback; there is intentionally no user-facing
+	// configuration for it.
+	MCPOAuth2DiscoveryAllowedIPRanges []netip.Prefix
 	// ChatStreamPartsDialer dials remote chat stream parts.
 	// Set by enterprise for HA deployments. Nil uses chatd's local
 	// in-process channel dialer.
@@ -894,10 +902,16 @@ func New(options *Options) *API {
 				)
 			}
 			if hooksConfigured && hooksExperimentEnabled {
+				if chatConfig.HookAllowInsecure.Value() && chatConfig.HookURL.Value().Scheme == "http" {
+					options.Logger.Warn(ctx, "chat hooks use a plain HTTP URL; hook traffic is unencrypted and hook responses controlling agent execution can be forged on the network",
+						slog.F("hook_url", mcpclient.RedactURL(chatConfig.HookURL.String())),
+					)
+				}
 				hookDispatcher = dispatch.New(
 					options.Logger,
 					nil,
 					chatConfig.HookURL.String(),
+					chatConfig.HookAllowInsecure.Value(),
 					chatConfig.HookSecret.Value(),
 					chatConfig.HookTimeout.Value(),
 					api.DeploymentID,
@@ -1392,8 +1406,6 @@ func New(options *Options) *API {
 				r.Put("/debug-retention-days", api.putChatDebugRetentionDays)
 				r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
 				r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
-				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
-				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})
 			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {

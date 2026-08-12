@@ -543,7 +543,7 @@ func (c *Client) AIProviders(ctx context.Context) ([]AIProvider, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var providers []AIProvider
-	return providers, json.NewDecoder(res.Body).Decode(&providers)
+	return providers, ReadBodyAsJSON(res, &providers)
 }
 
 // AIProvider fetches a single AI provider by ID or name.
@@ -557,7 +557,7 @@ func (c *Client) AIProvider(ctx context.Context, idOrName string) (AIProvider, e
 		return AIProvider{}, ReadBodyAsError(res)
 	}
 	var provider AIProvider
-	return provider, json.NewDecoder(res.Body).Decode(&provider)
+	return provider, ReadBodyAsJSON(res, &provider)
 }
 
 // CreateAIProvider creates a new AI provider.
@@ -571,7 +571,7 @@ func (c *Client) CreateAIProvider(ctx context.Context, req CreateAIProviderReque
 		return AIProvider{}, ReadBodyAsError(res)
 	}
 	var provider AIProvider
-	return provider, json.NewDecoder(res.Body).Decode(&provider)
+	return provider, ReadBodyAsJSON(res, &provider)
 }
 
 // UpdateAIProvider partially updates an AI provider identified by
@@ -586,7 +586,7 @@ func (c *Client) UpdateAIProvider(ctx context.Context, idOrName string, req Upda
 		return AIProvider{}, ReadBodyAsError(res)
 	}
 	var provider AIProvider
-	return provider, json.NewDecoder(res.Body).Decode(&provider)
+	return provider, ReadBodyAsJSON(res, &provider)
 }
 
 // DeleteAIProvider soft-deletes an AI provider identified by ID or

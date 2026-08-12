@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -125,7 +124,7 @@ func (c *Client) ConnectionLogs(ctx context.Context, req ConnectionLogsRequest) 
 	}
 
 	var logRes ConnectionLogResponse
-	err = json.NewDecoder(res.Body).Decode(&logRes)
+	err = ReadBodyAsJSON(res, &logRes)
 	if err != nil {
 		return ConnectionLogResponse{}, err
 	}

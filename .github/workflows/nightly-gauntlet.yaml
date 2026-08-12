@@ -19,7 +19,7 @@ jobs:
     # `make test` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
     # some of the preceding steps are slow.
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -28,7 +28,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -68,6 +68,11 @@ jobs:
           install-args: "go terraform"
 
       - name: Install Go mise tools
+        # retry.sh is a bash script, so an explicit shell is required for the
+        # Windows matrix entry. Under the default PowerShell shell the step
+        # reports success without running the install, so gotestsum is
+        # silently missing whenever the mise cache misses (coder/internal#1630).
+        shell: bash
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
 
       - name: Setup Embedded Postgres Cache Paths
@@ -98,9 +103,12 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # Our macOS runners have 8 cores.
+          # Our macOS runners have 8 cores. test-parallelism-tests matches
+          # Linux's rather than the previous 16, to rule out scheduler
+          # contention as a contributor to the macOS test-go-pg timeouts
+          # tracked in coder/internal#1365.
           test-parallelism-packages: "8"
-          test-parallelism-tests: "16"
+          test-parallelism-tests: "8"
           test-count: "1"
           embedded-pg-path: "/tmp/tmpfs/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
