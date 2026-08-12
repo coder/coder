@@ -89,7 +89,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeInCatalog+" template:read")
 		defer resp.Body.Close()
 
-		requireInvalidScope(t, resp)
+		requireInvalidScope(t, resp, reasonScopeNotAllowed)
 	})
 
 	// AC1's catalog half: a scope name the enforcement layer cannot evaluate is
@@ -102,7 +102,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "not_a_real_scope")
 		defer resp.Body.Close()
 
-		requireInvalidScope(t, resp)
+		requireInvalidScope(t, resp, reasonUnknownScope)
 	})
 
 	// AC2: omitting scope grants the app's full allowlist (RFC 6749 §3.3).
@@ -127,6 +127,33 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		defer resp.Body.Close()
 
 		require.Equal(t, scopeAlsoInCatalog, persistedCodeScope(ctx, t, db, resp))
+	})
+
+	// rbac.IsExternalScope accepts `all` as a backward-compatible alias, but
+	// the api_key_scope enum has only `coder:all`. Asserted against the stored
+	// row rather than the negotiation's return value, because the column's
+	// vocabulary is what the claim is about.
+	t.Run("LegacyAliasPersistedCanonically", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{})
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "all")
+		defer resp.Body.Close()
+
+		require.Equal(t, database.OAuth2ScopeUnrestricted, persistedCodeScope(ctx, t, db, resp))
+	})
+
+	// A repeated scope denotes one grant, so it is stored once.
+	t.Run("DuplicateRequestedScopePersistedOnce", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeInCatalog+" "+scopeInCatalog)
+		defer resp.Body.Close()
+
+		require.Equal(t, scopeInCatalog, persistedCodeScope(ctx, t, db, resp))
 	})
 
 	// AC3: apps with no configured allowlist keep today's unrestricted
@@ -188,7 +215,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
 		defer resp.Body.Close()
 
-		requireInvalidScope(t, resp)
+		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
 
 	// AC8: the GET handler rejects before the consent page renders, so the user
@@ -242,7 +269,7 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 		resp := authorizeRequest(ctx, t, client, http.MethodPost, registration.ClientID, "openid")
 		defer resp.Body.Close()
 
-		requireInvalidScope(t, resp)
+		requireInvalidScope(t, resp, reasonUnknownScope)
 	})
 
 	t.Run("OmittingScopeRejected", func(t *testing.T) {
@@ -252,7 +279,7 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 		resp := authorizeRequest(ctx, t, client, http.MethodPost, registration.ClientID, "")
 		defer resp.Body.Close()
 
-		requireInvalidScope(t, resp)
+		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
 }
 
@@ -312,9 +339,19 @@ func persistedCodeScope(ctx context.Context, t *testing.T, db database.Store, re
 	return code.Scope
 }
 
-// requireInvalidScope asserts the RFC 6749 §4.1.2.1 rejection, and that the
-// request produced no authorization code at all.
-func requireInvalidScope(t *testing.T, resp *http.Response) {
+// Fragments of the rejection reasons in authorize.go, each unique to one
+// branch. The transport carries only the rendered description, so these pin
+// over the wire what errors.Is pins in the package's own tests.
+const (
+	reasonUnknownScope     = "unknown or unsupported scope"
+	reasonNoGrantableScope = "contains no grantable scope"
+	reasonScopeNotAllowed  = "not in this app's allowed scope list"
+)
+
+// requireInvalidScope asserts the RFC 6749 §4.1.2.1 rejection, that it came
+// from the branch the caller named, and that the request produced no
+// authorization code at all.
+func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
 	t.Helper()
 
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -323,7 +360,8 @@ func requireInvalidScope(t *testing.T, resp *http.Response) {
 	var errResp oauth2providertest.OAuth2Error
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&errResp))
 	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), errResp.Error)
-	require.NotEmpty(t, errResp.ErrorDescription)
+	require.Contains(t, errResp.ErrorDescription, wantReason,
+		"the rejection must come from the branch this case covers")
 }
 
 func readBody(t *testing.T, resp *http.Response) string {

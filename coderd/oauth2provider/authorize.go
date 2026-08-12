@@ -24,6 +24,44 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
+// Rejection reasons from validateRequestedScope. They are sentinels rather
+// than inline messages so a caller, and the tests, can tell which check
+// failed without matching on message text.
+var (
+	// errUnknownScope is returned for a scope name outside the external scope
+	// catalog, whether unrecognized entirely or recognized but internal-only.
+	errUnknownScope = xerrors.New("unknown or unsupported scope")
+	// errNoGrantableScope is returned when every entry of the app's allowlist
+	// falls outside the catalog, leaving nothing the app can be granted.
+	errNoGrantableScope = xerrors.New("this app's allowed scope list contains no grantable scope")
+	// errScopeNotAllowed is returned for a catalog scope the app's allowlist
+	// does not cover.
+	errScopeNotAllowed = xerrors.New("scope is not in this app's allowed scope list")
+)
+
+// canonicalScopes rewrites each name to the spelling the api_key_scope enum
+// stores and drops repeats, preserving the order of first appearance.
+//
+// It neither validates nor filters: callers check rbac.IsExternalScope
+// separately. Canonicalization is required because rbac.IsExternalScope
+// accepts the aliases `all` and `application_connect`, which are not enum
+// members, so persisting a validated name verbatim can write a value the
+// column's vocabulary does not contain. Deduplicating here keeps the stored
+// value set-valued, which is what a space-separated scope denotes.
+func canonicalScopes(names []string) []string {
+	canonical := make([]string, 0, len(names))
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		name = string(rbac.CanonicalScopeName(rbac.ScopeName(name)))
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		canonical = append(canonical, name)
+	}
+	return canonical
+}
+
 // noScopeAllowlist reports whether an app has no scope allowlist configured.
 // NULL and "" are one state, and this is the only place the two are unified:
 // admin-created apps store sql.NullString{} (apps.go), while DCR-registered
@@ -49,7 +87,9 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 //
 // The return value is written directly to a NOT NULL column whose CHECK
 // constraint also rejects the empty string, so it is a string rather than a
-// []string, and it is never empty alongside a nil error.
+// []string, and it is never empty alongside a nil error. Its names are
+// canonical api_key_scope spellings and carry no duplicates, so the value can
+// be stored as that enum without further rewriting.
 func validateRequestedScope(requested []string, appScope sql.NullString) (string, error) {
 	// Only names in the external scope catalog (rbac.IsExternalScope) are
 	// user-requestable. That is a curation, not a validity check: RBAC can
@@ -60,9 +100,13 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 	// the app has an allowlist to check against.
 	for _, s := range requested {
 		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
-			return "", xerrors.Errorf("unknown or unsupported scope: %q", s)
+			return "", xerrors.Errorf("%w: %q", errUnknownScope, s)
 		}
 	}
+
+	// Canonicalized after the catalog check, so a rejection names the scope
+	// as the client spelled it rather than as the server stores it.
+	granted := canonicalScopes(requested)
 
 	if noScopeAllowlist(appScope) {
 		if len(requested) == 0 {
@@ -71,7 +115,7 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 			// would violate the column's CHECK.
 			return database.OAuth2ScopeUnrestricted, nil
 		}
-		return strings.Join(requested, " "), nil
+		return strings.Join(granted, " "), nil
 	}
 
 	// Filter the allowlist through IsExternalScope before it is used for
@@ -92,8 +136,12 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 		// all-entries-dropped counterpart to the single-stale-entry case the
 		// filter above handles, and it must not share the no-allowlist
 		// branch's fallback.
-		return "", xerrors.New("this app's allowed scope list contains no grantable scope")
+		return "", errNoGrantableScope
 	}
+	// Canonicalized so the subset check below compares one spelling against
+	// one spelling: an allowlist entry of `all` covers a request for
+	// `coder:all`, and vice versa.
+	filtered = canonicalScopes(filtered)
 
 	if len(requested) == 0 {
 		return strings.Join(filtered, " "), nil // RFC 6749 §3.3 default
@@ -106,11 +154,11 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 		allowedSet[a] = true
 	}
 	for _, s := range requested {
-		if !allowedSet[s] {
-			return "", xerrors.Errorf("scope %q is not in this app's allowed scope list", s)
+		if !allowedSet[string(rbac.CanonicalScopeName(rbac.ScopeName(s)))] {
+			return "", xerrors.Errorf("%w: %q", errScopeNotAllowed, s)
 		}
 	}
-	return strings.Join(requested, " "), nil
+	return strings.Join(granted, " "), nil
 }
 
 type authorizeParams struct {

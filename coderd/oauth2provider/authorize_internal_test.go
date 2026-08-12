@@ -4,12 +4,14 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 func TestValidateRequestedScope(t *testing.T) {
@@ -28,18 +30,22 @@ func TestValidateRequestedScope(t *testing.T) {
 	noAllowlist := sql.NullString{}
 	emptyAllowlist := sql.NullString{String: "", Valid: true}
 
+	// wantErr names the branch a rejection must come from. The three reasons
+	// are separately reachable and separately meaningful, so asserting only
+	// that some error occurred would let a refactor route one branch through
+	// another unnoticed.
 	tests := []struct {
 		name      string
 		requested []string
 		appScope  sql.NullString
 		want      string
-		wantErr   bool
+		wantErr   error
 	}{
 		{
 			name:      "UnknownRequestedScopeRejected",
 			requested: []string{"not_a_real_scope"},
 			appScope:  sql.NullString{String: inCatalog, Valid: true},
-			wantErr:   true,
+			wantErr:   errUnknownScope,
 		},
 		{
 			// The catalog check does not depend on the allowlist, so an
@@ -48,7 +54,7 @@ func TestValidateRequestedScope(t *testing.T) {
 			name:      "UnknownRequestedScopeRejectedWithoutAllowlist",
 			requested: []string{"not_a_real_scope"},
 			appScope:  noAllowlist,
-			wantErr:   true,
+			wantErr:   errUnknownScope,
 		},
 		{
 			// A different rejection from the case above, and the one that
@@ -59,7 +65,7 @@ func TestValidateRequestedScope(t *testing.T) {
 			name:      "InternalOnlyScopeRejected",
 			requested: []string{"debug_info:read"},
 			appScope:  noAllowlist,
-			wantErr:   true,
+			wantErr:   errUnknownScope,
 		},
 		{
 			// AC3/AC16: the literal return value matters. "" is exactly what
@@ -114,7 +120,7 @@ func TestValidateRequestedScope(t *testing.T) {
 			name:      "PartiallyOutOfAllowlistRejected",
 			requested: []string{inCatalog, "template:read"},
 			appScope:  sql.NullString{String: inCatalog, Valid: true},
-			wantErr:   true,
+			wantErr:   errScopeNotAllowed,
 		},
 		{
 			// Edge Case 20: catalog drift. The stale entry is dropped by the
@@ -125,12 +131,14 @@ func TestValidateRequestedScope(t *testing.T) {
 			want:      inCatalog,
 		},
 		{
-			// The filter applies to the subset check too, so a dropped entry
-			// cannot be reached by requesting it explicitly either.
+			// A dropped entry cannot be reached by requesting it explicitly
+			// either. The catalog check on the request rejects it before the
+			// allowlist is consulted at all, which is why the reason here is
+			// errUnknownScope and not errScopeNotAllowed.
 			name:      "StaleAllowlistEntryNotRequestableExplicitly",
 			requested: []string{notInCatalog},
 			appScope:  sql.NullString{String: inCatalog + " " + notInCatalog, Valid: true},
-			wantErr:   true,
+			wantErr:   errUnknownScope,
 		},
 		{
 			// AC15/Edge Case 19: the all-entries-dropped counterpart to the
@@ -139,7 +147,7 @@ func TestValidateRequestedScope(t *testing.T) {
 			name:      "AllowlistFilteringToEmptyRejected",
 			requested: nil,
 			appScope:  sql.NullString{String: "openid profile email", Valid: true},
-			wantErr:   true,
+			wantErr:   errNoGrantableScope,
 		},
 		{
 			// §4.2.2's compatibility break, in its most direct form: a DCR
@@ -147,7 +155,7 @@ func TestValidateRequestedScope(t *testing.T) {
 			name:      "NonCatalogScopeRequestedAsRegistered",
 			requested: []string{neverInCatalog},
 			appScope:  sql.NullString{String: neverInCatalog, Valid: true},
-			wantErr:   true,
+			wantErr:   errUnknownScope,
 		},
 		{
 			// A whitespace-only allowlist is a configured value that grants
@@ -156,7 +164,62 @@ func TestValidateRequestedScope(t *testing.T) {
 			name:      "WhitespaceOnlyAllowlistRejected",
 			requested: nil,
 			appScope:  sql.NullString{String: "   ", Valid: true},
-			wantErr:   true,
+			wantErr:   errNoGrantableScope,
+		},
+		{
+			// rbac.IsExternalScope accepts `all` as a backward-compatible
+			// alias, but the api_key_scope enum has no such member, so
+			// persisting the requested spelling verbatim would store a value
+			// outside the column's vocabulary.
+			name:      "LegacyAllAliasCanonicalized",
+			requested: []string{"all"},
+			appScope:  noAllowlist,
+			want:      "coder:all",
+		},
+		{
+			name:      "LegacyApplicationConnectAliasCanonicalized",
+			requested: []string{"application_connect"},
+			appScope:  noAllowlist,
+			want:      "coder:application_connect",
+		},
+		{
+			// The allowlist is canonicalized on the same terms, so the two
+			// spellings of one scope match across the subset check rather
+			// than reading as different scopes.
+			name:      "LegacyAliasInAllowlistCoversCanonicalRequest",
+			requested: []string{"coder:all"},
+			appScope:  sql.NullString{String: "all", Valid: true},
+			want:      "coder:all",
+		},
+		{
+			name:      "CanonicalAllowlistCoversLegacyAliasRequest",
+			requested: []string{"all"},
+			appScope:  sql.NullString{String: "coder:all", Valid: true},
+			want:      "coder:all",
+		},
+		{
+			// A space-separated scope denotes a set, so a repeated request
+			// stores one entry rather than two.
+			name:      "DuplicateRequestedScopesDeduplicated",
+			requested: []string{inCatalog, inCatalog},
+			appScope:  noAllowlist,
+			want:      inCatalog,
+		},
+		{
+			// The same holds for the RFC 6749 §3.3 default, which is built
+			// from the allowlist rather than from the request.
+			name:      "DuplicateAllowlistEntriesDeduplicated",
+			requested: nil,
+			appScope:  sql.NullString{String: inCatalog + " " + inCatalog, Valid: true},
+			want:      inCatalog,
+		},
+		{
+			// Two spellings of one scope in the allowlist collapse to one
+			// entry, so the default does not name the same grant twice.
+			name:      "AliasAndCanonicalAllowlistEntriesCollapse",
+			requested: nil,
+			appScope:  sql.NullString{String: "all coder:all", Valid: true},
+			want:      "coder:all",
 		},
 	}
 
@@ -165,8 +228,8 @@ func TestValidateRequestedScope(t *testing.T) {
 			t.Parallel()
 
 			got, err := validateRequestedScope(test.requested, test.appScope)
-			if test.wantErr {
-				require.Error(t, err)
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
 				assert.Empty(t, got, "a rejected request must not return a persistable scope")
 				return
 			}
@@ -175,7 +238,26 @@ func TestValidateRequestedScope(t *testing.T) {
 			// The return value goes straight to a NOT NULL column carrying
 			// CHECK (scope <> ''), so an empty success is never legal.
 			assert.NotEmpty(t, got, "a successful negotiation must never return an empty scope")
+			requirePersistableScope(t, got)
 		})
+	}
+}
+
+// requirePersistableScope asserts that every name in a negotiated scope can
+// survive the trip the value is about to take: stored as api_key_scope on the
+// authorization code, carried to the token, and expanded by RBAC when the key
+// minted from it is authorized. A name that passes the external scope catalog
+// is not automatically one that clears all three, which is why this is
+// asserted on the result rather than assumed from the input.
+func requirePersistableScope(t *testing.T, scope string) {
+	t.Helper()
+
+	for _, name := range strings.Fields(scope) {
+		require.Contains(t, database.AllAPIKeyScopeValues(), database.APIKeyScope(name),
+			"scope %q is not an api_key_scope member, so the column cannot store it", name)
+
+		_, err := rbac.ExpandScope(rbac.ScopeName(name))
+		require.NoError(t, err, "scope %q cannot be expanded by RBAC, so it cannot be enforced", name)
 	}
 }
 
