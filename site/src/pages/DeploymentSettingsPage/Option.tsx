@@ -112,7 +112,7 @@ export const OptionConfig: FC<OptionConfigProps> = ({
 			{...attrs}
 			className={cn(
 				"inline-flex items-center gap-1.5 rounded border border-solid p-1.5",
-				"font-mono text-sm font-semibold leading-none",
+				"font-mono text-xs font-semibold leading-none",
 				"border-border-secondary bg-surface-secondary",
 				isSource &&
 					"border-content-link [&_[data-slot=option-config-flag]]:bg-content-link",
