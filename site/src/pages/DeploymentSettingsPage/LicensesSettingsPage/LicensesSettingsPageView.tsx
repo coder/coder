@@ -40,6 +40,7 @@ type Props = {
 	activeUsers: UserStatusChangeCount[] | undefined;
 	managedAgentFeature?: Feature;
 	aiGovernanceUserFeature?: Feature;
+	agentRuntimeHoursFeature?: Feature;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
@@ -56,6 +57,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 	activeUsers,
 	managedAgentFeature,
 	aiGovernanceUserFeature,
+	agentRuntimeHoursFeature,
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
@@ -124,6 +126,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 									userLimitActual={userLimitActual}
 									userLimitLimit={userLimitLimit}
 									aiGovernanceUserFeature={aiGovernanceUserFeature}
+									agentRuntimeHoursFeature={agentRuntimeHoursFeature}
 									isRemoving={isRemovingLicense}
 									onRemove={removeLicense}
 								/>
