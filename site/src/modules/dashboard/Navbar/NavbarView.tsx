@@ -23,7 +23,7 @@ import {
 import { AdminSettingsDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
-import { RestrictedNavItem, restrictedNavTooltips } from "./RestrictedNavItem";
+import { RestrictedNavItem, restrictedNavMessages } from "./RestrictedNavItem";
 import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
@@ -44,8 +44,9 @@ const linkStyles = {
 	base: "text-sm font-medium no-underline block h-full px-2 flex items-center transition-colors",
 	default: "text-content-secondary hover:text-content-primary",
 	active: "text-content-primary",
-	// Dimmed labels are not interactive, so they take no hover treatment.
-	disabled: "text-content-disabled",
+	// Dimmed labels have no hover state; the color does not change on pointer
+	// over.
+	disabled: "text-content-secondary",
 };
 
 export const NavbarView: FC<NavbarViewProps> = ({
@@ -209,7 +210,7 @@ const NavItems: FC<NavItemsProps> = ({
 			) : (
 				<RestrictedNavItem
 					className={cn(linkStyles.base, linkStyles.disabled)}
-					message={restrictedNavTooltips.workspaces}
+					message={restrictedNavMessages.workspaces}
 				>
 					Workspaces
 				</RestrictedNavItem>
@@ -228,7 +229,7 @@ const NavItems: FC<NavItemsProps> = ({
 			) : (
 				<RestrictedNavItem
 					className={cn(linkStyles.base, linkStyles.disabled)}
-					message={restrictedNavTooltips.templates}
+					message={restrictedNavMessages.templates}
 				>
 					Templates
 				</RestrictedNavItem>
@@ -249,7 +250,7 @@ const NavItems: FC<NavItemsProps> = ({
 				) : (
 					<RestrictedNavItem
 						className={cn(linkStyles.base, linkStyles.disabled)}
-						message={restrictedNavTooltips.agents}
+						message={restrictedNavMessages.agents}
 					>
 						Agents
 					</RestrictedNavItem>
@@ -292,7 +293,7 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user, canViewWorkspaces }) => {
 		return (
 			<RestrictedNavItem
 				className={cn(linkStyles.base, linkStyles.disabled)}
-				message={restrictedNavTooltips.tasks}
+				message={restrictedNavMessages.tasks}
 			>
 				Tasks
 			</RestrictedNavItem>

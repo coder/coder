@@ -149,10 +149,8 @@ export const WithoutWorkspaceAccess: Story = {
 		const tooltip = await body.findByRole("tooltip");
 		expect(tooltip).toHaveTextContent(/workspaces are not available/i);
 
-		// The reason is part of the label's accessible name.
-		canvas.getByRole("button", {
-			name: /^Workspaces Workspaces are not available/i,
-		});
+		// The message describes the label rather than naming it.
+		canvas.getByRole("button", { name: "Workspaces" });
 	},
 };
 
@@ -171,6 +169,7 @@ export const TemplatesOnly: Story = {
 		const canvas = within(canvasElement);
 
 		await canvas.findByRole("link", { name: "Templates" });
+		canvas.getByRole("button", { name: "Workspaces" });
 		expect(
 			canvas.queryByRole("link", { name: "Workspaces" }),
 		).not.toBeInTheDocument();

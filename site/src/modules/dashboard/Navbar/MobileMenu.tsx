@@ -32,7 +32,7 @@ import {
 	canViewAdminSettings,
 } from "./AdminSettings";
 import { sortProxiesByLatency } from "./proxyUtils";
-import { restrictedNavTooltips } from "./RestrictedNavItem";
+import { restrictedNavMessages } from "./RestrictedNavItem";
 
 const itemStyles = {
 	default: "px-9 h-10 no-underline",
@@ -69,19 +69,19 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 			label: "Workspaces",
 			to: "/workspaces",
 			enabled: canViewWorkspaces,
-			message: restrictedNavTooltips.workspaces,
+			message: restrictedNavMessages.workspaces,
 		},
 		{
 			label: "Templates",
 			to: "/templates",
 			enabled: canViewTemplates,
-			message: restrictedNavTooltips.templates,
+			message: restrictedNavMessages.templates,
 		},
 		{
 			label: "Agents",
 			to: "/agents",
 			enabled: canCreateWorkspace,
-			message: restrictedNavTooltips.agents,
+			message: restrictedNavMessages.agents,
 		},
 	];
 
@@ -113,15 +113,15 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 							<Link to={to}>{label}</Link>
 						</DropdownMenuItem>
 					) : (
-						// Tooltips do not open on touch input, so the message is
-						// rendered inline.
+						// The message renders inline; no tooltip is attached to this item.
 						<DropdownMenuItem
 							key={label}
-							disabled
+							aria-disabled="true"
+							onSelect={(event) => event.preventDefault()}
 							className={cn(itemStyles.default, "h-auto flex-col items-start")}
 						>
-							{label}
-							<span className="text-xs text-content-secondary">{message}</span>
+							<span className="opacity-50">{label}</span>
+							<span className="text-xs">{message}</span>
 						</DropdownMenuItem>
 					),
 				)}
