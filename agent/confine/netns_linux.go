@@ -37,7 +37,6 @@ type NetworkNamespace struct {
 	ipPath        string
 	iptablesPath  string
 	ip6tablesPath string
-	ipv6Enabled   bool
 	hostRules     []installedFirewallRule
 	closed        bool
 	configured    bool
@@ -49,7 +48,6 @@ type networkNamespaceTools struct {
 	ipPath        string
 	iptablesPath  string
 	ip6tablesPath string
-	ipv6Enabled   bool
 }
 
 type installedFirewallRule struct {
@@ -83,14 +81,8 @@ func checkNetworkNamespaceSupport(ctx context.Context) (networkNamespaceTools, e
 	if err := probeFirewall(ctx, tools.iptablesPath, []string{"-p", "tcp", "-m", "multiport", "--dports", "80,443", "-m", "conntrack", "--ctstate", "NEW,ESTABLISHED", "-j", "ACCEPT"}); err != nil {
 		return tools, unsupportedNetworkNamespace("cannot modify host IPv4 firewall", err)
 	}
-	tools.ipv6Enabled, err = hostIPv6Enabled()
-	if err != nil {
-		return tools, unsupportedNetworkNamespace("cannot inspect host IPv6 state", err)
-	}
-	if tools.ipv6Enabled {
-		if err := probeFirewall(ctx, tools.ip6tablesPath, []string{"-j", "DROP"}); err != nil {
-			return tools, unsupportedNetworkNamespace("cannot modify host IPv6 firewall", err)
-		}
+	if err := probeFirewall(ctx, tools.ip6tablesPath, []string{"-j", "DROP"}); err != nil {
+		return tools, unsupportedNetworkNamespace("cannot modify host IPv6 firewall", err)
 	}
 
 	suffix, err := randomHex(4)
@@ -147,17 +139,6 @@ func probeFirewall(ctx context.Context, commandPath string, ruleSpec []string) (
 	return nil
 }
 
-func hostIPv6Enabled() (bool, error) {
-	contents, err := os.ReadFile("/proc/net/if_inet6")
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return len(strings.TrimSpace(string(contents))) > 0, nil
-}
-
 // OpenNetworkNamespace creates an isolated network namespace. Call
 // ConfigureEgress after binding the host-side listeners and before starting a
 // process in the namespace.
@@ -194,7 +175,6 @@ func OpenNetworkNamespace(ctx context.Context, options NetworkNamespaceOptions) 
 		ipPath:        tools.ipPath,
 		iptablesPath:  tools.iptablesPath,
 		ip6tablesPath: tools.ip6tablesPath,
-		ipv6Enabled:   tools.ipv6Enabled,
 	}
 	defer func() {
 		if retErr != nil {
@@ -274,11 +254,9 @@ func (n *NetworkNamespace) ConfigureEgress(ctx context.Context, ports NetworkNam
 			return err
 		}
 	}
-	if n.ipv6Enabled {
-		for _, args := range hostIPv6Rules(n.hostVeth) {
-			if err := n.insertHostRule(ctx, n.ip6tablesPath, args); err != nil {
-				return err
-			}
+	for _, args := range hostIPv6Rules(n.hostVeth) {
+		if err := n.insertHostRule(ctx, n.ip6tablesPath, args); err != nil {
+			return err
 		}
 	}
 	for _, args := range childIPv4Rules(n.hostIP, ports) {
@@ -286,15 +264,27 @@ func (n *NetworkNamespace) ConfigureEgress(ctx context.Context, ports NetworkNam
 			return err
 		}
 	}
-	if n.ipv6Enabled {
-		for _, args := range childIPv6Rules() {
-			if err := runInNetworkNamespace(ctx, n.ipPath, n.name, n.ip6tablesPath, args...); err != nil {
-				return err
-			}
+	tryDisableNetworkNamespaceIPv6(ctx, n.ipPath, n.name)
+	for _, args := range childIPv6Rules() {
+		if err := runInNetworkNamespace(ctx, n.ipPath, n.name, n.ip6tablesPath, args...); err != nil {
+			return err
 		}
 	}
 	n.configured = true
 	return nil
+}
+
+func tryDisableNetworkNamespaceIPv6(ctx context.Context, ipPath, name string) {
+	sysctlPath, err := exec.LookPath("sysctl")
+	if err != nil {
+		return
+	}
+	_ = runInNetworkNamespace(ctx, ipPath, name, sysctlPath,
+		"-w",
+		"net.ipv6.conf.all.disable_ipv6=1",
+		"net.ipv6.conf.default.disable_ipv6=1",
+		"net.ipv6.conf.lo.disable_ipv6=1",
+	)
 }
 
 func (n *NetworkNamespace) insertHostRule(ctx context.Context, commandPath string, args []string) error {
