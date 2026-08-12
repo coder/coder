@@ -48,7 +48,11 @@ export const normalizeChatSearchFilterValue = (
 
 const validPRStatuses = new Set(["draft", "open", "merged", "closed"]);
 
+const validBooleans = new Set(["true", "false"]);
+
 const isValidDiffURL = (value: string): boolean => {
+	// Reject an empty or whitespace-padded host before parsing; new URL alone
+	// would treat "https:///pull/1" as host "pull".
 	if (!/^https?:\/\/[^/?#\s]+/i.test(value)) {
 		return false;
 	}
@@ -66,8 +70,8 @@ const isValidDiffURL = (value: string): boolean => {
 const CHAT_SEARCH_FILTER_VALIDATORS: Readonly<
 	Record<ChatSearchFilterKey, (value: string) => boolean>
 > = {
-	has_unread: (value) => /^(true|false)$/i.test(value),
-	archived: (value) => /^(true|false)$/i.test(value),
+	has_unread: (value) => validBooleans.has(value.toLowerCase()),
+	archived: (value) => validBooleans.has(value.toLowerCase()),
 	pr_status: (value) =>
 		value
 			.split(",")
@@ -117,12 +121,10 @@ export const buildChatSearchQuery = (
 
 	const text = sanitizeChatSearchValue(freeText).trim();
 	if (freeText.trim() !== "") {
-		// The wrapper quotes make the value one token for the backend parser and
-		// are stripped before FTS, so OR and -negation stay live but typed phrase
-		// quotes are lost. Input that sanitizes to nothing (e.g. a lone `"`)
-		// still yields no results, not recent chats; the backend rejects an empty
-		// search value, so a single space stands in for it (it produces an empty
-		// tsquery, which matches nothing).
+		// Quotes make the value one backend token and are stripped before FTS, so
+		// OR and -negation stay live but typed phrase quotes are lost. A lone
+		// quote would emit an empty value, which the backend rejects, so a single
+		// space stands in to force an empty result instead of recent chats.
 		parts.push(`search:"${text === "" ? " " : text}"`);
 	}
 
