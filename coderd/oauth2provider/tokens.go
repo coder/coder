@@ -243,9 +243,14 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 // "delete succeeded" from "delete failed," defeating the point of revoking
 // the code in the first place. It is instead noted on the request's log line
 // so operators can see it happened.
+//
+// A code that is already gone satisfies the goal, so sql.ErrNoRows is not a
+// failure worth logging. It surfaces because the authorization check reads
+// the code before deleting it, and that read reports a missing row when a
+// concurrent attempt already revoked the code or it was reaped after expiry.
 func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeID uuid.UUID) {
 	//nolint:gocritic // OAuth2 system context, no authenticated user during token exchange
-	if err := db.DeleteOAuth2ProviderAppCodeByID(dbauthz.AsSystemOAuth2(ctx), codeID); err != nil {
+	if err := db.DeleteOAuth2ProviderAppCodeByID(dbauthz.AsSystemOAuth2(ctx), codeID); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
 			rlogger.WithFields(slog.F("oauth2_pkce_failure_code_revoke_error", err.Error()))
 		}
