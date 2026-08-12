@@ -1,5 +1,6 @@
 import {
 	CheckIcon,
+	ChevronDownIcon,
 	CircleDotIcon,
 	ColumnsIcon,
 	GitBranchIcon,
@@ -18,7 +19,17 @@ import type {
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
@@ -54,7 +65,7 @@ interface GitPanelProps {
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
 	onRefresh: () => boolean;
-	/** Called when the user clicks the Commit button in any repo tab. */
+	/** Called when the user clicks the Commit button for a working repo. */
 	onCommit: (repoRoot: string) => void;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded?: boolean;
@@ -66,17 +77,35 @@ interface GitPanelProps {
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	/**
 	 * Repo roots that have been dirty at some point during this session.
-	 * Used to keep a repo's tab visible after its diff goes empty, so the
-	 * tab strip does not visibly flip when the agent edits a file and
-	 * then reverts it.
+	 * Used to keep a repo's entry visible after its diff goes empty, so
+	 * the view switcher does not visibly flip when the agent edits a
+	 * file and then reverts it.
 	 */
 	everDirty?: ReadonlySet<string>;
 }
 
-function repoTabLabel(repoRoot: string): string {
+function repoLabel(repoRoot: string): string {
 	const segments = repoRoot.split("/").filter(Boolean);
 	return segments[segments.length - 1] ?? repoRoot;
 }
+
+interface ViewItemBase {
+	id: string;
+	/** Left-pill label on the trigger (e.g. "Open", "Merged", "Working"). */
+	stateLabel: string;
+	/** Right-side label on the trigger (e.g. "PR #4847", "coder"). */
+	triggerIdentifier: string;
+	/** Primary text in the dropdown item (e.g. "PR #4847", "Working"). */
+	itemPrimary: string;
+	/** Secondary text in the dropdown item (e.g. PR title, repo name). */
+	itemSecondary?: string;
+	stateClasses: string;
+	icon: React.ReactNode;
+}
+
+type ViewItem =
+	| (ViewItemBase & { kind: "remote" })
+	| (ViewItemBase & { kind: "local"; repoRoot: string });
 
 export const GitPanel: FC<GitPanelProps> = ({
 	prTab,
@@ -102,7 +131,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const prState = remoteDiffStats?.pull_request_state;
 	const prDraft = remoteDiffStats?.pull_request_draft;
 
-	// Compute per-repo diff stats from unified diffs.
+	// Compute per-repo diff stats from unified diffs. The React
+	// Compiler memoizes these derivations.
 	const repoStats = (() => {
 		const stats = new Map<string, DiffStats>();
 		for (const [root, repo] of repositories.entries()) {
@@ -124,7 +154,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	})();
 
 	// Union of currently-dirty and ever-dirty repos (still known to
-	// the watcher) so a clean-revert does not hide the tab.
+	// the watcher) so a clean-revert does not hide the entry.
 	const localRepos = (() => {
 		const roots = new Set<string>(repoStats.keys());
 		if (everDirty) {
@@ -137,8 +167,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return Array.from(roots).sort((a, b) => a.localeCompare(b));
 	})();
 
-	// Default to the first local repo when there are only local
-	// changes and no remote stats.
+	// Default to the first local repo when nothing has been pushed
+	// upstream yet, so the panel opens on the diff the user just made.
 	const [view, setView] = useState<GitView>(() => {
 		if (!showRemoteTab && localRepos.length > 0) {
 			return { type: "local", repoRoot: localRepos[0] };
@@ -146,7 +176,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return { type: "remote" };
 	});
 
-	// If the active tab gets hidden, switch to the first available.
+	// If the active view gets hidden, switch to the first available.
 	useEffect(() => {
 		if (view.type === "remote" && !showRemoteTab) {
 			if (localRepos.length > 0) {
@@ -154,7 +184,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 			}
 		} else if (view.type === "local") {
 			// localRepos includes ever-dirty repos with empty diffs, so
-			// the active tab stays valid until its root leaves the set.
+			// the active view stays valid until its root leaves the set.
 			if (!localRepos.includes(view.repoRoot)) {
 				if (showRemoteTab) {
 					setView({ type: "remote" });
@@ -191,81 +221,121 @@ export const GitPanel: FC<GitPanelProps> = ({
 		spinTimerRef.current = setTimeout(() => setSpinning(false), 1000);
 	};
 
+	// Reconcile a stale `view` inline so a repo removal never renders
+	// as "No changes" for a frame before the effect above updates.
+	// When nothing else is available, the remote view falls through;
+	// RemoteContent handles its own empty/loading state.
+	const effectiveView: GitView =
+		view.type === "remote"
+			? showRemoteTab
+				? view
+				: localRepos.length > 0
+					? { type: "local", repoRoot: localRepos[0] }
+					: view
+			: localRepos.includes(view.repoRoot)
+				? view
+				: showRemoteTab
+					? { type: "remote" }
+					: localRepos.length > 0
+						? { type: "local", repoRoot: localRepos[0] }
+						: { type: "remote" };
+
+	const showPrTitleRow = effectiveView.type === "remote" && prTab && prTitle;
+
+	const [isPrTitleTruncated, setIsPrTitleTruncated] = useState(false);
+	// Ref callback so the observer attaches whenever the title span
+	// mounts: first render, switching back to the PR view, or a title
+	// change (via `key` on the span). ResizeObserver fires once on
+	// observe, which doubles as the initial truncation check.
+	const observePrTitle = (el: HTMLSpanElement | null) => {
+		if (!el) {
+			return;
+		}
+		const observer = new ResizeObserver(() => {
+			setIsPrTitleTruncated(el.scrollWidth > el.clientWidth);
+		});
+		observer.observe(el);
+		return () => observer.disconnect();
+	};
+
+	const remoteHeadBranch = remoteDiffStats?.head_branch;
+	const remoteItem: ViewItem | null = showRemoteTab
+		? prTab
+			? {
+					kind: "remote",
+					id: "remote",
+					stateLabel: prStateLabel(prState, prDraft),
+					triggerIdentifier: `PR #${prTab.prNumber}`,
+					itemPrimary: `PR #${prTab.prNumber}`,
+					itemSecondary: prTitle || undefined,
+					stateClasses: prStateClasses(prState, prDraft),
+					icon: (
+						<PrStateIcon
+							state={prState}
+							draft={prDraft}
+							className="!size-3.5 shrink-0"
+						/>
+					),
+				}
+			: {
+					kind: "remote",
+					id: "remote",
+					stateLabel: "Branch",
+					triggerIdentifier: remoteHeadBranch || "Branch",
+					itemPrimary: "Branch",
+					itemSecondary: remoteHeadBranch || undefined,
+					stateClasses: "text-content-secondary",
+					icon: <GitBranchIcon className="!size-3.5 shrink-0" />,
+				}
+		: null;
+
+	const localItems: ViewItem[] = localRepos.map((repoRoot) => ({
+		kind: "local" as const,
+		id: `local:${repoRoot}`,
+		repoRoot,
+		stateLabel: "Working",
+		triggerIdentifier: repoLabel(repoRoot),
+		itemPrimary: "Working",
+		itemSecondary: repoLabel(repoRoot),
+		stateClasses: "text-content-secondary",
+		icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
+	}));
+
+	const items: ViewItem[] = [
+		...(remoteItem ? [remoteItem] : []),
+		...localItems,
+	];
+
+	const activeItem: ViewItem | undefined =
+		effectiveView.type === "remote"
+			? (remoteItem ?? undefined)
+			: items.find(
+					(item) =>
+						item.kind === "local" && item.repoRoot === effectiveView.repoRoot,
+				);
+
+	const handleSelectItem = (item: ViewItem) => {
+		if (item.kind === "remote") {
+			setView({ type: "remote" });
+		} else {
+			setView({ type: "local", repoRoot: item.repoRoot });
+		}
+	};
+
 	return (
 		<div className="flex h-full flex-col">
 			{/* Toolbar */}
-			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3">
-				{/* Tabs — scrollable when they overflow */}
-				<ScrollArea
-					className="min-w-0 flex-1"
-					orientation="horizontal"
-					scrollBarClassName="h-1.5"
-				>
-					<div className="flex items-center gap-0.5 py-1.5 text-xs">
-						{showRemoteTab && (
-							<Button
-								variant="outline"
-								size="lg"
-								onClick={() => setView({ type: "remote" })}
-								className={cn(
-									"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
-									view.type === "remote" &&
-										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-								)}
-							>
-								{prTab ? (
-									<>
-										<PrStateIcon
-											state={prState}
-											draft={prDraft}
-											className="!size-4 shrink-0"
-										/>
-										<span className="truncate">
-											{prTitle || `PR #${prTab.prNumber}`}
-										</span>
-									</>
-								) : (
-									<>
-										<GitBranchIcon className="!size-3.5 shrink-0" />
-										<span className="truncate">Branch</span>
-									</>
-								)}
-							</Button>
-						)}
-						{localRepos.map((repoRoot) => {
-							const isActive =
-								view.type === "local" && view.repoRoot === repoRoot;
-							return (
-								<Button
-									key={repoRoot}
-									variant="outline"
-									size="lg"
-									onClick={() => setView({ type: "local", repoRoot })}
-									className={cn(
-										"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
-										isActive &&
-											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-									)}
-								>
-									<CircleDotIcon
-										className={cn(
-											"!size-3.5 shrink-0",
-											isActive
-												? "text-content-warning"
-												: "text-content-warning/60",
-										)}
-									/>
-									<span className="truncate">
-										Working{" "}
-										<span className="opacity-50">{repoTabLabel(repoRoot)}</span>
-									</span>
-								</Button>
-							);
-						})}
-					</div>
-				</ScrollArea>
+			<div className="flex shrink-0 items-center gap-2 px-3 pt-1.5 pb-1">
+				<div className="min-w-0 flex-1">
+					<GitViewSwitcher
+						items={items}
+						activeItem={activeItem}
+						hasRemoteItem={remoteItem !== null}
+						onSelect={handleSelectItem}
+					/>
+				</div>
 				{/* Controls */}
-				<div className="flex shrink-0 items-center gap-1 py-1.5">
+				<div className="flex shrink-0 items-center gap-1">
 					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
 						<button
 							type="button"
@@ -323,9 +393,34 @@ export const GitPanel: FC<GitPanelProps> = ({
 					</span>
 				</div>
 			</div>
+			{/* PR title row: truncates with a hover tooltip only when the
+			   visible text is cut off. */}
+			{showPrTitleRow && (
+				<div className="flex shrink-0 items-center px-3">
+					<Tooltip open={isPrTitleTruncated ? undefined : false}>
+						<TooltipTrigger asChild>
+							<span
+								key={prTitle}
+								ref={observePrTitle}
+								className="min-w-0 truncate text-sm font-medium text-content-primary"
+								data-testid="git-panel-pr-title"
+							>
+								{prTitle}
+							</span>
+						</TooltipTrigger>
+						<TooltipContent
+							side="bottom"
+							align="start"
+							className="max-w-[260px]"
+						>
+							{prTitle}
+						</TooltipContent>
+					</Tooltip>
+				</div>
+			)}
 			{/* Content */}
 			<div className="min-h-0 flex-1">
-				{view.type === "remote" ? (
+				{effectiveView.type === "remote" ? (
 					<RemoteContent
 						prTab={prTab}
 						hasGitContext={hasGitContext}
@@ -337,10 +432,13 @@ export const GitPanel: FC<GitPanelProps> = ({
 					/>
 				) : (
 					<LocalRepoContent
-						repoRoot={view.repoRoot}
-						repo={repositories.get(view.repoRoot)}
+						repoRoot={effectiveView.repoRoot}
+						repo={repositories.get(effectiveView.repoRoot)}
 						diffStats={
-							repoStats.get(view.repoRoot) ?? { additions: 0, deletions: 0 }
+							repoStats.get(effectiveView.repoRoot) ?? {
+								additions: 0,
+								deletions: 0,
+							}
 						}
 						onCommit={onCommit}
 						isExpanded={isExpanded}
@@ -352,6 +450,127 @@ export const GitPanel: FC<GitPanelProps> = ({
 		</div>
 	);
 };
+
+// ---------------------------------------------------------------
+// Git view switcher: dropdown for the active PR/Branch/Working view.
+// ---------------------------------------------------------------
+
+interface GitViewSwitcherProps {
+	items: ReadonlyArray<ViewItem>;
+	activeItem?: ViewItem;
+	/**
+	 * Whether a remote (PR or Branch) item exists in `items`. Controls
+	 * whether local entries are visually nested (indented) under it.
+	 */
+	hasRemoteItem: boolean;
+	onSelect: (item: ViewItem) => void;
+}
+
+const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
+	items,
+	activeItem,
+	hasRemoteItem,
+	onSelect,
+}) => {
+	if (!activeItem) {
+		return (
+			<div
+				className="inline-flex h-6 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 text-xs text-content-secondary"
+				data-testid="git-panel-view-switcher"
+			>
+				<GitBranchIcon className="!size-3.5 shrink-0" />
+				<span>No changes</span>
+			</div>
+		);
+	}
+
+	const isSingleItem = items.length <= 1;
+
+	const triggerContent = (
+		<>
+			<span
+				className={cn(
+					"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid border-border-default px-1.5 font-medium leading-none",
+					activeItem.stateClasses,
+				)}
+			>
+				<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+					{activeItem.icon}
+				</span>
+				<span className="whitespace-nowrap">{activeItem.stateLabel}</span>
+			</span>
+			<span className="inline-flex min-w-0 items-center gap-1 pl-1.5 pr-1 text-content-primary">
+				<span className="truncate">{activeItem.triggerIdentifier}</span>
+				{!isSingleItem && (
+					<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+				)}
+			</span>
+		</>
+	);
+
+	if (isSingleItem) {
+		return (
+			<div
+				className="inline-flex h-6 min-w-0 max-w-full items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs"
+				data-testid="git-panel-view-switcher"
+			>
+				{triggerContent}
+			</div>
+		);
+	}
+
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					type="button"
+					className="inline-flex h-6 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs transition-colors hover:bg-surface-secondary"
+					data-testid="git-panel-view-switcher"
+					aria-label="Switch git view"
+				>
+					{triggerContent}
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				align="start"
+				className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[240px] p-1"
+			>
+				{items.map((item) => {
+					const isActive = item.id === activeItem.id;
+					return (
+						<DropdownMenuItem
+							key={item.id}
+							onSelect={() => onSelect(item)}
+							className={cn(
+								"flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs",
+								// Nest local entries under the remote/PR entry
+								// when one exists. Without a parent above them,
+								// nesting reads as an orphan indent.
+								item.kind === "local" && hasRemoteItem
+									? "ml-4 mt-0.5"
+									: "w-full",
+								isActive && "bg-surface-secondary text-content-primary",
+							)}
+						>
+							<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+								{item.icon}
+							</span>
+							<span className="whitespace-nowrap font-medium">
+								{item.itemPrimary}
+							</span>
+							{item.itemSecondary && (
+								<span className="min-w-0 flex-1 truncate text-content-secondary">
+									{item.itemSecondary}
+								</span>
+							)}
+						</DropdownMenuItem>
+					);
+				})}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+};
+
 // ---------------------------------------------------------------
 // Remote view (branch/PR diff)
 // ---------------------------------------------------------------
@@ -470,7 +689,7 @@ const RepoHeader: FC<{
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 				<GitBranchIcon className="size-3.5 shrink-0" />
 				<span className="truncate">
-					{repo.branch?.trim() || repoTabLabel(repoRoot)}
+					{repo.branch?.trim() || repoLabel(repoRoot)}
 				</span>
 				<span className="truncate opacity-50">{repoRoot}</span>
 			</div>
@@ -483,7 +702,7 @@ const RepoHeader: FC<{
 					type="button"
 					onClick={onCommit}
 					disabled={!repo.unified_diff}
-					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-[13px] font-medium leading-5 text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary disabled:pointer-events-none disabled:opacity-50"
+					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
 				>
 					<CheckIcon className="size-3" />
 					Commit
@@ -494,7 +713,33 @@ const RepoHeader: FC<{
 };
 
 // ---------------------------------------------------------------
-// PR state icon (compact, for the tab bar)
+// PR state helpers
+// ---------------------------------------------------------------
+
+/** Human-readable state label for the view-switcher trigger. */
+function prStateLabel(state: string | undefined, draft: boolean | undefined) {
+	if (state === "merged") return "Merged";
+	if (state === "closed") return "Closed";
+	if (draft) return "Draft";
+	return "Open";
+}
+
+/** Tailwind classes for the state pill on the view-switcher trigger. */
+function prStateClasses(state: string | undefined, draft: boolean | undefined) {
+	if (state === "merged") {
+		return "text-git-merged-bright";
+	}
+	if (state === "closed") {
+		return "text-git-deleted-bright";
+	}
+	if (draft) {
+		return "text-content-secondary";
+	}
+	return "text-git-added-bright";
+}
+
+// ---------------------------------------------------------------
+// PR state icon (compact, for the view switcher)
 // ---------------------------------------------------------------
 
 export const PrStateIcon: FC<{
@@ -502,24 +747,15 @@ export const PrStateIcon: FC<{
 	draft?: boolean;
 	className?: string;
 }> = ({ state, draft, className }) => {
+	const colorClass = prStateClasses(state, draft);
 	if (state === "merged") {
-		return <GitMergeIcon className={cn("text-git-merged-bright", className)} />;
+		return <GitMergeIcon className={cn(colorClass, className)} />;
 	}
 	if (state === "closed") {
-		return (
-			<GitPullRequestClosedIcon
-				className={cn("text-git-deleted-bright", className)}
-			/>
-		);
+		return <GitPullRequestClosedIcon className={cn(colorClass, className)} />;
 	}
 	if (draft) {
-		return (
-			<GitPullRequestDraftIcon
-				className={cn("text-content-secondary", className)}
-			/>
-		);
+		return <GitPullRequestDraftIcon className={cn(colorClass, className)} />;
 	}
-	return (
-		<GitPullRequestIcon className={cn("text-git-added-bright", className)} />
-	);
+	return <GitPullRequestIcon className={cn(colorClass, className)} />;
 };

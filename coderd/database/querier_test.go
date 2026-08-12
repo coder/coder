@@ -2012,6 +2012,49 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 	require.Empty(t, rows[0].GroupACL)
 }
 
+func TestLinkChatFilesDeduplicatesInput(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		Name:           "duplicate.txt",
+		Mimetype:       "text/plain",
+		Data:           []byte("duplicate"),
+	})
+	require.NoError(t, err)
+
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      []uuid.UUID{file.ID, file.ID},
+		MaxFileLinks: 1,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	require.Equal(t, file.ID, files[0].ID)
+}
+
 func TestGetChatFileDataPrefixesByIDs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2569,6 +2612,27 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
 			ProvisionerTags: json.RawMessage(`{}`),
 		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("ProvisionerKeyLock", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitMedium)
+			org   = dbgen.Organization(t, db, database.Organization{})
+			key   = dbgen.ProvisionerKey(t, db, database.ProvisionerKey{OrganizationID: org.ID})
+		)
+
+		// While the key exists, the lock returns its ID.
+		id, err := db.LockProvisionerKeyByIDForShare(ctx, key.ID)
+		require.NoError(t, err)
+		require.Equal(t, key.ID, id)
+
+		// Once the key is deleted, the lock reports no rows.
+		err = db.DeleteProvisionerKey(ctx, key.ID)
+		require.NoError(t, err)
+		_, err = db.LockProvisionerKeyByIDForShare(ctx, key.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
