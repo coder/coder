@@ -100,8 +100,6 @@ interface ViewItemBase {
 	/** Secondary text in the dropdown item (e.g. PR title, repo name). */
 	itemSecondary?: string;
 	icon: React.ReactNode;
-	/** Accessible label for the state icon. Screen readers announce this
-	 * because the state is conveyed by icon color alone on the trigger. */
 	iconLabel: string;
 }
 
