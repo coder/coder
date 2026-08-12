@@ -10,11 +10,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { getSeverity, type UsageSeverity } from "#/utils/budget";
 import { cn } from "#/utils/cn";
@@ -79,37 +74,26 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 
 	return (
 		<DropdownMenu>
-			<Tooltip>
-				<DropdownMenuTrigger asChild>
-					<TooltipTrigger asChild>
-						<button
-							type="button"
-							aria-label={
-								indicator ? `User menu. ${indicator.label}` : "User menu"
-							}
-							className="relative bg-transparent border-0 cursor-pointer p-0"
-						>
-							<Avatar
-								fallback={user.username}
-								src={user.avatar_url}
-								size="lg"
-							/>
-							{indicator && (
-								<span
-									className={cn(
-										"absolute -top-2 -right-2 flex size-[18px] items-center",
-										"justify-center rounded",
-										indicator.badge,
-									)}
-								>
-									{indicator.icon}
-								</span>
+			<DropdownMenuTrigger asChild>
+				<button
+					type="button"
+					aria-label={indicator ? `User menu. ${indicator.label}` : "User menu"}
+					className="relative bg-transparent border-0 cursor-pointer p-0"
+				>
+					<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
+					{indicator && (
+						<span
+							className={cn(
+								"absolute -top-2 -right-2 flex size-[18px] items-center",
+								"justify-center rounded",
+								indicator.badge,
 							)}
-						</button>
-					</TooltipTrigger>
-				</DropdownMenuTrigger>
-				{indicator && <TooltipContent>{indicator.label}</TooltipContent>}
-			</Tooltip>
+						>
+							{indicator.icon}
+						</span>
+					)}
+				</button>
+			</DropdownMenuTrigger>
 
 			<DropdownMenuContent align="end" className="min-w-auto w-[260px]">
 				<UserDropdownContent
