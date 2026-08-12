@@ -1,4 +1,5 @@
-import type { FC } from "react";
+import { OctagonAlertIcon, TriangleAlertIcon } from "lucide-react";
+import type { FC, JSX } from "react";
 import { useQuery } from "react-query";
 import { meAISpend } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -21,19 +22,24 @@ import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 
 // The normal state keeps the standard avatar border. Elevated states use a
-// thicker border plus a small notification-style dot so the change is
-// perceivable without relying on color alone.
+// thicker border plus a notification-style corner badge with a distinct icon
+// per state, so the change is perceivable without relying on color alone.
 const severityIndicators: Partial<
-	Record<UsageSeverity, { border: string; dot: string; label: string }>
+	Record<
+		UsageSeverity,
+		{ border: string; badge: string; icon: JSX.Element; label: string }
+	>
 > = {
 	warning: {
 		border: "border-2 border-content-warning",
-		dot: "bg-content-warning",
+		badge: "bg-surface-orange text-highlight-orange",
+		icon: <TriangleAlertIcon aria-hidden className="size-3" />,
 		label: "AI spend is nearing its limit",
 	},
 	exceeded: {
 		border: "border-2 border-content-destructive",
-		dot: "bg-content-destructive",
+		badge: "bg-surface-red text-highlight-red",
+		icon: <OctagonAlertIcon aria-hidden className="size-3" />,
 		label: "AI spend limit exceeded",
 	},
 };
@@ -96,10 +102,12 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 							{indicator && (
 								<span
 									className={cn(
-										"absolute -top-0.5 -right-0.5 size-2.5 rounded-full",
-										indicator.dot,
+										"absolute -top-2 -right-2 flex size-[18px] items-center",
+										"justify-center rounded",
+										indicator.badge,
 									)}
 								>
+									{indicator.icon}
 									<span className="sr-only">{indicator.label}</span>
 								</span>
 							)}
