@@ -15,6 +15,10 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
+// unknownSNIHost marks denied TLS connections whose ClientHello did not yield
+// a valid server name. An empty host cannot match an egress policy rule.
+const unknownSNIHost = ""
+
 var errClientHelloCaptured = xerrors.New("client hello captured")
 
 // SNIListener forwards TLS connections after applying policy to ClientHello SNI.
@@ -84,6 +88,9 @@ func (s *SNIListener) handle(client net.Conn) {
 	defer client.Close()
 	host, prefix, err := peekServerName(client)
 	if err != nil {
+		decision := s.policy.Decide(unknownSNIHost, defaultHTTPSPort)
+		decision.Allowed = false
+		s.emit(unknownSNIHost, decision)
 		return
 	}
 	decision := s.policy.Decide(host, defaultHTTPSPort)
