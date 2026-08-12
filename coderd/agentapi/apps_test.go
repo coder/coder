@@ -340,6 +340,59 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		require.Len(t, sent, 1)
 	})
 
+	t.Run("BumpsActivityWithAppSlugAsSource", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		agent := database.WorkspaceAgent{
+			ID:             uuid.UUID{2},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}
+
+		// No TaskID, so enqueueAITaskStateNotification short-circuits and
+		// no extra notification-related mocks are required.
+		workspace := database.Workspace{
+			ID: uuid.UUID{9},
+		}
+		cachedWs := &agentapi.CachedWorkspaceFields{}
+		cachedWs.UpdateValues(workspace)
+
+		api := &agentapi.AppsAPI{
+			AgentID: agent.ID,
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			Database:  mDB,
+			Log:       testutil.Logger(t),
+			Workspace: cachedWs,
+		}
+
+		app := database.WorkspaceApp{
+			ID:   uuid.UUID{8},
+			Slug: "my-custom-app",
+		}
+		mDB.EXPECT().GetWorkspaceAppByAgentIDAndSlug(gomock.Any(), database.GetWorkspaceAppByAgentIDAndSlugParams{
+			AgentID: agent.ID,
+			Slug:    "my-custom-app",
+		}).Times(1).Return(app, nil)
+		// Zero-value previous status: ID == uuid.Nil, so shouldBump only
+		// triggers via the new state being Working.
+		mDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(database.WorkspaceAppStatus{}, nil)
+		mDB.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), gomock.Any()).Times(1).Return(database.WorkspaceAppStatus{}, nil)
+		mDB.EXPECT().ActivityBumpWorkspace(gomock.Any(), gomock.Cond(func(arg database.ActivityBumpWorkspaceParams) bool {
+			return arg.WorkspaceID == workspace.ID && arg.Source == "app:my-custom-app"
+		})).Times(1).Return(nil)
+
+		_, err := api.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+			Slug:    "my-custom-app",
+			Message: "testing",
+			State:   agentproto.UpdateAppStatusRequest_WORKING,
+		})
+		require.NoError(t, err)
+	})
+
 	t.Run("FailUnknownApp", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)

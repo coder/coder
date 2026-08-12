@@ -151,6 +151,7 @@ func TestUpdateStats(t *testing.T) {
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
 			WorkspaceID:   workspace.ID,
 			NextAutostart: time.Time{}.UTC(),
+			Source:        "ssh",
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
@@ -377,6 +378,7 @@ func TestUpdateStats(t *testing.T) {
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
 			WorkspaceID:   workspace.ID,
 			NextAutostart: nextAutostart,
+			Source:        "ssh",
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
@@ -489,6 +491,7 @@ func TestUpdateStats(t *testing.T) {
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
 			WorkspaceID:   workspace.ID,
 			NextAutostart: time.Time{}.UTC(),
+			Source:        "ssh",
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
@@ -624,6 +627,7 @@ func TestUpdateStats(t *testing.T) {
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
 			WorkspaceID:   workspace.ID,
 			NextAutostart: time.Time{}.UTC(),
+			Source:        "ssh",
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.

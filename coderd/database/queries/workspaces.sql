@@ -455,6 +455,8 @@ WHERE
 		'00000000-0000-0000-0000-000000000000'::uuid, -- task_id
 		'{}'::jsonb, -- group_acl_display_info
 		'{}'::jsonb, -- user_acl_display_info
+		NULL::text, -- last_activity_source
+		NULL::timestamptz, -- last_activity_at
 		-- Extra columns added to `filtered_workspaces`
 		'00000000-0000-0000-0000-000000000000'::uuid, -- template_version_id
 		'', -- template_version_name

@@ -27174,6 +27174,15 @@ const docTemplate = `{
                     "description": "IsPrebuild indicates whether the workspace is a prebuilt workspace.\nPrebuilt workspaces are owned by the prebuilds system user and have specific behavior,\nsuch as being managed differently from regular workspaces.\nOnce a prebuilt workspace is claimed by a user, it transitions to a regular workspace,\nand IsPrebuild returns false.",
                     "type": "boolean"
                 },
+                "last_activity_at": {
+                    "description": "LastActivityAt is the time of the last activity that bumped the\nworkspace's autostop deadline. Distinct from LastUsedAt, which is\nupdated by a broader set of app/port-forward traffic unrelated to\ndeadline bumps.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "last_activity_source": {
+                    "description": "LastActivitySource identifies what kind of activity (ssh, vscode,\njetbrains, reconnecting_pty, an app:\u003cslug\u003e, or chat_heartbeat) most\nrecently bumped the workspace's autostop deadline. Nil if the\nworkspace has never had its deadline bumped by activity.",
+                    "type": "string"
+                },
                 "last_used_at": {
                     "type": "string",
                     "format": "date-time"

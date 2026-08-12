@@ -6328,6 +6328,8 @@ type Workspace struct {
 	TaskID                  uuid.NullUUID           `db:"task_id" json:"task_id"`
 	GroupACLDisplayInfo     WorkspaceACLDisplayInfo `db:"group_acl_display_info" json:"group_acl_display_info"`
 	UserACLDisplayInfo      WorkspaceACLDisplayInfo `db:"user_acl_display_info" json:"user_acl_display_info"`
+	LastActivitySource      sql.NullString          `db:"last_activity_source" json:"last_activity_source"`
+	LastActivityAt          sql.NullTime            `db:"last_activity_at" json:"last_activity_at"`
 }
 
 type WorkspaceAgent struct {
@@ -6806,4 +6808,8 @@ type WorkspaceTable struct {
 	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
 	GroupACL    WorkspaceACL `db:"group_acl" json:"group_acl"`
 	UserACL     WorkspaceACL `db:"user_acl" json:"user_acl"`
+	// Source of the last activity that bumped the workspace deadline (e.g. ssh, vscode, jetbrains, reconnecting_pty, app:<slug>, chat_heartbeat). NULL if the workspace has never had its deadline bumped by activity.
+	LastActivitySource sql.NullString `db:"last_activity_source" json:"last_activity_source"`
+	// Timestamp of the last activity that bumped the workspace deadline. Distinct from last_used_at, which is updated by a broader, unrelated app/port-forward-traffic code path.
+	LastActivityAt sql.NullTime `db:"last_activity_at" json:"last_activity_at"`
 }
