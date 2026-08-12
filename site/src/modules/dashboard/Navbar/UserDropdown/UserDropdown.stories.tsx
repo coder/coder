@@ -225,9 +225,8 @@ export const AISpendZeroLimit: Story = {
 	},
 };
 
-// Dropdown closed to isolate the avatar and its severity badge. The normal
-// state keeps the standard avatar with no badge; only warning/exceeded show
-// the indicator, which is also reflected in the trigger's accessible name.
+// Dropdown closed to isolate the avatar and its severity badge, which
+// indicates AI spend limit severity.
 
 export const AvatarBorderDisabled: Story = {
 	parameters: {
