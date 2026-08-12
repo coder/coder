@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -330,6 +331,10 @@ func LaunchConfined(ctx context.Context, options PrivilegeDropOptions) (*exec.Cm
 // descriptor changes, then replaces the helper with /bin/sh. It is intended
 // only for the hidden coder helper subcommand.
 func RunPrivilegeDropHelper(args []string) error {
+	// Capability state is per-thread. Keep every operation and the final exec
+	// on one OS thread in this dedicated helper process.
+	runtime.LockOSThread()
+
 	if len(args) != 1 {
 		return xerrors.Errorf("privilege drop helper requires one configuration argument, got %d", len(args))
 	}
