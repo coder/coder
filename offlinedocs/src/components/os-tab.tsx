@@ -1,7 +1,11 @@
 "use client";
 
 import { AppleLogo, LinuxLogo, WindowsLogo } from "@phosphor-icons/react/ssr";
-import { TabsContent, TabsList, TabsTrigger } from "fumadocs-ui/components/tabs";
+import {
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "fumadocs-ui/components/tabs";
 // The unstyled Tabs container is the same component the styled `Tabs` wraps, but
 // it accepts a controlled `value`/`onValueChange` (the styled one omits them).
 // We need that control to clamp the shared group value (see below).
