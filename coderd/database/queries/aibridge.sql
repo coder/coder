@@ -394,6 +394,7 @@ session_page AS (
 	SELECT
 		s.session_id,
 		s.initiator_id,
+		s.started_at,
 		s.last_active_at
 	FROM
 		aibridge_sessions s
@@ -469,8 +470,10 @@ SELECT
 	sr.models::text[] AS models,
 	COALESCE(sr.client, '')::varchar(64) AS client,
 	sr.metadata::jsonb AS metadata,
-	sr.started_at::timestamptz AS started_at,
-	sr.ended_at::timestamptz AS ended_at,
+	-- Fall back to the summary row, which is NOT NULL, so a session that has
+	-- somehow lost all interceptions still does not return NULL.
+	COALESCE(sr.started_at, sp.started_at)::timestamptz AS started_at,
+	COALESCE(sr.ended_at, sp.last_active_at)::timestamptz AS ended_at,
 	sr.threads,
 	COALESCE(st.input_tokens, 0)::bigint AS input_tokens,
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
