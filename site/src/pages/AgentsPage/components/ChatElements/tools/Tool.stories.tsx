@@ -729,11 +729,23 @@ export const ProcessOutputFocusExpandsClippedLink: Story = {
 			).toHaveAttribute("aria-expanded", "true");
 		});
 		expect(link.checkVisibility()).toBe(true);
-		// checkVisibility ignores scroll position, so viewport scrollTop is
-		// the only assertion that fails if the scroll-reveal regresses.
-		const viewport = link.closest("[data-radix-scroll-area-viewport]");
+		// checkVisibility ignores scroll position, so the reveal is only
+		// observable as a scrolled ancestor. Walking ancestors avoids
+		// assuming which container implements the scrolling.
+		const scrolledAncestor = () => {
+			for (
+				let node = link.parentElement;
+				node && node !== canvasElement;
+				node = node.parentElement
+			) {
+				if (node.scrollTop > 0) {
+					return node;
+				}
+			}
+			return undefined;
+		};
 		await waitFor(() => {
-			expect(viewport?.scrollTop).toBeGreaterThan(0);
+			expect(scrolledAncestor()).toBeDefined();
 		});
 	},
 };
