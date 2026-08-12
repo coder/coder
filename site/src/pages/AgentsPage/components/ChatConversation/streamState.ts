@@ -249,9 +249,14 @@ const getStreamToolStatus = (
  * the id (not the tool name) leaves a parallel second call to the same tool
  * untouched. Results still streaming (the advisor's result_delta parts) are
  * kept while they accumulate so the progressive advice UI keeps rendering;
- * the final result part is suppressed once it arrives. When every block is
- * dropped the tail behaves as if no output has accumulated yet (the durable
- * pending row above is already visible).
+ * the final result part is suppressed once it arrives.
+ *
+ * A state left with no visible content is normalized to null: every surviving
+ * toolResult has a tool block, so empty blocks with no in-stream calls and no
+ * sources means nothing remains. The live tail then renders nothing (no stray
+ * generic Thinking shimmer) while the durable pending row stays visible,
+ * instead of a non-null empty state that deriveLiveStatus would treat as
+ * streaming.
  *
  * Returns the input reference unchanged when nothing is dropped so memoized
  * consumers do not re-render on every pending-call change.
@@ -279,17 +284,25 @@ export const filterPendingStreamState = (
 	if (!dropped) {
 		return streamState;
 	}
+	const blocks = streamState.blocks.filter(
+		(block) =>
+			block.type !== "tool" ||
+			!(
+				pendingToolCallIDs.has(block.id) &&
+				!streamState.toolCalls[block.id] &&
+				!streamState.toolResults[block.id]?.isStreaming
+			),
+	);
+	if (
+		blocks.length === 0 &&
+		Object.keys(streamState.toolCalls).length === 0 &&
+		streamState.sources.length === 0
+	) {
+		return null;
+	}
 	return {
 		...streamState,
-		blocks: streamState.blocks.filter(
-			(block) =>
-				block.type !== "tool" ||
-				!(
-					pendingToolCallIDs.has(block.id) &&
-					!streamState.toolCalls[block.id] &&
-					!streamState.toolResults[block.id]?.isStreaming
-				),
-		),
+		blocks,
 		toolResults,
 	};
 };

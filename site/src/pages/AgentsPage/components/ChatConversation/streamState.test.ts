@@ -718,19 +718,12 @@ describe("filterPendingStreamState", () => {
 		sources: [],
 	});
 
-	it("drops a result-only entry and its tool block for a pending durable call", () => {
+	it("normalizes a fully filtered state to null", () => {
 		const filtered = filterPendingStreamState(
 			pendingReadFileState(),
 			new Set(["tc-1"]),
 		);
-		expect(filtered).not.toBeNull();
-		expect(filtered?.toolResults).toEqual({});
-		// The block referencing the dropped id must also be removed so the
-		// tail does not render a generic "Tool" placeholder.
-		expect(filtered?.blocks).toEqual([]);
-		expect(
-			buildStreamTools(filtered?.toolCalls, filtered?.toolResults),
-		).toEqual([]);
+		expect(filtered).toBeNull();
 	});
 
 	it("keeps a result and block that share an id with an in-stream call", () => {
@@ -784,6 +777,31 @@ describe("filterPendingStreamState", () => {
 		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
 		expect(Object.keys(filtered?.toolResults ?? {})).toEqual(["tc-2"]);
 		expect(filtered?.blocks).toEqual([{ type: "tool", id: "tc-2" }]);
+	});
+
+	it("keeps a partially filtered state non-null when other content remains", () => {
+		const state: StreamState = {
+			blocks: [
+				{ type: "response", text: "Reading the file now." },
+				{ type: "tool", id: "tc-1" },
+			],
+			toolCalls: {},
+			toolResults: {
+				"tc-1": {
+					id: "tc-1",
+					name: "read_file",
+					result: { content: "file body" },
+					isError: false,
+				},
+			},
+			sources: [],
+		};
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(filtered).not.toBeNull();
+		expect(filtered?.toolResults).toEqual({});
+		expect(filtered?.blocks).toEqual([
+			{ type: "response", text: "Reading the file now." },
+		]);
 	});
 
 	it("keeps non-tool blocks and other tool blocks while dropping the pending one", () => {
@@ -878,8 +896,7 @@ describe("filterPendingStreamState", () => {
 			},
 		});
 		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
-		expect(filtered?.toolResults).toEqual({});
-		expect(filtered?.blocks).toEqual([]);
+		expect(filtered).toBeNull();
 	});
 });
 
