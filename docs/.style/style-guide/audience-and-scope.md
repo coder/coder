@@ -311,10 +311,10 @@ They value clear logs, traceable errors, and clean rollback paths over flashy fe
 #### Caitlin the Citizen Developer
 
 Caitlin is non-technical (customer success) but uses agentic AI tools to make small product changes without writing code.
-They need docs that explain Coder Tasks and the agent-driven flows in plain language, with no assumed dev-environment knowledge and no manual setup steps.
+They need docs that explain agent-driven flows in plain language, with no assumed dev-environment knowledge and no manual setup steps.
 They avoid anything that requires opening a terminal or editing a config file.
 
-*Coder surface:* Coder Tasks, AI Gateway, prompt-driven workflows, web-based interfaces.
+*Coder surface:* Coder Agents, AI Gateway, prompt-driven workflows, web-based interfaces.
 
 #### Felipe the FinOps
 
