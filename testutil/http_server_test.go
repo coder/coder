@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestNewUnstartedHTTPServerDisablesKeepAlives verifies the helper
@@ -22,9 +24,7 @@ func TestNewUnstartedHTTPServerDisablesKeepAlives(t *testing.T) {
 	srv.Start()
 
 	conn, err := net.Dial("tcp", srv.Listener.Addr().String())
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
+	require.NoError(t, err, "dial")
 	defer conn.Close()
 
 	send := func() error {
@@ -37,12 +37,8 @@ func TestNewUnstartedHTTPServerDisablesKeepAlives(t *testing.T) {
 	}
 
 	// First request on this connection succeeds.
-	if err := send(); err != nil {
-		t.Fatalf("first request: %v", err)
-	}
+	require.NoError(t, send(), "first request")
 	// Keep-alives disabled means the server closes the conn, so the
 	// second request on the same conn fails.
-	if err := send(); err == nil {
-		t.Fatal("expected second request on reused connection to fail")
-	}
+	require.Error(t, send(), "second request on reused connection must fail")
 }
