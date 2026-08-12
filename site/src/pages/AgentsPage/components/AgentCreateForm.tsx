@@ -433,19 +433,18 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			filteredWorkspaces.some((ws) => ws.id === selectedWorkspaceId))
 			? selectedWorkspaceId
 			: null;
-	// While the list loads, effectiveWorkspaceId is display-only: a
-	// stored workspace may belong to an org the user cannot chat in,
-	// so only a workspace confirmed in the effective org is submitted.
-	const submittableWorkspaceId = isWorkspacesLoading
-		? null
-		: effectiveWorkspaceId;
+	// A stored workspace cannot be validated against the effective org
+	// until the list loads; sending then would silently drop the
+	// association, so Send stays disabled instead.
+	const workspaceValidationPending =
+		selectedWorkspaceId !== null && isWorkspacesLoading;
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {
 		submitDraft();
 		await onCreateChat({
 			message,
 			fileIDs,
-			workspaceId: submittableWorkspaceId ?? undefined,
+			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
 			reasoningEffort: effectiveReasoningEffort,
 			organizationId,
@@ -578,6 +577,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							!orgSelectionSettled ||
 							// Sending before adoption would omit persisted files not yet restored.
 							!organizationAdopted ||
+							workspaceValidationPending ||
 							isPersonalModelOverridesLoading ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)

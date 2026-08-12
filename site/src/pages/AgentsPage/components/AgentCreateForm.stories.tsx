@@ -1061,7 +1061,7 @@ export const OrganizationAuthorizationFailure: Story = {
 	},
 };
 
-export const LoadingWorkspacesNeverSubmitsStoredWorkspace: Story = {
+export const LoadingWorkspacesBlocksSendUntilValidated: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
@@ -1073,22 +1073,22 @@ export const LoadingWorkspacesNeverSubmitsStoredWorkspace: Story = {
 		isWorkspacesLoading: true,
 	},
 	beforeEach: () => {
+		localStorage.setItem(emptyInputStorageKey, "draft message");
 		localStorage.setItem("agents.selected-workspace-id", "ws-default-org");
 		mockPermittedOrganizations({
-			[MockDefaultOrganization.id]: false,
+			[MockDefaultOrganization.id]: true,
 			[MockOrganization2.id]: true,
 		});
 	},
 	play: async ({ canvasElement, args }) => {
-		await submitMessage(canvasElement, "test message");
-		await waitFor(() => {
-			expect(args.onCreateChat).toHaveBeenCalledWith(
-				expect.objectContaining({
-					organizationId: MockOrganization2.id,
-					workspaceId: undefined,
-				}),
-			);
-		});
+		const canvas = within(canvasElement);
+		// The picker renders only after the permission check settles, so
+		// once it appears every other Send gate has been decided.
+		await canvas.findByTestId("compact-org-selector");
+		// The stored workspace cannot be validated yet; sending now would
+		// silently drop the association, so Send stays disabled.
+		await expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		expect(args.onCreateChat).not.toHaveBeenCalled();
 	},
 };
 
