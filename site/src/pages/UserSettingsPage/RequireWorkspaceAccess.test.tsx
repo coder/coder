@@ -10,7 +10,6 @@ const renderSchedulePage = () => {
 		path: "/settings",
 		route: "/settings/schedule",
 		children: [{ path: "schedule", element: <h1>Schedule</h1> }],
-		extraRoutes: [{ path: "/settings/account", element: <h1>Account</h1> }],
 	});
 };
 
@@ -21,7 +20,7 @@ describe("RequireWorkspaceAccess", () => {
 		await screen.findByText("Schedule");
 	});
 
-	it("redirects to the account page when the user cannot read workspaces", async () => {
+	it("blocks the route when the user cannot read workspaces", async () => {
 		server.use(
 			http.post("/api/v2/authcheck", () => {
 				return HttpResponse.json({
@@ -33,7 +32,7 @@ describe("RequireWorkspaceAccess", () => {
 
 		renderSchedulePage();
 
-		await screen.findByText("Account");
+		await screen.findByText("You don't have permission to view this page");
 		expect(screen.queryByText("Schedule")).not.toBeInTheDocument();
 	});
 });
