@@ -86,7 +86,14 @@ BEGIN
         providers, provider_names, models, client
     )
     VALUES (
-        NEW.session_id, NEW.initiator_id, NEW.started_at, NEW.started_at,
+        NEW.session_id, NEW.initiator_id, NEW.started_at,
+        -- Prompts are recorded before the interception ends, so the prompt
+        -- trigger finds no row for a session's first interception. Pick them up
+        -- here instead; GREATEST skips the NULL when there are none.
+        GREATEST(NEW.started_at, (
+            SELECT MAX(created_at) FROM aibridge_user_prompts
+            WHERE interception_id = NEW.id
+        )),
         ARRAY[NEW.provider], ARRAY[NEW.provider_name], ARRAY[NEW.model],
         COALESCE(NEW.client, 'Unknown')
     )
