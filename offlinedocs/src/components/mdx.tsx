@@ -49,12 +49,20 @@ const stubComponents: MDXComponents = {
 // children renders that <img> directly and skips ImageZoom's internal
 // next/image code path, so the static, unoptimized image keeps working while
 // the zoomed-in overlay still loads the same local source.
+//
+// The image is wrapped in a `.doc-image-frame`, which paints a Coder brand
+// backdrop around the screenshot (see src/app/brand.css). The backdrop swaps
+// between the light and dark brand images with the theme. A `<span>` with
+// `display:block` is used (not a `<div>`) because Markdown renders images
+// inside a `<p>`, and a block-level element there would be invalid nesting.
 function LocalImg({ src, alt, ...props }: ImgHTMLAttributes<HTMLImageElement>) {
 	const url = typeof src === "string" ? src : undefined;
 	return (
-		<ImageZoom src={url}>
-			<img {...props} src={url} alt={alt ?? ""} loading="lazy" />
-		</ImageZoom>
+		<span className="doc-image-frame">
+			<ImageZoom src={url}>
+				<img {...props} src={url} alt={alt ?? ""} loading="lazy" />
+			</ImageZoom>
+		</span>
 	);
 }
 

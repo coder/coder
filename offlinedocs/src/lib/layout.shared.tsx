@@ -6,7 +6,7 @@ export function baseOptions(): BaseLayoutProps {
 	return {
 		nav: {
 			title: (
-				<span className="inline-flex items-center gap-2 font-semibold">
+				<span className="inline-flex items-center gap-2 font-medium">
 					<CoderMark className="size-5 text-fd-foreground" />
 					{appName}
 				</span>
