@@ -152,12 +152,11 @@ func newReloadTestHarness(t *testing.T) *reloadTestHarness {
 	// Keep-alives are disabled so the proxy cannot reuse a stale pooled
 	// connection to aibridged, which would surface as a bare EOF on
 	// Windows (see AIGOV-430).
-	bridged := testutil.NewUnstartedHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	bridged := testutil.NewHTTPTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		recorder.record(r.URL.Path)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("aibridged"))
 	}))
-	bridged.Start()
 
 	store := &providerStore{}
 	metrics := aibridgeproxyd.NewMetrics(prometheus.NewRegistry())
