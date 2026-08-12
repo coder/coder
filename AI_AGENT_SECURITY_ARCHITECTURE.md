@@ -875,22 +875,51 @@ mechanism and must be recorded as `advisory` or unsupported rather than
 pre-existing privileged helper, including a sandbox runtime whose own
 daemon was started outside the namespace.
 
-##### What this changes in the current implementation
+##### Implementation status
 
-- Enforcement rules move to the host side of the veth; child-side rules
-  become redirection only.
-- The namespace gains a default route through the veth.
-- Namespace addressing becomes per sandbox: the current fixed `/30` cannot
-  support two concurrent sandboxes.
-- `SandboxController` runs the admin script inside a namespace rather than
-  passing a proxy address to a cooperative script.
-- The script is launched through a privilege-dropping helper rather than
-  `sh -c` with the agent's environment and credentials.
-- A DNS relay is implemented and enforces policy.
-- The transparent HTTP path accepts origin-form requests, which is what
-  DNATed port 80 traffic looks like; the current proxy accepts only
-  absolute-form and would reject it.
-- Setup failure fails closed for `forced` shapes.
+Landed:
+
+- Enforcement rules are installed on the host side of the veth, scoped to
+  that interface, and recorded as exact deletion specs so cleanup removes
+  precisely what was added. Child-side rules are redirection only.
+- The namespace has a default route through the veth, without which
+  `connect()` fails before DNAT can act.
+- Namespace addressing is allocated per sandbox from a configurable pool
+  (`100.115.92.0/24` carved into `/30`s), skipping prefixes that collide
+  with an existing host route or interface address.
+- IPv6 is disabled in the namespace where sysctl allows, and `ip6tables`
+  DROP policies are applied unconditionally on both sides so v6 is never
+  an implicitly uncovered path.
+- The DNS relay enforces policy: default deny by name, a query-type
+  allowlist that excludes the classic tunneling records, rate limiting,
+  and refusal without contacting upstream.
+- The proxy accepts origin-form requests, which is the shape DNATed port
+  80 traffic arrives in, while keeping absolute-form for explicitly
+  proxied clients. TLS connections with no readable SNI now produce a
+  deny event instead of closing silently.
+- Destinations are resolved once and validated against loopback,
+  link-local, private, and metadata ranges before dialing, so an allowed
+  hostname cannot rebind the proxy onto the supervisor's own network
+  position.
+- The privilege-dropping launcher clears supplementary groups,
+  capabilities, and the bounding set, sets `no_new_privs`, closes
+  inherited descriptors, and switches to a dedicated UID, with a preflight
+  that reports why a drop is impossible rather than proceeding.
+- Forced shapes fail closed: preflight failure, namespace setup failure,
+  listener failure, and an unconfigured namespace all abort instead of
+  downgrading to advisory.
+
+Not yet landed:
+
+- `SandboxController` still runs the admin script cooperatively. Wiring it
+  to open a namespace and launch through the privilege-dropping helper is
+  the remaining step; the primitives it needs are in place.
+- DNS decisions are logged but not retained. `ai_sandbox_network_events`
+  constrains protocol to `connect`, `http`, `sni`, and `tcp`, so keeping
+  them server side needs a schema change.
+- Only the datapath rule construction is unit tested. Namespace creation,
+  firewall insertion, and packet-level redirection require root and were
+  not exercised end to end.
 
 #### Policy: two layers
 
