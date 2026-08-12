@@ -963,6 +963,75 @@ export const RestrictedMultiOrganizationUser: Story = {
 	},
 };
 
+export const RestrictedUserKeepsPersistedWorkspace: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		workspaceOptions: [
+			{
+				...MockWorkspace,
+				id: "ws-permitted-org",
+				name: "permitted-workspace",
+				organization_id: MockOrganization2.id,
+			},
+		],
+		workspaceCount: 1,
+	},
+	beforeEach: () => {
+		localStorage.setItem("agents.selected-workspace-id", "ws-permitted-org");
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement, args }) => {
+		await submitMessage(canvasElement, "test message");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					organizationId: MockOrganization2.id,
+					workspaceId: "ws-permitted-org",
+				}),
+			);
+		});
+	},
+};
+
+export const LoadingWorkspacesNeverSubmitsStoredWorkspace: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		workspaceOptions: [],
+		isWorkspacesLoading: true,
+	},
+	beforeEach: () => {
+		localStorage.setItem("agents.selected-workspace-id", "ws-default-org");
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement, args }) => {
+		await submitMessage(canvasElement, "test message");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					organizationId: MockOrganization2.id,
+					workspaceId: undefined,
+				}),
+			);
+		});
+	},
+};
+
 export const DelayedOrganizationAuthorization: Story = {
 	parameters: {
 		showOrganizations: true,

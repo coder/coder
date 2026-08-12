@@ -1,4 +1,4 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
@@ -271,35 +271,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		: undefined;
 	const initialOrg =
 		organizations.find((o) => o.is_default) ?? organizations[0];
+	// effectiveWorkspaceId nulls a stored selection outside the effective org's
+	// filtered workspace list without deleting it. Preserve the stored value
+	// because the permitted-organizations query may resolve after mount and
+	// change the effective org.
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() => {
-			const stored = localStorage.getItem(selectedWorkspaceIdStorageKey);
-			if (!stored) return null;
-
-			// The stored value is kept optimistically until workspaces
-			// load. effectiveWorkspaceId (computed after render) drops
-			// it if it doesn't match the current org's workspaces.
-			if (workspaceOptions.length === 0) return stored;
-
-			// Validate the stored workspace still exists and belongs
-			// to the initial org. Without this, a workspace from a
-			// previously selected org persists across sessions and
-			// gets submitted even though it's hidden from the picker.
-			const workspace = workspaceOptions.find((ws) => ws.id === stored);
-			if (!workspace) {
-				localStorage.removeItem(selectedWorkspaceIdStorageKey);
-				return null;
-			}
-			if (
-				showOrganizations &&
-				initialOrg &&
-				workspace.organization_id !== initialOrg.id
-			) {
-				localStorage.removeItem(selectedWorkspaceIdStorageKey);
-				return null;
-			}
-			return stored;
-		},
+		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
 		null,
@@ -324,7 +301,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				initialOrg ??
 				null);
 	const organizationId = effectiveOrg?.id ?? "";
-	const previousEffectiveOrgId = useRef(effectiveOrg?.id);
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -416,13 +392,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			filteredWorkspaces.some((ws) => ws.id === selectedWorkspaceId))
 			? selectedWorkspaceId
 			: null;
+	// While the list loads, effectiveWorkspaceId is display-only: a
+	// stored workspace may belong to an org the user cannot chat in,
+	// so only a workspace confirmed in the effective org is submitted.
+	const submittableWorkspaceId = isWorkspacesLoading
+		? null
+		: effectiveWorkspaceId;
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {
 		submitDraft();
 		await onCreateChat({
 			message,
 			fileIDs,
-			workspaceId: effectiveWorkspaceId ?? undefined,
+			workspaceId: submittableWorkspaceId ?? undefined,
 			model: submittedModel,
 			reasoningEffort: effectiveReasoningEffort,
 			organizationId,
@@ -477,19 +459,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const resetOrgScopedState = useEffectEvent(() => {
-		handleWorkspaceChange(null);
-		resetAttachments();
-	});
-	// Permission updates can change effectiveOrg without invoking the selection handlers.
-	useEffect(() => {
-		if (previousEffectiveOrgId.current === effectiveOrg?.id) {
-			return;
-		}
-		previousEffectiveOrgId.current = effectiveOrg?.id;
-		resetOrgScopedState();
-	}, [effectiveOrg?.id]);
-
 	return (
 		<>
 			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-none sm:h-full sm:flex-1 sm:items-center">
@@ -540,7 +509,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 									return;
 								}
 								if (orgChanged) {
-									previousEffectiveOrgId.current = newOrg.id;
 									handleWorkspaceChange(null);
 								}
 								setSelectedOrg(newOrg);
@@ -614,7 +582,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					if (!pendingOrgChange) {
 						return;
 					}
-					previousEffectiveOrgId.current = pendingOrgChange.id;
 					resetAttachments();
 					handleWorkspaceChange(null);
 					setSelectedOrg(pendingOrgChange);
