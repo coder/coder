@@ -154,6 +154,10 @@ export const applyMessagePartToStreamState = (
 						resultRaw: nextResult.rawText,
 						isError: nextIsError,
 						isStreaming: isStreaming || undefined,
+						streamedDelta:
+							Boolean(part.result_delta) ||
+							existing?.streamedDelta ||
+							undefined,
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
 					},
@@ -237,10 +241,11 @@ const getStreamToolStatus = (
 /**
  * Drops result-only stream entries whose tool call is already rendered as
  * pending in the durable transcript, so the live tail does not show a
- * duplicate row before the tool step commits. Still-streaming results are
- * kept so progressive output keeps rendering, and a state left with no
- * visible content becomes null so the tail renders nothing. See the
- * filterPendingStreamState tests for the full behavior contract.
+ * duplicate row before the tool step commits. Results that streamed deltas
+ * stay visible until the durable commit so progressive output keeps rendering,
+ * and a state left with no visible content becomes null so the tail renders
+ * nothing. See the filterPendingStreamState tests for the full behavior
+ * contract.
  */
 export const filterPendingStreamState = (
 	streamState: StreamState | null,
@@ -252,12 +257,11 @@ export const filterPendingStreamState = (
 	const toolResults: StreamState["toolResults"] = {};
 	let dropped = false;
 	for (const [id, result] of Object.entries(streamState.toolResults)) {
-		// Still-streaming results stay visible while they accumulate; the
-		// duplicate is only suppressed once the final result arrives.
 		if (
 			pendingToolCallIDs.has(id) &&
 			!streamState.toolCalls[id] &&
-			!result.isStreaming
+			!result.isStreaming &&
+			!result.streamedDelta
 		) {
 			dropped = true;
 			continue;
@@ -273,10 +277,10 @@ export const filterPendingStreamState = (
 			!(
 				pendingToolCallIDs.has(block.id) &&
 				!streamState.toolCalls[block.id] &&
-				!streamState.toolResults[block.id]?.isStreaming
+				!streamState.toolResults[block.id]?.isStreaming &&
+				!streamState.toolResults[block.id]?.streamedDelta
 			),
 	);
-	// Nothing visible remains.
 	if (
 		blocks.length === 0 &&
 		Object.keys(streamState.toolCalls).length === 0 &&

@@ -145,9 +145,10 @@ export const StreamedResultForPendingToolDoesNotDuplicate: Story = {
 	},
 };
 
-// A durable pending advisor call keeps streaming its result_delta parts
-// into the live tail: filterPendingStreamState preserves still-streaming
-// results so the progressive advice UI keeps rendering for the pending id.
+// A durable pending advisor call streams its result_delta parts into the
+// live tail, then its final result part. filterPendingStreamState keeps
+// results that streamed deltas so the progressive advice UI keeps rendering
+// for the pending id until the durable commit.
 export const StreamedAdvisorAdviceForPendingToolStillRenders: Story = {
 	render: () => {
 		const store = createChatStore();
@@ -176,6 +177,17 @@ export const StreamedAdvisorAdviceForPendingToolStillRenders: Story = {
 				tool_call_id: "advisor-1",
 				tool_name: "advisor",
 				result_delta: "small steps.",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-1",
+				tool_name: "advisor",
+				result: {
+					type: "advice",
+					advice: "Use small steps.",
+					advisor_model: "test-provider/test-model",
+					remaining_uses: "2",
+				},
 			},
 		]);
 
