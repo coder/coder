@@ -46,10 +46,11 @@ file: string
 
 ### Responses
 
-| Status | Meaning                                                      | Description                        | Schema                                                       |
-|--------|--------------------------------------------------------------|------------------------------------|--------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)      | Returns existing file if duplicate | [codersdk.UploadResponse](schemas.md#codersdkuploadresponse) |
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Returns newly created file         | [codersdk.UploadResponse](schemas.md#codersdkuploadresponse) |
+| Status | Meaning                                                                 | Description                        | Schema                                                       |
+|--------|-------------------------------------------------------------------------|------------------------------------|--------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | Returns existing file if duplicate | [codersdk.UploadResponse](schemas.md#codersdkuploadresponse) |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Returns newly created file         | [codersdk.UploadResponse](schemas.md#codersdkuploadresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large           | [codersdk.Response](schemas.md#codersdkresponse)             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
