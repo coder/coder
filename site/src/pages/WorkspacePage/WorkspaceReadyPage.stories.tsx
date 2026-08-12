@@ -5,13 +5,13 @@ import { buildInfoKey } from "#/api/queries/buildInfo";
 import { templateVersion } from "#/api/queries/templates";
 import { agentListeningPorts } from "#/api/queries/workspaces";
 import type { Workspace } from "#/api/typesGenerated";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import * as Mocks from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
 } from "#/testHelpers/storybook";
-import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
 const permissions: WorkspacePermissions = {

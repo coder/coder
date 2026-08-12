@@ -69,6 +69,10 @@ const WorkspaceSchedulePage: FC = () => {
 	const [isConfirmingApply, setIsConfirmingApply] = useState(false);
 	const { mutate: restartWorkspace } = useMutation({
 		mutationFn: () => API.restartWorkspace({ workspace }),
+		onError: (error) =>
+			toast.error(`Failed to restart workspace "${workspaceName}".`, {
+				description: getErrorDetail(error),
+			}),
 	});
 
 	return (

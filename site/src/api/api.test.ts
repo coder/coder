@@ -458,8 +458,8 @@ describe("api.ts", () => {
 				.mockResolvedValueOnce(MockProvisionerJob);
 			const getWorkspaceBuilds = vi
 				.spyOn(API, "getWorkspaceBuilds")
-				.mockResolvedValueOnce([stopBuild])
-				.mockResolvedValue([childBuild, stopBuild]);
+				.mockResolvedValueOnce([])
+				.mockResolvedValue([childBuild]);
 
 			const restart = API.restartWorkspace({ workspace: MockWorkspace });
 			await vi.advanceTimersByTimeAsync(1000);
@@ -468,11 +468,87 @@ describe("api.ts", () => {
 			expect(getWorkspaceBuilds).toHaveBeenCalledTimes(2);
 			expect(getWorkspaceBuilds).toHaveBeenCalledWith(
 				stopBuild.workspace_id,
-				{ limit: 5 },
+				{ since: stopBuild.created_at, limit: 25 },
 				expect.any(AbortSignal),
 			);
 			expect(waitForBuild).toHaveBeenNthCalledWith(1, stopBuild);
 			expect(waitForBuild).toHaveBeenNthCalledWith(2, childBuild);
+		});
+
+		it("rejects when the stop build fails", async () => {
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(stopBuild);
+			vi.spyOn(API, "waitForBuild").mockRejectedValueOnce({
+				...MockProvisionerJob,
+				status: "failed",
+			});
+			const getWorkspaceBuilds = vi.spyOn(API, "getWorkspaceBuilds");
+
+			await expect(
+				API.restartWorkspace({ workspace: MockWorkspace }),
+			).rejects.toMatchObject({ status: "failed" });
+			expect(getWorkspaceBuilds).not.toHaveBeenCalled();
+		});
+
+		it("omits build parameters from the follow-up start when none are given", async () => {
+			const postWorkspaceBuild = vi
+				.spyOn(API, "postWorkspaceBuild")
+				.mockResolvedValue(stopBuild);
+			vi.spyOn(API, "waitForBuild").mockResolvedValue(MockProvisionerJob);
+			vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([childBuild]);
+
+			await API.restartWorkspace({ workspace: MockWorkspace });
+
+			expect(postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+				transition: "stop",
+				reason: "dashboard",
+				on_success: {
+					transition: "start",
+					rich_parameter_values: undefined,
+				},
+			});
+		});
+
+		it("keeps polling when a builds request fails transiently", async () => {
+			vi.useFakeTimers();
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(stopBuild);
+			const waitForBuild = vi
+				.spyOn(API, "waitForBuild")
+				.mockResolvedValue(MockProvisionerJob);
+			const getWorkspaceBuilds = vi
+				.spyOn(API, "getWorkspaceBuilds")
+				.mockRejectedValueOnce(new Error("network blip"))
+				.mockResolvedValue([childBuild]);
+
+			const restart = API.restartWorkspace({ workspace: MockWorkspace });
+			await vi.advanceTimersByTimeAsync(1000);
+			await restart;
+
+			expect(getWorkspaceBuilds).toHaveBeenCalledTimes(2);
+			expect(waitForBuild).toHaveBeenNthCalledWith(2, childBuild);
+		});
+
+		it("skips intervening non-start builds when discovering the child", async () => {
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(stopBuild);
+			const waitForBuild = vi
+				.spyOn(API, "waitForBuild")
+				.mockResolvedValue(MockProvisionerJob);
+			const interveningStop: TypesGen.WorkspaceBuild = {
+				...MockWorkspaceBuildStop,
+				id: "intervening-stop",
+				build_number: stopBuild.build_number + 1,
+			};
+			const laterChild: TypesGen.WorkspaceBuild = {
+				...childBuild,
+				build_number: stopBuild.build_number + 2,
+			};
+			vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([
+				laterChild,
+				interveningStop,
+			]);
+
+			await API.restartWorkspace({ workspace: MockWorkspace });
+
+			expect(waitForBuild).toHaveBeenNthCalledWith(2, laterChild);
 		});
 
 		it("stops waiting when the follow-up build is not created in time", async () => {

@@ -1313,10 +1313,9 @@ class ApiMethods {
 		});
 	};
 
-	private waitForRestartBuild = async (
+	private waitForRestartChildBuild = async (
 		stopBuild: TypesGen.WorkspaceBuild,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const childBuildNumber = stopBuild.build_number + 1;
 		// The server orchestrator may create the child build up to ~2 minutes
 		// after the stop succeeds (30s backup poll plus up to 3 attempts spaced
 		// 30s apart), so the deadline must outlast that retry lifecycle.
@@ -1327,22 +1326,31 @@ class ApiMethods {
 				try {
 					const builds = await this.getWorkspaceBuilds(
 						stopBuild.workspace_id,
-						{ limit: 5 },
+						{ since: stopBuild.created_at, limit: 25 },
 						controller.signal,
 					);
-					const childBuild = builds.find(
-						(build) => build.build_number === childBuildNumber,
-					);
+					// Other builds (autostart, lifecycle cleanup, another actor)
+					// can land between the stop and the orchestrator's child, so
+					// the child is not guaranteed to be stop + 1. Builds arrive
+					// newest-first; the child is the oldest post-stop start build.
+					const childBuild = builds
+						.filter(
+							(build) =>
+								build.transition === "start" &&
+								build.build_number > stopBuild.build_number,
+						)
+						.at(-1);
 					if (childBuild) {
 						return childBuild;
 					}
-				} catch (error) {
+				} catch {
+					// Tolerate transient poll failures; the deadline below is the
+					// only failure surface.
 					if (controller.signal.aborted) {
 						break;
 					}
-					throw error;
 				}
-				await delay(1000);
+				await delay(1000, controller.signal);
 			}
 		} finally {
 			clearTimeout(timeoutId);
@@ -1466,7 +1474,7 @@ class ApiMethods {
 			return;
 		}
 
-		const startBuild = await this.waitForRestartBuild(stopBuild);
+		const startBuild = await this.waitForRestartChildBuild(stopBuild);
 		await this.waitForBuild(startBuild);
 	};
 
