@@ -13,6 +13,12 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
+import {
+	chatEntityKey,
+	chatMessagesKey,
+	chatPromptsKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
@@ -25,9 +31,11 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
+import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
@@ -929,6 +937,139 @@ export const WithAgentSelected: Story = {
 			},
 			routing: [agentsRouting, aiSettingsRouting],
 		}),
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Watch-event archive semantics: these stories mount the real AgentChatPage
+// under the layout's :agentId route so the layout's chat-watch socket drives
+// the page through the production watch path.
+// ---------------------------------------------------------------------------
+
+const agentsWithAgentChatPageRouting = {
+	...agentsRouting,
+	children: agentsRouting.children.map((route) =>
+		"path" in route && route.path === ":agentId"
+			? { ...route, element: <AgentChatPage /> }
+			: route,
+	),
+};
+
+const WATCHED_CHAT_ID = "chat-watched";
+
+// MockChat is owned by MockUserOwner, so the page renders the owner view
+// (composer enabled unless archived) instead of the other-user banner.
+const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
+	...MockChat,
+	id: WATCHED_CHAT_ID,
+	title: "Watched agent",
+	last_model_config_id: defaultModelConfigID,
+	created_at: oneWeekAgo,
+	updated_at: oneWeekAgo,
+	...overrides,
+});
+
+const watchedChatQueries = (chat: Chat) => [
+	{ key: chatEntityKey(chat.id), data: chat },
+	{
+		key: chatMessagesKey(chat.id),
+		data: {
+			pages: [{ messages: [], queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		},
+	},
+	{ key: chatPromptsKey(chat.id), data: { prompts: [] } },
+	{
+		key: getAuthorizationKey({
+			checks: {
+				canShareChat: {
+					object: {
+						resource_type: "chat",
+						owner_id: chat.owner_id,
+						organization_id: chat.organization_id,
+					},
+					action: "share",
+				},
+			},
+		}),
+		data: { canShareChat: true },
+	},
+];
+
+const chatWatchEvent = (kind: TypesGen.ChatWatchEventKind, chat: Chat) => ({
+	event: "message" as const,
+	data: JSON.stringify({ kind, chat } satisfies TypesGen.ChatWatchEvent),
+});
+
+const watchedChatPageParameters = (
+	chat: Chat,
+	watchEvents: readonly ReturnType<typeof chatWatchEvent>[],
+) => ({
+	queries: watchedChatQueries(chat),
+	webSocket: {
+		"/chats/watch": [...watchEvents],
+	},
+	reactRouter: reactRouterParameters({
+		location: {
+			path: `/agents/${WATCHED_CHAT_ID}`,
+			pathParams: { agentId: WATCHED_CHAT_ID },
+		},
+		routing: [agentsWithAgentChatPageRouting, aiSettingsRouting],
+	}),
+});
+
+const mockAgentChatPageAPIs = () => {
+	localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+	spyOn(API.experimental, "updateChat").mockResolvedValue();
+	return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+};
+
+export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat()]);
+		return mockAgentChatPageAPIs();
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		chatWatchEvent("deleted", watchedChat({ archived: true })),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("This agent has been archived and is read-only."),
+		).toBeVisible();
+		await waitFor(() => {
+			expect(canvas.getByRole("textbox")).toHaveAttribute(
+				"aria-disabled",
+				"true",
+			);
+		});
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+	},
+};
+
+export const UnarchiveWatchEventRecoversArchivedChat: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat({ archived: true })]);
+		return mockAgentChatPageAPIs();
+	},
+	parameters: watchedChatPageParameters(watchedChat({ archived: true }), [
+		chatWatchEvent("created", watchedChat({ archived: false })),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByRole("textbox")).not.toHaveAttribute(
+				"aria-disabled",
+				"true",
+			);
+		});
+		expect(
+			canvas.queryByText("This agent has been archived and is read-only."),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
 	},
 };
 

@@ -5,6 +5,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
@@ -14,6 +15,8 @@ import {
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceApp,
+	MockWorkspaceResource,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -1674,6 +1677,158 @@ export const PreservesUnavailableSidebarTab: Story = {
 		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
+	},
+};
+
+const mockAgentBrowserApp: TypesGen.WorkspaceApp = {
+	...MockWorkspaceApp,
+	id: "agent-browser-app",
+	slug: AGENT_BROWSER_APP_SLUG,
+	display_name: "agent-browser",
+	health: "healthy",
+};
+
+const mockAgentWithBrowserApp: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	apps: [...MockWorkspaceAgent.apps, mockAgentBrowserApp],
+};
+
+export const BrowserTabForHealthyAgentBrowserApp: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={mockAgentWithBrowserApp}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual(["Summary", "Git", "Browser", "Terminal"]);
+
+		// The frame stays mounted while inactive to preserve app state, so
+		// assert visibility rather than presence.
+		const frame = canvas.getByTitle("agent-browser");
+		expect(frame.checkVisibility()).toBe(false);
+
+		await userEvent.click(browserTab);
+
+		await waitFor(() => {
+			expect(browserTab).toHaveAttribute("aria-selected", "true");
+		});
+		expect(frame.checkVisibility()).toBe(true);
+	},
+};
+
+export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				apps: [{ ...mockAgentBrowserApp, health: "disabled" }],
+			}}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+		await userEvent.click(browserTab);
+
+		await waitFor(() => {
+			expect(browserTab).toHaveAttribute("aria-selected", "true");
+		});
+		expect(canvas.getByTitle("agent-browser").checkVisibility()).toBe(true);
+	},
+};
+
+export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				apps: [{ ...mockAgentBrowserApp, health: "unhealthy" }],
+			}}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+	},
+};
+
+export const NoBrowserTabForAppOnNonBoundAgent: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={{
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspaceResource,
+							agents: [
+								MockWorkspaceAgent,
+								{
+									...mockAgentWithBrowserApp,
+									id: "other-agent",
+									name: "other-agent",
+								},
+							],
+						},
+					],
+				},
+			}}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+	},
+};
+
+export const PreservesUnavailableBrowserTab: Story = {
+	beforeEach: () => {
+		localStorage.setItem(sidebarTabStorageKey, "browser");
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("browser");
 	},
 };
 

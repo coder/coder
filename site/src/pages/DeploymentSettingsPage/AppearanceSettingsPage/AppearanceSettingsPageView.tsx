@@ -7,21 +7,23 @@ import {
 	PremiumBadge,
 } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
-import { Input } from "#/components/Input/Input";
 import {
-	InputGroup,
-	InputGroupAddon,
-	InputGroupInput,
-} from "#/components/InputGroup/InputGroup";
+	FormFields,
+	FormFooter,
+	FormSection,
+	VerticalForm,
+} from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
+import { IconField } from "#/components/IconField/IconField";
 import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
 import type { Permissions } from "#/modules/permissions";
 import { getFormHelpers } from "#/utils/formUtils";
-import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
 type AppearanceSettingsPageViewProps = {
@@ -37,97 +39,93 @@ type AppearanceSettingsPageViewProps = {
 export const AppearanceSettingsPageView: FC<
 	AppearanceSettingsPageViewProps
 > = ({ appearance, isEntitled, isPremium, permissions, onSaveAppearance }) => {
-	const applicationNameForm = useFormik<{
+	const form = useFormik<{
 		application_name: string;
-	}>({
-		initialValues: {
-			application_name: appearance.application_name,
-		},
-		onSubmit: (values) => onSaveAppearance(values),
-	});
-	const applicationNameFieldHelpers = getFormHelpers(applicationNameForm);
-
-	const logoForm = useFormik<{
 		logo_url: string;
 	}>({
 		initialValues: {
+			application_name: appearance.application_name,
 			logo_url: appearance.logo_url,
 		},
 		onSubmit: (values) => onSaveAppearance(values),
+		enableReinitialize: true,
 	});
-	const logoFieldHelpers = getFormHelpers(logoForm);
+	const getFieldHelpers = getFormHelpers(form);
+	const fieldsDisabled = !isEntitled || form.isSubmitting;
 
 	return (
-		<>
-			<SettingsHeader>
-				<SettingsHeaderTitle>Appearance</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Customize the look and feel of your Coder deployment.
-				</SettingsHeaderDescription>
-			</SettingsHeader>
+		<div className="flex flex-col gap-12">
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle>Appearance</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Customize the look and feel of your Coder deployment.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
-			{isEntitled ? (
-				<Badges>{isPremium ? <PremiumBadge /> : <EnterpriseBadge />}</Badges>
-			) : (
-				<div className="mb-4">
-					<PaywallSmall
-						message="Appearance"
-						description="With a Premium license, you can customize the appearance and branding of your deployment."
-						canViewPremium={permissions.viewAllLicenses}
-					/>
-				</div>
-			)}
+				<Badges>
+					{isEntitled ? (
+						isPremium ? (
+							<PremiumBadge />
+						) : (
+							<EnterpriseBadge />
+						)
+					) : (
+						<div className="mb-4">
+							<PaywallSmall
+								message="Appearance"
+								description="With a Premium license, you can customize the appearance and branding of your deployment."
+								canViewPremium={permissions.viewAllLicenses}
+							/>
+						</div>
+					)}
+				</Badges>
 
-			<Fieldset
-				title="Application name"
-				subtitle="Specify a custom application name to be displayed on the login page."
-				validation={!isEntitled ? "This is an Enterprise only feature." : ""}
-				onSubmit={applicationNameForm.handleSubmit}
-				button={!isEntitled && <Button disabled>Submit</Button>}
-			>
-				<Input
-					{...applicationNameFieldHelpers("application_name")}
-					placeholder='Leave empty to display "Coder".'
-					disabled={!isEntitled}
-					aria-label="Application name"
-				/>
-			</Fieldset>
+				<VerticalForm
+					onSubmit={form.handleSubmit}
+					aria-label="Appearance settings"
+					className="mt-8"
+				>
+					<FormSection
+						title="Branding"
+						description="Customize the application name and logo shown on the login page and in the dashboard."
+					>
+						<FormFields>
+							<FormField
+								field={getFieldHelpers("application_name", {
+									helperText: isEntitled
+										? 'Leave empty to use "Coder".'
+										: "This is an Enterprise only feature.",
+								})}
+								label="Application name"
+								placeholder="Coder"
+								disabled={fieldsDisabled}
+							/>
 
-			<Fieldset
-				title="Logo URL"
-				subtitle="Specify a custom URL for your logo to be displayed on the sign in page and in the top left
-          corner of the dashboard."
-				validation={
-					isEntitled
-						? "An image with transparency and an aspect ratio of 3:1 or less will look best."
-						: "This is an Enterprise only feature."
-				}
-				onSubmit={logoForm.handleSubmit}
-				button={!isEntitled && <Button disabled>Submit</Button>}
-			>
-				<InputGroup>
-					<InputGroupInput
-						{...logoFieldHelpers("logo_url")}
-						placeholder="Leave empty to display the Coder logo."
-						disabled={!isEntitled}
-						aria-label="Logo URL"
-					/>
-					<InputGroupAddon align="inline-end">
-						<img
-							alt=""
-							src={logoForm.values.logo_url}
-							className="size-6 max-w-full object-contain"
-							// Hide broken image icon while users type incomplete URLs.
-							onError={(e) => {
-								e.currentTarget.style.display = "none";
-							}}
-							onLoad={(e) => {
-								e.currentTarget.style.display = "inline";
-							}}
-						/>
-					</InputGroupAddon>
-				</InputGroup>
-			</Fieldset>
+							<IconField
+								{...getFieldHelpers("logo_url", {
+									helperText: isEntitled
+										? "Leave empty to use the Coder logo. An image with transparency and an aspect ratio of 3:1 or less will look best."
+										: "This is an Enterprise only feature.",
+								})}
+								label="Logo URL"
+								placeholder="/icon/coder.svg"
+								disabled={fieldsDisabled}
+								onPickEmoji={(value) => {
+									void form.setFieldValue("logo_url", value);
+								}}
+							/>
+						</FormFields>
+					</FormSection>
+
+					<FormFooter>
+						<Button type="submit" disabled={fieldsDisabled}>
+							<Spinner loading={form.isSubmitting} />
+							Save
+						</Button>
+					</FormFooter>
+				</VerticalForm>
+			</div>
 
 			<AnnouncementBannerSettings
 				isEntitled={isEntitled}
@@ -136,6 +134,6 @@ export const AppearanceSettingsPageView: FC<
 					onSaveAppearance({ announcement_banners: announcementBanners })
 				}
 			/>
-		</>
+		</div>
 	);
 };
