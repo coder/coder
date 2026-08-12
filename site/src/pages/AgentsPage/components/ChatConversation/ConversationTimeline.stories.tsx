@@ -147,6 +147,11 @@ const ATTACHMENT_RESPONSES = new Map<string, AttachmentResponse>([
 		},
 	],
 	["storybook-text-error", { body: "Temporary failure", status: 503 }],
+	[
+		"storybook-ios-share-report",
+		{ status: 200, body: "pdf-bytes", contentType: "application/pdf" },
+	],
+	["storybook-ios-error-report", { status: 500, body: "" }],
 ]);
 
 let attachmentFetchCounts = new Map<string, number>();
@@ -1291,6 +1296,83 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "Copy message" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const AssistantMessageWithMismatchedExtensionFile: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here are the release notes." },
+					{
+						type: "file",
+						media_type: "application/pdf",
+						file_id: "storybook-mismatched-notes",
+						name: "release-notes.txt",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const downloadLink = canvas.getByRole("link", {
+			name: "Download release-notes.txt",
+		});
+		expect(downloadLink).toHaveAttribute("download", "release-notes.txt");
+	},
+};
+
+const iosDownloadStoryArgs: Story["args"] = buildStoryArgs(
+	buildUserMessage({
+		text: "I attached the deployment report.",
+		files: [
+			buildFilePart({
+				media_type: "application/pdf",
+				file_id: "storybook-ios-share-report",
+				name: "deployment-report.pdf",
+			}),
+		],
+	}),
+);
+
+export const DownloadInIOSStandaloneSharesFile: Story = {
+	args: iosDownloadStoryArgs,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const share = fn().mockResolvedValue(undefined);
+		// Read-only Navigator values must be shadowed with removable own
+		// properties.
+		const overrides: Record<string, unknown> = {
+			userAgent:
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+			standalone: true,
+			share,
+			canShare: fn().mockReturnValue(true),
+		};
+		for (const [key, value] of Object.entries(overrides)) {
+			Object.defineProperty(navigator, key, { value, configurable: true });
+		}
+		try {
+			await userEvent.click(
+				canvas.getByRole("link", { name: "Download deployment-report.pdf" }),
+			);
+			await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+			const shared: { files: File[] } = share.mock.calls[0][0];
+			expect(shared.files).toHaveLength(1);
+			expect(shared.files[0].name).toBe("deployment-report.pdf");
+			expect(shared.files[0].type).toBe("application/pdf");
+			expect(getAttachmentFetchCount("storybook-ios-share-report")).toBe(1);
+		} finally {
+			for (const key of Object.keys(overrides)) {
+				Reflect.deleteProperty(navigator, key);
+			}
+		}
 	},
 };
 

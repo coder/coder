@@ -1076,7 +1076,11 @@ export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 	sources: canonicalizeChatSources(input?.sources ?? []),
 });
 
-const getChatListQueryString = (params: ChatListParams): string | undefined => {
+// Sidebar-emitted query shapes must match TestSearchChatsFrontendEmitted in
+// coderd/searchquery/search_test.go.
+export const getChatListQueryString = (
+	params: ChatListParams,
+): string | undefined => {
 	const qParts: string[] = [];
 	qParts.push(`archived:${params.archived}`);
 	if (params.prStatuses.length) {

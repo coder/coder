@@ -39,6 +39,8 @@ const baseArgs: AgentSettingsPersonalSkillsPageViewProps = {
 	onCreate: fn(),
 	onEdit: fn(),
 	onDelete: fn(),
+	onDownload: fn(),
+	onExportAll: fn(),
 };
 
 const meta = {
@@ -51,6 +53,45 @@ export default meta;
 type Story = StoryObj<typeof AgentSettingsPersonalSkillsPageView>;
 
 export const Populated: Story = {};
+
+export const DownloadingSkill: Story = {
+	args: {
+		downloadingSkillName: "review-sql",
+	},
+};
+
+export const ExportingAll: Story = {
+	args: {
+		isExportingAll: true,
+	},
+};
+
+export const DownloadsSkill: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const row = canvas.getByRole("row", { name: /review-sql/ });
+		await userEvent.click(
+			within(row).getByRole("button", { name: "Download" }),
+		);
+
+		await waitFor(() => {
+			expect(args.onDownload).toHaveBeenCalledWith(
+				expect.objectContaining({ name: "review-sql" }),
+			);
+		});
+	},
+};
+
+export const ExportsAllSkills: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Export all" }));
+
+		await waitFor(() => {
+			expect(args.onExportAll).toHaveBeenCalled();
+		});
+	},
+};
 
 export const Loading: Story = {
 	args: {
