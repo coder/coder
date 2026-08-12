@@ -2,8 +2,10 @@ package agentsocket_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -57,6 +59,73 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 		err = client.Ping(ctx)
 		require.NoError(t, err)
+	})
+
+	// CreateAIAgent currently has a proof of concept stub for a body, but its
+	// validation is not part of the stub. The caller is an arbitrary process
+	// inside the workspace, so the request is untrusted, and it stays
+	// untrusted once the stub is replaced. These cases outlive the stub.
+	t.Run("CreateAIAgent", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name        string
+			workspaceID uuid.UUID
+			agentToken  []byte
+			markerPath  string
+			wantErr     string
+		}{
+			{
+				name:        "NoWorkspaceID",
+				workspaceID: uuid.Nil,
+				agentToken:  []byte("token"),
+				markerPath:  "marker",
+				wantErr:     "workspace_id is required",
+			},
+			{
+				name:        "NoAgentToken",
+				workspaceID: uuid.New(),
+				agentToken:  nil,
+				markerPath:  "marker",
+				wantErr:     "agent_token is required",
+			},
+			{
+				name:        "NoMarkerPath",
+				workspaceID: uuid.New(),
+				agentToken:  []byte("token"),
+				markerPath:  "",
+				wantErr:     "poc_marker_path is required",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				socketPath := testutil.AgentSocketPath(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+				server, err := agentsocket.NewServer(
+					slog.Make().Leveled(slog.LevelDebug),
+					agentsocket.WithPath(socketPath),
+				)
+				require.NoError(t, err)
+				defer server.Close()
+
+				client := newSocketClient(ctx, t, socketPath)
+
+				// A marker path is given in every case but the one under test,
+				// so a rejection cannot be mistaken for a write that failed.
+				markerPath := tc.markerPath
+				if markerPath != "" {
+					markerPath = filepath.Join(t.TempDir(), markerPath)
+				}
+
+				err = client.CreateAIAgent(ctx, tc.workspaceID, tc.agentToken, markerPath)
+				require.ErrorContains(t, err, tc.wantErr)
+				if markerPath != "" {
+					require.NoFileExists(t, markerPath,
+						"a rejected request must not leave a marker")
+				}
+			})
+		}
 	})
 
 	t.Run("SyncStart", func(t *testing.T) {

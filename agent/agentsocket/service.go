@@ -2,11 +2,13 @@ package agentsocket
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"os"
 	"sync"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -70,24 +72,54 @@ func (*DRPCAgentSocketService) Ping(_ context.Context, _ *proto.PingRequest) (*p
 
 // CreateAIAgent registers an AI agent created inside this workspace.
 //
-// PROOF OF CONCEPT STUB. This does not register anything. It touches the path
-// given in the request so that a caller can observe that it was reached, and
-// returns an empty response.
+// PROOF OF CONCEPT STUB. This does not register anything. It validates the
+// request, touches the path given in it so that a caller can observe that it
+// was reached, and returns an empty response.
 //
 // The next increment replaces the body with a call forwarding to the control
 // plane over s.agentAPI, in the manner of UpdateAppStatus below. When that
 // happens, delete this stub, delete the poc_marker_path field from the
 // request message, and let the marker move to whatever the control plane does.
+// The validation stays: the caller is an arbitrary process inside the
+// workspace, so the request is untrusted regardless of what handles it.
 func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.CreateAIAgentRequest) (*proto.CreateAIAgentResponse, error) {
+	workspaceID, err := uuid.FromBytes(req.GetWorkspaceId())
+	if err != nil {
+		return nil, xerrors.Errorf("workspace_id is not a uuid: %w", err)
+	}
+	if workspaceID == uuid.Nil {
+		return nil, xerrors.New("workspace_id is required")
+	}
+
+	// The token is not parsed. It is a uuid under token authentication, but
+	// the instance identity methods produce something else, so nothing here
+	// may assume a shape.
+	agentToken := req.GetAgentToken()
+	if len(agentToken) == 0 {
+		return nil, xerrors.New("agent_token is required")
+	}
+
 	markerPath := req.GetPocMarkerPath()
 	if markerPath == "" {
 		return nil, xerrors.New("poc_marker_path is required while this handler is a stub")
 	}
 
-	if err := os.WriteFile(markerPath, []byte("CreateAIAgent\n"), 0o600); err != nil {
+	// The marker names the handler and repeats what it was given, so that a
+	// caller can tell not only that the call arrived but that it arrived
+	// intact. The token appears as a digest: this is a credential, and a
+	// proof of concept about credentials should not be the thing that writes
+	// one to disk.
+	tokenDigest := sha256.Sum256(agentToken)
+	marker := "CreateAIAgent\nworkspace_id=" + workspaceID.String() +
+		"\nagent_token_sha256=" + hex.EncodeToString(tokenDigest[:]) + "\n"
+	if err := os.WriteFile(markerPath, []byte(marker), 0o600); err != nil {
 		return nil, xerrors.Errorf("write poc marker %q: %w", markerPath, err)
 	}
-	s.logger.Info(ctx, "poc stub: CreateAIAgent called", slog.F("marker_path", markerPath))
+
+	// The token is deliberately absent from the log line, for the same reason
+	// it is absent from the marker.
+	s.logger.Info(ctx, "poc stub: CreateAIAgent called",
+		slog.F("workspace_id", workspaceID), slog.F("marker_path", markerPath))
 
 	return &proto.CreateAIAgentResponse{}, nil
 }
