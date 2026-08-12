@@ -132,14 +132,25 @@ func (s *Handler) verifyAuthHeader(r *http.Request) bool {
 	return len(s.opts.SCIMAPIKey) != 0 && subtle.ConstantTimeCompare(hdr, s.opts.SCIMAPIKey) == 1
 }
 
-func scimUnauthorized(rw http.ResponseWriter) {
+// WriteError writes an RFC 7644 section 3.12 error response, per
+// https://datatracker.ietf.org/doc/html/rfc7644#section-3.12. SCIM providers
+// parse that shape, so a codersdk.Response here would be a protocol violation
+// even with the right status.
+//
+// RFC 7644 expresses status as a JSON string, which is what ScimError marshals.
+// The legacy implementation's library writes it as a number, so the two paths
+// differ on that field; this is the compliant form and is not the one to change.
+func WriteError(rw http.ResponseWriter, status int, detail string) {
 	rw.Header().Set("Content-Type", "application/scim+json")
-	rw.WriteHeader(http.StatusUnauthorized)
-	// scim error spec:
-	// https://datatracker.ietf.org/doc/html/rfc7644#section-3.12
+	rw.WriteHeader(status)
 	_ = json.NewEncoder(rw).Encode(scimErrors.ScimError{
-		ScimType: "", // No scimType exists for unauthorized errors.
-		Detail:   "invalid authorization",
-		Status:   http.StatusUnauthorized,
+		// RFC 7644 defines scimType keywords only for 400 responses.
+		ScimType: "",
+		Detail:   detail,
+		Status:   status,
 	})
+}
+
+func scimUnauthorized(rw http.ResponseWriter) {
+	WriteError(rw, http.StatusUnauthorized, "invalid authorization")
 }
