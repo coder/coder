@@ -147,10 +147,10 @@ export const PullRequestAndWorkingChanges: Story = {
 		).toBeVisible();
 
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// The state is now conveyed by the icon color rather than a
-		// visible "Open" label, so we only assert the identifier text.
+		// Multi-item view: dropdown trigger shows the state pill and the
+		// identifier separated by a divider.
+		await expect(switcher).toHaveTextContent("Open");
 		await expect(switcher).toHaveTextContent("PR #23020");
-		await expect(switcher).not.toHaveTextContent("Open");
 
 		const title = canvas.getByTestId("git-panel-pr-title");
 		await expect(title).toHaveTextContent(
@@ -247,9 +247,10 @@ export const DraftPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// State is icon-only on the trigger; identifier stays visible.
+		// Draft PR is paired with a working repo, so the switcher is a
+		// dropdown and keeps the visible state pill.
+		await expect(switcher).toHaveTextContent("Draft");
 		await expect(switcher).toHaveTextContent("PR #22950");
-		await expect(switcher).not.toHaveTextContent("Draft");
 	},
 };
 
@@ -276,9 +277,16 @@ export const MergedPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// State is icon-only on the trigger; identifier stays visible.
+		// Single-item view: the trigger drops chrome and state label so
+		// only the identifier remains visible. State is conveyed by the
+		// icon color and its aria-label.
 		await expect(switcher).toHaveTextContent("PR #23000");
 		await expect(switcher).not.toHaveTextContent("Merged");
+		await expect(
+			within(switcher).getByRole("img", {
+				name: "Pull request status: Merged",
+			}),
+		).toBeInTheDocument();
 	},
 };
 
@@ -305,9 +313,16 @@ export const ClosedPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// State is icon-only on the trigger; identifier stays visible.
+		// Single-item view: the trigger drops chrome and state label so
+		// only the identifier remains visible. State is conveyed by the
+		// icon color and its aria-label.
 		await expect(switcher).toHaveTextContent("PR #22800");
 		await expect(switcher).not.toHaveTextContent("Closed");
+		await expect(
+			within(switcher).getByRole("img", {
+				name: "Pull request status: Closed",
+			}),
+		).toBeInTheDocument();
 	},
 };
 
@@ -481,7 +496,9 @@ export const EverDirtyRepoGoneClean: Story = {
 			"[data-testid='git-panel-view-switcher']",
 		);
 		expect(switcher).not.toBeNull();
-		expect(switcher?.textContent ?? "").toContain("Working");
+		// Single-item switcher shows just the identifier (the repo name);
+		// the "Working" state pill is dropdown-only.
+		expect(switcher?.textContent ?? "").toContain("coder");
 
 		// The content pane falls through to the diff viewer's empty state.
 		expect(canvasElement.textContent ?? "").toContain("No file changes");

@@ -99,11 +99,12 @@ interface ViewItemBase {
 	itemPrimary: string;
 	/** Secondary text in the dropdown item (e.g. PR title, repo name). */
 	itemSecondary?: string;
+	stateClasses: string;
 	icon: React.ReactNode;
 	/**
-	 * Accessible label for the state icon. Screen readers announce this
-	 * because the state is now conveyed by icon color alone on the
-	 * trigger. Follows a `"<kind> status: <state>"` pattern.
+	 * Accessible label for the state icon. Used on the single-item
+	 * trigger where the state is conveyed by icon color alone; screen
+	 * readers announce this in place of the visible state pill.
 	 */
 	iconLabel: string;
 }
@@ -273,6 +274,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 					triggerIdentifier: `PR #${prTab.prNumber}`,
 					itemPrimary: `PR #${prTab.prNumber}`,
 					itemSecondary: prTitle || undefined,
+					stateClasses: prStateClasses(prState, prDraft),
 					icon: (
 						<PrStateIcon
 							state={prState}
@@ -289,6 +291,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 					triggerIdentifier: remoteHeadBranch || "Branch",
 					itemPrimary: "Branch",
 					itemSecondary: remoteHeadBranch || undefined,
+					stateClasses: "text-content-secondary",
 					icon: <GitBranchIcon className="!size-3.5 shrink-0" />,
 					iconLabel: "Git view: Branch",
 				}
@@ -302,6 +305,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		triggerIdentifier: repoLabel(repoRoot),
 		itemPrimary: "Working",
 		itemSecondary: repoLabel(repoRoot),
+		stateClasses: "text-content-secondary",
 		icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
 		iconLabel: `Git view: Working (${repoLabel(repoRoot)})`,
 	}));
@@ -467,53 +471,52 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 
 	const isSingleItem = items.length <= 1;
 
-	// The state is conveyed by the icon color (open/merged/closed/draft
-	// via PrStateIcon, dirty via CircleDotIcon), so the remote trigger
-	// only surfaces the identifier text. Local repos keep the "Working"
-	// label because the identifier alone (a repo name) does not read as
-	// a status.
-	const showStateLabelInline = activeItem.kind === "local";
-
-	const triggerContent = (
-		<span className="flex h-full min-w-0 items-center gap-1.5 px-2 leading-none">
-			<span
-				role="img"
-				aria-label={activeItem.iconLabel}
-				className="inline-flex size-3.5 shrink-0 items-center justify-center"
-			>
-				{activeItem.icon}
-			</span>
-			{showStateLabelInline && (
-				<span className="whitespace-nowrap font-medium text-content-primary">
-					{activeItem.stateLabel}
-				</span>
-			)}
-			<span
-				className={cn(
-					"min-w-0 truncate",
-					showStateLabelInline
-						? "text-content-secondary"
-						: "font-medium text-content-primary",
-				)}
-			>
-				{activeItem.triggerIdentifier}
-			</span>
-			{!isSingleItem && (
-				<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
-			)}
-		</span>
-	);
-
+	// Single-item trigger: no button chrome (no border, background, or
+	// padding), just the icon and identifier as inline text. The state
+	// pill is dropped so the icon color is the only state signal, so add
+	// an aria-label to keep the state readable to screen readers.
 	if (isSingleItem) {
 		return (
 			<div
-				className="inline-flex h-6 min-w-0 max-w-full items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs"
+				className="inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 text-xs"
 				data-testid="git-panel-view-switcher"
 			>
-				{triggerContent}
+				<span
+					role="img"
+					aria-label={activeItem.iconLabel}
+					className="inline-flex size-3.5 shrink-0 items-center justify-center"
+				>
+					{activeItem.icon}
+				</span>
+				<span className="min-w-0 truncate font-medium text-content-primary">
+					{activeItem.triggerIdentifier}
+				</span>
 			</div>
 		);
 	}
+
+	// Dropdown trigger: two-part pill with the state on the left (colored
+	// via `stateClasses`) separated from the identifier by a divider, plus
+	// a chevron to indicate the dropdown.
+	const triggerContent = (
+		<>
+			<span
+				className={cn(
+					"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid border-border-default px-1.5 font-medium leading-none",
+					activeItem.stateClasses,
+				)}
+			>
+				<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+					{activeItem.icon}
+				</span>
+				<span className="whitespace-nowrap">{activeItem.stateLabel}</span>
+			</span>
+			<span className="inline-flex min-w-0 items-center gap-1 pl-1.5 pr-1 text-content-primary">
+				<span className="truncate">{activeItem.triggerIdentifier}</span>
+				<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+			</span>
+		</>
+	);
 
 	return (
 		<DropdownMenu>
@@ -548,11 +551,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 								isActive && "bg-surface-secondary text-content-primary",
 							)}
 						>
-							<span
-								role="img"
-								aria-label={item.iconLabel}
-								className="inline-flex size-3.5 shrink-0 items-center justify-center"
-							>
+							<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
 								{item.icon}
 							</span>
 							<span className="whitespace-nowrap font-medium">
