@@ -7,7 +7,10 @@ import {
 } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { templateByNameKey } from "#/api/queries/templates";
-import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
+import {
+	workspaceByOwnerAndNameKey,
+	workspacePermissions,
+} from "#/api/queries/workspaces";
 import type { Workspace } from "#/api/typesGenerated";
 import { Toaster } from "#/components/Toaster/Toaster";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
@@ -165,7 +168,7 @@ export const RestartFailureShowsErrorToast: Story = {
 				data: autostopDisabledWorkspace,
 			},
 			{
-				key: ["workspaces", autostopDisabledWorkspace.id, "permissions"],
+				key: workspacePermissions(autostopDisabledWorkspace).queryKey,
 				data: {
 					readWorkspace: true,
 					shareWorkspace: true,
@@ -244,7 +247,7 @@ export const RestartDialogWarnsAboutTemplateUpdate: Story = {
 				data: MockWorkspace,
 			},
 			{
-				key: ["workspaces", MockWorkspace.id, "permissions"],
+				key: workspacePermissions(MockWorkspace).queryKey,
 				data: {
 					readWorkspace: true,
 					shareWorkspace: true,
