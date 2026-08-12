@@ -21,6 +21,13 @@ const uploadedFileIds = (
 		state.status === "uploaded" && state.fileId ? [state.fileId] : [],
 	);
 
+const renderAttachments = (initialProps: { orgId: string | undefined }) =>
+	renderHook(
+		({ orgId }: { orgId: string | undefined }) =>
+			useFileAttachments(orgId, { persist: true }),
+		{ initialProps },
+	);
+
 describe("useFileAttachments org scoping", () => {
 	beforeEach(() => {
 		localStorage.clear();
@@ -31,11 +38,7 @@ describe("useFileAttachments org scoping", () => {
 			persistedAttachmentsStorageKey,
 			JSON.stringify([persistEntry("file-b", "b.txt", "org-b")]),
 		);
-		const { result, rerender } = renderHook(
-			({ orgId }: { orgId: string | undefined }) =>
-				useFileAttachments(orgId, { persist: true }),
-			{ initialProps: { orgId: undefined as string | undefined } },
-		);
+		const { result, rerender } = renderAttachments({ orgId: undefined });
 
 		expect(result.current.attachments).toHaveLength(0);
 		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toContain(
@@ -51,11 +54,7 @@ describe("useFileAttachments org scoping", () => {
 			persistedAttachmentsStorageKey,
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
-		const { result, rerender } = renderHook(
-			({ orgId }: { orgId: string | undefined }) =>
-				useFileAttachments(orgId, { persist: true }),
-			{ initialProps: { orgId: "org-a" as string | undefined } },
-		);
+		const { result, rerender } = renderAttachments({ orgId: "org-a" });
 		expect(uploadedFileIds(result.current)).toStrictEqual(["file-a"]);
 		rerender({ orgId: "org-b" });
 		await waitFor(() => {
