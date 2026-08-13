@@ -13,7 +13,7 @@ Each work package is sized so that completing it produces a passing acceptance
 test. Subsections are fixed for now and may grow later:
 
 - **Summary.** A sentence or two.
-- **Status.** What is built, once any of it is. Absent until then.
+- **Status.** What remains, once work has started. Absent until then.
 - **New behavior.** What the package adds or changes in the running system.
 - **New data.** One item per new datum: table, column, type, interface.
 - **Acceptance tests.** What whole-package tests must pass for it to be done.
@@ -28,24 +28,14 @@ test. Subsections are fixed for now and may grow later:
 
 A `workspace_agent` calls an API endpoint in the control plane to notify it of
 the creation of an AI agent somewhere within its workspace. The control plane
-mints an identifier for the AI agent and records its creation.
-
-Issuing a credential to the AI agent was part of this package when it was
-planned. It is now WP2, for the reason under New behavior.
+mints an identifier for the AI agent, issues it a credential, and records both.
 
 ### Status
 
-**Built, and the acceptance test passes on it.** Where the code lives:
+Identity is built and the acceptance test passes on it. What remains:
 
-- `coderd/entity/`, a new package owning entity lifecycle, the identities
-  issued to entities, and the journal accounting for both. `DIRECTORY.md`
-  there states its scope and the conventions code in it follows.
-- `entity_journal`, migration `000562`, indexed by `000563`.
-- `ai_agents`, migration `000564`.
-- `CreateAIAgent` on the `AgentSocket` service and on the `Agent` service, the
-  latter taking the agent API to v2.11.
-- `coderd/agentapi/aiagent.go`, the control plane handler.
-- `poc_tests/`, the acceptance test with its probe and startup script.
+- Issuance of a placeholder credential, returned to the caller, and the journal
+  entry recording it.
 
 ### New behavior
 
@@ -54,11 +44,9 @@ planned. It is now WP2, for the reason under New behavior.
   even after proper agent creation code is in place.
 - A write to the entity journal recording the creation of a new AI agent, in
   the same transaction as the row it accounts for.
-- ~~Issuance of a credential for the AI agent~~. **Moved to WP2.** The
-  mandates in `poc_audit/security_findings.md` govern how a credential may be
-  minted, stored, and journaled, and satisfying them is work of its own. Doing
-  it inside this package would have meant either deferring the mandates or
-  doubling the package.
+- Issuance of a credential for the AI agent to use for subsequent calls to the
+  control plane, with an entry recording that issuance written in the same
+  transaction.
 
 ### New data
 
@@ -66,18 +54,18 @@ planned. It is now WP2, for the reason under New behavior.
   processes inside a workspace use to reach the `workspace_agent`.
 - **A new drpc method on the `Agent` service**, the same service that already
   serves the manifest call shown in the proposal diagram. The
-  `workspace_agent` calls this one to reach the control plane. Adding it moved
-  the agent API to v2.11, which was not anticipated: that API is versioned and
-  negotiated, so one rpc also costs a version bump, a client interface, two
-  connect helpers, and a method on every test double.
-- **One journal, not two.** The plan called for a journal per subject matter,
-  one for the AI agent lifecycle and one for its credential. What was built is
-  a single entity-agnostic journal, `entity_journal`, whose entries name their
+  `workspace_agent` calls this one to reach the control plane. That API is
+  versioned and negotiated, so one rpc also costs a version bump, a client
+  interface, two connect helpers, and a method on every test double.
+- **One journal for every entity**, `entity_journal`, whose entries name their
   subject and actor by a `(type, identifier)` pair. The approach in
   `poc_audit/audit_approach.md` is stated independently of any entity, so one
-  journal follows from it and two would have needed a reason.
-- **A table for AI agent identities**, `ai_agents`. Not in the plan, and
-  necessary: without it the subject of every entry named nothing.
+  journal serves all of them.
+- **A table for AI agent identities**, `ai_agents`. An entry's subject has to
+  name something that exists.
+- **A representation of the credential**, and a non secret identifier for it so
+  that an entry can name which credential without disclosing it. Placeholder
+  for the PoC; see the cheats.
 
 ### Acceptance tests
 
@@ -87,29 +75,37 @@ A test that follows the sequence in
 Test Scenario:
 
 1. The workspace starts and its `workspace_agent` reaches the ready state.
-2. The startup script runs the minimal executable, which makes the call.
-3. The call returns an AI agent identifier.
+2. The startup script runs the minimal executable, which asks the control
+   plane, by way of the `workspace_agent`, to create an AI agent.
+3. The control plane returns an AI agent identifier and a credential.
 4. Verify that the identifier names a row in `ai_agents` owned by the owner of
-   the workspace the call came from.
+   the workspace the request came from.
 5. Verify that the journal contains one creation entry whose subject is that
    identifier and whose actor is the `workspace_agent` the control plane
    authenticated.
-6. Verify independently, from the script timings the agent reports, that the
+6. Verify that the journal contains one issuance entry naming the credential by
+   an identifier that is not the credential's value.
+7. Verify independently, from the script timings the agent reports, that the
    executable exited zero.
 
 Notes:
 
-- The minimal executable makes the call and does little else.
+- The minimal executable makes that request and does little else.
 - **Verification is by reading from the database directly.**
-- **No test template was needed.** `dbfake.WorkspaceBuild(...).WithAgent(...)`
-  attaches the startup script to a built workspace without a provisioner, so
-  nothing any real workspace uses is touched either way.
+- The test builds its workspace with
+  `dbfake.WorkspaceBuild(...).WithAgent(...)`, which attaches the startup
+  script without running a provisioner, so no template that real workspaces use
+  is involved.
 - The identifier is taken from the executable's own output rather than from the
   database, because that is the route a real caller receives it by. Reading it
   from the database instead would leave the returned value unchecked, and a
   handler that persisted one identifier and returned another would pass.
-- Step 6 is independent of steps 4 and 5 on purpose. A call that succeeded and
-  was then followed by a failure is still a failure.
+- **There is nowhere yet to present the issued credential**: the endpoints that
+  would accept it belong to collaborator work that is not available. A live
+  test of the credential is therefore deferred, and step 6 checks only that
+  issuance was recorded.
+- Step 7 is independent of the steps above it on purpose. A call that succeeded
+  and was then followed by a failure is still a failure.
 
 ### Implementation
 
@@ -120,28 +116,30 @@ Notes:
 - `coderd/agentapi/api.go`, embedding the new sub API in `type API struct` at
   line 47, beside `*ManifestAPI`, and constructing it in the same place the
   others are constructed at line 122.
-- `coderd/database/migrations/`, a new up and down pair creating the two
-  journals.
+- `coderd/database/migrations/`, up and down pairs for the journal, its
+  indexes, and the AI agent table.
 - `coderd/database/queries/`, new queries, followed by `make gen`.
 - `coderd/database/dbauthz/dbauthz.go`, authorization wrappers for each new
   query.
-- `coderd/rbac/policy/policy.go`, only if the journals need a resource of their
-  own. May be avoidable for the PoC by reusing an existing resource.
+- `coderd/rbac/policy/policy.go` is **not** touched. The journal and the AI
+  agent table reuse `rbac.ResourceSystem` rather than taking a resource of their
+  own. See the cheats.
 - `agent/agentsocket/`, adding one rpc to the `AgentSocket` service in the
   proto and implementing it in the service, so that the `workspace_agent`
   relays the call onward. `UpdateAppStatus` on that service is the model to
   follow, since it already forwards to the control plane's agent API.
 
-Because this is drpc rather than REST, four things the earlier draft listed are
-**not** needed: no route registration in `coderd/coderd.go`, no `codersdk` HTTP
-types, no swagger annotations, and no `coderd/apidoc` regeneration.
+Because this is drpc rather than REST, four things a new HTTP endpoint would
+need are **not** needed: no route registration in `coderd/coderd.go`, no
+`codersdk` HTTP types, no swagger annotations, and no `coderd/apidoc`
+regeneration.
 
 **New locations**
 
-- `coderd/entity/`, the package owning lifecycle, identity, and the journal.
-  Not in the plan. The handler needed somewhere to call that was neither an
-  HTTP handler nor a generated query, and `coderd/wsbuilder` is the precedent
-  for a package owning transactional creation.
+- `coderd/entity/`, the package owning lifecycle, identity, and the journal. The
+  handler needs somewhere to call that is neither an HTTP handler nor a
+  generated query, and `coderd/wsbuilder` is the precedent for a package owning
+  transactional creation.
 - `coderd/agentapi/aiagent.go`, the handler, following the shape of
   `manifest.go` in the same package.
 - `coderd/database/queries/aiagents.sql`, the queries.
@@ -194,14 +192,19 @@ originates from the `workspace_agent` rather than from whatever prompted it:
 1. The minimal executable calls the local `AgentSocket` service.
 2. The `workspace_agent` relays that to the control plane over the `Agent`
    service, on the same session it already uses for the manifest.
-3. The control plane mints the identifier and credential, writes both journals,
-   and returns.
+3. The control plane mints the identifier and the credential, writes the row
+   and both entries in one transaction, and returns.
 
 The executable therefore needs only a local socket client, not a session to the
 control plane. `UpdateAppStatus` already follows this path and is the model.
 
 ### PoC cheats
 
+- **The credential is a placeholder** and not a form any credential should
+  take. It is stored in a recoverable form, which the mandates in
+  `poc_audit/security_findings.md` forbid, and it is minted with no expiry,
+  rotation, or revocation. Those mandates govern the real thing and are post
+  proof of concept work; they are not restated here.
 - **The mock call is not real AI agent creation.** An identity is minted and a
   row exists, so the entity is real and the journal accounts for something.
   What does not exist is any AI agent process the identity names. **This is a
@@ -236,54 +239,3 @@ control plane. `UpdateAppStatus` already follows this path and is the model.
 - **The executable prints the minted identifier to standard output** so the
   test can read it out of the script log. Nothing in a real workspace would
   want that line.
-
-## WP2. Issue an AI agent credential
-
-### Summary
-
-The control plane issues a credential to a newly created AI agent, and journals
-the issuance. This was part of WP1 when it was planned and was separated once
-it became clear that the mandates governing credentials are a body of work in
-their own right.
-
-Not started. What follows is what is known, not a plan that has been worked
-through.
-
-### New behavior
-
-- Minting a credential for an AI agent, at creation, in the same transaction as
-  the identity and its journal entry.
-- Returning that credential to the caller once, since only a non reversible
-  form of it is kept.
-- A journal entry recording the issuance, naming the credential by a non secret
-  identifier and never by its value.
-
-### New data
-
-- **A representation of the credential** that stores no recoverable form of it.
-- **A non secret identifier for each credential**, so that an entry can name
-  which credential without disclosing it.
-- Possibly a new event in the journal's vocabulary. Whether issuance is a
-  lifecycle event of the AI agent, of the credential, or of both is undecided,
-  and the answer decides whether the credential is itself an entity by the test
-  in `coderd/entity/DIRECTORY.md`.
-
-### Constraints already decided
-
-`poc_audit/security_findings.md` governs this package and its mandates are not
-optional. The control plane is the sole issuer. A credential passed out of it
-is never written to Postgres. Only a non reversible form is stored. The schema
-supports overlapping validity, so rotation is possible and revocation is a
-state rather than an absence. Issuance, rotation, and revocation are auditable.
-
-Two things in this repository make that harder than it sounds, and both are
-recorded as findings there: the existing `workspace_agent` credential is minted
-outside the control plane and stored in plaintext in a `uuid` column, so it is
-not a model to copy.
-
-### Open
-
-- Whether a credential is an entity, per the test above.
-- Whether the acceptance test can present the credential anywhere. WP1 deferred
-  a live test because the endpoints that would accept one belong to
-  collaborator work. That may still be true.
