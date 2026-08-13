@@ -38,7 +38,6 @@ import {
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import type { Permissions } from "#/modules/permissions";
-import { docs } from "#/utils/docs";
 import { SpendEstimateDocsLink } from "./AICostControl";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
@@ -96,8 +95,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 		return (
 			<PaywallPremium
 				message="Groups"
-				description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
-				documentationLink={docs("/admin/users/groups-roles")}
+				description="Organize users into groups with restricted access to templates."
 				canViewPremium={permissions.viewAllLicenses}
 			/>
 		);

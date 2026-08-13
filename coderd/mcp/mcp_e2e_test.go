@@ -96,6 +96,31 @@ func TestMCPHTTP_E2E_ClientIntegration(t *testing.T) {
 
 	// Check for some basic tools that should be available
 	assert.Contains(t, foundTools, toolsdk.ToolNameGetAuthenticatedUser, "Should have authenticated user tool")
+
+	prompts, err := mcpClient.ListPrompts(ctx, nil)
+	require.NoError(t, err)
+	var foundPrompts []string
+	for _, prompt := range prompts.Prompts {
+		foundPrompts = append(foundPrompts, prompt.Name)
+	}
+	for _, prompt := range toolsdk.AllPrompts {
+		require.Contains(t, foundPrompts, prompt.Name)
+	}
+
+	promptResult, err := mcpClient.GetPrompt(ctx, &mcp.GetPromptParams{
+		Name:      toolsdk.PromptNameAgentsDelegate,
+		Arguments: map[string]string{"task": "Fix the flaky test."},
+	})
+	require.NoError(t, err)
+	require.Len(t, promptResult.Messages, 1)
+	require.Equal(t, mcp.Role("user"), promptResult.Messages[0].Role)
+	promptText, ok := promptResult.Messages[0].Content.(*mcp.TextContent)
+	require.True(t, ok)
+	require.Contains(t, promptText.Text, "Fix the flaky test.")
+	require.Contains(t, promptText.Text, toolsdk.ToolNameCreateChat)
+
+	_, err = mcpClient.GetPrompt(ctx, &mcp.GetPromptParams{Name: toolsdk.PromptNameAgentsDelegate})
+	require.ErrorContains(t, err, "missing required prompt argument: task")
 	require.NotNil(t, userTool)
 	require.NotNil(t, writeFileTool)
 	require.NotNil(t, userTool.Annotations)
