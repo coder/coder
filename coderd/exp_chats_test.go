@@ -8316,15 +8316,15 @@ func TestChatMessageWithFiles(t *testing.T) {
 		// send before file-link validation, so scan queued messages too.
 		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
-		var persisted []codersdk.ChatMessagePart
 		for _, msg := range messages.Messages {
-			persisted = append(persisted, msg.Content...)
+			for _, part := range msg.Content {
+				require.NotContains(t, part.Text, "one too many", "rejected send should not persist a message")
+			}
 		}
 		for _, queued := range messages.QueuedMessages {
-			persisted = append(persisted, queued.Content...)
-		}
-		for _, part := range persisted {
-			require.NotContains(t, part.Text, "one too many", "rejected send should not persist a message")
+			for _, part := range queued.Content {
+				require.NotContains(t, part.Text, "one too many", "rejected send should not queue a message")
+			}
 		}
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
