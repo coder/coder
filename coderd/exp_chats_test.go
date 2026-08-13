@@ -4290,7 +4290,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.Equal(t, "AI provider is disabled.", sdkErr.Message)
 	})
 
-	t.Run("AllowsSlashNamespacedModelOnOpenAIType", func(t *testing.T) {
+	t.Run("RejectsOpenRouterMisconfiguredAsOpenAI", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4307,13 +4307,14 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		contextLimit := int64(4096)
-		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			AIProviderID: &aiProvider.ID,
 			Model:        "anthropic/claude-opus-4.6",
 			ContextLimit: &contextLimit,
 		})
-		require.NoError(t, err)
-		require.Equal(t, "anthropic/claude-opus-4.6", modelConfig.Model)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "OpenRouter-like provider configured as type openai does not support slash-namespaced models.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
 	})
 
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
@@ -4381,7 +4382,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.Equal(t, "gpt-4o-mini-updated", updated.Model)
 	})
 
-	t.Run("AllowsModelChangeToSlashNamespacedOnOpenAIType", func(t *testing.T) {
+	t.Run("RejectsOpenRouterMisconfiguredAsOpenAI", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4405,14 +4406,15 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+		_, err = client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			Model: "anthropic/claude-opus-4.6",
 		})
-		require.NoError(t, err)
-		require.Equal(t, "anthropic/claude-opus-4.6", updated.Model)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "OpenRouter-like provider configured as type openai does not support slash-namespaced models.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
 	})
 
-	t.Run("UnrelatedEditPreservesSlashNamespacedModel", func(t *testing.T) {
+	t.Run("AllowsUnrelatedEditOnExistingMisconfiguredOpenAI", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4441,7 +4443,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.Equal(t, modelConfig.Model, updated.Model)
 	})
 
-	t.Run("AllowsProviderChangeToOpenAITypeWithSlashNamespacedModel", func(t *testing.T) {
+	t.Run("RejectsProviderChangeToMisconfiguredOpenAI", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4456,7 +4458,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 			APIKeys: []string{"test-api-key"},
 		})
 		require.NoError(t, err)
-		openAITypeProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		misconfiguredProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenAI,
 			Name:    "openrouter",
 			Enabled: true,
@@ -4473,12 +4475,12 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
-			AIProviderID: &openAITypeProvider.ID,
+		_, err = client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			AIProviderID: &misconfiguredProvider.ID,
 		})
-		require.NoError(t, err)
-		require.Equal(t, openAITypeProvider.ID, updated.AIProviderID)
-		require.Equal(t, "anthropic/claude-opus-4.6", updated.Model)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "OpenRouter-like provider configured as type openai does not support slash-namespaced models.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
 	})
 
 	t.Run("DisablePreservesRecordAndHidesItFromNonAdmins", func(t *testing.T) {

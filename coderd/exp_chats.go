@@ -6428,6 +6428,26 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+type chatModelConfigProviderModelError struct {
+	Response codersdk.Response
+}
+
+func (e *chatModelConfigProviderModelError) Error() string {
+	return e.Response.Message
+}
+
+func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model string) *chatModelConfigProviderModelError {
+	if err := chatd.ValidateAIGatewayProviderModel(aiProvider, model); err != nil {
+		return &chatModelConfigProviderModelError{
+			Response: codersdk.Response{
+				Message: "OpenRouter-like provider configured as type openai does not support slash-namespaced models.",
+				Detail:  "Change the AI provider type to openrouter or openai-compat. Slash-namespaced model IDs on OpenRouter-like gateways require one of those provider types.",
+			},
+		}
+	}
+	return nil
+}
+
 // inChatModelConfigWriteTx runs fn in a transaction that holds the advisory
 // lock serializing chat model config writes. All writes to the table must go
 // through this helper so concurrent writers cannot act on stale reads, e.g.
@@ -6483,6 +6503,11 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Model is required.",
 		})
+		return
+	}
+
+	if validationErr := validateChatModelConfigProviderModel(aiProvider, model); validationErr != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, validationErr.Response)
 		return
 	}
 
@@ -6551,6 +6576,10 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if !lockedAIProvider.Enabled {
 			return errChatProviderNotConfigured
 		}
+		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model); err != nil {
+			return err
+		}
+
 		insertAsDefault := isDefault
 		if !insertAsDefault {
 			_, err := tx.GetDefaultChatModelConfig(ctx)
@@ -6589,7 +6618,11 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
+		var providerModelErr *chatModelConfigProviderModelError
 		switch {
+		case errors.As(err, &providerModelErr):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, providerModelErr.Response)
+			return
 		case database.IsUniqueViolation(err):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat model config already exists.",
@@ -6737,6 +6770,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ID:                   existing.ID,
 	}
 
+	// Re-derive the provider type under lock when the model or provider changes.
 	revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
 	var updated database.ChatModelConfig
 	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
@@ -6751,6 +6785,9 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 			if !aiProvider.Enabled {
 				return errChatProviderNotConfigured
+			}
+			if err := validateChatModelConfigProviderModel(aiProvider, updateParams.Model); err != nil {
+				return err
 			}
 		}
 
@@ -6794,7 +6831,11 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
+		var providerModelErr *chatModelConfigProviderModelError
 		switch {
+		case errors.As(err, &providerModelErr):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, providerModelErr.Response)
+			return
 		case database.IsUniqueViolation(err):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat model config already exists.",

@@ -84,6 +84,31 @@ func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	return t.base.RoundTrip(cloned)
 }
 
+// ValidateAIGatewayProviderModel rejects slash-namespaced models when an
+// OpenRouter-like gateway is configured with the OpenAI provider type.
+func ValidateAIGatewayProviderModel(provider database.AIProvider, model string) error {
+	if provider.Type != database.AIProviderTypeOpenai {
+		return nil
+	}
+	if !isSlashNamespacedAIGatewayModel(model) || !isOpenRouterLikeAIGatewayProvider(provider) {
+		return nil
+	}
+	return xerrors.New("OpenRouter-like provider configured as type openai does not support slash-namespaced models")
+}
+
+func isSlashNamespacedAIGatewayModel(model string) bool {
+	prefix, suffix, ok := strings.Cut(strings.TrimSpace(model), "/")
+	return ok && strings.TrimSpace(prefix) != "" && strings.TrimSpace(suffix) != ""
+}
+
+func isOpenRouterLikeAIGatewayProvider(provider database.AIProvider) bool {
+	if strings.EqualFold(strings.TrimSpace(provider.Name), "openrouter") {
+		return true
+	}
+	host := chatprovider.ProviderBaseURLHostname(provider.BaseUrl)
+	return host == "openrouter.ai" || strings.HasSuffix(host, ".openrouter.ai")
+}
+
 func (p *Server) newModel(
 	_ context.Context,
 	req modelClientRequest,
@@ -103,6 +128,17 @@ func (p *Server) newModel(
 				Kind:      codersdk.ChatErrorKindMissingKey,
 				Retryable: false,
 				Detail:    "If this error persists after resending, please report it as a bug.",
+			},
+		)
+	}
+
+	if err := ValidateAIGatewayProviderModel(route.Provider, req.ModelName); err != nil {
+		return chatprovider.Model{}, chaterror.WithClassification(
+			err,
+			chaterror.ClassifiedError{
+				Kind:      codersdk.ChatErrorKindConfig,
+				Retryable: false,
+				Detail:    "Ask an administrator to change the AI provider type to openrouter or openai-compat.",
 			},
 		)
 	}

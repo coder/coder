@@ -498,6 +498,28 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 		require.False(t, classified.Retryable)
 	})
 
+	t.Run("OpenRouterMisconfiguredAsOpenAI", func(t *testing.T) {
+		t.Parallel()
+		factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatal("transport must not be used for invalid provider config")
+			return nil, xerrors.New("unreachable")
+		})}
+		server := &Server{
+			aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+		}
+		provider := aibridgeTestAIProvider(providerID, "openrouter", database.AIProviderTypeOpenai)
+		_, err := server.newModel(
+			t.Context(),
+			aibridgeTestRequest(chat, "anthropic/claude-opus-4.6"),
+			aibridgeTestRoute(provider),
+			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+		)
+		require.ErrorContains(t, err, "does not support slash-namespaced models")
+		classified := chaterror.Classify(err)
+		require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+		require.False(t, classified.Retryable)
+	})
+
 	t.Run("StaticModel", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{}
@@ -506,7 +528,7 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 	})
 }
 
-func TestAIBridgeProviderTypesPreserveSlashModelID(t *testing.T) {
+func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 	t.Parallel()
 
 	const modelName = "anthropic/claude-opus-4.6"
@@ -524,11 +546,6 @@ func TestAIBridgeProviderTypesPreserveSlashModelID(t *testing.T) {
 			name:         "OpenAICompat",
 			providerName: "openai-compatible-relay",
 			providerType: database.AIProviderTypeOpenaiCompat,
-		},
-		{
-			name:         "OpenAI",
-			providerName: "openrouter",
-			providerType: database.AIProviderTypeOpenai,
 		},
 	}
 
