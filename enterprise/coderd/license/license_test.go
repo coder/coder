@@ -15,11 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -36,42 +34,6 @@ import (
 // authorizer. The callers below never enable the workspace-capable
 // licensing experiment, so it is never asked to authorize anything.
 var testAuthorizer = rbac.NewCachingAuthorizer(prometheus.NewRegistry())
-
-// premiumRuntimeHoursFixture returns a mock store primed with a Premium
-// license carrying runtime hour claims (allocation 100, soft limit 80, hard
-// limit 120) plus the store expectations every entitlements refresh consumes
-// before usage is measured. Callers add expectations for the usage queries
-// under test.
-func premiumRuntimeHoursFixture(t *testing.T) (*dbmock.MockStore, *coderdenttest.LicenseOptions) {
-	t.Helper()
-
-	ctrl := gomock.NewController(t)
-	mDB := dbmock.NewMockStore(ctrl)
-
-	licenseOpts := (&coderdenttest.LicenseOptions{
-		FeatureSet: codersdk.FeatureSetPremium,
-		IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
-		NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
-		GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
-		ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
-		// The addon marks AI Bridge as explicitly entitled, suppressing
-		// the unrelated "AI Governance add-on is required to use AI
-		// Gateway" warning that Premium would otherwise produce.
-	}).UserLimit(100).AIGovernanceAddon(100).AgentRuntimeHours(100, ptr.Ref[int64](80), ptr.Ref[int64](120))
-
-	lic := database.License{
-		ID:  1,
-		JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
-		Exp: licenseOpts.ExpiresAt,
-	}
-
-	mDB.EXPECT().GetUnexpiredLicenses(gomock.Any()).Return([]database.License{lic}, nil)
-	mDB.EXPECT().GetActiveUserCount(gomock.Any(), false).Return(int64(1), nil)
-	mDB.EXPECT().GetActiveAISeatCount(gomock.Any()).Return(int64(0), nil)
-	mDB.EXPECT().GetTemplatesWithFilter(gomock.Any(), gomock.Any()).Return([]database.Template{}, nil)
-
-	return mDB, licenseOpts
-}
 
 func TestEntitlements(t *testing.T) {
 	t.Parallel()
@@ -963,62 +925,6 @@ func TestEntitlements(t *testing.T) {
 		require.Equal(t, codersdk.LicenseManagedAgentLimitExceededWarningText, entitlements.Warnings[0])
 	})
 
-	t.Run("UsageQueryErrorsAreLoggedAndStable", func(t *testing.T) {
-		t.Parallel()
-
-		// Drive the real Entitlements closure with a mock database so
-		// measureUsage's failure path is exercised end to end: the cause
-		// must land in the coderd log, which the stable payload text points
-		// at, and must not land on the unauthenticated entitlements payload.
-		mDB, _ := premiumRuntimeHoursFixture(t)
-
-		mDB.EXPECT().
-			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
-			Return(int64(0), xerrors.New("kaboom managed"))
-
-		// The error-level logs are the behavior under test, so the default
-		// failing test logger cannot be used.
-		var logBuf bytes.Buffer
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
-			AppendSinks(sloghuman.Sink(&logBuf))
-
-		entitlements, err := license.Entitlements(context.Background(), logger, mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
-		require.NoError(t, err)
-		require.True(t, entitlements.HasLicense)
-
-		// The failure surfaces its stable text without the raw cause.
-		require.Contains(t, entitlements.Errors, codersdk.LicenseManagedAgentUsageUnavailableErrorText)
-		for _, entry := range append(entitlements.Errors, entitlements.Warnings...) {
-			require.NotContains(t, entry, "kaboom")
-		}
-
-		logs := logBuf.String()
-		require.Contains(t, logs, "get managed agent count for entitlements")
-		require.Contains(t, logs, "kaboom managed")
-	})
-
-	t.Run("UsageQueryCancelDoesNotLogError", func(t *testing.T) {
-		t.Parallel()
-
-		// A query failing while the refresh's own context is canceled,
-		// e.g. during shutdown, aborts the whole entitlements refresh and
-		// must not log a false query-failure alarm at error level.
-		mDB, _ := premiumRuntimeHoursFixture(t)
-
-		mDB.EXPECT().
-			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
-			Return(int64(0), context.Canceled)
-
-		var logBuf bytes.Buffer
-		logger := testutil.Logger(t).AppendSinks(sloghuman.Sink(&logBuf))
-
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		_, err := license.Entitlements(ctx, logger, mDB, 1, 0, coderdenttest.Keys, all, testAuthorizer, nil)
-		require.ErrorContains(t, err, "get managed agent count")
-		require.NotContains(t, logBuf.String(), "get managed agent count for entitlements")
-	})
-
 	t.Run("AIGovernanceSeatWarnings", func(t *testing.T) {
 		t.Parallel()
 
@@ -1398,12 +1304,6 @@ func TestLicenseEntitlements(t *testing.T) {
 		Licenses    []*coderdenttest.LicenseOptions
 		Enablements map[codersdk.FeatureName]bool
 		Arguments   license.FeatureArguments
-		// KeepNilManagedAgentCountFn skips the default ManagedAgentCountFn
-		// injection below so the nil dev-error path can be exercised.
-		KeepNilManagedAgentCountFn bool
-		// CancelContext cancels the context passed to LicensesEntitlements
-		// before the call, exercising the usage-measurement abort policy.
-		CancelContext bool
 
 		ExpectedErrorContains string
 		AssertEntitlements    func(t *testing.T, entitlements codersdk.Entitlements)
@@ -1656,58 +1556,6 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			// A query failure is surfaced as a stable text in Errors and
-			// leaves Actual unset without aborting the rest of the
-			// entitlements.
-			Name: "ManagedAgentLimit/QueryError",
-			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
-			},
-			Arguments: license.FeatureArguments{
-				ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
-					return 0, xerrors.New("kaboom")
-				},
-			},
-			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assertNoWarnings(t, entitlements)
-				require.Len(t, entitlements.Errors, 1)
-				assert.Equal(t, codersdk.LicenseManagedAgentUsageUnavailableErrorText, entitlements.Errors[0])
-				// The raw error is logged rather than exposed on the
-				// unauthenticated entitlements payload.
-				assert.NotContains(t, entitlements.Errors[0], "kaboom")
-				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
-				assert.Nil(t, feature.Actual)
-			},
-		},
-		{
-			// Forgetting to wire ManagedAgentCountFn is a dev error:
-			// production always provides the closure, so it fails the whole
-			// call loudly instead of degrading into an operator-facing
-			// message.
-			Name: "ManagedAgentLimit/NilFnDevError",
-			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
-			},
-			KeepNilManagedAgentCountFn: true,
-			ExpectedErrorContains:      "developer error: no closure provided to measure managed agent count usage",
-		},
-		{
-			// A failure while the computation's own context is canceled
-			// aborts the whole call rather than degrading to an
-			// entitlements error.
-			Name: "ManagedAgentLimit/ContextCanceled",
-			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
-			},
-			CancelContext: true,
-			Arguments: license.FeatureArguments{
-				ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
-					return 0, context.Canceled
-				},
-			},
-			ExpectedErrorContains: "get managed agent count",
-		},
-		{
 			Name: "ExternalTemplate",
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().UserLimit(100),
@@ -1738,18 +1586,13 @@ func TestLicenseEntitlements(t *testing.T) {
 			}
 
 			// Default to 0 managed agent count.
-			if tc.Arguments.ManagedAgentCountFn == nil && !tc.KeepNilManagedAgentCountFn {
+			if tc.Arguments.ManagedAgentCountFn == nil {
 				tc.Arguments.ManagedAgentCountFn = func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
 					return 0, nil
 				}
 			}
-			ctx := context.Background()
-			if tc.CancelContext {
-				var cancel context.CancelFunc
-				ctx, cancel = context.WithCancel(ctx)
-				cancel()
-			}
-			entitlements, err := license.LicensesEntitlements(ctx, time.Now(), generatedLicenses, tc.Enablements, coderdenttest.Keys, tc.Arguments)
+
+			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, tc.Enablements, coderdenttest.Keys, tc.Arguments)
 			if tc.ExpectedErrorContains != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.ExpectedErrorContains)
@@ -1774,15 +1617,6 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 
 	aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more."
 
-	// A Premium license grants a managed agent limit by default, and a nil
-	// usage closure is a hard developer error, so these subtests wire a
-	// zero-usage measurement closure.
-	zeroUsageArgs := license.FeatureArguments{
-		ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
-			return 0, nil
-		},
-	}
-
 	t.Run("NoAddon_AIBridgeOff", func(t *testing.T) {
 		t.Parallel()
 		// License without addon and AI Bridge disabled should NOT show warning.
@@ -1802,7 +1636,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 			},
 		}
 
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, zeroUsageArgs)
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
 		require.NoError(t, err)
 
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
@@ -1829,7 +1663,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 			},
 		}
 
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, zeroUsageArgs)
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
 		require.NoError(t, err)
 
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
@@ -1861,7 +1695,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 			},
 		}
 
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, zeroUsageArgs)
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
 		require.NoError(t, err)
 
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
@@ -1892,7 +1726,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 			},
 		}
 
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, zeroUsageArgs)
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
 		require.NoError(t, err)
 
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
@@ -1905,7 +1739,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 		t.Parallel()
 		// No license with AI Bridge enabled should NOT show the soft warning
 		// (it will show the generic "not entitled" warning instead).
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{}, aiBridgeEnabledEnablements, coderdenttest.Keys, zeroUsageArgs)
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{}, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
 		require.NoError(t, err)
 
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]

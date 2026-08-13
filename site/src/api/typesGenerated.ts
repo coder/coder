@@ -5769,10 +5769,6 @@ export const LicenseManagedAgentLimitExceededWarningText =
 	"You have built more workspaces with managed agents than your license allows.";
 
 // From codersdk/licenses.go
-export const LicenseManagedAgentUsageUnavailableErrorText =
-	"Unable to determine managed agent usage. The reported count is unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details.";
-
-// From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
 	"License requires telemetry but telemetry is disabled";
 
