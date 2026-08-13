@@ -453,7 +453,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	if (!activeItem) {
 		return (
 			<div
-				className="inline-flex h-6 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 text-xs text-content-secondary"
+				className="inline-flex h-6 items-center gap-1.5 text-xs text-content-secondary"
 				data-testid="git-panel-view-switcher"
 			>
 				<GitBranchIcon className="!size-3.5 shrink-0" />
