@@ -14,7 +14,10 @@ import (
 const (
 	// defaultResponseCacheEntries is the maximum number of cached
 	// responses retained. Once exceeded, the least-recently-used
-	// entry is evicted.
+	// entry is evicted. Sized above the gitsync worker's steady-state
+	// working set: defaultBatchSize (50) rows re-acquired every
+	// DiffStatusTTL (120s) over defaultInterval (10s) ticks, at 2-3
+	// cache keys per row. See coderd/x/gitsync.
 	defaultResponseCacheEntries = 2048
 
 	// maxCachedBodyBytes is the largest response body that will be
@@ -125,5 +128,5 @@ func (c *responseCache) evictOldest() {
 // another, without keeping raw credentials in memory.
 func responseCacheKey(requestURL, token string) string {
 	sum := sha256.Sum256([]byte(token))
-	return requestURL + "\x00" + hex.EncodeToString(sum[:8])
+	return requestURL + "\x00" + hex.EncodeToString(sum[:])
 }
