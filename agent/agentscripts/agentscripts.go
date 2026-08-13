@@ -56,6 +56,14 @@ type Options struct {
 	SSHServer       *agentssh.Server
 	Filesystem      afero.Fs
 	GetScriptLogger func(logSourceID uuid.UUID) ScriptLogger
+
+	// ExtraEnv supplies additional environment for every script this runner
+	// executes, evaluated at exec time rather than when scripts are declared.
+	// This is how values that do not exist until the agent is running reach a
+	// script: the egress proxy address, for instance, is chosen when the proxy
+	// binds. Resolving at exec time also keeps credentials out of the script
+	// body, and therefore out of the script record and Terraform state.
+	ExtraEnv func() []string
 }
 
 // New creates a runner for the provided scripts.
@@ -316,6 +324,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	// storage.
 	cmd.Env = append(cmd.Env, "CODER_SCRIPT_DATA_DIR="+scriptDataDir)
 	cmd.Env = append(cmd.Env, "CODER_SCRIPT_BIN_DIR="+r.ScriptBinDir())
+	if r.ExtraEnv != nil {
+		cmd.Env = append(cmd.Env, r.ExtraEnv()...)
+	}
 
 	scriptLogger := r.GetScriptLogger(script.LogSourceID)
 	// If ctx is canceled here (or in a writer below), we may be

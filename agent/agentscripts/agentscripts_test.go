@@ -355,3 +355,53 @@ func (*fakeScriptLogger) Flush(context.Context) error {
 func newFakeScriptLogger() *fakeScriptLogger {
 	return &fakeScriptLogger{make(chan agentsdk.Log, 100)}
 }
+
+// TestExtraEnv covers the exec-time environment hook. Sandbox startup scripts
+// depend on values that do not exist when the script is declared, such as the
+// egress proxy address chosen when the proxy binds, and on credentials that
+// must never be written into a script body.
+func TestExtraEnv(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	fLogger := newFakeScriptLogger()
+
+	fs := afero.NewMemMapFs()
+	logger := testutil.Logger(t)
+	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = s.Close()
+	})
+
+	// Resolved per execution, not at declaration: a later call can return a
+	// different proxy address without the script changing.
+	calls := 0
+	runner := agentscripts.New(agentscripts.Options{
+		LogDir:      t.TempDir(),
+		DataDirBase: t.TempDir(),
+		Logger:      logger,
+		SSHServer:   s,
+		Filesystem:  fs,
+		GetScriptLogger: func(uuid.UUID) agentscripts.ScriptLogger {
+			return fLogger
+		},
+		ExtraEnv: func() []string {
+			calls++
+			return []string{"CODER_EGRESS_PROXY=http://127.0.0.1:13337"}
+		},
+	})
+	defer runner.Close()
+
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+	err = runner.Init([]codersdk.WorkspaceAgentScript{{
+		LogSourceID: uuid.New(),
+		Script:      "echo $CODER_EGRESS_PROXY",
+	}}, aAPI.ScriptCompleted)
+	require.NoError(t, err)
+	require.NoError(t, runner.Execute(context.Background(), agentscripts.ExecuteAllScripts))
+
+	log := testutil.TryReceive(ctx, t, fLogger.logs)
+	require.Equal(t, "http://127.0.0.1:13337", log.Output,
+		"the script must observe exec-time environment")
+	require.Equal(t, 1, calls, "ExtraEnv must be resolved per execution")
+}
