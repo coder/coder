@@ -47,6 +47,54 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 	assert.Contains(t, body, `id="cancel-link"`)
 }
 
+// The consent page is the only place a person is told what they are about to
+// approve, so what it states has to follow the negotiated scope rather than a
+// fixed sentence. Both directions are asserted: a narrow grant must not be
+// described as full access, and a full grant must not be described by a scope
+// name no user would recognize.
+func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
+	t.Parallel()
+
+	render := func(t *testing.T, scopes []string) string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "https://coder.com/oauth2/authorize", nil)
+		rec := httptest.NewRecorder()
+		site.RenderOAuthAllowPage(rec, req, site.RenderOAuthAllowData{
+			AppName:      "Test OAuth App",
+			CancelURI:    htmltemplate.URL("https://coder.com/cancel"),
+			DashboardURL: "https://coder.com/",
+			CSRFToken:    "csrf-field-value",
+			Username:     "test-user",
+			Scopes:       scopes,
+		})
+		require.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		return rec.Body.String()
+	}
+
+	t.Run("NarrowScopeListed", func(t *testing.T) {
+		t.Parallel()
+
+		body := render(t, []string{"workspace:ssh", "template:read"})
+		assert.Contains(t, body, "workspace:ssh")
+		assert.Contains(t, body, "template:read")
+		assert.NotContains(t, body, "full access",
+			"a scoped grant must not be described as full access")
+		// The approval controls must survive the added branch, since a page
+		// that states the scope but cannot be submitted is worse than the
+		// fixed sentence it replaced.
+		assert.Contains(t, body, `id="allow-form"`)
+		assert.Contains(t, body, `id="cancel-link"`)
+	})
+
+	t.Run("UnrestrictedStaysFullAccess", func(t *testing.T) {
+		t.Parallel()
+
+		body := render(t, nil)
+		assert.Contains(t, body, "full access")
+		assert.NotContains(t, body, `id="scope-list"`)
+	})
+}
+
 // Scope names used by the negotiation tests. Whether a name is in
 // rbac.IsExternalScope's curated catalog is the point of each case, so the two
 // groups are named rather than inlined.
@@ -252,6 +300,31 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		requireInvalidScope(t, resp, reasonScopeNotAllowed)
 		require.NotContains(t, readBody(t, resp), `id="allow-form"`,
 			"the consent page must not render for a scope the app cannot be granted")
+	})
+
+	// The wiring rather than the template: the page a user is actually served
+	// must name the scope the code will carry. Its rejection counterpart is
+	// ConsentPageNotRenderedForInvalidScope above.
+	t.Run("ConsentPageStatesNegotiatedScope", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), "workspace:ssh")
+		defer resp.Body.Close()
+
+		body := readBody(t, resp)
+		require.Contains(t, body, `id="allow-form"`, "the consent page must render")
+		require.Contains(t, body, "workspace:ssh")
+		require.NotContains(t, body, "full access",
+			"a scoped grant must not be described as full access")
+		// The page must state the grant, not the ceiling it was drawn from.
+		// The allowlist here covers workspace:ssh and more, so showing the
+		// allowlist would still satisfy every assertion above while telling
+		// the user they are approving more than the code will carry.
+		require.NotContains(t, body, scopeInCatalog,
+			"the consent page must state the negotiated scope, not the app's allowlist")
 	})
 
 	// The other half of RFC 6749 §4.1.2.1: a redirect URI that does not match

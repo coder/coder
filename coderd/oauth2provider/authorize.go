@@ -195,6 +195,20 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 	return strings.Join(granted, " "), nil
 }
 
+// consentScopes lists a negotiated scope for the consent page. The
+// unrestricted grant is returned as nil, since "coder:all" states to a user
+// far less than the page's own full-access wording does.
+//
+// The negotiated value is canonical and deduplicated by the time it arrives
+// here, so this splits rather than rewrites.
+func consentScopes(granted string) []string {
+	names := strings.Fields(granted)
+	if len(names) == 1 && names[0] == string(database.ApiKeyScopeCoderAll) {
+		return nil
+	}
+	return names
+}
+
 type authorizeParams struct {
 	clientID            string
 	redirectURL         *url.URL
@@ -349,9 +363,12 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 
 		// Reject a scope the app can never be granted before the consent page
 		// renders, rather than after the user clicks Allow. Both handlers run
-		// the check for that reason. Only the POST side needs the negotiated
-		// value, since it is what persists it.
-		if _, err := validateRequestedScope(params.scope, app.Scope); err != nil {
+		// the check for that reason: this one to decide what the page states
+		// and whether it renders at all, the POST side to persist it. The two
+		// negotiate the same query string, since the consent form posts back
+		// to this URL.
+		grantedScope, err := validateRequestedScope(params.scope, app.Scope)
+		if err != nil {
 			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
@@ -392,6 +409,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			DashboardURL: accessURL.String(),
 			CSRFToken:    nosurf.Token(r),
 			Username:     ua.FriendlyName,
+			Scopes:       consentScopes(grantedScope),
 		})
 	}
 }

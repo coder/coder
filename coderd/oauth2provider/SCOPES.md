@@ -88,7 +88,11 @@ Three constraints apply to the request as a whole:
 
 Both `GET` and `POST /oauth2/authorize` run the same scope negotiation. `GET`
 runs it before rendering the consent page, so a request the app can never be
-granted fails before the user is asked to approve anything.
+granted fails before the user is asked to approve anything. The page lists
+what the negotiation produced, so the permissions a user approves are the
+ones the code will carry. An unrestricted grant is described as full access
+rather than by name, since `coder:all` states less to a user than the
+sentence does.
 
 ## What the allowlist accepts
 
@@ -190,7 +194,3 @@ describing more than exists:
   exactly the omitted-scope case where an app receives its whole allowlist.
 - `POST /oauth2/tokens` parses a `scope` parameter but nothing reads it. The
   refresh path is where it would narrow an existing grant.
-- The consent page (`site/static/oauth2allow.html`) tells the user the app
-  will have "full access" to their account regardless of the negotiated
-  scope. Now that a client can hold a genuinely narrow token, that text
-  overstates what the user is approving.
