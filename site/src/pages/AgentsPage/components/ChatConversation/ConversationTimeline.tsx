@@ -447,6 +447,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
 		};
 
+		// A turn already active at first render must not anchor: the scroller
+		// leaves initial-render anchors unhandled, and its fallback for
+		// mutations that are neither clean appends nor prepends jumps to the
+		// oldest unhandled anchor.
+		const [initialAnchorKey, setInitialAnchorKey] = useState<string>();
+
 		const displayMessages = buildDisplayMessages(parsedMessages);
 		const renderRows = assignTimelineRows(
 			displayMessages,
@@ -502,6 +508,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			hasLiveAssistant || isAwaitingFirstStreamChunk
 				? userRowKeys[userRowKeys.length - 1]
 				: undefined;
+		if (initialAnchorKey === undefined && anchorUserRowKey !== undefined) {
+			setInitialAnchorKey(anchorUserRowKey);
+		}
+		const suppressInitialAnchor = anchorUserRowKey === initialAnchorKey;
 		const userNeighborsByKey = new Map<
 			string,
 			{ prevKey?: string; nextKey?: string }
@@ -579,7 +589,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						<MessageScroller.Item
 							key={row.key}
 							messageId={row.key}
-							scrollAnchor={isUser && row.key === anchorUserRowKey}
+							scrollAnchor={
+								isUser && row.key === anchorUserRowKey && !suppressInitialAnchor
+							}
 						>
 							<ChatMessageItem
 								renderKey={row.key}
