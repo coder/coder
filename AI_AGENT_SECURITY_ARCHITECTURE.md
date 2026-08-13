@@ -205,6 +205,9 @@ analysis that derived it.
 
 ### Designation as an RBAC authorization boundary
 
+Status: specified, not implemented. This is Vertical 1 step 10 in the
+implementation order below.
+
 Scope profiles alone cannot confine an agent to its own workspaces, for
 the structural reasons stated above: the allow list is static subject
 state fixed at mint time, one action-independent list applies to the
@@ -319,17 +322,25 @@ The rule consumes two new policy-input attributes:
 
 #### Implementation requirements
 
-Code-level requirements, anchored to current code; the review artifact
-carries fuller snippets for each.
+Status: none of this is implemented. `coderd/rbac` contains no
+designation attribute today. Unlike citations elsewhere in this document,
+which describe current behavior, the `file:line` references in this
+subsection are **change targets**: they name the declaration or call site
+each requirement modifies. The review artifact carries fuller snippets
+for each.
 
 1. **Object attribute.** `rbac.Object` gains `AIAgentID string`
-   (`json:"ai_agent_id"`) and a `WithAIAgentID` builder
-   (`coderd/rbac/object.go:20-43`). Every value-copying helper preserves
-   it, `Equal` compares it, and `All()` deliberately clears it so
-   aggregate authorizations fail closed.
+   (`json:"ai_agent_id"`) and a `WithAIAgentID` builder; the struct is
+   declared at `coderd/rbac/object.go:25-43`. The eight builders that
+   reconstruct the struct (`coderd/rbac/object.go:141-239`) must
+   preserve it, `Equal` (`coderd/rbac/object.go:93`) must compare it,
+   and `All()` must deliberately clear it so aggregate authorizations
+   fail closed.
 2. **Subject attribute.** `rbac.Subject` gains `AIAgentID string`, and
-   `Type` becomes a functional policy input rather than logging-only
-   (`coderd/rbac/authz.go:99-123`). An `AsAIAgent(id, name)` helper sets
+   `Type` becomes a functional policy input rather than logging-only.
+   The struct is declared at `coderd/rbac/authz.go:101-123`, where
+   `Type` is currently documented as "not used in any functional way,
+   only for logging". An `AsAIAgent(id, name)` helper sets
    both and rebuilds `cachedASTValue`; mutating a functional field
    without invalidating the cached AST poisons authorization. The field
    stays exported and `Subject.Equal` compares it: the global
