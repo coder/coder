@@ -3417,9 +3417,9 @@ class ExperimentalApiMethods {
 	};
 
 	/**
-	 * Requests a manual context compaction on an idle chat. The
-	 * compaction runs asynchronously through the chat worker and
-	 * bypasses the automatic usage threshold.
+	 * Requests a manual context compaction on an idle or errored chat,
+	 * clearing any stored error. The compaction runs asynchronously
+	 * through the chat worker and bypasses the automatic usage threshold.
 	 */
 	compactChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(

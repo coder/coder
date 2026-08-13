@@ -94,10 +94,15 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 5) coder/fantasy bedrock: mirror the request region when prefixing
 //    cross-region inference profiles so the model-ID prefix matches the
 //    region the request is actually signed for.
-// 6) go.mod replaces pointing anthropic-sdk-go and openai-go at the
+// 6) coder/fantasy#50, report per-request Anthropic usage at Finish so
+//    multi-iteration requests do not inflate context estimates.
+// 7) coder/fantasy#52, keep the last usage-bearing chunk when an
+//    OpenAI-compatible stream ends with a usage-less finish chunk, so
+//    trailing chunks cannot zero reported usage.
+// 8) go.mod replaces pointing anthropic-sdk-go and openai-go at the
 //    coder forks below.
-// See: https://github.com/coder/fantasy/commits/bb10946892ef
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260810175832-bb10946892ef
+// See: https://github.com/coder/fantasy/commits/833854abc543
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260812122040-833854abc543
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.

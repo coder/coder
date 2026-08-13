@@ -3,10 +3,6 @@ import {
 	CopyIcon,
 	ExternalLinkIcon,
 	GitBranchIcon,
-	GitMergeIcon,
-	GitPullRequestClosedIcon,
-	GitPullRequestDraftIcon,
-	GitPullRequestIcon,
 } from "lucide-react";
 import { type FC, type RefObject, useEffect, useState } from "react";
 import { useQuery } from "react-query";
@@ -19,7 +15,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useClipboard } from "#/hooks/useClipboard";
-import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
@@ -55,45 +50,6 @@ const BranchCopyButton: FC<{ branch: string }> = ({ branch }) => {
 				{showCopiedSuccess ? "Copied" : "Copy branch name"}
 			</TooltipContent>
 		</Tooltip>
-	);
-};
-
-// -------------------------------------------------------------------
-// PR state badge
-// -------------------------------------------------------------------
-
-const PullRequestStateBadge: FC<{
-	state?: string;
-	draft?: boolean;
-}> = ({ state, draft }) => {
-	let Icon = GitPullRequestIcon;
-	let label = "Open";
-	let colorClasses = "bg-surface-git-added text-git-added-bright";
-
-	if (state === "merged") {
-		Icon = GitMergeIcon;
-		label = "Merged";
-		colorClasses = "bg-surface-git-merged text-git-merged-bright";
-	} else if (state === "closed") {
-		Icon = GitPullRequestClosedIcon;
-		label = "Closed";
-		colorClasses = "bg-surface-git-deleted text-git-deleted-bright";
-	} else if (draft) {
-		Icon = GitPullRequestDraftIcon;
-		label = "Draft";
-		colorClasses = "text-content-secondary";
-	}
-
-	return (
-		<span
-			className={cn(
-				"inline-flex shrink-0 items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5",
-				colorClasses,
-			)}
-		>
-			<Icon className="size-3" />
-			{label}
-		</span>
 	);
 };
 
@@ -152,8 +108,6 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	const pullRequestUrl = diffStatus?.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
-	const prState = diffStatus?.pull_request_state;
-	const prDraft = diffStatus?.pull_request_draft;
 	const baseBranch = diffStatus?.base_branch;
 	const headBranch = diffStatus?.head_branch;
 
@@ -189,7 +143,6 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 						)}
 					</div>
 					<div className="ml-auto flex shrink-0 items-center gap-1.5">
-						<PullRequestStateBadge state={prState} draft={prDraft} />
 						{diffStatus?.additions || diffStatus?.deletions ? (
 							<DiffStatBadge
 								additions={diffStatus.additions}
@@ -200,7 +153,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 							href={pullRequestUrl}
 							target="_blank"
 							rel="noreferrer"
-							className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary"
+							className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary"
 						>
 							View PR
 							<ExternalLinkIcon className="size-3" />

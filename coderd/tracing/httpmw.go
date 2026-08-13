@@ -23,7 +23,7 @@ import (
 // SessionIDBaggageKey is the W3C baggage key clients use to propagate the
 // per-session correlation ID described in the connection-log RFC. The value is
 // a 16-byte identifier encoded as a 32-character hexadecimal string.
-const SessionIDBaggageKey = "session_id"
+const SessionIDBaggageKey = "client_session_id"
 
 // Middleware adds tracing to http routes.
 func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Handler {
@@ -50,12 +50,12 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 				return
 			}
 
-			// Read the session_id from baggage and add it to the log context.
+			// Read the client_session_id from baggage and add it to the log context.
 			// This is done even when tracing is disabled so that logs can
-			// always be correlated by session_id.
+			// always be correlated by client_session_id.
 			sessionID := sessionIDFromHeaders(r.Header)
 			if sessionID != "" {
-				r = r.WithContext(slog.With(r.Context(), slog.F("session_id", sessionID)))
+				r = r.WithContext(slog.With(r.Context(), slog.F("client_session_id", sessionID)))
 			}
 
 			if tracer == nil {
@@ -69,7 +69,7 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 			defer span.End()
 
 			if sessionID != "" {
-				span.SetAttributes(attribute.String("session_id", sessionID))
+				span.SetAttributes(attribute.String("client_session_id", sessionID))
 			}
 
 			sw, ok := rw.(*StatusWriter)
@@ -85,7 +85,7 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 	}
 }
 
-// sessionIDFromHeaders extracts and validates the session_id baggage member
+// sessionIDFromHeaders extracts and validates the client_session_id baggage member
 // from the request headers. It returns an empty string when the member is
 // absent or malformed. Extraction uses an explicit baggage propagator so it
 // does not depend on the globally configured text map propagator.
