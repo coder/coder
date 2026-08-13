@@ -17,20 +17,20 @@ AI Governance Cost Control requires:
 - AI Gateway [enabled and configured](./setup.md) with at least one provider.
 
 > [!NOTE]
-> AI Governance Cost Control reports estimated spend rather than billed cost.
-> Estimates will not match your provider invoices exactly. For details, see
-> [How spend is estimated](#how-spend-is-estimated).
+> AI Governance Cost Control reports approximate spend rather than billed cost.
+> These figures will not match your provider invoices exactly. For details, see
+> [How spend is calculated](#how-spend-is-calculated).
 
 These terms appear throughout this page and in the Coder dashboard:
 
-| Term                | What it means                                                                         | Where it is set                        |
-|---------------------|---------------------------------------------------------------------------------------|----------------------------------------|
-| **Budget period**   | The window spend accumulates in before it resets. Defaults to the UTC calendar month. | Deployment settings                    |
-| **Budget policy**   | The rule that selects a user's effective group. Defaults to the highest budget.       | Deployment settings                    |
-| **Group budget**    | A spend limit granted to each member of a group.                                      | **Groups** > {group} > **Settings**    |
-| **User override**   | A spend limit for one user that supersedes their group budget.                        | **Groups** > {group} > **Members** tab |
-| **Effective group** | The group that supplies a user's budget and has their spend associated with it.       | Resolved automatically                 |
-| **Estimated spend** | A user's approximate spend in the current budget period.                              | Estimated from usage                   |
+| Term                  | What it means                                                                         | Where it is set                        |
+|-----------------------|---------------------------------------------------------------------------------------|----------------------------------------|
+| **Budget period**     | The window spend accumulates in before it resets. Defaults to the UTC calendar month. | Deployment settings                    |
+| **Budget policy**     | The rule that selects a user's effective group. Defaults to the highest budget.       | Deployment settings                    |
+| **Group budget**      | A spend limit granted to each member of a group.                                      | **Groups** > {group} > **Settings**    |
+| **User override**     | A spend limit for one user that supersedes their group budget.                        | **Groups** > {group} > **Members** tab |
+| **Effective group**   | The group that supplies a user's budget and has their spend associated with it.       | Resolved automatically                 |
+| **Approximate spend** | A user's approximate spend in the current budget period.                              | Calculated from usage                  |
 
 ## Deployment settings
 
@@ -181,7 +181,7 @@ affected user:
 For delivery methods, see
 [Notifications](../../admin/monitoring/notifications/index.md).
 
-## How spend is estimated
+## How spend is calculated
 
 Coder multiplies the token usage of each request by the published price of the
 model that served it. Prices come from a curated [models.dev](https://models.dev)
@@ -200,10 +200,10 @@ https://github.com/coder/coder/blob/release/<VERSION>/coderd/aibridge/prices/dat
 Replace `<VERSION>` with your Coder minor version, for example `2.36`.
 
 > [!IMPORTANT]
-> Estimated spend can differ from provider-reported amounts, and some usage might
-> not count toward spend:
+> Approximate spend can differ from provider-reported amounts, and some usage
+> might not count toward spend:
 >
-> - Estimates exclude negotiated discounts, committed-use pricing, and
+> - Approximate spend excludes negotiated discounts, committed-use pricing, and
 >   provider-specific billing rules.
 > - Requests to models that are missing from the price table record token usage
 >   but add nothing to a user's spend. A user who only calls unpriced models is
@@ -275,7 +275,9 @@ Visibility follows the viewer's role:
   group budget. If the effective group is another group in the same organization,
   the row shows `Budget managed by another group`. If the effective group is in a
   different organization, the row shows a dash and explains that the group is not
-  visible there.
+  visible there. Because the organization's `Everyone` group includes every
+  member, its **Members** tab is a quick way to look up any user's effective
+  group.
 - The avatar menu reports the signed-in user's own spend for the budget period
   as `$<spend> / $<budget> USD`, or `$<spend> / Unlimited USD` when no budget
   applies.
@@ -286,7 +288,7 @@ endpoint to see a user's current effective group.
 
 ### CSV Export
 
-Users who can read group-member data for the organization can export estimated
+Users who can read group-member data for the organization can export approximate
 spend for reporting and internal cost allocation. The export is available through
 the API only.
 
@@ -333,7 +335,7 @@ Expect the following differences:
   Control applied the lowest.
 - Budgets cover priced AI Gateway traffic. Chat, IDE extensions, and CLI agents
   draw on the same budget when their provider and model are priced. See
-  [How spend is estimated](#how-spend-is-estimated).
+  [How spend is calculated](#how-spend-is-calculated).
 - Recorded spend does not carry over. Every user starts the first period at
   $0 USD.
 - Coder Agents users who exceed their budget see a usage limit error in chat.
