@@ -15,7 +15,7 @@ import {
 } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -23,7 +23,6 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import type { Permissions } from "#/modules/permissions";
-import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
@@ -72,12 +71,13 @@ export const AppearanceSettingsPageView: FC<
 							<EnterpriseBadge />
 						)
 					) : (
-						<PaywallPremium
-							message="Appearance"
-							description="With a Premium license, you can customize branding and announcement banners for your deployment."
-							documentationLink={docs("/admin/setup/appearance")}
-							canViewPremium={permissions.viewAllLicenses}
-						/>
+						<div className="mb-4">
+							<PaywallSmall
+								message="Appearance"
+								description="With a Premium license, you can customize the appearance and branding of your deployment."
+								canViewPremium={permissions.viewAllLicenses}
+							/>
+						</div>
 					)}
 				</Badges>
 
