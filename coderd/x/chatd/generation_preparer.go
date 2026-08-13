@@ -668,8 +668,8 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
-	// The chat-model compaction summary historically sends no provider
-	// options; the override-model summary in generateCompaction keeps them.
+	// Base-model summaries omit provider options; generateCompaction replaces
+	// this call when an override model is configured.
 	summaryCall := resolved.newCompactionSummaryCall()
 	summaryCall.ProviderOptions = nil
 	// The options carry the chat model; generateCompaction swaps in the

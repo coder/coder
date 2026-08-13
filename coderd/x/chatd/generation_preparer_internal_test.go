@@ -166,15 +166,11 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.NotNil(t, providerOptions.ReasoningEffort)
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
 
-	// The standard-turn template carries the config's provider options and
-	// the default output cap.
 	require.NotNil(t, providerOptions.User)
 	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
 	require.NotNil(t, prepared.CallTemplate.MaxOutputTokens)
 	require.Equal(t, defaultChatMaxOutputTokens, *prepared.CallTemplate.MaxOutputTokens)
 
-	// The prepared compaction summary template historically sends no
-	// provider options and forbids tool calls.
 	require.NotNil(t, prepared.Compaction)
 	require.Nil(t, prepared.Compaction.Options.SummaryCall.ProviderOptions)
 	require.NotNil(t, prepared.Compaction.Options.SummaryCall.ToolChoice)

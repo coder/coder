@@ -58,8 +58,7 @@ type modelCallSpec struct {
 	chat            database.Chat
 	config          configSelection
 	requestedEffort *string
-	// omitProviderOptions skips derivation. Used by flows that historically
-	// never sent provider options and by callers that derive separately.
+
 	omitProviderOptions bool
 	debug               debugPolicy
 	debugSvc            *chatdebug.Service
@@ -371,8 +370,6 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	return out, nil
 }
 
-// newCall builds a call template; downstream packages copy it and attach the
-// prompt and tools they own.
 func (r resolvedModelCall) newCall() fantasy.Call {
 	return fantasy.Call{
 		ProviderOptions:  r.providerOptions,
@@ -385,8 +382,7 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 	}
 }
 
-// newCompactionSummaryCall builds the compaction summary template, which
-// historically sends only prompt, tool choice, and provider options.
+// Compaction summaries omit sampling and output-token options.
 func (r resolvedModelCall) newCompactionSummaryCall() fantasy.Call {
 	toolChoiceNone := fantasy.ToolChoiceNone
 	return fantasy.Call{
@@ -401,9 +397,6 @@ func (r resolvedModelCall) deriveProviderOptions(callConfig codersdk.ChatModelCa
 	return chatprovider.ProviderOptionsForCall(r.model, callConfig, requestedEffort)
 }
 
-// newObjectCall builds a structured-output call envelope; the caller attaches
-// the prompt before sending. Quickgen flows pass fixed output caps instead of
-// the model config's tuning.
 func (r resolvedModelCall) newObjectCall(schemaName, schemaDescription string, maxOutputTokens int64) fantasy.ObjectCall {
 	return fantasy.ObjectCall{
 		SchemaName:        schemaName,

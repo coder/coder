@@ -16,9 +16,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// modelCallSentinelOptions builds config options whose OpenAI user field acts
-// as a sentinel: its presence in a request proves provider options were
-// derived from the config, and its absence proves they were omitted.
 func modelCallSentinelOptions(t *testing.T, user string) json.RawMessage {
 	t.Helper()
 	raw, err := json.Marshal(codersdk.ChatModelCallConfig{
@@ -32,9 +29,6 @@ func modelCallSentinelOptions(t *testing.T, user string) json.RawMessage {
 	return raw
 }
 
-// TestChatModelSpecOmitsProviderOptions locks the historical omission for
-// whole-chat summaries and status labels: the resolver must not derive
-// provider options even when the config declares them.
 func TestChatModelSpecOmitsProviderOptions(t *testing.T) {
 	t.Parallel()
 

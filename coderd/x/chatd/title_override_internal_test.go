@@ -626,8 +626,6 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	require.Equal(t, wantTitle, title)
 	require.Equal(t, apiKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
 
-	// The manual-title flow derives provider options from the override
-	// config, so the sentinel must reach the request body.
 	var raw map[string]any
 	require.NoError(t, json.Unmarshal(testutil.RequireReceive(ctx, t, seenBody), &raw))
 	require.Equal(t, "title-options-sentinel", raw["user"])
