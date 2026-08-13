@@ -15,7 +15,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/mark3labs/mcp-go/mcp"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -31,6 +30,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// mcpProtocolVersion is copied from the official SDK, which does not export
+// protocol version constants.
+const mcpProtocolVersion = "2026-07-28"
 
 // oidcMCPTokenSource implements mcpclient.UserOIDCTokenSource using
 // the same refresh strategy as provisionerdserver.ObtainOIDCAccessToken.
@@ -1570,7 +1573,7 @@ func fetchJSON(ctx context.Context, httpClient *http.Client, rawURL string, dest
 		return xerrors.Errorf("create request for %s: %w", rawURL, err)
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("MCP-Protocol-Version", mcp.LATEST_PROTOCOL_VERSION)
+	req.Header.Set("MCP-Protocol-Version", mcpProtocolVersion)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
