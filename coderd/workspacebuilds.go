@@ -1243,13 +1243,9 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	}, nil
 }
 
-// workspaceBuildIndex groups the rows that convertWorkspaceBuild reads by the
-// ID it looks them up with. It is built once per batch of builds because every
-// build in a batch is converted from the same rows.
-//
+// workspaceBuildIndex groups build rows by the ID they are looked up with.
 // Conversion reorders rows within a bucket in place, so an index must be read
-// by a single goroutine and cannot be retained beyond the conversion it was
-// built for.
+// by a single goroutine.
 type workspaceBuildIndex struct {
 	resourcesByJobID     map[uuid.UUID][]database.WorkspaceResource
 	metadataByResourceID map[uuid.UUID][]database.WorkspaceResourceMetadatum
@@ -1261,10 +1257,8 @@ type workspaceBuildIndex struct {
 	daemonsByJobID       map[uuid.UUID][]database.ProvisionerDaemon
 }
 
-// newWorkspaceBuildIndex makes one pass over each slice. Rows are copied into
-// freshly allocated per-ID slices, so the input slices are neither modified nor
-// aliased. Reference-typed fields within a row, such as tags and string slices,
-// still share memory with the input rows.
+// newWorkspaceBuildIndex makes one pass over each slice, copying rows into
+// per-ID buckets. The input slices are neither modified nor aliased.
 func newWorkspaceBuildIndex(
 	workspaceResources []database.WorkspaceResource,
 	resourceMetadata []database.WorkspaceResourceMetadatum,
