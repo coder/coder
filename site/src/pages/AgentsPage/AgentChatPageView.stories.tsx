@@ -1038,16 +1038,15 @@ const waitForFetchCount = async (
 	});
 };
 
-const waitForVisibleText = async (
+const findVisibleElementByText = (
 	canvas: ReturnType<typeof within>,
-	text: string,
-) => {
-	await waitFor(() => {
+	text: string | RegExp,
+): Promise<HTMLElement> =>
+	waitFor(() => {
 		// The chat timeline renders hidden measurement copies for some message
 		// layouts, so pick any visible match instead of assuming the first node is
 		// the one a user sees.
-		const matches = canvas.queryAllByText(text);
-		const hasVisibleMatch = matches.some((element: Element) => {
+		const visible = canvas.queryAllByText(text).find((element: HTMLElement) => {
 			const style = window.getComputedStyle(element);
 			return (
 				style.display !== "none" &&
@@ -1055,8 +1054,17 @@ const waitForVisibleText = async (
 				element.getClientRects().length > 0
 			);
 		});
-		expect(hasVisibleMatch).toBe(true);
+		if (!visible) {
+			throw new Error(`No visible element matching ${String(text)}`);
+		}
+		return visible;
 	});
+
+const waitForVisibleText = async (
+	canvas: ReturnType<typeof within>,
+	text: string,
+) => {
+	await findVisibleElementByText(canvas, text);
 };
 
 const waitForIntersectionObserverTick = async () => {
@@ -1217,11 +1225,17 @@ export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
 
 		scrollToHistoryTop(scrollContainer);
 
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /scroll to bottom/i }),
-			).toBeVisible();
-		});
+		// The button fades in over a CSS transition, and rendering the long
+		// conversation can occupy the main thread for longer than the default
+		// one second budget, so the fade only starts once rendering yields.
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByRole("button", { name: /scroll to bottom/i }),
+				).toBeVisible();
+			},
+			{ timeout: 3000 },
+		);
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: /scroll to bottom/i }),
@@ -1515,6 +1529,111 @@ export const StickyUserMessageClipUpdatesWhilePinned: Story = {
 			expect(measureScrolledPast()).toBeGreaterThan(scrolledPastBefore + 10);
 			expect(Math.abs(readClip() - expectedClip())).toBeLessThanOrEqual(2);
 		});
+	},
+};
+
+const anchoredPrependStore = buildStoreWithMessages(buildLongConversation(60));
+
+/**
+ * The timeline groups messages into per-turn sections, so loading an older page
+ * re-parents every rendered message. Reading mid-transcript must survive that:
+ * the message the reader is looking at stays where it is and the scroll offset
+ * does not move.
+ */
+export const OlderPagePrependKeepsAnchorMessageInPlace: Story = {
+	parameters: { pixel: { exclude: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={anchoredPrependStore} />,
+	play: async ({ canvasElement }) => {
+		anchoredPrependStore.replaceMessages(buildLongConversation(60));
+		anchoredPrependStore.setChatStatus("waiting");
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Park a known prompt in view so "did the transcript jump" has a concrete
+		// subject rather than whatever happened to be on screen.
+		const anchorText = "Question 12: Can you explain concept 12 in detail?";
+		const anchor = await findVisibleElementByText(canvas, anchorText);
+		anchor.scrollIntoView({ block: "center" });
+		await waitForVisibleText(canvas, anchorText);
+		const offsetBeforePrepend = scrollContainer.scrollTop;
+
+		prependOlderMessages(anchoredPrependStore, 10);
+
+		await waitForVisibleText(canvas, "Older question 9.");
+		await waitFor(() => {
+			expect(scrollContainer.scrollTop).toBeCloseTo(offsetBeforePrepend, 0);
+		});
+		await waitForVisibleText(canvas, anchorText);
+	},
+};
+
+// A transcript page can start with assistant replies whose prompt lives on an
+// older page that has not been fetched. Those replies open the timeline as a
+// turn with no prompt of its own.
+const buildOrphanLeadingConversation = (): TypesGen.ChatMessage[] => [
+	buildMessage(
+		20,
+		"assistant",
+		`Reply whose prompt is on an older page. ${"Filler sentence so the transcript overflows the scroll decorator. ".repeat(30)}`,
+	),
+	buildMessage(
+		21,
+		"assistant",
+		`Second orphan reply. ${"More filler so the transcript keeps overflowing. ".repeat(30)}`,
+	),
+	buildMessage(22, "user", "Prompt that is already on this page."),
+	buildMessage(
+		23,
+		"assistant",
+		`Reply to the prompt on this page. ${"Yet more filler. ".repeat(40)}`,
+	),
+];
+
+const orphanLeadingStore = buildStoreWithMessages(
+	buildOrphanLeadingConversation(),
+);
+
+/**
+ * When the older page arrives it carries the prompt that owns the leading
+ * replies, so the headerless opening turn merges into that prompt's turn. The
+ * merge must not drop content or move the scroll offset.
+ */
+export const OrphanLeadingTurnMergesWhenOlderPageArrives: Story = {
+	parameters: { pixel: { exclude: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={orphanLeadingStore} />,
+	play: async ({ canvasElement }) => {
+		orphanLeadingStore.replaceMessages(buildOrphanLeadingConversation());
+		orphanLeadingStore.setChatStatus("waiting");
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		const orphan = await findVisibleElementByText(
+			canvas,
+			/Second orphan reply\./,
+		);
+		orphan.scrollIntoView({ block: "center" });
+		await waitForVisibleText(canvas, "Prompt that is already on this page.");
+		expect(
+			canvas.queryByText("Prompt fetched with the older page."),
+		).not.toBeInTheDocument();
+		const offsetBeforePrepend = scrollContainer.scrollTop;
+
+		orphanLeadingStore.replaceMessages([
+			buildMessage(19, "user", "Prompt fetched with the older page."),
+			...getStoreMessages(orphanLeadingStore),
+		]);
+
+		await waitForVisibleText(canvas, "Prompt fetched with the older page.");
+		await waitFor(() => {
+			expect(scrollContainer.scrollTop).toBeCloseTo(offsetBeforePrepend, 0);
+		});
+		await waitForVisibleText(canvas, "Prompt that is already on this page.");
 	},
 };
 

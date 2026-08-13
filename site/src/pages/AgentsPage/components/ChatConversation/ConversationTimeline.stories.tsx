@@ -1531,8 +1531,7 @@ export const MetadataOnlyUserMessageDoesNotLeaveStickyGap: Story = {
 };
 
 /**
- * Verifies the structural requirements for sticky user messages
- * in the flat (section-less) message list:
+ * Verifies the structural requirements for sticky user messages:
  * - Each user message renders a data-user-sentinel marker so
  *   the push-up logic can find the next user message via DOM
  *   traversal.

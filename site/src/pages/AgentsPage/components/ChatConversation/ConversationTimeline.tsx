@@ -848,6 +848,7 @@ const StickyUserMessage = memo<{
 	nextUserMessageId?: number;
 	onJumpToUserMessage?: (messageId: number) => void;
 	registerSentinel?: (messageId: number, el: HTMLDivElement | null) => void;
+	getSentinel?: (messageId: number) => HTMLDivElement | null;
 	urlTransform?: UrlTransform;
 }>(
 	({
@@ -860,6 +861,7 @@ const StickyUserMessage = memo<{
 		nextUserMessageId,
 		onJumpToUserMessage,
 		registerSentinel,
+		getSentinel,
 		urlTransform,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
@@ -873,6 +875,18 @@ const StickyUserMessage = memo<{
 		};
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
+
+		// The scroll handler below is installed once, so it resolves the
+		// neighbouring prompt's sentinel through a ref instead of the props it
+		// closed over at mount. Declared before that effect so the resolver is
+		// current whenever the handler runs.
+		const nextSentinelRef = useRef<() => HTMLDivElement | null>(() => null);
+		useLayoutEffect(() => {
+			nextSentinelRef.current = () =>
+				nextUserMessageId === undefined
+					? null
+					: (getSentinel?.(nextUserMessageId) ?? null);
+		}, [nextUserMessageId, getSentinel]);
 
 		// useLayoutEffect so isStuck and --clip-h are both resolved
 		// before the browser paints, avoiding a flash on load.
@@ -962,13 +976,7 @@ const StickyUserMessage = memo<{
 				// approaches the bottom of this sticky container, shift
 				// this container upward so it slides out of view — the
 				// same visual as the old section-boundary behavior.
-				let nextSentinel: Element | null = sentinel.nextElementSibling;
-				while (nextSentinel) {
-					if (nextSentinel.hasAttribute("data-user-sentinel")) {
-						break;
-					}
-					nextSentinel = nextSentinel.nextElementSibling;
-				}
+				const nextSentinel = nextSentinelRef.current();
 				if (nextSentinel) {
 					const nextY = nextSentinel.getBoundingClientRect().top - scrollerTop;
 					container.style.top = `${Math.min(STICKY_TOP, nextY - visible + STICKY_TOP)}px`;
@@ -1181,6 +1189,60 @@ function computeLastInChainFlags(
 	return flags;
 }
 
+type TimelineTurnEntry = {
+	entry: ParsedMessageEntry;
+	index: number;
+};
+
+type TimelineTurn = {
+	key: string;
+	prompt?: TimelineTurnEntry;
+	items: TimelineTurnEntry[];
+};
+
+const LEADING_TURN_KEY = "turn-leading";
+
+// A turn is one visible user prompt plus every message that follows it up to
+// the next visible prompt. Hidden user messages carry context metadata only, so
+// they never open a turn and the messages after them stay with the preceding
+// prompt. A transcript page can start with assistant replies whose prompt lives
+// on an older page that has not been fetched; those replies form a leading turn
+// with no prompt and join the prompt's turn once that page arrives.
+function groupDisplayMessagesIntoTurns(
+	displayMessages: readonly ParsedMessageEntry[],
+): TimelineTurn[] {
+	const turns: TimelineTurn[] = [];
+	let currentTurn: TimelineTurn | undefined;
+	for (let index = 0; index < displayMessages.length; index++) {
+		const entry = displayMessages[index];
+		if (entry.message.role === "user") {
+			const { shouldHide } = deriveMessageDisplayState({
+				message: entry.message,
+				parsed: entry.parsed,
+				hideActions: false,
+				hasActiveStream: false,
+				isAwaitingFirstStreamChunk: false,
+			});
+			if (shouldHide) {
+				continue;
+			}
+			currentTurn = {
+				key: `turn-${entry.message.id}`,
+				prompt: { entry, index },
+				items: [],
+			};
+			turns.push(currentTurn);
+			continue;
+		}
+		if (!currentTurn) {
+			currentTurn = { key: LEADING_TURN_KEY, items: [] };
+			turns.push(currentTurn);
+		}
+		currentTurn.items.push({ entry, index });
+	}
+	return turns;
+}
+
 interface ConversationTimelineProps {
 	parsedMessages: readonly ParsedMessageEntry[];
 	subagentTitles: Map<string, string>;
@@ -1231,9 +1293,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				block: "start",
 			});
 		};
+		const getSentinel = (messageId: number) =>
+			sentinelsRef.current.get(messageId) ?? null;
 
 		const displayMessages = buildDisplayMessages(parsedMessages);
 		const lastInChainFlags = computeLastInChainFlags(displayMessages);
+		const turns = groupDisplayMessagesIntoTurns(displayMessages);
 
 		if (parsedMessages.length === 0) {
 			return null;
@@ -1257,19 +1322,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 		// Ordered list of visible user message IDs, used to drive the
 		// per-bubble prev/next arrow buttons that jump the transcript
-		// to the neighbouring user prompt.
-		const visibleUserMessageIds: number[] = [];
-		for (const { message, parsed } of parsedMessages) {
-			if (message.role !== "user") continue;
-			const { shouldHide } = deriveMessageDisplayState({
-				message,
-				parsed,
-				hideActions: false,
-				hasActiveStream: false,
-				isAwaitingFirstStreamChunk: false,
-			});
-			if (!shouldHide) visibleUserMessageIds.push(message.id);
-		}
+		// to the neighbouring user prompt, and to resolve the next
+		// prompt's sentinel while a prompt is pinned. Turns already hold
+		// exactly the prompts that render, in order.
+		const visibleUserMessageIds = turns.flatMap((turn) =>
+			turn.prompt ? [turn.prompt.entry.message.id] : [],
+		);
 		const userNeighborsById = new Map<
 			number,
 			{ prevId?: number; nextId?: number }
@@ -1325,66 +1383,69 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					data-testid="conversation-timeline"
 					className="flex flex-col gap-2"
 				>
-					{displayMessages.map(({ message, parsed }, msgIdx) => {
-						if (message.role === "user") {
-							const { shouldHide } = deriveMessageDisplayState({
-								message,
-								parsed,
-								hideActions: false,
-								hasActiveStream: false,
-								isAwaitingFirstStreamChunk: false,
-							});
-							if (shouldHide) {
-								return null;
-							}
-							return (
+					{turns.map((turn) => (
+						// `display: contents` keeps the turn wrapper out of layout, so
+						// grouping leaves both the spacing between messages and the
+						// containing block that `position: sticky` resolves against
+						// unchanged.
+						<section key={turn.key} className="contents" data-chat-turn>
+							{turn.prompt && (
 								<StickyUserMessage
-									key={message.id}
-									message={message}
-									parsed={parsed}
+									message={turn.prompt.entry.message}
+									parsed={turn.prompt.entry.parsed}
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
-									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
-									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
+									isAfterEditingMessage={afterEditingMessageIds.has(
+										turn.prompt.entry.message.id,
+									)}
+									prevUserMessageId={
+										userNeighborsById.get(turn.prompt.entry.message.id)?.prevId
+									}
+									nextUserMessageId={
+										userNeighborsById.get(turn.prompt.entry.message.id)?.nextId
+									}
 									onJumpToUserMessage={jumpToUserMessage}
 									registerSentinel={registerSentinel}
+									getSentinel={getSentinel}
 									urlTransform={urlTransform}
 								/>
-							);
-						}
-						// Hide actions on assistant messages that are not the
-						// last in a consecutive assistant chain. Flags are
-						// precomputed in a single reverse pass above.
-						const isLastInChain = lastInChainFlags[msgIdx];
-						return (
-							<ChatMessageItem
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								onImplementPlan={onImplementPlan}
-								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-								isChatCompleted={isChatCompleted}
-								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-								askUserQuestionResponseTextByToolId={
-									historicalAskUserQuestionResponseTextByToolId
-								}
-								hasUserResponseAfterAskQuestion={
-									hasUserResponseAfterAskQuestion
-								}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-								hideActions={!isLastInChain}
-								hasActiveStream={Boolean(hasActiveStream)}
-								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
-								isLastMessage={msgIdx === displayMessages.length - 1}
-								mcpServers={mcpServers}
-								subagentTitles={subagentTitles}
-								subagentVariants={subagentVariants}
-								showDesktopPreviews={showDesktopPreviews}
-							/>
-						);
-					})}
+							)}
+							{turn.items.map(({ entry, index }) => (
+								<ChatMessageItem
+									key={entry.message.id}
+									message={entry.message}
+									parsed={entry.parsed}
+									onImplementPlan={onImplementPlan}
+									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+									isChatCompleted={isChatCompleted}
+									latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+									askUserQuestionResponseTextByToolId={
+										historicalAskUserQuestionResponseTextByToolId
+									}
+									hasUserResponseAfterAskQuestion={
+										hasUserResponseAfterAskQuestion
+									}
+									urlTransform={urlTransform}
+									isAfterEditingMessage={afterEditingMessageIds.has(
+										entry.message.id,
+									)}
+									// Hide actions on assistant messages that are not the
+									// last in a consecutive assistant chain. Flags are
+									// precomputed in a single reverse pass above.
+									hideActions={!lastInChainFlags[index]}
+									hasActiveStream={Boolean(hasActiveStream)}
+									isAwaitingFirstStreamChunk={Boolean(
+										isAwaitingFirstStreamChunk,
+									)}
+									isLastMessage={index === displayMessages.length - 1}
+									mcpServers={mcpServers}
+									subagentTitles={subagentTitles}
+									subagentVariants={subagentVariants}
+									showDesktopPreviews={showDesktopPreviews}
+								/>
+							))}
+						</section>
+					))}
 				</div>
 			</FileProbeProvider>
 		);
