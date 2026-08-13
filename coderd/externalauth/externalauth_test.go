@@ -49,6 +49,8 @@ import (
 func TestConfigGitMemoizesProvider(t *testing.T) {
 	t.Parallel()
 
+	ctx := testutil.Context(t, testutil.WaitShort)
+
 	const etag = `"config-git-memo-etag"`
 	var conditionalRequests atomic.Int64
 
@@ -78,16 +80,16 @@ func TestConfigGitMemoizesProvider(t *testing.T) {
 	branch := gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"}
 
 	// Cold poll: populates the provider's ETag cache.
-	_, err = gp1.ResolveBranchPullRequest(t.Context(), "test-token", branch)
+	_, err = gp1.ResolveBranchPullRequest(ctx, "test-token", branch)
 	require.NoError(t, err)
 
 	// Re-resolve the provider, as the worker does on every poll.
 	gp2, err := cfg.Git(srv.Client())
 	require.NoError(t, err)
 	require.NotNil(t, gp2)
-	require.Same(t, gp1, gp2, "Git must return the same provider instance so its ETag cache survives across calls")
+	assert.Same(t, gp1, gp2, "Git must return the same provider instance so its ETag cache survives across calls")
 
-	_, err = gp2.ResolveBranchPullRequest(t.Context(), "test-token", branch)
+	_, err = gp2.ResolveBranchPullRequest(ctx, "test-token", branch)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(1), conditionalRequests.Load(), "second poll should have revalidated with If-None-Match using the cache from the first poll")

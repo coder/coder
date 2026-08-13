@@ -162,18 +162,21 @@ type Config struct {
 
 	// gitProviderMu protects the below.
 	gitProviderMu sync.Mutex
-	gitProvider   gitprovider.Provider
+	// gitProvider memoizes the provider so the GitHub ETag response
+	// cache survives across Git calls.
+	gitProvider gitprovider.Provider
 }
 
-// Git returns a Provider for this config if the provider type is a
-// supported git hosting provider. Returns (nil, nil) for non-git
-// providers (e.g. Slack, JFrog). Returns a non-nil error if provider
-// construction fails.
+// Git returns a Provider for this config. It returns (nil, nil) when
+// this config's type has no provider implementation, which covers both
+// non-git types (e.g. Slack, JFrog) and git types that are not
+// implemented yet (bitbucket-*, azure-devops*, gitea). Callers cannot
+// distinguish the two cases from the return values. Returns a non-nil
+// error if provider construction fails.
 //
-// The provider is built on the first call and cached for the
-// lifetime of the Config. The first call's client is captured and
-// later calls ignore their client argument. A construction error
-// is cached the same way and returned on every later call.
+// The provider is built on the first successful call and cached for
+// the lifetime of the Config, so its in-memory response cache
+// survives across calls.
 func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {

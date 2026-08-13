@@ -412,10 +412,13 @@ func (g *githubProvider) decodeJSON(
 	// changed, which is cheaper than a full body and does not count
 	// against the primary REST rate limit.
 	cacheKey := responseCacheKey(requestURL, token)
-	var cachedBody []byte
+	var (
+		cachedBody []byte
+		haveCached bool
+	)
 	if etag, body, ok := g.cache.load(cacheKey); ok {
 		req.Header.Set("If-None-Match", etag)
-		cachedBody = body
+		cachedBody, haveCached = body, true
 	}
 
 	resp, err := g.httpClient.Do(req)
@@ -425,7 +428,7 @@ func (g *githubProvider) decodeJSON(
 	defer resp.Body.Close()
 
 	// Nothing changed since the cached response: reuse the stored body.
-	if resp.StatusCode == http.StatusNotModified {
+	if resp.StatusCode == http.StatusNotModified && haveCached {
 		if err := json.Unmarshal(cachedBody, dest); err != nil {
 			return xerrors.Errorf("decode cached github response: %w", err)
 		}
@@ -455,12 +458,14 @@ func (g *githubProvider) decodeJSON(
 		return xerrors.Errorf("read github response: %w", err)
 	}
 
-	// Cache the validator so the next poll can be made conditional.
-	g.cache.store(cacheKey, resp.Header.Get("ETag"), body)
-
 	if err := json.Unmarshal(body, dest); err != nil {
 		return xerrors.Errorf("decode github response: %w", err)
 	}
+
+	// Cache the validator so the next poll can be made conditional.
+	// Only cache bodies we could successfully decode, so a malformed
+	// response does not poison the cache.
+	g.cache.store(cacheKey, resp.Header.Get("ETag"), body)
 	return nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/quartz"
 )
@@ -111,6 +112,69 @@ func TestParseRetryAfter(t *testing.T) {
 		h.Set("X-Ratelimit-Reset", strconv.FormatInt(clk.Now().Add(120*time.Second).Unix(), 10))
 		d := parseRetryAfter(h, "X-Ratelimit-Reset", clk)
 		assert.Equal(t, 60*time.Second, d)
+	})
+}
+
+func TestResponseCacheStore(t *testing.T) {
+	t.Parallel()
+
+	// Stores the same key twice using a buffer the caller mutates
+	// between stores, and verifies load returns the bodies passed at
+	// store time rather than the mutated buffer.
+	t.Run("UpdateReplacesBody", func(t *testing.T) {
+		t.Parallel()
+
+		cache := newResponseCache(4)
+		const key = "k"
+
+		buf := []byte(`{"v":1}`)
+		cache.store(key, `"etag-1"`, buf)
+		// Mutate the caller's buffer: the cache must hold its own copy.
+		for i := range buf {
+			buf[i] = 'X'
+		}
+
+		etag, body, ok := cache.load(key)
+		require.True(t, ok)
+		assert.Equal(t, `"etag-1"`, etag)
+		assert.Equal(t, `{"v":1}`, string(body))
+
+		// Reuse the same buffer for a second store of the same key.
+		buf = append(buf[:0], `{"v":2}`...)
+		cache.store(key, `"etag-2"`, buf)
+		for i := range buf {
+			buf[i] = 'Y'
+		}
+
+		etag, body, ok = cache.load(key)
+		require.True(t, ok)
+		assert.Equal(t, `"etag-2"`, etag)
+		assert.Equal(t, `{"v":2}`, string(body))
+	})
+
+	// Fills the cache past maxSize and verifies the
+	// least-recently-used entry is evicted.
+	t.Run("EvictsLeastRecentlyUsed", func(t *testing.T) {
+		t.Parallel()
+
+		cache := newResponseCache(2)
+		cache.store("a", `"etag-a"`, []byte(`{"k":"a"}`))
+		cache.store("b", `"etag-b"`, []byte(`{"k":"b"}`))
+		// This third store exceeds maxSize and must evict "a".
+		cache.store("c", `"etag-c"`, []byte(`{"k":"c"}`))
+
+		_, _, ok := cache.load("a")
+		assert.False(t, ok, "least-recently-used entry must be evicted")
+
+		etag, body, ok := cache.load("b")
+		require.True(t, ok)
+		assert.Equal(t, `"etag-b"`, etag)
+		assert.Equal(t, `{"k":"b"}`, string(body))
+
+		etag, body, ok = cache.load("c")
+		require.True(t, ok)
+		assert.Equal(t, `"etag-c"`, etag)
+		assert.Equal(t, `{"k":"c"}`, string(body))
 	})
 }
 

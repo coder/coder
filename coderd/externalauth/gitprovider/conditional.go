@@ -92,6 +92,10 @@ func (c *responseCache) store(key, etag string, body []byte) {
 		c.ll.MoveToFront(elem)
 		cr := elem.Value.(*cachedResponse)
 		cr.etag = etag
+		// Replace the body slice entirely; never write into the
+		// existing slice in place. A concurrent reader may hold a
+		// reference to the old slice while json.Unmarshal is reading
+		// it.
 		cr.body = stored
 		return
 	}
