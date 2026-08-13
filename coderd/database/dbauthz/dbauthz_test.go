@@ -632,6 +632,16 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UnarchiveChatByID(gomock.Any(), chat.ID).Return([]database.Chat{chat}, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns([]database.Chat{chat})
 	}))
+	s.Run("LockChatByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		chatID := uuid.New()
+		dbm.EXPECT().LockChatByID(gomock.Any(), chatID).Return(chatID, nil).AnyTimes()
+		check.Args(chatID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(chatID)
+	}))
+	s.Run("LinkChatFilesAfterLock", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.LinkChatFilesAfterLockParams{}
+		dbm.EXPECT().LinkChatFilesAfterLock(gomock.Any(), arg).Return(int32(0), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(int32(0))
+	}))
 	s.Run("LinkChatFiles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.LinkChatFilesParams{
@@ -930,6 +940,16 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), database.DeleteOldChatDebugRunsParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.DeleteOldChatDebugRunsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("GetOldUnlinkedChatFileIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetOldUnlinkedChatFileIDsParams{}
+		dbm.EXPECT().GetOldUnlinkedChatFileIDs(gomock.Any(), arg).Return([]uuid.UUID{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns([]uuid.UUID{})
+	}))
+	s.Run("DeleteUnlinkedChatFilesByIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.DeleteUnlinkedChatFilesByIDsParams{}
+		dbm.EXPECT().DeleteUnlinkedChatFilesByIDs(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 	s.Run("DeleteOldChatFiles", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().DeleteOldChatFiles(gomock.Any(), database.DeleteOldChatFilesParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.DeleteOldChatFilesParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
@@ -941,10 +961,6 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("BackfillChatMessagesSearchTsv", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), int32(100)).Return(int64(0), nil).AnyTimes()
 		check.Args(int32(100)).Asserts(rbac.ResourceChat, policy.ActionUpdate)
-	}))
-	s.Run("ChatSearchQueryIsEmpty", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().ChatSearchQueryIsEmpty(gomock.Any(), "!!!").Return(true, nil).AnyTimes()
-		check.Args("!!!").Asserts(rbac.ResourceChat, policy.ActionRead)
 	}))
 	s.Run("GetChatRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(30), nil).AnyTimes()
@@ -2352,6 +2368,19 @@ func (s *MethodTestSuite) TestOrganization() {
 		dbm.EXPECT().OrganizationMembers(gomock.Any(), gomock.AssignableToTypeOf(database.OrganizationMembersParams{})).Return([]database.OrganizationMembersRow{{OrganizationMember: mem}}, nil).AnyTimes()
 
 		check.Args(arg).Asserts(mem, policy.ActionRead)
+	}))
+	s.Run("GetGroupsByOrganizationIDPaginated", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		g := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		arg := database.GetGroupsByOrganizationIDPaginatedParams{OrganizationID: o.ID, LimitOpt: 0}
+		rows := []database.GetGroupsByOrganizationIDPaginatedRow{{
+			Group:                   g,
+			OrganizationName:        o.Name,
+			OrganizationDisplayName: o.DisplayName,
+			Count:                   1,
+		}}
+		dbm.EXPECT().GetGroupsByOrganizationIDPaginated(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead).Returns(rows)
 	}))
 	s.Run("PaginatedOrganizationMembers", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		o := testutil.Fake(s.T(), faker, database.Organization{})
@@ -4455,6 +4484,13 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 		dbm.EXPECT().GetProvisionerKeyByID(gomock.Any(), pk.ID).Return(pk, nil).AnyTimes()
 		check.Args(pk.ID).Asserts(pk, policy.ActionRead).Returns(pk)
 	}))
+	s.Run("LockProvisionerKeyByIDForShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
+		dbm.EXPECT().GetProvisionerKeyByID(gomock.Any(), pk.ID).Return(pk, nil).AnyTimes()
+		dbm.EXPECT().LockProvisionerKeyByIDForShare(gomock.Any(), pk.ID).Return(pk.ID, nil).AnyTimes()
+		check.Args(pk.ID).Asserts(pk, policy.ActionRead).Returns(pk.ID)
+	}))
 	s.Run("GetProvisionerKeyByHashedSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
 		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID, HashedSecret: []byte("foo")})
@@ -5822,7 +5858,11 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		})
 	}))
 	s.Run("InsertOAuth2ProviderApp", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertOAuth2ProviderAppParams{}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
+		// client_type is NOT NULL with a CHECK for the two canonical values, and
+		// the insert always sends the column, so the zero value cannot be used.
+		check.Args(database.InsertOAuth2ProviderAppParams{
+			ClientType: "confidential",
+		}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)

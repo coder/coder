@@ -25,6 +25,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
@@ -39,6 +40,7 @@ interface CustomRolesPageViewProps {
 	canDeleteOrgRole: boolean;
 	canEditDefaultRoles: boolean;
 	isCustomRolesEnabled: boolean;
+	permissions: Permissions;
 	defaultRolesEntitled?: boolean;
 	availableOrgRoles?: AssignableRoles[];
 	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
@@ -55,6 +57,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	canDeleteOrgRole,
 	canEditDefaultRoles,
 	isCustomRolesEnabled,
+	permissions,
 	defaultRolesEntitled,
 	availableOrgRoles,
 	onUpdateDefaultRoles,
@@ -67,6 +70,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
 					documentationLink={docs("/admin/users/groups-roles")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
 			{onUpdateDefaultRoles && (

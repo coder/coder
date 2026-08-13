@@ -13,6 +13,7 @@ import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
+import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Link as DocsLink } from "#/components/Link/Link";
 import {
@@ -24,7 +25,6 @@ import {
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
-import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
@@ -394,10 +394,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			<div className="text-xs text-content-secondary">
 				Optional. URL or emoji shown for this provider.
 			</div>
-			<IconPickerField
+			<IconField
 				id="icon"
 				value={form.values.icon}
-				onChange={handleIconChange}
+				label={null}
+				onChange={(event) => handleIconChange(event.target.value)}
+				onPickEmoji={handleIconChange}
 			/>
 		</div>
 	);

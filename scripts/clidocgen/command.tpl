@@ -1,5 +1,5 @@
-<!-- DO NOT EDIT | GENERATED CONTENT -->
-# {{ fullName . }}
+{{- frontMatter . -}}
+{{ generatedContentBanner }}
 
 {{ with .Short }}
 {{ . }}

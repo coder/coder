@@ -45,7 +45,7 @@ const meta: Meta<typeof GroupMemberBudgetCells> = {
 			<Table aria-label="Member budget">
 				<TableHeader>
 					<TableRow>
-						<TableHead>AI budget</TableHead>
+						<TableHead>AI spend</TableHead>
 						<TableHead>Budget group</TableHead>
 					</TableRow>
 				</TableHeader>

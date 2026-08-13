@@ -52,6 +52,15 @@
 								"message": "React 19 no longer requires forwardRef. Use ref as a prop instead.",
 								"importNames": ["forwardRef"]
 							},
+							"@pierre/diffs": {
+								"message": "Parse diffs through parseDiffString so every rendered file carries a content-derived cache key (pierrecomputer/pierre#1052).",
+								"importNames": [
+									"parsePatchFiles",
+									"processPatch",
+									"processFile",
+									"parseDiffFromFile"
+								]
+							},
 							"@mui/material/Alert": "Use components/Alert/Alert instead.",
 							"@mui/material/AlertTitle": "Use components/Alert/Alert instead.",
 							// "@mui/material/Autocomplete": "Use shadcn/ui Combobox instead.",
@@ -157,6 +166,21 @@
 				"rules": {
 					"suspicious": {
 						"noEmptyInterface": "off"
+					}
+				}
+			}
+		},
+		{
+			// parseDiff.ts is the single choke point allowed to import
+			// the raw @pierre/diffs parsers.
+			"includes": [
+				"**/DiffViewer/parseDiff.ts",
+				"**/DiffViewer/parseDiff.test.ts"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": "off"
 					}
 				}
 			}

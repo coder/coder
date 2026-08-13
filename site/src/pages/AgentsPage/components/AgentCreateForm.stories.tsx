@@ -9,6 +9,7 @@ import {
 	within,
 } from "storybook/test";
 import { API } from "#/api/api";
+import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
@@ -24,12 +25,10 @@ import {
 } from "../utils/reasoningEffort";
 import { AgentCreateForm } from "./AgentCreateForm";
 
-// Query key used by permittedOrganizations() in the form.
-const permittedOrgsKey = [
-	"organizations",
-	"permitted",
-	{ object: { resource_type: "chat" }, action: "create" },
-];
+const permittedOrgsKey = permittedOrganizationsKey({
+	object: { resource_type: "chat", owner_id: "me" },
+	action: "create",
+});
 
 const modelConfigID = "model-config-1";
 const claudeModelConfigID = "model-config-claude";
@@ -570,8 +569,8 @@ export const WithWorkspaces: Story = {
 		await userEvent.click(
 			body.getByText("Attach workspace").closest("button")!,
 		);
-		// Wait for the workspace combobox dropdown to appear so
-		// Chromatic captures it.
+		// Wait for the workspace combobox dropdown to appear so snapshot tests
+		// capture it.
 		await body.findByPlaceholderText("Search workspaces...");
 	},
 };
@@ -1102,5 +1101,51 @@ export const PermittedOrgsResolvesToSubset: Story = {
 			throw new Error("Expected onCreateChat to receive options");
 		}
 		expect(options.organizationId).toBe(MockOrganization2.id);
+	},
+};
+
+/**
+ * Member-scoped roles like agents-access grant chat:create only on
+ * chats the user owns, so the per-org check must carry owner context
+ * for the picker to render.
+ */
+export const MemberScopedPermissionsShowOrgPicker: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(
+				Object.entries(checks).map(([id, check]) => [
+					id,
+					check.object.owner_id === "me",
+				]),
+			),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const picker = await canvas.findByRole(
+			"button",
+			{ name: /^Organization:/ },
+			{ timeout: 3000 },
+		);
+		await userEvent.click(picker);
+		await screen.findByRole("option", {
+			name: MockDefaultOrganization.display_name,
+		});
+		await userEvent.click(
+			screen.getByRole("option", { name: MockOrganization2.display_name }),
+		);
+		expect(
+			canvas.getByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
 	},
 };

@@ -109,6 +109,32 @@ It isn't itself the concept, so it stays in backticks as a tool name.
 
 *Enforced by `Coder.DevContainer` (planned).*
 
+## One term per concept
+
+Pick one name for each thing, then use that name every time the thing appears.
+Synonyms read as new concepts.
+A page that alternates between "workspace", "environment", and "dev box" makes the reader ask whether the three differ.
+
+The [glossary](../../reference/glossary.md) is the registry of canonical names.
+When a concept has a glossary entry, use the entry's term.
+
+The same rule covers repeated instructions inside one page.
+Word the same action the same way each time it occurs, so the reader recognizes it as the same action.
+
+**Do**:
+
+> Create the workspace from the template.
+> When the workspace starts, the agent runs the startup script.
+
+**Don't**:
+
+> Create the workspace from the template.
+> When the environment starts, the agent runs the init script.
+
+*Adapted from ASD-STE100 Issue 9, rules 1.11 and 9.4.
+Documentation-only.
+No Vale rule.*
+
 ## Phrasal verbs and their noun forms
 
 English uses two spellings for many product actions: two words when the term is a verb (`set up`, `log in`), and one word (or hyphenated) when the term is a noun (`setup`, `login`).

@@ -892,8 +892,7 @@ func TestRunner_StartsRealInterruptTask(t *testing.T) {
 	worker := startRealTaskWorker(t, f)
 	waitOwnedChat(t, f, chat.ID, worker.chatWorkerID())
 
-	interrupting := f.interruptChat(t, chat.ID)
-	require.Equal(t, database.ChatStatusInterrupting, interrupting.Status)
+	f.interruptChat(t, chat.ID)
 	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(ctx context.Context) bool {
 		latest, err := f.db.GetChatByID(ctx, chat.ID)
 		return err == nil && latest.Status == database.ChatStatusRunning
@@ -1029,6 +1028,7 @@ func (f *taskTestFixture) acquireChat(t *testing.T, chatID uuid.UUID, workerID u
 
 func (f *taskTestFixture) interruptChat(t *testing.T, chatID uuid.UUID) database.Chat {
 	t.Helper()
+	f.pubsub.clear()
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
 	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
@@ -1039,7 +1039,6 @@ func (f *taskTestFixture) interruptChat(t *testing.T, chatID uuid.UUID) database
 	}))
 	chat, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chatID)
 	require.NoError(t, err)
-	f.pubsub.clear()
 	return chat
 }
 

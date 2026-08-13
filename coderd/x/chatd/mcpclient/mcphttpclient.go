@@ -5,6 +5,33 @@ import (
 	"net/http"
 )
 
+func httpClientWithHeaders(headers map[string]string) *http.Client {
+	base := http.DefaultTransport
+	if isolated := mcpHTTPClient(); isolated != nil {
+		base = isolated.Transport
+	}
+	if len(headers) == 0 {
+		return &http.Client{Transport: base}
+	}
+	return &http.Client{Transport: &headerRoundTripper{
+		base:    base,
+		headers: headers,
+	}}
+}
+
+type headerRoundTripper struct {
+	base    http.RoundTripper
+	headers map[string]string
+}
+
+func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	for k, v := range h.headers {
+		clone.Header.Set(k, v)
+	}
+	return h.base.RoundTrip(clone)
+}
+
 // mcpHTTPClient returns an isolated *http.Client when running
 // inside tests, or nil for production. During tests,
 // httptest.Server.Close() calls

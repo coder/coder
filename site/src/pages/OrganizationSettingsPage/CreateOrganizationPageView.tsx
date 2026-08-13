@@ -12,14 +12,9 @@ import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import type { Permissions } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
@@ -45,11 +40,12 @@ interface CreateOrganizationPageViewProps {
 	error: unknown;
 	onSubmit: (values: CreateOrganizationRequest) => Promise<void>;
 	isEntitled: boolean;
+	permissions: Permissions;
 }
 
 export const CreateOrganizationPageView: FC<
 	CreateOrganizationPageViewProps
-> = ({ error, onSubmit, isEntitled }) => {
+> = ({ error, onSubmit, isEntitled, permissions }) => {
 	const form = useFormik<CreateOrganizationRequest>({
 		initialValues: {
 			name: "",
@@ -87,29 +83,11 @@ export const CreateOrganizationPageView: FC<
 						</div>
 					)}
 
-					<Badges>
-						<Tooltip>
-							{isEntitled && (
-								<TooltipTrigger asChild>
-									<span>
-										<PremiumBadge />
-									</span>
-								</TooltipTrigger>
-							)}
-
-							<TooltipContent
-								sideOffset={-28}
-								collisionPadding={16}
-								className="p-0"
-							>
-								<PopoverPaywall
-									message="Organizations"
-									description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-									documentationLink={docs("/admin/users/organizations")}
-								/>
-							</TooltipContent>
-						</Tooltip>
-					</Badges>
+					{isEntitled && (
+						<Badges>
+							<PremiumBadge />
+						</Badges>
+					)}
 
 					<header className="flex flex-col items-center">
 						<h1 className="text-3xl font-semibold m-0">New Organization</h1>
@@ -125,6 +103,7 @@ export const CreateOrganizationPageView: FC<
 							message="Organizations"
 							description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
 							documentationLink={docs("/admin/users/organizations")}
+							canViewPremium={permissions.viewAllLicenses}
 						/>
 					</div>
 				) : (

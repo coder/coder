@@ -974,6 +974,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			options.ExternalAuthConfigs, err = externalauth.ConvertConfig(
+				logger,
 				oauthInstrument,
 				mergedExternalAuthProviders,
 				vals.AccessURL.Value(),

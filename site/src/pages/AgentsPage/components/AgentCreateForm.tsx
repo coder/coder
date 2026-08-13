@@ -461,7 +461,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	const permittedOrgsQuery = useQuery({
 		...permittedOrganizations({
-			object: { resource_type: "chat" },
+			object: { resource_type: "chat", owner_id: "me" },
 			action: "create",
 		}),
 		enabled: showOrganizations,

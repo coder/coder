@@ -43,6 +43,7 @@ const GatewayKeysPage: FC = () => {
 				isLoading={keysQuery.isLoading}
 				error={keysQuery.error}
 				showPaywall={showPaywall}
+				permissions={permissions}
 				onCreateKey={() => setIsCreateOpen(true)}
 				onDeleteKey={setKeyToDelete}
 			/>
