@@ -161,8 +161,8 @@ export const MultipleThreads: Story = {
 	args: { threads: [mockThread, mockThreadLong] },
 };
 
-// Filtering to a tool name keeps only the thread whose agentic loop contains a
-// matching tool call. The agentic loop starts expanded, revealing the tool name.
+// Filtering to a tool name keeps only the thread whose agentic loop contains
+// a matching tool call; the loop auto-expands so the tool name is revealed.
 export const SearchFiltersThreads: Story = {
 	args: {
 		threads: [mockThread, mockThreadLong],
@@ -220,8 +220,7 @@ export const SearchNoMatches: Story = {
 };
 
 // A zero-match query on a session that still has pages to load must not
-// trigger the infinite-scroll cascade, so the empty state is stable instead
-// of draining every remaining page.
+// trigger the infinite-scroll cascade, so the empty state is stable.
 export const SearchNoMatchesWithNextPage: Story = {
 	args: {
 		threads: [mockThread, mockThreadLong],

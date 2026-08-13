@@ -98,9 +98,6 @@ type Story = StoryObj<typeof SessionThreadsPageView>;
 
 export const Default: Story = {};
 
-// Typing a query that matches a prompt keeps the matching thread and drops the
-// non-matching one; typing a query that matches a network destination keeps
-// only the matching network rows. Clearing the search restores everything.
 export const SearchFiltersEvents: Story = {
 	args: {
 		threads: [
@@ -154,7 +151,6 @@ export const SearchFiltersEvents: Story = {
 	},
 };
 
-// A query that matches nothing shows the dedicated empty state.
 export const SearchNoMatches: Story = {
 	play: async ({ canvas }) => {
 		const input = canvas.getByRole("textbox", {
@@ -167,9 +163,8 @@ export const SearchNoMatches: Story = {
 	},
 };
 
-// Types a tool-name query after the threads are already mounted, exercising
-// the runtime path where the agentic loop must open in response to the
-// search prop rather than only on mount.
+// Types the tool query after mount: the auto-expand must react to the search
+// prop on an already-rendered thread, not just on mount.
 export const SearchToolMatchAfterMount: Story = {
 	play: async ({ canvas }) => {
 		const input = canvas.getByRole("textbox", {
