@@ -181,6 +181,18 @@ func TestResponseCacheStore(t *testing.T) {
 		assert.Equal(t, `"etag-c"`, etag)
 		assert.Equal(t, `{"k":"c"}`, string(body))
 	})
+
+	// Bodies larger than maxCachedBodyBytes are not stored, so a
+	// single oversized response cannot unbound the cache.
+	t.Run("OversizedBodyNotStored", func(t *testing.T) {
+		t.Parallel()
+
+		cache := newResponseCache(4)
+		cache.store("big", `"etag-big"`, make([]byte, maxCachedBodyBytes+1))
+
+		_, _, ok := cache.load("big")
+		assert.False(t, ok, "bodies exceeding maxCachedBodyBytes must not be cached")
+	})
 }
 
 func TestMapGitLabState(t *testing.T) {
