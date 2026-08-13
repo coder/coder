@@ -181,6 +181,11 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: { summary: "Earlier transcript content was compacted." },
 	},
 	{
+		name: "chat_cleared",
+		args: { source: "manual" },
+		result: { source: "manual" },
+	},
+	{
 		name: "propose_plan",
 		args: { path: "/home/coder/.coder/plans/PLAN-example.md" },
 		result: { path: "/home/coder/.coder/plans/PLAN-example.md" },
@@ -1607,6 +1612,21 @@ export const ChatSummarizedManualRunning: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Summarizing…")).toBeInTheDocument();
+	},
+};
+
+export const ChatCleared: Story = {
+	args: {
+		name: "chat_cleared",
+		args: JSON.stringify({ source: "manual" }),
+		result: { source: "manual" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Context cleared")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Context cleared" }),
+		).not.toBeInTheDocument();
 	},
 };
 

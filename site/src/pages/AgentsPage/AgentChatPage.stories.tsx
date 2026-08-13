@@ -2743,11 +2743,7 @@ export const WithWaitAgentComputerUseVNC: Story = {
 	},
 };
 
-// ---------------------------------------------------------------------------
-// /compact slash command
-// ---------------------------------------------------------------------------
-
-const compactCommandMessages: TypesGen.ChatMessagesResponse = {
+const slashCommandMessages: TypesGen.ChatMessagesResponse = {
 	messages: [
 		{
 			id: 1,
@@ -2778,7 +2774,7 @@ const compactQueuedEditChat: TypesGen.Chat = {
 };
 
 const compactQueuedEditMessages: TypesGen.ChatMessagesResponse = {
-	messages: compactCommandMessages.messages,
+	messages: slashCommandMessages.messages,
 	queued_messages: [
 		{
 			...MockChatQueuedMessage,
@@ -2803,7 +2799,7 @@ export const SlashCompactCommandSubmits: Story = {
 				title: "Compact command",
 				status: "waiting",
 			},
-			compactCommandMessages,
+			slashCommandMessages,
 			{ diffUrl: undefined },
 		),
 	},
@@ -2835,6 +2831,51 @@ export const SlashCompactCommandSubmits: Story = {
 			expect(compactSpy).toHaveBeenCalledTimes(1);
 		});
 		expect(compactSpy).toHaveBeenCalledWith(CHAT_ID);
+		expect(sendSpy).not.toHaveBeenCalled();
+	},
+};
+
+export const SlashClearCommandSubmits: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Clear command",
+				status: "waiting",
+			},
+			slashCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const clearSpy = spyOn(API.experimental, "clearChat").mockResolvedValue({
+			id: CHAT_ID,
+			...baseChatFields,
+			title: "Clear command",
+			status: "waiting",
+		});
+		const sendSpy = spyOn(API.experimental, "createChatMessage");
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/clear");
+		expect(
+			await within(document.body).findByText(
+				"Clear the conversation context; the next message starts fresh",
+			),
+		).toBeVisible();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(clearSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(clearSpy).toHaveBeenCalledWith(CHAT_ID);
 		expect(sendSpy).not.toHaveBeenCalled();
 	},
 };
@@ -2907,7 +2948,7 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 				title: "Compact skill precedence",
 				status: "waiting",
 			},
-			compactCommandMessages,
+			slashCommandMessages,
 			{ diffUrl: undefined },
 		),
 	},
@@ -2965,7 +3006,7 @@ const promotedQueueHeadChat: TypesGen.Chat = {
 };
 
 const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
-	messages: compactCommandMessages.messages,
+	messages: slashCommandMessages.messages,
 	queued_messages: [
 		{
 			...MockChatQueuedMessage,
