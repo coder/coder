@@ -21,8 +21,7 @@ func TestNoStore(t *testing.T) {
 		expectStatus       int
 		expectCacheControl string
 		expectPragma       string
-		// assert runs extra checks against the recorded response.
-		assert func(t *testing.T, res *httptest.ResponseRecorder)
+		assert             func(t *testing.T, res *httptest.ResponseRecorder)
 	}{
 		{
 			// The POST /oauth2/tokens shape.
@@ -73,9 +72,7 @@ func TestNoStore(t *testing.T) {
 		},
 		{
 			// The headers are advisory: a handler that writes its own
-			// Cache-Control wins. No handler under /oauth2 does, which the
-			// integration tests pin, but the contract belongs in a test
-			// rather than only in prose.
+			// Cache-Control wins, and Pragma survives alongside it.
 			Name: "HandlerOverwrites",
 			Handler: func(rw http.ResponseWriter, _ *http.Request) {
 				rw.Header().Set("Cache-Control", "private")
@@ -105,13 +102,15 @@ func TestNoStore(t *testing.T) {
 	}
 }
 
-// TestNoStoreAfterExperimentGate pins the ordering consequence of mounting
-// NoStore after the experiment gate on the /oauth2 tree: a request the gate
-// rejects never reaches NoStore, so its response carries neither header. That
-// is correct, since the rejection contains no credential. The gate that runs
-// in production, RequireExperimentWithDevBypass, cannot be exercised from a
-// test binary because buildinfo.IsDev() is true there and bypasses the check,
-// so this asserts against the RequireExperiment it delegates to.
+// TestNoStoreAfterExperimentGate shows what an experiment gate ahead of
+// NoStore costs: a request the gate rejects never reaches NoStore, so its
+// response carries neither header. That is why mounting NoStore last is
+// harmless, since an experiment rejection contains no credential. The chain
+// here is built in the test body rather than read off the router, so it does
+// not detect a reordering in coderd.go. The gate that runs in production,
+// RequireExperimentWithDevBypass, cannot be exercised from a test binary
+// because buildinfo.IsDev() is true there and bypasses the check, so this
+// asserts against the RequireExperiment it delegates to.
 func TestNoStoreAfterExperimentGate(t *testing.T) {
 	t.Parallel()
 

@@ -263,10 +263,11 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 		requireNoStore(t, resp)
 	})
 
-	// Discovery metadata is public and RFC 9728 §5 asks for it to be cacheable.
-	// These endpoints sit outside the /oauth2 tree, and these assertions are
-	// what keep them there: they fail if the middleware is ever mounted on a
-	// router that reaches them.
+	// Discovery metadata is public, and RFC 9728 §5 asks for it to be
+	// cacheable. These assertions do not prove it is: the endpoints advertise
+	// no freshness lifetime at all. What they pin is the exclusion of this
+	// middleware, so they fail if it is ever mounted on a router that reaches
+	// them.
 	for _, path := range []string{
 		"/.well-known/oauth-authorization-server",
 		"/.well-known/oauth-protected-resource",
@@ -281,6 +282,48 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 			require.NotContains(t, resp.Header.Get("Cache-Control"), "no-store")
 		})
 	}
+}
+
+// TestOAuth2ProviderNoStoreHeaders asserts the same headers on the
+// /api/v2/oauth2-provider tree, where POST /apps/{app}/secrets returns
+// OAuth2ProviderAppSecretFull.ClientSecretFull in plaintext. That response
+// meets RFC 6749 §5.1's predicate as squarely as anything under /oauth2, so
+// the two trees are treated alike.
+func TestOAuth2ProviderNoStoreHeaders(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	baseURL := client.URL.String()
+
+	t.Run("CreateAppSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
+
+		uri := fmt.Sprintf("%s/api/v2/oauth2-provider/apps/%s/secrets", baseURL, app.ID)
+		resp := doRequest(ctx, t, http.MethodPost, uri, nil, sessionToken(client))
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+		requireNoStore(t, resp)
+
+		var secret codersdk.OAuth2ProviderAppSecretFull
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&secret))
+		require.NotEmpty(t, secret.ClientSecretFull)
+	})
+
+	t.Run("ListApps", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A route that returns no credential still carries the headers, which
+		// is what shows the mount is on the tree rather than on one handler.
+		resp := doRequest(ctx, t, http.MethodGet, baseURL+"/api/v2/oauth2-provider/apps", nil, sessionToken(client))
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		requireNoStore(t, resp)
+	})
 }
 
 func requireNoStore(t *testing.T, resp *http.Response) {

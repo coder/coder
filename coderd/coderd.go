@@ -1244,8 +1244,7 @@ func New(options *Options) *API {
 		r.Use(
 			httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
 			// Every response from this tree may carry a credential, so none of
-			// them may be retained by an intermediary cache. NoStore takes no
-			// configuration, so it is passed uncalled.
+			// them may be retained by an intermediary cache.
 			httpmw.NoStore,
 		)
 		r.Route("/authorize", func(r chi.Router) {
@@ -2112,6 +2111,10 @@ func New(options *Options) *API {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
+				// POST /apps/{app}/secrets returns a plaintext client secret,
+				// so this tree falls under the same RFC 6749 §5.1 requirement
+				// as /oauth2.
+				httpmw.NoStore,
 			)
 			r.Route("/apps", func(r chi.Router) {
 				r.Get("/", api.oAuth2ProviderApps())

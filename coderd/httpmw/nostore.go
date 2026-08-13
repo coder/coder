@@ -2,11 +2,6 @@ package httpmw
 
 import "net/http"
 
-const (
-	cacheControlHeader = "Cache-Control"
-	pragmaHeader       = "Pragma"
-)
-
 // NoStore sets the response caching headers that OAuth2 requires on any
 // response that may contain a credential. RFC 6749 §5.1 makes both headers a
 // MUST for the authorization server; OAuth 2.1 §3.2.3 keeps only no-store,
@@ -15,15 +10,19 @@ const (
 // conformant response.
 //
 // The headers are set before the wrapped handler runs, so a handler that
-// writes its own Cache-Control would win. No handler under /oauth2 does; the
-// test suite pins that.
+// writes its own Cache-Control would win. No handler under the trees this is
+// mounted on does; the test suite pins that. Pragma is written unconditionally,
+// so such a handler's Cache-Control ships alongside Pragma: no-cache.
 //
-// NoStore carries no configuration, so it is the middleware itself rather
-// than a constructor for one. Pass it to chi's r.Use without calling it.
+// chi's middleware.NoCache is not used, though that package is already
+// imported at the mount site. It strips the ETag-family headers from the
+// request, which an authorization server has no business doing, and it sends
+// directives neither specification asks for, where OAuth 2.1 narrows the
+// requirement rather than widening it.
 func NoStore(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		rw.Header().Set(cacheControlHeader, "no-store")
-		rw.Header().Set(pragmaHeader, "no-cache")
+		rw.Header().Set("Cache-Control", "no-store")
+		rw.Header().Set("Pragma", "no-cache")
 		next.ServeHTTP(rw, r)
 	})
 }
