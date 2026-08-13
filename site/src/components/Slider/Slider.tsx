@@ -31,7 +31,7 @@ export const Slider: React.FC<
 			</SliderPrimitive.Track>
 			{Array.from({ length: thumbCount }, (_, index) => (
 				<SliderPrimitive.Thumb
-					key={index}
+					key={`slider-thumb-${index}`}
 					className="block size-4 rounded-full border border-solid border-surface-invert-secondary bg-surface-primary shadow transition-colors
 			focus-visible:outline-none hover:border-content-primary
 			focus-visible:ring-0 focus-visible:ring-content-primary focus-visible:ring-offset-surface-primary
