@@ -216,6 +216,28 @@ export const AddSwitchesOrganization: Story = {
 	},
 };
 
+export const UpdateShowsDetailLoadError: Story = {
+	render: () => <UpdateMCPServerPage />,
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers/mcp-coder" },
+			routing: { path: "/ai/settings/mcp-servers/:serverId" },
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfig").mockRejectedValue(
+			new Error("Failed to load MCP server."),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByText("Failed to load MCP server."),
+		).toBeVisible();
+		expect(canvas.queryByLabelText(/display name/i)).not.toBeInTheDocument();
+	},
+};
+
 export const UpdateLoadsServerById: Story = {
 	render: () => <UpdateMCPServerPage />,
 	parameters: {

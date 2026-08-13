@@ -2,12 +2,13 @@ import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import {
 	deleteMCPServerConfig,
 	mcpServerConfig,
 	updateMCPServerConfig,
 } from "#/api/queries/chats";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -47,6 +48,14 @@ const UpdateMCPServerPage: FC = () => {
 					<title>{pageTitle("Loading...", "AI Settings")}</title>
 					<Loader fullscreen />
 				</>
+			) : serverQuery.isError &&
+				!(
+					isApiError(serverQuery.error) &&
+					serverQuery.error.response.status === 404
+				) ? (
+				<div className="mb-4">
+					<ErrorAlert error={serverQuery.error} />
+				</div>
 			) : !server ? (
 				<Navigate to={listPath} replace />
 			) : (
