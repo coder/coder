@@ -649,6 +649,10 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 // a row that moves earlier can pass the current offset and be missed entirely.
 // A caller that needs an exact result should narrow the filter until it fits in
 // one page.
+//
+// A page that fails ends the call; the pages already read are discarded rather
+// than returned as a shorter list. The number of requests follows the total the
+// endpoint reports, which is not bounded here, so cancel ctx to stop the walk.
 func (c *Client) AllWorkspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
 	filter.Limit = WorkspacesPageLimit
 	filter.Offset = 0

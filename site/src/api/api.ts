@@ -1253,9 +1253,12 @@ class ApiMethods {
 
 	getWorkspaces = async (
 		req: TypesGen.WorkspacesRequest,
+		signal?: AbortSignal,
 	): Promise<TypesGen.WorkspacesResponse> => {
 		const url = getURLWithSearchParams("/api/v2/workspaces", req);
-		const response = await this.axios.get<TypesGen.WorkspacesResponse>(url);
+		const response = await this.axios.get<TypesGen.WorkspacesResponse>(url, {
+			signal,
+		});
 		return response.data;
 	};
 
@@ -1277,20 +1280,29 @@ class ApiMethods {
 	 *
 	 * `count` is the total the server reported for the last page and can exceed
 	 * the length of `workspaces`.
+	 *
+	 * A page that fails rejects the whole call; the pages already read are
+	 * discarded rather than returned as a shorter list. Aborting `signal` rejects
+	 * the page in flight and stops the walk. The number of requests follows the
+	 * total the server reports, which is not bounded here.
 	 */
 	getAllWorkspaces = async (
 		req: Omit<TypesGen.WorkspacesRequest, "limit" | "offset"> = {},
+		signal?: AbortSignal,
 	): Promise<TypesGen.WorkspacesResponse> => {
 		const workspaces: TypesGen.Workspace[] = [];
 		const seen = new Set<string>();
 		let count = 0;
 		let offset = 0;
 		do {
-			const page = await this.getWorkspaces({
-				...req,
-				limit: TypesGen.WorkspacesPageLimit,
-				offset,
-			});
+			const page = await this.getWorkspaces(
+				{
+					...req,
+					limit: TypesGen.WorkspacesPageLimit,
+					offset,
+				},
+				signal,
+			);
 			for (const workspace of page.workspaces) {
 				if (seen.has(workspace.id)) {
 					continue;

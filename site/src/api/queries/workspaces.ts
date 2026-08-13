@@ -225,7 +225,7 @@ export function workspacesKey(req: WorkspacesRequest = {}) {
 export function workspaces(req: WorkspacesRequest = {}) {
 	return {
 		queryKey: workspacesKey(req),
-		queryFn: () => API.getWorkspaces(req),
+		queryFn: ({ signal }) => API.getWorkspaces(req, signal),
 	} as const satisfies QueryOptions<WorkspacesResponse>;
 }
 
@@ -239,11 +239,14 @@ export function allWorkspacesKey(req: AllWorkspacesRequest = {}) {
 }
 
 // allWorkspaces fetches every page of the filtered result set. Prefer a
-// server-side filter and a single page when the caller can express one.
+// server-side filter and a single page when the caller can express one: the
+// request count follows the size of the result set, the pages are read one at a
+// time, and a page that fails discards the ones already read. The query is
+// cancelled on unmount, which stops the walk at the page in flight.
 export function allWorkspaces(req: AllWorkspacesRequest = {}) {
 	return {
 		queryKey: allWorkspacesKey(req),
-		queryFn: () => API.getAllWorkspaces(req),
+		queryFn: ({ signal }) => API.getAllWorkspaces(req, signal),
 	} as const satisfies QueryOptions<WorkspacesResponse>;
 }
 

@@ -684,11 +684,14 @@ describe("getAllWorkspaces", () => {
 		const result = await API.getAllWorkspaces({ q: "owner:me" });
 
 		expect(getWorkspaces).toHaveBeenCalledTimes(1);
-		expect(getWorkspaces).toHaveBeenCalledWith({
-			q: "owner:me",
-			limit: WorkspacesPageLimit,
-			offset: 0,
-		});
+		expect(getWorkspaces).toHaveBeenCalledWith(
+			{
+				q: "owner:me",
+				limit: WorkspacesPageLimit,
+				offset: 0,
+			},
+			undefined,
+		);
 		expect(result).toStrictEqual(page);
 	});
 
@@ -735,5 +738,28 @@ describe("getAllWorkspaces", () => {
 		const result = await API.getAllWorkspaces();
 
 		expect(result.workspaces).toStrictEqual([repeated, unique]);
+	});
+
+	it("passes the abort signal to every page", async () => {
+		const controller = new AbortController();
+		const getWorkspaces = vi
+			.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce(workspacePage(150, WorkspacesPageLimit))
+			.mockResolvedValueOnce(workspacePage(150, 50));
+
+		await API.getAllWorkspaces({ q: "owner:me" }, controller.signal);
+
+		expect(getWorkspaces).toHaveBeenCalledTimes(2);
+		for (const [, signal] of getWorkspaces.mock.calls) {
+			expect(signal).toBe(controller.signal);
+		}
+	});
+
+	it("rejects without returning the pages it already read", async () => {
+		vi.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce(workspacePage(150, WorkspacesPageLimit))
+			.mockRejectedValueOnce(new Error("canceled"));
+
+		await expect(API.getAllWorkspaces()).rejects.toThrow("canceled");
 	});
 });
