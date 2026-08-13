@@ -145,7 +145,10 @@ describe("assignTimelineRows", () => {
 			false,
 		);
 
-		expect(keys(loadedFirst)).toEqual(["message:1", "read-file-group:after:1"]);
+		expect(keys(loadedFirst)).toEqual([
+			"message:1",
+			"read-file-group:through:51",
+		]);
 		expect(keys(afterPrepend)).toEqual(keys(loadedFirst));
 	});
 

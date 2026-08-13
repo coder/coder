@@ -1,11 +1,4 @@
-import {
-	type FC,
-	Profiler,
-	type ReactNode,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
@@ -46,6 +39,7 @@ import {
 } from "./ChatConversation/chatStore";
 import { LiveStreamTailContent } from "./ChatConversation/LiveStreamTail";
 import { deriveLiveStatus } from "./ChatConversation/liveStatusModel";
+import { buildDisplayMessages } from "./ChatConversation/messageHelpers";
 import {
 	buildSubagentMaps,
 	getPendingToolCallIDs,
@@ -124,7 +118,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	mcpServers,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
-	const [hasVisibleRows, setHasVisibleRows] = useState(true);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
@@ -175,6 +168,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
+	const hasVisibleRows = buildDisplayMessages(parsedMessages).length > 0;
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
@@ -193,7 +187,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					   renders correctly. */}
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
-					onVisibleRowsChange={setHasVisibleRows}
 					streamState={streamState}
 					streamTools={streamTools}
 					liveStatus={liveStatus}

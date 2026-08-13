@@ -30,7 +30,7 @@ export const assignTimelineRows = (
 
 	for (const [index, entry] of displayMessages.entries()) {
 		const { message } = entry;
-		const key = getDisplayMessageKey(entry, displayMessages[index - 1]);
+		const key = getDisplayMessageKey(entry);
 		if (message.role === "user") {
 			turnKey = key;
 			assistantsInTurn = 0;

@@ -400,7 +400,6 @@ const ChatMessageItem = memo<{
 
 interface ConversationTimelineProps {
 	parsedMessages: readonly ParsedMessageEntry[];
-	onVisibleRowsChange?: (hasVisibleRows: boolean) => void;
 	streamState?: StreamState | null;
 	streamTools?: readonly MergedTool[];
 	liveStatus?: LiveStatusModel;
@@ -426,7 +425,6 @@ interface ConversationTimelineProps {
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		parsedMessages,
-		onVisibleRowsChange,
 		streamState,
 		streamTools = [],
 		liveStatus,
@@ -454,12 +452,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			displayMessages,
 			Boolean(liveStatus && shouldRenderLiveAssistant(liveStatus)),
 		);
-		const hasVisibleRows = displayMessages.length > 0;
-		const [reportedVisibleRows, setReportedVisibleRows] = useState<boolean>();
-		if (hasVisibleRows !== reportedVisibleRows) {
-			setReportedVisibleRows(hasVisibleRows);
-			onVisibleRowsChange?.(hasVisibleRows);
-		}
 
 		// A live turn only reveals its stream blocks once output has accumulated.
 		// Before that the callout and thinking indicator stand in for the turn.

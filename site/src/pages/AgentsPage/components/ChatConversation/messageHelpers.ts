@@ -216,19 +216,12 @@ const mergeReadFileMessageGroup = (
 	};
 };
 
-// A merged group's row key cannot come from its members: prepending history
-// changes the first member, live streaming changes the last. Key off the
-// visible entry before the group instead; a group at the start of loaded
-// history falls back to its newest member.
-export const getDisplayMessageKey = (
-	entry: ParsedMessageEntry,
-	previousVisible: ParsedMessageEntry | undefined,
-): string => {
+// A merged group's row key cannot come from its first member: prepending
+// history into the group changes it. Key off the newest member instead, which
+// pagination never changes for an existing group.
+export const getDisplayMessageKey = (entry: ParsedMessageEntry): string => {
 	if (entry.mergedFrom === undefined) {
 		return `message:${entry.message.id}`;
-	}
-	if (previousVisible !== undefined) {
-		return `read-file-group:after:${previousVisible.message.id}`;
 	}
 	return `read-file-group:through:${entry.mergedFrom[entry.mergedFrom.length - 1]}`;
 };
