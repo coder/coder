@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 )
@@ -56,6 +57,94 @@ func TestEditFiles(t *testing.T) {
 		assert.Contains(t, editRequired, "old_text")
 		assert.Contains(t, editRequired, "new_text")
 		assert.NotContains(t, editRequired, "replace_all", "replace_all should be optional")
+	})
+
+	// Models kept omitting files[].path (dev chat 45b87e40 failed 57
+	// consecutive edit_files calls), so the schema must describe the
+	// field, not just mark it required.
+	t.Run("SchemaDescribesPath", func(t *testing.T) {
+		t.Parallel()
+		tool := chattool.EditFiles(chattool.EditFilesOptions{})
+		info := tool.Info()
+
+		filesMap, ok := info.Parameters["files"].(map[string]any)
+		require.True(t, ok)
+		items, ok := filesMap["items"].(map[string]any)
+		require.True(t, ok)
+		props, ok := items["properties"].(map[string]any)
+		require.True(t, ok)
+		pathSchema, ok := props["path"].(map[string]any)
+		require.True(t, ok)
+		desc, _ := pathSchema["description"].(string)
+		assert.Contains(t, desc, "Absolute path")
+	})
+
+	t.Run("MissingPathReturnsEntryIndexedError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:   "call-1",
+			Name: "edit_files",
+			Input: `{"files":[` +
+				`{"path":"/home/coder/a.txt","edits":[{"old_text":"old","new_text":"new"}]},` +
+				`{"edits":[{"old_text":"old","new_text":"new"}]}` +
+				`]}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "files[1].path is missing; every files entry must include the absolute path of the file to edit; no files in this batch were applied", resp.Content)
+	})
+
+	t.Run("EmptyEditsReturnsEntryIndexedError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"/home/coder/a.txt","edits":[]}]}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "files[0].edits is empty; every files entry must include at least one old_text/new_text edit; no files in this batch were applied", resp.Content)
+	})
+
+	t.Run("AgentAPIErrorOmitsTransportNoise", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		sdkErr := codersdk.NewTestError(http.StatusBadRequest, "POST", "http://[fd7a::1]:4/api/v0/edit-files")
+		sdkErr.Message = `file path must be absolute: "a.txt"`
+		mockConn.EXPECT().EditFiles(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.FileEditResponse{}, xerrors.Errorf("do request: %w", sdkErr))
+
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"a.txt","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, `file path must be absolute: "a.txt"`, resp.Content)
 	})
 
 	t.Run("PlanTurnRejectsNonPlanPath", func(t *testing.T) {
