@@ -2170,6 +2170,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		appIDs := make([]string, 0)
 		agentIDByAppID := make(map[string]uuid.UUID)
 		agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
+		aiBoundAgentIDs := make([]uuid.UUID, 0)
 		// This could be a bulk insert to improve performance.
 		for _, protoResource := range jobType.WorkspaceBuild.Resources {
 			for _, protoAgent := range protoResource.GetAgents() {
@@ -2183,6 +2184,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				// task linking.
 				agentID := uuid.New()
 				protoAgent.Id = agentID.String()
+				if protoAgent.GetAiBound() {
+					aiBoundAgentIDs = append(aiBoundAgentIDs, agentID)
+				}
 
 				dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 				agentTimeouts[dur] = true
@@ -2227,9 +2231,10 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		// Bind every agent of an AI-designated workspace to its marker
-		// identity. This runs inside the build-completion transaction, after
-		// all of this build's agents exist and before prior agents are
-		// soft-deleted, so it covers initial builds and rebuilds alike.
+		// identity. In an undesignated workspace, bind only agents whose
+		// provisioner declaration opts in. This runs inside the build-completion
+		// transaction, after all of this build's agents exist and before prior
+		// agents are soft-deleted, so it covers initial builds and rebuilds alike.
 		// See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2.
 		if workspace.AIAgentID.Valid {
 			buildAgents, err := db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
@@ -2245,6 +2250,20 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 					AIAgentID: workspace.AIAgentID,
 				}); err != nil {
 					return xerrors.Errorf("bind workspace agent to AI identity: %w", err)
+				}
+			}
+		} else if len(aiBoundAgentIDs) > 0 {
+			identity, err := aiagentidentity.ResolveWorkspaceOrigin(ctx, db, workspace)
+			if err != nil {
+				return xerrors.Errorf("resolve workspace-origin identity for AI-bound agents: %w", err)
+			}
+			aiAgentID := uuid.NullUUID{UUID: identity.UserID, Valid: true}
+			for _, agentID := range aiBoundAgentIDs {
+				if _, err := db.UpdateWorkspaceAgentAIAgentID(ctx, database.UpdateWorkspaceAgentAIAgentIDParams{
+					ID:        agentID,
+					AIAgentID: aiAgentID,
+				}); err != nil {
+					return xerrors.Errorf("bind declared AI agent to workspace-origin identity: %w", err)
 				}
 			}
 		}
