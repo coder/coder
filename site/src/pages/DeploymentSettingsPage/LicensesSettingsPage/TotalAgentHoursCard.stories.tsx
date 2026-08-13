@@ -29,14 +29,16 @@ const hoverInfoIcon = async (canvasElement: HTMLElement) => {
 	return within(canvasElement.ownerDocument.body);
 };
 
-// Tooltip text appears in both the tooltip popover and its hidden
-// accessibility duplicate, so assertions match all occurrences.
+// Radix mounts the role="tooltip" node only while the popover is open,
+// so this fails when hovering does not actually open the popover. The
+// role node is the visually hidden accessibility copy of the content,
+// which is intentionally clipped, so there is no visibility to assert.
 const expectTooltipText = async (
 	body: ReturnType<typeof within>,
 	text: RegExp,
 ) => {
-	const matches = await body.findAllByText(text);
-	expect(matches.length).toBeGreaterThanOrEqual(1);
+	const tooltip = await body.findByRole("tooltip");
+	expect(tooltip).toHaveTextContent(text);
 };
 
 export const Default: Story = {
@@ -126,6 +128,34 @@ export const OverAllocation: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("1,200")).toBeInTheDocument();
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+		const body = await hoverInfoIcon(canvasElement);
+		await expectTooltipText(
+			body,
+			/You've used 120% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+		);
+	},
+};
+
+// 999 of 1,000 hours is 99.9% used: the tooltip floors to 99% because
+// rounding up would falsely claim the allocation is reached.
+export const NearAllocation: Story = {
+	args: {
+		feature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 1000,
+			soft_limit: 999,
+			actual: 999,
+		} satisfies Feature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("999")).toBeInTheDocument();
+		const body = await hoverInfoIcon(canvasElement);
+		await expectTooltipText(
+			body,
+			/You've used 99% or more of your Total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+		);
 	},
 };
 
@@ -141,6 +171,30 @@ export const MissingActual: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("\u2014")).toBeInTheDocument();
+	},
+};
+
+// A zero soft limit is valid and reached by any usage, but usage data
+// missing because the usage query failed must not count as reaching it:
+// the card keeps the neutral informational tooltip instead of warning
+// about usage it does not know.
+export const MissingActualZeroSoftLimit: Story = {
+	args: {
+		feature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 1000,
+			soft_limit: 0,
+		} satisfies Feature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("\u2014")).toBeInTheDocument();
+		const body = await hoverInfoIcon(canvasElement);
+		await expectTooltipText(
+			body,
+			/^Total time agents have been working across all workspaces this license\. A soft-limit warning appears at 0%$/,
+		);
 	},
 };
 

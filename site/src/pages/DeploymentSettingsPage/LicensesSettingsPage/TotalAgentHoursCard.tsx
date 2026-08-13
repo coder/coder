@@ -47,9 +47,13 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	// thresholds to reach.
 	const reachedAllocation =
 		!isUnlimited && actual !== undefined && usedHours >= meteredLimit;
+	// Missing usage data (the usage query failed) must not count as
+	// reaching the soft limit: a soft limit of zero is valid and would
+	// otherwise compare as reached against the defaulted zero usage.
 	const reachedSoftLimit =
 		!isUnlimited &&
 		!reachedAllocation &&
+		actual !== undefined &&
 		softLimit !== undefined &&
 		usedHours >= softLimit;
 	const usagePercentage = isUnlimited
@@ -64,15 +68,25 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		? "Unlimited"
 		: meteredLimit.toLocaleString("en-US");
 
+	// Floored so the percentage never crosses a boundary the underlying
+	// hours have not reached: a soft limit of 999/1,000 hours displays as
+	// 99%, never rounding up to a false 100%.
 	const softLimitPercent =
 		!isUnlimited && softLimit !== undefined && meteredLimit > 0
-			? Math.round((softLimit / meteredLimit) * 100)
+			? Math.floor((softLimit / meteredLimit) * 100)
 			: undefined;
 
 	let tooltip: string;
 	if (reachedAllocation) {
-		tooltip =
-			"You've used 100% of your Total Agent hours for this license. Contact sales to receive more Agent hours.";
+		// Flooring cannot understate reaching the allocation because usage
+		// is at least the limit here, so the percentage is at least 100 and
+		// reports over-allocation (1,200 of 1,000 hours shows 120%). The
+		// zero-limit fallback is unreachable for well-formed licenses: the
+		// backend reports a zero-hour allocation as a disabled feature,
+		// which hides the card entirely.
+		const usedPercent =
+			meteredLimit > 0 ? Math.floor((usedHours / meteredLimit) * 100) : 100;
+		tooltip = `You've used ${usedPercent}% of your Total Agent hours for this license. Contact sales to receive more Agent hours.`;
 	} else if (reachedSoftLimit) {
 		tooltip = `You've used ${softLimitPercent}% or more of your Total Agent hours for this license. Agent sessions are still working normally, but you'll want to plan for the 100% limit.`;
 	} else if (softLimitPercent !== undefined) {
