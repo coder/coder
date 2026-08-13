@@ -507,7 +507,7 @@ export const WorkspaceTerminal = ({
 						return;
 					}
 					console.error("WebSocket error:", {
-						session_id: sessionId,
+						client_session_id: sessionId,
 						event,
 					});
 					terminal.options.disableStdin = true;
@@ -556,7 +556,7 @@ export const WorkspaceTerminal = ({
 					return;
 				}
 				console.error("WebSocket connection failed:", {
-					session_id: sessionId,
+					client_session_id: sessionId,
 					error,
 				});
 				reportTerminalError(

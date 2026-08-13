@@ -12,7 +12,7 @@ export const terminalWebsocketUrl = async (
 	sessionId: string,
 ): Promise<string> => {
 	const query = new URLSearchParams({ reconnect });
-	query.set("session_id", sessionId);
+	query.set("client_session_id", sessionId);
 	if (command) {
 		query.set("command", command);
 	}

@@ -118,7 +118,10 @@ const TerminalPage: FC = () => {
 	);
 	const handleTerminalError = useCallback(
 		(error: Error) => {
-			console.error("WebSocket failed:", { session_id: sessionId, error });
+			console.error("WebSocket failed:", {
+				client_session_id: sessionId,
+				error,
+			});
 		},
 		[sessionId],
 	);

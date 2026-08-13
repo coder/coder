@@ -774,9 +774,9 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tracing.ValidSessionID(sessionID) {
-		log = log.With(slog.F("session_id", sessionID))
+		log = log.With(slog.F("client_session_id", sessionID))
 		if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
-			rl.WithFields(slog.F("session_id", sessionID))
+			rl.WithFields(slog.F("client_session_id", sessionID))
 		}
 	}
 
