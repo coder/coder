@@ -628,6 +628,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
 		ParentID:   takeFirst(orig.ParentID, uuid.NullUUID{}),
+		AIAgentID:  takeFirst(orig.AIAgentID, uuid.NullUUID{}),
 		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
 		Name:       takeFirst(orig.Name, testutil.GetRandomName(t)),
@@ -688,8 +689,11 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		// to discover cases where deletion should be handled.
 		// See also `(dbfake.WorkspaceBuildBuilder).Do()`.
 		subAgt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
-			ID:                       uuid.New(),
-			ParentID:                 uuid.NullUUID{UUID: agt.ID, Valid: true},
+			ID:       uuid.New(),
+			ParentID: uuid.NullUUID{UUID: agt.ID, Valid: true},
+			// Inherit the parent's binding, matching production sub-agent
+			// creation.
+			AIAgentID:                agt.AIAgentID,
 			CreatedAt:                dbtime.Now(),
 			UpdatedAt:                dbtime.Now(),
 			Name:                     testutil.GetRandomName(t),

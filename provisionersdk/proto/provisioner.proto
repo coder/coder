@@ -190,6 +190,16 @@ message Agent {
   ResourcesMonitoring resources_monitoring = 24;
   repeated Devcontainer devcontainers = 25;
   string api_key_scope = 26;
+  // ai_bound runs this agent under a dedicated AI agent identity, which
+  // withholds every ambient owner credential. It is opt-in only: false is
+  // equivalent to omitted, and cannot unbind an agent in a workspace the
+  // server has already designated.
+  bool ai_bound = 27;
+  // egress_enforcement is the administrator's attestation about the network
+  // boundary an ai_bound agent runs inside. Recorded and surfaced by the
+  // server, never verified by it. Empty means not declared, which is
+  // distinct from a declared "none".
+  string egress_enforcement = 28;
 }
 
 enum AppSharingLevel {

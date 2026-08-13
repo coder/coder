@@ -37,14 +37,20 @@ type agentMetadata struct {
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth            string            `mapstructure:"auth"`
-	OperatingSystem string            `mapstructure:"os"`
-	Architecture    string            `mapstructure:"arch"`
-	Directory       string            `mapstructure:"dir"`
-	ID              string            `mapstructure:"id"`
-	Token           string            `mapstructure:"token"`
-	APIKeyScope     string            `mapstructure:"api_key_scope"`
-	Env             map[string]string `mapstructure:"env"`
+	Auth            string `mapstructure:"auth"`
+	OperatingSystem string `mapstructure:"os"`
+	Architecture    string `mapstructure:"arch"`
+	Directory       string `mapstructure:"dir"`
+	ID              string `mapstructure:"id"`
+	Token           string `mapstructure:"token"`
+	APIKeyScope     string `mapstructure:"api_key_scope"`
+	// AIBound binds this agent to a dedicated AI agent identity, which
+	// withholds every ambient owner credential. EgressEnforcement is the
+	// administrator's attestation about the boundary the bound agent runs
+	// inside; empty means not declared, which is distinct from "none".
+	AIBound           bool              `mapstructure:"ai_bound"`
+	EgressEnforcement string            `mapstructure:"egress_enforcement"`
+	Env               map[string]string `mapstructure:"env"`
 	// Deprecated: but remains here for backwards compatibility.
 	StartupScript                string `mapstructure:"startup_script"`
 	StartupScriptBehavior        string `mapstructure:"startup_script_behavior"`
@@ -350,6 +356,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			DisplayApps:              displayApps,
 			Order:                    attrs.Order,
 			ApiKeyScope:              attrs.APIKeyScope,
+			AiBound:                  attrs.AIBound,
+			EgressEnforcement:        attrs.EgressEnforcement,
 		}
 		// Support the legacy script attributes in the agent!
 		if attrs.StartupScript != "" {

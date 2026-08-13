@@ -168,6 +168,12 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		DisplayApps:              displayApps,
 		DisplayOrder:             0,
 		APIKeyScope:              parentAgent.APIKeyScope,
+		// A child of a bound agent is bound to the same AI identity.
+		// Credential starvation is enforced per agent row, so an unbound child
+		// of a bound parent would be served the sponsor's user secrets,
+		// external auth tokens, and Git SSH key, and would authorize as the
+		// human rather than as the agent.
+		AIAgentID: parentAgent.AIAgentID,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert sub agent: %w", err)

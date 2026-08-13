@@ -244,6 +244,20 @@ export interface Agent {
   resourcesMonitoring: ResourcesMonitoring | undefined;
   devcontainers: Devcontainer[];
   apiKeyScope: string;
+  /**
+   * ai_bound runs this agent under a dedicated AI agent identity, which
+   * withholds every ambient owner credential. It is opt-in only: false is
+   * equivalent to omitted, and cannot unbind an agent in a workspace the
+   * server has already designated.
+   */
+  aiBound: boolean;
+  /**
+   * egress_enforcement is the administrator's attestation about the network
+   * boundary an ai_bound agent runs inside. Recorded and surfaced by the
+   * server, never verified by it. Empty means not declared, which is
+   * distinct from a declared "none".
+   */
+  egressEnforcement: string;
 }
 
 export interface Agent_Metadata {
@@ -952,6 +966,12 @@ export const Agent = {
     }
     if (message.apiKeyScope !== "") {
       writer.uint32(210).string(message.apiKeyScope);
+    }
+    if (message.aiBound !== false) {
+      writer.uint32(216).bool(message.aiBound);
+    }
+    if (message.egressEnforcement !== "") {
+      writer.uint32(226).string(message.egressEnforcement);
     }
     return writer;
   },

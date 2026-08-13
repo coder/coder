@@ -93,10 +93,15 @@ INSERT INTO
 		motd_file,
 		display_apps,
 		display_order,
-		api_key_scope
+		api_key_scope,
+		-- Set the AI identity binding at insert. Credential starvation is
+		-- enforced per agent row, so a binding applied by a later UPDATE must
+		-- be remembered by every creation path; carrying it here makes an
+		-- unbound agent in a designated workspace unrepresentable.
+		ai_agent_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *;
 
 -- name: UpdateWorkspaceAgentAIAgentID :one
 UPDATE workspace_agents

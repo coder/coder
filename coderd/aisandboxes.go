@@ -146,8 +146,10 @@ func (api *API) postWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Requ
 			ResourceID: parentAgent.ResourceID,
 			AuthToken:  uuid.New(),
 			// The child inherits the parent's platform shape but none of
-			// its credentials: binding below activates credential
-			// starvation for every enforcement point.
+			// its credentials: the binding set here activates credential
+			// starvation for every enforcement point, before the row is
+			// ever observable.
+			AIAgentID:                uuid.NullUUID{UUID: agent.UserID, Valid: true},
 			Architecture:             parentAgent.Architecture,
 			OperatingSystem:          parentAgent.OperatingSystem,
 			Directory:                parentAgent.Directory,
@@ -166,12 +168,6 @@ func (api *API) postWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Requ
 		})
 		if err != nil {
 			return xerrors.Errorf("insert sandbox child agent: %w", err)
-		}
-		if _, err := tx.UpdateWorkspaceAgentAIAgentID(txCtx, database.UpdateWorkspaceAgentAIAgentIDParams{
-			ID:        created.ID,
-			AIAgentID: uuid.NullUUID{UUID: agent.UserID, Valid: true},
-		}); err != nil {
-			return xerrors.Errorf("bind sandbox child agent: %w", err)
 		}
 		if _, err := tx.InsertAISandbox(txCtx, database.InsertAISandboxParams{
 			ID:                sandboxID,

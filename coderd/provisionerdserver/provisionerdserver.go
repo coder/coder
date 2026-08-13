@@ -3058,6 +3058,14 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			// #nosec G115 - Order represents a display order value that's always small and fits in int32
 			DisplayOrder: int32(prAgent.Order),
 			APIKeyScope:  apiKeyScope,
+			// Binding is resolved after the build's agents exist, because it
+			// needs the workspace's designation marker and, for an agent
+			// declaring ai_bound, the workspace owner and organization used to
+			// resolve or create the identity. Neither is available here:
+			// InsertWorkspaceResource is given a job and a proto resource, not
+			// a workspace. See the binding step in the build-completion
+			// transaction.
+			AIAgentID: uuid.NullUUID{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -3744,6 +3752,9 @@ func insertDevcontainerSubagent(
 		DisplayApps:              []database.DisplayApp{},
 		DisplayOrder:             0,
 		APIKeyScope:              parentAgent.APIKeyScope,
+		// A child of a bound agent inherits its binding, so credential
+		// starvation applies to the child as well.
+		AIAgentID: parentAgent.AIAgentID,
 	})
 	if err != nil {
 		return uuid.UUID{}, xerrors.Errorf("insert subagent: %w", err)

@@ -1738,3 +1738,59 @@ func TestSubAgentAPI(t *testing.T) {
 		})
 	})
 }
+
+// TestSubAgentInheritsAIBinding covers the propagation requirement: credential
+// starvation is enforced per agent row, so a child of a bound agent must be
+// bound at insert. An unbound child of a bound parent would be served the
+// sponsor's user secrets, external auth tokens, and Git SSH key.
+func TestSubAgentInheritsAIBinding(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		parent uuid.NullUUID
+	}{
+		{name: "BoundParentBindsChild", parent: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+		{name: "UnboundParentLeavesChildUnbound", parent: uuid.NullUUID{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			mDB := dbmock.NewMockStore(ctrl)
+
+			parentAgent := database.WorkspaceAgent{
+				ID:                       uuid.New(),
+				ResourceID:               uuid.New(),
+				AIAgentID:                tc.parent,
+				APIKeyScope:              database.AgentKeyScopeEnumAll,
+				ConnectionTimeoutSeconds: 30,
+			}
+
+			api := &agentapi.SubAgentAPI{
+				OwnerID:  uuid.New(),
+				Database: mDB,
+				Log:      testutil.Logger(t),
+				Clock:    quartz.NewMock(t),
+				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+					return parentAgent, nil
+				},
+			}
+
+			mDB.EXPECT().InsertWorkspaceAgent(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
+					require.Equal(t, tc.parent, arg.AIAgentID,
+						"a sub agent must carry its parent's AI binding at insert")
+					return database.WorkspaceAgent{ID: arg.ID, AIAgentID: arg.AIAgentID}, nil
+				})
+
+			_, err := api.CreateSubAgent(context.Background(), &proto.CreateSubAgentRequest{
+				Name:            "inherits-binding",
+				Directory:       "/workspaces/coder",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+			})
+			require.NoError(t, err)
+		})
+	}
+}
