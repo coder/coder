@@ -14746,7 +14746,7 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 	return err
 }
 
-const getEntityJournalEntriesByActor = `-- name: GetEntityJournalEntriesByActor :many
+const getLifecycleEntriesByActor = `-- name: GetLifecycleEntriesByActor :many
 SELECT
 	id, recorded_at, event, subject_type, subject, actor_type, actor
 FROM
@@ -14756,15 +14756,18 @@ WHERE
 	AND actor = $2
 ORDER BY
 	id
+LIMIT
+	$3
 `
 
-type GetEntityJournalEntriesByActorParams struct {
+type GetLifecycleEntriesByActorParams struct {
 	ActorType string    `db:"actor_type" json:"actor_type"`
 	Actor     uuid.UUID `db:"actor" json:"actor"`
+	Limit     int32     `db:"limit" json:"limit"`
 }
 
-func (q *sqlQuerier) GetEntityJournalEntriesByActor(ctx context.Context, arg GetEntityJournalEntriesByActorParams) ([]EntityJournal, error) {
-	rows, err := q.db.QueryContext(ctx, getEntityJournalEntriesByActor, arg.ActorType, arg.Actor)
+func (q *sqlQuerier) GetLifecycleEntriesByActor(ctx context.Context, arg GetLifecycleEntriesByActorParams) ([]EntityJournal, error) {
+	rows, err := q.db.QueryContext(ctx, getLifecycleEntriesByActor, arg.ActorType, arg.Actor, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -14794,7 +14797,7 @@ func (q *sqlQuerier) GetEntityJournalEntriesByActor(ctx context.Context, arg Get
 	return items, nil
 }
 
-const getEntityJournalEntriesBySubject = `-- name: GetEntityJournalEntriesBySubject :many
+const getLifecycleEntriesBySubject = `-- name: GetLifecycleEntriesBySubject :many
 SELECT
 	id, recorded_at, event, subject_type, subject, actor_type, actor
 FROM
@@ -14804,15 +14807,21 @@ WHERE
 	AND subject = $2
 ORDER BY
 	id
+LIMIT
+	$3
 `
 
-type GetEntityJournalEntriesBySubjectParams struct {
+type GetLifecycleEntriesBySubjectParams struct {
 	SubjectType string    `db:"subject_type" json:"subject_type"`
 	Subject     uuid.UUID `db:"subject" json:"subject"`
+	Limit       int32     `db:"limit" json:"limit"`
 }
 
-func (q *sqlQuerier) GetEntityJournalEntriesBySubject(ctx context.Context, arg GetEntityJournalEntriesBySubjectParams) ([]EntityJournal, error) {
-	rows, err := q.db.QueryContext(ctx, getEntityJournalEntriesBySubject, arg.SubjectType, arg.Subject)
+// The limit is a backstop rather than pagination. Callers pass one entry more
+// than they will accept, so that receiving it tells them the set was larger
+// than an entity's lifecycle can produce.
+func (q *sqlQuerier) GetLifecycleEntriesBySubject(ctx context.Context, arg GetLifecycleEntriesBySubjectParams) ([]EntityJournal, error) {
+	rows, err := q.db.QueryContext(ctx, getLifecycleEntriesBySubject, arg.SubjectType, arg.Subject, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

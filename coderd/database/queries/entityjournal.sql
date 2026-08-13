@@ -11,7 +11,10 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, $6) RETURNING *;
 
--- name: GetEntityJournalEntriesBySubject :many
+-- name: GetLifecycleEntriesBySubject :many
+-- The limit is a backstop rather than pagination. Callers pass one entry more
+-- than they will accept, so that receiving it tells them the set was larger
+-- than an entity's lifecycle can produce.
 SELECT
 	*
 FROM
@@ -20,9 +23,11 @@ WHERE
 	subject_type = $1
 	AND subject = $2
 ORDER BY
-	id;
+	id
+LIMIT
+	$3;
 
--- name: GetEntityJournalEntriesByActor :many
+-- name: GetLifecycleEntriesByActor :many
 SELECT
 	*
 FROM
@@ -31,4 +36,6 @@ WHERE
 	actor_type = $1
 	AND actor = $2
 ORDER BY
-	id;
+	id
+LIMIT
+	$3;

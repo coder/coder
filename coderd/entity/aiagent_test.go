@@ -85,9 +85,9 @@ func TestCreateAIAgent(t *testing.T) {
 func entriesFor(ctx context.Context, t *testing.T, db database.Store, id uuid.UUID) []database.EntityJournal {
 	t.Helper()
 
-	entries, err := db.GetEntityJournalEntriesBySubject(ctx, database.GetEntityJournalEntriesBySubjectParams{
-		SubjectType: string(entity.TypeAIAgent),
-		Subject:     id,
+	entries, err := entity.LifecycleEntriesBySubject(ctx, testutil.Logger(t), db, entity.Ref{
+		Type: entity.TypeAIAgent,
+		ID:   id,
 	})
 	require.NoError(t, err)
 	return entries

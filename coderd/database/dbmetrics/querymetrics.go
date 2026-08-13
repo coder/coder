@@ -2089,22 +2089,6 @@ func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]da
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetEntityJournalEntriesByActor(ctx context.Context, arg database.GetEntityJournalEntriesByActorParams) ([]database.EntityJournal, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetEntityJournalEntriesByActor(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetEntityJournalEntriesByActor").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEntityJournalEntriesByActor").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetEntityJournalEntriesBySubject(ctx context.Context, arg database.GetEntityJournalEntriesBySubjectParams) ([]database.EntityJournal, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetEntityJournalEntriesBySubject(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetEntityJournalEntriesBySubject").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEntityJournalEntriesBySubject").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAgentTokensByTemplateID(ctx, arg)
@@ -2382,6 +2366,22 @@ func (m queryMetricsStore) GetLicenses(ctx context.Context) ([]database.License,
 	r0, r1 := m.s.GetLicenses(ctx)
 	m.queryLatencies.WithLabelValues("GetLicenses").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLicenses").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLifecycleEntriesByActor(ctx context.Context, arg database.GetLifecycleEntriesByActorParams) ([]database.EntityJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLifecycleEntriesByActor(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLifecycleEntriesByActor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLifecycleEntriesByActor").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLifecycleEntriesBySubject(ctx context.Context, arg database.GetLifecycleEntriesBySubjectParams) ([]database.EntityJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLifecycleEntriesBySubject(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLifecycleEntriesBySubject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLifecycleEntriesBySubject").Inc()
 	return r0, r1
 }
 

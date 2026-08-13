@@ -595,8 +595,6 @@ type sqlcQuerier interface {
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabledChatModelConfigsRow, error)
 	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
-	GetEntityJournalEntriesByActor(ctx context.Context, arg GetEntityJournalEntriesByActorParams) ([]EntityJournal, error)
-	GetEntityJournalEntriesBySubject(ctx context.Context, arg GetEntityJournalEntriesBySubjectParams) ([]EntityJournal, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
 	// non-deleted external agents on the latest build of every running workspace
 	// of the given template. "Running" means the latest build has
@@ -684,6 +682,11 @@ type sqlcQuerier interface {
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
+	GetLifecycleEntriesByActor(ctx context.Context, arg GetLifecycleEntriesByActorParams) ([]EntityJournal, error)
+	// The limit is a backstop rather than pagination. Callers pass one entry more
+	// than they will accept, so that receiving it tells them the set was larger
+	// than an entity's lifecycle can produce.
+	GetLifecycleEntriesBySubject(ctx context.Context, arg GetLifecycleEntriesBySubjectParams) ([]EntityJournal, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
 	GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error)

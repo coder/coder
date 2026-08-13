@@ -4867,6 +4867,10 @@ CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower_organization_id ON custom_roles USING btree (lower(name), COALESCE(organization_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
+CREATE INDEX idx_entity_journal_actor ON entity_journal USING btree (actor_type, actor, id);
+
+CREATE INDEX idx_entity_journal_subject ON entity_journal USING btree (subject_type, subject, id);
+
 CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
 
 CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);

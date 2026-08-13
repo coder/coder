@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -122,9 +123,9 @@ func TestAIAgentIdentity(t *testing.T) {
 		var entries []database.EntityJournal
 		if !assert.Eventually(t, func() bool {
 			var err error
-			entries, err = db.GetEntityJournalEntriesByActor(systemCtx, database.GetEntityJournalEntriesByActorParams{
-				ActorType: "workspace_agent",
-				Actor:     r.Agents[0].ID,
+			entries, err = entity.LifecycleEntriesByActor(systemCtx, testutil.Logger(t), db, entity.Ref{
+				Type: entity.TypeWorkspaceAgent,
+				ID:   r.Agents[0].ID,
 			})
 			return err == nil && len(entries) > 0
 		}, testutil.WaitLong, testutil.IntervalMedium) {
