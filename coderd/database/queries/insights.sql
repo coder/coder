@@ -148,41 +148,43 @@ FROM
 -- GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 -- in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 WITH
-	-- This CTE is used to truncate agent usage into minute buckets, then
-	-- flatten the users agent usage within the template so that usage in
-	-- multiple workspaces under one template is only counted once for
-	-- every minute (per user).
+	-- Deduplicate activity by template, user, and minute.
+	minute_activity AS (
+		SELECT
+			template_id,
+			user_id,
+			date_trunc('minute', created_at) AS minute,
+			BOOL_OR(session_counts ? 'ssh') AS ssh,
+			BOOL_OR(session_counts ? 'reconnecting_pty') AS reconnecting_pty,
+			BOOL_OR(session_counts ? 'vscode') AS vscode,
+			BOOL_OR(session_counts ? 'jetbrains') AS jetbrains,
+			BOOL_OR(connection_count > 0) AS has_connection
+		FROM
+			workspace_agent_stats
+		WHERE
+			created_at >= @start_time::timestamptz
+			AND created_at < @end_time::timestamptz
+			AND session_counts ?| ARRAY['ssh', 'reconnecting_pty', 'vscode', 'jetbrains']
+		GROUP BY
+			template_id, user_id, minute
+	),
 	insights AS (
 		SELECT
-			was.template_id,
-			was.user_id,
-			COUNT(DISTINCT CASE WHEN sc.app_name = 'ssh' THEN date_trunc('minute', was.created_at) ELSE NULL END) AS ssh_mins,
-			COUNT(DISTINCT CASE WHEN sc.app_name = 'reconnecting_pty' THEN date_trunc('minute', was.created_at) ELSE NULL END) AS reconnecting_pty_mins,
-			COUNT(DISTINCT CASE WHEN sc.app_name = 'vscode' THEN date_trunc('minute', was.created_at) ELSE NULL END) AS vscode_mins,
-			COUNT(DISTINCT CASE WHEN sc.app_name = 'jetbrains' THEN date_trunc('minute', was.created_at) ELSE NULL END) AS jetbrains_mins,
+			template_id,
+			user_id,
+			COUNT(*) FILTER (WHERE ssh) AS ssh_mins,
+			COUNT(*) FILTER (WHERE reconnecting_pty) AS reconnecting_pty_mins,
+			COUNT(*) FILTER (WHERE vscode) AS vscode_mins,
+			COUNT(*) FILTER (WHERE jetbrains) AS jetbrains_mins,
 			-- NOTE(mafredri): The agent stats are currently very unreliable, and
 			-- sometimes the connections are missing, even during active sessions.
 			-- Since we can't fully rely on this, we check for "any connection
 			-- within this bucket". A better solution here would be preferable.
-			MAX(was.connection_count) > 0 AS has_connection
+			BOOL_OR(has_connection) AS has_connection
 		FROM
-			workspace_agent_stats was
-		-- The join is also the "has session activity" filter. Fan-out is safe:
-		-- only DISTINCT and MAX aggregates below, no SUMs.
-		JOIN
-			workspace_agent_session_counts sc
-		ON
-			sc.workspace_agent_stats_id = was.id
-			AND sc.created_at >= @start_time::timestamptz
-			AND sc.created_at < @end_time::timestamptz
-			AND sc.count > 0
-			-- Pinned to this report's four columns, dynamic in coder/coder#27413.
-			AND sc.app_name IN ('ssh', 'reconnecting_pty', 'vscode', 'jetbrains')
-		WHERE
-			was.created_at >= @start_time::timestamptz
-			AND was.created_at < @end_time::timestamptz
+			minute_activity
 		GROUP BY
-			was.template_id, was.user_id
+			template_id, user_id
 	)
 
 SELECT
@@ -555,41 +557,30 @@ WITH
 		SELECT
 			-- Truncate the minute to the nearest half hour, this is the bucket size
 			-- for the data.
-			date_trunc('hour', was.created_at) + trunc(date_part('minute', was.created_at) / 30) * 30 * '1 minute'::interval AS time_bucket,
-			was.template_id,
-			was.user_id,
+			date_trunc('hour', created_at) + trunc(date_part('minute', created_at) / 30) * 30 * '1 minute'::interval AS time_bucket,
+			template_id,
+			user_id,
 			-- Store each unique minute bucket for later merge between datasets.
-			-- The join already dropped inactive rows, so every row counts.
-			array_agg(DISTINCT date_trunc('minute', was.created_at)) AS minute_buckets,
-			COUNT(DISTINCT CASE WHEN sc.app_name = 'ssh' THEN date_trunc('minute', was.created_at) ELSE NULL END) AS ssh_mins,
-			COUNT(DISTINCT CASE WHEN sc.app_name = 'reconnecting_pty' THEN date_trunc('minute', was.created_at) ELSE NULL END) AS reconnecting_pty_mins,
-			COUNT(DISTINCT CASE WHEN sc.app_name = 'vscode' THEN date_trunc('minute', was.created_at) ELSE NULL END) AS vscode_mins,
-			COUNT(DISTINCT CASE WHEN sc.app_name = 'jetbrains' THEN date_trunc('minute', was.created_at) ELSE NULL END) AS jetbrains_mins,
+			array_agg(DISTINCT date_trunc('minute', created_at)) AS minute_buckets,
+			COUNT(DISTINCT CASE WHEN session_counts ? 'ssh' THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
+			COUNT(DISTINCT CASE WHEN session_counts ? 'reconnecting_pty' THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
+			COUNT(DISTINCT CASE WHEN session_counts ? 'vscode' THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
+			COUNT(DISTINCT CASE WHEN session_counts ? 'jetbrains' THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
 			-- NOTE(mafredri): The agent stats are currently very unreliable, and
 			-- sometimes the connections are missing, even during active sessions.
 			-- Since we can't fully rely on this, we check for "any connection
 			-- during this half-hour". A better solution here would be preferable.
-			MAX(was.connection_count) > 0 AS has_connection
+			MAX(connection_count) > 0 AS has_connection
 		FROM
-			workspace_agent_stats was
-		-- The join is also the "has session activity" filter. Fan-out is safe:
-		-- only DISTINCT and MAX aggregates below, no SUMs.
-		JOIN
-			workspace_agent_session_counts sc
-		ON
-			sc.workspace_agent_stats_id = was.id
-			AND sc.created_at >= (SELECT t FROM latest_start)
-			AND sc.created_at < NOW()
-			AND sc.count > 0
-			-- Pinned to this report's four columns, dynamic in coder/coder#27413.
-			AND sc.app_name IN ('ssh', 'reconnecting_pty', 'vscode', 'jetbrains')
+			workspace_agent_stats
 		WHERE
 			-- created_at >= @start_time::timestamptz
 			-- AND created_at < @end_time::timestamptz
-			was.created_at >= (SELECT t FROM latest_start)
-			AND was.created_at < NOW()
+			created_at >= (SELECT t FROM latest_start)
+			AND created_at < NOW()
+			AND session_counts ?| ARRAY['ssh', 'reconnecting_pty', 'vscode', 'jetbrains']
 		GROUP BY
-			time_bucket, was.template_id, was.user_id
+			time_bucket, template_id, user_id
 	),
 	stats AS (
 		SELECT

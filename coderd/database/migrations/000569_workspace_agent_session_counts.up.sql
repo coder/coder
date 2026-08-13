@@ -1,35 +1,61 @@
--- No DEFAULT on count: an insert omitting it is a bug and must fail.
-CREATE TABLE workspace_agent_session_counts (
-	workspace_agent_stats_id uuid NOT NULL REFERENCES workspace_agent_stats (id) ON DELETE CASCADE,
-	created_at timestamptz NOT NULL,
-	app_name text NOT NULL,
-	count bigint NOT NULL,
-	PRIMARY KEY (workspace_agent_stats_id, app_name)
-);
+LOCK TABLE workspace_agent_stats IN ACCESS EXCLUSIVE MODE;
 
-COMMENT ON TABLE workspace_agent_session_counts IS 'Per-app session counts for each workspace agent stats row; rows are removed with their parent.';
-COMMENT ON COLUMN workspace_agent_session_counts.created_at IS 'Copied from the parent stats row so time-windowed queries can prune this table without joining.';
-COMMENT ON COLUMN workspace_agent_session_counts.app_name IS 'App name as reported by the client, canonicalized at ingestion (lowercased, hyphens folded to underscores). Stored ungrouped; families are applied at read time.';
+DO $$
+DECLARE
+	latest_rollup_start timestamptz;
+	migration_cutoff timestamptz;
+BEGIN
+	SELECT MAX(start_time) INTO latest_rollup_start FROM template_usage_stats;
+	migration_cutoff := COALESCE(latest_rollup_start - interval '1 day', statement_timestamp() - interval '180 days');
 
--- Backfill so rollups and deployment stats see no gap during upgrade. One day
--- covers every window that reads raw stats, and caps the migration when the
--- purge or the rollup has fallen behind and the table holds months.
-INSERT INTO workspace_agent_session_counts (workspace_agent_stats_id, created_at, app_name, count)
-SELECT s.id, s.created_at, v.app_name, v.count
-FROM workspace_agent_stats s
-CROSS JOIN LATERAL (
-	VALUES
-		('vscode', s.session_count_vscode),
-		('jetbrains', s.session_count_jetbrains),
-		('reconnecting_pty', s.session_count_reconnecting_pty),
-		('ssh', s.session_count_ssh)
-) v(app_name, count)
-WHERE v.count > 0
-	AND s.created_at >= NOW() - '1 day'::interval;
+	IF (latest_rollup_start IS NULL OR latest_rollup_start < statement_timestamp() - interval '24 hours')
+		AND EXISTS (
+			SELECT 1
+			FROM workspace_agent_stats
+			WHERE created_at >= migration_cutoff
+				AND (
+					session_count_vscode > 0
+					OR session_count_jetbrains > 0
+					OR session_count_reconnecting_pty > 0
+					OR session_count_ssh > 0
+				)
+		)
+	THEN
+		RAISE EXCEPTION 'migration 000569 requires template usage stats rolled up within the last 24 hours; run the previous Coder version until template usage stats roll up, then retry the upgrade'
+			USING DETAIL = format(
+				'Latest template_usage_stats.start_time: %s.',
+				COALESCE(latest_rollup_start::text, 'none')
+			),
+			HINT = 'Check coderd logs for "failed to rollup data" if the timestamp does not advance.';
+	END IF;
+END
+$$;
 
--- Rows arrive in time order and purge oldest-first, so a BRIN index stays
--- tiny and lets windowed reads prune.
-CREATE INDEX workspace_agent_session_counts_created_at_idx ON workspace_agent_session_counts USING brin (created_at);
+ALTER TABLE workspace_agent_stats
+	ADD COLUMN session_counts jsonb DEFAULT '{}'::jsonb NOT NULL;
+
+COMMENT ON COLUMN workspace_agent_stats.session_counts IS 'Positive session counts keyed by the canonical app name reported by the agent.';
+
+-- Convert the raw window still used by rollups and operational statistics.
+-- Older usage is already in template usage rollups. The guard requires a recent
+-- rollup when retained rows need conversion.
+UPDATE workspace_agent_stats
+SET session_counts = jsonb_strip_nulls(jsonb_build_object(
+	'vscode', CASE WHEN session_count_vscode > 0 THEN session_count_vscode END,
+	'jetbrains', CASE WHEN session_count_jetbrains > 0 THEN session_count_jetbrains END,
+	'reconnecting_pty', CASE WHEN session_count_reconnecting_pty > 0 THEN session_count_reconnecting_pty END,
+	'ssh', CASE WHEN session_count_ssh > 0 THEN session_count_ssh END
+))
+WHERE created_at >= (
+	SELECT COALESCE(MAX(start_time) - interval '1 day', statement_timestamp() - interval '180 days')
+	FROM template_usage_stats
+)
+	AND (
+		session_count_vscode > 0
+		OR session_count_jetbrains > 0
+		OR session_count_reconnecting_pty > 0
+		OR session_count_ssh > 0
+	);
 
 -- Recreate the index without the dropped columns in its INCLUDE list.
 DROP INDEX workspace_agent_stats_template_id_created_at_user_id_idx;

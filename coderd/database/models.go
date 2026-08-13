@@ -6506,16 +6506,6 @@ type WorkspaceAgentScriptTiming struct {
 	Status    WorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
 }
 
-// Per-app session counts for each workspace agent stats row; rows are removed with their parent.
-type WorkspaceAgentSessionCount struct {
-	WorkspaceAgentStatsID uuid.UUID `db:"workspace_agent_stats_id" json:"workspace_agent_stats_id"`
-	// Copied from the parent stats row so time-windowed queries can prune this table without joining.
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	// App name as reported by the client, canonicalized at ingestion (lowercased, hyphens folded to underscores). Stored ungrouped; families are applied at read time.
-	AppName string `db:"app_name" json:"app_name"`
-	Count   int64  `db:"count" json:"count"`
-}
-
 type WorkspaceAgentStat struct {
 	ID                        uuid.UUID       `db:"id" json:"id"`
 	CreatedAt                 time.Time       `db:"created_at" json:"created_at"`
@@ -6531,6 +6521,8 @@ type WorkspaceAgentStat struct {
 	TxBytes                   int64           `db:"tx_bytes" json:"tx_bytes"`
 	ConnectionMedianLatencyMS float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 	Usage                     bool            `db:"usage" json:"usage"`
+	// Positive session counts keyed by the canonical app name reported by the agent.
+	SessionCounts json.RawMessage `db:"session_counts" json:"session_counts"`
 }
 
 type WorkspaceAgentVolumeResourceMonitor struct {

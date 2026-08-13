@@ -175,6 +175,34 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 		require.Equal(t, int64(0), stats.SessionCountJetBrains)
 	})
 
+	t.Run("ExcludesStatsBeforeCutoffInSameMinute", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+		db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+		ctx := context.Background()
+		agentID := uuid.New()
+		minute := dbtime.Now().Add(-2 * time.Minute).Truncate(time.Minute)
+		cutoff := minute.Add(30 * time.Second)
+
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			CreatedAt: minute.Add(10 * time.Second),
+			AgentID:   agentID,
+			Usage:     true,
+		}, map[string]int64{"vscode": 4})
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			CreatedAt: minute.Add(40 * time.Second),
+			AgentID:   agentID,
+			Usage:     true,
+		}, map[string]int64{"ssh": 1})
+
+		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, cutoff)
+		require.NoError(t, err)
+		require.Zero(t, stats.SessionCountVSCode)
+		require.Equal(t, int64(1), stats.SessionCountSSH)
+	})
+
 	t.Run("NoUsage", func(t *testing.T) {
 		t.Parallel()
 
@@ -690,6 +718,62 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestGetTemplateInsightsByTemplate(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+	startTime := dbtime.Now().Add(-10 * time.Minute).Truncate(time.Minute)
+	endTime := startTime.Add(2 * time.Minute)
+
+	insertStat := func(offset time.Duration, templateID, userID, workspaceID uuid.UUID, connections int64, counts map[string]int64) {
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			CreatedAt:       startTime.Add(offset),
+			TemplateID:      templateID,
+			UserID:          userID,
+			WorkspaceID:     workspaceID,
+			AgentID:         uuid.New(),
+			ConnectionCount: connections,
+		}, counts)
+	}
+
+	templateID := uuid.New()
+	userID := uuid.New()
+	workspaceID := uuid.New()
+	otherWorkspaceID := uuid.New()
+
+	// Activity is deduplicated by user and minute.
+	insertStat(5*time.Second, templateID, userID, workspaceID, 1, map[string]int64{"ssh": 1, "vscode": 1})
+	insertStat(20*time.Second, templateID, userID, workspaceID, 0, map[string]int64{"jetbrains": 1, "vscode": 1})
+	insertStat(40*time.Second, templateID, userID, otherWorkspaceID, 0, map[string]int64{"reconnecting_pty": 1, "vscode": 1})
+	insertStat(time.Minute+5*time.Second, templateID, userID, otherWorkspaceID, 1, map[string]int64{"ssh": 1, "vscode": 1})
+
+	// Unknown apps do not contribute activity or active users.
+	insertStat(10*time.Second, templateID, uuid.New(), uuid.New(), 1, map[string]int64{"unknown": 1})
+
+	// Unknown activity cannot supply a connection for known activity.
+	noKnownConnectionTemplateID := uuid.New()
+	noKnownConnectionUserID := uuid.New()
+	insertStat(15*time.Second, noKnownConnectionTemplateID, noKnownConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
+	insertStat(30*time.Second, noKnownConnectionTemplateID, noKnownConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
+
+	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
+		StartTime: startTime,
+		EndTime:   endTime,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []database.GetTemplateInsightsByTemplateRow{
+		{
+			TemplateID:                  templateID,
+			ActiveUsers:                 1,
+			UsageVscodeSeconds:          120,
+			UsageJetbrainsSeconds:       60,
+			UsageReconnectingPtySeconds: 60,
+			UsageSshSeconds:             120,
+		},
+	}, insights)
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {

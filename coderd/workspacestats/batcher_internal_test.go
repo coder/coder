@@ -2,6 +2,7 @@ package workspacestats
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -64,10 +65,10 @@ func TestBatchStats(t *testing.T) {
 	// that a positional misalignment on insert shows up.
 	t2 := t1.Add(time.Second)
 	t.Log("inserting 2 stats")
-	b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t, func(s *agentproto.Stats) {
+	b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.Template.ID, deps1.User.ID, deps1.Workspace.ID, randStats(t, func(s *agentproto.Stats) {
 		s.SessionCounts = map[string]int64{"VSCode": 3, "ssh": 1, "idle-ide": 0}
 	}), false)
-	b.Add(t2.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randStats(t, func(s *agentproto.Stats) {
+	b.Add(t2.Add(time.Millisecond), deps2.Agent.ID, deps2.Template.ID, deps2.User.ID, deps2.Workspace.ID, randStats(t, func(s *agentproto.Stats) {
 		s.SessionCounts = map[string]int64{"jetbrains": 4, "reconnecting-pty": 2}
 	}), false)
 
@@ -93,17 +94,21 @@ func TestBatchStats(t *testing.T) {
 	require.EqualValues(t, 2, byAgent[deps2.Agent.ID].SessionCountReconnectingPTY)
 	require.EqualValues(t, 0, byAgent[deps2.Agent.ID].SessionCountVSCode)
 
-	// And: child rows copy the parent created_at, which windowed reads join on.
-	var children, mismatched int
-	require.NoError(t, sqlDB.QueryRowContext(ctx, `
-		SELECT
-			COUNT(*),
-			COUNT(*) FILTER (WHERE sc.created_at <> s.created_at)
-		FROM workspace_agent_session_counts sc
-		JOIN workspace_agent_stats s ON s.id = sc.workspace_agent_stats_id
-	`).Scan(&children, &mismatched))
-	require.EqualValues(t, 4, children, "expected one child row per positive session count")
-	require.Zero(t, mismatched, "child rows must copy the parent created_at")
+	// Each row stores its normalized session counts.
+	storedSessionCounts := func(agentID uuid.UUID) map[string]int64 {
+		var payload json.RawMessage
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `
+			SELECT session_counts
+			FROM workspace_agent_stats
+			WHERE agent_id = $1 AND created_at > $2
+		`, agentID, t2).Scan(&payload))
+
+		var counts map[string]int64
+		require.NoError(t, json.Unmarshal(payload, &counts))
+		return counts
+	}
+	require.Equal(t, map[string]int64{"ssh": 1, "vscode": 3}, storedSessionCounts(deps1.Agent.ID))
+	require.Equal(t, map[string]int64{"jetbrains": 4, "reconnecting_pty": 2}, storedSessionCounts(deps2.Agent.ID))
 
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
@@ -115,9 +120,9 @@ func TestBatchStats(t *testing.T) {
 		t.Logf("inserting %d stats", defaultBufferSize)
 		for i := 0; i < defaultBufferSize; i++ {
 			if i%2 == 0 {
-				b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false)
+				b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.Template.ID, deps1.User.ID, deps1.Workspace.ID, randStats(t), false)
 			} else {
-				b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randStats(t), false)
+				b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.Template.ID, deps2.User.ID, deps2.Workspace.ID, randStats(t), false)
 			}
 		}
 	}()

@@ -38,8 +38,7 @@ type DBBatcher struct {
 	mu sync.Mutex
 	// TODO: make this a buffered chan instead?
 	buf *database.InsertWorkspaceAgentStatsParams
-	// NOTE: we batch these separately as they're jsonb fields and
-	// pq.Array + unnest doesn't play nicely with this.
+	// These objects are marshaled into positional arrays on flush.
 	connectionsByProto []map[string]int64
 	sessionCounts      []map[string]int64
 	batchSize          int
@@ -165,10 +164,7 @@ func (b *DBBatcher) Add(
 	b.buf.TemplateID = append(b.buf.TemplateID, templateID)
 	b.buf.WorkspaceID = append(b.buf.WorkspaceID, workspaceID)
 
-	// Store the connections by proto and session counts separately as
-	// they're jsonb fields. We marshal on flush.
 	b.connectionsByProto = append(b.connectionsByProto, st.ConnectionsByProto)
-	// Non-nil: a JSON null element fails the insert.
 	b.sessionCounts = append(b.sessionCounts, sessionCounts)
 
 	b.buf.ConnectionCount = append(b.buf.ConnectionCount, st.ConnectionCount)
@@ -256,7 +252,6 @@ func (b *DBBatcher) flush(ctx context.Context, forced bool, reason string) {
 		b.buf.ConnectionsByProto = payload
 	}
 
-	// Zipped with the ID array by position on insert.
 	sessionCountsPayload, err := json.Marshal(b.sessionCounts)
 	if err != nil {
 		b.log.Error(ctx, "unable to marshal agent session counts, dropping data", slog.Error(err))

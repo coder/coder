@@ -1674,14 +1674,14 @@ func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig databa
 }
 
 // WorkspaceAgentStat inserts a workspace agent stat row. The optional map seeds
-// the workspace_agent_session_counts child table.
+// its session_counts column.
 func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat, sessionCounts ...map[string]int64) database.WorkspaceAgentStat {
 	if orig.ConnectionsByProto == nil {
 		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
 	}
 	jsonProto := []byte(fmt.Sprintf("[%s]", orig.ConnectionsByProto))
 
-	// One object per stats row; a nil map marshals to null and breaks the insert.
+	// The insert rejects null session count elements.
 	counts := map[string]int64{}
 	if len(sessionCounts) > 0 && sessionCounts[0] != nil {
 		counts = sessionCounts[0]

@@ -3,6 +3,7 @@ package migrations_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -2875,6 +2876,118 @@ func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 			VALUES ($1, $2, $2, $3, '', 'http://localhost/callback', $4)
 		`, uuid.New(), now, "test-565-good-"+goodValue, goodValue)
 		require.NoError(t, err, "client_type %q must remain valid", goodValue)
+	}
+}
+
+//nolint:tparallel,paralleltest // Subtests share one database with transaction-local fixtures.
+func TestMigration000569WorkspaceAgentSessionCountsGuard(t *testing.T) {
+	t.Parallel()
+
+	const (
+		priorMigrationVersion = 568
+		noStatsAgeHours       = -1
+	)
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", priorMigrationVersion)
+		}
+		if version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	migrationSQL, err := os.ReadFile("000569_workspace_agent_session_counts.up.sql")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name              string
+		statsAgeHours     int
+		sessionCount      int
+		watermarkAgeHours []int
+		wantError         bool
+		wantCounts        string
+	}{
+		{name: "empty database", statsAgeHours: noStatsAgeHours},
+		{name: "missing watermark with retained activity", sessionCount: 2, wantError: true},
+		{name: "missing watermark with retained idle stats", wantCounts: `{}`},
+		{name: "missing watermark with expired activity", statsAgeHours: 181 * 24, sessionCount: 2, wantCounts: `{}`},
+		{name: "stale watermark with retained activity", sessionCount: 2, watermarkAgeHours: []int{25}, wantError: true},
+		{name: "stale watermark with rolled up activity", statsAgeHours: 50, sessionCount: 2, watermarkAgeHours: []int{25}, wantCounts: `{}`},
+		{name: "fresh watermark", sessionCount: 2, watermarkAgeHours: []int{23}, wantCounts: `{"vscode": 2}`},
+		{name: "latest watermark is fresh", sessionCount: 2, watermarkAgeHours: []int{25, 23}, wantCounts: `{"vscode": 2}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tx, err := sqlDB.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = tx.Rollback() })
+
+			if tt.statsAgeHours != noStatsAgeHours {
+				_, err = tx.ExecContext(ctx, `
+					INSERT INTO workspace_agent_stats (
+						id, created_at, user_id, agent_id, workspace_id, template_id,
+						connection_count, session_count_vscode
+					) VALUES (
+						gen_random_uuid(), statement_timestamp() - $1::bigint * interval '1 hour',
+						gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 1, $2
+					)
+				`, tt.statsAgeHours, tt.sessionCount)
+				require.NoError(t, err)
+			}
+
+			for _, ageHours := range tt.watermarkAgeHours {
+				_, err = tx.ExecContext(ctx, `
+					INSERT INTO template_usage_stats (
+						start_time, end_time, template_id, user_id, median_latency_ms,
+						usage_mins, ssh_mins, sftp_mins, reconnecting_pty_mins,
+						vscode_mins, jetbrains_mins, app_usage_mins
+					) VALUES (
+						statement_timestamp() - $1::bigint * interval '1 hour',
+						statement_timestamp() - $1::bigint * interval '1 hour' + interval '30 minutes',
+						gen_random_uuid(), gen_random_uuid(), NULL, 0, 0, 0, 0, 0, 0, NULL
+					)
+				`, ageHours)
+				require.NoError(t, err)
+			}
+
+			_, err = tx.ExecContext(ctx, string(migrationSQL))
+			if tt.wantError {
+				require.ErrorContains(t, err, "requires template usage stats rolled up within the last 24 hours")
+				var pqErr *pq.Error
+				require.True(t, errors.As(err, &pqErr))
+				require.Contains(t, pqErr.Hint, "failed to rollup data")
+				require.NoError(t, tx.Rollback())
+
+				var columnExists bool
+				err = sqlDB.QueryRowContext(ctx, `
+					SELECT EXISTS (
+						SELECT 1 FROM information_schema.columns
+						WHERE table_schema = 'public'
+							AND table_name = 'workspace_agent_stats'
+							AND column_name = 'session_counts'
+					)
+				`).Scan(&columnExists)
+				require.NoError(t, err)
+				require.False(t, columnExists)
+				return
+			}
+			require.NoError(t, err)
+
+			if tt.wantCounts != "" {
+				var sessionCounts []byte
+				err = tx.QueryRowContext(ctx, `SELECT session_counts FROM workspace_agent_stats`).Scan(&sessionCounts)
+				require.NoError(t, err)
+				require.JSONEq(t, tt.wantCounts, string(sessionCounts))
+			}
+		})
 	}
 }
 
