@@ -232,7 +232,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	// execution); the stale marker is then cleared by the terminal
 	// transition of this turn.
 	if input.chat.CompactionRequestedAt.Valid {
-		boundary := latestCompactionBoundaryIndex(input.messages)
+		boundary := latestContextBoundaryIndex(input.messages)
 		if _, ok := firstUncompressedAssistantAfter(input.messages, boundary); ok {
 			return generationDecision{kind: generationActionCompact, forced: true}, nil
 		}

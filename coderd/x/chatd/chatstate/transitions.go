@@ -756,6 +756,56 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 	return RequestCompactionResult{Chat: updated}, nil
 }
 
+// ClearContextInput configures [Tx.ClearContext]. Messages carries the
+// context-boundary rows the caller built (chatd owns the message
+// shape); chatstate only requires that the batch is non-empty so the
+// insert trigger grants the fresh history epoch.
+type ClearContextInput struct {
+	Messages []Message
+}
+
+// ClearContextResult is returned by [Tx.ClearContext].
+type ClearContextResult struct {
+	Chat             database.Chat
+	InsertedMessages []database.ChatMessage
+}
+
+// ClearContext commits a synchronous context reset: it inserts the
+// caller-built boundary rows and lands the chat in waiting, clearing
+// any stored error and any pending manual compaction request. Unlike
+// RequestCompaction it needs no worker turn, so ownership is left
+// untouched and no explicit history-epoch grant is required; the
+// message insert trigger already advances history_version and resets
+// the retry budget.
+func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionClearContext)
+	if err != nil {
+		return ClearContextResult{}, err
+	}
+	if len(input.Messages) == 0 {
+		return ClearContextResult{}, newTransitionError(
+			TransitionClearContext, from,
+			"ClearContext requires boundary messages",
+		)
+	}
+	inserted, err := tx.insertMessages(input.Messages)
+	if err != nil {
+		return ClearContextResult{}, xerrors.Errorf("insert clear boundary messages: %w", err)
+	}
+	updated, err := tx.applyExecutionState(executionStateUpdate{
+		Status:                   database.ChatStatusWaiting,
+		Archived:                 false,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
+		LastError:                pqtype.NullRawMessage{},
+		RequiresActionDeadlineAt: sql.NullTime{},
+	})
+	if err != nil {
+		return ClearContextResult{}, xerrors.Errorf("set waiting: %w", err)
+	}
+	return ClearContextResult{Chat: updated, InsertedMessages: inserted}, nil
+}
+
 // DeleteQueuedMessageInput configures [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageInput struct {
 	QueuedMessageID int64
