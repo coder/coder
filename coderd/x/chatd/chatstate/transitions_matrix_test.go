@@ -243,9 +243,9 @@ func applyRequestCompaction(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ se
 	return err
 }
 
-// clearBoundaryMessages builds a triplet shaped like chatd's manual
-// context-clear boundary: a hidden compressed model-only user row plus
-// the user-visible synthetic tool call and result.
+// clearBoundaryMessages mirrors chatd's boundary triplet without
+// importing its builder so the state machine tests stay independent
+// of chatd message construction.
 func clearBoundaryMessages(t *testing.T) []chatstate.Message {
 	t.Helper()
 	callID := "chat_cleared_" + uuid.NewString()
@@ -837,8 +837,7 @@ func matrixCases() []transitionCaseSpec {
 		requestCompactionCase(chatstate.StateE0, chatstate.StateR0),
 		requestCompactionCase(chatstate.StateE1, chatstate.StateR1),
 
-		// ClearContext cases: both allowed sources land in W with
-		// the boundary rows inserted and last_error cleared.
+		// ClearContext cases.
 		clearContextCase(chatstate.StateW),
 		clearContextCase(chatstate.StateE0),
 

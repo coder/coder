@@ -3,6 +3,7 @@ import type { FC } from "react";
 import { useRef } from "react";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
+import { toast } from "sonner";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -2877,6 +2878,55 @@ export const SlashClearCommandSubmits: Story = {
 		});
 		expect(clearSpy).toHaveBeenCalledWith(CHAT_ID);
 		expect(sendSpy).not.toHaveBeenCalled();
+	},
+};
+
+export const SlashClearCommandConflictShowsError: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Clear command conflict",
+				status: "waiting",
+			},
+			slashCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const clearSpy = spyOn(API.experimental, "clearChat").mockRejectedValue(
+			mockApiError({
+				message: "Nothing to clear.",
+				detail:
+					"The chat has no conversation to clear after the latest context boundary.",
+			}),
+		);
+		// Stories render no Toaster portal, so assert the toast call
+		// rather than its DOM.
+		const toastErrorSpy = spyOn(toast, "error");
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/clear");
+		expect(
+			await within(document.body).findByText(
+				"Clear the conversation context; the next message starts fresh",
+			),
+		).toBeVisible();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(clearSpy).toHaveBeenCalledTimes(1);
+		});
+		await waitFor(() => {
+			expect(toastErrorSpy).toHaveBeenCalledWith("Nothing to clear.");
+		});
 	},
 };
 

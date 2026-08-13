@@ -562,8 +562,7 @@ func TestLatestContextBoundaryIndex_RecognizesClearAndSummarize(t *testing.T) {
 	require.Equal(t, 7, latestContextBoundaryIndex(messages),
 		"clear boundary supersedes the earlier compaction boundary")
 
-	// An uncompressed chat_cleared row (for example a user echoing the
-	// tool name) is not a boundary.
+	// An uncompressed chat_cleared row is not a boundary.
 	require.False(t, isContextBoundaryMessage(
 		dbMessage(t, 9, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("clear-2", "chat_cleared", nil)),
 	))
@@ -590,8 +589,6 @@ func TestDecisionForcedCompactionRespectsClearBoundary(t *testing.T) {
 	requestedChat := database.Chat{
 		CompactionRequestedAt: sql.NullTime{Time: time.Now(), Valid: true},
 	}
-	// Conversation, then a clear boundary: the pending compaction
-	// request must not summarize across the clear.
 	messages := []database.ChatMessage{
 		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
 		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),

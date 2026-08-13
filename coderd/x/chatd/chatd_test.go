@@ -5706,8 +5706,6 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		require.Equal(t, int32(1), streamCount.Load())
 		preClearMessageCount := len(chatMessages(ctx, t, db, chat.ID))
 
-		// The clear commits synchronously: no model call, no running
-		// status, and the persisted row is already waiting.
 		cleared, err := server.ClearChat(ctx, chat)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusWaiting, cleared.Status)
@@ -5731,15 +5729,11 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		require.NoError(t, json.Unmarshal(resultPart.Result, &result))
 		require.Equal(t, "manual", result["source"])
 
-		// A second clear and a compaction both find nothing after the
-		// fresh boundary.
 		_, err = server.ClearChat(ctx, chat)
 		require.ErrorIs(t, err, chatd.ErrNothingToClear)
 		_, err = server.CompactChat(ctx, chat)
 		require.ErrorIs(t, err, chatd.ErrNothingToCompact)
 
-		// The next prompt starts from the sentinel: pre-clear
-		// conversation must not reach the model.
 		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:        chat.ID,
 			CreatedBy:     user.ID,
@@ -5759,8 +5753,6 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		require.NotContains(t, body, "assistant answer",
 			"pre-clear assistant content must not reach the model")
 
-		// New conversation after the boundary makes the chat
-		// clearable again.
 		_, err = server.ClearChat(ctx, chat)
 		require.NoError(t, err)
 	})
@@ -5805,8 +5797,6 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		require.False(t, cleared.LastError.Valid,
 			"clearing from the error state clears last_error")
 
-		// The chat still works: a follow-up generates against the
-		// cleared context with a fresh retry budget.
 		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:        chat.ID,
 			CreatedBy:     user.ID,
@@ -5836,8 +5826,8 @@ func TestActiveServer_ManualClear(t *testing.T) {
 				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
-			// The first turn reports usage over the 70% threshold, so
-			// without the clear the next turn would auto-compact.
+			// The first turn exceeds the threshold, so stale usage would
+			// trigger auto-compaction on the next turn without the clear.
 			usage := chattest.AnthropicUsage{InputTokens: 90, OutputTokens: 5}
 			if streamCount.Add(1) > 1 {
 				usage = chattest.AnthropicUsage{InputTokens: 10, OutputTokens: 5}
@@ -5899,13 +5889,11 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		require.NoError(t, err)
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
-		// Nothing model-visible follows the compaction summary, so a
-		// clear across that boundary is rejected.
+		// No model-visible message follows the compaction boundary,
+		// so the clear must be rejected.
 		_, err = server.ClearChat(ctx, chat)
 		require.ErrorIs(t, err, chatd.ErrNothingToClear)
 
-		// New conversation after the compaction makes the chat
-		// clearable.
 		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:        chat.ID,
 			CreatedBy:     user.ID,

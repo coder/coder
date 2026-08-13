@@ -9517,12 +9517,10 @@ func TestClearChat(t *testing.T) {
 				"pre-clear conversation must not survive in the prompt")
 		}
 
-		// A second clear has nothing after the fresh boundary.
 		_, err = client.ClearChat(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
 		require.Contains(t, sdkErr.Message, "Nothing to clear")
 
-		// Compaction must not reach across the clear boundary either.
 		_, err = client.CompactChat(ctx, chat.ID)
 		sdkErr = requireSDKError(t, err, http.StatusConflict)
 		require.Contains(t, sdkErr.Message, "Nothing to compact")
@@ -9536,7 +9534,6 @@ func TestClearChat(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		// Idle chat with no conversation at all.
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
 			OwnerID:           user.UserID,

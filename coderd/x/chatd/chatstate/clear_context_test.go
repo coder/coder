@@ -10,9 +10,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// The allowed-state matrix, boundary-row insertion, and error clearing
-// are covered by the transition matrix tests. This file pins the
-// input validation that is not matrix-driven.
+// The transition matrix tests cover the allowed states and effects;
+// this file pins the non-matrix input validation.
 
 func TestClearContext_RequiresBoundaryMessages(t *testing.T) {
 	t.Parallel()

@@ -2356,16 +2356,11 @@ func (p *Server) CompactChat(
 
 // ClearChat commits a manual context reset through the
 // chatstate.ClearContext transition. Unlike CompactChat it is fully
-// synchronous: the boundary rows are inserted in this transaction, no
-// model call happens, and the chat lands in waiting. The visible
-// transcript is preserved; only future prompts stop seeing pre-clear
-// history. Requests on errored chats clear the stored error.
-//
-// Returns the post-transition chat and an error so callers can map
-// state conflicts deliberately: archived chats return ErrChatArchived,
-// busy chats return a chatstate.ErrTransitionNotAllowed wrapper, and
-// chats with no model-visible conversation after the latest context
-// boundary return ErrNothingToClear.
+// synchronous: the boundary rows commit in this transaction with no
+// model call, the transcript is preserved, and any stored error is
+// cleared. Archived chats return ErrChatArchived, busy chats return a
+// chatstate.ErrTransitionNotAllowed wrapper, and chats with nothing
+// after the latest context boundary return ErrNothingToClear.
 func (p *Server) ClearChat(
 	ctx context.Context,
 	chat database.Chat,
@@ -2405,10 +2400,8 @@ func (p *Server) ClearChat(
 		if err != nil {
 			return err
 		}
-		// Reject no-op clears inside the same transaction (rolling
-		// back the transition) so an empty or already-cleared chat
-		// never gains a duplicate boundary. This also covers a
-		// double-/clear.
+		// Reject no-op clears inside the same transaction so an empty
+		// or already-cleared chat never gains a duplicate boundary.
 		boundary := latestContextBoundaryIndex(messages)
 		if !hasClearableMessageAfter(messages, boundary) {
 			return ErrNothingToClear
