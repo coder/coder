@@ -1119,9 +1119,6 @@ export const DelayedOrganizationAuthorization: Story = {
 		const canvas = within(canvasElement);
 		const sendButton = canvas.getByRole("button", { name: "Send" });
 		await expect(sendButton).toBeDisabled();
-		// The workspace picker must be unreachable while the check is
-		// pending: its options come from the provisional fallback org.
-		// With the workspace callback gated, the whole menu disables.
 		await expect(
 			canvas.getByRole("button", { name: "More options" }),
 		).toBeDisabled();

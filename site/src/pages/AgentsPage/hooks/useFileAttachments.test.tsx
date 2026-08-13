@@ -181,9 +181,6 @@ describe("useFileAttachments org scoping", () => {
 			expect(uploadedFileIds(result.current)).toStrictEqual(["file-a"]);
 		});
 
-		// Losing the org entirely (empty permitted set) must hide the
-		// previous org's attachments so they cannot be removed, while
-		// keeping them persisted for when the org returns.
 		rerender({ orgId: undefined });
 		expect(result.current.attachments).toStrictEqual([]);
 		expect(uploadedFileIds(result.current)).toStrictEqual([]);
