@@ -18,17 +18,15 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestOAuth2NoStoreHeaders asserts that every response from the /oauth2 route
-// tree carries Cache-Control: no-store and Pragma: no-cache, on the routes
-// that return a credential and on the routes that do not. Three of the tree's
-// write paths never call httpapi.Write, so this is what proves the middleware
-// reaches them: POST /oauth2/revoke and DELETE /oauth2/clients/{client_id}
-// both write a bare status, and a rejected registration is written by
-// writeOAuth2RegistrationError.
+// TestOAuth2NoStoreHeaders asserts Cache-Control: no-store and Pragma:
+// no-cache on every response from the /oauth2 tree, credential-bearing or not.
+// Three write paths never call httpapi.Write, so these are what prove the
+// middleware reaches them: POST /oauth2/revoke and DELETE
+// /oauth2/clients/{client_id} write a bare status, and
+// writeOAuth2RegistrationError encodes its own JSON.
 //
-// The negative case at the end pins the exclusion of the /.well-known/*
-// metadata endpoints, which RFC 9728 §5 asks to be cacheable. It fails if the
-// middleware is ever hoisted onto a higher route tree.
+// The cases at the end pin the exclusion of the /.well-known/* metadata
+// endpoints, failing if the middleware is hoisted onto a higher route tree.
 func TestOAuth2NoStoreHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -79,8 +77,8 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		requireNoStore(t, resp)
-		// The two header writers coexist: WriteOAuth2Error sets this one
-		// itself, after the middleware has already written its own.
+		// Both writers coexist: WriteOAuth2Error sets this one after the
+		// middleware has set its own.
 		require.Equal(t, `Basic realm="coder"`, resp.Header.Get("WWW-Authenticate"))
 	})
 
@@ -122,8 +120,8 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
 		_, challenge := oauth2providertest.GeneratePKCE(t)
 
-		// An unsupported response_type is rendered as a static error page
-		// rather than written through httpapi.
+		// An unsupported response_type renders a static error page rather
+		// than going through httpapi.
 		uri := strings.Replace(authorizeURL(baseURL, app.ID.String(), challenge), "response_type=code", "response_type=token", 1)
 		resp := doRequest(ctx, t, http.MethodGet, uri, nil, sessionToken(client))
 		defer resp.Body.Close()
@@ -151,8 +149,7 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 		form.Set("token", token.RefreshToken)
 		form.Set("client_id", app.ID.String())
 
-		// RFC 7009 success is a bare rw.WriteHeader(200) that never reaches
-		// httpapi.Write.
+		// RFC 7009 success is a bare WriteHeader(200), never httpapi.Write.
 		resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -195,8 +192,8 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 			RedirectURIs: []string{"not-a-url"},
 		})
 
-		// Rejected by writeOAuth2RegistrationError, which encodes its own JSON
-		// and never reaches httpapi.Write.
+		// Rejected by writeOAuth2RegistrationError, which encodes its own
+		// JSON rather than calling httpapi.Write.
 		resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/register", strings.NewReader(body), jsonContentType)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -239,8 +236,7 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 
 		registration := registerClient(ctx, t, client)
 
-		// A 204 carries headers even with no body, and RFC 7592 §2.3's own
-		// example shows no-store on exactly this response.
+		// RFC 7592 §2.3's own example shows no-store on exactly this 204.
 		uri := fmt.Sprintf("%s/oauth2/clients/%s", baseURL, registration.ClientID)
 		resp := doRequest(ctx, t, http.MethodDelete, uri, nil, bearer(registration.RegistrationAccessToken))
 		defer resp.Body.Close()
@@ -253,21 +249,17 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Chi runs a subrouter's middleware chain around its unmatched-path
-		// handling, so a path with no route under the tree still carries the
-		// headers. The status is not asserted: the request falls through to
-		// the root router's handler, which serves the single-page app rather
-		// than a 404, and that is the site handler's business, not this
-		// middleware's.
+		// handling, so a path with no route still carries the headers. The
+		// status is not asserted: the request falls through to the root
+		// router's SPA handler, which is not this middleware's business.
 		resp := doRequest(ctx, t, http.MethodGet, baseURL+"/oauth2/does-not-exist", nil)
 		defer resp.Body.Close()
 		requireNoStore(t, resp)
 	})
 
-	// Discovery metadata is public, and RFC 9728 §5 asks for it to be
-	// cacheable. These assertions do not prove it is: the endpoints advertise
-	// no freshness lifetime at all. What they pin is the exclusion of this
-	// middleware, so they fail if it is ever mounted on a router that reaches
-	// them.
+	// Discovery metadata is public and RFC 9728 §5 asks for it to be
+	// cacheable. These do not prove it is, since the endpoints advertise no
+	// freshness lifetime; they pin the exclusion of this middleware.
 	for _, path := range []string{
 		"/.well-known/oauth-authorization-server",
 		"/.well-known/oauth-protected-resource",
@@ -286,9 +278,8 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 
 // TestOAuth2ProviderNoStoreHeaders asserts the same headers on the
 // /api/v2/oauth2-provider tree, where POST /apps/{app}/secrets returns
-// OAuth2ProviderAppSecretFull.ClientSecretFull in plaintext. That response
-// meets RFC 6749 §5.1's predicate as squarely as anything under /oauth2, so
-// the two trees are treated alike.
+// ClientSecretFull in plaintext and so meets RFC 6749 §5.1's predicate as
+// squarely as anything under /oauth2.
 func TestOAuth2ProviderNoStoreHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -317,8 +308,8 @@ func TestOAuth2ProviderNoStoreHeaders(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// A route that returns no credential still carries the headers, which
-		// is what shows the mount is on the tree rather than on one handler.
+		// A credential-free route still carries the headers, which shows the
+		// mount is on the tree rather than on one handler.
 		resp := doRequest(ctx, t, http.MethodGet, baseURL+"/api/v2/oauth2-provider/apps", nil, sessionToken(client))
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)

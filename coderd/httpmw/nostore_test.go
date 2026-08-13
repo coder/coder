@@ -35,8 +35,8 @@ func TestNoStore(t *testing.T) {
 			expectPragma:       "no-cache",
 		},
 		{
-			// The DELETE /oauth2/clients/{client_id} shape: a response with
-			// no body still carries headers.
+			// The DELETE /oauth2/clients/{client_id} shape: headers on a
+			// response with no body.
 			Name: "NoContent",
 			Handler: func(rw http.ResponseWriter, _ *http.Request) {
 				rw.WriteHeader(http.StatusNoContent)
@@ -46,8 +46,8 @@ func TestNoStore(t *testing.T) {
 			expectPragma:       "no-cache",
 		},
 		{
-			// The POST /oauth2/authorize shape: http.Redirect adds Location
-			// and calls WriteHeader without clearing the header map.
+			// The POST /oauth2/authorize shape: http.Redirect writes its own
+			// headers without clearing the map.
 			Name: "Redirect",
 			Handler: func(rw http.ResponseWriter, r *http.Request) {
 				http.Redirect(rw, r, "https://example.com/callback?code=abc", http.StatusFound)
@@ -60,8 +60,8 @@ func TestNoStore(t *testing.T) {
 			},
 		},
 		{
-			// The revoke.go and registration.go shape: a bare WriteHeader
-			// that never reaches httpapi.Write.
+			// The revoke.go and registration.go shape: a bare WriteHeader,
+			// never httpapi.Write.
 			Name: "BareWriteHeaderError",
 			Handler: func(rw http.ResponseWriter, _ *http.Request) {
 				rw.WriteHeader(http.StatusBadRequest)
@@ -103,14 +103,12 @@ func TestNoStore(t *testing.T) {
 }
 
 // TestNoStoreAfterExperimentGate shows what an experiment gate ahead of
-// NoStore costs: a request the gate rejects never reaches NoStore, so its
-// response carries neither header. That is why mounting NoStore last is
-// harmless, since an experiment rejection contains no credential. The chain
-// here is built in the test body rather than read off the router, so it does
-// not detect a reordering in coderd.go. The gate that runs in production,
-// RequireExperimentWithDevBypass, cannot be exercised from a test binary
-// because buildinfo.IsDev() is true there and bypasses the check, so this
-// asserts against the RequireExperiment it delegates to.
+// NoStore costs: a rejected request never reaches it, so the response carries
+// neither header. That is harmless, since the rejection carries no credential.
+// The chain is built here rather than read off the router, so a reordering in
+// coderd.go would go undetected. It asserts against RequireExperiment because
+// the production RequireExperimentWithDevBypass short-circuits on
+// buildinfo.IsDev() in a test binary.
 func TestNoStoreAfterExperimentGate(t *testing.T) {
 	t.Parallel()
 
