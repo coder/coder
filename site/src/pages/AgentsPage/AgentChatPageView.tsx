@@ -129,6 +129,8 @@ interface AgentChatPageViewProps {
 
 	// Store handle.
 	store: ChatStoreHandle;
+	/** Anchor key of the turn already running when the page opened, if any. */
+	initialActiveAnchorKey?: string;
 
 	// Editing state.
 	editing: EditingState;
@@ -324,6 +326,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	workspace,
 	chatBuildId,
 	store,
+	initialActiveAnchorKey,
 	editing,
 	effectiveSelectedModel,
 	setSelectedModel,
@@ -906,6 +909,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						<ChatPageTimeline
 							key={agentId}
 							store={store}
+							initialActiveAnchorKey={initialActiveAnchorKey}
 							persistedError={persistedError}
 							hasMoreMessages={hasMoreMessages}
 							isFetchingMoreMessages={isFetchingMoreMessages}
