@@ -153,23 +153,28 @@ func TestResponseCacheStore(t *testing.T) {
 	})
 
 	// Fills the cache past maxSize and verifies the
-	// least-recently-used entry is evicted.
+	// least-recently-used entry is evicted, not merely the
+	// oldest-inserted one.
 	t.Run("EvictsLeastRecentlyUsed", func(t *testing.T) {
 		t.Parallel()
 
 		cache := newResponseCache(2)
 		cache.store("a", `"etag-a"`, []byte(`{"k":"a"}`))
 		cache.store("b", `"etag-b"`, []byte(`{"k":"b"}`))
-		// This third store exceeds maxSize and must evict "a".
+		// Access "a" so "b" becomes the least-recently-used entry.
+		_, _, ok := cache.load("a")
+		require.True(t, ok)
+		// This third store exceeds maxSize and must evict "b",
+		// not the older "a".
 		cache.store("c", `"etag-c"`, []byte(`{"k":"c"}`))
 
-		_, _, ok := cache.load("a")
+		_, _, ok = cache.load("b")
 		assert.False(t, ok, "least-recently-used entry must be evicted")
 
-		etag, body, ok := cache.load("b")
-		require.True(t, ok)
-		assert.Equal(t, `"etag-b"`, etag)
-		assert.Equal(t, `{"k":"b"}`, string(body))
+		etag, body, ok := cache.load("a")
+		require.True(t, ok, "recently-accessed entry must survive eviction")
+		assert.Equal(t, `"etag-a"`, etag)
+		assert.Equal(t, `{"k":"a"}`, string(body))
 
 		etag, body, ok = cache.load("c")
 		require.True(t, ok)

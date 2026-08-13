@@ -1061,4 +1061,44 @@ func TestConditionalRequestReuse(t *testing.T) {
 		assert.Equal(t, 0, conditionalRequests,
 			"a different token must not send If-None-Match from another token's cache")
 	})
+
+	t.Run("MalformedResponseNotCached", func(t *testing.T) {
+		t.Parallel()
+
+		const etag = `"poison-etag"`
+		var conditionalRequests int
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("If-None-Match") != "" {
+				conditionalRequests++
+				w.Header().Set("ETag", etag)
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("ETag", etag)
+			// A body that cannot be decoded as a pull request list.
+			_, _ = w.Write([]byte(`<html>proxy error</html>`))
+		}))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+		require.NotNil(t, gp)
+
+		branch := gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"}
+
+		// First poll fails to decode; the body must not be cached
+		// with its ETag.
+		_, err = gp.ResolveBranchPullRequest(context.Background(), "test-token", branch)
+		require.Error(t, err)
+
+		// Second poll must refetch in full: no If-None-Match should
+		// be sent for an entry that failed to decode.
+		_, err = gp.ResolveBranchPullRequest(context.Background(), "test-token", branch)
+		require.Error(t, err)
+
+		assert.Equal(t, 0, conditionalRequests,
+			"a body that failed to decode must not be cached with its ETag")
+	})
 }

@@ -115,7 +115,9 @@ type Config struct {
 	// defaults when not explicitly configured.
 	APIBaseURL string
 	// HTTPClient is the HTTP client used for git provider API calls.
-	// If nil, http.DefaultClient is used.
+	// If nil, http.DefaultClient is used. The value is read once at
+	// the first successful Git() call; later assignments have no
+	// effect because the provider is memoized.
 	HTTPClient *http.Client
 	// AppInstallURL is for GitHub App's (and hopefully others eventually)
 	// to provide a link to install the app. There's installation
@@ -163,7 +165,7 @@ type Config struct {
 	// RefreshGroup deduplicates concurrent requests.
 	RefreshGroup SingleflightGroup
 
-	// gitProviderMu protects the below.
+	// gitProviderMu protects gitProvider.
 	gitProviderMu sync.Mutex
 	// gitProvider memoizes the provider so the GitHub ETag response
 	// cache survives across Git calls.

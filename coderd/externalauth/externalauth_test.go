@@ -96,6 +96,27 @@ func TestConfigGitMemoizesProvider(t *testing.T) {
 	assert.Equal(t, int64(1), conditionalRequests.Load(), "second poll should have revalidated with If-None-Match using the cache from the first poll")
 }
 
+// TestConfigGitRetriesOnConstructorError verifies that a provider
+// construction error is not cached, so a later call retries instead
+// of being stuck with the first failure for the Config's lifetime.
+func TestConfigGitRetriesOnConstructorError(t *testing.T) {
+	t.Parallel()
+
+	cfg := &externalauth.Config{
+		Type:       string(codersdk.EnhancedExternalAuthProviderGitLab),
+		APIBaseURL: "://invalid",
+	}
+
+	_, err1 := cfg.Git()
+	require.Error(t, err1)
+
+	_, err2 := cfg.Git()
+	require.Error(t, err2)
+	// A memoized error would be the same instance; a retried
+	// construction produces a fresh error each call.
+	require.NotErrorIs(t, err2, err1, "construction errors must be retried, not memoized")
+}
+
 func TestRefreshToken(t *testing.T) {
 	t.Parallel()
 	expired := time.Now().Add(time.Hour * -1)
@@ -1806,6 +1827,7 @@ func TestConvertYAML(t *testing.T) {
 
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
+		client := new(http.Client)
 		config, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
@@ -1813,9 +1835,10 @@ func TestConvertYAML(t *testing.T) {
 			AuthURL:      "https://auth.com",
 			TokenURL:     "https://token.com",
 			Scopes:       []string{"read"},
-		}}, &url.URL{}, nil)
+		}}, &url.URL{}, client)
 		require.NoError(t, err)
 		require.Equal(t, "https://auth.com?client_id=id&redirect_uri=%2Fexternal-auth%2Fgitlab%2Fcallback&response_type=code&scope=read", config[0].AuthCodeURL(""))
+		assert.Same(t, client, config[0].HTTPClient, "ConvertConfig must wire the provided client onto every Config")
 	})
 
 	t.Run("RevokeTimeoutSet", func(t *testing.T) {

@@ -37,7 +37,7 @@ type githubProvider struct {
 	repositorySSHPathPattern *regexp.Regexp
 }
 
-func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) *githubProvider {
+func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) (Provider, error) {
 	if apiBaseURL == "" {
 		apiBaseURL = defaultGitHubAPIBaseURL
 	}
@@ -72,7 +72,7 @@ func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) *
 		repositorySSHPathPattern: regexp.MustCompile(
 			`^(?:ssh://)?git@` + escapedHost + `[:/]([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$`,
 		),
-	}
+	}, nil
 }
 
 // deriveWebBaseURL converts a GitHub API base URL to the
@@ -462,7 +462,6 @@ func (g *githubProvider) decodeJSON(
 		return xerrors.Errorf("decode github response: %w", err)
 	}
 
-	// Cache the validator so the next poll can be made conditional.
 	// Only cache bodies we could successfully decode, so a malformed
 	// response does not poison the cache.
 	g.cache.store(cacheKey, resp.Header.Get("ETag"), body)
