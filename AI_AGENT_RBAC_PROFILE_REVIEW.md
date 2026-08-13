@@ -31,14 +31,15 @@ agent with the target workspace's designation.
 
 ### Findings summary
 
-| ID | Severity | Finding                                                                                                                                                                          | Disposition                                                             |
-|----|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
-| R1 | Critical | `coder:workspaces.access` plus `workspace:*` authorizes SSH and application connections to undesignated sponsor workspaces.                                                      | Fix in `coderd/rbac` with an object-side designation match.             |
-| R2 | High     | `coder:workspaces.operate` plus `workspace:*` authorizes start, stop, and update against undesignated sponsor workspaces. A start build may select a different template version. | Apply the same designation match to start, stop, and update.            |
-| R3 | Medium   | Workspace read and list reach undesignated sponsor workspaces.                                                                                                                   | Keep allowed for chat UX, pending owner sign-off.                       |
-| R4 | Safe     | `WorkspaceAgentIdentityProfile` has only low-level workspace scopes and one exact workspace ID.                                                                                  | Keep its existing exact-ID bound, then add the policy defense in depth. |
-| R5 | High     | A dynamic allow list would require mutating credential rows and still cannot authorize creation before a workspace ID exists.                                                    | Reject Mechanism B.                                                     |
-| R6 | Medium   | Mechanism A changes the Rego input and partial-evaluation contract.                                                                                                              | Add explicit AST and `regosql` mappings; make zero values fail closed.  |
+| ID | Severity | Finding                                                                                                                                                                          | Disposition                                                              |
+|----|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| R1 | Critical | `coder:workspaces.access` plus `workspace:*` authorizes SSH and application connections to undesignated sponsor workspaces.                                                      | Fix in `coderd/rbac` with an object-side designation match.              |
+| R2 | High     | `coder:workspaces.operate` plus `workspace:*` authorizes start, stop, and update against undesignated sponsor workspaces. A start build may select a different template version. | Require designation for every non-read, non-create workspace action.     |
+| R3 | Medium   | Workspace read and list reach undesignated sponsor workspaces.                                                                                                                   | Keep allowed for chat UX, pending owner sign-off.                        |
+| R4 | Info     | `WorkspaceAgentIdentityProfile` has only low-level workspace scopes and one exact workspace ID.                                                                                  | Keep its existing exact-ID bound, then add the policy defense in depth.  |
+| R5 | High     | A dynamic allow list would require mutating credential rows and still cannot authorize creation before a workspace ID exists.                                                    | Reject Mechanism B.                                                      |
+| R6 | Medium   | Mechanism A changes the Rego input and partial-evaluation contract.                                                                                                              | Add explicit AST and `regosql` mappings; make zero values fail closed.   |
+| R7 | High     | A naive object-side gate sees a stale, undesignated in-memory workspace during the initial AI-created start build.                                                               | Copy the setter result into the object before `wsbuilder` authorization. |
 
 ## 1. Reachability matrix
 
@@ -70,30 +71,30 @@ permission with a wildcard scope allow list before the database overlay is
 applied (`coderd/rbac/scopes.go:247-265`;
 `coderd/rbac/scopes_test.go:15-41`).
 
-| Profile scope              | Low-level resource/action pair  | Effective allow-list match | Class   | Review result                                                                                                                                                                              |
-|----------------------------|---------------------------------|----------------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `coder:workspaces.create`  | `template:read`                 | `template:*`               | SAFE    | Template metadata is needed to select a workspace source. Sponsor roles still apply.                                                                                                       |
-| `coder:workspaces.create`  | `template:use`                  | `template:*`               | SAFE    | Use is required by workspace preflight and does not itself reach an existing workspace (`coderd/workspaces.go:978-988`).                                                                   |
-| `coder:workspaces.create`  | `workspace:create`              | `workspace:*`              | BOUNDED | The preflight object has no ID, so a wildcard is currently required. The shared creation path designates the inserted row before its first build (`coderd/workspaces.go:944-976,768-784`). |
-| `coder:workspaces.create`  | `workspace:read`                | `workspace:*`              | OPEN    | Reaches ordinary sponsor workspace metadata. This is accepted by the proposed default, not security-bounded by designation.                                                                |
-| `coder:workspaces.create`  | `workspace:update`              | `workspace:*`              | OPEN    | Reaches ordinary sponsor workspace settings.                                                                                                                                               |
-| `coder:workspaces.create`  | `workspace:start`               | `workspace:*`              | OPEN    | Can start or rebuild an ordinary sponsor workspace.                                                                                                                                        |
-| `coder:workspaces.create`  | `workspace:stop`                | `workspace:*`              | OPEN    | Can stop an ordinary sponsor workspace.                                                                                                                                                    |
-| `coder:workspaces.create`  | `organization_member:read`      | `organization_member:*`    | SAFE    | Metadata-only for this takeover analysis; sponsor organization permissions remain the ceiling.                                                                                             |
-| `coder:workspaces.operate` | `template:read`                 | `template:*`               | SAFE    | Metadata-only for this workspace-boundary analysis.                                                                                                                                        |
-| `coder:workspaces.operate` | `workspace:read`                | `workspace:*`              | OPEN    | Reaches ordinary sponsor workspace metadata. Accepted only as the current product default.                                                                                                 |
-| `coder:workspaces.operate` | `workspace:update`              | `workspace:*`              | OPEN    | Can mutate an ordinary sponsor workspace. Protect this action even though template-version selection is authorized through start, as qualified below.                                      |
-| `coder:workspaces.operate` | `workspace:start`               | `workspace:*`              | OPEN    | Can start or rebuild an ordinary sponsor workspace, including a build request that selects another template version.                                                                       |
-| `coder:workspaces.operate` | `workspace:stop`                | `workspace:*`              | OPEN    | Can stop an ordinary sponsor workspace and terminate its running processes.                                                                                                                |
-| `coder:workspaces.operate` | `organization_member:read`      | `organization_member:*`    | SAFE    | Metadata-only for this takeover analysis.                                                                                                                                                  |
-| `coder:workspaces.access`  | `template:read`                 | `template:*`               | SAFE    | Metadata-only for this workspace-boundary analysis.                                                                                                                                        |
-| `coder:workspaces.access`  | `organization_member:read`      | `organization_member:*`    | SAFE    | Metadata-only for this takeover analysis.                                                                                                                                                  |
-| `coder:workspaces.access`  | `workspace:read`                | `workspace:*`              | OPEN    | Reaches ordinary sponsor workspace metadata. Accepted only as the current product default.                                                                                                 |
-| `coder:workspaces.access`  | `workspace:ssh`                 | `workspace:*`              | OPEN    | Headline hole. A shell in an ordinary workspace crosses the credential-starvation boundary.                                                                                                |
-| `coder:workspaces.access`  | `workspace:application_connect` | `workspace:*`              | OPEN    | Reaches applications in an ordinary workspace and must use the same designation gate as SSH.                                                                                               |
-| `chat:read`                | `chat:read`                     | Exact profile `chatID`     | BOUNDED | Pinned to the chat passed to the profile.                                                                                                                                                  |
-| `chat:update`              | `chat:update`                   | Exact profile `chatID`     | BOUNDED | Pinned to the chat passed to the profile.                                                                                                                                                  |
-| `user:read`                | `user:read`                     | `user:*`                   | SAFE    | No personal-read or mutation action is present. This label is limited to the workspace takeover analyzed here, not a data-minimization approval (`coderd/rbac/policy/policy.go:96-106`).   |
+| Profile scope              | Low-level resource/action pair  | Effective allow-list match | Class   | Review result                                                                                                                                                                                                           |
+|----------------------------|---------------------------------|----------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `coder:workspaces.create`  | `template:read`                 | `template:*`               | SAFE    | Template metadata is needed to select a workspace source. Sponsor roles still apply.                                                                                                                                    |
+| `coder:workspaces.create`  | `template:use`                  | `template:*`               | SAFE    | Use is required by workspace preflight and does not itself reach an existing workspace (`coderd/workspaces.go:978-988`).                                                                                                |
+| `coder:workspaces.create`  | `workspace:create`              | `workspace:*`              | BOUNDED | The preflight object has no ID, so a wildcard is required. The shared path writes designation before the first build, but Mechanism A must refresh the in-memory build object (`coderd/workspaces.go:763-784,795-823`). |
+| `coder:workspaces.create`  | `workspace:read`                | `workspace:*`              | OPEN    | Reaches ordinary sponsor workspace metadata. This is accepted by the proposed default, not security-bounded by designation.                                                                                             |
+| `coder:workspaces.create`  | `workspace:update`              | `workspace:*`              | OPEN    | Reaches ordinary sponsor workspace settings.                                                                                                                                                                            |
+| `coder:workspaces.create`  | `workspace:start`               | `workspace:*`              | OPEN    | Can start or rebuild an ordinary sponsor workspace.                                                                                                                                                                     |
+| `coder:workspaces.create`  | `workspace:stop`                | `workspace:*`              | OPEN    | Can stop an ordinary sponsor workspace.                                                                                                                                                                                 |
+| `coder:workspaces.create`  | `organization_member:read`      | `organization_member:*`    | SAFE    | Metadata-only for this takeover analysis; sponsor organization permissions remain the ceiling.                                                                                                                          |
+| `coder:workspaces.operate` | `template:read`                 | `template:*`               | SAFE    | Metadata-only for this workspace-boundary analysis.                                                                                                                                                                     |
+| `coder:workspaces.operate` | `workspace:read`                | `workspace:*`              | OPEN    | Reaches ordinary sponsor workspace metadata. Accepted only as the current product default.                                                                                                                              |
+| `coder:workspaces.operate` | `workspace:update`              | `workspace:*`              | OPEN    | Can mutate an ordinary sponsor workspace. Protect this action even though template-version selection is authorized through start, as qualified below.                                                                   |
+| `coder:workspaces.operate` | `workspace:start`               | `workspace:*`              | OPEN    | Can start or rebuild an ordinary sponsor workspace, including a build request that selects another template version.                                                                                                    |
+| `coder:workspaces.operate` | `workspace:stop`                | `workspace:*`              | OPEN    | Can stop an ordinary sponsor workspace and terminate its running processes.                                                                                                                                             |
+| `coder:workspaces.operate` | `organization_member:read`      | `organization_member:*`    | SAFE    | Metadata-only for this takeover analysis.                                                                                                                                                                               |
+| `coder:workspaces.access`  | `template:read`                 | `template:*`               | SAFE    | Metadata-only for this workspace-boundary analysis.                                                                                                                                                                     |
+| `coder:workspaces.access`  | `organization_member:read`      | `organization_member:*`    | SAFE    | Metadata-only for this takeover analysis.                                                                                                                                                                               |
+| `coder:workspaces.access`  | `workspace:read`                | `workspace:*`              | OPEN    | Reaches ordinary sponsor workspace metadata. Accepted only as the current product default.                                                                                                                              |
+| `coder:workspaces.access`  | `workspace:ssh`                 | `workspace:*`              | OPEN    | Headline hole. A shell in an ordinary workspace crosses the credential-starvation boundary.                                                                                                                             |
+| `coder:workspaces.access`  | `workspace:application_connect` | `workspace:*`              | OPEN    | Reaches applications in an ordinary workspace and must use the same designation gate as SSH.                                                                                                                            |
+| `chat:read`                | `chat:read`                     | Exact profile `chatID`     | BOUNDED | Pinned to the chat passed to the profile.                                                                                                                                                                               |
+| `chat:update`              | `chat:update`                   | Exact profile `chatID`     | BOUNDED | Pinned to the chat passed to the profile.                                                                                                                                                                               |
+| `user:read`                | `user:read`                     | `user:*`                   | SAFE    | No personal-read or mutation action is present. This label is limited to the workspace takeover analyzed here, not a data-minimization approval (`coderd/rbac/policy/policy.go:96-106`).                                |
 
 There is one important correction to the supplied background. A request can
 select another template version when creating a start build:
@@ -114,7 +115,7 @@ keeps it OPEN and allowed so a chat can answer questions such as "what
 workspaces do I have?" This is a product tradeoff, not a claim that the row is
 resource-bounded.
 
-### Finding 2, Safe: the workspace identity profile is pinned to one workspace
+### Finding 2, Informational: the workspace identity profile is pinned to one workspace
 
 `WorkspaceAgentIdentityProfile` contains six low-level workspace scopes and an
 allow list with exactly one `workspace:<workspaceID>` entry. It contains no
@@ -159,10 +160,10 @@ workspace agent to the designation (`coderd/provisionerdserver/provisionerdserve
 and rejects owner external-auth retrieval from a bound agent
 (`coderd/workspaceagents.go:2087-2097`).
 
-**Attack narrative.** A chat creates an AI identity and mints its scoped key. If
-the key plaintext is exfiltrated, or a future tool surface makes equivalent
-HTTP calls, the attacker uses `coder ssh` against another workspace owned by
-the same sponsor. That workspace is ordinary, so its environment or template
+**INFERRED attack narrative.** A chat creates an AI identity and mints its
+scoped key. If the key plaintext is exfiltrated, or a future tool surface makes
+equivalent HTTP calls, the attacker uses `coder ssh` against another workspace
+owned by the same sponsor. That workspace is ordinary, so its environment or template
 may expose the owner's `CODER_SESSION_TOKEN`, and its build receives the owner
 session token, external-auth tokens, and SSH key described above. Reading the
 owner token yields a human-owned `coder:all` credential, which no longer passes
@@ -185,18 +186,21 @@ must require exact equality between `subject.ai_agent_id` and
 
 ## 3. Two candidate mechanisms and recommendation
 
-### Finding 4, Recommended: Mechanism A models the dynamic boundary on the object
+### Finding 4, Medium: Mechanism A models the dynamic boundary on the object
 
 Mechanism A adds the workspace's designation to `rbac.Object` and the acting
 agent's ID to `rbac.Subject`. The Rego policy adds one mandatory allow gate for
-protected workspace actions. Human subjects have an empty acting-agent ID and
-are unaffected. AI subjects are allowed to SSH, application-connect, start,
-stop, or update only when the object carries the same agent ID.
+workspace actions other than read and create. Human subjects are unaffected.
+AI subjects need an exact designation match for SSH, application connect,
+start, stop, update, and any future non-read workspace action.
 
-This fits the domain. Designation is stored on the workspace and can change as
-the workspace moves through creation or opt-in. `WorkspaceTable.RBACObject`
-already centralizes the owner, organization, ID, and ACL attributes consumed by
-policy (`coderd/database/modelmethods.go:516-555`). The actor identity already
+This fits the domain. Designation is stored on the workspace and changes from
+NULL to an agent ID when creation or opt-in designates it
+(`coderd/database/migrations/000567_workspace_ai_designation.up.sql:1-7`;
+`coderd/workspaces.go:768-784`). `WorkspaceTable.RBACObject` is the natural
+central point for the owner, organization, ID, ACL, and designation attributes,
+but the `Workspace` to `WorkspaceTable` converter currently omits `AIAgentID`
+(`coderd/database/modelmethods.go:488-518,538-555`). The actor identity already
 exists separately from the sponsor subject in `AIAgentActor`
 (`coderd/aiagentidentity/aiagentidentity.go:36-62`) and is resolved in both HTTP
 and in-process chat paths (`coderd/httpmw/apikey.go:500-529`;
@@ -213,22 +217,28 @@ the partial input (`coderd/rbac/authz.go:349-370`;
 organization, and ACLs (`coderd/rbac/regosql/configs.go:43-55`). Mechanism A
 must update all three contracts.
 
-The policy should restrict its designation condition to protected actions.
-For `ActionRead`, the condition resolves true from the known action before an
-object designation is needed, so existing list filtering does not gain an AI
-predicate. Workspace listing compiles partial Rego through
-`ConfigWorkspaces` (`coderd/database/modelqueries.go:239-255,358-366`). A
-mapping for `input.object.ai_agent_id` should still be added so prepared or SQL
-checks for protected actions remain correct.
+The policy should exempt only `ActionRead` and `ActionCreate`; every other
+workspace action should require designation. The current workspace action
+catalog also contains delete, share, and agent-management actions, so naming
+only today's five profile actions would fail open when a future profile grows
+(`coderd/rbac/policy/policy.go:49-71`). For `ActionRead`, the exemption resolves
+from the known action and object type before an object designation is needed,
+so existing list filtering does not gain an AI predicate. Workspace listing
+compiles partial Rego through `ConfigWorkspaces`
+(`coderd/database/modelqueries.go:239-255,358-366`). A mapping for
+`input.object.ai_agent_id` should still be added so prepared or SQL checks for
+protected actions remain correct.
 
 Zero values must fail closed. `workspaces.ai_agent_id` is nullable
 (`coderd/database/migrations/000567_workspace_ai_designation.up.sql:1-7`). The
 RBAC object should encode NULL as `""`; an AI subject has a non-empty acting
-agent ID, so equality fails for every undesignated workspace. Human subjects
-also encode `""`, but take the explicit human branch before equality is
-required.
+agent ID, so equality fails for every undesignated workspace. Rego must also
+consume `Subject.Type`: `Type = ai_agent` with an accidentally empty acting ID
+must deny protected actions, not fall through to the human branch. `Type` is
+currently documented as logging-only, so making it functional is an explicit
+contract change (`coderd/rbac/authz.go:99-123`).
 
-### Finding 5, Rejected: Mechanism B makes credential state dynamic and breaks creation
+### Finding 5, High: Mechanism B makes credential state dynamic and breaks creation
 
 Mechanism B removes `workspace:*` from `ChatAgentProfile`, starts the key with
 the chat workspace ID, and appends each created workspace ID to the key's
@@ -239,6 +249,13 @@ materialized as `APIKey.AllowList`
 that column. `UpdateAPIKeyByID` changes only `last_used`, `expires_at`, and
 `ip_address` (`coderd/database/queries/apikeys.sql:79-87`). Mechanism B would
 therefore require a new credential-row mutation query.
+
+The current profile constructor receives only `chatID`, and the chat workflow
+supports a chat with no workspace until `create_workspace` runs
+(`coderd/aiagentidentity/profile.go:23-50`;
+`coderd/x/chatd/chattool/createworkspace.go:83-103,128-154`). B would also have
+to add an optional workspace binding to mint-time inputs and define the empty
+initial workspace allow list.
 
 The fatal problem is create authorization. Preflight authorizes
 `ActionCreate` on a workspace object with organization and owner but no ID
@@ -289,7 +306,7 @@ that has no ID.
 
 ## 4. Concrete design for Mechanism A
 
-### Finding 6, Design: add one functional subject attribute and one object attribute
+### Finding 6, Medium: add one functional subject attribute and one object attribute
 
 The following snippets are implementation sketches only.
 
@@ -321,9 +338,11 @@ func (z Object) WithAIAgentID(id string) Object {
 }
 ```
 
-Every value-copying `Object` helper, `Equal`, and `All` must preserve or compare
-`AIAgentID`; those helpers currently reconstruct the struct field by field
-(`coderd/rbac/object.go:93-115,140-239`).
+Every value-copying `Object` helper must preserve `AIAgentID`, and `Equal` must
+compare it. `All` should deliberately clear it because an all-resources object
+cannot claim one designation; that makes a protected AI authorization against
+an aggregate object fail closed. These helpers currently reconstruct the struct
+field by field (`coderd/rbac/object.go:93-115,140-239`).
 
 ```go
 // coderd/rbac/authz.go
@@ -331,11 +350,13 @@ Every value-copying `Object` helper, `Equal`, and `All` must preserve or compare
 type Subject struct {
     FriendlyName string
     Email        string
-    Type         SubjectType
+    // Type becomes a policy input. It remains useful for logging too.
+    Type SubjectType
 
     ID string
     // AIAgentID is the acting AI principal. ID remains the sponsoring human.
-    // Empty means this is not an AI-delegated authorization subject.
+    // Empty is valid for non-AI subjects. An AI Type with an empty ID fails
+    // closed for protected actions.
     AIAgentID string
     Roles     ExpandableRoles
     Groups    []string
@@ -344,27 +365,40 @@ type Subject struct {
     cachedASTValue ast.Value
 }
 
-func (s Subject) WithAIAgentID(id uuid.UUID) Subject {
+func (s Subject) AsAIAgent(id uuid.UUID, friendlyName string) Subject {
+    s.Type = SubjectTypeAIAgent
+    s.FriendlyName = friendlyName
     s.AIAgentID = id.String()
-    // UserRBACSubject returns a cached AST. Rebuild it after changing a
-    // functional authorization field.
+    // UserRBACSubject returns a cached AST. Rebuild it after changing
+    // functional authorization fields.
     s.cachedASTValue = nil
     return s.WithCachedASTValue()
 }
 ```
 
-`Subject.Equal` must compare `AIAgentID`, because it currently compares ID,
-groups, roles, and scope only (`coderd/rbac/authz.go:147-163`). Authorization
-cache hashing already JSON-encodes the whole subject and object, so the new
-exported fields naturally enter the cache key (`coderd/rbac/authz.go:37-59`).
+`Subject.Equal` must compare both `Type` and `AIAgentID`, because those fields
+become functional. It currently compares ID, groups, roles, and scope only
+(`coderd/rbac/authz.go:147-163`). Authorization cache hashing already
+JSON-encodes the whole subject and object, so the exported fields naturally
+enter the cache key (`coderd/rbac/authz.go:37-59`).
+
+Keep `AIAgentID` exported. The authorization hash JSON-encodes `Subject`, and
+the resulting key feeds a global cross-request cache
+(`coderd/rbac/authz.go:37-59,775-812`). An unexported acting ID would be omitted
+from the hash and could make two agents with otherwise identical subjects share
+a cached authorization result.
 
 #### 4.2 `coderd/rbac/astvalue.go`
 
-Both attributes must be present in full Rego input. Empty strings are
-intentional and support fail-closed equality.
+The subject type and both agent ID attributes must be present in full Rego
+input. Empty ID strings are intentional and support fail-closed equality.
 
 ```go
 // coderd/rbac/astvalue.go, inside Subject.regoValue
+[2]*ast.Term{
+    ast.StringTerm("type"),
+    ast.StringTerm(string(s.Type)),
+},
 [2]*ast.Term{
     ast.StringTerm("ai_agent_id"),
     ast.StringTerm(s.AIAgentID),
@@ -385,6 +419,22 @@ construction at `coderd/rbac/astvalue.go:83-100,114-143`.
 Current code builds a workspace object without the designation
 (`coderd/database/modelmethods.go:538-555`). Populate it at this converter, not
 at individual handlers.
+
+First preserve the field when a full `Workspace` is reduced. The current
+converter copies ACLs but omits `AIAgentID`
+(`coderd/database/modelmethods.go:488-513`).
+
+```go
+// coderd/database/modelmethods.go, inside Workspace.WorkspaceTable
+return WorkspaceTable{
+    // Existing fields remain unchanged.
+    GroupACL:  w.GroupACL,
+    UserACL:   w.UserACL,
+    AIAgentID: w.AIAgentID,
+}
+```
+
+Then populate the RBAC object:
 
 ```go
 // Before, coderd/database/modelmethods.go
@@ -410,7 +460,50 @@ Apply the same population to `WorkspaceTable.DormantRBAC`, which currently
 builds a separate `workspace_dormant` object (`coderd/database/modelmethods.go:557-562`).
 NULL remains the zero value `""`, which is required for fail-closed AI checks.
 
-#### 4.4 Subject population in HTTP, chat tools, and workspace-agent middleware
+Audit the other workspace-typed constructors too. `Workspace.AsPrebuild` and
+`WorkspaceTable.DormantRBAC` build separate object types, while
+`WorkspaceIdentity` synthesizes a reduced workspace and currently has no
+`AIAgentID` field (`coderd/database/modelmethods.go:526-562,955-1009`). They
+must preserve designation. Row wrappers that delegate to
+`WorkspaceTable.RBACObject` inherit the central fix
+(`coderd/database/modelmethods.go:1012-1049`). A table-driven converter test
+should assert that every workspace, dormant-workspace, and prebuilt-workspace
+object carries the expected designation.
+
+#### 4.4 Finding 7, High: refresh the in-memory workspace before its first build
+
+There is a fail-closed happy-path trap. `createWorkspace` fetches `workspace`
+before designation, discards the `WorkspaceTable` returned by
+`SetWorkspaceAIAgentID`, and then passes the earlier `workspace` value to
+`wsbuilder.New` (`coderd/workspaces.go:760-784,795-823`). Once start requires a
+designation match, the initial AI-created build would be denied unless the
+local object is updated.
+
+```go
+// coderd/workspaces.go
+if aiActor, ok := aiagentidentity.ActorFromContext(ctx); ok {
+    designated, err := db.SetWorkspaceAIAgentID(
+        dbauthz.AsSystemRestricted(ctx),
+        database.SetWorkspaceAIAgentIDParams{
+            ID:        workspace.ID,
+            AIAgentID: uuid.NullUUID{
+                UUID: aiActor.AgentUserID,
+                Valid: true,
+            },
+        },
+    )
+    if err != nil {
+        return xerrors.Errorf("designate AI-created workspace: %w", err)
+    }
+    // Keep the object passed to wsbuilder authorization in sync with the row.
+    workspace.AIAgentID = designated.AIAgentID
+}
+```
+
+This remains input construction, not a second authorization decision. The
+policy still decides whether the subsequent start is allowed.
+
+#### 4.5 Subject population in HTTP, chat tools, and workspace-agent middleware
 
 HTTP authentication currently sets only the logging `Type` and friendly name
 after `UserRBACSubject` returns (`coderd/httpmw/apikey.go:524-530`). The acting
@@ -422,36 +515,39 @@ actor, userStatus, err = UserRBACSubject(
     ctx, cfg.DB, identity.OwnerUser.ID, key.ScopeSet(),
 )
 if err == nil {
-    actor = actor.WithAIAgentID(identity.Actor.AgentUserID)
-    actor.Type = rbac.SubjectTypeAIAgent
-    actor.FriendlyName = identity.AgentUser.Username
+    actor = actor.AsAIAgent(
+        identity.Actor.AgentUserID,
+        identity.AgentUser.Username,
+    )
     resolvedActor := identity.Actor
     agentActor = &resolvedActor
 }
 ```
 
-The same functional field is required for in-process chat tools after their
-profile-scoped subject is built (`coderd/x/chatd/chattool/subject.go:56-70`):
+The same helper is required for in-process chat tools after their profile-scoped
+subject is built (`coderd/x/chatd/chattool/subject.go:56-70`):
 
 ```go
-actor = actor.WithAIAgentID(identity.Actor.AgentUserID)
-actor.Type = rbac.SubjectTypeAIAgent
-actor.FriendlyName = identity.AgentUser.Username
+actor = actor.AsAIAgent(
+    identity.Actor.AgentUserID,
+    identity.AgentUser.Username,
+)
 ```
 
 Workspace-agent middleware must do the same when a bound agent resolves its AI
 identity (`coderd/httpmw/workspaceagent.go:156-191`):
 
 ```go
-subject = subject.WithAIAgentID(identity.Actor.AgentUserID)
-subject.Type = rbac.SubjectTypeAIAgent
-subject.FriendlyName = identity.AgentUser.Username
+subject = subject.AsAIAgent(
+    identity.Actor.AgentUserID,
+    identity.AgentUser.Username,
+)
 ```
 
 These call sites only populate input. They do not make an authorization
 decision; the decision remains in `coderd/rbac/policy.rego`.
 
-#### 4.5 `coderd/rbac/policy.rego`
+#### 4.6 `coderd/rbac/policy.rego`
 
 The existing policy ends with one `allow` rule requiring both permission and
 scope (`coderd/rbac/policy.rego:435-461`). Match that positive-gate style rather
@@ -460,26 +556,39 @@ than adding a middleware veto.
 ```rego
 # coderd/rbac/policy.rego
 
+# Treat either marker as AI-delegated. This fails closed if Type says AI but the
+# acting ID was not populated, and also if a non-empty acting ID is paired with
+# an unexpected Type.
+subject_is_ai_agent if {
+    input.subject.type = "ai_agent"
+}
+
+subject_is_ai_agent if {
+    not input.subject.ai_agent_id = ""
+}
+
 # AI agents may read workspace metadata and create a workspace before its ID
-# exists. Actions that cross into a workspace or mutate its lifecycle require
-# the workspace designation to match the acting AI agent exactly.
+# exists. Every other workspace action requires exact designation. Keeping the
+# exemption list short makes future workspace actions protected by default.
 ai_workspace_action_requires_designation if {
-    input.object.type in {"workspace", "workspace_dormant"}
-    input.action in {"ssh", "application_connect", "start", "stop", "update"}
+    input.object.type in {"workspace", "workspace_dormant", "prebuilt_workspace"}
+    not input.action in {"read", "create"}
 }
 
 # Human and system subjects are unaffected.
 ai_workspace_designation_allow if {
-    input.subject.ai_agent_id = ""
+    not subject_is_ai_agent
 }
 
 # AI subjects may perform non-protected actions, including read and create.
 ai_workspace_designation_allow if {
+    subject_is_ai_agent
     not ai_workspace_action_requires_designation
 }
 
-# Protected actions require exact lineage. An empty object value fails closed.
+# Protected actions require a non-empty acting ID and exact lineage.
 ai_workspace_designation_allow if {
+    subject_is_ai_agent
     not input.subject.ai_agent_id = ""
     input.object.ai_agent_id = input.subject.ai_agent_id
 }
@@ -493,10 +602,12 @@ allow if {
 
 This rule denies agent A against agent B's workspace even when both share a
 sponsor, because only exact agent ID equality satisfies the protected branch.
-It also denies an AI subject against an undesignated object because `""` does
-not equal the non-empty subject agent ID.
+It denies an AI subject against an undesignated object because `""` does not
+equal the non-empty subject agent ID. It also denies protected actions when an
+AI subject's acting ID was accidentally left empty, instead of treating that
+subject as human.
 
-#### 4.6 Partial evaluation and SQL conversion
+#### 4.7 Partial evaluation and SQL conversion
 
 The partial query currently declares ID, owner, organization, and ACL fields as
 unknown (`coderd/rbac/authz.go:349-370`). Add the designation:
@@ -538,14 +649,17 @@ func WorkspaceConverter() *sqltypes.VariableConverter {
 
 `regosql` rejects variables without a registered converter
 (`coderd/rbac/regosql/compile.go:171-199`). The mapping is therefore required
-for any protected-action SQL compilation. Read/list remains cheap: action and
-object type are known during preparation, so the non-protected policy branch
-resolves without a residual `ai_agent_id` predicate. The ordinary workspace
-list continues to compile through `ConfigWorkspaces`
-(`coderd/rbac/authz.go:742-746`;
-`coderd/database/modelqueries.go:244-255`).
+for any protected-action SQL compilation. The `workspaces` qualifier is valid
+in both queries that use this converter
+(`coderd/database/queries/workspaces.sql:110-123,1062-1101`). Read/list remains
+cheap: action and object type are known in the partial input
+(`coderd/rbac/astvalue.go:37-66`), so the read exemption is ground and produces
+no residual `ai_agent_id` predicate. The ordinary workspace list continues to
+compile through `ConfigWorkspaces` (`coderd/rbac/authz.go:742-746`;
+`coderd/database/modelqueries.go:244-255`). Add a converter case beside the
+existing workspace ACL cases in `coderd/rbac/regosql/compile_test.go:200-218`.
 
-#### 4.7 Test sketch
+#### 4.8 Test sketch
 
 The organization workspace-access role grants member-level workspace actions
 (`coderd/rbac/roles.go:225-247,716-728`). A focused policy test can therefore
@@ -567,6 +681,7 @@ func TestAIAgentWorkspaceDesignation(t *testing.T) {
     require.NoError(t, err)
 
     aiSubject := rbac.Subject{
+        Type:      rbac.SubjectTypeAIAgent,
         ID:        ownerID.String(),
         AIAgentID: agentA.String(),
         Roles: rbac.RoleIdentifiers{
@@ -596,9 +711,17 @@ func TestAIAgentWorkspaceDesignation(t *testing.T) {
 
     t.Run("human subject unaffected", func(t *testing.T) {
         human := aiSubject
+        human.Type = rbac.SubjectTypeUser
         human.AIAgentID = ""
         err := authz.Authorize(ctx, human, policy.ActionSSH, workspace(""))
         require.NoError(t, err)
+    })
+
+    t.Run("AI type with missing acting ID fails closed", func(t *testing.T) {
+        missingID := aiSubject
+        missingID.AIAgentID = ""
+        err := authz.Authorize(ctx, missingID, policy.ActionSSH, workspace(agentA.String()))
+        require.Error(t, err)
     })
 
     t.Run("agent A denied on agent B workspace", func(t *testing.T) {
@@ -611,8 +734,23 @@ func TestAIAgentWorkspaceDesignation(t *testing.T) {
 Add parallel cases for `ActionApplicationConnect`, `ActionWorkspaceStart`,
 `ActionWorkspaceStop`, and `ActionUpdate`, plus positive tests showing
 `ActionRead` remains allowed and `ActionCreate` still works on an ID-less,
-undesignated object. Add a `Prepare` plus `CompileToSQL(ConfigWorkspaces())`
-test for both read and SSH so the partial-evaluation contract cannot regress.
+undesignated object. Iterate `ResourceWorkspace.AvailableActions()` and require
+designation for every action except read and create, so new actions cannot drift
+open. Add a `Prepare` plus `CompileToSQL(ConfigWorkspaces())` test for both read
+and SSH so the partial-evaluation contract cannot regress. Finally, add a
+`createWorkspace` regression test proving the initial AI-created start build
+receives the designation on its in-memory RBAC object.
+
+### Could not verify in this design-only pass
+
+- No end-to-end SSH session was started against a running ordinary workspace.
+  The RBAC reach and credential delivery paths were verified from code, but the
+  complete takeover chain was not executed.
+- The proposed Rego and SQL residuals were not compiled because this artifact
+  intentionally changes no source. The design therefore requires the
+  `Authorize`, `Prepare`, and `CompileToSQL` tests described above.
+- Out-of-repository templates and integrations that expose
+  `WorkspaceOwnerSessionToken` as `CODER_SESSION_TOKEN` were not inspected.
 
 ### Open product decisions, pending owner sign-off
 
@@ -622,7 +760,8 @@ test for both read and SSH so the partial-evaluation contract cannot regress.
 | SSH and application connect                 | **Require exact designation match.**   | Both cross into the workspace runtime and its credentials.                                                                          |
 | Start, stop, and update                     | **Require exact designation match.**   | Prevents disruption and mutation of ordinary workspaces. Start also covers rebuilds and template-version selection in current code. |
 | Cross-agent access with the same sponsor    | **Denied.**                            | Require `object.ai_agent_id == subject.ai_agent_id`, not merely non-null designation.                                               |
-| Workspace create before an ID exists        | **Allowed without designation match.** | The shared creation chokepoint writes designation before the first build.                                                           |
+| Other non-read workspace actions            | **Require exact designation match.**   | Protect delete, share, and agent-management actions by default if future profiles add them.                                         |
+| Workspace create before an ID exists        | **Allowed without designation match.** | The shared chokepoint writes designation, then must refresh the build object before start authorization.                            |
 
 Owner sign-off should explicitly confirm the read/list exception and the choice
 to protect all three operate-class actions. The security recommendation is to
