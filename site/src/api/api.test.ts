@@ -696,11 +696,12 @@ describe("getAllWorkspaces", () => {
 	});
 
 	it("advances the offset by the page size until the total is reached", async () => {
+		const total = WorkspacesPageLimit * 2 + 10;
 		const getWorkspaces = vi
 			.spyOn(API, "getWorkspaces")
-			.mockResolvedValueOnce(workspacePage(250, WorkspacesPageLimit))
-			.mockResolvedValueOnce(workspacePage(250, WorkspacesPageLimit))
-			.mockResolvedValueOnce(workspacePage(250, 50));
+			.mockResolvedValueOnce(workspacePage(total, WorkspacesPageLimit))
+			.mockResolvedValueOnce(workspacePage(total, WorkspacesPageLimit))
+			.mockResolvedValueOnce(workspacePage(total, 10));
 
 		const result = await API.getAllWorkspaces();
 
@@ -709,31 +710,33 @@ describe("getAllWorkspaces", () => {
 			WorkspacesPageLimit,
 			WorkspacesPageLimit * 2,
 		]);
-		expect(result.workspaces).toHaveLength(250);
-		expect(result.count).toBe(250);
+		expect(result.workspaces).toHaveLength(total);
+		expect(result.count).toBe(total);
 	});
 
 	it("keeps requesting pages when a page is shorter than the page size", async () => {
+		const total = WorkspacesPageLimit + 20;
 		const getWorkspaces = vi
 			.spyOn(API, "getWorkspaces")
-			.mockResolvedValueOnce(workspacePage(150, 40))
-			.mockResolvedValueOnce(workspacePage(150, 50));
+			.mockResolvedValueOnce(workspacePage(total, 40))
+			.mockResolvedValueOnce(workspacePage(total, 50));
 
 		const result = await API.getAllWorkspaces();
 
 		expect(getWorkspaces).toHaveBeenCalledTimes(2);
 		expect(result.workspaces).toHaveLength(90);
-		expect(result.count).toBe(150);
+		expect(result.count).toBe(total);
 	});
 
 	// The order the endpoint applies depends on workspace state, so a row can
 	// move to a later page while the pages are being read and be returned twice.
 	it("skips a workspace an earlier page already returned", async () => {
+		const total = WorkspacesPageLimit + 1;
 		const repeated = { ...MockWorkspace, id: "repeated" };
 		const unique = { ...MockWorkspace, id: "unique" };
 		vi.spyOn(API, "getWorkspaces")
-			.mockResolvedValueOnce({ workspaces: [repeated], count: 150 })
-			.mockResolvedValueOnce({ workspaces: [repeated, unique], count: 150 });
+			.mockResolvedValueOnce({ workspaces: [repeated], count: total })
+			.mockResolvedValueOnce({ workspaces: [repeated, unique], count: total });
 
 		const result = await API.getAllWorkspaces();
 
@@ -741,11 +744,12 @@ describe("getAllWorkspaces", () => {
 	});
 
 	it("passes the abort signal to every page", async () => {
+		const total = WorkspacesPageLimit + 50;
 		const controller = new AbortController();
 		const getWorkspaces = vi
 			.spyOn(API, "getWorkspaces")
-			.mockResolvedValueOnce(workspacePage(150, WorkspacesPageLimit))
-			.mockResolvedValueOnce(workspacePage(150, 50));
+			.mockResolvedValueOnce(workspacePage(total, WorkspacesPageLimit))
+			.mockResolvedValueOnce(workspacePage(total, 50));
 
 		await API.getAllWorkspaces({ q: "owner:me" }, controller.signal);
 
@@ -757,7 +761,9 @@ describe("getAllWorkspaces", () => {
 
 	it("rejects without returning the pages it already read", async () => {
 		vi.spyOn(API, "getWorkspaces")
-			.mockResolvedValueOnce(workspacePage(150, WorkspacesPageLimit))
+			.mockResolvedValueOnce(
+				workspacePage(WorkspacesPageLimit + 50, WorkspacesPageLimit),
+			)
 			.mockRejectedValueOnce(new Error("canceled"));
 
 		await expect(API.getAllWorkspaces()).rejects.toThrow("canceled");

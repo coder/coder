@@ -1107,7 +1107,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 | Name     | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                                    |
 |----------|-------|---------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items). |
-| `limit`  | query | integer | false    | Page limit, from 1 to 100. Defaults to 100 when omitted.                                                                                                                                                                                                                                                                       |
+| `limit`  | query | integer | false    | Page limit, from 1 to 1000. Defaults to 1000 when omitted.                                                                                                                                                                                                                                                                     |
 | `offset` | query | integer | false    | Page offset                                                                                                                                                                                                                                                                                                                    |
 
 ### Example responses
@@ -1385,10 +1385,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Responses
 
-| Status | Meaning                                                          | Description                                                  | Schema                                                               |
-|--------|------------------------------------------------------------------|--------------------------------------------------------------|----------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK                                                           | [codersdk.WorkspacesResponse](schemas.md#codersdkworkspacesresponse) |
-| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Invalid query parameters, including a limit outside 1 to 100 | [codersdk.Response](schemas.md#codersdkresponse)                     |
+| Status | Meaning                                                          | Description                                                   | Schema                                                               |
+|--------|------------------------------------------------------------------|---------------------------------------------------------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK                                                            | [codersdk.WorkspacesResponse](schemas.md#codersdkworkspacesresponse) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Invalid query parameters, including a limit outside 1 to 1000 | [codersdk.Response](schemas.md#codersdkresponse)                     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

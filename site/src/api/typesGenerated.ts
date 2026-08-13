@@ -11506,8 +11506,12 @@ export interface WorkspaceUser extends MinimalUser {
  * accepts and the page size clients use when reading that endpoint to
  * exhaustion. A request that omits limit receives this many rows; a limit of 0
  * or greater than this is rejected.
+ *
+ * It is set well above the number of workspaces a deployment is expected to
+ * hold so that a caller reading the list still receives it in one response, and
+ * bounds the response for the cases that exceed it.
  */
-export const WorkspacesPageLimit = 100;
+export const WorkspacesPageLimit = 1000;
 
 // From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {

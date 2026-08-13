@@ -11,7 +11,11 @@ import (
 // accepts and the page size clients use when reading that endpoint to
 // exhaustion. A request that omits limit receives this many rows; a limit of 0
 // or greater than this is rejected.
-const WorkspacesPageLimit = 100
+//
+// It is set well above the number of workspaces a deployment is expected to
+// hold so that a caller reading the list still receives it in one response, and
+// bounds the response for the cases that exceed it.
+const WorkspacesPageLimit = 1000
 
 // Pagination sets pagination options for the endpoints that support it.
 type Pagination struct {

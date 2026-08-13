@@ -13617,7 +13617,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit, from 1 to 100. Defaults to 100 when omitted.",
+                        "description": "Page limit, from 1 to 1000. Defaults to 1000 when omitted.",
                         "name": "limit",
                         "in": "query"
                     },
@@ -13636,7 +13636,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Invalid query parameters, including a limit outside 1 to 100",
+                        "description": "Invalid query parameters, including a limit outside 1 to 1000",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
