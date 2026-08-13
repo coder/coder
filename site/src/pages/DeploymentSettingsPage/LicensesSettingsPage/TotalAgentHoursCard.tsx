@@ -79,7 +79,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		actualMs !== undefined &&
 		softLimit !== undefined &&
 		usedHours >= softLimit;
-	// With a hard cap the track spans the full enforcement range: its
+	// With a hard cap the track spans the full hard-cap range: its
 	// right edge is the hard cap and the allocation falls at an interior
 	// marker.
 	const barScale = hardCap ?? meteredLimit;
@@ -108,24 +108,32 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	// allocation, and red from the allocation to the hard cap. Each
 	// threshold also carries a marker line on the track at the same
 	// position, so a marker only stands out against fill of a different
-	// color once usage passes it.
+	// color once usage passes it. The exception is a metered allocation
+	// without a hard cap, where reaching the allocation turns the whole
+	// fill red (see fullRedFill below).
 	const softMarkerPercent =
 		!isUnlimited && softLimit !== undefined && barScale > 0
 			? Math.min((softLimit / barScale) * 100, 100)
 			: undefined;
 	const limitBoundaryPercent = allocationMarkerPercent ?? 100;
-	const greenWidth = Math.min(
-		usagePercentage,
-		softMarkerPercent ?? limitBoundaryPercent,
-	);
+	// Without a hard cap the track ends at the allocation, so there is no
+	// position past the limit where a red segment could appear: reaching
+	// the allocation turns the whole fill red instead.
+	const fullRedFill = reachedAllocation && hardCap === undefined;
+	const greenWidth = fullRedFill
+		? 0
+		: Math.min(usagePercentage, softMarkerPercent ?? limitBoundaryPercent);
 	const yellowWidth =
-		softMarkerPercent === undefined
+		fullRedFill || softMarkerPercent === undefined
 			? 0
 			: Math.max(
 					0,
 					Math.min(usagePercentage, limitBoundaryPercent) - softMarkerPercent,
 				);
-	const redWidth = Math.max(0, usagePercentage - limitBoundaryPercent);
+	const redLeft = fullRedFill ? 0 : limitBoundaryPercent;
+	const redWidth = fullRedFill
+		? usagePercentage
+		: Math.max(0, usagePercentage - limitBoundaryPercent);
 
 	// Usage always renders with exactly one decimal (e.g. 42.0, 10.3). The
 	// value is already floored to tenths, so no rounding happens here. The
@@ -217,7 +225,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 								// In-flow so the row keeps its height, offset to the
 								// marker by a percentage margin (the row and the track
 								// share a width), with the auto margin keeping the
-								// enforcement pill on the right.
+								// hard-cap pill on the right.
 								<p
 									className="m-0 mr-auto text-sm font-medium whitespace-nowrap text-content-secondary"
 									style={{ marginLeft: `${allocationMarkerPercent}%` }}
@@ -229,7 +237,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 							{reachedHardCap && (
 								<Badge variant="destructive" size="sm" className="rounded-full">
 									<BanIcon />
-									Hard cap reached - chat concurrency enforced
+									Hard cap reached
 								</Badge>
 							)}
 							{hardCapLabelAboveBar && (
@@ -267,11 +275,14 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 											}}
 										/>
 									)}
-									{hardCap !== undefined && (
+									{(hardCap !== undefined || fullRedFill) && (
 										<div
-											className="absolute inset-y-0 bg-highlight-red transition-[width] duration-300"
+											className={cn(
+												"absolute inset-y-0 bg-highlight-red transition-[width] duration-300",
+												fullRedFill && "rounded-l",
+											)}
 											style={{
-												left: `${limitBoundaryPercent}%`,
+												left: `${redLeft}%`,
 												width: `${redWidth}%`,
 											}}
 										/>

@@ -231,7 +231,7 @@ export const MissingActualZeroSoftLimit: Story = {
 	},
 };
 
-// A hard cap scales the track to the enforcement range. Every threshold
+// A hard cap scales the track to the hard-cap range. Every threshold
 // carries a marker line: dotted yellow for the soft limit, red for the
 // allocation (with the limit label at its interior position), and a
 // double-width primary-color line for the hard cap at the right edge.
@@ -294,8 +294,8 @@ export const HardCapBetweenSoftLimitAndLimit: Story = {
 };
 
 // Usage between the allocation and the hard cap adds the red segment
-// past the limit marker. The enforcement pill only appears once the
-// hard cap itself is reached.
+// past the limit marker. The hard-cap pill only appears once the hard
+// cap itself is reached.
 export const HardCapBetweenLimitAndHardCap: Story = {
 	args: {
 		feature: {
@@ -371,9 +371,9 @@ export const HardCapFarFromAllocation: Story = {
 };
 
 // Usage at or beyond the hard cap fills every segment of the track and
-// shows the enforcement pill above the bar. The tooltip reports the
-// enforcement ceiling while the usage percentage stays measured against
-// the allocation.
+// shows the hard-cap pill above the bar. The tooltip reports the hard
+// cap while the usage percentage stays measured against the
+// allocation.
 export const ReachedHardCap: Story = {
 	args: {
 		feature: {
@@ -389,9 +389,7 @@ export const ReachedHardCap: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("1,600.0")).toBeInTheDocument();
-		await expect(
-			canvas.getByText("Hard cap reached - chat concurrency enforced"),
-		).toBeInTheDocument();
+		await expect(canvas.getByText("Hard cap reached")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
