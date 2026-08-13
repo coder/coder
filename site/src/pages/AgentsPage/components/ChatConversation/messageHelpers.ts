@@ -216,7 +216,11 @@ const mergeReadFileMessageGroup = (
 
 // A merged group's row key cannot come from its first member: prepending
 // history into the group changes it. Key off the newest member instead, which
-// pagination never changes for an existing group.
+// pagination never changes for an existing group. The tradeoff: a live turn
+// that keeps appending reads to the tail group changes the key and remounts
+// the row, collapsing its expansion state. No client-side key is stable in
+// both directions; prepend stability wins because scroll preservation
+// depends on it.
 export const getDisplayMessageKey = (entry: ParsedMessageEntry): string => {
 	if (entry.mergedFrom === undefined) {
 		return `message:${entry.message.id}`;
