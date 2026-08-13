@@ -63,6 +63,12 @@ func TestExpMcpServer(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
+		// The SDK server enforces the MCP lifecycle, so complete the
+		// initialize handshake before listing tools.
+		stdin.WriteLine(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`)
+		_ = stdout.ReadLine(ctx)
+		stdin.WriteLine(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+
 		// When: we send a tools/list request
 		toolsPayload := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
 		stdin.WriteLine(toolsPayload)
@@ -140,7 +146,7 @@ func TestExpMcpServer(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
 		stdin.WriteLine(payload)
 		output := stdout.ReadLine(ctx)
 		cancel()
@@ -588,7 +594,7 @@ func TestExpMcpServerOptionalUserToken(t *testing.T) {
 	}()
 
 	// Verify server starts by checking for a successful initialization
-	payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+	payload := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
 	stdin.WriteLine(payload)
 	output := stdout.ReadLine(ctx)
 
@@ -1005,7 +1011,7 @@ func TestExpMcpReporter(t *testing.T) {
 			}()
 
 			// Initialize.
-			payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+			payload := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
 			stdin.WriteLine(payload)
 			_ = stdout.ReadLine(ctx) // ignore init response
 
@@ -1112,7 +1118,7 @@ func TestExpMcpReporter(t *testing.T) {
 		clitest.Start(t, inv)
 
 		// Initialize.
-		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
 		stdin.WriteLine(payload)
 		_ = stdout.ReadLine(ctx) // ignore init response
 
