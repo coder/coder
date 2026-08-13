@@ -5692,6 +5692,13 @@ func TestCompleteJob_AIDesignatedWorkspaceAgentBinding(t *testing.T) {
 
 		agents := make([]*sdkproto.Agent, 0, len(agentNames))
 		for _, name := range agentNames {
+			// A name prefixed with "ai:" declares ai_bound on that agent,
+			// which is the sandbox shape: one bound agent beside an unbound
+			// host agent in an ordinary workspace.
+			if declared, ok := strings.CutPrefix(name, "ai:"); ok {
+				agents = append(agents, &sdkproto.Agent{Name: declared, AiBound: true})
+				continue
+			}
 			agents = append(agents, &sdkproto.Agent{Name: name})
 		}
 		_, err = f.srv.CompleteJob(ctx, &proto.CompletedJob{
@@ -6169,4 +6176,252 @@ func TestAcquireJob_AIAgentSessionTokenChatDesignated(t *testing.T) {
 	survivor, err := db.GetAIAgentByUserID(ctx, chatAgent.UserID)
 	require.NoError(t, err)
 	require.False(t, survivor.Deleted)
+}
+
+// aiBindingFixture builds a template, user, and daemon, and completes builds
+// against them. Agent names prefixed with "ai:" declare ai_bound.
+type aiBindingFixture struct {
+	srv         proto.DRPCProvisionerDaemonServer
+	db          database.Store
+	ps          pubsub.Pubsub
+	daemon      database.ProvisionerDaemon
+	user        database.User
+	template    database.Template
+	version     database.TemplateVersion
+	file        database.File
+	buildNumber int32
+}
+
+func newAIBindingFixture(t *testing.T) *aiBindingFixture {
+	t.Helper()
+	srv, db, ps, daemon := setup(t, false, nil)
+	user := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: daemon.OrganizationID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: daemon.OrganizationID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		CreatedBy:      user.ID,
+	})
+	return &aiBindingFixture{
+		srv:      srv,
+		db:       db,
+		ps:       ps,
+		daemon:   daemon,
+		user:     user,
+		template: template,
+		version: dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: daemon.OrganizationID,
+			CreatedBy:      user.ID,
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			JobID:          uuid.New(),
+		}),
+		file: dbgen.File(t, db, database.File{CreatedBy: user.ID}),
+	}
+}
+
+func (f *aiBindingFixture) completeBuild(
+	t *testing.T,
+	workspace database.WorkspaceTable,
+	params []database.WorkspaceBuildParameter,
+	agentNames ...string,
+) (*sdkproto.Metadata, database.WorkspaceBuild) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f.buildNumber++
+	buildID := uuid.New()
+	job := dbgen.ProvisionerJob(t, f.db, f.ps, database.ProvisionerJob{
+		OrganizationID: f.daemon.OrganizationID,
+		InitiatorID:    f.user.ID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		StorageMethod:  database.ProvisionerStorageMethodFile,
+		FileID:         f.file.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+			WorkspaceBuildID: buildID,
+		})),
+		Tags: f.daemon.Tags,
+	})
+	build := dbgen.WorkspaceBuild(t, f.db, database.WorkspaceBuild{
+		ID:                buildID,
+		WorkspaceID:       workspace.ID,
+		BuildNumber:       f.buildNumber,
+		JobID:             job.ID,
+		TemplateVersionID: f.version.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		Reason:            database.BuildReasonInitiator,
+		InitiatorID:       f.user.ID,
+	})
+	params = slices.Clone(params)
+	for i := range params {
+		params[i].WorkspaceBuildID = build.ID
+	}
+	if len(params) > 0 {
+		dbgen.WorkspaceBuildParameters(t, f.db, params)
+	}
+
+	acquired, err := f.srv.AcquireJob(ctx, nil)
+	require.NoError(t, err)
+	workspaceBuild, ok := acquired.Type.(*proto.AcquiredJob_WorkspaceBuild_)
+	require.True(t, ok, "expected workspace build job")
+
+	agents := make([]*sdkproto.Agent, 0, len(agentNames))
+	for _, name := range agentNames {
+		if declared, found := strings.CutPrefix(name, "ai:"); found {
+			agents = append(agents, &sdkproto.Agent{Name: declared, AiBound: true})
+			continue
+		}
+		agents = append(agents, &sdkproto.Agent{Name: name})
+	}
+	_, err = f.srv.CompleteJob(ctx, &proto.CompletedJob{
+		JobId: job.ID.String(),
+		Type: &proto.CompletedJob_WorkspaceBuild_{
+			WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+				Resources: []*sdkproto.Resource{{
+					Name:   "resource-" + strconv.Itoa(int(f.buildNumber)),
+					Type:   "test",
+					Agents: agents,
+				}},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return workspaceBuild.WorkspaceBuild.Metadata, build
+}
+
+// TestCompleteJob_AIBoundAgentBinding covers the sandbox shape: an ordinary
+// human workspace where one declared agent is bound to an AI identity while the
+// host agent stays unbound. The host agent is the egress supervisor, so it must
+// keep the owner credentials and the policy that binding withholds. Binding a
+// declared agent must therefore never designate the workspace, because
+// designation binds every agent of every build and would collapse the
+// supervisor and confined roles into one.
+func TestCompleteJob_AIBoundAgentBinding(t *testing.T) {
+	t.Parallel()
+
+	agentsByName := func(t *testing.T, db database.Store, workspaceID uuid.UUID, buildNumber int32) map[string]database.WorkspaceAgent {
+		t.Helper()
+		agents, err := db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(
+			testutil.Context(t, testutil.WaitLong),
+			database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+				WorkspaceID: workspaceID,
+				BuildNumber: buildNumber,
+			})
+		require.NoError(t, err)
+		byName := make(map[string]database.WorkspaceAgent, len(agents))
+		for _, agent := range agents {
+			byName[agent.Name] = agent
+		}
+		return byName
+	}
+
+	t.Run("BindsOnlyDeclaredAgentAndDoesNotDesignate", func(t *testing.T) {
+		t.Parallel()
+		f := newAIBindingFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		workspace := dbgen.Workspace(t, f.db, database.WorkspaceTable{
+			TemplateID:     f.template.ID,
+			OwnerID:        f.user.ID,
+			OrganizationID: f.daemon.OrganizationID,
+		})
+
+		_, build := f.completeBuild(t, workspace, nil, "host", "ai:sandbox")
+
+		agents := agentsByName(t, f.db, workspace.ID, build.BuildNumber)
+		require.False(t, agents["host"].AIAgentID.Valid,
+			"the host agent supervises the sandbox and must keep owner credentials")
+		require.True(t, agents["sandbox"].AIAgentID.Valid,
+			"the declared agent must be bound")
+
+		// The decisive assertion: a declared agent must not designate its
+		// workspace. If it did, the host agent would bind on the next build.
+		refreshed, err := f.db.GetWorkspaceByID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.False(t, refreshed.AIAgentID.Valid,
+			"an ai_bound agent must not designate its workspace")
+	})
+
+	t.Run("DesignationBindsEveryAgentRegardlessOfDeclaration", func(t *testing.T) {
+		t.Parallel()
+		f := newAIBindingFixture(t)
+		workspace := dbgen.Workspace(t, f.db, database.WorkspaceTable{
+			TemplateID:     f.template.ID,
+			OwnerID:        f.user.ID,
+			OrganizationID: f.daemon.OrganizationID,
+		})
+		optIn := []database.WorkspaceBuildParameter{{
+			Name:  provisionerdserver.AIAgentOptInParameterName,
+			Value: "true",
+		}}
+
+		_, build := f.completeBuild(t, workspace, optIn, "host", "ai:sandbox")
+
+		agents := agentsByName(t, f.db, workspace.ID, build.BuildNumber)
+		require.True(t, agents["host"].AIAgentID.Valid,
+			"designation binds every agent, declared or not")
+		require.True(t, agents["sandbox"].AIAgentID.Valid)
+		require.Equal(t, agents["host"].AIAgentID, agents["sandbox"].AIAgentID,
+			"a designated workspace binds all agents to the marker identity")
+	})
+
+	t.Run("UndeclaredAgentsRemainUnbound", func(t *testing.T) {
+		t.Parallel()
+		f := newAIBindingFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		workspace := dbgen.Workspace(t, f.db, database.WorkspaceTable{
+			TemplateID:     f.template.ID,
+			OwnerID:        f.user.ID,
+			OrganizationID: f.daemon.OrganizationID,
+		})
+
+		_, build := f.completeBuild(t, workspace, nil, "host", "helper")
+
+		agents := agentsByName(t, f.db, workspace.ID, build.BuildNumber)
+		for name, agent := range agents {
+			require.False(t, agent.AIAgentID.Valid, "agent %q must be unbound", name)
+		}
+		refreshed, err := f.db.GetWorkspaceByID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.False(t, refreshed.AIAgentID.Valid)
+	})
+
+	t.Run("MultipleDeclaredAgentsShareOneIdentity", func(t *testing.T) {
+		t.Parallel()
+		f := newAIBindingFixture(t)
+		workspace := dbgen.Workspace(t, f.db, database.WorkspaceTable{
+			TemplateID:     f.template.ID,
+			OwnerID:        f.user.ID,
+			OrganizationID: f.daemon.OrganizationID,
+		})
+
+		_, build := f.completeBuild(t, workspace, nil, "host", "ai:one", "ai:two")
+
+		agents := agentsByName(t, f.db, workspace.ID, build.BuildNumber)
+		require.True(t, agents["one"].AIAgentID.Valid)
+		require.Equal(t, agents["one"].AIAgentID, agents["two"].AIAgentID,
+			"one workspace-origin identity serves every declared agent")
+		require.False(t, agents["host"].AIAgentID.Valid)
+	})
+
+	t.Run("RebuildReusesTheIdentity", func(t *testing.T) {
+		t.Parallel()
+		f := newAIBindingFixture(t)
+		workspace := dbgen.Workspace(t, f.db, database.WorkspaceTable{
+			TemplateID:     f.template.ID,
+			OwnerID:        f.user.ID,
+			OrganizationID: f.daemon.OrganizationID,
+		})
+
+		_, first := f.completeBuild(t, workspace, nil, "host", "ai:sandbox")
+		firstAgents := agentsByName(t, f.db, workspace.ID, first.BuildNumber)
+		firstIdentity := firstAgents["sandbox"].AIAgentID
+		require.True(t, firstIdentity.Valid)
+
+		_, second := f.completeBuild(t, workspace, nil, "host", "ai:sandbox")
+		secondAgents := agentsByName(t, f.db, workspace.ID, second.BuildNumber)
+		require.Equal(t, firstIdentity, secondAgents["sandbox"].AIAgentID,
+			"a rebuild reuses the workspace-origin identity rather than minting a second")
+	})
 }
