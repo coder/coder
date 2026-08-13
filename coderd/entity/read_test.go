@@ -41,10 +41,6 @@ func TestLifecycleEntries(t *testing.T) {
 		require.Equal(t, []string{"created", "second", "third"},
 			[]string{bySubject[0].Event, bySubject[1].Event, bySubject[2].Event},
 			"entries should come back in the order they were written")
-
-		byActor, err := entity.LifecycleEntriesByActor(ctx, testutil.Logger(t), db, actor)
-		require.NoError(t, err)
-		require.Len(t, byActor, 3)
 	})
 
 	// The limit is a backstop against a condition that should be impossible,
@@ -57,17 +53,17 @@ func TestLifecycleEntries(t *testing.T) {
 		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		actor := uuid.New()
-		fillJournal(ctx, t, sqlDB, actor, entity.LifecycleEntryLimit+1)
+		subject := uuid.New()
+		fillJournal(ctx, t, sqlDB, subject, entity.LifecycleEntryLimit+1)
 
 		// The read logs at error level on purpose, and slogtest fails a test
 		// that logs at error level, also on purpose. This is the one place
 		// that log is expected, so this is the one place it is allowed.
 		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
-		_, err := entity.LifecycleEntriesByActor(ctx, log, db, entity.Ref{
-			Type: entity.TypeWorkspaceAgent,
-			ID:   actor,
+		_, err := entity.LifecycleEntriesBySubject(ctx, log, db, entity.Ref{
+			Type: entity.TypeAIAgent,
+			ID:   subject,
 		})
 		require.ErrorIs(t, err, entity.ErrTooManyEntries)
 	})
@@ -80,12 +76,12 @@ func TestLifecycleEntries(t *testing.T) {
 		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		actor := uuid.New()
-		fillJournal(ctx, t, sqlDB, actor, entity.LifecycleEntryLimit)
+		subject := uuid.New()
+		fillJournal(ctx, t, sqlDB, subject, entity.LifecycleEntryLimit)
 
-		entries, err := entity.LifecycleEntriesByActor(ctx, testutil.Logger(t), db, entity.Ref{
-			Type: entity.TypeWorkspaceAgent,
-			ID:   actor,
+		entries, err := entity.LifecycleEntriesBySubject(ctx, testutil.Logger(t), db, entity.Ref{
+			Type: entity.TypeAIAgent,
+			ID:   subject,
 		})
 		require.NoError(t, err)
 		require.Len(t, entries, entity.LifecycleEntryLimit)
@@ -97,13 +93,7 @@ func TestLifecycleEntries(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		_, err := entity.LifecycleEntriesByActor(ctx, testutil.Logger(t), db, entity.Ref{
-			Type: "sandbox",
-			ID:   uuid.New(),
-		})
-		require.ErrorContains(t, err, "names no kind of entity")
-
-		_, err = entity.LifecycleEntriesBySubject(ctx, testutil.Logger(t), db, entity.Ref{
+		_, err := entity.LifecycleEntriesBySubject(ctx, testutil.Logger(t), db, entity.Ref{
 			Type: "sandbox",
 			ID:   uuid.New(),
 		})
@@ -111,16 +101,16 @@ func TestLifecycleEntries(t *testing.T) {
 	})
 }
 
-// fillJournal writes count entries naming actor, in one statement. Writing
+// fillJournal writes count entries about subject, in one statement. Writing
 // them through the store would be thousands of round trips for a case whose
 // whole point is that the number is unreachable.
-func fillJournal(ctx context.Context, t *testing.T, sqlDB *sql.DB, actor uuid.UUID, count int) {
+func fillJournal(ctx context.Context, t *testing.T, sqlDB *sql.DB, subject uuid.UUID, count int) {
 	t.Helper()
 
 	_, err := sqlDB.ExecContext(ctx, `
 		INSERT INTO entity_journal (recorded_at, event, subject_type, subject, actor_type, actor)
-		SELECT now(), 'created', 'ai_agent', gen_random_uuid(), 'workspace_agent', $1
+		SELECT now(), 'created', 'ai_agent', $1, 'workspace_agent', gen_random_uuid()
 		FROM generate_series(1, $2)
-	`, actor, count)
+	`, subject, count)
 	require.NoError(t, err)
 }
