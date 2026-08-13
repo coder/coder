@@ -671,10 +671,14 @@ message CreateAIAgentRequest {
 	reserved 1;
 }
 
-// CreateAIAgentResponse carries the identifier coderd minted for the AI agent.
-// It will eventually also carry the credential coderd issues.
+// CreateAIAgentResponse carries what coderd minted for the AI agent: its
+// identifier, and the credential it authenticates with. This is the only time
+// the credential is handed out.
 message CreateAIAgentResponse {
 	bytes id = 1;
+	// An opaque blob. Nothing along the way parses it, inspects it, or assumes
+	// a shape for it.
+	bytes credential = 2;
 }
 
 service Agent {

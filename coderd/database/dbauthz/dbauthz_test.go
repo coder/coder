@@ -488,6 +488,23 @@ func (s *MethodTestSuite) TestAIAgents() {
 		dbm.EXPECT().UpdateAIAgentDeleted(gomock.Any(), arg).Return(agent, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdate).Returns(agent)
 	}))
+	s.Run("InsertValidCredential", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertValidCredentialParams{
+			ActorType: "ai_agent",
+			Actor:     uuid.New(),
+			Password:  "placeholder",
+		}
+		dbm.EXPECT().InsertValidCredential(gomock.Any(), arg).Return(database.ValidCredential{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetValidCredentialsByActor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetValidCredentialsByActorParams{
+			ActorType: "ai_agent",
+			Actor:     uuid.New(),
+		}
+		dbm.EXPECT().GetValidCredentialsByActor(gomock.Any(), arg).Return([]database.ValidCredential{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 }
 
 // TestEntityJournal covers the journal described in coderd/entity/DIRECTORY.md.

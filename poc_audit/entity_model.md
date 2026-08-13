@@ -123,7 +123,28 @@ identifier form before the first table is written is the cheapest this decision
 will ever be, and it is the only one of the three senses that can still be got
 right for free.
 
-### Actors in scope
+### An entity identity is always a pair
+
+**A reference to an entity identity is always a `(type, identifier)` pair,
+never an identifier alone.** This holds wherever such a reference is stored or
+passed: columns, struct fields, protocol messages, function parameters.
+
+The reason is a limit of SQL rather than a preference. Entity identities live in
+one table per kind, and SQL has no way to express a reference into a union of
+those tables. There is no type to declare and no foreign key to write, so a bare
+identifier column cannot say what it refers to and nothing can check that it
+refers to anything. The type carries what the schema cannot: a one to one map
+from a value to the table holding that primary key.
+
+That the map is redundant when identifiers are uuids, which are unique across
+every table, is not an objection. A reader of a bare column would still have to
+probe each table in turn to learn what a row is about, and a writer would have
+nothing preventing a reference to the wrong kind of thing.
+
+Two consequences worth stating. The type belongs to a closed set, since a value
+outside it names no table and makes the reference unresolvable. And the pair
+appears in both roles the audit journal needs, a subject and an actor, so
+neither is a special case of the other.
 
 The actors this document currently covers:
 

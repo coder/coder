@@ -3537,6 +3537,14 @@ func (m queryMetricsStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) (
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetValidCredentialsByActor(ctx context.Context, arg database.GetValidCredentialsByActorParams) ([]database.ValidCredential, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetValidCredentialsByActor(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetValidCredentialsByActor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetValidCredentialsByActor").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWebpushSubscriptionsByUserID(ctx, userID)
@@ -4638,6 +4646,14 @@ func (m queryMetricsStore) InsertUserSkill(ctx context.Context, arg database.Ins
 	r0, r1 := m.s.InsertUserSkill(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertUserSkill").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertUserSkill").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertValidCredential(ctx context.Context, arg database.InsertValidCredentialParams) (database.ValidCredential, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertValidCredential(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertValidCredential").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertValidCredential").Inc()
 	return r0, r1
 }
 

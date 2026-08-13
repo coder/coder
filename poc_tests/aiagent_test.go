@@ -1,13 +1,15 @@
 package poctests_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent"
@@ -16,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -115,33 +118,11 @@ func TestAIAgentIdentity(t *testing.T) {
 		//nolint:gocritic // Reading the journal and the agent's timings needs a system context.
 		systemCtx := dbauthz.AsSystemRestricted(ctx)
 
-		// The entry names the workspace_agent as the actor, which is how the
-		// test finds it: the identity of the AI agent is minted by coderd and
-		// is not known here. Nothing the probe sent appears in the entry.
+		// Exit status is checked first and independently of the database. The
+		// agent reports it, so a probe whose call succeeded and which then
+		// failed would still be caught, and waiting on it means the script log
+		// read below is complete.
 		require.Len(t, r.Agents, 1, "the fake build should have exactly one agent")
-		var entries []database.EntityJournal
-		if !assert.Eventually(t, func() bool {
-			var err error
-			entries, err = db.GetEntityJournalEntriesByActor(systemCtx, database.GetEntityJournalEntriesByActorParams{
-				ActorType: "workspace_agent",
-				Actor:     r.Agents[0].ID,
-			})
-			return err == nil && len(entries) > 0
-		}, testutil.WaitLong, testutil.IntervalMedium) {
-			t.Fatalf("no journal entry was written for agent %s.\nscript log:\n%s",
-				r.Agents[0].ID, readScriptLog(scriptLogPath))
-		}
-
-		require.Len(t, entries, 1, "one creation should produce one entry")
-		got := entries[0]
-		require.Equal(t, "created", got.Event)
-		require.Equal(t, "ai_agent", got.SubjectType, "the subject should be the AI agent")
-		require.NotEqual(t, uuid.Nil, got.Subject, "coderd should have minted an identity")
-		require.NotZero(t, got.RecordedAt)
-
-		// Exit status is checked independently of the journal. The agent
-		// reports it, so a probe whose call succeeded and which then failed
-		// would still be caught.
 		var timing database.GetWorkspaceAgentScriptTimingsByBuildIDRow
 		require.Eventually(t, func() bool {
 			timings, err := db.GetWorkspaceAgentScriptTimingsByBuildID(systemCtx, r.Build.ID)
@@ -161,6 +142,51 @@ func TestAIAgentIdentity(t *testing.T) {
 		require.Equal(t, database.WorkspaceAgentScriptTimingStatusOk, timing.Status,
 			"probe script did not complete successfully")
 		require.EqualValues(t, 0, timing.ExitCode, "probe script exited non-zero")
+
+		// The identity is minted by coderd and reaches the test only by the
+		// route a real caller would use: returned over the socket, printed by
+		// the probe. Taking it from there rather than from the database means
+		// the value handed back to the caller is the value checked below, so
+		// a handler that persisted one identity and returned another would be
+		// caught.
+		scriptLog := readScriptLog(scriptLogPath)
+		id := mintedAIAgentID(t, scriptLog)
+
+		aiAgent, err := db.GetAIAgentByID(systemCtx, id)
+		require.NoError(t, err, "the returned identity should name a row")
+		require.Equal(t, user.UserID, aiAgent.OwnerID,
+			"the AI agent should belong to the owner of the workspace it was created in")
+
+		// The journal accounts for that row. Until the AI agent table landed
+		// every entry pointed at nothing, so this is what makes the journal a
+		// record of the world rather than of itself.
+		entries, err := entity.LifecycleEntriesBySubject(systemCtx, testutil.Logger(t), db, entity.Ref{
+			Type: entity.TypeAIAgent,
+			ID:   id,
+		})
+		require.NoError(t, err)
+		require.Len(t, entries, 1, "one creation should produce one entry")
+
+		got := entries[0]
+		require.Equal(t, "created", got.Event)
+		require.Equal(t, "workspace_agent", got.ActorType)
+		require.Equal(t, r.Agents[0].ID, got.Actor,
+			"the entry should name the workspace_agent coderd authenticated")
+		require.NotZero(t, got.RecordedAt)
+
+		// The credential reached the executable. It is compared by digest
+		// because the executable does not print it: standard output becomes a
+		// log the control plane stores, and a credential does not belong there.
+		credentials, err := db.GetValidCredentialsByActor(systemCtx, database.GetValidCredentialsByActorParams{
+			ActorType: string(entity.TypeAIAgent),
+			Actor:     id,
+		})
+		require.NoError(t, err)
+		require.Len(t, credentials, 1, "creation should issue exactly one credential")
+
+		stored := sha256.Sum256([]byte(credentials[0].Password))
+		require.Equal(t, hex.EncodeToString(stored[:]), reportedCredentialDigest(t, scriptLog),
+			"the credential the executable received should be the one on record")
 	})
 
 	// The probe is what a real workspace will run, so its failure handling is
@@ -216,6 +242,33 @@ func TestAIAgentIdentity(t *testing.T) {
 			})
 		}
 	})
+}
+
+// mintedAIAgentID extracts the identity the probe reported from its output.
+//
+// The probe prints one line naming what coderd minted for it. Reading it back
+// out of the log is how the test learns an identity it never chose and cannot
+// otherwise know.
+func mintedAIAgentID(t *testing.T, scriptLog string) uuid.UUID {
+	t.Helper()
+
+	matches := regexp.MustCompile(`created AI agent ([0-9a-fA-F-]{36})`).FindStringSubmatch(scriptLog)
+	require.Len(t, matches, 2, "probe did not report an AI agent identity.\nscript log:\n%s", scriptLog)
+
+	id, err := uuid.Parse(matches[1])
+	require.NoError(t, err)
+	return id
+}
+
+// reportedCredentialDigest extracts the digest of the credential the probe
+// received. The probe reports a digest rather than the credential because its
+// output is stored as a log by the control plane.
+func reportedCredentialDigest(t *testing.T, scriptLog string) string {
+	t.Helper()
+
+	matches := regexp.MustCompile(`credential sha256 ([0-9a-f]{64})`).FindStringSubmatch(scriptLog)
+	require.Len(t, matches, 2, "probe did not report a credential digest.\nscript log:\n%s", scriptLog)
+	return matches[1]
 }
 
 // readScriptLog returns whatever the startup script wrote, for use in failure

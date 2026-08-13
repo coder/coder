@@ -32905,6 +32905,66 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 	return i, err
 }
 
+const getValidCredentialsByActor = `-- name: GetValidCredentialsByActor :many
+SELECT
+	actor_type, actor, password
+FROM
+	valid_credentials
+WHERE
+	actor_type = $1
+	AND actor = $2
+`
+
+type GetValidCredentialsByActorParams struct {
+	ActorType string    `db:"actor_type" json:"actor_type"`
+	Actor     uuid.UUID `db:"actor" json:"actor"`
+}
+
+// Many, because an actor may hold more than one valid credential while a
+// rotation overlaps.
+func (q *sqlQuerier) GetValidCredentialsByActor(ctx context.Context, arg GetValidCredentialsByActorParams) ([]ValidCredential, error) {
+	rows, err := q.db.QueryContext(ctx, getValidCredentialsByActor, arg.ActorType, arg.Actor)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ValidCredential
+	for rows.Next() {
+		var i ValidCredential
+		if err := rows.Scan(&i.ActorType, &i.Actor, &i.Password); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertValidCredential = `-- name: InsertValidCredential :one
+INSERT INTO
+	valid_credentials (actor_type, actor, password)
+VALUES
+	($1, $2, $3) RETURNING actor_type, actor, password
+`
+
+type InsertValidCredentialParams struct {
+	ActorType string    `db:"actor_type" json:"actor_type"`
+	Actor     uuid.UUID `db:"actor" json:"actor"`
+	Password  string    `db:"password" json:"password"`
+}
+
+func (q *sqlQuerier) InsertValidCredential(ctx context.Context, arg InsertValidCredentialParams) (ValidCredential, error) {
+	row := q.db.QueryRowContext(ctx, insertValidCredential, arg.ActorType, arg.Actor, arg.Password)
+	var i ValidCredential
+	err := row.Scan(&i.ActorType, &i.Actor, &i.Password)
+	return i, err
+}
+
 const deleteStaleWorkspaceAgentContextResources = `-- name: DeleteStaleWorkspaceAgentContextResources :exec
 DELETE FROM workspace_agent_context_resources
 WHERE workspace_agent_id = $1

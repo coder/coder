@@ -126,6 +126,11 @@ independently of any particular entity.
 distinction is fixed in `poc_audit/audit_approach.md` and is observed in code,
 comments, and identifiers.
 
+**A reference to an entity identity is always a `(type, identifier)` pair.**
+Standing policy, stated with its reasons in `poc_audit/entity_model.md`. SQL
+cannot express a reference into a union of the identity tables, so the type
+carries what the schema cannot.
+
 ## Status
 
 Nothing in this directory is implemented beyond what a proof of concept

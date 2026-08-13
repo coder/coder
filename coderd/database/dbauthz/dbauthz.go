@@ -5417,6 +5417,16 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
+// GetValidCredentialsByActor returns stored credentials, so it is guarded like
+// the rest of this family: system permission only, which nothing inside a
+// workspace holds. Coarse, and to be revisited for production.
+func (q *querier) GetValidCredentialsByActor(ctx context.Context, arg database.GetValidCredentialsByActorParams) ([]database.ValidCredential, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetValidCredentialsByActor(ctx, arg)
+}
+
 func (q *querier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWebpushSubscription.WithOwner(userID.String())); err != nil {
 		return nil, err
@@ -6611,6 +6621,13 @@ func (q *querier) InsertUserSkill(ctx context.Context, arg database.InsertUserSk
 		return database.UserSkill{}, err
 	}
 	return q.db.InsertUserSkill(ctx, arg)
+}
+
+func (q *querier) InsertValidCredential(ctx context.Context, arg database.InsertValidCredentialParams) (database.ValidCredential, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.ValidCredential{}, err
+	}
+	return q.db.InsertValidCredential(ctx, arg)
 }
 
 func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {

@@ -24,7 +24,7 @@ type AIAgentAPI struct {
 }
 
 // CreateAIAgent registers an AI agent created inside the workspace and returns
-// the identity minted for it.
+// the identity minted for it along with the credential issued to it.
 //
 // The request carries nothing. The workspace, its owner, and the
 // workspace_agent that sent this all come from the connection: coderd resolved
@@ -43,17 +43,22 @@ func (a *AIAgentAPI) CreateAIAgent(ctx context.Context, _ *agentproto.CreateAIAg
 	//nolint:gocritic // Writing the journal is the control plane's act, not the agent's.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
-	id, err := entity.CreateAIAgent(systemCtx, a.Database, entity.CreateAIAgentParams{
-		Actor: entity.Ref{Type: entity.TypeWorkspaceAgent, ID: a.AgentID},
+	created, err := entity.CreateAIAgent(systemCtx, a.Database, entity.CreateAIAgentParams{
+		OwnerID: a.OwnerID,
+		Actor:   entity.Ref{Type: entity.TypeWorkspaceAgent, ID: a.AgentID},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create AI agent: %w", err)
 	}
 
+	// The credential is absent from the log line, as credentials are from logs.
 	a.Log.Debug(ctx, "created AI agent",
-		slog.F("ai_agent_id", id),
+		slog.F("ai_agent_id", created.ID),
 		slog.F("workspace_id", a.WorkspaceID),
 		slog.F("agent_id", a.AgentID))
 
-	return &agentproto.CreateAIAgentResponse{Id: id[:]}, nil
+	return &agentproto.CreateAIAgentResponse{
+		Id:         created.ID[:],
+		Credential: []byte(created.Credential),
+	}, nil
 }

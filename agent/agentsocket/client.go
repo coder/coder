@@ -91,23 +91,28 @@ func (c *Client) Ping(ctx context.Context) error {
 
 // CreateAIAgent registers an AI agent created inside this workspace, on behalf
 // of the workspace identified by workspaceID and authenticated by
-// workspaceCredential. It returns the identifier the control plane minted.
+// workspaceCredential. It returns the identifier the control plane minted for
+// the AI agent and the credential it issued to it.
 //
-// The credential is an opaque blob and is passed through untouched.
-func (c *Client) CreateAIAgent(ctx context.Context, workspaceID uuid.UUID, workspaceCredential []byte) (uuid.UUID, error) {
+// Both credentials are opaque blobs, the one presented and the one returned,
+// and both are passed through untouched.
+func (c *Client) CreateAIAgent(ctx context.Context, workspaceID uuid.UUID, workspaceCredential []byte) (uuid.UUID, []byte, error) {
 	resp, err := c.client.CreateAIAgent(ctx, &proto.CreateAIAgentRequest{
 		WorkspaceId:         workspaceID[:],
 		WorkspaceCredential: workspaceCredential,
 	})
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, nil, err
 	}
 
 	id, err := uuid.FromBytes(resp.GetId())
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("control plane returned a malformed id: %w", err)
+		return uuid.Nil, nil, xerrors.Errorf("control plane returned a malformed id: %w", err)
 	}
-	return id, nil
+	if len(resp.GetCredential()) == 0 {
+		return uuid.Nil, nil, xerrors.New("control plane returned no credential")
+	}
+	return id, resp.GetCredential(), nil
 }
 
 // SyncStart starts a unit in the dependency graph.

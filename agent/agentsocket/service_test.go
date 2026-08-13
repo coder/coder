@@ -154,9 +154,10 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 				client := newSocketClient(ctx, t, socketPath)
 
-				id, err := client.CreateAIAgent(ctx, tc.workspaceID, tc.workspaceCredential)
+				id, credential, err := client.CreateAIAgent(ctx, tc.workspaceID, tc.workspaceCredential)
 				require.ErrorContains(t, err, tc.wantErr)
 				require.Equal(t, uuid.Nil, id, "a rejected request mints nothing")
+				require.Empty(t, credential, "a rejected request issues nothing")
 			})
 		}
 	})

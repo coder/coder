@@ -18,7 +18,9 @@
 // bytes and passed on untouched.
 //
 // The minted identifier is printed to stdout, which the workspace_agent
-// captures into the startup script's log.
+// captures into the startup script's log and ships to the control plane. The
+// credential it receives is never printed. A digest of it is, so that a test
+// can show it arrived intact without the value being stored anywhere.
 //
 // Exit status is meaningful: zero only if every step succeeded, including the
 // socket call. Any failure exits non-zero.
@@ -26,6 +28,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
@@ -72,15 +76,19 @@ func run() error {
 	}
 	defer client.Close()
 
-	id, err := client.CreateAIAgent(ctx, workspaceID, []byte(workspaceCredential))
+	id, credential, err := client.CreateAIAgent(ctx, workspaceID, []byte(workspaceCredential))
 	if err != nil {
 		return xerrors.Errorf("create AI agent: %w", err)
 	}
 
-	// Nothing observes this executable directly any more. What proves the call
-	// arrived is the journal entry coderd wrote, which is read from the
-	// database. This line is for a person reading the script log.
+	// Standard output becomes a startup script log, which the workspace_agent
+	// ships to the control plane and which is stored there. So the identifier
+	// is printed and the credential never is. What goes out instead is a digest
+	// of it, which is enough for a test to show the credential arrived intact
+	// and useless to anyone who reads the log.
+	digest := sha256.Sum256(credential)
 	_, _ = fmt.Printf("created AI agent %s\n", id)
+	_, _ = fmt.Printf("credential sha256 %s\n", hex.EncodeToString(digest[:]))
 
 	return nil
 }
