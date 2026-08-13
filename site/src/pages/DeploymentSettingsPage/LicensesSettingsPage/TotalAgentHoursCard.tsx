@@ -75,12 +75,16 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 			? Math.floor((softLimit / meteredLimit) * 100)
 			: undefined;
 
-	// An unlimited allocation renders as a full bar of purple diagonal
-	// stripes: the hatched pattern reads as an unmetered allocation, so
-	// the full-width bar cannot be mistaken for 100% usage. The stripes
-	// use the theme's purple highlight over the track color.
+	// An unlimited allocation renders as green diagonal stripes whose
+	// right half fades out into the track: the hatched, trailing-off bar
+	// reads as an unmetered allocation rather than 100% usage. The mask
+	// needs the -webkit- prefix for Safari.
 	const barClassName = isUnlimited
-		? "bg-[repeating-linear-gradient(-45deg,hsl(var(--highlight-purple)),hsl(var(--highlight-purple))_6px,transparent_6px,transparent_12px)]"
+		? cn(
+				"bg-[repeating-linear-gradient(-45deg,hsl(var(--highlight-green)),hsl(var(--highlight-green))_6px,transparent_6px,transparent_12px)]",
+				"[mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
+				"[-webkit-mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
+			)
 		: reachedAllocation
 			? "bg-highlight-red"
 			: reachedSoftLimit
