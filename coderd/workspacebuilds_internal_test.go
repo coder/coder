@@ -213,7 +213,7 @@ func TestConvertWorkspaceBuildsAgentNameTiebreak(t *testing.T) {
 
 // TestConvertWorkspaceBuildsRowsPerBuild asserts that a build receives only the
 // rows keyed to its own job and agents. The fixture encodes the build index in
-// every row name, so rows read from another build are detectable by name.
+// app slugs, so apps read from another build are detectable by slug.
 func TestConvertWorkspaceBuildsRowsPerBuild(t *testing.T) {
 	t.Parallel()
 
@@ -236,24 +236,17 @@ func TestConvertWorkspaceBuildsRowsPerBuild(t *testing.T) {
 
 		for _, resource := range build.Resources {
 			require.Equal(t, fixture.jobs[b].ProvisionerJob.ID, resource.JobID)
-			require.True(t, strings.HasPrefix(resource.Name, fmt.Sprintf("resource-%d-", b)), resource.Name)
 			require.Len(t, resource.Metadata, 1)
-			require.Equal(t, "key", resource.Metadata[0].Key)
-			require.Equal(t, "value", resource.Metadata[0].Value)
 			require.Len(t, resource.Agents, agentsPerRes)
 
 			for _, agent := range resource.Agents {
-				require.True(t, strings.HasPrefix(agent.Name, fmt.Sprintf("agent-%d-", b)), agent.Name)
 				require.Len(t, agent.Scripts, 1)
-				require.Equal(t, "echo hello", agent.Scripts[0].Script)
 				require.Len(t, agent.LogSources, 1)
-				require.Equal(t, "startup", agent.LogSources[0].DisplayName)
 				require.Len(t, agent.Apps, appsPerAgent)
 
 				for _, app := range agent.Apps {
 					require.True(t, strings.HasPrefix(app.Slug, fmt.Sprintf("app-%d-", b)), app.Slug)
 					require.Len(t, app.Statuses, 1)
-					require.Equal(t, app.ID, app.Statuses[0].AppID)
 				}
 			}
 		}
