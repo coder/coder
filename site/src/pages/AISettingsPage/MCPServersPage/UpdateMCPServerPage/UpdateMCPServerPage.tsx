@@ -53,9 +53,12 @@ const UpdateMCPServerPage: FC = () => {
 					isApiError(serverQuery.error) &&
 					serverQuery.error.response.status === 404
 				) ? (
-				<div className="mb-4">
-					<ErrorAlert error={serverQuery.error} />
-				</div>
+				<>
+					<title>{pageTitle("MCP servers", "AI Settings")}</title>
+					<div className="mb-4">
+						<ErrorAlert error={serverQuery.error} />
+					</div>
+				</>
 			) : !server ? (
 				<Navigate to={listPath} replace />
 			) : (
