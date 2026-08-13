@@ -68,7 +68,7 @@ interface ModelSelectorProps {
 	onReasoningEffortChange?: (value: string) => void;
 }
 
-const formatContextLimit = (tokens: number): string => {
+export const formatContextLimit = (tokens: number): string => {
 	if (tokens >= 1_000_000) {
 		const m = tokens / 1_000_000;
 		return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;

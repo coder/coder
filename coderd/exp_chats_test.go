@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -2125,17 +2125,27 @@ func TestListChats_Search(t *testing.T) {
 		require.NotContains(t, ids, noMatch.ID)
 	})
 
-	t.Run("NoSearchableWordsReturns400", func(t *testing.T) {
+	t.Run("NoSearchableWordsReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-		ctx, client, _, _, _ := setup(t)
+		ctx, client, db, firstUser, modelConfig := setup(t)
 
-		_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+		// "or" is a real lexeme (an operator only between operands), so
+		// search:"or" matches the control chat; search:"!!!" has no lexemes and
+		// matches nothing.
+		control := createChat(t, db, firstUser, modelConfig.ID, "fix this or that")
+		backfillSearchTsv(ctx, t, db)
+
+		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: `search:"or"`,
+		})
+		require.NoError(t, err)
+		require.Contains(t, chatIDs(chats), control.ID)
+
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: `search:"!!!"`,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "search", sdkErr.Validations[0].Field)
-		require.Contains(t, sdkErr.Validations[0].Detail, "no searchable words")
+		require.NoError(t, err)
+		require.Empty(t, chats)
 	})
 
 	t.Run("ComposesWithRepoFilterAndArchivedDefault", func(t *testing.T) {
@@ -9297,6 +9307,35 @@ func TestCompactChat(t *testing.T) {
 		require.False(t, persisted.CompactionRequestedAt.Valid)
 	})
 
+	t.Run("FromErrorState", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		chat := seedCompactableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusError,
+			LastError: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`{"message":"context overflow"}`),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+
+		// Response snapshot only: a worker may already be mutating
+		// the persisted row.
+		compacted, err := client.CompactChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, compacted.ID)
+		require.Equal(t, codersdk.ChatStatusRunning, compacted.Status)
+		require.Nil(t, compacted.LastError,
+			"compaction from the error state clears last_error")
+	})
+
 	t.Run("Busy", func(t *testing.T) {
 		t.Parallel()
 
@@ -9318,6 +9357,7 @@ func TestCompactChat(t *testing.T) {
 		_, err = client.CompactChat(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
 		require.Contains(t, sdkErr.Message, "Cannot compact the chat in its current state")
+		require.Contains(t, sdkErr.Detail, "Compaction is not available while the chat is generating.")
 	})
 
 	t.Run("Archived", func(t *testing.T) {
@@ -10572,7 +10612,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		dynamicTools := []mcp.Tool{{
 			Name:        dynamicToolName,
 			Description: "a test dynamic tool",
-			InputSchema: mcp.ToolInputSchema{Type: "object"},
+			InputSchema: map[string]any{"type": "object"},
 		}}
 		dtJSON, err := json.Marshal(dynamicTools)
 		require.NoError(t, err)
@@ -15197,7 +15237,7 @@ func TestSubmitToolResults(t *testing.T) {
 		dynamicTools := []mcp.Tool{{
 			Name:        dynamicToolName,
 			Description: "a test dynamic tool",
-			InputSchema: mcp.ToolInputSchema{Type: "object"},
+			InputSchema: map[string]any{"type": "object"},
 		}}
 		dtJSON, err := json.Marshal(dynamicTools)
 		require.NoError(t, err)
