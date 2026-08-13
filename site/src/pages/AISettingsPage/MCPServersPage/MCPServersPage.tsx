@@ -1,21 +1,24 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
+import { useSearchParams } from "react-router";
 import { mcpServerConfigs } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import {
-	getDefaultOrganizationId,
-	useDashboard,
-} from "#/modules/dashboard/useDashboard";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import MCPServersPageView from "./MCPServersPageView";
+import { orgSearchParam, selectOrganization } from "./organizationParam";
 
 const MCPServersPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
-	const organization = getDefaultOrganizationId(organizations);
+	const [searchParams, setSearchParams] = useSearchParams();
+	const organization = selectOrganization(
+		organizations,
+		searchParams.get(orgSearchParam),
+	);
 	const serversQuery = useQuery({
-		...mcpServerConfigs(organization),
+		...mcpServerConfigs(organization?.id ?? ""),
 		enabled: Boolean(organization),
 	});
 	const servers = (serversQuery.data ?? []).toSorted((a, b) =>
@@ -29,6 +32,14 @@ const MCPServersPage: FC = () => {
 				isLoading={serversQuery.isLoading}
 				error={serversQuery.error}
 				servers={servers}
+				organizations={organizations}
+				organization={organization}
+				onSelectOrganization={(org) => {
+					setSearchParams((params) => {
+						params.set(orgSearchParam, org.name);
+						return params;
+					});
+				}}
 			/>
 		</RequirePermission>
 	);

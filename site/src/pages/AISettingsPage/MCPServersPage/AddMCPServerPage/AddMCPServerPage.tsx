@@ -1,32 +1,46 @@
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createMCPServerConfig } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import {
-	getDefaultOrganizationId,
-	useDashboard,
-} from "#/modules/dashboard/useDashboard";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import {
+	mcpServersPath,
+	orgSearchParam,
+	selectOrganization,
+} from "../organizationParam";
 import AddMCPServerPageView from "./AddMCPServerPageView";
 
 const AddMCPServerPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
-	const organization = getDefaultOrganizationId(organizations);
+	const [searchParams, setSearchParams] = useSearchParams();
+	const organization = selectOrganization(
+		organizations,
+		searchParams.get(orgSearchParam),
+	);
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const createMutation = useMutation(
-		createMCPServerConfig(queryClient, organization),
+		createMCPServerConfig(queryClient, organization?.id ?? ""),
 	);
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
 			<AddMCPServerPageView
 				isSaving={createMutation.isPending}
-				onCancel={() => void navigate("/ai/settings/mcp-servers")}
+				organizations={organizations}
+				organization={organization}
+				onSelectOrganization={(org) => {
+					setSearchParams((params) => {
+						params.set(orgSearchParam, org.name);
+						return params;
+					});
+				}}
+				onCancel={() => void navigate(mcpServersPath(organization))}
 				onCreateServer={async (req) => {
 					try {
 						const server = await createMutation.mutateAsync(req);

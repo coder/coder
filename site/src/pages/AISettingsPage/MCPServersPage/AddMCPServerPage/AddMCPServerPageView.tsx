@@ -2,9 +2,13 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { pageTitle } from "#/utils/page";
 import { MCPServerForm } from "../components/MCPServerForm";
+import { OrganizationPicker } from "../components/OrganizationPicker";
 
 interface AddMCPServerPageViewProps {
 	isSaving: boolean;
+	organizations: readonly TypesGen.Organization[];
+	organization: TypesGen.Organization | undefined;
+	onSelectOrganization: (organization: TypesGen.Organization) => void;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
@@ -13,12 +17,22 @@ interface AddMCPServerPageViewProps {
 
 const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 	isSaving,
+	organizations,
+	organization,
+	onSelectOrganization,
 	onCreateServer,
 	onCancel,
 }) => {
 	return (
 		<>
 			<title>{pageTitle("Add server", "AI Settings")}</title>
+			<OrganizationPicker
+				id="mcp-add-organization"
+				className="mb-6"
+				organizations={organizations}
+				organization={organization}
+				onChange={onSelectOrganization}
+			/>
 			<MCPServerForm
 				isSaving={isSaving}
 				onCreateServer={onCreateServer}

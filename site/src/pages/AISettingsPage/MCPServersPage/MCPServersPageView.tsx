@@ -19,20 +19,28 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { MCPServerRow } from "./components/MCPServerRow";
+import { OrganizationPicker } from "./components/OrganizationPicker";
+import { addMCPServerPath } from "./organizationParam";
 
 interface MCPServersPageViewProps {
 	isLoading: boolean;
 	error: unknown;
 	servers: readonly TypesGen.MCPServerConfig[];
+	organizations: readonly TypesGen.Organization[];
+	organization: TypesGen.Organization | undefined;
+	onSelectOrganization: (organization: TypesGen.Organization) => void;
 }
 
 const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	isLoading,
 	error,
 	servers,
+	organizations,
+	organization,
+	onSelectOrganization,
 }) => {
 	const navigate = useNavigate();
-	const goToAddServer = () => void navigate("/ai/settings/mcp-servers/add");
+	const goToAddServer = () => void navigate(addMCPServerPath(organization));
 
 	return (
 		<div>
@@ -50,6 +58,13 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 					Agents.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
+			<OrganizationPicker
+				id="mcp-servers-organization"
+				className="mb-4"
+				organizations={organizations}
+				organization={organization}
+				onChange={onSelectOrganization}
+			/>
 			{Boolean(error) && (
 				<div className="mb-4">
 					<ErrorAlert error={error} />

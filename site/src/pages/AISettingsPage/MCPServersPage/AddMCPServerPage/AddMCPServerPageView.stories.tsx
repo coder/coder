@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockDefaultOrganization } from "#/testHelpers/entities";
 import AddMCPServerPageView from "./AddMCPServerPageView";
 
 const meta: Meta<typeof AddMCPServerPageView> = {
@@ -10,6 +11,9 @@ const meta: Meta<typeof AddMCPServerPageView> = {
 	component: AddMCPServerPageView,
 	args: {
 		isSaving: false,
+		organizations: [MockDefaultOrganization],
+		organization: MockDefaultOrganization,
+		onSelectOrganization: fn(),
 		onCreateServer: fn(
 			async (req: TypesGen.CreateMCPServerConfigRequest) =>
 				({ ...MockMCPServerConfig, ...req }) as TypesGen.MCPServerConfig,
