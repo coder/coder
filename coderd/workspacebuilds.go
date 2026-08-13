@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -1245,6 +1246,10 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 // workspaceBuildIndex groups the rows that convertWorkspaceBuild reads by the
 // ID it looks them up with. It is built once per batch of builds because every
 // build in a batch is converted from the same rows.
+//
+// Conversion reorders rows within a bucket in place, so an index must be read
+// by a single goroutine and cannot be retained beyond the conversion it was
+// built for.
 type workspaceBuildIndex struct {
 	resourcesByJobID     map[uuid.UUID][]database.WorkspaceResource
 	metadataByResourceID map[uuid.UUID][]database.WorkspaceResourceMetadatum
@@ -1256,8 +1261,10 @@ type workspaceBuildIndex struct {
 	daemonsByJobID       map[uuid.UUID][]database.ProvisionerDaemon
 }
 
-// newWorkspaceBuildIndex makes one pass over each slice. The slices in the
-// returned maps alias the slices passed in.
+// newWorkspaceBuildIndex makes one pass over each slice. Rows are copied into
+// freshly allocated per-ID slices, so the input slices are neither modified nor
+// aliased. Reference-typed fields within a row, such as tags and string slices,
+// still share memory with the input rows.
 func newWorkspaceBuildIndex(
 	workspaceResources []database.WorkspaceResource,
 	resourceMetadata []database.WorkspaceResourceMetadatum,
@@ -1302,16 +1309,13 @@ func newWorkspaceBuildIndex(
 	for _, daemon := range provisionerDaemons {
 		index.daemonsByJobID[daemon.JobID] = append(index.daemonsByJobID[daemon.JobID], daemon.ProvisionerDaemon)
 	}
-	// Agents are sorted here rather than per build so that a resource shared by
-	// several builds is sorted once. The order is by display order then name,
-	// and the same comparison runs on the same rows, so the result does not
-	// depend on how many builds read it.
+	// Agents within a resource are ordered by display order, then name.
 	for _, agents := range index.agentsByResourceID {
-		sort.Slice(agents, func(i, j int) bool {
-			if agents[i].DisplayOrder != agents[j].DisplayOrder {
-				return agents[i].DisplayOrder < agents[j].DisplayOrder
-			}
-			return agents[i].Name < agents[j].Name
+		slices.SortFunc(agents, func(a, b database.WorkspaceAgent) int {
+			return cmp.Or(
+				cmp.Compare(a.DisplayOrder, b.DisplayOrder),
+				cmp.Compare(a.Name, b.Name),
+			)
 		})
 	}
 	return index
