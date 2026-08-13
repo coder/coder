@@ -1127,10 +1127,10 @@ export const DelayedOrganizationAuthorization: Story = {
 		expect(canvas.queryByLabelText("Remove drop.txt")).not.toBeInTheDocument();
 		// The pending option list is unfiltered, so the picker must stay hidden.
 		expect(
-			canvas.queryByTestId("compact-org-selector"),
+			canvas.queryByRole("button", { name: /organization/i }),
 		).not.toBeInTheDocument();
 		await waitFor(() => expect(sendButton).toBeEnabled(), { timeout: 3_000 });
-		await canvas.findByTestId("compact-org-selector");
+		await canvas.findByRole("button", { name: /organization/i });
 		// Positive control: once settled the same drop is accepted and
 		// attaches, so the pending-state assertions exercised a real path.
 		expect(dropFile("after.txt")).toBe(false);
@@ -1200,35 +1200,30 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = await canvas.findByTestId("compact-org-selector");
-		await waitFor(() =>
-			expect(trigger).toHaveAccessibleName("Organization: My Organization"),
-		);
+		const trigger = await canvas.findByRole("button", {
+			name: "Organization: My Organization",
+		});
 		await userEvent.click(trigger);
 		await userEvent.click(
 			await screen.findByRole("option", { name: /My Organization 2/ }),
 		);
-		await waitFor(() =>
-			expect(canvas.getByTestId("compact-org-selector")).toHaveAccessibleName(
-				"Organization: My Organization 2",
-			),
-		);
+		await canvas.findByRole("button", {
+			name: "Organization: My Organization 2",
+		});
 
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
 		await waitFor(() =>
 			expect(
-				canvas.queryByTestId("compact-org-selector"),
+				canvas.queryByRole("button", { name: /organization/i }),
 			).not.toBeInTheDocument(),
 		);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
-		await waitFor(() =>
-			expect(canvas.getByTestId("compact-org-selector")).toHaveAccessibleName(
-				"Organization: My Organization",
-			),
-		);
+		await canvas.findByRole("button", {
+			name: "Organization: My Organization",
+		});
 	},
 };
 
@@ -1268,11 +1263,9 @@ export const RevokedOrgChangeClearsStoredWorkspace: Story = {
 
 		revocablePermissions[MockDefaultOrganization.id] = true;
 		await revocableQueryClient?.invalidateQueries();
-		await waitFor(() =>
-			expect(canvas.getByTestId("compact-org-selector")).toHaveAccessibleName(
-				"Organization: My Organization 2",
-			),
-		);
+		await canvas.findByRole("button", {
+			name: "Organization: My Organization 2",
+		});
 		expect(
 			canvas.queryByLabelText("Remove workspace default-workspace"),
 		).not.toBeInTheDocument();
@@ -1368,7 +1361,11 @@ export const RevokedPendingOrgClosesConfirmDialog: Story = {
 		await waitFor(() =>
 			expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument(),
 		);
-		await userEvent.click(await canvas.findByTestId("compact-org-selector"));
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: "Organization: My Organization",
+			}),
+		);
 		await userEvent.click(
 			await screen.findByRole("option", { name: /My Organization 2/ }),
 		);
