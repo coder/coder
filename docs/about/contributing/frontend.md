@@ -238,7 +238,10 @@ new conventions, but all new components should follow these guidelines.
 
 ## Styling
 
-We use [Emotion](https://emotion.sh/) to handle CSS styles.
+We use [Tailwind CSS](https://tailwindcss.com/) to handle CSS styles. Reusable UI
+primitives come from [shadcn/ui](https://ui.shadcn.com/) components in
+`site/src/components`. Use the `cn` helper from `#/utils/cn` to compose and
+conditionally apply classes.
 
 ## Forms
 
