@@ -97,9 +97,9 @@ func (*DRPCAgentSocketService) Ping(_ context.Context, _ *proto.PingRequest) (*p
 // over. Passing them on would be redundant, and passing a caller's credential
 // on would be worse than redundant.
 //
-// So this handler verifies, and then drops, both. Nothing crosses. What
-// returns is the identifier coderd minted, which this handler passes back
-// untouched.
+// So this handler verifies, and then drops, both. Nothing crosses. What returns
+// is the identifier coderd minted and the credential it issued, both of which
+// this handler passes back untouched.
 func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.CreateAIAgentRequest) (*proto.CreateAIAgentResponse, error) {
 	workspaceID, err := uuid.FromBytes(req.GetWorkspaceId())
 	if err != nil {
@@ -128,7 +128,10 @@ func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.C
 		return nil, xerrors.Errorf("forward CreateAIAgent to coderd: %w", err)
 	}
 
-	return &proto.CreateAIAgentResponse{Id: resp.GetId()}, nil
+	return &proto.CreateAIAgentResponse{
+		Id:         resp.GetId(),
+		Credential: resp.GetCredential(),
+	}, nil
 }
 
 // verifyCaller checks a caller's claims against what the workspace_agent knows

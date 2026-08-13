@@ -3691,6 +3691,16 @@ CREATE TABLE user_status_changes (
 
 COMMENT ON TABLE user_status_changes IS 'Tracks the history of user status changes';
 
+CREATE TABLE valid_credentials (
+    actor_type text NOT NULL,
+    actor uuid NOT NULL,
+    password text NOT NULL
+);
+
+COMMENT ON TABLE valid_credentials IS 'Credentials that are currently valid. Membership is validity: revoking a credential deletes its row, and the credential journal holds the history including when that happened. There is deliberately no key. An actor may hold more than one valid credential at a time, so that rotation can overlap rather than requiring a moment with no valid credential.';
+
+COMMENT ON COLUMN valid_credentials.password IS 'A plaintext password. This is a proof of concept cheat, enumerated with the others under PoC cheats in poc_audit/work_breakdown.md. The mandates in poc_audit/security_findings.md require that only a non reversible form of a credential be stored, and this violates that deliberately and temporarily.';
+
 CREATE TABLE webpush_subscriptions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -4936,6 +4946,8 @@ CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btr
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE ((deleted = false) AND (email <> ''::text));
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
+
+CREATE INDEX idx_valid_credentials_actor ON valid_credentials USING btree (actor);
 
 CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app_statuses USING btree (workspace_id, created_at DESC);
 

@@ -13,7 +13,8 @@ Each work package is sized so that completing it produces a passing acceptance
 test. Subsections are fixed for now and may grow later:
 
 - **Summary.** A sentence or two.
-- **Status.** What remains, once work has started. Absent until then.
+- **Status.** Whether the package is done, and what remains if not. Absent
+  until work starts.
 - **New behavior.** What the package adds or changes in the running system.
 - **New data.** One item per new datum: table, column, type, interface.
 - **Acceptance tests.** What whole-package tests must pass for it to be done.
@@ -32,10 +33,7 @@ mints an identifier for the AI agent, issues it a credential, and records both.
 
 ### Status
 
-Identity is built and the acceptance test passes on it. What remains:
-
-- Issuance of a placeholder credential, returned to the caller, and the journal
-  entry recording it.
+Complete. The acceptance test passes.
 
 ### New behavior
 
@@ -45,8 +43,9 @@ Identity is built and the acceptance test passes on it. What remains:
 - A write to the entity journal recording the creation of a new AI agent, in
   the same transaction as the row it accounts for.
 - Issuance of a credential for the AI agent to use for subsequent calls to the
-  control plane, with an entry recording that issuance written in the same
-  transaction.
+  control plane, written in the same transaction as the identity and its entry.
+- Verification of a presented credential against the ones currently valid for an
+  entity.
 
 ### New data
 
@@ -63,9 +62,10 @@ Identity is built and the acceptance test passes on it. What remains:
   journal serves all of them.
 - **A table for AI agent identities**, `ai_agents`. An entry's subject has to
   name something that exists.
-- **A representation of the credential**, and a non secret identifier for it so
-  that an entry can name which credential without disclosing it. Placeholder
-  for the PoC; see the cheats.
+- **A table of currently valid credentials**, `valid_credentials`, holding an
+  actor pair and a password. Membership is validity: revoking deletes the row.
+  It has no key, so an actor may hold several at once and a rotation can overlap
+  rather than requiring a moment with no valid credential.
 
 ### Acceptance tests
 
@@ -83,8 +83,8 @@ Test Scenario:
 5. Verify that the journal contains one creation entry whose subject is that
    identifier and whose actor is the `workspace_agent` the control plane
    authenticated.
-6. Verify that the journal contains one issuance entry naming the credential by
-   an identifier that is not the credential's value.
+6. Verify that the credential the executable received is the one on record,
+   compared by digest.
 7. Verify independently, from the script timings the agent reports, that the
    executable exited zero.
 
@@ -101,9 +101,14 @@ Notes:
   from the database instead would leave the returned value unchecked, and a
   handler that persisted one identifier and returned another would pass.
 - **There is nowhere yet to present the issued credential**: the endpoints that
-  would accept it belong to collaborator work that is not available. A live
-  test of the credential is therefore deferred, and step 6 checks only that
-  issuance was recorded.
+  would accept it belong to collaborator work that is not available. A live test
+  of the credential is therefore deferred. That verification works at all is
+  covered separately, as a unit test.
+- **The credential is compared by digest, never printed.** The executable's
+  standard output becomes a startup script log which the control plane stores,
+  so printing a credential would put it somewhere it does not belong. The
+  executable reports a digest instead, which shows the credential arrived intact
+  and is useless to a reader of the log.
 - Step 7 is independent of the steps above it on purpose. A call that succeeded
   and was then followed by a failure is still a failure.
 
@@ -117,7 +122,7 @@ Notes:
   line 47, beside `*ManifestAPI`, and constructing it in the same place the
   others are constructed at line 122.
 - `coderd/database/migrations/`, up and down pairs for the journal, its
-  indexes, and the AI agent table.
+  indexes, the AI agent table, and the table of valid credentials.
 - `coderd/database/queries/`, new queries, followed by `make gen`.
 - `coderd/database/dbauthz/dbauthz.go`, authorization wrappers for each new
   query.
@@ -142,7 +147,7 @@ regeneration.
   transactional creation.
 - `coderd/agentapi/aiagent.go`, the handler, following the shape of
   `manifest.go` in the same package.
-- `coderd/database/queries/aiagents.sql`, the queries.
+- `coderd/database/queries/`, one query file per table.
 - The migration up and down pairs.
 - The minimal executable that the startup script runs.
 - The acceptance test.
@@ -200,11 +205,17 @@ control plane. `UpdateAppStatus` already follows this path and is the model.
 
 ### PoC cheats
 
-- **The credential is a placeholder** and not a form any credential should
-  take. It is stored in a recoverable form, which the mandates in
-  `poc_audit/security_findings.md` forbid, and it is minted with no expiry,
-  rotation, or revocation. Those mandates govern the real thing and are post
-  proof of concept work; they are not restated here.
+- **The credential is a plaintext password in the database.** The mandates in
+  `poc_audit/security_findings.md` require that only a non reversible form be
+  stored, and this violates that knowingly. Every credential here is assumed to
+  be a password, which is a simplification and not a position on what
+  credentials should be.
+- **Credential lifecycle is not journaled.** Issuance is not recorded, and
+  neither rotation nor revocation exists to record. This reproduces P7, no
+  auditability of credential events, deliberately and to limit scope. The table
+  is shaped so that adding the journal later does not require reshaping it:
+  revocation will delete a row, and the account of when that happened belongs to
+  the journal rather than to a column.
 - **The mock call is not real AI agent creation.** An identity is minted and a
   row exists, so the entity is real and the journal accounts for something.
   What does not exist is any AI agent process the identity names. **This is a

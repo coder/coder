@@ -6598,6 +6598,21 @@ func (mr *MockStoreMockRecorder) GetUsersByIDs(ctx, ids any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersByIDs", reflect.TypeOf((*MockStore)(nil).GetUsersByIDs), ctx, ids)
 }
 
+// GetValidCredentialsByActor mocks base method.
+func (m *MockStore) GetValidCredentialsByActor(ctx context.Context, arg database.GetValidCredentialsByActorParams) ([]database.ValidCredential, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetValidCredentialsByActor", ctx, arg)
+	ret0, _ := ret[0].([]database.ValidCredential)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetValidCredentialsByActor indicates an expected call of GetValidCredentialsByActor.
+func (mr *MockStoreMockRecorder) GetValidCredentialsByActor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidCredentialsByActor", reflect.TypeOf((*MockStore)(nil).GetValidCredentialsByActor), ctx, arg)
+}
+
 // GetWebpushSubscriptionsByUserID mocks base method.
 func (m *MockStore) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
 	m.ctrl.T.Helper()
@@ -8609,6 +8624,21 @@ func (m *MockStore) InsertUserSkill(ctx context.Context, arg database.InsertUser
 func (mr *MockStoreMockRecorder) InsertUserSkill(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserSkill", reflect.TypeOf((*MockStore)(nil).InsertUserSkill), ctx, arg)
+}
+
+// InsertValidCredential mocks base method.
+func (m *MockStore) InsertValidCredential(ctx context.Context, arg database.InsertValidCredentialParams) (database.ValidCredential, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertValidCredential", ctx, arg)
+	ret0, _ := ret[0].(database.ValidCredential)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertValidCredential indicates an expected call of InsertValidCredential.
+func (mr *MockStoreMockRecorder) InsertValidCredential(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertValidCredential", reflect.TypeOf((*MockStore)(nil).InsertValidCredential), ctx, arg)
 }
 
 // InsertVolumeResourceMonitor mocks base method.

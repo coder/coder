@@ -1,6 +1,8 @@
 package poctests_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -147,7 +149,8 @@ func TestAIAgentIdentity(t *testing.T) {
 		// the value handed back to the caller is the value checked below, so
 		// a handler that persisted one identity and returned another would be
 		// caught.
-		id := mintedAIAgentID(t, readScriptLog(scriptLogPath))
+		scriptLog := readScriptLog(scriptLogPath)
+		id := mintedAIAgentID(t, scriptLog)
 
 		aiAgent, err := db.GetAIAgentByID(systemCtx, id)
 		require.NoError(t, err, "the returned identity should name a row")
@@ -170,6 +173,20 @@ func TestAIAgentIdentity(t *testing.T) {
 		require.Equal(t, r.Agents[0].ID, got.Actor,
 			"the entry should name the workspace_agent coderd authenticated")
 		require.NotZero(t, got.RecordedAt)
+
+		// The credential reached the executable. It is compared by digest
+		// because the executable does not print it: standard output becomes a
+		// log the control plane stores, and a credential does not belong there.
+		credentials, err := db.GetValidCredentialsByActor(systemCtx, database.GetValidCredentialsByActorParams{
+			ActorType: string(entity.TypeAIAgent),
+			Actor:     id,
+		})
+		require.NoError(t, err)
+		require.Len(t, credentials, 1, "creation should issue exactly one credential")
+
+		stored := sha256.Sum256([]byte(credentials[0].Password))
+		require.Equal(t, hex.EncodeToString(stored[:]), reportedCredentialDigest(t, scriptLog),
+			"the credential the executable received should be the one on record")
 	})
 
 	// The probe is what a real workspace will run, so its failure handling is
@@ -241,6 +258,17 @@ func mintedAIAgentID(t *testing.T, scriptLog string) uuid.UUID {
 	id, err := uuid.Parse(matches[1])
 	require.NoError(t, err)
 	return id
+}
+
+// reportedCredentialDigest extracts the digest of the credential the probe
+// received. The probe reports a digest rather than the credential because its
+// output is stored as a log by the control plane.
+func reportedCredentialDigest(t *testing.T, scriptLog string) string {
+	t.Helper()
+
+	matches := regexp.MustCompile(`credential sha256 ([0-9a-f]{64})`).FindStringSubmatch(scriptLog)
+	require.Len(t, matches, 2, "probe did not report a credential digest.\nscript log:\n%s", scriptLog)
+	return matches[1]
 }
 
 // readScriptLog returns whatever the startup script wrote, for use in failure

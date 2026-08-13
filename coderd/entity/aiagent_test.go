@@ -28,16 +28,22 @@ func TestCreateAIAgent(t *testing.T) {
 		owner := dbgen.User(t, db, database.User{})
 		actor := entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()}
 
-		id, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
+		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
 			OwnerID: owner.ID,
 			Actor:   actor,
 		})
 		require.NoError(t, err)
-		require.NotEqual(t, uuid.Nil, id, "creation should mint an identity")
+		require.NotEqual(t, uuid.Nil, created.ID, "creation should mint an identity")
+		require.NotEmpty(t, created.Credential, "creation should issue a credential")
 
+		id := created.ID
 		agent, err := db.GetAIAgentByID(ctx, id)
 		require.NoError(t, err, "the minted identity should name a row")
 		require.Equal(t, owner.ID, agent.OwnerID, "the AI agent should belong to its principal")
+
+		verified, err := entity.VerifyCredential(ctx, db, entity.Ref{Type: entity.TypeAIAgent, ID: id}, created.Credential)
+		require.NoError(t, err)
+		require.True(t, verified, "the credential handed back should verify")
 
 		entries := entriesFor(ctx, t, db, id)
 		require.Len(t, entries, 1, "creation should write exactly one entry")
@@ -68,13 +74,14 @@ func TestCreateAIAgent(t *testing.T) {
 		var id uuid.UUID
 		err := db.InTx(func(tx database.Store) error {
 			var err error
-			id, err = entity.CreateAIAgent(ctx, tx, entity.CreateAIAgentParams{
+			created, err := entity.CreateAIAgent(ctx, tx, entity.CreateAIAgentParams{
 				OwnerID: owner.ID,
 				Actor:   entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()},
 			})
 			if err != nil {
 				return err
 			}
+			id = created.ID
 			return errCallerFailed
 		}, nil)
 		require.ErrorIs(t, err, errCallerFailed)
@@ -87,6 +94,13 @@ func TestCreateAIAgent(t *testing.T) {
 		_, err = db.GetAIAgentByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"the AI agent should roll back with the entry accounting for it")
+
+		credentials, err := db.GetValidCredentialsByActor(ctx, database.GetValidCredentialsByActorParams{
+			ActorType: string(entity.TypeAIAgent),
+			Actor:     id,
+		})
+		require.NoError(t, err)
+		require.Empty(t, credentials, "the credential should roll back with the rest")
 	})
 
 	t.Run("RejectsCreationWithNoOwner", func(t *testing.T) {
