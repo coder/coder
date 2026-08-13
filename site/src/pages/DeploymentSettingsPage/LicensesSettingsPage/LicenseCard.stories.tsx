@@ -107,15 +107,27 @@ export const UsesLicenseUserLimit: Story = {
 export const Premium: Story = {
 	args: {
 		license: MockLicenseResponse[1],
+		// The backend grandfathers premium licenses without agent hour
+		// claims into a zero-hour allocation, so the merged entitlement is
+		// always present: disabled, zero limit, usage measured.
+		agentRuntimeHoursFeature: {
+			enabled: false,
+			entitlement: "entitled",
+			limit: 0,
+			actual: 137,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// A Premium license with no agent hours allocation shows the Coder
-		// Agents upgrade card.
+		// Agents upgrade card, including deployment-wide usage.
 		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
 		await expect(
 			getMetricValue(canvas, "Max concurrent chats"),
 		).toHaveTextContent("5");
+		await expect(canvas.getByText(/Agent hours used/)).toHaveTextContent(
+			"Agent hours used: 137",
+		);
 		const upgrade = canvas.getByRole("link", { name: "Upgrade" });
 		await expect(upgrade).toHaveAttribute("href", "mailto:sales@coder.com");
 	},
