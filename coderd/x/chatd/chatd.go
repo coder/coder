@@ -2288,16 +2288,16 @@ func (p *Server) InterruptChat(
 
 // CompactChat records a manual compaction request through the
 // chatstate.RequestCompaction transition and wakes workers. The chat
-// must be idle (waiting); the worker then generates and commits the
-// compaction summary through the normal generation loop, bypassing
-// the usage threshold, and the chat returns to waiting with no
-// assistant follow-up unless a post_compact hook commits a
-// user-visible message, which leaves the history incomplete and
-// resumes generation.
+// must be idle (waiting) or errored; the request clears any stored
+// error. The worker then generates and commits the compaction summary
+// through the normal generation loop, bypassing the usage threshold,
+// and the chat returns to waiting with no assistant follow-up unless
+// queued messages remain or a post_compact hook commits a
+// user-visible message.
 //
 // Returns the post-transition chat and an error so callers can map
 // state conflicts deliberately: archived chats return ErrChatArchived,
-// non-idle chats return a chatstate.ErrTransitionNotAllowed wrapper,
+// generating chats return a chatstate.ErrTransitionNotAllowed wrapper,
 // and chats with no compactable conversation return
 // ErrNothingToCompact.
 func (p *Server) CompactChat(
