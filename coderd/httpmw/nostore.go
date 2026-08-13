@@ -10,9 +10,10 @@ import "net/http"
 // conformant response.
 //
 // The headers are set before the wrapped handler runs, so a handler that
-// writes its own Cache-Control would win. No handler under the trees this is
-// mounted on does; the test suite pins that. Pragma is written unconditionally,
-// so such a handler's Cache-Control ships alongside Pragma: no-cache.
+// writes its own Cache-Control would win. None does today; the integration
+// tests pin that across the /oauth2 tree and spot-check
+// /api/v2/oauth2-provider. Pragma is written unconditionally, so such a
+// handler's Cache-Control ships alongside Pragma: no-cache.
 //
 // chi's middleware.NoCache is not used, though that package is already
 // imported at the mount site. It strips the ETag-family headers from the
