@@ -236,6 +236,10 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.AuthType == "user_oidc" && !api.authorizeUserOIDCMCPServerConfig(rw, r) {
+		return
+	}
+
 	if trimmed := strings.TrimSpace(req.OAuth2RevocationURL); trimmed != "" {
 		if err := mcpclient.ValidateRevocationEndpoint(trimmed); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -562,6 +566,23 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
 }
 
+// authorizeUserOIDCMCPServerConfig requires deployment-level
+// configuration permission for user_oidc MCP server configs.
+// user_oidc forwards each chat owner's upstream OIDC access token to
+// the configured URL with no per-user consent step, so organization
+// admins must not be able to create such configs or repoint their
+// URLs. Before organization scoping this was the boundary for every
+// config mutation.
+func (api *API) authorizeUserOIDCMCPServerConfig(rw http.ResponseWriter, r *http.Request) bool {
+	if api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		return true
+	}
+	httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+		Message: "Managing user_oidc MCP server configs requires deployment-level permissions.",
+	})
+	return false
+}
+
 // Preserve the param middleware's 404 concealment. Write denial is a 403.
 func (api *API) getMCPServerConfigForMutation(rw http.ResponseWriter, r *http.Request, action policy.Action) (database.MCPServerConfig, bool) {
 	config := httpmw.MCPServerConfigParam(r)
@@ -587,6 +608,12 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateMCPServerConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	touchesUserOIDC := existing.AuthType == "user_oidc" ||
+		(req.AuthType != nil && *req.AuthType == "user_oidc")
+	if touchesUserOIDC && !api.authorizeUserOIDCMCPServerConfig(rw, r) {
 		return
 	}
 

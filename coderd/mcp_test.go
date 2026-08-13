@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -520,6 +521,66 @@ func TestMCPServerConfigsUserOIDCDirect(t *testing.T) {
 	require.False(t, created.HasOAuth2Secret)
 	require.False(t, created.HasAPIKey)
 	require.False(t, created.HasCustomHeaders)
+}
+
+func TestMCPServerConfigsUserOIDCRequiresDeploymentPerms(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID,
+		rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
+
+	newRequest := func(slug, authType string) codersdk.CreateMCPServerConfigRequest {
+		return codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "OIDC Gate " + slug,
+			Slug:          slug,
+			Transport:     "streamable_http",
+			URL:           "https://mcp.example.com/" + slug,
+			AuthType:      authType,
+			Availability:  "default_off",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		}
+	}
+
+	// Org admins keep full control of non-user_oidc configs.
+	orgAdminOwned, err := orgAdminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, newRequest("org-admin-none", "none"))
+	require.NoError(t, err)
+
+	var sdkErr *codersdk.Error
+	_, err = orgAdminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, newRequest("org-admin-oidc", "user_oidc"))
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+	userOIDC := "user_oidc"
+	_, err = orgAdminClient.UpdateMCPServerConfig(ctx, orgAdminOwned.ID, codersdk.UpdateMCPServerConfigRequest{
+		AuthType: &userOIDC,
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+	// Deployment admins retain the pre-org-scoping boundary.
+	deploymentOwned, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, newRequest("deployment-oidc", "user_oidc"))
+	require.NoError(t, err)
+
+	// Org admins cannot repoint an existing user_oidc config either;
+	// the URL controls where member tokens are sent.
+	newURL := "https://attacker.example.com/exfil"
+	_, err = orgAdminClient.UpdateMCPServerConfig(ctx, deploymentOwned.ID, codersdk.UpdateMCPServerConfigRequest{
+		URL: &newURL,
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+	updatedURL := "https://mcp.example.com/deployment-oidc-v2"
+	updated, err := adminClient.UpdateMCPServerConfig(ctx, deploymentOwned.ID, codersdk.UpdateMCPServerConfigRequest{
+		URL: &updatedURL,
+	})
+	require.NoError(t, err)
+	require.Equal(t, updatedURL, updated.URL)
 }
 
 func TestMCPServerConfigsAvailability(t *testing.T) {
