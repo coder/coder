@@ -205,8 +205,10 @@ analysis that derived it.
 
 ### Designation as an RBAC authorization boundary
 
-Status: specified, not implemented. This is Vertical 1 step 10 in the
-implementation order below.
+Status: implemented. Requirements 1 to 8 below are on the branch, with
+tests in `coderd/rbac/aidesignation_test.go` and policy documentation in
+`coderd/rbac/POLICY.md`. The `file:line` references in the implementation
+requirements subsection name the declarations and call sites that changed.
 
 Scope profiles alone cannot confine an agent to its own workspaces, for
 the structural reasons stated above: the allow list is static subject
@@ -322,12 +324,9 @@ The rule consumes two new policy-input attributes:
 
 #### Implementation requirements
 
-Status: none of this is implemented. `coderd/rbac` contains no
-designation attribute today. Unlike citations elsewhere in this document,
-which describe current behavior, the `file:line` references in this
-subsection are **change targets**: they name the declaration or call site
-each requirement modifies. The review artifact carries fuller snippets
-for each.
+All of the following are implemented. The `file:line` references name the
+declarations and call sites involved. The review artifact carries fuller
+snippets for each.
 
 1. **Object attribute.** `rbac.Object` gains `AIAgentID string`
    (`json:"ai_agent_id"`) and a `WithAIAgentID` builder; the struct is
@@ -792,6 +791,36 @@ per-surface and parallelizable after 4. Step 10 needs Vertical 2's
 designation flow (its phase 3) for end-to-end effect, though the
 `coderd/rbac` changes themselves only require the `workspaces.ai_agent_id`
 column.
+
+#### Remaining key-issuance gaps
+
+Closing the generic key routes fixed the two handlers that mint for an
+arbitrary target user. Three related paths remain open and are follow-ups
+rather than parts of that fix:
+
+1. **Workspace-owner session token.** `createWorkspace` accepts a target
+   owner without an AI-kind guard (`coderd/workspaces.go:442-513`), and
+   the build then regenerates a default-scope owner session key from that
+   owner's `user.ID` and `LoginType`
+   (`coderd/provisionerdserver/provisionerdserver.go:520,604,3216-3242`).
+   Starvation keys on designation, so a workspace owned by an agent user
+   but not designated would receive a full-scope key for that agent
+   user. This requires site-owner privilege to reach, and it is the same
+   administrative footgun class as the generic key routes.
+2. **Application key conversion.** `coderd/workspaceapps.go:54-117`
+   creates an application-connect key for `apiKey.UserID` with no AI-kind
+   check. The built-in profiles cannot satisfy its `api_key:create`
+   authorization, so this matters only for an already-malformed
+   full-scope agent key.
+3. **Authentication-side shape validation.**
+   `aiagentidentity.APIKeyMatchesBuiltInProfile` exists and is tested,
+   but is not yet called from `coderd/httpmw/apikey.go`. Wiring it makes
+   no-self-escalation a property of the identity rather than of the mint
+   path, because it rejects any agent-owned key whose shape does not
+   match a built-in profile.
+
+Password and OAuth login already reject AI agent users
+(`coderd/userauth.go:608-612,1801-1803`).
 
 ### Review artifacts
 

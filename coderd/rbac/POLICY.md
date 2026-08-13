@@ -111,6 +111,35 @@ For example, you may have a scope like...
 
 The final policy decision is determined by evaluating each of these checks in their proper precedence order from the `allow` rule.
 
+## AI agent workspace designation
+
+An AI agent acts with its sponsoring human's roles, so `input.subject.id` is the sponsor and cannot identify the agent. The acting identity travels separately in `input.subject.ai_agent_id`, and a workspace records the identity it belongs to in `input.object.ai_agent_id` (from `workspaces.ai_agent_id`).
+
+The `allow` rule therefore carries a third conjunct, `ai_workspace_designation_allow`, beside `permission_allow` and `scope_allow`. It always holds for human and system subjects. For an AI subject it permits `read` and `create` on workspace-typed objects, and requires `input.object.ai_agent_id = acting_ai_agent_id` for every other workspace action. Defining the exempt actions rather than the protected ones means a workspace action added later is protected by default.
+
+This exists because scopes cannot express the boundary: an API key allow list is fixed at mint time, applies to the union of all selected scopes regardless of action, and must contain a workspace wildcard for `create` to authorize an object that has no ID yet. Designation is a property of the workspace being authorized, so it belongs on the object.
+
+### The missing-field trap
+
+Read the acting identity through the defaulted rule, not directly:
+
+```rego
+default acting_ai_agent_id := ""
+
+acting_ai_agent_id := input.subject.ai_agent_id
+```
+
+In rego, `not input.subject.missing_field = ""` evaluates to **true**. Reading the field directly would therefore classify a subject whose field is absent as an AI agent and deny it every protected workspace action, so a regression in `astvalue.go` that stopped emitting the field would remove SSH from every human. Defaulting to the empty string makes an absent field mean "not an AI agent", which fails in the safe direction. Fail-closed behavior is kept where it belongs: a subject whose type says `ai_agent` but whose acting identity is empty is denied protected actions.
+
+Two related invariants live in Go rather than in this policy:
+
+1. `astvalue.go` always emits both fields, including as empty strings, so the comparison operates on concrete values.
+2. `Object.All()` clears the designation. An aggregate object covers every resource of a type and cannot claim one designation, so protected AI authorizations against it fail closed.
+
+### Partial evaluation
+
+`input.object.ai_agent_id` is an unknown, and `regosql` requires a registered converter for it (`COALESCE(workspaces.ai_agent_id :: text, '')`). Because the action and object type are ground during partial evaluation, the `read` exemption resolves at compile time and workspace list filtering emits no designation predicate; `TestAIDesignationPartialEvaluation` asserts an AI actor's read filter is identical to a human's.
+
 ## Unknown values
 
 This policy is specifically constructed to compress to a set of queries if 'input.object.owner' and 'input.object.org_owner' are unknown. There is no specific set of rules that will guarantee that this policy has this property, however, there are some tricks. We have tests that enforce this property, so any changes that pass the tests will be okay.
