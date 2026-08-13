@@ -722,6 +722,16 @@ The custom text to show on the error page informing about disabled OIDC signups.
 
 OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration. This flag disables that requirement, and can lead to an insecure OIDC configuration. It is not recommended to use this flag.
 
+### --oidc-redirect-url
+
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>url</code>                      |
+| Environment | <code>$CODER_OIDC_REDIRECT_URL</code> |
+| YAML        | <code>oidc.oidc-redirect-url</code>   |
+
+Optional override of the default redirect url which uses the deployment's access url. Useful in situations where a deployment has more than 1 domain. Using this setting can also break OIDC, so use with caution.
+
 ### --telemetry
 
 |             |                                      |

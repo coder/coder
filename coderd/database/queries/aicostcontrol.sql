@@ -39,6 +39,23 @@ SELECT *
 FROM ai_model_prices
 WHERE provider = @provider AND model = @model;
 
+-- name: GetAIModelPrices :many
+SELECT *
+FROM ai_model_prices
+    -- Filter by provider
+WHERE CASE
+        WHEN @provider::text != '' THEN
+            provider = @provider
+        ELSE true
+    END
+    -- Filter by model
+    AND CASE
+        WHEN @model::text != '' THEN
+            model = @model
+        ELSE true
+    END
+ORDER BY provider, model;
+
 -- name: GetGroupAIBudget :one
 SELECT *
 FROM group_ai_budgets
