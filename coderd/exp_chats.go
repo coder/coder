@@ -6737,8 +6737,6 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ID:                   existing.ID,
 	}
 
-	// Re-check the provider exists and is enabled under lock when the
-	// model or provider changes.
 	revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
 	var updated database.ChatModelConfig
 	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
