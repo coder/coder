@@ -5,7 +5,6 @@ import {
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
-	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
 import {
@@ -306,14 +305,6 @@ const playMutedDiagnostic =
 		).not.toBeInTheDocument();
 	};
 
-export const ManagedAgentUsageUnavailable: Story = {
-	render: () =>
-		renderLicenseBanner({
-			errors: [LicenseManagedAgentUsageUnavailableErrorText],
-		}),
-	play: playMutedDiagnostic(LicenseManagedAgentUsageUnavailableErrorText),
-};
-
 export const AgentRuntimeHoursClaimsIgnored: Story = {
 	render: () =>
 		renderLicenseBanner({
@@ -326,7 +317,6 @@ export const AgentRuntimeHoursClaimsIgnored: Story = {
 export const UsageDiagnosticsOnlyHeading: Story = {
 	render: () =>
 		renderLicenseBanner({
-			errors: [LicenseManagedAgentUsageUnavailableErrorText],
 			warnings: [LicenseAgentRuntimeHoursClaimsIgnoredWarningText],
 		}),
 	play: async ({ canvasElement }) => {

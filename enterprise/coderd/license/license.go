@@ -115,8 +115,8 @@ func Entitlements(
 			// licenses (e.g. higher hard limit) to account for additional
 			// usage.
 			//
-			// nolint:gocritic // Reading usage events requires the usage publisher subject.
-			return db.GetTotalUsageDCManagedAgentsV1(dbauthz.AsUsagePublisher(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
+			// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
+			return db.GetTotalUsageDCManagedAgentsV1(dbauthz.AsSystemRestricted(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
 				StartDate: startTime,
 				EndDate:   endTime,
 			})
@@ -709,17 +709,24 @@ func LicensesEntitlements(
 	if entitlements.HasLicense && agentLimit.UsagePeriod != nil {
 		// Calculate the amount of agents between the usage period start and
 		// end.
-		managedAgentCount, ok, err := measureUsage(ctx, &entitlements,
-			featureArguments.Logger, featureArguments.ManagedAgentCountFn, *agentLimit.UsagePeriod,
-			"managed agent count", codersdk.LicenseManagedAgentUsageUnavailableErrorText)
-		if err != nil {
-			return entitlements, err
+		var (
+			managedAgentCount int64
+			err               = xerrors.New("dev error: managed agent count function is not set")
+		)
+		if featureArguments.ManagedAgentCountFn != nil {
+			managedAgentCount, err = featureArguments.ManagedAgentCountFn(ctx, agentLimit.UsagePeriod.Start, agentLimit.UsagePeriod.End)
 		}
-		if ok {
+		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+			// If the context is canceled, we want to bail the entire
+			// LicensesEntitlements call.
+			return entitlements, xerrors.Errorf("get managed agent count: %w", err)
+		}
+		if err != nil {
+			entitlements.Errors = append(entitlements.Errors, fmt.Sprintf("Error getting managed agent count: %s", err.Error()))
+			// no return
+		} else {
 			agentLimit.Actual = &managedAgentCount
-			// Write directly rather than via AddFeature so its Compare
-			// cannot drop the update.
-			entitlements.Features[codersdk.FeatureManagedAgentLimit] = agentLimit
+			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, agentLimit)
 
 			// Only issue warnings if the feature is enabled.
 			if agentLimit.Enabled && agentLimit.Limit != nil && managedAgentCount >= *agentLimit.Limit {
@@ -856,39 +863,6 @@ func LicensesEntitlements(
 	entitlements.RefreshedAt = now
 
 	return entitlements, nil
-}
-
-// measureUsage runs fn over the feature's usage period. A nil fn or a
-// failure with a dead context fails the whole call; any other failure logs
-// the cause and publishes unavailableText instead. It returns the measured
-// value and true only on success.
-func measureUsage(
-	ctx context.Context,
-	entitlements *codersdk.Entitlements,
-	logger slog.Logger,
-	fn func(ctx context.Context, from time.Time, to time.Time) (int64, error),
-	usagePeriod codersdk.UsagePeriod,
-	what string,
-	unavailableText string,
-) (int64, bool, error) {
-	if fn == nil {
-		return 0, false, xerrors.Errorf("developer error: no closure provided to measure %s usage", what)
-	}
-	value, err := fn(ctx, usagePeriod.Start, usagePeriod.End)
-	switch {
-	case err != nil && ctx.Err() != nil:
-		// Do not classify cancellation by error shape instead of ctx.Err():
-		// Postgres raises SQLSTATE 57014 (query_canceled) for
-		// statement_timeout kills as well as client cancels, and aborting on
-		// those would fail every entitlements refresh on a deployment whose
-		// statement_timeout is shorter than a usage query.
-		return 0, false, xerrors.Errorf("get %s: %w", what, err)
-	case err != nil:
-		logger.Error(ctx, fmt.Sprintf("get %s for entitlements", what), slog.Error(err))
-		entitlements.Errors = append(entitlements.Errors, unavailableText)
-		return 0, false, nil
-	}
-	return value, true, nil
 }
 
 func appendAIGovernanceSeatLimitWarning(warnings []string, actual int64, limit int64) []string {
