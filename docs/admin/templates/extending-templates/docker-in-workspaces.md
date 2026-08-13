@@ -252,8 +252,8 @@ Before using Podman, please review the following documentation:
    example template, or make your own.
 
    ```sh
-   echo "kubernetes-with-podman" | coder templates init
-   cd ./kubernetes-with-podman
+   git clone https://github.com/coder/community-templates
+   cd community-templates/kubernetes-podman
    coder templates create
    ```
 
