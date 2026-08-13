@@ -19,7 +19,7 @@ const DETAILS_OPEN = /^<details\b[^>]*>/i;
 const DETAILS_CLOSE = /<\/details>\s*$/i;
 const SUMMARY = /<summary\b[^>]*>([\s\S]*?)<\/summary>/i;
 
-function stripTags(html: string): string {
+export function stripTags(html: string): string {
 	return html
 		.replace(/<[^>]+>/g, "")
 		.replace(/\s+/g, " ")

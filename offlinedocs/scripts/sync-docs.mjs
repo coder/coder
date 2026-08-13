@@ -169,8 +169,12 @@ let unmappedMdLinks = 0;
 // with the source file that contains them so the sync can name each one and
 // fail instead of silently shipping a dead relative link in the offline bundle.
 const unmappedLinks = [];
-// Source file currently being rewritten, so resolveMd can attribute an unmapped
-// link to the doc it appears in.
+// Image references whose target file does not exist under docs/, collected the
+// same way as unmappedLinks so a broken image reference fails the build instead
+// of shipping a broken <img> in the offline bundle.
+const unresolvedImages = [];
+// Source file currently being rewritten, so resolveMd/copyImage can attribute an
+// unmapped link or image to the doc it appears in.
 let currentSourceRel = "";
 
 function copyAsset(resolvedRel) {
@@ -196,7 +200,9 @@ const rewriteCtx = {
 		return null;
 	},
 	copyImage(resolvedRel) {
-		return copyAsset(resolvedRel) ? `/${resolvedRel}` : null;
+		if (copyAsset(resolvedRel)) return `/${resolvedRel}`;
+		unresolvedImages.push({ source: currentSourceRel, target: resolvedRel });
+		return null;
 	},
 };
 
@@ -344,7 +350,8 @@ console.log(
 		`(skipped ${allMd.length - manifestMd.length} non-manifest), ` +
 		`meta.json=${metaFilesWritten}, ` +
 		`images=${copiedAssets.size} referenced (+ full images/ tree), ` +
-		`unmapped .md links=${unmappedMdLinks}`,
+		`unmapped .md links=${unmappedMdLinks}, ` +
+		`unresolved images=${unresolvedImages.length}`,
 );
 
 // Fail the sync (and therefore the offlinedocs build and the release target) if
@@ -352,18 +359,33 @@ console.log(
 // otherwise left as a raw relative path and 404s inside the offline bundle.
 // Naming the source file and target keeps a docs change that breaks a link
 // actionable in CI instead of shipping silently.
-if (unmappedLinks.length > 0) {
-	console.error(
-		`\n[sync-docs] ERROR: ${unmappedLinks.length} inter-doc link(s) do not ` +
-			`resolve to a synced page and would ship as dead links:`,
-	);
-	for (const { source, target } of unmappedLinks) {
-		console.error(`  ${source} -> ${target}`);
+if (unmappedLinks.length > 0 || unresolvedImages.length > 0) {
+	if (unmappedLinks.length > 0) {
+		console.error(
+			`\n[sync-docs] ERROR: ${unmappedLinks.length} inter-doc link(s) do not ` +
+				`resolve to a synced page and would ship as dead links:`,
+		);
+		for (const { source, target } of unmappedLinks) {
+			console.error(`  ${source} -> ${target}`);
+		}
+		console.error(
+			"\nFix each link to point at a manifest page, or use an absolute URL " +
+				"(for example a https://github.com/... link) when the target is " +
+				"intentionally outside the published docs corpus.",
+		);
 	}
-	console.error(
-		"\nFix each link to point at a manifest page, or use an absolute URL " +
-			"(for example a https://github.com/... link) when the target is " +
-			"intentionally outside the published docs corpus.",
-	);
+	if (unresolvedImages.length > 0) {
+		console.error(
+			`\n[sync-docs] ERROR: ${unresolvedImages.length} image reference(s) do ` +
+				`not resolve to a file under docs/ and would ship as broken images:`,
+		);
+		for (const { source, target } of unresolvedImages) {
+			console.error(`  ${source} -> ${target}`);
+		}
+		console.error(
+			"\nFix each image path to point at an existing file under docs/, or " +
+				"remove the reference.",
+		);
+	}
 	process.exit(1);
 }

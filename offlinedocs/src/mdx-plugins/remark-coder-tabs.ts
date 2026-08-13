@@ -39,7 +39,7 @@ import { isHtml, type MdastNode } from "./mdast";
 const TABS_OPEN = /^<div\s+class="tabs"\s*>/i;
 
 // Net `<div>` nesting change contributed by a raw html node's text.
-function divDelta(value: string): number {
+export function divDelta(value: string): number {
 	const opens = (value.match(/<div\b/gi) ?? []).length;
 	const closes = (value.match(/<\/div>/gi) ?? []).length;
 	return opens - closes;
@@ -67,14 +67,14 @@ const OS_CANONICAL: Record<string, string> = {
 	win: "Windows",
 };
 
-function canonicalOS(token: string): string | null {
+export function canonicalOS(token: string): string | null {
 	return OS_CANONICAL[token.trim().toLowerCase()] ?? null;
 }
 
 // If a label is only OS names joined by `/`, `,`, `&`, or `and`, return the
 // canonical OS names (deduped, in order). Otherwise return null, so non-OS
 // labels such as "Debian, Ubuntu" are left untouched.
-function splitOSLabel(label: string): string[] | null {
+export function splitOSLabel(label: string): string[] | null {
 	const tokens = label
 		.split(/\s*(?:\/|,|&|\band\b)\s*/i)
 		.map((token) => token.trim())
@@ -159,7 +159,7 @@ function trueAttribute(name: string) {
 
 // Stable identifier so tab sets that share a label set stay in sync. Sorted so
 // order does not matter, lowercased, and reduced to a slug.
-function groupIdFor(labels: string[]): string {
+export function groupIdFor(labels: string[]): string {
 	return [...labels]
 		.map((label) => label.toLowerCase().trim())
 		.sort()
