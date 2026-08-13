@@ -61,8 +61,8 @@ const (
 	// check whether another replica has finished refreshing.
 	defaultRefreshLeaseInitialBackoff = 50 * time.Millisecond
 
-	// defaultRefreshLeaseInitialBackoff is the maximum wait between polls to
-	// check whether another replica has finished refreshing.
+	// defaultRefreshLeaseMaxBackoff is the maximum wait between polls to check
+	// whether another replica has finished refreshing.
 	defaultRefreshLeaseMaxBackoff = 500 * time.Millisecond
 )
 
@@ -173,8 +173,8 @@ type Config struct {
 	// whether another replica has finished refreshing.
 	RefreshLeaseInitialBackoff time.Duration
 
-	// RefreshLeaseInitialBackoff is the maximum wait between polls to check
-	// whether another replica has finished refreshing.
+	// RefreshLeaseMaxBackoff is the maximum wait between polls to check whether
+	// another replica has finished refreshing.
 	RefreshLeaseMaxBackoff time.Duration
 }
 
