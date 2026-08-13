@@ -97,6 +97,18 @@ func TestAgentCapacityUnlock(t *testing.T) {
 				Actual:      ptr.Ref(int64(100)),
 			},
 		},
+		{
+			// A zero-allocation license grants the feature disabled with a
+			// zero limit. Premium licenses without agent_runtime_hours_*
+			// claims are grandfathered into the same shape, so this case
+			// pins that both stay capped.
+			name: "DisabledZeroAllocation",
+			feature: &codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     false,
+				Limit:       ptr.Ref(int64(0)),
+			},
+		},
 		{name: "NoFeature"},
 	}
 	for _, tc := range cases {
