@@ -62,6 +62,73 @@ Never bare "agent". Specifically do not conflate with:
 - **aibridge / AI Gateway**: the LLM proxy.
 - **Coder Agents**: the chat product built on `coderd/x/chatd`.
 
+### Properties of an agent identity
+
+An enumerable summary of what an agent identity is and what it guarantees.
+Status values: **holds** (implemented and enforced), **unenforced** (true
+of the current code but nothing prevents regression), **partial** (holds
+with a stated qualification), and **open** (a known gap). Qualifications
+and open items are detailed in the sections and invariants below.
+
+**Structural, what an identity is:**
+
+| # | Property                                                                                                                                         | Status                                                                                     |
+|---|--------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| 1 | **Real principal.** A `users` row with `kind = 'ai_agent'` plus an `ai_agents` row, so it flows through audit, RBAC, and key machinery unchanged | partial: `users.kind` is the runtime discriminator and the two rows can disagree fail-open |
+| 2 | **Sponsored.** Exactly one accountable human per identity; no orphans                                                                            | holds                                                                                      |
+| 3 | **Origin-bound.** Records the human-to-AI boundary that minted it: chat, workspace opt-in, or sandbox                                            | holds                                                                                      |
+| 4 | **Continuous.** Everything an agent creates reuses its identity. Continuity carries the principal forward and never carries permissions forward  | holds                                                                                      |
+| 5 | **Non-interactive.** Cannot authenticate as a human; hidden from default user lists                                                              | partial: hiding is query-filter, not structural                                            |
+
+**Authority, where power comes from and how it narrows:**
+
+| #  | Property                                                                                                                                                                            | Status                       |
+|----|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
+| 6  | **Delegated, never owned.** The authorization subject is the sponsor; the agent contributes no authority of its own                                                                 | holds                        |
+| 7  | **Live ceiling.** Sponsor roles are resolved per request, never snapshotted at mint                                                                                                 | holds                        |
+| 8  | **Profile-scoped.** Each credential's scopes are chosen for the boundary being crossed, from a small set of hardcoded profiles                                                      | holds                        |
+| 9  | **Monotonic narrowing.** Every credential minted as a side effect of an agent action expands to a subset of the acting profile's reach; profiles are never inherited from the actor | unenforced, see invariant 9  |
+| 10 | **Non-materialization.** A chat identity's credential never exists outside its mint transaction                                                                                     | unenforced, see invariant 10 |
+| 11 | **Designation-bounded.** An AI actor may read broadly but may act only on workspaces designated to it                                                                               | holds                        |
+| 12 | **Cross-agent isolated.** Exact identity match, so sibling agents under one sponsor cannot reach each other's workspaces                                                            | holds                        |
+
+**Attribution, how actions are traced:**
+
+| #  | Property                                                                                        | Status                                                                          |
+|----|-------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
+| 13 | **Dual-identity audit.** Actor and accountable human are separate fields, never conflated       | holds                                                                           |
+| 14 | **Cleanup-durable.** Audit history survives identity deletion                                   | partial: structural for egress and sandbox tables, conventional for `ai_agents` |
+| 15 | **Boundary-visible.** The agent appears as itself in UI, gateway interception, and egress views | holds                                                                           |
+
+**Containment, what an identity's credentials cannot reach:**
+
+| #  | Property                                                                                                               | Status                                                                       |
+|----|------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| 16 | **Cascade suspend.** Sponsor suspension or identity revocation ends agent authentication                               | partial: per connection, not per message, see invariant 7                    |
+| 17 | **Fail-closed resolution.** An unresolvable agent identity is an authentication error                                  | partial: chatd fails open for chats that predate identities, see invariant 6 |
+| 18 | **Soft revocation.** Revocation preserves attribution history                                                          | partial: boolean with no timestamp or reason                                 |
+| 19 | **Credential starvation.** An environment an agent controls never receives the sponsor's ambient credentials           | open: defeated by one agent-creation path, see the sub-agent binding gap     |
+| 20 | **One-way designation.** Nothing un-designates a workspace; the stored marker dominates template and parameter changes | holds                                                                        |
+
+Two properties are worth reading together because they answer the same
+question from opposite directions. Property 9 says an agent cannot gain
+privilege by *creating* something, and property 10 says it cannot gain
+persistence by *relocating* a credential it already holds. Neither is
+enforced yet, which is why both appear as invariants below rather than as
+settled guarantees.
+
+Accepted risks, stated so they are not mistaken for oversights:
+
+- **Sibling workspaces of one identity are one trust boundary.** All are
+  starved, share one sponsor ceiling, and audit to one identity, so a jump
+  between them yields no credential gain and no attribution loss. A
+  compromise in one still reaches the others. Isolating them would require
+  per-workspace sub-identities under the chat identity.
+- **Read is broad.** An agent can enumerate its sponsor's workspace
+  metadata. Chosen for chat inventory UX.
+- **Sandbox egress is attested, not verified.** The platform records what a
+  sandbox claims about its own routing.
+
 ### Core design: identity split
 
 The single most important design point:
@@ -762,6 +829,38 @@ Two further qualifications from the security review:
    identity. Undesignated workspaces, empty acting IDs, aggregate
    objects, and workspaces designated to a different agent all deny.
    Non-AI subjects never evaluate the rule.
+9. **Monotonic narrowing**: any credential minted as a side effect of an
+   agent-initiated action must carry a profile whose expanded
+   (resource, action) pairs and allow-list reach are a subset of the
+   acting profile's. Continuity carries the principal forward; it never
+   carries permissions forward.
+
+   This is currently TRUE but UNENFORCED. `WorkspaceAgentIdentityProfile`
+   is strictly narrower than `ChatAgentProfile` on both axes (the chat's
+   workspace actions minus `create`, pinned to one workspace ID instead of
+   a wildcard, with every non-workspace resource dropped), so a chat agent
+   creating a workspace gains nothing. Nothing checks that relationship:
+   `validateProfile` checks absolute prohibitions, never relative
+   containment against the acting profile. Adding one scope to the
+   workspace profile that the chat profile lacks would silently turn
+   workspace creation into a privilege-gain primitive with no test
+   failing. The check is mechanical: expand both profiles through the
+   scope catalog and assert containment.
+
+10. **Non-materialization**: a chat identity's credential must never exist
+    outside its mint transaction. The identity is used by reference, as a
+    `dbauthz` subject for authorization and a key ID for attribution.
+
+    This is currently TRUE but only by construction of two call sites:
+    both discard the plaintext returned by `MintKey`
+    (`coderd/x/chatd/chatd.go:1374`, `coderd/x/chatd/synthetickey.go:69`,
+    which keeps only `newKey.ID`). No test asserts it and no type prevents
+    a future tool from requesting an HTTP-capable token. Possession is the
+    single precondition for handing a chat credential to a workspace, so
+    this is the property that makes that whole class of attack
+    unreachable. Enforce it structurally with a mint variant that returns
+    no plaintext, so the compiler rejects the regression rather than a
+    reviewer catching it.
 
 ### Implementation order
 
@@ -1253,7 +1352,139 @@ separate control. It is not governed by `ai_credential_mode`; an AI-designated
 workspace never receives the ambient `coder:all` owner session token, and a
 sandboxed child never receives a copy from its unbound parent.
 
-### Egress control for both binding shapes
+#### Open gap: sub-agent binding is not propagated
+
+All three enforcement points above key on the agent ROW
+(`WorkspaceAgentAllowsOwnerCredentials`, that is
+`!agent.ai_agent_id.Valid`, `coderd/aiagentidentity/binding.go:9-11`), so
+their correctness depends entirely on every agent-creation path setting
+that column. `InsertWorkspaceAgent` has no `ai_agent_id` parameter, so
+binding is only ever a follow-up `UPDATE`. Three paths create agent rows
+and one of them omits it:
+
+| Path                                                                                                               | Binds                                              |
+|--------------------------------------------------------------------------------------------------------------------|----------------------------------------------------|
+| Provisioner build agents, including Terraform-declared devcontainer sub-agents (`provisionerdserver.go:2229-2250`) | yes, loops over every agent of the build           |
+| Sandbox children (`coderd/aisandboxes.go:170-175`)                                                                 | yes, immediately after insert                      |
+| Runtime `CreateSubAgent` over the agent API (`coderd/agentapi/subagent.go:150-171`)                                | **no**, inherits `ParentID` and `APIKeyScope` only |
+
+An agent row created through the third path has `ai_agent_id = NULL` and a
+fresh `AuthToken`, so all three starvation gates pass, the middleware
+delegation branch is skipped entirely
+(`coderd/httpmw/workspaceagent.go:116` tests `AIAgentID.Valid`),
+`blockUserData` falls back to the template-derived `api_key_scope` which
+defaults to `all`, attribution reverts to the human, and the designation
+boundary treats the subject as non-AI. It is reachable by the AI itself:
+`CODER_AGENT_TOKEN` is deliberately placed in the agent environment
+(`agent/agent.go:1703-1704`) and inherited by spawned processes, so a
+process in a designated workspace can call `CreateSubAgent` and
+manufacture an unbound agent. It also fires accidentally, because
+devcontainer autodetection uses this path
+(`agent/agentcontainers/subagent.go:231`).
+
+Two fixes, and the second is the one that matters:
+
+1. Propagate `parentAgent.AIAgentID` in `subagent.go`, the way
+   `APIKeyScope` is already inherited, with a test asserting a bound
+   parent's child is bound.
+2. Make `ai_agent_id` an `InsertWorkspaceAgent` parameter so binding is
+   set at insert rather than by a remembered follow-up update. This is
+   also the prerequisite for any new declarative sandbox surface, because
+   each such surface adds another creation path.
+
+A third option worth weighing: have the three gates consult the
+workspace's designation (`workspaces.ai_agent_id`, authoritative and
+one-way) instead of the per-row copy. All three endpoints already load the
+workspace. That would make the whole bug class unrepresentable rather than
+fixing one instance, leaving the per-row column its legitimate jobs of
+recording which identity for attribution and delegation. It does not
+generalize to the sandbox-in-human-workspace shape, where the workspace is
+undesignated by design, so the two checks would need to be combined rather
+than substituted.
+
+### Egress control
+
+#### PoC shape reduction: sandbox only
+
+Two confinement shapes were designed. Only one is in PoC scope.
+
+| Shape                                             | Outer boundary                                                   | Inner boundary                                   | PoC          |
+|---------------------------------------------------|------------------------------------------------------------------|--------------------------------------------------|--------------|
+| Sandboxed AI child in an ordinary human workspace | the human's workspace                                            | container or microVM created by the admin script | **in scope** |
+| Confined AI-designated workspace                  | the Terraform-provisioned container or VM is itself the boundary | netns supervisor around the agent                | deferred     |
+
+The reduction is a scope decision, not a repudiation: the netns
+implementation described below is on the branch and retained. What defers
+with it is the pre-fork supervisor path, the DNS relay, the SNI listener,
+namespace datapath construction, and the privilege-dropping launcher.
+
+Three reasons the sandbox shape is the one to keep first:
+
+1. **It is the shape that needs a second boundary.** In an AI-designated
+   workspace the AI is the sole occupant, so the workspace container or VM
+   already isolates it from everything except the network; a namespace
+   inside that adds a nested boundary that protects nothing new. In a human
+   workspace the AI is a guest, so process and filesystem isolation are
+   required, not just network isolation.
+2. **It keeps supervisor and confined party distinguishable by binding.**
+   Designation binds every workspace agent of every build
+   (`coderd/provisionerdserver/provisionerdserver.go:2229-2250`). In a
+   designated workspace the host supervisor would be bound too, so
+   `!ai_agent_id.Valid` could no longer separate "confining, receives
+   policy" from "confined, receives nothing". Restoring that distinction
+   would need a second discriminator such as `parent_id IS NULL` or an
+   explicit role column. The sandbox shape gets it for free, because
+   `aisandboxes.go` binds only the child.
+3. **It has lower host requirements.** netns needs `NET_ADMIN` and
+   iproute2 in the workspace image. The container backend needs a
+   container runtime, and the microVM backend needs `/dev/kvm` and the
+   `coder-sandbox` binary, but those are demanded of the workspace image
+   rather than of the platform.
+
+The deferred combination is "AI-designated workspace that also runs a
+sandbox". It is deferred for reason 2 above, not because it is
+uninteresting.
+
+Honest consequence: the retained shape is the **attested** one, not the
+structurally enforced one. `SandboxController` runs the admin script
+cooperatively and does not yet open a namespace or launch through the
+privilege-dropping helper, so `egress_enforcement = forced` in PoC scope
+is entirely the script's claim about the boundary it built.
+
+#### Gap the reduction exposes: proxy access control
+
+The egress proxy itself is shape-independent. The policy engine, the host
+matcher, CONNECT and absolute-form handling, event emission, and
+resolve-once destination validation are identical in both shapes, and
+`SandboxController` already uses them. What differs is what stops
+unintended clients from using the proxy.
+
+|                  | netns shape                                            | sandbox shape                                                         |
+|------------------|--------------------------------------------------------|-----------------------------------------------------------------------|
+| Proxy listens on | the host end of the veth                               | an address the sandbox can reach, `0.0.0.0` for the container backend |
+| Access control   | the namespace: only the confined child can route to it | none                                                                  |
+| Authentication   | not required                                           | still none                                                            |
+
+In the netns shape the namespace **is** the access control, so an
+unauthenticated proxy is sound. The container backend cannot reach parent
+loopback (`agent/confine/sandbox.go:44,59-62`), so the proxy must bind a
+reachable interface, and that removes the boundary without replacing it.
+Two consequences:
+
+1. Anything that can reach the listener, including other containers on the
+   same bridge, can use the workspace's egress allowlist. Policy still
+   applies, so this is a policy-restricted relay rather than an open one.
+2. Emitted events are attributed to the sandbox session, so traffic from a
+   non-sandbox source is recorded as sandbox egress. This is an
+   attribution-integrity problem and therefore Vertical 3's concern as
+   much as this vertical's.
+
+The fix is a per-sandbox bearer token required by the proxy, checked on
+CONNECT and on forwarded requests. The sandbox already receives
+`CODER_EGRESS_PROXY` and its own credentials from the script contract, so
+there is a natural place to carry it. Recorded as a follow-up rather than
+built, because it is only reachable by something already inside the
+workspace's network.
 
 #### Supervisor and confined child agent
 
@@ -1502,34 +1733,54 @@ without restarts.
 
 Delivery is one mechanism applied at two moments:
 
-1. **Fork-time bootstrap.** The supervisor fetches the policy over its
-   agent connection, materializes proxy rules, creates the network
-   namespace, and only then fork-execs the confined child. The child never
-   runs unconfined, even briefly. If the fetch fails, the child starts
-   deny-all and reports degraded status; it never starts unconfined.
-2. **Runtime updates.** Policy revisions are pushed over the existing
-   agent connection and applied atomically to the running supervisor
-   proxy. The namespace and child process are untouched: no restart, no
-   re-fork.
+1. **Bootstrap.** The egress supervisor obtains the policy, materializes
+   proxy rules, and starts the proxy before the confined process can make
+   a connection. If the fetch fails it starts deny-all and reports
+   degraded status; it never starts unconfined.
+2. **Runtime updates.** Policy revisions are pushed over the supervisor's
+   existing coderd connection and applied atomically to the running
+   proxy. The confined process is untouched: no restart, no re-fork.
 
-**The supervisor is the sole policy consumer.** The confined child never
+**The confined party never consumes policy.** This is the durable form of
+the rule, and it is stated in terms of the confinement relationship rather
+than in terms of a channel or a process, because the supervisor role is
+filled differently in different shapes. The confined process never
 fetches, holds, or sees policy; in a `forced` shape its only network path
-is the parent proxy. This is what makes live updates safe and preserves
-the invariant that nothing inside the workspace can influence its own
-disposition.
+is the supervisor's proxy. That is what makes live updates safe and
+preserves the invariant that nothing inside the confined boundary can
+influence its own disposition.
 
-Who fetches and applies policy, per shape:
+Bootstrap channel follows from the supervisor's lifecycle position, and
+the two are not interchangeable:
 
-- **AI-designated workspace**: the outer workspace-level supervisor (the
-  parent process of the main agent) establishes and retains the
-  egress-control stream to coderd BEFORE fork-execing the confined main
-  agent, and keeps it for revision pushes. The confined agent's normal
-  connection is separate and carries no policy. The supervisor reports
-  degraded state.
-- **Sandboxed child**: the unbound PARENT agent's existing coderd
-  connection receives policy revisions; the parent-side sandbox
-  controller and proxy apply them. The child's connection carries no
-  policy. The parent agent reports degraded state.
+- **Host agent as supervisor** (the sandbox shape, and the only shape in
+  PoC scope): the host agent is unbound, so its manifest is the natural
+  bootstrap channel. Policy rides the existing agent manifest, gated by
+  the same predicate as credential starvation:
+  `WorkspaceAgentAllowsOwnerCredentials`, that is
+  `!workspace_agents.ai_agent_id.Valid`
+  (`coderd/aiagentidentity/binding.go:9-11`). An unbound supervisor
+  receives policy; a bound agent never does. Reusing the starvation
+  predicate makes "the confined party never consumes policy" a property
+  enforced by a tested gate rather than by convention.
+- **Pre-fork supervisor** (the deferred netns shape): there is no host
+  agent and no manifest. The supervisor re-execs itself as the agent
+  (`cli/agent.go:209-214`, `ExecArgs: confinedAgentArgs(os.Args)`), so one
+  agent identity and one token exist, and policy is needed before any
+  DRPC session does. That shape must use the agent-authenticated HTTP
+  bootstrap endpoint.
+
+The manifest is fetched per connection, not pushed, so it substitutes for
+the bootstrap fetch only. Live revisions still require the SSE watch.
+
+**Gap: the bootstrap endpoint is not gated on binding.**
+`workspaceAgentAIEgressPolicy` resolves the caller's workspace and returns
+the materialized policy with no binding check
+(`coderd/aiegresspolicy.go:160-175`), so a bound agent can currently read
+its own allowlist. That is not a containment breach, because a confined
+process can map its own policy by probing, but it contradicts the
+invariant above and should return 403 for a bound caller regardless of
+which bootstrap channel a shape uses.
 
 #### Audit stream and retention
 
@@ -1996,38 +2247,96 @@ resource "coder_agent" "main" {
 
 #### Example 2: sandboxed AI child in a normal human workspace
 
+The declaration is a second `coder_agent` marked `ai_bound`, plus the
+sandbox script contract passed to the agent process. There is no
+first-class sandbox resource; see the deferred entry below for why.
+
 ```hcl
-# Ordinary parent agent: full owner credentials, untouched behavior.
+# Ordinary host agent: full owner credentials, untouched behavior. This is
+# the egress supervisor, so it is the agent that receives egress policy.
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
 }
 
-# PROVIDER CHANGE: the sandbox script contract. The parent agent execs
-# these admin-authored scripts; the platform provides CODER_AI_AGENT_URL,
-# CODER_AI_AGENT_TOKEN (bound child token), CODER_AI_SESSION_TOKEN,
-# CODER_EGRESS_PROXY, and CODER_SANDBOX_ID to them. The ai_agent_id
-# binding itself is SERVER-SIDE ONLY.
-resource "coder_ai_sandbox" "ai" {
-  agent_id = coder_agent.main.id
-
-  create  = file("./sandbox-up.sh")
-  destroy = file("./sandbox-down.sh")
-
-  # Admin attestation, recorded server-side; not platform-verified.
-  egress_enforcement = "forced" # forced | advisory | none
+# PROVIDER CHANGE: ai_bound is the whole security-relevant declaration.
+# The server mints a sandbox identity for this agent, starves it (no user
+# secrets, no external auth, no Git SSH key, no owner session token), and
+# never delivers egress policy to it.
+#
+# ai_bound is opt-in only and monotonic: it can only REMOVE credentials.
+# ai_bound = false is ignored in an AI-designated workspace, because
+# designation already binds every agent of every build and in-workspace
+# input must never be able to unbind an agent (invariant 4).
+resource "coder_agent" "ai" {
+  os       = "linux"
+  arch     = "amd64"
+  ai_bound = true
 
   ai_credential_mode = "brokered"
 }
 
-# Apps and env attach to the SANDBOXED child agent
-# (coder_devcontainer.subagent_id precedent).
+# Apps and scripts attach to the bound agent directly, no subagent_id
+# indirection required.
 resource "coder_app" "sandbox_terminal" {
-  agent_id     = coder_ai_sandbox.ai.subagent_id
+  agent_id     = coder_agent.ai.id
   slug         = "ai-terminal"
   display_name = "AI Sandbox"
 }
+
+# The sandbox itself remains an admin script contract, consistent with
+# "sandboxes are admin scripts, not a platform runtime". The host agent
+# execs these; the platform supplies CODER_AI_AGENT_URL,
+# CODER_AI_AGENT_TOKEN (the bound agent's token), CODER_AI_SESSION_TOKEN,
+# CODER_EGRESS_PROXY, and CODER_SANDBOX_ID.
+#
+# EXISTS TODAY: read from the agent PROCESS environment as
+# CODER_AI_SANDBOX_*. Note that coder_agent.env is the wrong channel: it
+# lands in the manifest and is injected into processes the agent SPAWNS,
+# so the agent itself would never see these.
+resource "docker_container" "workspace" {
+  # ...
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AI_SANDBOX_CREATE_SCRIPT=/tmp/coder-ai/sandbox-create.sh",
+    "CODER_AI_SANDBOX_DESTROY_SCRIPT=/tmp/coder-ai/sandbox-destroy.sh",
+    "CODER_AI_SANDBOX_NAME=demo",
+    "CODER_AI_SANDBOX_EGRESS_ENFORCEMENT=forced",
+    # Not loopback: the container backend cannot reach parent loopback.
+    # See the proxy access control gap in Vertical 2.
+    "CODER_AI_SANDBOX_PROXY_ADDRESS=0.0.0.0:13337",
+  ]
+}
 ```
+
+#### Deferred: a first-class `coder_ai_sandbox` resource
+
+An earlier revision modeled the sandbox as its own resource with
+`create`/`destroy`, `egress_enforcement`, and a `subagent_id` output
+following the `coder_devcontainer.subagent_id` precedent. It was replaced
+by `ai_bound` above because two of its four justifications did not hold:
+declarative apps on the child are already possible through the sub-agent
+API, and the attestation floor is a template setting enforced
+server-side regardless of how the sandbox is declared. Modeling scripts as
+a first-class resource also sat awkwardly with the decision that sandboxes
+are admin scripts rather than a platform runtime.
+
+Two justifications did hold and are the reasons to revisit it:
+
+1. **Provisioner-attested `egress_enforcement`.** Today the attestation
+   arrives from the agent through `CODER_AI_SANDBOX_EGRESS_ENFORCEMENT`,
+   which is in-workspace input. Provisioner output is server-trusted build
+   data, so declaring it in Terraform moves a trust boundary.
+2. **A `parent_id` relationship.** Sibling agents lose the devcontainer
+   and sub-agent machinery, including the `DeleteSubAgent` parent check and
+   the nested presentation in the UI, and `ai_sandboxes.parent_agent_id`
+   and `child_agent_id` have nothing to point at.
+
+Prerequisite either way: `ai_agent_id` must become an
+`InsertWorkspaceAgent` parameter rather than a post-insert update. Every
+model here adds another agent-creation path, and binding is currently a
+follow-up `UPDATE` that two call sites perform and one omits, so a new
+path can silently produce an unbound agent inside a designated workspace.
 
 #### Example 3: chat-created workspaces
 
