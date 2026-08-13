@@ -169,7 +169,7 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 			}, nil
 		}).Times(1)
 		chats := []codersdk.Chat{{WorkspaceID: &workspaceID, Children: []codersdk.Chat{{WorkspaceID: &workspaceID}}}, {WorkspaceID: &otherWorkspaceID}}
-		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		api.enrichChatsWithMissingAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Equal(t, rootAgentID, *chats[0].AgentID)
 		require.Equal(t, rootAgentID, *chats[0].Children[0].AgentID)
 		require.Equal(t, otherAgentID, *chats[1].AgentID)
@@ -179,7 +179,7 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 		api, mDB := newAPI(t)
 		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("boom"))
 		chats := []codersdk.Chat{{WorkspaceID: &workspaceID}, {WorkspaceID: &otherWorkspaceID}}
-		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		api.enrichChatsWithMissingAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Nil(t, chats[0].AgentID)
 		require.Nil(t, chats[1].AgentID)
 	})
@@ -189,7 +189,7 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub")}, nil)
 		bound := otherAgentID
 		chats := []codersdk.Chat{{}, {WorkspaceID: &workspaceID}, {WorkspaceID: &workspaceID, AgentID: &bound}}
-		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		api.repairChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Nil(t, chats[1].AgentID)
 		require.Equal(t, bound, *chats[2].AgentID)
 	})
@@ -206,15 +206,30 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 			{WorkspaceID: &workspaceID, AgentID: &stale},
 			{WorkspaceID: &workspaceID, AgentID: &valid},
 		}
-		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		api.repairChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Equal(t, rootAgentID, *chats[0].AgentID)
 		require.Equal(t, secondRootAgentID, *chats[1].AgentID)
+	})
+	t.Run("list mode skips bound chats entirely", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
+			row(workspaceID, rootAgentID, uuid.NullUUID{}, "root"),
+		}, nil).Times(1)
+		stale := uuid.New()
+		chats := []codersdk.Chat{
+			{WorkspaceID: &workspaceID},
+			{WorkspaceID: &otherWorkspaceID, AgentID: &stale},
+		}
+		api.enrichChatsWithMissingAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Equal(t, rootAgentID, *chats[0].AgentID)
+		require.Equal(t, stale, *chats[1].AgentID)
 	})
 	t.Run("no bound workspaces skips the query", func(t *testing.T) {
 		t.Parallel()
 		api, _ := newAPI(t)
 		chats := []codersdk.Chat{{AgentID: &rootAgentID}, {}}
-		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		api.repairChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Equal(t, rootAgentID, *chats[0].AgentID)
 		require.Nil(t, chats[1].AgentID)
 	})

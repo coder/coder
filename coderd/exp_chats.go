@@ -498,22 +498,40 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	sdkChats := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
-	api.enrichChatWithWorkspaceAgentIDs(ctx, sdkChats)
+	api.enrichChatsWithMissingAgentIDs(ctx, sdkChats)
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
 }
 
-// enrichChatWithWorkspaceAgentIDs fills missing AgentIDs and repairs ones
-// that no longer resolve in the workspace's latest build (chatd persists
-// bindings lazily and a rebuild replaces agents). Best-effort and
-// response-only; on error the field keeps its persisted value.
-func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+// enrichChatsWithMissingAgentIDs fills nil AgentIDs from each workspace's
+// latest build. List reads use it because validating existing bindings
+// costs a per-workspace authorization lookup per listed chat.
+func (api *API) enrichChatsWithMissingAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	api.enrichChatAgentIDs(ctx, chats, func(chat *codersdk.Chat) bool {
+		return chat.AgentID == nil
+	})
+}
+
+// repairChatAgentIDs fills missing AgentIDs and repairs ones that no
+// longer resolve in the workspace's latest build (chatd persists bindings
+// lazily and a rebuild replaces agents). Reserved for single-chat reads
+// because of the per-workspace authorization cost.
+func (api *API) repairChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	api.enrichChatAgentIDs(ctx, chats, func(*codersdk.Chat) bool {
+		return true
+	})
+}
+
+// enrichChatAgentIDs is best-effort and response-only; on error each
+// AgentID keeps its persisted value. shouldEnrich selects candidates.
+func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat, shouldEnrich func(*codersdk.Chat) bool) {
 	candidateChats := make([]*codersdk.Chat, 0, len(chats))
 	var workspaceIDs []uuid.UUID
 	addCandidate := func(chat *codersdk.Chat) {
-		if chat.WorkspaceID != nil {
-			candidateChats = append(candidateChats, chat)
-			workspaceIDs = append(workspaceIDs, *chat.WorkspaceID)
+		if chat.WorkspaceID == nil || !shouldEnrich(chat) {
+			return
 		}
+		candidateChats = append(candidateChats, chat)
+		workspaceIDs = append(workspaceIDs, *chat.WorkspaceID)
 	}
 	for i := range chats {
 		addCandidate(&chats[i])
@@ -1651,7 +1669,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	enriched := []codersdk.Chat{sdkChat}
-	api.enrichChatWithWorkspaceAgentIDs(ctx, enriched)
+	api.repairChatAgentIDs(ctx, enriched)
 	sdkChat = enriched[0]
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)

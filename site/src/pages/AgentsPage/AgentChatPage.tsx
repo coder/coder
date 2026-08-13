@@ -1022,6 +1022,7 @@ const AgentChatPage: FC = () => {
 		chatModelsQuery.data,
 	);
 
+	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
 	const applyWatchedWorkspaceUpdate = useEffectEvent(
@@ -1042,6 +1043,21 @@ const AgentChatPage: FC = () => {
 					return next;
 				},
 			);
+			// A rebuild can leave the chat's persisted agent ID absent from
+			// the latest build. Chat reads return a repaired ID, so refetch,
+			// once per chat/build/binding key to stay loop-safe when repair
+			// fails. The watch stream replays the current workspace on every
+			// (re)connect, so this also covers rebuilds missed while
+			// disconnected.
+			if (!agentId || !isChatAgentBindingUnresolved(next, chatAgentId)) {
+				return;
+			}
+			const refetchKey = `${agentId}:${next.latest_build.id}:${chatAgentId ?? ""}`;
+			if (agentBindingRefetchKeyRef.current === refetchKey) {
+				return;
+			}
+			agentBindingRefetchKeyRef.current = refetchKey;
+			void invalidateChatEntity(queryClient, agentId);
 		},
 	);
 	useEffect(() => {
@@ -1078,33 +1094,6 @@ const AgentChatPage: FC = () => {
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
-
-	// A rebuild can leave the chat's persisted agent ID absent from the
-	// latest build. Chat reads can return a repaired ID, so refetch, once
-	// per chat/build/binding key to stay loop-safe when repair fails.
-	const workspaceBuildId = workspace?.latest_build.id;
-	const agentBindingUnresolved = isChatAgentBindingUnresolved(
-		workspace,
-		chatAgentId,
-	);
-	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
-	useEffect(() => {
-		if (!agentId || !workspaceBuildId || !agentBindingUnresolved) {
-			return;
-		}
-		const refetchKey = `${agentId}:${workspaceBuildId}:${chatAgentId ?? ""}`;
-		if (agentBindingRefetchKeyRef.current === refetchKey) {
-			return;
-		}
-		agentBindingRefetchKeyRef.current = refetchKey;
-		void invalidateChatEntity(queryClient, agentId);
-	}, [
-		agentId,
-		workspaceBuildId,
-		chatAgentId,
-		agentBindingUnresolved,
-		queryClient,
-	]);
 
 	const chatRecord = chatQuery.data;
 	const isArchived = chatRecord?.archived ?? false;
