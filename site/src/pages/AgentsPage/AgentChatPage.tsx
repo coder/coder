@@ -69,6 +69,7 @@ import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import { getWorkspaceAgents } from "#/utils/workspace";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -450,6 +451,7 @@ export const isWatchedWorkspaceViewUnchanged = (
 	const prevApps = prevAgent?.apps ?? [];
 	const nextApps = nextAgent?.apps ?? [];
 	return (
+		prev.latest_build.id === next.latest_build.id &&
 		prev.latest_build.status === next.latest_build.status &&
 		prev.health.healthy === next.health.healthy &&
 		prev.name === next.name &&
@@ -467,6 +469,29 @@ export const isWatchedWorkspaceViewUnchanged = (
 			);
 		})
 	);
+};
+
+/**
+ * True when the chat's persisted agent binding does not resolve in the
+ * running workspace, which happens between a workspace rebuild and the next
+ * chat turn (or before the first binding is persisted). Chat reads repair the
+ * binding server-side, so the chat should be refetched. Requires agents in
+ * the latest build so a refetch is only requested when the server can
+ * actually re-resolve the binding.
+ *
+ * @internal Exported for testing.
+ */
+export const isChatAgentBindingUnresolved = (
+	workspace: TypesGen.Workspace | undefined,
+	chatAgentId: string | undefined,
+): boolean => {
+	if (!workspace || workspace.latest_build.status !== "running") {
+		return false;
+	}
+	if (getWorkspaceAgents(workspace).length === 0) {
+		return false;
+	}
+	return getWorkspaceAgent(workspace, chatAgentId) === undefined;
 };
 
 const buildAttachmentMediaTypes = (
@@ -1058,6 +1083,34 @@ const AgentChatPage: FC = () => {
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
+
+	// After a workspace rebuild the chat's persisted agent binding can
+	// reference an agent from a previous build until the next turn rebinds
+	// it. Chat reads repair the binding, so refetch the chat, once per
+	// build/binding pair to stay loop-safe when repair is impossible.
+	const workspaceBuildId = workspace?.latest_build.id;
+	const agentBindingUnresolved = isChatAgentBindingUnresolved(
+		workspace,
+		chatAgentId,
+	);
+	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
+	useEffect(() => {
+		if (!agentId || !workspaceBuildId || !agentBindingUnresolved) {
+			return;
+		}
+		const refetchKey = `${agentId}:${workspaceBuildId}:${chatAgentId ?? ""}`;
+		if (agentBindingRefetchKeyRef.current === refetchKey) {
+			return;
+		}
+		agentBindingRefetchKeyRef.current = refetchKey;
+		void invalidateChatEntity(queryClient, agentId);
+	}, [
+		agentId,
+		workspaceBuildId,
+		chatAgentId,
+		agentBindingUnresolved,
+		queryClient,
+	]);
 
 	const chatRecord = chatQuery.data;
 	const isArchived = chatRecord?.archived ?? false;

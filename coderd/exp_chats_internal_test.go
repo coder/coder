@@ -139,7 +139,7 @@ func TestGetChatCostFallsBackToParentChat(t *testing.T) {
 	require.Equal(t, int64(125), cost.TotalCostMicros)
 }
 
-func TestEnrichMissingChatAgentIDs(t *testing.T) {
+func TestEnrichChatAgentIDs(t *testing.T) {
 	t.Parallel()
 	newAPI := func(t *testing.T) (*API, *dbmock.MockStore) {
 		t.Helper()
@@ -183,7 +183,7 @@ func TestEnrichMissingChatAgentIDs(t *testing.T) {
 		require.Nil(t, chats[0].AgentID)
 		require.Nil(t, chats[1].AgentID)
 	})
-	t.Run("selection error and skips bound or unbound", func(t *testing.T) {
+	t.Run("selection error keeps persisted values", func(t *testing.T) {
 		t.Parallel()
 		api, mDB := newAPI(t)
 		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub")}, nil)
@@ -192,6 +192,34 @@ func TestEnrichMissingChatAgentIDs(t *testing.T) {
 		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Nil(t, chats[1].AgentID)
 		require.Equal(t, bound, *chats[2].AgentID)
+	})
+	t.Run("repairs stale and keeps valid bindings", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		secondRootAgentID := uuid.New()
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
+			row(workspaceID, rootAgentID, uuid.NullUUID{}, "a"),
+			row(workspaceID, secondRootAgentID, uuid.NullUUID{}, "b"),
+		}, nil)
+		stale, valid := uuid.New(), secondRootAgentID
+		chats := []codersdk.Chat{
+			{WorkspaceID: &workspaceID, AgentID: &stale},
+			{WorkspaceID: &workspaceID, AgentID: &valid},
+		}
+		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		// The stale binding is repaired to the selected agent, while a
+		// binding still present in the latest build is kept even though
+		// selection would prefer another agent.
+		require.Equal(t, rootAgentID, *chats[0].AgentID)
+		require.Equal(t, secondRootAgentID, *chats[1].AgentID)
+	})
+	t.Run("no bound workspaces skips the query", func(t *testing.T) {
+		t.Parallel()
+		api, _ := newAPI(t)
+		chats := []codersdk.Chat{{AgentID: &rootAgentID}, {}}
+		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Equal(t, rootAgentID, *chats[0].AgentID)
+		require.Nil(t, chats[1].AgentID)
 	})
 }
 

@@ -23,6 +23,7 @@ import {
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
 	getWorkspaceOptionsWithLinkedWorkspace,
+	isChatAgentBindingUnresolved,
 	isWatchedWorkspaceViewUnchanged,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
@@ -1459,5 +1460,70 @@ describe("isWatchedWorkspaceViewUnchanged", () => {
 				MockWorkspaceAgent.id,
 			),
 		).toBe(false);
+	});
+
+	it("is false when the latest build changes", () => {
+		const next: Workspace = {
+			...MockWorkspace,
+			latest_build: { ...MockWorkspace.latest_build, id: "new-build-id" },
+		};
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(false);
+	});
+});
+
+describe("isChatAgentBindingUnresolved", () => {
+	it("is true when the bound agent is missing from the running build", () => {
+		expect(isChatAgentBindingUnresolved(MockWorkspace, "stale-agent-id")).toBe(
+			true,
+		);
+	});
+
+	it("is true when the chat has no binding yet", () => {
+		expect(isChatAgentBindingUnresolved(MockWorkspace, undefined)).toBe(true);
+	});
+
+	it("is false when the bound agent resolves", () => {
+		expect(
+			isChatAgentBindingUnresolved(MockWorkspace, MockWorkspaceAgent.id),
+		).toBe(false);
+	});
+
+	it("is false when the workspace is not running", () => {
+		const stopped: Workspace = {
+			...MockWorkspace,
+			latest_build: { ...MockWorkspace.latest_build, status: "stopped" },
+		};
+
+		expect(isChatAgentBindingUnresolved(stopped, "stale-agent-id")).toBe(false);
+	});
+
+	it("is false when the running build has no agents", () => {
+		const noAgents: Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				resources: MockWorkspace.latest_build.resources.map((resource) => ({
+					...resource,
+					agents: [],
+				})),
+			},
+		};
+
+		expect(isChatAgentBindingUnresolved(noAgents, "stale-agent-id")).toBe(
+			false,
+		);
+	});
+
+	it("is false while the workspace is loading", () => {
+		expect(isChatAgentBindingUnresolved(undefined, "stale-agent-id")).toBe(
+			false,
+		);
 	});
 });
