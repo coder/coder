@@ -80,7 +80,9 @@ const meta: Meta<typeof ProxyMenu> = {
 	decorators: [
 		(Story) => (
 			<AuthProvider>
-				<Story />
+				<div className="flex justify-end">
+					<Story />
+				</div>
 			</AuthProvider>
 		),
 		withDesktopViewport,
