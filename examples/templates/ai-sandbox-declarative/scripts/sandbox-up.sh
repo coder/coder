@@ -1,92 +1,94 @@
 #!/usr/bin/env bash
-# Boots a coder/sandbox microVM holding the AI-bound agent.
+# Builds a container-beside-container sandbox holding the AI-bound agent.
 #
-# Supplied by the platform at exec time (see agent script ExtraEnv):
-#   CODER_EGRESS_PROXY   host-side policy proxy, already listening
+# Supplied by the platform at exec time, after the egress proxy is listening:
+#   CODER_EGRESS_PROXY   host:port of the workspace-side policy proxy
 #   CODER_SANDBOX_ID     correlation ID for audit records
 #
 # Supplied by the template:
-#   CODER_AI_SANDBOX_NAME   stable sandbox handle
-#   CODER_AI_SANDBOX_IMAGE  guest image
-#   CODER_AI_SANDBOX_ALLOW  admin-declared extra egress hosts
-#   CODER_AI_AGENT_URL      coderd URL
-#   CODER_AI_AGENT_TOKEN    the BOUND agent's token, from coder_agent.ai.token
+#   CODER_AI_SANDBOX_IMAGE      image for the sandbox container
+#   CODER_AI_SANDBOX_WORKSPACE  this workspace's container name
+#   CODER_AI_AGENT_URL          coderd URL
+#   CODER_AI_AGENT_TOKEN        the BOUND agent's token
 #
-# EGRESS OWNERSHIP. coder/sandbox confines the guest with its own egress
-# lock: the guest opens exactly one TCP path, to the sandbox's host-side
-# recording proxy, which applies the allowlist and writes requests.log. The
-# guest therefore cannot reach CODER_EGRESS_PROXY, and HTTP_PROXY inside the
-# guest is reserved by the sandbox for its own recorder. For this backend:
+# TOPOLOGY. The sandbox is a sibling container, not a nested one: the Docker
+# CLI runs here but the daemon is the host's. The sandbox joins an
+# --internal network, which has no route off the host, and the workspace
+# joins that same network under a fixed alias. The result is that the
+# workspace-side proxy is the only reachable path out of the sandbox:
 #
-#   * enforcement and per-request recording live in coder/sandbox
-#   * the platform owns identity, binding, credential starvation, and the
-#     attestation
-#   * the platform's own egress event stream stays EMPTY for this sandbox
+#   [sandbox] --internal net--> [workspace proxy] --bridge--> internet
 #
-# That is a real gap, not an oversight. See the README.
+# That is what makes egress_enforcement = "forced" an honest claim for this
+# backend. It is structural: a process in the sandbox that ignores the proxy
+# environment variables still cannot route anywhere.
 set -euo pipefail
 
 log() { echo "[sandbox-up] $*"; }
 
-SANDBOX_NAME="${CODER_AI_SANDBOX_NAME:?sandbox name is required}"
-IMAGE="${CODER_AI_SANDBOX_IMAGE:-ubuntu:latest}"
-EXTRA_ALLOW="${CODER_AI_SANDBOX_ALLOW:-}"
-AGENT_URL="${CODER_AI_AGENT_URL:?agent URL is required}"
-AGENT_TOKEN="${CODER_AI_AGENT_TOKEN:?bound agent token is required}"
+SANDBOX_ID="${CODER_SANDBOX_ID:?platform must supply a sandbox ID}"
+PROXY="${CODER_EGRESS_PROXY:?platform must supply the egress proxy address}"
+IMAGE="${CODER_AI_SANDBOX_IMAGE:-codercom/example-base:ubuntu}"
+WORKSPACE_CONTAINER="${CODER_AI_SANDBOX_WORKSPACE:?template must supply the workspace container name}"
+AGENT_URL="${CODER_AI_AGENT_URL:?template must supply the coderd URL}"
+AGENT_TOKEN="${CODER_AI_AGENT_TOKEN:?template must supply the bound agent token}"
 
-SANDBOX_BIN="${CODER_SANDBOX_BIN:-$(command -v coder-sandbox || true)}"
-if [ -z "${SANDBOX_BIN}" ]; then
-	log "coder-sandbox not found: set CODER_SANDBOX_BIN or add it to PATH"
+SANDBOX_NAME="sb-${SANDBOX_ID}"
+NETWORK_NAME="sbnet-${SANDBOX_ID}"
+# A fixed alias means the sandbox's proxy address never depends on how the
+# workspace container happens to be named or addressed.
+PROXY_ALIAS="coder-egress-proxy"
+PROXY_PORT="${PROXY##*:}"
+
+if ! command -v docker >/dev/null 2>&1; then
+	log "docker CLI not found in the workspace image"
 	exit 1
 fi
 
-if [ ! -e /dev/kvm ]; then
-	log "/dev/kvm is absent: the microVM backend requires hardware virtualization"
-	exit 1
-fi
-
+# The sandbox needs the agent binary. Copying this workspace's binary avoids
+# requiring egress before the sandbox's own policy is in force.
 CODER_BIN="$(command -v coder || true)"
 if [ -z "${CODER_BIN}" ]; then
-	log "coder binary not found on PATH, cannot start the bound agent"
+	log "coder binary not found on PATH"
 	exit 1
 fi
 
-# The bound agent must reach the control plane, so the coderd host is the
-# one non-negotiable allowlist entry. Everything else is admin-declared.
-CODERD_HOST="${AGENT_URL#*://}"
-CODERD_HOST="${CODERD_HOST%%/*}"
-CODERD_HOST="${CODERD_HOST%%:*}"
-if [ -z "${CODERD_HOST}" ]; then
-	log "could not derive the coderd host from ${AGENT_URL}"
-	exit 1
-fi
+# Clean up anything a previous build left behind.
+docker rm -f "${SANDBOX_NAME}" >/dev/null 2>&1 || true
+docker network rm "${NETWORK_NAME}" >/dev/null 2>&1 || true
 
-ALLOW="${CODERD_HOST}"
-if [ -n "${EXTRA_ALLOW}" ]; then
-	ALLOW="${ALLOW},${EXTRA_ALLOW}"
-fi
+# --internal is the enforcement: no route off the host for anything on it.
+docker network create --internal "${NETWORK_NAME}" >/dev/null
+log "created internal network ${NETWORK_NAME}"
 
-# The platform proxy is running and reachable from the workspace, even though
-# this backend's guest cannot use it. Recording it makes the difference
-# between the two backends visible in the logs.
-log "platform egress proxy: ${CODER_EGRESS_PROXY:-<none>} (unused by this backend)"
-log "sandbox correlation id: ${CODER_SANDBOX_ID:-<none>}"
-log "booting ${SANDBOX_NAME} (image ${IMAGE}, allow ${ALLOW})"
+# Put the workspace on that network too, so the sandbox can reach the proxy
+# that runs here. Without this the sandbox is fully isolated and cannot even
+# reach coderd.
+docker network connect --alias "${PROXY_ALIAS}" \
+	"${NETWORK_NAME}" "${WORKSPACE_CONTAINER}" >/dev/null 2>&1 ||
+	log "workspace already attached to ${NETWORK_NAME}"
 
-# The token is passed as an -e value, which makes it visible in the host
-# process list. That is a demo simplification; a production script should
-# write it to a file mounted read-only into the guest instead.
-"${SANDBOX_BIN}" up "${SANDBOX_NAME}" \
-	-image "${IMAGE}" \
-	-allow "${ALLOW}" \
-	-v "${CODER_BIN}:/opt/coder-agent:ro" \
-	-e "CODER_AGENT_URL=${AGENT_URL}" \
-	-e "CODER_AGENT_TOKEN=${AGENT_TOKEN}"
+SANDBOX_PROXY="http://${PROXY_ALIAS}:${PROXY_PORT}"
+log "sandbox egress will route through ${SANDBOX_PROXY}"
 
-# Start the bound agent detached. The sandbox SSH exec runs a one-off
-# command, so the agent is backgrounded with setsid to survive it.
-log "starting the bound agent inside ${SANDBOX_NAME}"
-"${SANDBOX_BIN}" ssh "${SANDBOX_NAME}" -- \
-	"setsid sh -c 'exec /opt/coder-agent agent' </dev/null >/tmp/coder-agent.log 2>&1 &"
+# Create, copy the binary in, then start: the agent cannot run before it has
+# both its binary and its platform-issued credentials.
+docker create \
+	--name "${SANDBOX_NAME}" \
+	--network "${NETWORK_NAME}" \
+	--label "coder.sandbox_id=${SANDBOX_ID}" \
+	-e CODER_AGENT_URL="${AGENT_URL}" \
+	-e CODER_AGENT_TOKEN="${AGENT_TOKEN}" \
+	-e HTTP_PROXY="${SANDBOX_PROXY}" \
+	-e HTTPS_PROXY="${SANDBOX_PROXY}" \
+	-e http_proxy="${SANDBOX_PROXY}" \
+	-e https_proxy="${SANDBOX_PROXY}" \
+	-e NO_PROXY="localhost,127.0.0.1,::1" \
+	--entrypoint /bin/sh \
+	"${IMAGE}" \
+	-c 'exec /opt/coder-agent agent' >/dev/null
 
-log "started ${SANDBOX_NAME}; egress enforced and recorded by coder/sandbox"
+docker cp "${CODER_BIN}" "${SANDBOX_NAME}:/opt/coder-agent" >/dev/null
+docker start "${SANDBOX_NAME}" >/dev/null
+
+log "started ${SANDBOX_NAME}: egress forced through the platform proxy"

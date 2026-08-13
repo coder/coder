@@ -9,40 +9,37 @@ terraform {
   }
 }
 
-# The declarative AI sandbox shape.
+# An AI agent confined to a sibling container, declared entirely in Terraform.
 #
 # Two agents in one ordinary, human-owned workspace:
 #
-#   coder_agent.main  unbound. Keeps the owner's credentials. Runs the
-#                     egress proxy and the script that builds the sandbox.
+#   coder_agent.main  unbound. Keeps the owner's credentials. Runs the egress
+#                     proxy and the scripts that build and reclaim the sandbox.
 #   coder_agent.ai    ai_bound. The server binds it to a dedicated AI agent
-#                     identity, withholds every ambient owner credential,
-#                     and attributes its actions to that identity on behalf
-#                     of the owner.
+#                     identity, withholds every ambient owner credential, and
+#                     attributes its actions to that identity on behalf of the
+#                     owner.
 #
-# The workspace itself is NOT AI-designated. That distinction is the point:
-# designation would bind every agent including the host, which would starve
+# The workspace itself is NOT AI-designated, and that distinction is the whole
+# point: designation binds every agent including the host, which would starve
 # the supervisor of the credentials and policy it needs to do its job.
-
-variable "workspace_image" {
-  description = <<-EOT
-    Workspace image. It must carry the coder-sandbox binary and its
-    microsandbox runtime. The default Coder images do not; see the README.
-  EOT
-  type        = string
-  default     = "codercom/example-base:ubuntu"
-}
-
-variable "sandbox_image" {
-  description = "OCI image booted inside the coder/sandbox microVM."
-  type        = string
-  default     = "ubuntu:latest"
-}
 
 variable "docker_socket" {
   description = "(Optional) Docker socket URI."
   type        = string
   default     = ""
+}
+
+variable "workspace_image" {
+  description = "Workspace image. Must contain the Docker CLI."
+  type        = string
+  default     = "codercom/enterprise-base:ubuntu"
+}
+
+variable "sandbox_image" {
+  description = "Image for the sandbox container that holds the AI agent."
+  type        = string
+  default     = "codercom/enterprise-base:ubuntu"
 }
 
 provider "docker" {
@@ -53,27 +50,15 @@ data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
-data "coder_parameter" "sandbox_allow" {
-  name         = "sandbox_allow"
-  display_name = "Sandbox egress allowlist"
-  description  = <<-EOT
-    Extra hosts the sandboxed AI may reach, comma separated. The coderd host
-    is always allowed so the bound agent can connect. A leading dot matches
-    subdomains, for example .github.com. Everything else is denied.
-  EOT
-  type         = "string"
-  default      = ""
-  mutable      = true
-}
-
 locals {
-  # coder-sandbox enforces the guest's egress itself, so the sandbox name is
-  # the handle both the create and the destroy script use.
-  sandbox_name = "coder-ai-${data.coder_workspace.me.id}"
+  # The scripts need this to attach the workspace to the sandbox's internal
+  # network. Terraform knows it; discovering it from inside the container
+  # would be fragile.
+  workspace_container = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 }
 
-# The host agent. Ordinary in every respect: full owner credentials, and it
-# is the egress supervisor for the sandbox it builds.
+# The host agent: ordinary in every respect. It holds the owner's credentials
+# and is the egress supervisor for the sandbox it builds.
 resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
   os   = "linux"
@@ -104,71 +89,67 @@ resource "coder_agent" "main" {
 
 # The AI's agent. ai_bound is the entire security-relevant declaration.
 #
-# The server mints (or reuses) this workspace's AI agent identity at build
-# completion and binds this agent row to it. From that moment the agent is
-# denied the owner's user secrets, external auth tokens, and Git SSH key,
-# and its API calls attribute to the AI identity on behalf of the owner.
+# At build completion the server resolves this workspace's AI agent identity,
+# creating it on first use, and binds this agent row to it. From that moment
+# the agent is denied the owner's user secrets, external auth tokens, and Git
+# SSH key, and its API calls attribute to the AI identity on behalf of the
+# owner.
 #
-# ai_bound is opt-in only and monotonic: setting it to false cannot unbind
-# an agent, because in-workspace input must never widen a credential
-# boundary.
+# ai_bound is opt-in only and monotonic: setting it to false cannot unbind an
+# agent, because in-workspace input must never widen a credential boundary.
 resource "coder_agent" "ai" {
   arch = data.coder_provisioner.me.arch
   os   = "linux"
 
   ai_bound = true
 
-  # An administrator attestation about the boundary the startup script
-  # builds. coder/sandbox routes the guest through its own recording proxy
-  # with a deny-by-default allowlist, so "forced" is the honest claim here.
-  # The platform records the claim; it does not verify it.
+  # An administrator attestation about the boundary the startup script builds.
+  # The sandbox joins a Docker network created with --internal, which has no
+  # route off the host, so the workspace-side proxy is the only path out.
+  # "forced" is therefore an honest claim here. The platform records it; it
+  # does not verify it.
   egress_enforcement = "forced"
 }
 
-# Bring the sandbox up. This is an ordinary startup script: its content is
+# Build the sandbox. This is an ordinary startup script: its content is
 # versioned with the template and its output is surfaced as script logs.
 #
-# The agent supplies CODER_EGRESS_PROXY and CODER_SANDBOX_ID at exec time,
-# and does not run this script until the egress proxy is listening. The
-# bound agent's token comes from Terraform, because a declared agent has a
-# token like any other.
+# The agent injects CODER_EGRESS_PROXY and CODER_SANDBOX_ID at exec time and
+# does not run this script until the egress proxy is listening, so there is no
+# window in which the sandbox runs unconfined.
 resource "coder_script" "sandbox_up" {
   agent_id     = coder_agent.main.id
   display_name = "Start AI sandbox"
-  icon         = "/icon/container.svg"
+  icon         = "/icon/docker.png"
   run_on_start = true
 
   script = <<-EOT
     #!/usr/bin/env bash
     set -euo pipefail
-    export CODER_AI_SANDBOX_NAME="${local.sandbox_name}"
     export CODER_AI_SANDBOX_IMAGE="${var.sandbox_image}"
-    export CODER_AI_SANDBOX_ALLOW="${data.coder_parameter.sandbox_allow.value}"
+    export CODER_AI_SANDBOX_WORKSPACE="${local.workspace_container}"
     export CODER_AI_AGENT_URL="$${CODER_AGENT_URL:-}"
     export CODER_AI_AGENT_TOKEN="${coder_agent.ai.token}"
     exec bash /opt/coder-ai/sandbox-up.sh
   EOT
 }
 
-# Tear it down on stop. Credentials are already inert by then, because the
-# server revokes this build's keys on the stop transition; this script only
-# reclaims the microVM.
 resource "coder_script" "sandbox_down" {
   agent_id     = coder_agent.main.id
   display_name = "Stop AI sandbox"
-  icon         = "/icon/container.svg"
+  icon         = "/icon/docker.png"
   run_on_stop  = true
 
   script = <<-EOT
     #!/usr/bin/env bash
     set -euo pipefail
-    export CODER_AI_SANDBOX_NAME="${local.sandbox_name}"
+    export CODER_AI_SANDBOX_WORKSPACE="${local.workspace_container}"
     exec bash /opt/coder-ai/sandbox-down.sh
   EOT
 }
 
-# Apps attach to the bound agent directly: this terminal opens inside the
-# sandbox, not in the human's workspace.
+# Apps attach to the bound agent directly, so this terminal opens inside the
+# sandbox rather than in the human's workspace.
 resource "coder_app" "sandbox_terminal" {
   agent_id     = coder_agent.ai.id
   slug         = "ai-terminal"
@@ -186,20 +167,25 @@ resource "docker_volume" "home_volume" {
 resource "docker_container" "workspace" {
   count    = data.coder_workspace.me.start_count
   image    = var.workspace_image
-  name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  name     = local.workspace_container
   hostname = data.coder_workspace.me.name
-
-  # The microVM backend needs hardware virtualization.
-  devices {
-    host_path = "/dev/kvm"
-  }
 
   entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
 
-  # Only the host agent's token goes here. The bound agent's token reaches
-  # the sandbox through the startup script, never through the host agent's
-  # own environment.
-  env = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+
+    # Run the egress proxy without a platform-managed sandbox. The template
+    # owns the sandbox through coder_agent.ai and the scripts above; the agent
+    # contributes only the proxy, and the policy it enforces.
+    "CODER_AI_EGRESS_PROXY=true",
+
+    # The proxy must bind an address the sandbox container can reach, so it
+    # cannot use the workspace's loopback.
+    "CODER_AI_SANDBOX_PROXY_ADDRESS=0.0.0.0:13337",
+    "CODER_AI_SANDBOX_EGRESS_ENFORCEMENT=forced",
+    "CODER_AI_SANDBOX_NAME=${lower(data.coder_workspace.me.name)}",
+  ]
 
   host {
     host = "host.docker.internal"
@@ -212,10 +198,22 @@ resource "docker_container" "workspace" {
     read_only      = false
   }
 
-  # The sandbox scripts and the microsandbox runtime cache.
+  # The sandbox scripts.
   volumes {
     container_path = "/opt/coder-ai"
     host_path      = abspath("${path.module}/scripts")
     read_only      = true
+  }
+
+  # The sandbox scripts drive Docker on the host, creating the sandbox as a
+  # SIBLING container rather than a nested one. This grants the workspace
+  # control of the host Docker daemon, which is a deliberate trust decision:
+  # acceptable for a demo, and the reason rootless Podman is the production
+  # direction. Note the AI cannot reach this socket: it lives in the
+  # workspace, and the sandbox is on an internal network with no route here.
+  volumes {
+    container_path = "/var/run/docker.sock"
+    host_path      = "/var/run/docker.sock"
+    read_only      = false
   }
 }

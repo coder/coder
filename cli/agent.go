@@ -273,9 +273,13 @@ func workspaceAgent() *serpent.Command {
 				scriptExtraEnv    func() []string
 				scriptStartupWait func(context.Context) error
 			)
-			// This is the interim declaration surface until the Terraform
-			// coder_ai_sandbox resource is available.
-			if _, ok := os.LookupEnv(confine.EnvAISandboxCreateScript); ok {
+			// Two declaration surfaces: a create script, which makes the
+			// platform manage the sandbox, or the proxy-only switch, used by
+			// templates that declare an ai_bound coder_agent and build the
+			// sandbox from an ordinary coder_script.
+			_, hasCreateScript := os.LookupEnv(confine.EnvAISandboxCreateScript)
+			_, hasEgressProxy := os.LookupEnv(confine.EnvAIEgressProxy)
+			if hasCreateScript || hasEgressProxy {
 				declaration, err := confine.SandboxDeclarationFromEnv(os.LookupEnv)
 				if err != nil {
 					return xerrors.Errorf("parse AI sandbox declaration: %w", err)

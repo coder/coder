@@ -22,6 +22,11 @@ import (
 const (
 	// EnvAISandboxCreateScript declares the sandbox create command.
 	EnvAISandboxCreateScript = "CODER_AI_SANDBOX_CREATE_SCRIPT"
+	// EnvAIEgressProxy runs the egress proxy without a platform-managed
+	// sandbox, for templates that declare the sandbox as an ai_bound
+	// coder_agent plus an ordinary coder_script. Any non-empty value enables
+	// it; it is ignored when a create script is declared.
+	EnvAIEgressProxy = "CODER_AI_EGRESS_PROXY"
 	// EnvAISandboxDestroyScript declares the optional sandbox destroy command.
 	EnvAISandboxDestroyScript = "CODER_AI_SANDBOX_DESTROY_SCRIPT"
 	// EnvAISandboxName declares the sandbox reconciliation name.
@@ -68,7 +73,18 @@ type SandboxDeclaration struct {
 func SandboxDeclarationFromEnv(lookup func(string) (string, bool)) (SandboxDeclaration, error) {
 	createScript, ok := lookup(EnvAISandboxCreateScript)
 	if !ok || strings.TrimSpace(createScript) == "" {
-		return SandboxDeclaration{}, xerrors.Errorf("%s is required", EnvAISandboxCreateScript)
+		// Proxy-only mode. A template that declares its sandbox with an
+		// ai_bound coder_agent and an ordinary coder_script does not hand the
+		// agent a create script: the script runner owns the sandbox, and the
+		// agent owns only the egress proxy. The proxy still has to be
+		// listening before any script runs, so the controller is still what
+		// starts it.
+		if enable, ok := lookup(EnvAIEgressProxy); !ok || strings.TrimSpace(enable) == "" {
+			return SandboxDeclaration{}, xerrors.Errorf(
+				"%s or %s is required", EnvAISandboxCreateScript, EnvAIEgressProxy,
+			)
+		}
+		createScript = ""
 	}
 
 	declaration := SandboxDeclaration{
@@ -178,9 +194,8 @@ func NewSandboxController(options SandboxControllerOptions) (*SandboxController,
 	if options.LogDir == "" {
 		return nil, xerrors.New("AI sandbox log directory is required")
 	}
-	if strings.TrimSpace(options.Declaration.CreateScript) == "" {
-		return nil, xerrors.New("AI sandbox create script is required")
-	}
+	// An empty create script selects proxy-only mode; see
+	// SandboxDeclarationFromEnv.
 	if !sandboxNamePattern.MatchString(options.Declaration.Name) {
 		return nil, xerrors.Errorf("invalid AI sandbox name %q", options.Declaration.Name)
 	}
@@ -225,26 +240,46 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 		}
 		c.scriptEnvHandoff.complete(nil, err)
 	}()
-	if err := c.deleteStaleSandboxes(ctx); err != nil {
-		return err
-	}
+	// Proxy-only mode: the template owns the sandbox through an ai_bound
+	// coder_agent and a coder_script, so there is no platform-managed sandbox
+	// to reconcile or create. The controller contributes the egress proxy and
+	// the policy it enforces, and nothing else.
+	proxyOnly := strings.TrimSpace(c.options.Declaration.CreateScript) == ""
 
-	createCtx, createCancel := context.WithTimeout(ctx, fetchTimeout)
-	sandbox, err := c.options.Client.CreateAISandbox(createCtx, agentsdk.CreateAISandboxRequest{
-		Name:              c.options.Declaration.Name,
-		EgressEnforcement: c.options.Declaration.EgressEnforcement,
-	})
-	createCancel()
-	if err != nil {
-		return xerrors.Errorf("create AI sandbox: %w", err)
+	var sandbox agentsdk.CreateAISandboxResponse
+	if proxyOnly {
+		// A local ID correlates this proxy's logs with the script that used
+		// it. It is deliberately not a server-side sandbox record: see the
+		// audit note where the session would otherwise be posted.
+		sandbox = agentsdk.CreateAISandboxResponse{ID: uuid.New()}
+	} else {
+		if err := c.deleteStaleSandboxes(ctx); err != nil {
+			return err
+		}
+
+		createCtx, createCancel := context.WithTimeout(ctx, fetchTimeout)
+		created, err := c.options.Client.CreateAISandbox(createCtx, agentsdk.CreateAISandboxRequest{
+			Name:              c.options.Declaration.Name,
+			EgressEnforcement: c.options.Declaration.EgressEnforcement,
+		})
+		createCancel()
+		if err != nil {
+			return xerrors.Errorf("create AI sandbox: %w", err)
+		}
+		sandbox = created
 	}
-	if sandbox.Reconciled {
+	switch {
+	case proxyOnly:
+		c.options.Logger.Info(ctx, "running AI egress proxy without a platform-managed sandbox",
+			slog.F("correlation_id", sandbox.ID),
+		)
+	case sandbox.Reconciled:
 		c.options.Logger.Info(ctx, "reconciled AI sandbox",
 			slog.F("sandbox_id", sandbox.ID),
 			slog.F("child_agent_id", sandbox.ChildAgentID),
 			slog.F("name", c.options.Declaration.Name),
 		)
-	} else {
+	default:
 		c.options.Logger.Info(ctx, "created AI sandbox",
 			slog.F("sandbox_id", sandbox.ID),
 			slog.F("child_agent_id", sandbox.ChildAgentID),
@@ -294,16 +329,32 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 	}()
 
 	startedAt := time.Now()
-	c.postSession(runCtx, agentsdk.PostAISandboxSessionRequest{
-		ID:                sessionID,
-		ChildAgentID:      sandbox.ChildAgentID,
-		EgressEnforcement: c.options.Declaration.EgressEnforcement,
-		StartedAt:         startedAt,
-	})
+	if !proxyOnly {
+		c.postSession(runCtx, agentsdk.PostAISandboxSessionRequest{
+			ID:                sessionID,
+			ChildAgentID:      sandbox.ChildAgentID,
+			EgressEnforcement: c.options.Declaration.EgressEnforcement,
+			StartedAt:         startedAt,
+		})
+	} else {
+		// KNOWN GAP. The session and network-event endpoints attribute a flow
+		// through the reporting agent's CHILD, so they require the bound agent
+		// to be a sub-agent of this one. A Terraform-declared ai_bound agent is
+		// a sibling instead, with no parent_id, so its flows cannot be
+		// attributed yet and are logged locally rather than retained server
+		// side. Closing this needs a parent relationship between the host agent
+		// and the declared agent, which is tracked as future work in
+		// AI_AGENT_SANDBOX_SPEC.md.
+		c.options.Logger.Warn(ctx, "egress events are not retained server side in proxy-only mode",
+			slog.F("correlation_id", sandbox.ID),
+		)
+	}
 
-	createEnv := c.createScriptEnvironment(sandbox, proxy.Addr().String())
-	if err := c.runScript(ctx, "create", c.options.Declaration.CreateScript, createEnv, createScriptTimeout); err != nil {
-		c.signalDegraded("AI sandbox create script failed; sandbox remains active (degraded)", err)
+	if !proxyOnly {
+		createEnv := c.createScriptEnvironment(sandbox, proxy.Addr().String())
+		if err := c.runScript(ctx, "create", c.options.Declaration.CreateScript, createEnv, createScriptTimeout); err != nil {
+			c.signalDegraded("AI sandbox create script failed; sandbox remains active (degraded)", err)
+		}
 	}
 
 	<-ctx.Done()

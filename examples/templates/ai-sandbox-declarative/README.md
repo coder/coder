@@ -1,73 +1,101 @@
 ---
 display_name: AI sandbox (declarative)
-description: An AI agent confined to a coder/sandbox microVM, declared in Terraform
-tags: [local, docker, ai]
-icon: /icon/docker.png
+description: An AI agent confined to a sibling container, declared in Terraform
+icon: ../../../site/static/icon/docker.png
+maintainer_github: coder
+tags: [docker, ai, security, demo]
 ---
 
 # AI sandbox, declared in Terraform
 
 A human-owned workspace containing two agents: an ordinary one holding the
-owner's credentials, and an AI-bound one confined to a `coder/sandbox`
-microVM with deny-by-default egress. The AI agent is declared in Terraform
-with a single attribute, `ai_bound = true`.
+owner's credentials, and an AI-bound one confined to a sibling container with
+no route to the internet except through a policy proxy. The AI agent is
+declared with a single Terraform attribute, `ai_bound = true`.
 
-This template demonstrates the Vertical 1 and Vertical 2 work described in
-`AI_AGENT_IDENTITY_SPEC.md` and `AI_AGENT_SANDBOX_SPEC.md`.
+This demonstrates the work described in `AI_AGENT_IDENTITY_SPEC.md` and
+`AI_AGENT_SANDBOX_SPEC.md`.
 
-## What the demo shows
+## What it shows
 
-| Claim | How it is visible |
+| Claim | How to see it |
 |---|---|
-| The AI acts as a distinct principal | The bound agent's API calls audit as an `ai_agent` user, on behalf of the owner |
-| The AI cannot reach the owner's credentials | No user secrets, no external auth token, no Git SSH key, no owner session token |
-| The AI cannot escape into the owner's other workspaces | Every workspace action except read and create requires a designation match |
-| The AI's network egress is confined and recorded | `coder-sandbox` denies by default and writes `requests.log` |
-| The workspace remains the human's | The host agent keeps full credentials; `workspaces.ai_agent_id` stays NULL |
+| The AI is a distinct principal | Its API calls audit as an `ai_agent` user, on behalf of the owner |
+| The AI cannot reach the owner's credentials | No user secrets, no external auth, no Git SSH key, no owner session token |
+| The AI cannot escape to the owner's other workspaces | Every workspace action except read and create requires a designation match |
+| The AI's egress is structurally confined | Its network has no route out; the proxy is the only path |
+| The workspace is still the human's | The host agent keeps full credentials; `workspaces.ai_agent_id` stays NULL |
 
-## Prerequisites
+## Topology
 
-This template depends on provider and server changes that are on a branch,
-not in a release.
+The sandbox is a **sibling** container, not a nested one. The Docker CLI runs
+in the workspace but the daemon is the host's, so both containers are peers:
 
-1. **A Coder server built from the `ais` branch.** The `ai_bound` handling,
-   identity binding, and script environment injection all live server side
-   and in the agent binary.
+```text
+Docker host
+├── coder-you-ai-demo         workspace: owner's credentials, egress proxy
+│      │  docker CLI -> /var/run/docker.sock (host daemon)
+│      └── attached to sbnet-<id> as "coder-egress-proxy"
+└── sb-<id>                   sandbox: the AI-bound agent
+       └── on sbnet-<id> only, an --internal network with no route out
+```
 
-2. **The `coder/coder` Terraform provider built from its `ai-agent-identity`
-   branch**, because `ai_bound` and `egress_enforcement` do not exist in any
-   published provider release. Build it and add a dev override:
+`--internal` is the enforcement. A process in the sandbox that ignores the
+proxy environment variables still cannot route anywhere; the only address it
+can reach is the workspace's, on that network, where the proxy listens.
 
-   ```bash
-   cd terraform-provider-coder
-   go build -o ~/.terraform.d/plugins/coder-dev
-   ```
+## Recreating this yourself
 
-   ```hcl
-   # ~/.terraformrc
-   provider_installation {
-     dev_overrides {
-       "coder/coder" = "/home/YOU/.terraform.d/plugins"
-     }
-     direct {}
-   }
-   ```
+### 1. Build a Coder server from the `ais` branch
 
-3. **Hardware virtualization.** `/dev/kvm` must exist on the Docker host and
-   is mapped into the workspace container by this template. Without it the
-   microVM backend cannot boot.
+The `ai_bound` handling, identity binding, and script environment injection
+are all server side and in the agent binary.
 
-4. **A workspace image carrying the tooling.** The default
-   `codercom/example-base:ubuntu` does **not** include `coder-sandbox` or
-   the microsandbox runtime. Build an image that has:
-   - the `coder-sandbox` binary on `PATH` (`make build` in `coder/sandbox`),
-   - the `msb` and `libkrunfw` runtime preseeded under `~/.microsandbox`,
-     since the first boot otherwise needs outbound network access that the
-     workspace may not have.
+```bash
+git clone https://github.com/coder/coder.git
+cd coder && git checkout ais
+./scripts/develop.sh
+```
 
-   Set `workspace_image` to that image when creating the workspace.
+That serves on `http://localhost:3000` and creates a first user. Leave it
+running.
 
-## Setup
+### 2. Build the Terraform provider from its branch
+
+`ai_bound` and `egress_enforcement` are not in any published provider
+release, so the provider must be built and overridden locally.
+
+```bash
+git clone https://github.com/coder/terraform-provider-coder.git
+cd terraform-provider-coder && git checkout ai-agent-identity
+mkdir -p ~/.terraform.d/plugins
+go build -o ~/.terraform.d/plugins/terraform-provider-coder
+```
+
+Add a dev override so Terraform uses it instead of the registry:
+
+```hcl
+# ~/.terraformrc
+provider_installation {
+  dev_overrides {
+    "coder/coder" = "/home/YOU/.terraform.d/plugins"
+  }
+  direct {}
+}
+```
+
+### 3. Confirm the host can do what the template needs
+
+```bash
+docker version                      # a reachable daemon
+docker network create --internal x  # internal networks are permitted
+docker network rm x
+```
+
+The workspace image must contain the Docker CLI.
+`codercom/enterprise-base:ubuntu`, the default here, does.
+
+### 4. Push the template and create a workspace
 
 ```bash
 coder templates push ai-sandbox-declarative \
@@ -76,131 +104,119 @@ coder templates push ai-sandbox-declarative \
 coder create ai-demo --template ai-sandbox-declarative
 ```
 
+### 5. Confirm the sandbox came up
+
+```bash
+coder ssh ai-demo.main -- docker ps --filter name=sb- --format '{{.Names}}'
+coder ssh ai-demo.main -- docker network ls --filter name=sbnet-
+```
+
+The startup script's log, in the workspace page or `coder logs`, shows the
+proxy address it was given and the network it created.
+
 ## Demo walkthrough
 
-### 1. Two agents, one workspace, different privilege
+### Two agents, one workspace, different privilege
 
-Open the workspace page. Two agents appear: `main` and `ai`. The `ai` row
-carries the AI-bound badge.
-
-```bash
-# The host agent has the owner's credentials.
-coder ssh ai-demo.main -- 'echo $CODER_SESSION_TOKEN | head -c 12'
-
-# The bound agent does not. This returns empty.
-coder ssh ai-demo.ai -- 'echo "[$CODER_SESSION_TOKEN]"'
-```
-
-The point to make out loud: nothing in the template asked for this. The
-only declaration was `ai_bound = true`; withholding credentials is a server
-decision that a template cannot override.
-
-### 2. The credential sources are individually denied
-
-Starvation is enforced at each source, not by stripping one env var:
+The workspace page lists `main` and `ai`; the `ai` row carries the AI-bound
+badge.
 
 ```bash
-# All three fail for the bound agent and succeed for the host agent.
-coder ssh ai-demo.ai   -- 'coder external-auth access-token github'
-coder ssh ai-demo.main -- 'coder external-auth access-token github'
+# The host agent has the owner's session token.
+coder ssh ai-demo.main -- 'echo "[${CODER_SESSION_TOKEN:0:8}]"'
 
-coder ssh ai-demo.ai   -- 'git ls-remote git@github.com:coder/coder.git'
-coder ssh ai-demo.main -- 'git ls-remote git@github.com:coder/coder.git'
+# The bound agent does not. This prints [].
+coder ssh ai-demo.ai -- 'echo "[${CODER_SESSION_TOKEN:-}]"'
 ```
 
-### 3. The AI is a distinct principal in the audit log
+Worth saying out loud: nothing in the template asked for this. The only
+declaration was `ai_bound = true`. Withholding credentials is a server
+decision that a template cannot override, and setting `ai_bound = false`
+later cannot undo it for a workspace the server has already designated.
 
-Have the bound agent do something auditable, then look at who did it:
+### Each credential source is denied separately
+
+Starvation is enforced at every source, not by stripping one variable:
 
 ```bash
-coder ssh ai-demo.ai -- 'coder whoami'
+coder ssh ai-demo.ai   -- 'coder external-auth access-token github' ; echo "rc=$?"
+coder ssh ai-demo.main -- 'coder external-auth access-token github' ; echo "rc=$?"
+
+coder ssh ai-demo.ai   -- 'git ls-remote git@github.com:coder/coder.git' ; echo "rc=$?"
+coder ssh ai-demo.main -- 'git ls-remote git@github.com:coder/coder.git' ; echo "rc=$?"
 ```
 
-In the audit log the actor is the agent identity, and the on-behalf-of
-field is the human owner. Filter by the human and their agents' actions
-appear alongside their own; filter by the agent and only the agent's do.
-
-### 4. Egress is denied by default
+### Egress is structurally confined
 
 ```bash
-# The coderd host is always allowed, or the agent could not connect.
-coder ssh ai-demo.ai -- 'curl -sS -o /dev/null -w "%{http_code}\n" https://YOUR-CODER-HOST'
+# The sandbox has no route to the internet at all.
+coder ssh ai-demo.main -- \
+  docker exec sb-$(coder show ai-demo --output json | jq -r .id) \
+  sh -c 'wget -q -T 3 -O - http://1.1.1.1/ || echo "no route: denied"'
 
-# Anything else is denied by coder-sandbox.
-coder ssh ai-demo.ai -- 'curl -sS --max-time 5 https://example.org' || echo denied
+# It can reach the workspace's proxy, and only that.
+coder ssh ai-demo.main -- \
+  docker exec sb-$(coder show ai-demo --output json | jq -r .id) \
+  sh -c 'wget -q -T 3 -O - http://coder-egress-proxy:13337/ ; echo'
 ```
 
-Now widen the allowlist through the `sandbox_allow` parameter, restart, and
-show the same request succeeding. The allowlist is an administrator control:
-nothing inside the sandbox can change it.
+The second command proves the path exists; the first proves it is the only
+one. A process that ignores `HTTP_PROXY` gets the first result.
 
-Show the recorded flows:
+To show policy rather than routing, set a template egress policy allowing one
+host, then request an allowed and a denied host through the proxy from inside
+the sandbox.
 
-```bash
-coder ssh ai-demo.main -- 'coder-sandbox ls'
-# and the sandbox's own request log, path per coder/sandbox docs
+### The AI cannot reach the owner's other workspaces
+
+Create a second, ordinary workspace for the same user. Using a credential
+scoped to the AI identity, reads succeed but SSH, start, stop, and update are
+denied: the designation boundary requires the workspace's `ai_agent_id` to
+equal the acting identity.
+
+This is what makes credential starvation meaningful. Without it, an agent
+denied credentials in its own workspace could simply connect to one that
+still has them.
+
+### The workspace is still the human's
+
+```sql
+-- NULL: an ai_bound agent does not designate its workspace, which is why the
+-- host agent keeps its credentials and its policy.
+SELECT ai_agent_id FROM workspaces WHERE name = 'ai-demo';
+
+-- The bound agent row, by contrast, carries an identity.
+SELECT name, ai_agent_id FROM workspace_agents
+WHERE ai_agent_id IS NOT NULL;
 ```
 
-### 5. The AI cannot reach the owner's other workspaces
+## Ordering guarantee
 
-Create a second, ordinary workspace for the same user. Then, using a
-credential scoped to the AI identity, attempt to reach it. Reads succeed;
-SSH, start, stop, and update are denied, because the designation boundary
-requires the workspace's `ai_agent_id` to equal the acting identity.
+The startup script logs the proxy address before creating anything. That
+address exists because the agent starts its proxy and waits for it to listen
+**before** running any startup script, so there is no window in which the
+sandbox runs unconfined. The guarantee is covered by a test that asserts a
+script cannot run while proxy readiness is withheld.
 
-This is the property that makes credential starvation meaningful: without
-it, an agent denied credentials in its own workspace could simply SSH into
-one that still has them.
+## Known gaps
 
-### 6. The workspace is still the human's
+State these plainly if they come up.
 
-```bash
-# NULL: an ai_bound agent does not designate its workspace.
-# The host agent therefore keeps its credentials and its policy.
-psql -c "SELECT ai_agent_id FROM workspaces WHERE name = 'ai-demo'"
-```
-
-## Ordering guarantee worth pointing out
-
-The startup script logs the platform egress proxy address before booting
-the sandbox. That address exists because the agent starts its proxy and
-waits for it to be listening **before** running any startup script. There is
-no window in which a sandbox is running unconfined, and the guarantee is
-covered by a test that asserts the script cannot run while readiness is
-withheld.
-
-## What this backend does and does not give you
-
-`coder/sandbox` owns the guest's egress: the guest can open exactly one TCP
-path, to the sandbox's own recording proxy, which applies the allowlist and
-writes `requests.log`. Consequences worth stating plainly during the demo:
-
-- Enforcement and per-request recording are **coder/sandbox's**, and they
-  are strong: the guest cannot bypass them.
-- The platform still owns identity, binding, credential starvation, the
-  audit attribution, and the attestation.
-- **The platform's own egress event stream stays empty for this sandbox.**
-  The guest cannot reach `CODER_EGRESS_PROXY`, so the workspace egress
-  activity view will show nothing. Use the sandbox's `requests.log` instead.
-
-A Docker-container backend routes through the platform proxy and does
-populate that view, at the cost of weaker isolation. The two are a real
-tradeoff, not a preference.
-
-## Not yet wired
-
-Be honest about these if they come up:
-
+- **Egress events are not retained server side in this mode.** The proxy
+  enforces policy and logs decisions locally, but the audit endpoints
+  attribute a flow through the reporting agent's *child*, and a
+  Terraform-declared `ai_bound` agent is a *sibling* with no `parent_id`. The
+  workspace egress activity view will therefore be empty. Closing this needs
+  a parent relationship between the host agent and the declared agent.
 - **`CODER_AI_SESSION_TOKEN` is not delivered.** The bound agent's *agent*
-  token comes from Terraform (`coder_agent.ai.token`), which is why the demo
-  works. The scoped AI *session* token, for `coder` CLI calls inside the
-  sandbox, requires server-side minting under the AI identity that is not
-  implemented. In-sandbox CLI commands that need a session token will fail.
+  token comes from Terraform, which is why the demo works. The scoped AI
+  *session* token, for `coder` CLI calls inside the sandbox, needs server-side
+  minting under the AI identity that is not implemented.
 - **`egress_enforcement` is not persisted.** It reaches coderd through the
-  provisioner but is not yet stored or surfaced in the API or UI.
-- **The platform proxy has no client authentication.** In a container
-  backend it must bind an address the sandbox can reach, and anything else
-  that can reach it could use the workspace's allowlist. This backend does
-  not expose that, because its guest cannot reach the proxy at all.
-- **`ai_credential_mode`** is specified in the design but not implemented.
-  Every bound agent is effectively `none`.
+  provisioner but is not yet stored or surfaced.
+- **The host Docker socket is mounted into the workspace**, which is
+  effectively host root for anything that can reach it. The AI cannot: the
+  socket is in the workspace, and the sandbox has no route there. Rootless
+  Podman removes the socket entirely and is the production direction.
+- **`ai_credential_mode`** is specified but not implemented; every bound agent
+  is effectively `none`.

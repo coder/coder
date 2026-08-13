@@ -394,3 +394,53 @@ func writeJSON(rw http.ResponseWriter, value any) {
 	rw.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(rw).Encode(value)
 }
+
+// TestSandboxDeclarationProxyOnly covers the declarative surface: a template
+// that declares an ai_bound coder_agent and builds the sandbox from an
+// ordinary coder_script gives the agent no create script, but the agent must
+// still start the egress proxy so scripts can route through it.
+func TestSandboxDeclarationProxyOnly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EnablesWithoutCreateScript", func(t *testing.T) {
+		t.Parallel()
+
+		declaration, err := confine.SandboxDeclarationFromEnv(mapLookup(map[string]string{
+			confine.EnvAIEgressProxy:              "true",
+			confine.EnvAISandboxProxyAddress:      "0.0.0.0:0",
+			confine.EnvAISandboxEgressEnforcement: "forced",
+		}))
+		require.NoError(t, err)
+		require.Empty(t, declaration.CreateScript,
+			"proxy-only mode must not invent a create script")
+		require.Equal(t, "0.0.0.0:0", declaration.ProxyAddress)
+	})
+
+	t.Run("RequiresOneOfTheTwoSurfaces", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := confine.SandboxDeclarationFromEnv(mapLookup(map[string]string{
+			confine.EnvAISandboxName: "demo",
+		}))
+		require.Error(t, err, "neither surface declared must be an error, not a silent no-op")
+	})
+
+	t.Run("CreateScriptStillWins", func(t *testing.T) {
+		t.Parallel()
+
+		declaration, err := confine.SandboxDeclarationFromEnv(mapLookup(map[string]string{
+			confine.EnvAISandboxCreateScript: "/opt/up.sh",
+			confine.EnvAIEgressProxy:         "true",
+		}))
+		require.NoError(t, err)
+		require.Equal(t, "/opt/up.sh", declaration.CreateScript,
+			"a declared create script keeps the platform-managed sandbox path")
+	})
+}
+
+func mapLookup(values map[string]string) func(string) (string, bool) {
+	return func(key string) (string, bool) {
+		value, ok := values[key]
+		return value, ok
+	}
+}
