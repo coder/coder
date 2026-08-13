@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -512,6 +514,77 @@ func TestAPIKey_SetDefault(t *testing.T) {
 	apiKey1, err := db.GetAPIKeyByID(ctx, split[0])
 	require.NoError(t, err)
 	require.EqualValues(t, dc.Sessions.DefaultTokenDuration.Value().Seconds(), apiKey1.LifetimeSeconds)
+}
+
+//nolint:tparallel,paralleltest // Subtests share one server and verify key counts sequentially.
+func TestAPIKey_AIAgentTargetsForbidden(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	agentUser, _, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        owner.UserID,
+		OrganizationID: owner.OrganizationID,
+		OriginType:     database.AIAgentOriginChat,
+		OriginID:       uuid.New(),
+	})
+	require.NoError(t, err)
+
+	keyCount := func(t *testing.T, userID uuid.UUID, loginType database.LoginType) int {
+		t.Helper()
+
+		keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+			LoginType:      loginType,
+			UserID:         userID,
+			IncludeExpired: true,
+		})
+		require.NoError(t, err)
+		return len(keys)
+	}
+
+	tests := []struct {
+		name      string
+		loginType database.LoginType
+		create    func(context.Context, string) error
+	}{
+		{
+			name:      "session key",
+			loginType: database.LoginTypePassword,
+			create: func(ctx context.Context, userID string) error {
+				_, err := client.CreateAPIKey(ctx, userID)
+				return err
+			},
+		},
+		{
+			name:      "token",
+			loginType: database.LoginTypeToken,
+			create: func(ctx context.Context, userID string) error {
+				_, err := client.CreateToken(ctx, userID, codersdk.CreateTokenRequest{})
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Zero(t, keyCount(t, agentUser.ID, tt.loginType))
+
+			err := tt.create(ctx, agentUser.ID.String())
+			require.Error(t, err)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+			require.Zero(t, keyCount(t, agentUser.ID, tt.loginType))
+
+			before := keyCount(t, owner.UserID, tt.loginType)
+			require.NoError(t, tt.create(ctx, owner.UserID.String()))
+			require.Equal(t, before+1, keyCount(t, owner.UserID, tt.loginType))
+		})
+	}
 }
 
 func TestAPIKey_PrebuildsNotAllowed(t *testing.T) {
