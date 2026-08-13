@@ -139,6 +139,19 @@ export const ClosedCriticalLatency: Story = {
 	},
 };
 
+export const ClosedNoLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: Object.fromEntries(
+				Object.entries(MockProxyLatencies).filter(
+					([id]) => id !== MockWorkspaceProxies[0].id,
+				),
+			),
+		},
+	},
+};
+
 export const Opened: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

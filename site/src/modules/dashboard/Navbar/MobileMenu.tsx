@@ -134,6 +134,9 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 				>
 					Workspace proxy settings:
 					<span className="leading-none flex items-center gap-1">
+						<span className="sr-only">
+							Latency for {selectedProxy.display_name || selectedProxy.name}
+						</span>
 						<RadioIcon
 							aria-hidden="true"
 							className={cn("size-4", getLatencyColor(latency?.latencyMS))}
