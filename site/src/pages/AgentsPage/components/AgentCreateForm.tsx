@@ -292,7 +292,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}),
 		enabled: showOrganizations,
 	});
-	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
+	// A disabled query retains cached data, so once showOrganizations
+	// turns false (org count dropped to one) the dashboard list is
+	// authoritative; the stale permitted list could keep a removed org
+	// selected and submitting.
+	const permittedOrgs = showOrganizations
+		? (permittedOrgsQuery.data ?? organizations)
+		: organizations;
 	// Treat the dashboard org as provisional until permissions resolve so
 	// sends and persisted attachments cannot use an unpermitted org.
 	const orgSelectionSettled =

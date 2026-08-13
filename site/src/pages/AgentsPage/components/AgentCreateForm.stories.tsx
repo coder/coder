@@ -1317,6 +1317,36 @@ export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
 	},
 };
 
+export const SingleOrgIgnoresStalePermittedCache: Story = {
+	parameters: {
+		// showOrganizations is false (org count dropped to one), but the
+		// disabled query still holds a cached permitted list naming an
+		// org the dashboard no longer knows. It must be ignored.
+		showOrganizations: false,
+		organizations: [MockDefaultOrganization],
+		queries: [
+			{
+				key: chatCreateOrganizationsQuery.queryKey,
+				data: [MockOrganization2],
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	play: async ({ canvasElement, args }) => {
+		await submitMessage(canvasElement, "test message");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					organizationId: MockDefaultOrganization.id,
+				}),
+			);
+		});
+	},
+};
+
 export const RevokedPendingOrgClosesConfirmDialog: Story = {
 	...revocableStoryContext,
 	beforeEach: () => {
