@@ -1145,9 +1145,10 @@ func TestRefreshToken(t *testing.T) {
 
 		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
 
-		refreshed := link
-		refreshed.OAuthAccessToken = "winner-access-token"
-		refreshed.OAuthRefreshToken = "winner-refresh-token"
+		refreshed := database.ExternalAuthLink{
+			OAuthAccessToken:  "winner-access-token",
+			OAuthRefreshToken: "winner-refresh-token",
+		}
 
 		// Simulate another replica already having a lease the first time, then
 		// resolve with an updated link the second time.
@@ -1160,8 +1161,8 @@ func TestRefreshToken(t *testing.T) {
 
 		updated, err := config.RefreshToken(ctx, mDB, link)
 		require.NoError(t, err)
-		require.Equal(t, updated.OAuthAccessToken, "winner-access-token")
-		require.Equal(t, updated.OAuthRefreshToken, "winner-refresh-token")
+		require.Equal(t, refreshed.OAuthAccessToken, updated.OAuthAccessToken)
+		require.Equal(t, refreshed.OAuthRefreshToken, updated.OAuthRefreshToken)
 	})
 
 	// OptimisticLockPreventsStaleOverwrite verifies that the
