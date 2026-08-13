@@ -481,6 +481,37 @@ func LicensesEntitlements(
 					End:      defaultManagedAgentsEnd,
 				},
 			})
+
+			// Premium licenses without agent_runtime_hours_* claims are
+			// grandfathered into a zero-hour allocation: the feature is
+			// granted disabled with a zero limit, which measures and
+			// publishes usage (see the measureUsage call below) and caps
+			// concurrent agentic chats the same as an explicit zero
+			// allocation.
+			var (
+				// A fixed issue time that predates any license issued with
+				// agent_runtime_hours_* claims, so a license that actually
+				// carries those claims outranks this default in
+				// Feature.Compare (IssuedAt-first for usage period features)
+				// regardless of the licenses' relative issue dates. This
+				// must remain earlier than the earliest legitimately issued
+				// claim-bearing license.
+				defaultAgentRuntimeHoursIssuedAt = time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+				defaultAgentRuntimeHoursLimit    int64
+			)
+			entitlements.AddFeature(codersdk.FeatureAgentRuntimeHours, codersdk.Feature{
+				Enabled:     false,
+				Entitlement: entitlement,
+				Limit:       &defaultAgentRuntimeHoursLimit,
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: defaultAgentRuntimeHoursIssuedAt,
+					// The license term, matching a license with an explicit
+					// zero allocation, so measured usage covers the current
+					// term.
+					Start: usagePeriodStart,
+					End:   usagePeriodEnd,
+				},
+			})
 		}
 
 		// TODO: Remove this tracking once AI Bridge is enforced as an add-on license.
@@ -746,9 +777,12 @@ func LicensesEntitlements(
 	}
 
 	// Usage is measured even for a zero allocation, which reports the
-	// feature disabled: see decodeAgentRuntimeHours. Reported usage can
-	// trail real usage; the sources of staleness and loss are documented
-	// on the enterprise/coderd/usage.AgentRuntime* constants.
+	// feature disabled: see decodeAgentRuntimeHours. Premium licenses
+	// without agent runtime hour claims grant the same disabled zero-limit
+	// feature (see the grandfather default above), so every premium
+	// deployment reports usage here. Reported usage can trail real usage;
+	// the sources of staleness and loss are documented on the
+	// enterprise/coderd/usage.AgentRuntime* constants.
 	runtimeHours := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
 	if entitlements.HasLicense && runtimeHours.UsagePeriod != nil {
 		runtimeMs, ok, err := measureUsage(ctx, &entitlements,
@@ -939,6 +973,10 @@ func measureUsage(
 // allocation supersedes the advisory soft limit, so the dashboard banner
 // never stacks both messages.
 func appendAgentRuntimeHoursWarning(warnings []string, actualHours int64, allocation int64, softLimit *int64) []string {
+	// A zero allocation (explicit or the grandfathered premium default) has
+	// no thresholds to warn about: those deployments are steered by the
+	// in-page upgrade CTA and the concurrent chat cap, not a
+	// deployment-wide banner.
 	if allocation <= 0 {
 		return warnings
 	}
@@ -1065,8 +1103,9 @@ func agentRuntimeMsToHours(ms int64) int64 {
 // look healthy.
 //
 // A zero allocation grants the feature disabled, but Actual is still
-// measured and published. CODAGT-856 will make a zero allocation force a
-// concurrency-limited mode; that mode does not exist yet.
+// measured and published. A disabled feature forces the concurrency-limited
+// mode from CODAGT-856 (chatd pooled admission), which also covers premium
+// licenses granted the grandfathered zero-hour default in Entitlements.
 func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (feature codersdk.Feature, granted bool, ignoredClaims []string) {
 	if _, ok := features[codersdk.FeatureAgentRuntimeHours]; ok {
 		ignoredClaims = append(ignoredClaims, string(codersdk.FeatureAgentRuntimeHours))
