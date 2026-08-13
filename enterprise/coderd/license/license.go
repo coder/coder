@@ -115,8 +115,8 @@ func Entitlements(
 			// licenses (e.g. higher hard limit) to account for additional
 			// usage.
 			//
-			// nolint:gocritic // Reading usage events requires the usage publisher subject.
-			return db.GetTotalUsageDCManagedAgentsV1(dbauthz.AsUsagePublisher(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
+			// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
+			return db.GetTotalUsageDCManagedAgentsV1(dbauthz.AsSystemRestricted(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
 				StartDate: startTime,
 				EndDate:   endTime,
 			})
@@ -756,17 +756,24 @@ func LicensesEntitlements(
 	if entitlements.HasLicense && agentLimit.UsagePeriod != nil {
 		// Calculate the amount of agents between the usage period start and
 		// end.
-		managedAgentCount, ok, err := measureUsage(ctx, &entitlements,
-			featureArguments.Logger, featureArguments.ManagedAgentCountFn, *agentLimit.UsagePeriod,
-			"managed agent count", codersdk.LicenseManagedAgentUsageUnavailableErrorText)
-		if err != nil {
-			return entitlements, err
+		var (
+			managedAgentCount int64
+			err               = xerrors.New("dev error: managed agent count function is not set")
+		)
+		if featureArguments.ManagedAgentCountFn != nil {
+			managedAgentCount, err = featureArguments.ManagedAgentCountFn(ctx, agentLimit.UsagePeriod.Start, agentLimit.UsagePeriod.End)
 		}
-		if ok {
+		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+			// If the context is canceled, we want to bail the entire
+			// LicensesEntitlements call.
+			return entitlements, xerrors.Errorf("get managed agent count: %w", err)
+		}
+		if err != nil {
+			entitlements.Errors = append(entitlements.Errors, fmt.Sprintf("Error getting managed agent count: %s", err.Error()))
+			// no return
+		} else {
 			agentLimit.Actual = &managedAgentCount
-			// Write directly rather than via AddFeature so its Compare
-			// cannot drop the update.
-			entitlements.Features[codersdk.FeatureManagedAgentLimit] = agentLimit
+			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, agentLimit)
 
 			// Only issue warnings if the feature is enabled.
 			if agentLimit.Enabled && agentLimit.Limit != nil && managedAgentCount >= *agentLimit.Limit {
@@ -800,8 +807,10 @@ func LicensesEntitlements(
 			// caller-supplied seam.
 			actualMs := max(runtimeMs, 0)
 			runtimeHours.ActualMs = &actualMs
-			// Written back directly rather than through AddFeature; see
-			// the managed-agent write-back above for why.
+			// Written back directly rather than through AddFeature:
+			// AddFeature only replaces the existing entry when the new one
+			// strictly outranks it, so setting Actual on an otherwise
+			// identical feature would be dropped as a tie.
 			entitlements.Features[codersdk.FeatureAgentRuntimeHours] = runtimeHours
 
 			// A nil Limit means the license grants unlimited runtime

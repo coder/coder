@@ -1098,7 +1098,7 @@ func TestEntitlements(t *testing.T) {
 
 		mDB.EXPECT().
 			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
-			Return(int64(0), xerrors.New("kaboom managed"))
+			Return(int64(0), nil)
 		mDB.EXPECT().
 			GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
 			Return(int64(0), xerrors.New("kaboom runtime"))
@@ -1113,16 +1113,13 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
-		// Both failures surface their stable text without the raw cause.
-		require.Contains(t, entitlements.Errors, codersdk.LicenseManagedAgentUsageUnavailableErrorText)
+		// The failure surfaces its stable text without the raw cause.
 		require.Contains(t, entitlements.Errors, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
 		for _, entry := range append(entitlements.Errors, entitlements.Warnings...) {
 			require.NotContains(t, entry, "kaboom")
 		}
 
 		logs := logBuf.String()
-		require.Contains(t, logs, "get managed agent count for entitlements")
-		require.Contains(t, logs, "kaboom managed")
 		require.Contains(t, logs, "get agent runtime for entitlements")
 		require.Contains(t, logs, "kaboom runtime")
 	})
@@ -1582,9 +1579,6 @@ func TestLicenseEntitlements(t *testing.T) {
 		// KeepNilAgentRuntimeMsFn skips the default AgentRuntimeMsFn
 		// injection below so the nil dev-error path can be exercised.
 		KeepNilAgentRuntimeMsFn bool
-		// KeepNilManagedAgentCountFn is the managed agent sibling of
-		// KeepNilAgentRuntimeMsFn.
-		KeepNilManagedAgentCountFn bool
 		// CancelContext cancels the context passed to LicensesEntitlements
 		// before the call, exercising the usage-measurement abort policy.
 		CancelContext bool
@@ -2050,27 +2044,6 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			// The managed agent sibling of QueryError: the stable text
-			// hides the raw cause the same way.
-			Name: "ManagedAgentLimit/QueryError",
-			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
-			},
-			Arguments: license.FeatureArguments{
-				ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
-					return 0, xerrors.New("kaboom")
-				},
-			},
-			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assertNoWarnings(t, entitlements)
-				require.Len(t, entitlements.Errors, 1)
-				assert.Equal(t, codersdk.LicenseManagedAgentUsageUnavailableErrorText, entitlements.Errors[0])
-				assert.NotContains(t, entitlements.Errors[0], "kaboom")
-				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
-				assert.Nil(t, feature.Actual)
-			},
-		},
-		{
 			// Forgetting to wire AgentRuntimeMsFn is a dev error: production
 			// always provides both closures, so it fails the whole call
 			// loudly instead of degrading into an operator-facing message.
@@ -2080,15 +2053,6 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 			KeepNilAgentRuntimeMsFn: true,
 			ExpectedErrorContains:   "developer error: no closure provided to measure agent runtime usage",
-		},
-		{
-			// The managed agent sibling of NilRuntimeFnDevError.
-			Name: "ManagedAgentLimit/NilFnDevError",
-			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
-			},
-			KeepNilManagedAgentCountFn: true,
-			ExpectedErrorContains:      "developer error: no closure provided to measure managed agent count usage",
 		},
 		{
 			// A failure while the computation's own context is canceled
@@ -2105,20 +2069,6 @@ func TestLicenseEntitlements(t *testing.T) {
 				},
 			},
 			ExpectedErrorContains: "get agent runtime",
-		},
-		{
-			// The managed agent sibling of ContextCanceled.
-			Name: "ManagedAgentLimit/ContextCanceled",
-			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
-			},
-			CancelContext: true,
-			Arguments: license.FeatureArguments{
-				ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
-					return 0, context.Canceled
-				},
-			},
-			ExpectedErrorContains: "get managed agent count",
 		},
 		{
 			// Postgres raises the same SQLSTATE 57014 for statement_timeout
@@ -2319,7 +2269,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			}
 
 			// Default to 0 managed agent count.
-			if tc.Arguments.ManagedAgentCountFn == nil && !tc.KeepNilManagedAgentCountFn {
+			if tc.Arguments.ManagedAgentCountFn == nil {
 				tc.Arguments.ManagedAgentCountFn = func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
 					return 0, nil
 				}
@@ -2362,9 +2312,10 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 
 	aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more."
 
-	// A Premium license grants a managed agent limit by default, and a nil
-	// usage closure is a hard developer error, so these subtests wire
-	// zero-usage measurement closures.
+	// A Premium license grants a managed agent limit and a grandfathered
+	// agent runtime allocation by default: a nil AgentRuntimeMsFn is a hard
+	// developer error and a nil ManagedAgentCountFn degrades into an
+	// entitlements error, so these subtests wire zero-usage closures.
 	zeroUsageArgs := license.FeatureArguments{
 		ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
 			return 0, nil

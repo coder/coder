@@ -6,7 +6,6 @@ import {
 	LicenseAIGovernance90PercentWarningText,
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
-	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -46,7 +45,6 @@ export const formatLicenseMessage = (
 // usage itself. They render muted, without the exceedance heading or a sales
 // link, even when they arrive via entitlements.errors.
 const diagnosticMessages: readonly string[] = [
-	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 ];

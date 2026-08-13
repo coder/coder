@@ -23,7 +23,6 @@ const (
 	// placeholder. See TestLicenseAgentRuntimeHoursWarningTexts.
 	LicenseAgentRuntimeHoursSoftLimitWarningText         = "Your deployment is approaching its Coder Agent runtime hours allocation: %d of the %d hours included in the current license term are used, at or above the advisory soft limit of %d hours."
 	LicenseAgentRuntimeHoursAllocationReachedWarningText = "Your deployment has used %d of the %d Coder Agent runtime hours included in the current license term."
-	LicenseManagedAgentUsageUnavailableErrorText         = "Unable to determine managed agent usage. The reported count is unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details."
 	LicenseAgentRuntimeUsageUnavailableErrorText         = "Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details."
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText     = "A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued."
 )
