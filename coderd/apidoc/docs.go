@@ -507,7 +507,7 @@ const docTemplate = `{
         },
         "/api/experimental/chats/{chat}/compact": {
             "post": {
-                "description": "Experimental: this endpoint is subject to change.\nRequests a manual context compaction on an idle chat. The\ncompaction runs asynchronously through the chat worker and\nbypasses the automatic usage threshold.",
+                "description": "Experimental: this endpoint is subject to change.\nRequests a manual context compaction on an idle or errored\nchat, clearing any stored error. The compaction runs\nasynchronously through the chat worker and bypasses the\nautomatic usage threshold.",
                 "produces": [
                     "application/json"
                 ],

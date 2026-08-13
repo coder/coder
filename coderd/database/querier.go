@@ -1432,6 +1432,10 @@ type sqlcQuerier interface {
 	// requires-action deadline, and the manual compaction request marker.
 	// Callers compose this with transition mutations inside a single
 	// ChatMachine.Update transaction.
+	//
+	// grant_history_epoch gives a turn that inserts no history the same
+	// fresh retry budget and message part episode keys a history change
+	// would grant, mirroring the chat_messages trigger postcondition.
 	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified
