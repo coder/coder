@@ -7,6 +7,8 @@ import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
+import { rewriteLocalhostURL } from "#/utils/portForward";
+import { ChatUrlTransformContext } from "../../../context/ChatUrlTransformContext";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
@@ -673,6 +675,91 @@ export const ProcessOutputAlwaysExpanded: Story = {
 					name: "Collapse full process output",
 				}),
 			).toHaveAttribute("aria-expanded", "true");
+		});
+	},
+};
+
+export const ProcessOutputLocalhostLinkRewritten: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext
+				value={(url) =>
+					rewriteLocalhostURL(
+						url,
+						"*.proxy.example.com",
+						"main",
+						"my-ws",
+						"alice",
+					)
+				}
+			>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
+	args: {
+		name: "process_output",
+		status: "completed",
+		shellToolDisplayMode: "always_expanded",
+		result: {
+			output: "Server ready at http://localhost:3000/apps?tab=1\ndone",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = await canvas.findByRole("link", {
+			name: "http://localhost:3000/apps?tab=1",
+		});
+		expect(link).toHaveAttribute(
+			"href",
+			"http://3000--main--my-ws--alice.proxy.example.com/apps?tab=1",
+		);
+	},
+};
+
+export const ProcessOutputFocusExpandsClippedLink: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		result: {
+			output: [
+				...Array.from({ length: 40 }, (_, index) => `line ${index + 1}`),
+				"Server at http://localhost:3000/",
+			].join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = await canvas.findByRole("link", {
+			name: "http://localhost:3000/",
+		});
+		expect(
+			canvas.getByRole("button", { name: "Expand full process output" }),
+		).toHaveAttribute("aria-expanded", "false");
+		link.focus();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Collapse full process output" }),
+			).toHaveAttribute("aria-expanded", "true");
+		});
+		expect(link.checkVisibility()).toBe(true);
+		// checkVisibility ignores scroll position, so the reveal is only
+		// observable as a scrolled ancestor. Walking ancestors avoids
+		// assuming which container implements the scrolling.
+		const scrolledAncestor = () => {
+			for (
+				let node = link.parentElement;
+				node && node !== canvasElement;
+				node = node.parentElement
+			) {
+				if (node.scrollTop > 0) {
+					return node;
+				}
+			}
+			return undefined;
+		};
+		await waitFor(() => {
+			expect(scrolledAncestor()).toBeDefined();
 		});
 	},
 };

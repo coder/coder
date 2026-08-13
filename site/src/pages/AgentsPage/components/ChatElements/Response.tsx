@@ -4,19 +4,14 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import type { ComponentPropsWithRef, ReactNode } from "react";
-import {
-	type Components,
-	defaultRehypePlugins,
-	Streamdown,
-	type UrlTransform,
-} from "streamdown";
+import { type Components, defaultRehypePlugins, Streamdown } from "streamdown";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
+import { useChatUrlTransform } from "../../context/ChatUrlTransformContext";
 import { MarkdownImage } from "./MarkdownImage";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
-	urlTransform?: UrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
 	 * preprocessing (remend) and useTransition-based render
 	 * scheduling. Pass true only for live-streaming output. */
@@ -103,21 +98,33 @@ const markdownFileViewerStyle = {
 	"--diffs-line-height": "20px",
 };
 
+const MarkdownAnchor = ({ href, children }: MarkdownComponentProps) => {
+	const transform = useChatUrlTransform();
+	return (
+		<a
+			href={href && transform ? transform(href) : href}
+			target="_blank"
+			rel="noopener noreferrer"
+			className="text-content-link no-underline hover:underline hover:decoration-content-link"
+		>
+			{children}
+		</a>
+	);
+};
+
+const ChatMarkdownImage = ({ src, alt }: MarkdownComponentProps) => {
+	const transform = useChatUrlTransform();
+	return (
+		<MarkdownImage src={src && transform ? transform(src) : src} alt={alt} />
+	);
+};
+
 const createComponents = (
 	fileViewerThemeType: FileViewerThemeType,
 	viewerTheme: (typeof fileViewerTheme)[FileViewerThemeType],
 ): Components => {
 	return {
-		a: ({ href, children }: MarkdownComponentProps) => (
-			<a
-				href={href}
-				target="_blank"
-				rel="noopener noreferrer"
-				className="text-content-link no-underline hover:underline hover:decoration-content-link"
-			>
-				{children}
-			</a>
-		),
+		a: MarkdownAnchor,
 		// Headings scaled for a 13px base using a tight,
 		// Apple-like progression.
 		h1: ({ children }: MarkdownComponentProps) => (
@@ -190,9 +197,9 @@ const createComponents = (
 		// Gate externally hosted images behind viewer consent so
 		// rendering a chat never discloses the viewer's IP address
 		// to an attacker-controlled host (Cure53 CDM-02-006).
-		img: ({ src, alt }: MarkdownComponentProps) => (
-			<MarkdownImage src={src} alt={alt} />
-		),
+		// ChatMarkdownImage rewrites localhost sources first, so the
+		// consent check runs on the URL the browser would fetch.
+		img: ChatMarkdownImage,
 		// Horizontal rule: reset browser default inset/ridge border
 		// (preflight is disabled) to a clean 1px solid line.
 		hr: () => (
@@ -270,7 +277,6 @@ export const Response = ({
 	className,
 	children,
 	ref,
-	urlTransform,
 	streaming,
 	...props
 }: ResponseProps) => {
@@ -288,10 +294,13 @@ export const Response = ({
 			)}
 			{...props}
 		>
+			{/* Streamdown caches rendered blocks by content, so URLs must
+			    stay raw here and get rewritten at render time by
+			    MarkdownAnchor and ChatMarkdownImage, which read the
+			    transform from context. */}
 			<Streamdown
 				controls={false}
 				components={components}
-				urlTransform={urlTransform}
 				rehypePlugins={chatRehypePlugins}
 				mode={streaming ? "streaming" : "static"}
 				parseIncompleteMarkdown={streaming}

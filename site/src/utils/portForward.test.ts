@@ -168,6 +168,32 @@ describe("rewriteLocalhostURL", () => {
 		);
 	});
 
+	it("rewrites [::1]", () => {
+		const result = rewriteLocalhostURL(
+			"http://[::1]:8080/",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://8080--my-agent--my-workspace--my-username.proxy-host.tld/",
+		);
+	});
+
+	it("returns an already rewritten URL unchanged", () => {
+		const rewritten = rewriteLocalhostURL(
+			"http://localhost:3000/app",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(
+			rewriteLocalhostURL(rewritten, proxyHost, agent, workspace, username),
+		).toEqual(rewritten);
+	});
+
 	it("preserves query params", () => {
 		const result = rewriteLocalhostURL(
 			"http://localhost:3000/path?key=value",
@@ -178,6 +204,19 @@ describe("rewriteLocalhostURL", () => {
 		);
 		expect(result).toEqual(
 			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/path?key=value",
+		);
+	});
+
+	it("preserves hash fragments", () => {
+		const result = rewriteLocalhostURL(
+			"http://localhost:3000/#/settings",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/#/settings",
 		);
 	});
 

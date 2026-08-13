@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
+import { rewriteLocalhostURL } from "#/utils/portForward";
+import { ChatUrlTransformContext } from "../../../context/ChatUrlTransformContext";
 import { Tool } from "./Tool";
 
 const sampleQuestion =
@@ -379,5 +381,44 @@ export const LongAdviceLongQuestion: Story = {
 		expect(toggle).toHaveAttribute("aria-expanded", "true");
 		expect(await canvas.findByText(longQuestion)).toBeInTheDocument();
 		expect(await canvas.findByText("Follow-up questions")).toBeInTheDocument();
+	},
+};
+
+export const LocalhostLinkInAdvice: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext
+				value={(url) =>
+					rewriteLocalhostURL(
+						url,
+						"*.proxy.example.com",
+						"main",
+						"my-ws",
+						"alice",
+					)
+				}
+			>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
+	args: {
+		status: "completed",
+		args: { question: "Where is the dev server running?" },
+		result: {
+			type: "advice",
+			advice:
+				"Open [the preview](http://localhost:3000/apps?tab=1) or read [the docs](https://coder.com/docs).",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const preview = await canvas.findByRole("link", { name: "the preview" });
+		expect(preview).toHaveAttribute(
+			"href",
+			"http://3000--main--my-ws--alice.proxy.example.com/apps?tab=1",
+		);
+		const docs = canvas.getByRole("link", { name: "the docs" });
+		expect(docs).toHaveAttribute("href", "https://coder.com/docs");
 	},
 };
