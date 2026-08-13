@@ -88,6 +88,120 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 	},
 };
 
+// Reproduces the tool-result flicker window: a durable pending read_file
+// call (tc-1) is already rendered while its result streams before the tool
+// step commits, so the result-only row must be filtered out. A parallel
+// in-stream read_file call (tc-2) is not pending in the durable transcript,
+// so its streamed call and result merge normally and stay visible.
+export const StreamedResultForPendingToolDoesNotDuplicate: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Read the files" }]),
+			buildMessage(2, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "tc-1",
+					tool_name: "read_file",
+					args: { path: "src/Alpha.ts" },
+				},
+			]),
+		]);
+		store.setChatStatus("running");
+
+		// tc-1 result streams before its tool step commits. tc-2 is a new
+		// in-stream call whose result merges with its own call.
+		store.applyMessageParts([
+			{
+				type: "tool-result",
+				tool_call_id: "tc-1",
+				tool_name: "read_file",
+				result: { content: "alpha body" },
+			},
+			{
+				type: "tool-call",
+				tool_call_id: "tc-2",
+				tool_name: "read_file",
+				args: { path: "src/Beta.ts" },
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "tc-2",
+				tool_name: "read_file",
+				result: { content: "beta body" },
+			},
+		]);
+
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// tc-1 renders once as the durable pending row; its streamed result-only
+		// duplicate ("Read file") is suppressed.
+		expect(canvas.getAllByText("Reading Alpha.ts…")).toHaveLength(1);
+		expect(canvas.queryByText("Read file")).toBeNull();
+		// tc-2 was never durable pending, so its streamed row still renders.
+		expect(canvas.getByText("Read Beta.ts")).toBeInTheDocument();
+	},
+};
+
+// A durable pending advisor call streams its result_delta parts into the
+// live tail, then its final result part. filterPendingStreamState keeps
+// results that streamed deltas so the progressive advice UI keeps rendering
+// for the pending id until the durable commit.
+export const StreamedAdvisorAdviceForPendingToolStillRenders: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Plan the change" }]),
+			buildMessage(2, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "advisor-1",
+					tool_name: "advisor",
+					args: { question: "Is this migration safe?" },
+				},
+			]),
+		]);
+		store.setChatStatus("running");
+
+		store.applyMessageParts([
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-1",
+				tool_name: "advisor",
+				result_delta: "Use ",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-1",
+				tool_name: "advisor",
+				result_delta: "small steps.",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-1",
+				tool_name: "advisor",
+				result: {
+					type: "advice",
+					advice: "Use small steps.",
+					advisor_model: "test-provider/test-model",
+					remaining_uses: "2",
+				},
+			},
+		]);
+
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The accumulated advice text is the progressive surface the filter
+		// must keep, and it renders exactly once.
+		await canvas.findByText("Use small steps.");
+		expect(canvas.getAllByText("Use small steps.")).toHaveLength(1);
+	},
+};
+
 export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 	render: () => {
 		const store = createChatStore();

@@ -3,6 +3,7 @@ import {
 	applyMessagePartToStreamState,
 	buildStreamTools,
 	createEmptyStreamState,
+	filterPendingStreamState,
 } from "./streamState";
 import type { StreamState } from "./types";
 
@@ -699,6 +700,240 @@ describe("applyMessagePartToStreamState", () => {
 			isError: true,
 			status: "error",
 		});
+	});
+});
+
+describe("filterPendingStreamState", () => {
+	const pendingReadFileState = (): StreamState => ({
+		blocks: [{ type: "tool", id: "tc-1" }],
+		toolCalls: {},
+		toolResults: {
+			"tc-1": {
+				id: "tc-1",
+				name: "read_file",
+				result: { content: "file body" },
+				isError: false,
+			},
+		},
+		sources: [],
+	});
+
+	it("normalizes a fully filtered state to null", () => {
+		const filtered = filterPendingStreamState(
+			pendingReadFileState(),
+			new Set(["tc-1"]),
+		);
+		expect(filtered).toBeNull();
+	});
+
+	it("keeps a result and block that share an id with an in-stream call", () => {
+		const state: StreamState = {
+			blocks: [{ type: "tool", id: "tc-1" }],
+			toolCalls: {
+				"tc-1": { id: "tc-1", name: "read_file", args: { path: "a.ts" } },
+			},
+			toolResults: {
+				"tc-1": {
+					id: "tc-1",
+					name: "read_file",
+					result: { content: "file body" },
+					isError: false,
+				},
+			},
+			sources: [],
+		};
+		// The normal streaming merge path wins even when the same id is
+		// pending in the durable transcript.
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(filtered).toBe(state);
+		const tools = buildStreamTools(filtered?.toolCalls, filtered?.toolResults);
+		expect(tools).toHaveLength(1);
+		expect(tools[0].status).toBe("completed");
+	});
+
+	it("keeps a result-only entry for a parallel call to the same tool with a different id", () => {
+		const state: StreamState = {
+			blocks: [
+				{ type: "tool", id: "tc-1" },
+				{ type: "tool", id: "tc-2" },
+			],
+			toolCalls: {},
+			toolResults: {
+				"tc-1": {
+					id: "tc-1",
+					name: "read_file",
+					result: { content: "first" },
+					isError: false,
+				},
+				"tc-2": {
+					id: "tc-2",
+					name: "read_file",
+					result: { content: "second" },
+					isError: false,
+				},
+			},
+			sources: [],
+		};
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(Object.keys(filtered?.toolResults ?? {})).toEqual(["tc-2"]);
+		expect(filtered?.blocks).toEqual([{ type: "tool", id: "tc-2" }]);
+	});
+
+	it("keeps a partially filtered state non-null when other content remains", () => {
+		const state: StreamState = {
+			blocks: [
+				{ type: "response", text: "Reading the file now." },
+				{ type: "tool", id: "tc-1" },
+			],
+			toolCalls: {},
+			toolResults: {
+				"tc-1": {
+					id: "tc-1",
+					name: "read_file",
+					result: { content: "file body" },
+					isError: false,
+				},
+			},
+			sources: [],
+		};
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(filtered).not.toBeNull();
+		expect(filtered?.toolResults).toEqual({});
+		expect(filtered?.blocks).toEqual([
+			{ type: "response", text: "Reading the file now." },
+		]);
+	});
+
+	it("keeps non-tool blocks and other tool blocks while dropping the pending one", () => {
+		const state: StreamState = {
+			blocks: [
+				{ type: "response", text: "Reading the file now." },
+				{ type: "tool", id: "tc-1" },
+				{ type: "tool", id: "tc-2" },
+			],
+			toolCalls: {
+				"tc-2": { id: "tc-2", name: "bash", args: { command: "ls" } },
+			},
+			toolResults: {
+				"tc-1": {
+					id: "tc-1",
+					name: "read_file",
+					result: { content: "file body" },
+					isError: false,
+				},
+			},
+			sources: [],
+		};
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(filtered?.blocks).toEqual([
+			{ type: "response", text: "Reading the file now." },
+			{ type: "tool", id: "tc-2" },
+		]);
+		expect(filtered?.toolResults).toEqual({});
+		expect(filtered?.toolCalls).toBe(state.toolCalls);
+	});
+
+	it("returns the input reference when nothing is dropped", () => {
+		const state = pendingReadFileState();
+		expect(filterPendingStreamState(state, undefined)).toBe(state);
+		expect(filterPendingStreamState(state, new Set())).toBe(state);
+		expect(filterPendingStreamState(state, new Set(["tc-other"]))).toBe(state);
+	});
+
+	it("returns null for null stream state", () => {
+		expect(filterPendingStreamState(null, new Set(["tc-1"]))).toBeNull();
+	});
+
+	it("keeps a still-streaming result for a pending durable call", () => {
+		const state: StreamState = {
+			blocks: [{ type: "tool", id: "tc-1" }],
+			toolCalls: {},
+			toolResults: {
+				"tc-1": {
+					id: "tc-1",
+					name: "advisor",
+					result: "Use small steps.",
+					resultRaw: "Use small steps.",
+					isError: false,
+					isStreaming: true,
+				},
+			},
+			sources: [],
+		};
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(filtered).toBe(state);
+		const tools = buildStreamTools(filtered?.toolCalls, filtered?.toolResults);
+		expect(tools).toHaveLength(1);
+		expect(tools[0].status).toBe("running");
+	});
+
+	it("keeps a delta-streamed result after streaming completes until commit", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "tc-1",
+			result_delta: "Use ",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "tc-1",
+			result_delta: "small steps.",
+		});
+		// While the delta is still streaming the entry is kept.
+		expect(filterPendingStreamState(state, new Set(["tc-1"]))).toBe(state);
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "tc-1",
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				advisor_model: "test-provider/test-model",
+				remaining_uses: "2",
+			},
+		});
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(filtered).not.toBeNull();
+		expect(filtered?.toolResults["tc-1"]).toMatchObject({
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				advisor_model: "test-provider/test-model",
+				remaining_uses: "2",
+			},
+			isError: false,
+			streamedDelta: true,
+		});
+		const tools = buildStreamTools(filtered?.toolCalls, filtered?.toolResults);
+		expect(tools).toHaveLength(1);
+		expect(tools[0].status).toBe("completed");
+	});
+
+	it("keeps a delta-streamed result that ends with an error", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "tc-1",
+			result_delta: "partial advice",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "tc-1",
+			result_delta: "",
+			is_error: true,
+		});
+		const filtered = filterPendingStreamState(state, new Set(["tc-1"]));
+		expect(filtered).not.toBeNull();
+		expect(filtered?.toolResults["tc-1"]).toMatchObject({
+			isError: true,
+			streamedDelta: true,
+		});
+		expect(filtered?.blocks).toEqual([{ type: "tool", id: "tc-1" }]);
 	});
 });
 

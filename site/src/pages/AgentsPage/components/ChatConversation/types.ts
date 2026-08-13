@@ -97,6 +97,8 @@ type StreamToolResult = {
 	isError: boolean;
 	/** True while result deltas are still accumulating before the final result. */
 	isStreaming?: boolean;
+	/** True when any result_delta part was applied, even after streaming completes. */
+	streamedDelta?: boolean;
 	mcpServerConfigId?: string;
 };
 

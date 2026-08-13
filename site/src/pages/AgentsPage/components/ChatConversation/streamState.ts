@@ -154,6 +154,10 @@ export const applyMessagePartToStreamState = (
 						resultRaw: nextResult.rawText,
 						isError: nextIsError,
 						isStreaming: isStreaming || undefined,
+						streamedDelta:
+							Boolean(part.result_delta) ||
+							existing?.streamedDelta ||
+							undefined,
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
 					},
@@ -232,6 +236,64 @@ const getStreamToolStatus = (
 		return "running";
 	}
 	return result.isError ? "error" : "completed";
+};
+
+/**
+ * Drops result-only stream entries whose tool call is already rendered as
+ * pending in the durable transcript, so the live tail does not show a
+ * duplicate row before the tool step commits. Results that streamed deltas
+ * stay visible until the durable commit so progressive output keeps rendering,
+ * and a state left with no visible content becomes null so the tail renders
+ * nothing. See the filterPendingStreamState tests for the full behavior
+ * contract.
+ */
+export const filterPendingStreamState = (
+	streamState: StreamState | null,
+	pendingToolCallIDs: ReadonlySet<string> | undefined,
+): StreamState | null => {
+	if (!streamState || !pendingToolCallIDs || pendingToolCallIDs.size === 0) {
+		return streamState;
+	}
+	const toolResults: StreamState["toolResults"] = {};
+	let dropped = false;
+	for (const [id, result] of Object.entries(streamState.toolResults)) {
+		if (
+			pendingToolCallIDs.has(id) &&
+			!streamState.toolCalls[id] &&
+			!result.isStreaming &&
+			!result.streamedDelta
+		) {
+			dropped = true;
+			continue;
+		}
+		toolResults[id] = result;
+	}
+	if (!dropped) {
+		return streamState;
+	}
+	const blocks = streamState.blocks.filter(
+		(block) =>
+			block.type !== "tool" ||
+			!(
+				pendingToolCallIDs.has(block.id) &&
+				!streamState.toolCalls[block.id] &&
+				!streamState.toolResults[block.id]?.isStreaming &&
+				!streamState.toolResults[block.id]?.streamedDelta
+			),
+	);
+	if (
+		blocks.length === 0 &&
+		Object.keys(streamState.toolCalls).length === 0 &&
+		Object.keys(toolResults).length === 0 &&
+		streamState.sources.length === 0
+	) {
+		return null;
+	}
+	return {
+		...streamState,
+		blocks,
+		toolResults,
+	};
 };
 
 export const buildStreamTools = (
