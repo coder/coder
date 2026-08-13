@@ -1532,17 +1532,12 @@ func getUsageAppName(usageApp string) codersdk.UsageAppName {
 	if usageApp == disableUsageApp {
 		return ""
 	}
-
-	allowedUsageApps := []string{
-		string(codersdk.UsageAppNameSSH),
-		string(codersdk.UsageAppNameVscode),
-		string(codersdk.UsageAppNameJetbrains),
-	}
-	if slices.Contains(allowedUsageApps, usageApp) {
-		return codersdk.UsageAppName(usageApp)
+	if usageApp == "" {
+		return codersdk.UsageAppNameSSH
 	}
 
-	return codersdk.UsageAppNameSSH
+	// The server accepts arbitrary app names.
+	return codersdk.UsageAppName(usageApp)
 }
 
 func setStatsCallback(

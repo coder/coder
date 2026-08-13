@@ -383,6 +383,9 @@ type PostWorkspaceUsageRequest struct {
 
 type UsageAppName string
 
+// Well-known usage app names. The API accepts any name, normalized at
+// ingestion. These are wire format and cannot change: the hyphen in
+// reconnecting-pty folds to the canonical reconnecting_pty.
 const (
 	UsageAppNameVscode          UsageAppName = "vscode"
 	UsageAppNameJetbrains       UsageAppName = "jetbrains"
@@ -390,6 +393,8 @@ const (
 	UsageAppNameSSH             UsageAppName = "ssh"
 )
 
+// Deprecated: the workspace usage API no longer restricts app_name to this
+// list. Use it only to recognize the well-known names.
 var AllowedAppNames = []UsageAppName{
 	UsageAppNameVscode,
 	UsageAppNameJetbrains,
