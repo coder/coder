@@ -3454,6 +3454,13 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	clearChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/v2/chats/${chatId}/clear`,
+		);
+		return response.data;
+	};
+
 	/**
 	 * Re-pins the chat to its agent's latest context snapshot and clears
 	 * the dirty marker. Returns the updated chat.
