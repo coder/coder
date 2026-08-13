@@ -98,8 +98,8 @@ jobs:
             echo "- \`${CATALOG_FILE}\`"
             echo
             echo "These are customer-visible cost numbers taken from upstream data, so this"
-            echo "PR is never merged automatically. Check the summary above against the"
-            echo "provider's published pricing before approving."
+            echo "PR is never merged automatically. The summary above lists what moved; check"
+            echo "the diff for exact figures before approving."
             echo
             echo "Opened automatically by the [aibridge-prices-refresh workflow](${RUN_URL})."
           } > "${RUNNER_TEMP}/body.md"

@@ -120,61 +120,27 @@ func TestRender(t *testing.T) {
 
 		out := render(compare(
 			[]priceRow{row("anthropic", "gone", 1_000_000, 2_000_000), row("openai", "gpt", 1_000_000, 2_000_000)},
-			[]priceRow{row("anthropic", "fresh", 3_000_000, 4_000_000), row("openai", "gpt", 2_000_000, 2_000_000)},
+			[]priceRow{row("anthropic", "fresh", 3_000_000, 4_000_000), row("openai", "gpt", 2_000_000, 3_000_000)},
 		))
 
-		require.Contains(t, out, "1 model added, 1 model removed, 1 price changed.")
-		require.Contains(t, out, "| anthropic | fresh | 3 | 4 | unset | unset |")
-		require.Contains(t, out, "| anthropic | gone | 1 | 2 | unset | unset |")
-		require.Contains(t, out, "| openai | gpt | input | 1 | 2 | +100.0% |")
+		require.Contains(t, out, "1 model added, 1 model removed, 2 prices changed across 1 model.")
+		require.Contains(t, out, "### Added\n\n- anthropic/fresh\n")
+		require.Contains(t, out, "### Removed\n\n- anthropic/gone\n")
+		// A model that repriced across two fields is listed once.
+		require.Contains(t, out, "### Changed\n\n- openai/gpt\n")
+		require.NotContains(t, out, "| Provider |")
 	})
 }
 
-func TestFormatPrice(t *testing.T) {
+func TestChangedModelNames(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		in   *int64
-		want string
-	}{
-		{"missing", nil, "unset"},
-		{"zero", int64Ptr(0), "0"},
-		{"whole", int64Ptr(10_000_000), "10"},
-		{"fractional", int64Ptr(75_000), "0.075"},
-		{"sub micro unit", int64Ptr(1), "0.000001"},
+	changes := []change{
+		{provider: "openai", model: "gpt", field: "input"},
+		{provider: "openai", model: "gpt", field: "output"},
+		{provider: "anthropic", model: "claude", field: "input"},
 	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tc.want, formatPrice(tc.in))
-		})
-	}
-}
-
-func TestFormatDelta(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name       string
-		prev, next *int64
-		want       string
-	}{
-		{"increase", int64Ptr(1_000_000), int64Ptr(2_000_000), "+100.0%"},
-		{"decrease", int64Ptr(2_000_000), int64Ptr(1_000_000), "-50.0%"},
-		{"newly priced", nil, int64Ptr(1), "newly priced"},
-		{"price removed", int64Ptr(1), nil, "price removed"},
-		{"was free", int64Ptr(0), int64Ptr(1), "was free"},
-		{"both missing", nil, nil, "n/a"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tc.want, formatDelta(tc.prev, tc.next))
-		})
-	}
+	require.Equal(t, []string{"openai/gpt", "anthropic/claude"}, changedModelNames(changes))
 }
 
 func TestRun(t *testing.T) {
@@ -198,7 +164,7 @@ func TestRun(t *testing.T) {
 
 		var out strings.Builder
 		require.NoError(t, run(oldPath, newPath, &out))
-		require.Contains(t, out.String(), "| openai | gpt | input | 1 | 1.5 | +50.0% |")
+		require.Contains(t, out.String(), "### Changed\n\n- openai/gpt\n")
 	})
 
 	t.Run("invalid json", func(t *testing.T) {

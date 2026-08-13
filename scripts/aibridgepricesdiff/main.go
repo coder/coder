@@ -3,9 +3,9 @@
 // by aibridgepricesgen).
 //
 // The weekly price refresh workflow uses it to fill the pull request body, so
-// a reviewer sees which models appeared, which disappeared, and which prices
-// moved without reading the raw JSON diff. The raw diff remains the source of
-// truth; this output is a review aid.
+// a reviewer sees at a glance which models appeared, which disappeared, and
+// which repriced. Exact figures are deliberately left to the pull request
+// diff, which is the source of truth.
 //
 // Usage:
 //
@@ -182,8 +182,10 @@ func equalPrice(a, b *int64) bool {
 	return *a == *b
 }
 
-// render writes the Markdown summary. Sections with no entries are omitted so
-// a small refresh produces a short body.
+// render writes the Markdown summary: counts, then the models in each
+// category. Only provider and model are listed. Exact prices live in the
+// pull request diff, so repeating them here would restate what a reviewer
+// can already read.
 func render(d diff) string {
 	var b strings.Builder
 	write := func(format string, args ...any) {
@@ -196,43 +198,55 @@ func render(d diff) string {
 		return b.String()
 	}
 
-	write("%s added, %s removed, %s changed.\n",
+	changedModels := changedModelNames(d.changed)
+	write("%s added, %s removed, %s changed across %s.\n",
 		plural(len(d.added), "model"),
 		plural(len(d.removed), "model"),
 		plural(len(d.changed), "price"),
+		plural(len(changedModels), "model"),
 	)
-	write("\nPrices are USD per million tokens.\n")
 
-	renderRows := func(heading string, rows []priceRow) {
-		if len(rows) == 0 {
+	renderList := func(heading string, models []string) {
+		if len(models) == 0 {
 			return
 		}
 		write("\n### %s\n\n", heading)
-		write("| Provider | Model | Input | Output | Cache read | Cache write |\n")
-		write("| --- | --- | --- | --- | --- | --- |\n")
-		for _, r := range rows {
-			write("| %s | %s | %s | %s | %s | %s |\n",
-				r.Provider, r.Model,
-				formatPrice(r.InputPrice), formatPrice(r.OutputPrice),
-				formatPrice(r.CacheReadPrice), formatPrice(r.CacheWritePrice),
-			)
+		for _, m := range models {
+			write("- %s\n", m)
 		}
 	}
-	renderRows("Added", d.added)
-	renderRows("Removed", d.removed)
+	renderList("Added", modelNames(d.added))
+	renderList("Removed", modelNames(d.removed))
+	renderList("Changed", changedModels)
 
-	if len(d.changed) > 0 {
-		write("\n### Changed\n\n")
-		write("| Provider | Model | Field | Old | New | Delta |\n")
-		write("| --- | --- | --- | --- | --- | --- |\n")
-		for _, c := range d.changed {
-			write("| %s | %s | %s | %s | %s | %s |\n",
-				c.provider, c.model, c.field,
-				formatPrice(c.old), formatPrice(c.new), formatDelta(c.old, c.new),
-			)
-		}
-	}
 	return b.String()
+}
+
+// modelNames renders rows as "provider/model", preserving input order.
+func modelNames(rows []priceRow) []string {
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.Provider+"/"+r.Model)
+	}
+	return out
+}
+
+// changedModelNames collapses per-field changes into one entry per model, so
+// a model that repriced across every field is listed once.
+func changedModelNames(changes []change) []string {
+	var (
+		seen = make(map[string]struct{}, len(changes))
+		out  []string
+	)
+	for _, c := range changes {
+		name := c.provider + "/" + c.model
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	return out
 }
 
 func plural(n int, noun string) string {
@@ -240,37 +254,4 @@ func plural(n int, noun string) string {
 		return fmt.Sprintf("%d %s", n, noun)
 	}
 	return fmt.Sprintf("%d %ss", n, noun)
-}
-
-// formatPrice converts integer micro-units back to the upstream USD figure.
-// Trailing zeros are trimmed so 10000000 reads as "10" rather than "10.000000".
-func formatPrice(micros *int64) string {
-	if micros == nil {
-		return "unset"
-	}
-	s := fmt.Sprintf("%.6f", float64(*micros)/1_000_000)
-	s = strings.TrimRight(s, "0")
-	s = strings.TrimSuffix(s, ".")
-	if s == "" || s == "-" {
-		return "0"
-	}
-	return s
-}
-
-// formatDelta renders the relative move between two prices. A percentage is
-// only meaningful when the previous value exists and is non-zero; every other
-// transition is described in words.
-func formatDelta(prev, next *int64) string {
-	switch {
-	case prev == nil && next == nil:
-		return "n/a"
-	case prev == nil:
-		return "newly priced"
-	case next == nil:
-		return "price removed"
-	case *prev == 0:
-		return "was free"
-	}
-	pct := (float64(*next) - float64(*prev)) / float64(*prev) * 100
-	return fmt.Sprintf("%+.1f%%", pct)
 }
