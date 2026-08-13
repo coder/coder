@@ -259,7 +259,11 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 
 	// Discovery metadata is public and RFC 9728 §5 asks for it to be
 	// cacheable. These do not prove it is, since the endpoints advertise no
-	// freshness lifetime; they pin the exclusion of this middleware.
+	// freshness lifetime at all. What they pin is that no blanket middleware
+	// has landed on a router reaching them: this one would stamp no-store,
+	// and an "authenticated responses are not shared-cacheable" middleware
+	// would stamp private or max-age=0. An explicit freshness lifetime added
+	// here later, which RFC 9728 §5 encourages, still passes.
 	for _, path := range []string{
 		"/.well-known/oauth-authorization-server",
 		"/.well-known/oauth-protected-resource",
@@ -271,7 +275,9 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 			resp := doRequest(ctx, t, http.MethodGet, baseURL+path, nil)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			require.NotContains(t, resp.Header.Get("Cache-Control"), "no-store")
+			for _, directive := range []string{"no-store", "private", "no-cache", "max-age=0"} {
+				require.NotContains(t, resp.Header.Get("Cache-Control"), directive)
+			}
 		})
 	}
 }
