@@ -1104,10 +1104,27 @@ export const DelayedOrganizationAuthorization: Story = {
 			1_500,
 		);
 	},
+	args: {
+		...defaultArgs,
+		workspaceOptions: [
+			{
+				...MockWorkspace,
+				id: "ws-provisional",
+				name: "provisional-workspace",
+				organization_id: MockDefaultOrganization.id,
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const sendButton = canvas.getByRole("button", { name: "Send" });
 		await expect(sendButton).toBeDisabled();
+		// The workspace picker must be unreachable while the check is
+		// pending: its options come from the provisional fallback org.
+		// With the workspace callback gated, the whole menu disables.
+		await expect(
+			canvas.getByRole("button", { name: "More options" }),
+		).toBeDisabled();
 		// dispatchEvent returns false when a handler accepted the drop
 		// via preventDefault, giving a race-free accepted/ignored signal.
 		const dropFile = (name: string): boolean => {

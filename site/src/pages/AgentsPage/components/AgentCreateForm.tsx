@@ -632,7 +632,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						onMCPAuthComplete={onMCPAuthComplete}
 						workspaceOptions={filteredWorkspaces}
 						selectedWorkspaceId={effectiveWorkspaceId}
-						onWorkspaceChange={handleWorkspaceChange}
+						// Before settlement the options come from the provisional
+						// fallback org; a pick would overwrite the stored
+						// workspace with a foreign-org value.
+						onWorkspaceChange={
+							orgSelectionSettled && !noPermittedOrgs
+								? handleWorkspaceChange
+								: undefined
+						}
 						isWorkspaceLoading={isWorkspacesLoading}
 						canConfigureAgentSetup={canConfigureAgentSetup}
 						providerCount={providerCount}
