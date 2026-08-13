@@ -1,59 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent } from "storybook/test";
-import type {
-	AIBridgeSessionThreadsResponse,
-	AIBridgeThread,
-} from "#/api/typesGenerated";
+import type { AIBridgeSessionThreadsResponse } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
+	MockAIBridgeThread,
 	MockSession,
 } from "#/testHelpers/entities";
 import { SessionThreadsPageView } from "./SessionThreadsPageView";
-
-// A thread with a prompt and one tool call.
-const mockThread: AIBridgeThread = {
-	id: "thread-1",
-	prompt: "Summarize the project structure",
-	model: "claude-opus-4-6",
-	provider: "anthropic",
-	credential_kind: "centralized",
-	credential_hint: "sk-a...efgh",
-	started_at: "2026-03-09T09:28:15.000Z",
-	ended_at: "2026-03-09T09:28:47.000Z",
-	token_usage: {
-		input_tokens: 1240,
-		output_tokens: 320,
-		cache_read_input_tokens: 900,
-		cache_write_input_tokens: 140,
-		metadata: {},
-	},
-	agentic_actions: [
-		{
-			model: "claude-opus-4-6",
-			token_usage: {
-				input_tokens: 620,
-				output_tokens: 160,
-				cache_read_input_tokens: 450,
-				cache_write_input_tokens: 70,
-				metadata: {},
-			},
-			thinking: [],
-			tool_calls: [
-				{
-					id: "tool-1",
-					interception_id: "interception-1",
-					provider_response_id: "resp-1",
-					server_url: "http://localhost:3000/mcp",
-					tool: "list_directory",
-					injected: false,
-					input: JSON.stringify({ path: "." }),
-					metadata: {},
-					created_at: "2026-03-09T09:28:20.000Z",
-				},
-			],
-		},
-	],
-};
 
 const mockSession: AIBridgeSessionThreadsResponse = {
 	id: MockSession.id,
@@ -72,7 +25,7 @@ const mockSession: AIBridgeSessionThreadsResponse = {
 	},
 	network_calls: { total: 4, blocked: 2 },
 	network_call_logs: MockAIBridgeSessionNetworkCalls,
-	threads: [mockThread],
+	threads: [MockAIBridgeThread],
 };
 
 const noop = () => {};
@@ -82,7 +35,7 @@ const meta: Meta<typeof SessionThreadsPageView> = {
 	component: SessionThreadsPageView,
 	args: {
 		session: mockSession,
-		threads: [mockThread],
+		threads: [MockAIBridgeThread],
 		loading: false,
 		hasNextPage: false,
 		isFetchingNextPage: false,
@@ -101,9 +54,9 @@ export const Default: Story = {};
 export const SearchFiltersEvents: Story = {
 	args: {
 		threads: [
-			mockThread,
+			MockAIBridgeThread,
 			{
-				...mockThread,
+				...MockAIBridgeThread,
 				id: "thread-2",
 				prompt: "Deploy the service to production",
 				agentic_actions: [],

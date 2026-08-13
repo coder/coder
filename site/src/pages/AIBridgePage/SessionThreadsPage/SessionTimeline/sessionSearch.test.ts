@@ -1,100 +1,66 @@
 import { describe, expect, it } from "vitest";
 import type { AIBridgeThread } from "#/api/typesGenerated";
-import { MockAIBridgeSessionNetworkCalls } from "#/testHelpers/entities";
+import {
+	MockAIBridgeSessionNetworkCalls,
+	MockAIBridgeThread,
+} from "#/testHelpers/entities";
 import {
 	matchesNetworkCallSearch,
 	matchesThreadSearch,
 	matchesThreadToolSearch,
 } from "./sessionSearch";
 
-const mockThread: AIBridgeThread = {
-	id: "thread-1",
-	prompt: "Summarize the project structure",
-	model: "claude-opus-4-6",
-	provider: "anthropic",
-	credential_kind: "centralized",
-	credential_hint: "sk-a...efgh",
-	started_at: "2026-03-09T09:28:15.000Z",
-	ended_at: "2026-03-09T09:28:47.000Z",
-	token_usage: {
-		input_tokens: 1240,
-		output_tokens: 320,
-		cache_read_input_tokens: 900,
-		cache_write_input_tokens: 140,
-		metadata: {},
-	},
-	agentic_actions: [
-		{
-			model: "claude-opus-4-6",
-			token_usage: {
-				input_tokens: 620,
-				output_tokens: 160,
-				cache_read_input_tokens: 450,
-				cache_write_input_tokens: 70,
-				metadata: {},
-			},
-			thinking: [],
-			tool_calls: [
-				{
-					id: "tool-1",
-					interception_id: "interception-1",
-					provider_response_id: "resp-1",
-					server_url: "http://localhost:3000/mcp",
-					tool: "list_directory",
-					injected: false,
-					input: JSON.stringify({ path: "." }),
-					metadata: {},
-					created_at: "2026-03-09T09:28:20.000Z",
-				},
-			],
-		},
-	],
-};
-
 describe("matchesThreadSearch", () => {
 	it("matches prompt text case-insensitively", () => {
-		expect(matchesThreadSearch(mockThread, "PROJECT")).toBe(true);
-		expect(matchesThreadSearch(mockThread, "summarize")).toBe(true);
+		expect(matchesThreadSearch(MockAIBridgeThread, "PROJECT")).toBe(true);
+		expect(matchesThreadSearch(MockAIBridgeThread, "summarize")).toBe(true);
 	});
 
 	it("matches tool names", () => {
-		expect(matchesThreadSearch(mockThread, "list_directory")).toBe(true);
+		expect(matchesThreadSearch(MockAIBridgeThread, "list_directory")).toBe(
+			true,
+		);
 	});
 
 	it("matches tool input JSON", () => {
-		expect(matchesThreadSearch(mockThread, ". ")).toBe(true);
-		expect(matchesThreadSearch(mockThread, "path")).toBe(true);
+		expect(matchesThreadSearch(MockAIBridgeThread, ". ")).toBe(true);
+		expect(matchesThreadSearch(MockAIBridgeThread, "path")).toBe(true);
 	});
 
 	it("does not match model, provider, or unrelated text", () => {
-		expect(matchesThreadSearch(mockThread, "claude-opus")).toBe(false);
-		expect(matchesThreadSearch(mockThread, "anthropic")).toBe(false);
+		expect(matchesThreadSearch(MockAIBridgeThread, "claude-opus")).toBe(false);
+		expect(matchesThreadSearch(MockAIBridgeThread, "anthropic")).toBe(false);
 	});
 
 	it("an empty or whitespace query matches everything", () => {
-		expect(matchesThreadSearch(mockThread, "")).toBe(true);
-		expect(matchesThreadSearch(mockThread, "   ")).toBe(true);
+		expect(matchesThreadSearch(MockAIBridgeThread, "")).toBe(true);
+		expect(matchesThreadSearch(MockAIBridgeThread, "   ")).toBe(true);
 	});
 
 	it("does not match a thread with no prompt when query is specific", () => {
-		const noPrompt: AIBridgeThread = { ...mockThread, prompt: undefined };
+		const noPrompt: AIBridgeThread = {
+			...MockAIBridgeThread,
+			prompt: undefined,
+		};
 		expect(matchesThreadSearch(noPrompt, "structure")).toBe(false);
 	});
 });
 
 describe("matchesThreadToolSearch", () => {
 	it("matches tool names", () => {
-		expect(matchesThreadToolSearch(mockThread, "list_directory")).toBe(true);
+		expect(matchesThreadToolSearch(MockAIBridgeThread, "list_directory")).toBe(
+			true,
+		);
 	});
 
 	it("matches tool input JSON", () => {
-		expect(matchesThreadToolSearch(mockThread, "path")).toBe(true);
+		expect(matchesThreadToolSearch(MockAIBridgeThread, "path")).toBe(true);
 	});
 
 	it("matches tool names case-insensitively", () => {
 		const upperTool: AIBridgeThread = {
-			...mockThread,
-			agentic_actions: mockThread.agentic_actions.map((a) => ({
+			...MockAIBridgeThread,
+			agentic_actions: MockAIBridgeThread.agentic_actions.map((a) => ({
 				...a,
 				tool_calls: a.tool_calls.map((c) => ({
 					...c,
@@ -107,8 +73,8 @@ describe("matchesThreadToolSearch", () => {
 
 	it("matches tool input case-insensitively", () => {
 		const upperInput: AIBridgeThread = {
-			...mockThread,
-			agentic_actions: mockThread.agentic_actions.map((a) => ({
+			...MockAIBridgeThread,
+			agentic_actions: MockAIBridgeThread.agentic_actions.map((a) => ({
 				...a,
 				tool_calls: a.tool_calls.map((c) => ({
 					...c,
@@ -120,11 +86,13 @@ describe("matchesThreadToolSearch", () => {
 	});
 
 	it("does not match prompt text alone", () => {
-		expect(matchesThreadToolSearch(mockThread, "summarize")).toBe(false);
+		expect(matchesThreadToolSearch(MockAIBridgeThread, "summarize")).toBe(
+			false,
+		);
 	});
 
 	it("returns false for an empty query", () => {
-		expect(matchesThreadToolSearch(mockThread, "")).toBe(false);
+		expect(matchesThreadToolSearch(MockAIBridgeThread, "")).toBe(false);
 	});
 });
 

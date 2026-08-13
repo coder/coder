@@ -3,69 +3,37 @@ import { expect, fn } from "storybook/test";
 import type { AIBridgeThread } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
+	MockAIBridgeThread,
 	MockSession,
 } from "#/testHelpers/entities";
 import { SessionTimeline } from "./SessionTimeline";
 
-// A thread with one thinking block and one tool call.
+// The shared single-tool thread, with a prompt that includes the CRF-6
+// negative-assertion string and a token-usage metadata variant.
 const mockThread: AIBridgeThread = {
-	id: "thread-1",
+	...MockAIBridgeThread,
 	prompt:
 		"Can you check what files are in the project and summarize the structure?",
-	model: "claude-opus-4-6",
-	provider: "anthropic",
-	credential_kind: "centralized",
-	credential_hint: "sk-a...efgh",
-	started_at: "2026-03-09T09:28:15.000Z",
-	ended_at: "2026-03-09T09:28:47.000Z",
 	token_usage: {
-		input_tokens: 1240,
-		output_tokens: 320,
-		cache_read_input_tokens: 900,
-		cache_write_input_tokens: 140,
+		...MockAIBridgeThread.token_usage,
 		metadata: { cache_read_input_tokens: 900 },
 	},
-	agentic_actions: [
-		{
-			model: "claude-opus-4-6",
-			token_usage: {
-				input_tokens: 620,
-				output_tokens: 160,
-				cache_read_input_tokens: 450,
-				cache_write_input_tokens: 70,
-				metadata: {},
+	agentic_actions: MockAIBridgeThread.agentic_actions.map((action) => ({
+		...action,
+		thinking: [
+			{
+				text: "The user wants to understand the project structure. I should start by listing the root directory, then drill into interesting sub-directories.",
 			},
-			thinking: [
-				{
-					text: "The user wants to understand the project structure. I should start by listing the root directory, then drill into interesting sub-directories.",
-				},
-			],
-			tool_calls: [
-				{
-					id: "tool-1",
-					interception_id: "interception-1",
-					provider_response_id: "resp-1",
-					server_url: "http://localhost:3000/mcp",
-					tool: "list_directory",
-					injected: false,
-					input: JSON.stringify({ path: "." }),
-					metadata: {},
-					created_at: "2026-03-09T09:28:20.000Z",
-				},
-			],
-		},
-	],
+		],
+	})),
 };
 
 // A second thread with a long prompt and multiple tool calls.
 const mockThreadLong: AIBridgeThread = {
+	...MockAIBridgeThread,
 	id: "thread-2",
 	prompt:
 		"Please refactor the authentication module so that it uses the new token-based flow we discussed. Make sure to update all the related tests and add inline comments explaining the security rationale for each change.",
-	model: "claude-opus-4-6",
-	provider: "anthropic",
-	credential_kind: "centralized",
-	credential_hint: "sk-a...efgh",
 	started_at: "2026-03-09T10:00:00.000Z",
 	ended_at: "2026-03-09T10:05:30.000Z",
 	token_usage: {

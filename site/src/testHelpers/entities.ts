@@ -5561,6 +5561,57 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
 
+/**
+ * A reusable AIBridgeThread: one model turn with a single tool call. It is
+ * the shared input for session-search unit tests and story fixtures, which
+ * override only the fields they exercise. The tool input stays a live
+ * JSON.stringify call so no one editor can re-serialize it into the literal
+ * the search assertions query.
+ */
+export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
+	id: "thread-1",
+	prompt: "Summarize the project structure",
+	model: "claude-opus-4-6",
+	provider: "anthropic",
+	credential_kind: "centralized",
+	credential_hint: "sk-a...efgh",
+	started_at: "2026-03-09T09:28:15.000Z",
+	ended_at: "2026-03-09T09:28:47.000Z",
+	token_usage: {
+		input_tokens: 1240,
+		output_tokens: 320,
+		cache_read_input_tokens: 900,
+		cache_write_input_tokens: 140,
+		metadata: {},
+	},
+	agentic_actions: [
+		{
+			model: "claude-opus-4-6",
+			token_usage: {
+				input_tokens: 620,
+				output_tokens: 160,
+				cache_read_input_tokens: 450,
+				cache_write_input_tokens: 70,
+				metadata: {},
+			},
+			thinking: [],
+			tool_calls: [
+				{
+					id: "tool-1",
+					interception_id: "interception-1",
+					provider_response_id: "resp-1",
+					server_url: "http://localhost:3000/mcp",
+					tool: "list_directory",
+					injected: false,
+					input: JSON.stringify({ path: "." }),
+					metadata: {},
+					created_at: "2026-03-09T09:28:20.000Z",
+				},
+			],
+		},
+	],
+};
+
 export const MockAIBridgeSessionNetworkCalls: readonly TypesGen.AgentFirewallLog[] =
 	[
 		{
