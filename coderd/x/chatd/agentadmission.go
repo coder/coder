@@ -12,7 +12,7 @@ const (
 	defaultMaxConcurrentSubagents  = int64(10)
 )
 
-// AgentCapacityLimiter gates chat ownership and reports the dynamic per-pool caps.
+// AgentCapacityLimiter controls chat admission and reports the current per-pool limits.
 type AgentCapacityLimiter interface {
 	// Admit runs inside the acquisition transaction so its serialization
 	// extends through the ownership write. Refused chats remain unowned.
@@ -25,7 +25,7 @@ type AgentCapacityUnlock interface {
 	Unlocked() bool
 }
 
-// AgentCapacityLimits reports the root and subagent pool capacities.
+// AgentCapacityLimits defines concurrent-agent limits for root and subagent pools.
 type AgentCapacityLimits struct {
 	Root     int64
 	Subagent int64

@@ -3316,15 +3316,29 @@ func chatWatchEventSDKChat(chat database.Chat, diffStatus *codersdk.ChatDiffStat
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
 func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
-	p.publishChatWatchEvent(chat, codersdk.ChatWatchEvent{
+	event := codersdk.ChatWatchEvent{
 		Kind: kind,
 		Chat: chatWatchEventSDKChat(chat, diffStatus),
-	})
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
+			slog.F("chat_id", chat.ID),
+			slog.F("kind", kind),
+			slog.Error(err),
+		)
+	}
 }
 
-// ChatQueuedForCapacity derives whether the chat is waiting for a
-// concurrent-agent capacity slot. It reports false when the deployment is
-// currently uncapped.
+// ChatQueuedForCapacity reports whether the chat is waiting for a
+// concurrent-agent capacity slot. Uncapped deployments always return false.
 func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) (bool, error) {
 	limits, capped := p.agentCapacityLimiter.Limits()
 	if !capped {
@@ -3342,24 +3356,6 @@ func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) 
 		RootCapacity:     limits.Root,
 		SubagentCapacity: limits.Subagent,
 	})
-}
-
-func (p *Server) publishChatWatchEvent(chat database.Chat, event codersdk.ChatWatchEvent) {
-	payload, err := json.Marshal(event)
-	if err != nil {
-		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return
-	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
-		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.F("kind", event.Kind),
-			slog.Error(err),
-		)
-	}
 }
 
 // PublishDiffStatusChange broadcasts a diff_status_change event for

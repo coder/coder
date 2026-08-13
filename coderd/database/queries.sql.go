@@ -8915,98 +8915,43 @@ candidates AS (
                   FROM chat_heartbeats current_lease
                   WHERE current_lease.chat_id = chats.id
                     AND current_lease.runner_id = chats.runner_id
-                    AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+                    AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $2::int)
               )
           )
         ORDER BY chats.updated_at ASC, chats.id ASC
-        LIMIT $2::int
+        LIMIT $1::int
     ) candidate
 )
 SELECT
-    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
-    chat_heartbeats.heartbeat_at AS current_heartbeat_at,
-    NOT EXISTS (
-        SELECT 1
-        FROM chat_heartbeats current_lease
-        WHERE current_lease.chat_id = chats_expanded.id
-          AND current_lease.runner_id = chats_expanded.runner_id
-          AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
-    ) AS heartbeat_stale
+    chats.id,
+    chats.status,
+    chats.parent_chat_id
 FROM candidates
-JOIN chats_expanded ON chats_expanded.id = candidates.id
-LEFT JOIN chat_heartbeats
-    ON chat_heartbeats.chat_id = chats_expanded.id
-    AND chat_heartbeats.runner_id = chats_expanded.runner_id
+JOIN chats ON chats.id = candidates.id
 ORDER BY
     candidates.status_priority ASC,
     candidates.pool_position ASC,
     candidates.pool_priority ASC,
-    chats_expanded.id ASC
-LIMIT $2::int
+    chats.id ASC
+LIMIT $1::int
 `
 
 type GetChatWorkerAcquisitionCandidatesParams struct {
-	StaleSeconds int32 `db:"stale_seconds" json:"stale_seconds"`
 	LimitCount   int32 `db:"limit_count" json:"limit_count"`
+	StaleSeconds int32 `db:"stale_seconds" json:"stale_seconds"`
 }
 
 type GetChatWorkerAcquisitionCandidatesRow struct {
-	ID                       uuid.UUID               `db:"id" json:"id"`
-	OwnerID                  uuid.UUID               `db:"owner_id" json:"owner_id"`
-	WorkspaceID              uuid.NullUUID           `db:"workspace_id" json:"workspace_id"`
-	Title                    string                  `db:"title" json:"title"`
-	Status                   ChatStatus              `db:"status" json:"status"`
-	WorkerID                 uuid.NullUUID           `db:"worker_id" json:"worker_id"`
-	StartedAt                sql.NullTime            `db:"started_at" json:"started_at"`
-	HeartbeatAt              sql.NullTime            `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt                time.Time               `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time               `db:"updated_at" json:"updated_at"`
-	ParentChatID             uuid.NullUUID           `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID               uuid.NullUUID           `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID        uuid.UUID               `db:"last_model_config_id" json:"last_model_config_id"`
-	LastReasoningEffort      NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
-	Archived                 bool                    `db:"archived" json:"archived"`
-	LastError                pqtype.NullRawMessage   `db:"last_error" json:"last_error"`
-	Mode                     NullChatMode            `db:"mode" json:"mode"`
-	MCPServerIDs             []uuid.UUID             `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels                   StringMap               `db:"labels" json:"labels"`
-	BuildID                  uuid.NullUUID           `db:"build_id" json:"build_id"`
-	AgentID                  uuid.NullUUID           `db:"agent_id" json:"agent_id"`
-	PinOrder                 int32                   `db:"pin_order" json:"pin_order"`
-	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
-	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
-	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
-	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
-	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
-	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
-	Summary                  sql.NullString          `db:"summary" json:"summary"`
-	SummaryGeneratedAt       sql.NullTime            `db:"summary_generated_at" json:"summary_generated_at"`
-	SnapshotVersion          int64                   `db:"snapshot_version" json:"snapshot_version"`
-	HistoryVersion           int64                   `db:"history_version" json:"history_version"`
-	QueueVersion             int64                   `db:"queue_version" json:"queue_version"`
-	GenerationAttempt        int64                   `db:"generation_attempt" json:"generation_attempt"`
-	RetryState               pqtype.NullRawMessage   `db:"retry_state" json:"retry_state"`
-	RetryStateVersion        int64                   `db:"retry_state_version" json:"retry_state_version"`
-	RunnerID                 uuid.NullUUID           `db:"runner_id" json:"runner_id"`
-	RequiresActionDeadlineAt sql.NullTime            `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
-	UserACL                  ChatACL                 `db:"user_acl" json:"user_acl"`
-	GroupACL                 ChatACL                 `db:"group_acl" json:"group_acl"`
-	OwnerUsername            string                  `db:"owner_username" json:"owner_username"`
-	OwnerName                string                  `db:"owner_name" json:"owner_name"`
-	ContextAggregateHash     []byte                  `db:"context_aggregate_hash" json:"context_aggregate_hash"`
-	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
-	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
-	ContextError             string                  `db:"context_error" json:"context_error"`
-	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
-	CurrentHeartbeatAt       sql.NullTime            `db:"current_heartbeat_at" json:"current_heartbeat_at"`
-	HeartbeatStale           bool                    `db:"heartbeat_stale" json:"heartbeat_stale"`
+	ID           uuid.UUID     `db:"id" json:"id"`
+	Status       ChatStatus    `db:"status" json:"status"`
+	ParentChatID uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
 }
 
 // Returns a bounded, pool-interleaved set of chats that workers may acquire.
 // Interrupting chats finish active work first. Requires-action chats follow so
 // their runner can enforce the action deadline before new generations start.
 func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.StaleSeconds, arg.LimitCount)
+	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.LimitCount, arg.StaleSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -9014,57 +8959,7 @@ func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg
 	var items []GetChatWorkerAcquisitionCandidatesRow
 	for rows.Next() {
 		var i GetChatWorkerAcquisitionCandidatesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Status,
-			&i.WorkerID,
-			&i.StartedAt,
-			&i.HeartbeatAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ParentChatID,
-			&i.RootChatID,
-			&i.LastModelConfigID,
-			&i.LastReasoningEffort,
-			&i.Archived,
-			&i.LastError,
-			&i.Mode,
-			pq.Array(&i.MCPServerIDs),
-			&i.Labels,
-			&i.BuildID,
-			&i.AgentID,
-			&i.PinOrder,
-			&i.LastReadMessageID,
-			&i.DynamicTools,
-			&i.OrganizationID,
-			&i.PlanMode,
-			&i.ClientType,
-			&i.LastTurnSummary,
-			&i.Summary,
-			&i.SummaryGeneratedAt,
-			&i.SnapshotVersion,
-			&i.HistoryVersion,
-			&i.QueueVersion,
-			&i.GenerationAttempt,
-			&i.RetryState,
-			&i.RetryStateVersion,
-			&i.RunnerID,
-			&i.RequiresActionDeadlineAt,
-			&i.UserACL,
-			&i.GroupACL,
-			&i.OwnerUsername,
-			&i.OwnerName,
-			&i.ContextAggregateHash,
-			&i.ContextDirtySince,
-			&i.ContextDirtyResources,
-			&i.ContextError,
-			&i.CompactionRequestedAt,
-			&i.CurrentHeartbeatAt,
-			&i.HeartbeatStale,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Status, &i.ParentChatID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -15,13 +15,14 @@ type agentCapacityUnlock struct {
 	entitlements *entitlements.Set
 }
 
-// Runtime-hour allocation does not enforce caps; the hard limit does.
+// The Agent Hours allocation is advisory; the hard limit restores concurrency caps.
 func (u *agentCapacityUnlock) Unlocked() bool {
 	f, ok := u.entitlements.Feature(codersdk.FeatureAgentRuntimeHours)
 	if !ok || !f.Enabled {
 		return false
 	}
 	if f.HardLimit == nil || f.Actual == nil {
+		// Missing hard limits or usage measurements leave concurrency uncapped.
 		return true
 	}
 	return *f.Actual < *f.HardLimit

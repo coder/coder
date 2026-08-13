@@ -2351,25 +2351,16 @@ candidates AS (
     ) candidate
 )
 SELECT
-    chats_expanded.*,
-    chat_heartbeats.heartbeat_at AS current_heartbeat_at,
-    NOT EXISTS (
-        SELECT 1
-        FROM chat_heartbeats current_lease
-        WHERE current_lease.chat_id = chats_expanded.id
-          AND current_lease.runner_id = chats_expanded.runner_id
-          AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-    ) AS heartbeat_stale
+    chats.id,
+    chats.status,
+    chats.parent_chat_id
 FROM candidates
-JOIN chats_expanded ON chats_expanded.id = candidates.id
-LEFT JOIN chat_heartbeats
-    ON chat_heartbeats.chat_id = chats_expanded.id
-    AND chat_heartbeats.runner_id = chats_expanded.runner_id
+JOIN chats ON chats.id = candidates.id
 ORDER BY
     candidates.status_priority ASC,
     candidates.pool_position ASC,
     candidates.pool_priority ASC,
-    chats_expanded.id ASC
+    chats.id ASC
 LIMIT @limit_count::int;
 
 -- name: GetChatsByIDsForRunnerSync :many

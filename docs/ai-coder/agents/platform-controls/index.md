@@ -124,10 +124,9 @@ Subtasks delegated by an agent don't count toward this limit.
 Those subtasks run in a separate pool of up to 10 concurrent subtasks.
 
 Premium deployments can purchase Agent Hours with their Premium license.
-Agent Hours are shared across the deployment, so any number of agents can run concurrently while consuming a shared pool of purchased working hours.
-This usage-based model supports enterprise workloads with variable bursts of agent activity.
-Large development teams, background automation, and API-triggered tasks can run without a concurrency limit while hours remain.
-When purchased hours are exhausted, agents queue under the concurrency limit until more hours are added.
+Agent Hours are shared across the deployment, and agents can run concurrently unless the Agent Hours hard limit is reached.
+If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
+When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
 
 ### Spend management
 

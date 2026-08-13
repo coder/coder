@@ -421,11 +421,16 @@ export const QueuedForCapacityPremiumMember: Story = {
 	},
 };
 
-export const QueuedForCapacityPremiumExhaustedHours: Story = {
+export const QueuedForCapacityPremiumHardLimit: Story = {
 	parameters: {
 		features: [
 			"multiple_organizations",
-			{ name: "agent_runtime_hours", limit: 4000, actual: 4000 },
+			{
+				name: "agent_runtime_hours",
+				limit: 3000,
+				hard_limit: 4000,
+				actual: 4000,
+			},
 		],
 		permissions: { viewAllLicenses: true },
 	},
@@ -433,7 +438,7 @@ export const QueuedForCapacityPremiumExhaustedHours: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const message = canvas.getByText(
-			/used all 4000 agent runtime hours included in your license/,
+			/reached the 4000-hour Agent Hours hard limit/,
 		);
 		expect(message).toBeVisible();
 		expect(message).toHaveTextContent(
