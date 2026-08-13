@@ -4683,6 +4683,12 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 	}
 }
 
+// Identities of AI agents. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent's identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema that merges them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and duplicating it here would create a second answer that can disagree with the first.
+type AIAgent struct {
+	ID      uuid.UUID `db:"id" json:"id"`
+	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
 // Audit log of requests intercepted by AI Bridge
 type AIBridgeInterception struct {
 	ID uuid.UUID `db:"id" json:"id"`

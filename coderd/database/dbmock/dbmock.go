@@ -1858,6 +1858,21 @@ func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
 }
 
+// GetAIAgentByID mocks base method.
+func (m *MockStore) GetAIAgentByID(ctx context.Context, id uuid.UUID) (database.AIAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIAgentByID", ctx, id)
+	ret0, _ := ret[0].(database.AIAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIAgentByID indicates an expected call of GetAIAgentByID.
+func (mr *MockStoreMockRecorder) GetAIAgentByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentByID", reflect.TypeOf((*MockStore)(nil).GetAIAgentByID), ctx, id)
+}
+
 // GetAIBridgeChatCost mocks base method.
 func (m *MockStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	m.ctrl.T.Helper()
@@ -4391,21 +4406,6 @@ func (m *MockStore) GetLicenses(ctx context.Context) ([]database.License, error)
 func (mr *MockStoreMockRecorder) GetLicenses(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLicenses", reflect.TypeOf((*MockStore)(nil).GetLicenses), ctx)
-}
-
-// GetLifecycleEntriesByActor mocks base method.
-func (m *MockStore) GetLifecycleEntriesByActor(ctx context.Context, arg database.GetLifecycleEntriesByActorParams) ([]database.EntityJournal, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLifecycleEntriesByActor", ctx, arg)
-	ret0, _ := ret[0].([]database.EntityJournal)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetLifecycleEntriesByActor indicates an expected call of GetLifecycleEntriesByActor.
-func (mr *MockStoreMockRecorder) GetLifecycleEntriesByActor(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLifecycleEntriesByActor", reflect.TypeOf((*MockStore)(nil).GetLifecycleEntriesByActor), ctx, arg)
 }
 
 // GetLifecycleEntriesBySubject mocks base method.
@@ -7615,6 +7615,21 @@ func (m *MockStore) IncrementUserAIDailySpend(ctx context.Context, arg database.
 func (mr *MockStoreMockRecorder) IncrementUserAIDailySpend(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementUserAIDailySpend", reflect.TypeOf((*MockStore)(nil).IncrementUserAIDailySpend), ctx, arg)
+}
+
+// InsertAIAgent mocks base method.
+func (m *MockStore) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentParams) (database.AIAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIAgent", ctx, arg)
+	ret0, _ := ret[0].(database.AIAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIAgent indicates an expected call of InsertAIAgent.
+func (mr *MockStoreMockRecorder) InsertAIAgent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgent", reflect.TypeOf((*MockStore)(nil).InsertAIAgent), ctx, arg)
 }
 
 // InsertAIBridgeInterception mocks base method.

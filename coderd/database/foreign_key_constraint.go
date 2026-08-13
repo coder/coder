@@ -6,6 +6,7 @@ type ForeignKeyConstraint string
 
 // ForeignKeyConstraint enums.
 const (
+	ForeignKeyAIAgentsOwnerID                                     ForeignKeyConstraint = "ai_agents_owner_id_fkey"                                         // ALTER TABLE ONLY ai_agents ADD CONSTRAINT ai_agents_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 	ForeignKeyAIProviderKeysAPIKeyKeyID                           ForeignKeyConstraint = "ai_provider_keys_api_key_key_id_fkey"                            // ALTER TABLE ONLY ai_provider_keys ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 	ForeignKeyAIProviderKeysProviderID                            ForeignKeyConstraint = "ai_provider_keys_provider_id_fkey"                               // ALTER TABLE ONLY ai_provider_keys ADD CONSTRAINT ai_provider_keys_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
 	ForeignKeyAIProvidersSettingsKeyID                            ForeignKeyConstraint = "ai_providers_settings_key_id_fkey"                               // ALTER TABLE ONLY ai_providers ADD CONSTRAINT ai_providers_settings_key_id_fkey FOREIGN KEY (settings_key_id) REFERENCES dbcrypt_keys(active_key_digest);

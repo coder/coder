@@ -1081,6 +1081,14 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIAgentByID(ctx context.Context, id uuid.UUID) (database.AIAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIAgentByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIAgentByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeChatCost(ctx, rootChatID)
@@ -2366,14 +2374,6 @@ func (m queryMetricsStore) GetLicenses(ctx context.Context) ([]database.License,
 	r0, r1 := m.s.GetLicenses(ctx)
 	m.queryLatencies.WithLabelValues("GetLicenses").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLicenses").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetLifecycleEntriesByActor(ctx context.Context, arg database.GetLifecycleEntriesByActorParams) ([]database.EntityJournal, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetLifecycleEntriesByActor(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetLifecycleEntriesByActor").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLifecycleEntriesByActor").Inc()
 	return r0, r1
 }
 
@@ -4062,6 +4062,14 @@ func (m queryMetricsStore) IncrementUserAIDailySpend(ctx context.Context, arg da
 	r0, r1 := m.s.IncrementUserAIDailySpend(ctx, arg)
 	m.queryLatencies.WithLabelValues("IncrementUserAIDailySpend").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IncrementUserAIDailySpend").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentParams) (database.AIAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgent").Inc()
 	return r0, r1
 }
 

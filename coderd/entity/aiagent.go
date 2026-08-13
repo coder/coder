@@ -11,6 +11,9 @@ import (
 
 // CreateAIAgentParams are the inputs to creating an AI agent.
 type CreateAIAgentParams struct {
+	// OwnerID is the principal on whose behalf the AI agent acts.
+	OwnerID uuid.UUID
+
 	// Actor is the party whose act this creation is. For now that is the
 	// workspace_agent the request arrived over, which is the only party the
 	// control plane has authenticated at the point of creation. Telling apart
@@ -24,10 +27,11 @@ type CreateAIAgentParams struct {
 // The identity is minted here rather than accepted from a caller, so that the
 // control plane is the only party that can name an AI agent.
 //
-// Only the journal entry is written so far. When the table holding AI agent
-// identities exists, its row is inserted inside the same transaction as the
-// entry, which is what the transaction below is for: the entry and the state
-// change it accounts for commit together or not at all.
+// The row and the entry accounting for it are written in one transaction, so
+// there is no moment at which an AI agent exists unaccounted for, or is
+// accounted for without existing. Where the entry and the effect are both rows
+// in one transaction, the ordering problem that reconciliation exists to
+// resolve does not arise.
 //
 // store may be a transaction handle. Given one, this joins it and commits
 // nothing itself, so that creation can be made atomic with work that is not
@@ -38,10 +42,21 @@ func CreateAIAgent(ctx context.Context, store database.Store, params CreateAIAge
 	if params.Actor.ID == uuid.Nil {
 		return uuid.Nil, xerrors.New("an entry needs an actor, so creation needs one")
 	}
+	if params.OwnerID == uuid.Nil {
+		return uuid.Nil, xerrors.New("an AI agent acts for a principal, so creation needs an owner")
+	}
 
 	id := uuid.New()
 	err := store.InTx(func(tx database.Store) error {
-		_, err := AppendEntry(ctx, tx, Entry{
+		_, err := tx.InsertAIAgent(ctx, database.InsertAIAgentParams{
+			ID:      id,
+			OwnerID: params.OwnerID,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert AI agent: %w", err)
+		}
+
+		_, err = AppendEntry(ctx, tx, Entry{
 			Event:   EventCreated,
 			Subject: Ref{Type: TypeAIAgent, ID: id},
 			Actor:   params.Actor,

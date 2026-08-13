@@ -295,6 +295,7 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
+	GetAIAgentByID(ctx context.Context, id uuid.UUID) (AIAgent, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
 	// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
@@ -682,10 +683,11 @@ type sqlcQuerier interface {
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
-	GetLifecycleEntriesByActor(ctx context.Context, arg GetLifecycleEntriesByActorParams) ([]EntityJournal, error)
-	// The limit is a backstop rather than pagination. Callers pass one entry more
+	// Entries about one entity, which is what makes the limit meaningful. A
+	// lifecycle is a state machine without cycles, so one entity's entries are
+	// bounded by the sequences that machine allows. Callers pass one entry more
 	// than they will accept, so that receiving it tells them the set was larger
-	// than an entity's lifecycle can produce.
+	// than that.
 	GetLifecycleEntriesBySubject(ctx context.Context, arg GetLifecycleEntriesBySubjectParams) ([]EntityJournal, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
@@ -1114,6 +1116,7 @@ type sqlcQuerier interface {
 	// Adds cost_micros to the spend for (user_id, effective_group_id, day).
 	// The day parameter is normalized to its UTC calendar day before storage.
 	IncrementUserAIDailySpend(ctx context.Context, arg IncrementUserAIDailySpendParams) (AIUserDailySpend, error)
+	InsertAIAgent(ctx context.Context, arg InsertAIAgentParams) (AIAgent, error)
 	InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error)
 	InsertAIBridgeModelThought(ctx context.Context, arg InsertAIBridgeModelThoughtParams) (AIBridgeModelThought, error)
 	InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error)

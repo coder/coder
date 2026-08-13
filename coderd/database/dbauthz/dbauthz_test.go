@@ -435,6 +435,21 @@ func (s *MethodTestSuite) TestAPIKey() {
 	}))
 }
 
+// TestAIAgents covers the identities minted for AI agents. See
+// coderd/entity/DIRECTORY.md.
+func (s *MethodTestSuite) TestAIAgents() {
+	s.Run("InsertAIAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIAgentParams{ID: uuid.New(), OwnerID: uuid.New()}
+		dbm.EXPECT().InsertAIAgent(gomock.Any(), arg).Return(database.AIAgent{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetAIAgentByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().GetAIAgentByID(gomock.Any(), id).Return(database.AIAgent{}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+}
+
 // TestEntityJournal covers the journal described in coderd/entity/DIRECTORY.md.
 // It is a separate mechanism from the audit logs tested below, and shares no
 // code with them.
@@ -457,15 +472,6 @@ func (s *MethodTestSuite) TestEntityJournal() {
 			Limit:       10,
 		}
 		dbm.EXPECT().GetLifecycleEntriesBySubject(gomock.Any(), arg).Return([]database.EntityJournal{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
-	s.Run("GetLifecycleEntriesByActor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetLifecycleEntriesByActorParams{
-			ActorType: "workspace_agent",
-			Actor:     uuid.New(),
-			Limit:     10,
-		}
-		dbm.EXPECT().GetLifecycleEntriesByActor(gomock.Any(), arg).Return([]database.EntityJournal{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }

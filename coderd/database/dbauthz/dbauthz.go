@@ -2793,6 +2793,13 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 	return q.db.FindMatchingPresetID(ctx, arg)
 }
 
+func (q *querier) GetAIAgentByID(ctx context.Context, id uuid.UUID) (database.AIAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AIAgent{}, err
+	}
+	return q.db.GetAIAgentByID(ctx, id)
+}
+
 func (q *querier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	// The aggregate covers one chat tree, so it is authorized through the
 	// root chat. Members cannot read interception rows back, but they can
@@ -4101,13 +4108,6 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 		return q.db.GetLicenses(ctx)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
-}
-
-func (q *querier) GetLifecycleEntriesByActor(ctx context.Context, arg database.GetLifecycleEntriesByActorParams) ([]database.EntityJournal, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetLifecycleEntriesByActor(ctx, arg)
 }
 
 func (q *querier) GetLifecycleEntriesBySubject(ctx context.Context, arg database.GetLifecycleEntriesBySubjectParams) ([]database.EntityJournal, error) {
@@ -5978,6 +5978,18 @@ func (q *querier) IncrementUserAIDailySpend(ctx context.Context, arg database.In
 		return database.AIUserDailySpend{}, err
 	}
 	return q.db.IncrementUserAIDailySpend(ctx, arg)
+}
+
+// InsertAIAgent is guarded by ResourceSystem for the same reason as the
+// journal: an entity's own credential is workspace-scoped and carries no
+// system permission, so nothing inside a workspace can create an AI agent
+// directly. The control plane does it on their behalf. Coarse, and to be
+// revisited for production.
+func (q *querier) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentParams) (database.AIAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AIAgent{}, err
+	}
+	return q.db.InsertAIAgent(ctx, arg)
 }
 
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {

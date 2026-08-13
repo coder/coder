@@ -2,6 +2,7 @@ package entity_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
@@ -9,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/testutil"
@@ -23,11 +25,19 @@ func TestCreateAIAgent(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		owner := dbgen.User(t, db, database.User{})
 		actor := entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()}
 
-		id, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{Actor: actor})
+		id, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
+			OwnerID: owner.ID,
+			Actor:   actor,
+		})
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, id, "creation should mint an identity")
+
+		agent, err := db.GetAIAgentByID(ctx, id)
+		require.NoError(t, err, "the minted identity should name a row")
+		require.Equal(t, owner.ID, agent.OwnerID, "the AI agent should belong to its principal")
 
 		entries := entriesFor(ctx, t, db, id)
 		require.Len(t, entries, 1, "creation should write exactly one entry")
@@ -52,13 +62,15 @@ func TestCreateAIAgent(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		owner := dbgen.User(t, db, database.User{})
 		errCallerFailed := xerrors.New("the caller's other work failed")
 
 		var id uuid.UUID
 		err := db.InTx(func(tx database.Store) error {
 			var err error
 			id, err = entity.CreateAIAgent(ctx, tx, entity.CreateAIAgentParams{
-				Actor: entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()},
+				OwnerID: owner.ID,
+				Actor:   entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()},
 			})
 			if err != nil {
 				return err
@@ -69,6 +81,24 @@ func TestCreateAIAgent(t *testing.T) {
 
 		require.Empty(t, entriesFor(ctx, t, db, id),
 			"the entry should roll back with the transaction it joined")
+
+		// The row and its entry commit together or not at all, so neither
+		// should have survived.
+		_, err = db.GetAIAgentByID(ctx, id)
+		require.ErrorIs(t, err, sql.ErrNoRows,
+			"the AI agent should roll back with the entry accounting for it")
+	})
+
+	t.Run("RejectsCreationWithNoOwner", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
+			Actor: entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()},
+		})
+		require.ErrorContains(t, err, "owner")
 	})
 
 	t.Run("RejectsAnEntryWithNoActor", func(t *testing.T) {

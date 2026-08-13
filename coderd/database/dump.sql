@@ -1485,6 +1485,13 @@ $$;
 
 COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv.';
 
+CREATE TABLE ai_agents (
+    id uuid NOT NULL,
+    owner_id uuid NOT NULL
+);
+
+COMMENT ON TABLE ai_agents IS 'Identities of AI agents. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent''s identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema that merges them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and duplicating it here would create a second answer that can disagree with the first.';
+
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -4269,6 +4276,9 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_agents
+    ADD CONSTRAINT ai_agents_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
@@ -4869,6 +4879,8 @@ CREATE UNIQUE INDEX idx_custom_roles_name_lower_organization_id ON custom_roles 
 
 CREATE INDEX idx_entity_journal_actor ON entity_journal USING btree (actor_type, actor, id);
 
+COMMENT ON INDEX idx_entity_journal_actor IS 'Supports no query at present. It is kept for forensic investigation, which asks what one actor did across many entities rather than what happened to one entity. That is beyond the scope of the proof of concept, so nothing reads by actor yet. Note that such a query cannot borrow the per entity bound the by subject read relies on: one actor can act on unboundedly many entities.';
+
 CREATE INDEX idx_entity_journal_subject ON entity_journal USING btree (subject_type, subject, id);
 
 CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
@@ -5140,6 +5152,9 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_agents
+    ADD CONSTRAINT ai_agents_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

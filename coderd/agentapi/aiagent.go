@@ -44,7 +44,8 @@ func (a *AIAgentAPI) CreateAIAgent(ctx context.Context, _ *agentproto.CreateAIAg
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
 	id, err := entity.CreateAIAgent(systemCtx, a.Database, entity.CreateAIAgentParams{
-		Actor: entity.Ref{Type: entity.TypeWorkspaceAgent, ID: a.AgentID},
+		OwnerID: a.OwnerID,
+		Actor:   entity.Ref{Type: entity.TypeWorkspaceAgent, ID: a.AgentID},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create AI agent: %w", err)

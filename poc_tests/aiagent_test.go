@@ -4,10 +4,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent"
@@ -116,33 +116,11 @@ func TestAIAgentIdentity(t *testing.T) {
 		//nolint:gocritic // Reading the journal and the agent's timings needs a system context.
 		systemCtx := dbauthz.AsSystemRestricted(ctx)
 
-		// The entry names the workspace_agent as the actor, which is how the
-		// test finds it: the identity of the AI agent is minted by coderd and
-		// is not known here. Nothing the probe sent appears in the entry.
+		// Exit status is checked first and independently of the database. The
+		// agent reports it, so a probe whose call succeeded and which then
+		// failed would still be caught, and waiting on it means the script log
+		// read below is complete.
 		require.Len(t, r.Agents, 1, "the fake build should have exactly one agent")
-		var entries []database.EntityJournal
-		if !assert.Eventually(t, func() bool {
-			var err error
-			entries, err = entity.LifecycleEntriesByActor(systemCtx, testutil.Logger(t), db, entity.Ref{
-				Type: entity.TypeWorkspaceAgent,
-				ID:   r.Agents[0].ID,
-			})
-			return err == nil && len(entries) > 0
-		}, testutil.WaitLong, testutil.IntervalMedium) {
-			t.Fatalf("no journal entry was written for agent %s.\nscript log:\n%s",
-				r.Agents[0].ID, readScriptLog(scriptLogPath))
-		}
-
-		require.Len(t, entries, 1, "one creation should produce one entry")
-		got := entries[0]
-		require.Equal(t, "created", got.Event)
-		require.Equal(t, "ai_agent", got.SubjectType, "the subject should be the AI agent")
-		require.NotEqual(t, uuid.Nil, got.Subject, "coderd should have minted an identity")
-		require.NotZero(t, got.RecordedAt)
-
-		// Exit status is checked independently of the journal. The agent
-		// reports it, so a probe whose call succeeded and which then failed
-		// would still be caught.
 		var timing database.GetWorkspaceAgentScriptTimingsByBuildIDRow
 		require.Eventually(t, func() bool {
 			timings, err := db.GetWorkspaceAgentScriptTimingsByBuildID(systemCtx, r.Build.ID)
@@ -162,6 +140,36 @@ func TestAIAgentIdentity(t *testing.T) {
 		require.Equal(t, database.WorkspaceAgentScriptTimingStatusOk, timing.Status,
 			"probe script did not complete successfully")
 		require.EqualValues(t, 0, timing.ExitCode, "probe script exited non-zero")
+
+		// The identity is minted by coderd and reaches the test only by the
+		// route a real caller would use: returned over the socket, printed by
+		// the probe. Taking it from there rather than from the database means
+		// the value handed back to the caller is the value checked below, so
+		// a handler that persisted one identity and returned another would be
+		// caught.
+		id := mintedAIAgentID(t, readScriptLog(scriptLogPath))
+
+		aiAgent, err := db.GetAIAgentByID(systemCtx, id)
+		require.NoError(t, err, "the returned identity should name a row")
+		require.Equal(t, user.UserID, aiAgent.OwnerID,
+			"the AI agent should belong to the owner of the workspace it was created in")
+
+		// The journal accounts for that row. Until the AI agent table landed
+		// every entry pointed at nothing, so this is what makes the journal a
+		// record of the world rather than of itself.
+		entries, err := entity.LifecycleEntriesBySubject(systemCtx, testutil.Logger(t), db, entity.Ref{
+			Type: entity.TypeAIAgent,
+			ID:   id,
+		})
+		require.NoError(t, err)
+		require.Len(t, entries, 1, "one creation should produce one entry")
+
+		got := entries[0]
+		require.Equal(t, "created", got.Event)
+		require.Equal(t, "workspace_agent", got.ActorType)
+		require.Equal(t, r.Agents[0].ID, got.Actor,
+			"the entry should name the workspace_agent coderd authenticated")
+		require.NotZero(t, got.RecordedAt)
 	})
 
 	// The probe is what a real workspace will run, so its failure handling is
@@ -217,6 +225,22 @@ func TestAIAgentIdentity(t *testing.T) {
 			})
 		}
 	})
+}
+
+// mintedAIAgentID extracts the identity the probe reported from its output.
+//
+// The probe prints one line naming what coderd minted for it. Reading it back
+// out of the log is how the test learns an identity it never chose and cannot
+// otherwise know.
+func mintedAIAgentID(t *testing.T, scriptLog string) uuid.UUID {
+	t.Helper()
+
+	matches := regexp.MustCompile(`created AI agent ([0-9a-fA-F-]{36})`).FindStringSubmatch(scriptLog)
+	require.Len(t, matches, 2, "probe did not report an AI agent identity.\nscript log:\n%s", scriptLog)
+
+	id, err := uuid.Parse(matches[1])
+	require.NoError(t, err)
+	return id
 }
 
 // readScriptLog returns whatever the startup script wrote, for use in failure
