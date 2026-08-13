@@ -1767,6 +1767,23 @@ export const ChatCleared: Story = {
 	},
 };
 
+export const ChatClearedError: Story = {
+	args: {
+		name: "chat_cleared",
+		args: JSON.stringify({ source: "manual" }),
+		result: { error: "chat is archived" },
+		status: "error",
+		isError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Context cleared")).toBeInTheDocument();
+		expect(
+			await canvas.findByRole("img", { name: "chat is archived" }),
+		).toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // SubagentInterrupt stories
 // ---------------------------------------------------------------------------

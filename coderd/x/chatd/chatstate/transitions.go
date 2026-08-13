@@ -756,10 +756,9 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 	return RequestCompactionResult{Chat: updated}, nil
 }
 
-// ClearContextInput configures [Tx.ClearContext]. Messages carries the
-// context-boundary rows the caller built (chatd owns the message
-// shape); chatstate only requires that the batch is non-empty so the
-// insert trigger grants the fresh history epoch.
+// ClearContextInput configures [Tx.ClearContext]. Messages carries
+// the boundary rows built by chatd; chatstate requires a non-empty
+// batch so the insert trigger grants the fresh history epoch.
 type ClearContextInput struct {
 	Messages []Message
 }
@@ -771,12 +770,10 @@ type ClearContextResult struct {
 }
 
 // ClearContext commits a synchronous context reset: it inserts the
-// caller-built boundary rows and lands the chat in waiting, clearing
-// any stored error and any pending manual compaction request. Unlike
-// RequestCompaction it needs no worker turn, so ownership is left
-// untouched and no explicit history-epoch grant is required; the
-// message insert trigger already advances history_version and resets
-// the retry budget.
+// caller-built boundary rows, clears any stored error and pending
+// compaction request, preserves ownership, and lands in waiting. No
+// worker turn is needed; the message insert trigger advances
+// history_version and resets the retry budget.
 func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionClearContext)
 	if err != nil {

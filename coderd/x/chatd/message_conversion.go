@@ -394,8 +394,8 @@ type buildClearMessagesInput struct {
 // triplet, mirroring the compaction triplet shape: a hidden
 // model-only user-role row (the boundary anchor the prompt query keys
 // on), a user-visible synthetic chat_cleared tool call, and its tool
-// result. The hidden row carries a short sentinel because an empty
-// provider message is rejected by some providers.
+// result. The hidden row carries a short sentinel rather than empty
+// content so the next prompt never sends an empty user message.
 func buildClearMessages(input buildClearMessagesInput) ([]chatstate.Message, error) {
 	contentVersion := input.contentVersion
 	if contentVersion == 0 {
@@ -408,22 +408,15 @@ func buildClearMessages(input buildClearMessagesInput) ([]chatstate.Message, err
 	if err != nil {
 		return nil, xerrors.Errorf("marshal clear sentinel: %w", err)
 	}
-	args, err := json.Marshal(map[string]any{"source": "manual"})
-	if err != nil {
-		return nil, xerrors.Errorf("marshal clear args: %w", err)
-	}
+	payload := json.RawMessage(`{"source":"manual"}`)
 	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageToolCall(input.toolCallID, "chat_cleared", args),
+		codersdk.ChatMessageToolCall(input.toolCallID, "chat_cleared", payload),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal clear tool call: %w", err)
 	}
-	result, err := json.Marshal(map[string]any{"source": "manual"})
-	if err != nil {
-		return nil, xerrors.Errorf("marshal clear result: %w", err)
-	}
 	toolContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageToolResult(input.toolCallID, "chat_cleared", result, false, false),
+		codersdk.ChatMessageToolResult(input.toolCallID, "chat_cleared", payload, false, false),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal clear tool result: %w", err)
@@ -446,10 +439,9 @@ func buildClearMessages(input buildClearMessagesInput) ([]chatstate.Message, err
 	return messages, nil
 }
 
-// hasClearableMessageAfter reports whether any active model-visible
-// conversation message follows the given boundary index. System
-// prompts and user-visibility-only rows survive a clear unchanged, so
-// they do not make a chat clearable on their own.
+// hasClearableMessageAfter reports whether any active, uncompressed
+// model-visible conversation message follows the boundary index.
+// System prompts and user-only rows do not make a chat clearable.
 func hasClearableMessageAfter(messages []database.ChatMessage, index int) bool {
 	for i := index + 1; i < len(messages); i++ {
 		msg := messages[i]
@@ -536,11 +528,9 @@ func compactionStatusFromHistory(
 	return compactionStatusNotNeeded
 }
 
-// latestContextBoundaryIndex finds the most recent context boundary:
-// a compaction summary (chat_summarized) or a manual context clear
-// (chat_cleared). Compaction eligibility, the manual-compaction
-// generation decision, and clear eligibility must all stop at this
-// boundary so neither operation reaches across the other.
+// latestContextBoundaryIndex finds the latest compressed
+// chat_summarized or chat_cleared boundary. Compaction and clear
+// eligibility both stop here so neither reaches across the other.
 func latestContextBoundaryIndex(messages []database.ChatMessage) int {
 	for i := len(messages) - 1; i >= 0; i-- {
 		if isContextBoundaryMessage(messages[i]) {
