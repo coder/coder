@@ -90,6 +90,7 @@ import {
 import {
 	type ChatStore,
 	type ChatStoreState,
+	fetchChatMessagesPageWithReplay,
 	selectChatStatus,
 	useChatSelector,
 	useChatStore,
@@ -1258,6 +1259,16 @@ const AgentChatPage: FC = () => {
 		clearChatErrorReason,
 		aiGatewayDisabled,
 	});
+	const fetchOlderMessages = () => {
+		if (!agentId) {
+			return;
+		}
+		fetchChatMessagesPageWithReplay(
+			queryClient,
+			agentId,
+			chatMessagesQuery.fetchNextPage,
+		);
+	};
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
 	const persistedError = getPersistedDetailError({
@@ -2039,7 +2050,7 @@ const AgentChatPage: FC = () => {
 			scrollToBottomRef={scrollToBottomRef}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
-			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+			onFetchMoreMessages={fetchOlderMessages}
 			messageCount={storeMessageCount}
 			desktopChatId={desktopEnabled ? agentId : undefined}
 			mcpServers={mcpServers}
