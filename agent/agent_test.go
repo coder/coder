@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/agent/confine"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
@@ -643,6 +644,131 @@ func TestAgent_StartupScript_SecretInjection(t *testing.T) {
 	fileProof, err := os.ReadFile(fileProofPath)
 	require.NoError(t, err)
 	require.Equal(t, "startup-file-content", string(fileProof))
+}
+
+func TestAgent_StartupScriptProxyReadiness(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("startup script test uses bash TCP redirection")
+	}
+
+	proofPath := filepath.Join(t.TempDir(), "proxy-proof")
+	script := fmt.Sprintf(`proxy_host="${CODER_EGRESS_PROXY%%:*}"
+proxy_port="${CODER_EGRESS_PROXY##*:}"
+bash -c 'exec 3<>/dev/tcp/$1/$2' _ "$proxy_host" "$proxy_port" || exit 1
+printf '%%s\n%%s\n' "$CODER_EGRESS_PROXY" "$CODER_SANDBOX_ID" > %q`, proofPath)
+	manifest := agentsdk.Manifest{
+		Scripts: []codersdk.WorkspaceAgentScript{{
+			Script:      script,
+			Timeout:     30 * time.Second,
+			RunOnStart:  true,
+			LogSourceID: uuid.New(),
+		}},
+	}
+
+	waitStarted := make(chan struct{})
+	proxyReady := make(chan struct{})
+	var proxyAddress string
+	sandboxID := uuid.New().String()
+	//nolint:dogsled
+	_, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.Filesystem = afero.NewOsFs()
+		opts.ScriptStartupWait = func(ctx context.Context) error {
+			close(waitStarted)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-proxyReady:
+				return nil
+			}
+		}
+		opts.ScriptExtraEnv = func() []string {
+			return []string{
+				confine.EnvEgressProxy + "=" + proxyAddress,
+				confine.EnvSandboxID + "=" + sandboxID,
+			}
+		}
+	})
+
+	waitCtx := testutil.Context(t, testutil.WaitShort)
+	select {
+	case <-waitStarted:
+	case <-waitCtx.Done():
+		require.NoError(t, waitCtx.Err(), "startup dependency wait was not reached")
+	}
+	_, err := os.Stat(proofPath)
+	require.ErrorIs(t, err, os.ErrNotExist, "startup script ran before proxy readiness")
+
+	engine := confine.NewPolicyEngine("example.com", 443)
+	proxy, err := confine.ListenProxy("127.0.0.1:0", engine, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, proxy.Close())
+	})
+	proxyAddress = proxy.Addr().String()
+	close(proxyReady)
+
+	var lifecycle []codersdk.WorkspaceAgentLifecycle
+	require.Eventually(t, func() bool {
+		lifecycle = client.GetLifecycleStates()
+		return len(lifecycle) > 0 && lifecycle[len(lifecycle)-1] == codersdk.WorkspaceAgentLifecycleReady
+	}, testutil.WaitLong, testutil.IntervalMedium)
+
+	proof, err := os.ReadFile(proofPath)
+	require.NoError(t, err)
+	require.Equal(t, proxyAddress+"\n"+sandboxID+"\n", string(proof))
+}
+
+func TestAgent_StartupScriptNoSandboxFastPath(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("startup script test uses sh syntax")
+	}
+
+	proofPath := filepath.Join(t.TempDir(), "no-sandbox-proof")
+	manifest := agentsdk.Manifest{
+		Scripts: []codersdk.WorkspaceAgentScript{{
+			Script: fmt.Sprintf(
+				`printf '%%s\n%%s\n' "${CODER_EGRESS_PROXY-unset}" "${CODER_SANDBOX_ID-unset}" > %q`,
+				proofPath,
+			),
+			Timeout:     30 * time.Second,
+			RunOnStart:  true,
+			LogSourceID: uuid.New(),
+		}},
+	}
+
+	//nolint:dogsled
+	_, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.Filesystem = afero.NewOsFs()
+		opts.EnvInfo = noSandboxEnvInfo{}
+	})
+
+	promptCtx := testutil.Context(t, testutil.WaitShort)
+	require.True(t, testutil.Eventually(promptCtx, t, func(context.Context) bool {
+		_, err := os.Stat(proofPath)
+		return err == nil
+	}, testutil.IntervalFast), "startup script stalled without a sandbox declaration")
+
+	proof, err := os.ReadFile(proofPath)
+	require.NoError(t, err)
+	require.Equal(t, "unset\nunset\n", string(proof))
+	require.Eventually(t, func() bool {
+		lifecycle := client.GetLifecycleStates()
+		return len(lifecycle) > 0 && lifecycle[len(lifecycle)-1] == codersdk.WorkspaceAgentLifecycleReady
+	}, testutil.WaitLong, testutil.IntervalMedium)
+}
+
+type noSandboxEnvInfo struct {
+	usershell.SystemEnvInfo
+}
+
+func (noSandboxEnvInfo) Environ() []string {
+	env := usershell.SystemEnvInfo{}.Environ()
+	return slices.DeleteFunc(env, func(entry string) bool {
+		name, _, _ := strings.Cut(entry, "=")
+		return name == confine.EnvEgressProxy || name == confine.EnvSandboxID
+	})
 }
 
 func TestAgent_GitSSH(t *testing.T) {

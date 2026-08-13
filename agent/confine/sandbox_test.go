@@ -117,6 +117,11 @@ func TestSandboxControllerHappyPath(t *testing.T) {
 		errCh <- controller.Run(ctx)
 	}()
 
+	readyCtx := testutil.Context(t, testutil.WaitLong)
+	require.NoError(t, controller.WaitForProxy(readyCtx))
+	workspaceScriptEnv := environmentMap(strings.Join(controller.ScriptExtraEnv(), "\n") + "\n")
+	require.Equal(t, state.response.ID.String(), workspaceScriptEnv[confine.EnvSandboxID])
+
 	var createEnv string
 	eventuallyCtx := testutil.Context(t, testutil.WaitLong)
 	require.True(t, testutil.Eventually(eventuallyCtx, t, func(context.Context) bool {
@@ -135,6 +140,7 @@ func TestSandboxControllerHappyPath(t *testing.T) {
 	require.Equal(t, state.response.ID.String(), environment[confine.EnvSandboxID])
 	proxyAddress := environment[confine.EnvEgressProxy]
 	require.NotEmpty(t, proxyAddress)
+	require.Equal(t, proxyAddress, workspaceScriptEnv[confine.EnvEgressProxy])
 	require.Equal(t, 1, countEnvironmentKey(createEnv, confine.EnvAIAgentToken))
 
 	connection, err := net.Dial("tcp", proxyAddress)

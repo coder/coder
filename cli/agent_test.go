@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -243,21 +244,37 @@ func TestWorkspaceAgent_AISandbox(t *testing.T) {
 	}
 	t.Parallel()
 
+	tempDir := t.TempDir()
+	workspaceEnvFile := filepath.Join(tempDir, "workspace-script.env")
+	workspaceConnectedMarker := filepath.Join(tempDir, "workspace-script-connected")
+	workspaceScript := fmt.Sprintf(`env > %q
+proxy_host="${CODER_EGRESS_PROXY%%:*}"
+proxy_port="${CODER_EGRESS_PROXY##*:}"
+bash -c 'exec 3<>/dev/tcp/$1/$2' _ "$proxy_host" "$proxy_port" || exit 1
+printf connected > %q`, workspaceEnvFile, workspaceConnectedMarker)
+
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-	}).WithAgent().Do()
+	}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
+		agents[0].Scripts = []*sdkproto.Script{{
+			DisplayName:    "AI sandbox",
+			Script:         workspaceScript,
+			RunOnStart:     true,
+			TimeoutSeconds: 30,
+		}}
+		return agents
+	}).Do()
 
-	tempDir := t.TempDir()
 	logDir := filepath.Join(tempDir, "logs")
 	require.NoError(t, os.MkdirAll(logDir, 0o755))
-	envFile := filepath.Join(tempDir, "sandbox.env")
+	controllerEnvFile := filepath.Join(tempDir, "controller.env")
 	destroyMarker := filepath.Join(tempDir, "destroyed")
 	createScript := filepath.Join(tempDir, "create-sandbox")
 	destroyScript := filepath.Join(tempDir, "destroy-sandbox")
-	require.NoError(t, os.WriteFile(createScript, []byte(fmt.Sprintf("#!/bin/sh\nenv > %q\n", envFile)), 0o600))
+	require.NoError(t, os.WriteFile(createScript, []byte(fmt.Sprintf("#!/bin/sh\nenv > %q\n", controllerEnvFile)), 0o600))
 	require.NoError(t, os.Chmod(createScript, 0o700))
 	require.NoError(t, os.WriteFile(destroyScript, []byte(fmt.Sprintf("#!/bin/sh\nprintf destroyed > %q\n", destroyMarker)), 0o600))
 	require.NoError(t, os.Chmod(destroyScript, 0o700))
@@ -323,21 +340,38 @@ func TestWorkspaceAgent_AISandbox(t *testing.T) {
 	require.True(t, child.AIAgentID.Valid)
 	require.Equal(t, sandbox.AIAgentID, child.AIAgentID.UUID)
 
-	var environment map[string]string
+	var controllerEnvironment map[string]string
 	require.True(t, testutil.Eventually(eventuallyCtx, t, func(context.Context) bool {
-		contents, err := os.ReadFile(envFile)
+		contents, err := os.ReadFile(controllerEnvFile)
 		if err != nil {
 			return false
 		}
-		environment = parseAgentEnvironment(string(contents))
+		controllerEnvironment = parseAgentEnvironment(string(contents))
 		return true
 	}, testutil.IntervalFast))
-	require.Equal(t, client.URL.String(), environment[confine.EnvAIAgentURL])
-	require.NotEmpty(t, environment[confine.EnvAIAgentToken])
-	require.NotEmpty(t, environment[confine.EnvAISessionToken])
-	require.Equal(t, sandbox.ID.String(), environment[confine.EnvSandboxID])
-	_, _, err = net.SplitHostPort(environment[confine.EnvEgressProxy])
+	require.Equal(t, client.URL.String(), controllerEnvironment[confine.EnvAIAgentURL])
+	require.NotEmpty(t, controllerEnvironment[confine.EnvAIAgentToken])
+	require.NotEmpty(t, controllerEnvironment[confine.EnvAISessionToken])
+	require.Equal(t, sandbox.ID.String(), controllerEnvironment[confine.EnvSandboxID])
+	proxyAddress := controllerEnvironment[confine.EnvEgressProxy]
+	_, _, err = net.SplitHostPort(proxyAddress)
 	require.NoError(t, err)
+
+	var workspaceEnvironment map[string]string
+	require.True(t, testutil.Eventually(eventuallyCtx, t, func(context.Context) bool {
+		contents, err := os.ReadFile(workspaceEnvFile)
+		if err != nil {
+			return false
+		}
+		connected, err := os.ReadFile(workspaceConnectedMarker)
+		if err != nil || string(connected) != "connected" {
+			return false
+		}
+		workspaceEnvironment = parseAgentEnvironment(string(contents))
+		return true
+	}, testutil.IntervalFast))
+	require.Equal(t, proxyAddress, workspaceEnvironment[confine.EnvEgressProxy])
+	require.Equal(t, sandbox.ID.String(), workspaceEnvironment[confine.EnvSandboxID])
 
 	var sessions []codersdk.AISandboxSession
 	require.True(t, testutil.Eventually(eventuallyCtx, t, func(ctx context.Context) bool {
