@@ -48,6 +48,7 @@ import { buildStreamTools } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import { ChatMessageScroller } from "./ChatMessageScroller";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -85,6 +86,10 @@ export const workspaceSkillsFromChat = (
 interface ChatPageTimelineProps {
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
+	hasMoreMessages: boolean;
+	isFetchingMoreMessages: boolean;
+	hasFetchMoreError: boolean;
+	onFetchMoreMessages: () => Promise<unknown>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -100,6 +105,10 @@ interface ChatPageTimelineProps {
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	store,
 	persistedError,
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	hasFetchMoreError,
+	onFetchMoreMessages,
 	onEditUserMessage,
 	editingMessageId,
 	onImplementPlan,
@@ -162,12 +171,11 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 
 	return (
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<div
-				data-testid="chat-timeline-wrapper"
-				className={cn(
-					"mx-auto flex w-full flex-col py-6",
-					chatWidthClass(chatFullWidth),
-				)}
+			<ChatMessageScroller
+				hasMoreMessages={hasMoreMessages}
+				isFetchingMoreMessages={isFetchingMoreMessages}
+				hasFetchMoreError={hasFetchMoreError}
+				onFetchMoreMessages={onFetchMoreMessages}
 			>
 				{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
@@ -193,6 +201,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
 				/>
+			</ChatMessageScroller>
+			{/* The empty state and the terminal failure callout sit outside the
+			    scroller content, which holds transcript rows only. */}
+			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
 				<LiveStreamTailContent
 					isTranscriptEmpty={parsedMessages.length === 0}
 					liveStatus={liveStatus}

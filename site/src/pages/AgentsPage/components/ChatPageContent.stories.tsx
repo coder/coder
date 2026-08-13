@@ -1,10 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { FC } from "react";
 import { expect, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
 import { ChatPageTimeline } from "./ChatPageContent";
+
+// These stories cover transcript rendering, so history paging stays idle.
+const StoryChatPageTimeline: FC<{
+	store: ReturnType<typeof createChatStore>;
+}> = ({ store }) => (
+	<ChatPageTimeline
+		store={store}
+		persistedError={undefined}
+		hasMoreMessages={false}
+		isFetchingMoreMessages={false}
+		hasFetchMoreError={false}
+		onFetchMoreMessages={async () => {}}
+	/>
+);
 
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
@@ -49,7 +64,7 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 	render: () => {
 		const store = buildThinkingSpacerStore();
 
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
+		return <StoryChatPageTimeline store={store} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -76,7 +91,7 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 
 		return (
 			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
-				<ChatPageTimeline store={store} persistedError={undefined} />
+				<StoryChatPageTimeline store={store} />
 			</ChatWorkspaceContext>
 		);
 	},
@@ -99,7 +114,7 @@ export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 			buildMessage(4, "user", [{ type: "text", text: "Thanks!" }]),
 		]);
 
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
+		return <StoryChatPageTimeline store={store} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -137,7 +152,7 @@ export const MergedMessagesRenderInIDOrder: Story = {
 			batched(2, "assistant", "bravo"),
 		]);
 
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
+		return <StoryChatPageTimeline store={store} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

@@ -5,7 +5,6 @@ import {
 	type ReactNode,
 	type RefObject,
 	useEffect,
-	useRef,
 	useState,
 } from "react";
 import { useQueryClient } from "react-query";
@@ -43,7 +42,6 @@ import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPane
 import type { SkillMetadata } from "./components/ChatMessageInput/SkillsTriggerMenu";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
-import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
@@ -205,15 +203,11 @@ interface AgentChatPageViewProps {
 	isChildChat?: boolean;
 	isArchivingThisChat?: boolean;
 
-	// Scroll container ref.
-	scrollContainerRef: RefObject<HTMLDivElement | null>;
-	scrollToBottomRef?: RefObject<(() => void) | null>;
-
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	onFetchMoreMessages: () => void;
-	messageCount: number;
+	hasFetchMoreError: boolean;
+	onFetchMoreMessages: () => Promise<unknown>;
 
 	urlTransform?: UrlTransform;
 
@@ -379,12 +373,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isPinned,
 	isChildChat,
 	isArchivingThisChat,
-	scrollContainerRef,
-	scrollToBottomRef,
 	hasMoreMessages,
 	isFetchingMoreMessages,
+	hasFetchMoreError,
 	onFetchMoreMessages,
-	messageCount,
 	urlTransform,
 	mcpServers,
 	selectedMCPServerIds,
@@ -420,9 +412,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
-	const internalScrollToBottomRef = useRef<(() => void) | null>(null);
-	const effectiveScrollToBottomRef =
-		scrollToBottomRef ?? internalScrollToBottomRef;
 
 	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
 		getPersistedSidebarTabId(agentId),
@@ -914,38 +903,27 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								}}
 							/>
 						</div>
-						<ChatScrollContainer
+						<ChatPageTimeline
 							key={agentId}
-							scrollContainerRef={scrollContainerRef}
-							scrollToBottomRef={effectiveScrollToBottomRef}
-							isFetchingMoreMessages={isFetchingMoreMessages}
+							store={store}
+							persistedError={persistedError}
 							hasMoreMessages={hasMoreMessages}
+							isFetchingMoreMessages={isFetchingMoreMessages}
+							hasFetchMoreError={hasFetchMoreError}
 							onFetchMoreMessages={onFetchMoreMessages}
-							messageCount={messageCount}
-						>
-							<div className="px-4" data-chat-scroll-content>
-								<ChatPageTimeline
-									store={store}
-									persistedError={persistedError}
-									onEditUserMessage={
-										isOtherUserReadOnly
-											? undefined
-											: editing.handleEditUserMessage
-									}
-									editingMessageId={editing.editingMessageId}
-									urlTransform={urlTransform}
-									mcpServers={mcpServers}
-									onImplementPlan={
-										isOtherUserReadOnly ? undefined : onImplementPlan
-									}
-									onSendAskUserQuestionResponse={
-										isOtherUserReadOnly
-											? undefined
-											: canSendAskUserQuestionResponse
-									}
-								/>
-							</div>
-						</ChatScrollContainer>
+							onEditUserMessage={
+								isOtherUserReadOnly ? undefined : editing.handleEditUserMessage
+							}
+							editingMessageId={editing.editingMessageId}
+							urlTransform={urlTransform}
+							mcpServers={mcpServers}
+							onImplementPlan={
+								isOtherUserReadOnly ? undefined : onImplementPlan
+							}
+							onSendAskUserQuestionResponse={
+								isOtherUserReadOnly ? undefined : canSendAskUserQuestionResponse
+							}
+						/>
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
 								organizationId={organizationId}

@@ -1,3 +1,4 @@
+import { getDisplayMessageKey } from "./messageHelpers";
 import type { ParsedMessageEntry } from "./types";
 
 type TimelineMessageRow = {
@@ -10,17 +11,36 @@ type TimelineMessageRow = {
 
 type TimelineRow = TimelineMessageRow | { type: "live"; key: string };
 
+const assistantSlotKey = (turnKey: string, slot: number): string =>
+	`${turnKey}:assistant:${slot}`;
+
+/**
+ * Durable rows keep their server IDs so prepending history never changes an
+ * existing Item's identity. Merged read_file groups key off the visible row
+ * before them for the same reason. The live assistant uses a turn-local slot
+ * until its durable message arrives.
+ */
 export const assignTimelineRows = (
 	displayMessages: readonly ParsedMessageEntry[],
 	hasLiveAssistant: boolean,
 ): readonly TimelineRow[] => {
 	const rows: TimelineMessageRow[] = [];
+	let turnKey: string | undefined;
+	let assistantsInTurn = 0;
 
 	for (const [index, entry] of displayMessages.entries()) {
+		const { message } = entry;
+		const key = getDisplayMessageKey(entry, displayMessages[index - 1]);
+		if (message.role === "user") {
+			turnKey = key;
+			assistantsInTurn = 0;
+		} else if (message.role === "assistant" && turnKey) {
+			assistantsInTurn += 1;
+		}
 		rows.push({
 			type: "message",
 			entry,
-			key: `message:${entry.message.id}`,
+			key,
 			isLastInAssistantChain: false,
 			isLastMessage: index === displayMessages.length - 1,
 		});
@@ -45,5 +65,13 @@ export const assignTimelineRows = (
 	if (!hasLiveAssistant) {
 		return rows;
 	}
-	return [...rows, { type: "live", key: "live-assistant" }];
+	return [
+		...rows,
+		{
+			type: "live",
+			key: turnKey
+				? assistantSlotKey(turnKey, assistantsInTurn)
+				: "live-assistant",
+		},
+	];
 };

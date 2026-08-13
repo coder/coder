@@ -95,6 +95,9 @@ importers:
       '@pierre/trees':
         specifier: 1.0.0-beta.4
         version: 1.0.0-beta.4(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@shadcn/react':
+        specifier: 0.3.0
+        version: 0.3.0(@types/react@19.2.18)(react@19.2.8)
       '@tanstack/react-query-devtools':
         specifier: 5.82.0
         version: 5.82.0(@tanstack/react-query@5.82.0(react@19.2.8))(react@19.2.8)
@@ -203,9 +206,6 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
-      react-infinite-scroll-component:
-        specifier: 7.2.1
-        version: 7.2.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react-markdown:
         specifier: 9.1.0
         version: 9.1.0(@types/react@19.2.18)(react@19.2.8)
@@ -2306,6 +2306,17 @@ packages:
       rollup: 4.59.0
     peerDependenciesMeta:
       rollup:
+        optional: true
+
+  '@shadcn/react@0.3.0':
+    resolution: {integrity: sha512-iKN0NuYe850VDHlxEfvppFrpa7CMV3zArTHusXlaSmeFeQhohGbIqclv6WwPTs/44I8EkXQpcuRt6sXEVKkWqQ==, tarball: https://registry.npmjs.org/@shadcn/react/-/react-0.3.0.tgz}
+    peerDependencies:
+      '@types/react': '>=19'
+      react: '>=19'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      react:
         optional: true
 
   '@shikijs/core@4.4.2':
@@ -5233,13 +5244,6 @@ packages:
 
   react-fast-compare@2.0.4:
     resolution: {integrity: sha512-suNP+J1VU1MWFKcyt7RtjiSWUjvidmQSlqu+eHslq+342xCbGTYmC0mEhPCOHxlW0CywylOC1u2DFAT+bv4dBw==, tarball: https://registry.npmjs.org/react-fast-compare/-/react-fast-compare-2.0.4.tgz}
-
-  react-infinite-scroll-component@7.2.1:
-    resolution: {integrity: sha512-yPuEf6VHBJXFt+YXDxjlnAuhorUwiA2cKURx/P6a7WW3k+TvwY/mbx7KP1rQ1hxGzDcwreczRyLIv6eSd1sFIw==, tarball: https://registry.npmjs.org/react-infinite-scroll-component/-/react-infinite-scroll-component-7.2.1.tgz}
-    engines: {node: '>=20.0.0'}
-    peerDependencies:
-      react: '>=17'
-      react-dom: '>=17'
 
   react-inspector@6.0.2:
     resolution: {integrity: sha512-x+b7LxhmHXjHoU/VrFAzw5iutsILRoYyDq97EDYdFpPLcvqtEzk4ZSZSQjnFPbr5T57tLXnHcqFYoN1pI6u8uQ==, tarball: https://registry.npmjs.org/react-inspector/-/react-inspector-6.0.2.tgz}
@@ -8263,6 +8267,11 @@ snapshots:
       '@types/estree': 1.0.8
       estree-walker: 2.0.2
       picomatch: 4.0.4
+
+  '@shadcn/react@0.3.0(@types/react@19.2.18)(react@19.2.8)':
+    optionalDependencies:
+      '@types/react': 19.2.18
+      react: 19.2.8
 
   '@shikijs/core@4.4.2':
     dependencies:
@@ -11674,11 +11683,6 @@ snapshots:
       react: 19.2.8
 
   react-fast-compare@2.0.4: {}
-
-  react-infinite-scroll-component@7.2.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
-    dependencies:
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
 
   react-inspector@6.0.2(react@19.2.8):
     dependencies:

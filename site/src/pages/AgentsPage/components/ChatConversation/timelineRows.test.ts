@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { buildDisplayMessages } from "./messageHelpers";
 import { assignTimelineRows } from "./timelineRows";
-import type { ParsedMessageContent, ParsedMessageEntry } from "./types";
+import type {
+	MergedTool,
+	ParsedMessageContent,
+	ParsedMessageEntry,
+} from "./types";
 
 const emptyParsed: ParsedMessageContent = {
 	markdown: "",
@@ -41,14 +46,107 @@ const durable = (
 const keys = (rows: ReturnType<typeof assignTimelineRows>): string[] =>
 	rows.map((row) => row.key);
 
+const readFileMessage = (id: number, toolID: string): ParsedMessageEntry => ({
+	message: {
+		id,
+		chat_id: "chat-1",
+		role: "assistant",
+		created_at: "2026-08-12T00:00:00Z",
+		content: [],
+	},
+	parsed: {
+		...emptyParsed,
+		toolCalls: [{ id: toolID, name: "read_file", args: { path: toolID } }],
+		toolResults: [
+			{
+				id: toolID,
+				name: "read_file",
+				result: { content: toolID },
+				isError: false,
+			},
+		],
+		tools: [
+			{
+				id: toolID,
+				name: "read_file",
+				args: { path: toolID },
+				result: { content: toolID },
+				isError: false,
+				status: "completed",
+			} satisfies MergedTool,
+		],
+		blocks: [{ type: "tool", id: toolID }],
+	},
+});
+
 describe("assignTimelineRows", () => {
-	it("keys durable rows by message ID and the live row separately", () => {
+	it("keeps durable row keys stable when an earlier turn is prepended", () => {
+		const assistant = durable(2, "assistant", "answer");
+		const before = assignTimelineRows([assistant], false);
+		const after = assignTimelineRows(
+			[durable(1, "user", "prompt"), assistant],
+			false,
+		);
+
+		expect(keys(before)).toEqual(["message:2"]);
+		expect(keys(after)).toEqual(["message:1", "message:2"]);
+	});
+
+	it("uses a separate slot for the live assistant", () => {
+		const rows = assignTimelineRows([durable(1, "user", "prompt")], true);
+
+		expect(keys(rows)).toEqual(["message:1", "message:1:assistant:0"]);
+	});
+
+	it("advances the live assistant slot past durable assistants in the turn", () => {
 		const rows = assignTimelineRows(
-			[durable(1, "user", "prompt"), durable(2, "assistant", "answer")],
+			[
+				durable(1, "user", "prompt"),
+				durable(2, "assistant", "first"),
+				durable(3, "assistant", "second"),
+			],
 			true,
 		);
 
-		expect(keys(rows)).toEqual(["message:1", "message:2", "live-assistant"]);
+		expect(keys(rows)).toEqual([
+			"message:1",
+			"message:2",
+			"message:3",
+			"message:1:assistant:2",
+		]);
+	});
+
+	it("falls back to a live key when no durable user turn exists", () => {
+		expect(keys(assignTimelineRows([], true))).toEqual(["live-assistant"]);
+	});
+
+	it("keeps a merged read_file row's key stable when older reads are prepended", () => {
+		const prompt = durable(1, "user", "prompt");
+		const loadedFirst = assignTimelineRows(
+			[
+				prompt,
+				buildDisplayMessages([
+					readFileMessage(50, "read-50"),
+					readFileMessage(51, "read-51"),
+				])[0],
+			],
+			false,
+		);
+		const afterPrepend = assignTimelineRows(
+			[
+				prompt,
+				buildDisplayMessages([
+					readFileMessage(48, "read-48"),
+					readFileMessage(49, "read-49"),
+					readFileMessage(50, "read-50"),
+					readFileMessage(51, "read-51"),
+				])[0],
+			],
+			false,
+		);
+
+		expect(keys(loadedFirst)).toEqual(["message:1", "read-file-group:after:1"]);
+		expect(keys(afterPrepend)).toEqual(keys(loadedFirst));
 	});
 
 	it("marks only the last message of an assistant chain", () => {
