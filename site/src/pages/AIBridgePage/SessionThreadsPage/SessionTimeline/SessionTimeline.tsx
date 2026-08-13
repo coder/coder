@@ -28,7 +28,7 @@ import { PromptTable } from "./PromptTable";
 import {
 	matchesNetworkCallSearch,
 	matchesThreadSearch,
-	matchesThreadToolQuery,
+	matchesThreadToolSearch,
 } from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
 
@@ -243,9 +243,17 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 
 interface AgenticActionItemProps {
 	action: AIBridgeAgenticAction;
+	/**
+	 * When true, tool calls start expanded so a search that matched a tool
+	 * name or tool input reveals why the thread surfaced.
+	 */
+	expandToolCalls: boolean;
 }
 
-const AgenticActionItem: FC<AgenticActionItemProps> = ({ action }) => {
+const AgenticActionItem: FC<AgenticActionItemProps> = ({
+	action,
+	expandToolCalls,
+}) => {
 	return (
 		<>
 			{/* thinking blocks */}
@@ -264,6 +272,7 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({ action }) => {
 					outputTokens={action.token_usage.output_tokens}
 					tokenUsageMetadata={tool_call.metadata}
 					timestamp={new Date(tool_call.created_at)}
+					expandedByDefault={expandToolCalls}
 				/>
 			))}
 		</>
@@ -274,18 +283,27 @@ interface ThreadItemProps {
 	thread: AIBridgeThread;
 	initiator: MinimalUser;
 	/**
-	 * When true, the agentic loop starts expanded so a search that matched a
-	 * tool call reveals why the thread surfaced.
+	 * True when the search query matched a tool name or tool input in this
+	 * thread's agentic loop. Derived from props at render time so the loop
+	 * opens whenever a search reveals a tool call, including on threads that
+	 * were already mounted.
 	 */
-	searchMatchedTool: boolean;
+	searchToolMatch: boolean;
 }
 
 const ThreadItem: FC<ThreadItemProps> = ({
 	thread,
 	initiator,
-	searchMatchedTool,
+	searchToolMatch,
 }) => {
-	const [agenticLoopOpen, setAgenticLoopOpen] = useState(searchMatchedTool);
+	// Track only explicit user toggles. Null means the user has not toggled,
+	// so the derived state follows the search. This avoids mirroring the prop
+	// into state (FE8) while keeping the loop responsive to user clicks.
+	const [userToggled, setUserToggled] = useState<boolean | null>(null);
+	const agenticLoopOpen = userToggled ?? searchToolMatch;
+
+	const toggleAgenticLoop = () =>
+		setUserToggled((prev) => !(prev ?? searchToolMatch));
 
 	const durationInMs =
 		new Date(thread.ended_at ?? Date.now()).getTime() -
@@ -376,7 +394,7 @@ const ThreadItem: FC<ThreadItemProps> = ({
 						<div>
 							<CollapseButton
 								isOpen={agenticLoopOpen}
-								onClick={() => setAgenticLoopOpen(!agenticLoopOpen)}
+								onClick={toggleAgenticLoop}
 							>
 								<span className="text-sm font-normal">Agentic loop</span>
 							</CollapseButton>
@@ -398,7 +416,11 @@ const ThreadItem: FC<ThreadItemProps> = ({
 
 							{/* Agentic actions */}
 							{thread.agentic_actions?.map((action, i) => (
-								<AgenticActionItem key={`${thread.id}-${i}`} action={action} />
+								<AgenticActionItem
+									key={`${thread.id}-${i}`}
+									action={action}
+									expandToolCalls={searchToolMatch}
+								/>
 							))}
 
 							{/* Agentic loop completed */}
@@ -571,18 +593,17 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* left vertical line */}
 				</div>
 				<div className="row-start-5 col-start-2 col-span-4">
-					{networkCallSummary &&
-						(!isSearching || filteredNetworkCalls.length > 0) && (
-							<div className="mb-4">
-								<NetworkCallsTable
-									summary={networkCallSummary}
-									calls={filteredNetworkCalls}
-									search={
-										isSearching ? { loaded: networkCalls.length } : undefined
-									}
-								/>
-							</div>
-						)}
+					{networkCallSummary && (
+						<div className="mb-4">
+							<NetworkCallsTable
+								summary={networkCallSummary}
+								calls={filteredNetworkCalls}
+								search={
+									isSearching ? { loaded: networkCalls.length } : undefined
+								}
+							/>
+						</div>
+					)}
 					{/* threads */}
 					<div className="[&>.thread-gap:last-child]:hidden">
 						{filteredThreads.map((thread) => (
@@ -590,16 +611,25 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 								key={thread.id}
 								thread={thread}
 								initiator={initiator}
-								searchMatchedTool={matchesThreadToolQuery(thread, searchQuery)}
+								searchToolMatch={matchesThreadToolSearch(thread, searchQuery)}
 							/>
 						))}
 					</div>
+					{isSearching && hasNextPage && (
+						<p
+							className="m-0 py-2 text-xs font-normal text-content-secondary"
+							role="status"
+						>
+							Search covers only the loaded threads. More matches may exist;
+							clear the search to load more.
+						</p>
+					)}
 					{isSearching && !hasAnyMatches && (
 						<p
 							className="m-0 py-4 text-sm font-normal text-content-secondary"
 							role="status"
 						>
-							No events match your search.
+							No events match your search in the loaded events.
 						</p>
 					)}
 					{/* infinite scroll sentinel. Sits 200px below the last thread. */}

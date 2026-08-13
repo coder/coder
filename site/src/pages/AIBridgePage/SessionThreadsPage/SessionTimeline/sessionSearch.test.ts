@@ -4,7 +4,7 @@ import { MockAIBridgeSessionNetworkCalls } from "#/testHelpers/entities";
 import {
 	matchesNetworkCallSearch,
 	matchesThreadSearch,
-	matchesThreadToolQuery,
+	matchesThreadToolSearch,
 } from "./sessionSearch";
 
 const mockThread: AIBridgeThread = {
@@ -82,21 +82,49 @@ describe("matchesThreadSearch", () => {
 	});
 });
 
-describe("matchesThreadToolQuery", () => {
+describe("matchesThreadToolSearch", () => {
 	it("matches tool names", () => {
-		expect(matchesThreadToolQuery(mockThread, "list_directory")).toBe(true);
+		expect(matchesThreadToolSearch(mockThread, "list_directory")).toBe(true);
 	});
 
 	it("matches tool input JSON", () => {
-		expect(matchesThreadToolQuery(mockThread, "path")).toBe(true);
+		expect(matchesThreadToolSearch(mockThread, "path")).toBe(true);
+	});
+
+	it("matches tool names case-insensitively", () => {
+		const upperTool: AIBridgeThread = {
+			...mockThread,
+			agentic_actions: mockThread.agentic_actions.map((a) => ({
+				...a,
+				tool_calls: a.tool_calls.map((c) => ({
+					...c,
+					tool: c.tool.toUpperCase(),
+				})),
+			})),
+		};
+		expect(matchesThreadToolSearch(upperTool, "list_directory")).toBe(true);
+	});
+
+	it("matches tool input case-insensitively", () => {
+		const upperInput: AIBridgeThread = {
+			...mockThread,
+			agentic_actions: mockThread.agentic_actions.map((a) => ({
+				...a,
+				tool_calls: a.tool_calls.map((c) => ({
+					...c,
+					input: c.input.toUpperCase(),
+				})),
+			})),
+		};
+		expect(matchesThreadToolSearch(upperInput, "path")).toBe(true);
 	});
 
 	it("does not match prompt text alone", () => {
-		expect(matchesThreadToolQuery(mockThread, "summarize")).toBe(false);
+		expect(matchesThreadToolSearch(mockThread, "summarize")).toBe(false);
 	});
 
 	it("returns false for an empty query", () => {
-		expect(matchesThreadToolQuery(mockThread, "")).toBe(false);
+		expect(matchesThreadToolSearch(mockThread, "")).toBe(false);
 	});
 });
 

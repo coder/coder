@@ -3,7 +3,7 @@ import type { AgentFirewallLog, AIBridgeThread } from "#/api/typesGenerated";
 /**
  * Pure session-search helpers. Matching is case-insensitive substring
  * matching over the strict field scope: prompt text, tool names, tool
- * input JSON, and network call detail (URL for HTTP, host for DNS).
+ * input JSON, and network call detail (URL for HTTP).
  */
 
 const normalizeQuery = (query: string): string => query.trim().toLowerCase();
@@ -36,7 +36,7 @@ export const matchesThreadSearch = (
  * thread's agentic loop. Used to surface why a thread matched when the
  * match lives inside a collapsed section.
  */
-export const matchesThreadToolQuery = (
+export const matchesThreadToolSearch = (
 	thread: AIBridgeThread,
 	query: string,
 ): boolean => {

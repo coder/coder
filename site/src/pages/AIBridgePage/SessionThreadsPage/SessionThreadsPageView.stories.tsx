@@ -162,7 +162,22 @@ export const SearchNoMatches: Story = {
 		});
 		await userEvent.type(input, "no-such-event");
 		await expect(
-			canvas.getByText("No events match your search."),
+			canvas.getByText("No events match your search in the loaded events."),
 		).toBeInTheDocument();
+	},
+};
+
+// Types a tool-name query after the threads are already mounted, exercising
+// the runtime path where the agentic loop must open in response to the
+// search prop rather than only on mount.
+export const SearchToolMatchAfterMount: Story = {
+	play: async ({ canvas }) => {
+		const input = canvas.getByRole("textbox", {
+			name: /search session events/i,
+		});
+		await userEvent.type(input, "list_directory");
+		expect(
+			(await canvas.findAllByText("list_directory")).length,
+		).toBeGreaterThan(0);
 	},
 };

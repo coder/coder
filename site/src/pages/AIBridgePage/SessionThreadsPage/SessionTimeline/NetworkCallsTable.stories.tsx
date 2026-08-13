@@ -110,6 +110,9 @@ export const EmptyListWithSummaryTotal: Story = {
 		await expect(
 			canvas.queryByText(/Showing the first/),
 		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText(/matches within the first/),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -140,6 +143,24 @@ export const SearchTruncated: Story = {
 		await canvas.findByText("1 match");
 		await expect(
 			canvas.getByText(/1 match within the first 4 of 150 network calls\./),
+		).toBeInTheDocument();
+	},
+};
+
+// Zero matches over a truncated session still renders the panel so the
+// truncation caveat is disclosed even when the search found nothing.
+export const SearchTruncatedNoMatches: Story = {
+	args: {
+		summary: { total: 150, blocked: 2 },
+		calls: [],
+		search: { loaded: 4 },
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			canvas.getByText("No network calls match your search."),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/0 matches within the first 4 of 150 network calls\./),
 		).toBeInTheDocument();
 	},
 };

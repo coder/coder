@@ -22,10 +22,9 @@ interface NetworkCallsTableProps {
 	calls: readonly AgentFirewallLog[];
 	/**
 	 * When set, the table renders search results. `calls` holds only the
-	 * matching rows, and `loaded` is the number of network calls loaded before
-	 * filtering (the session total minus the server-side cap). `loaded` being
-	 * below `summary.total` indicates the search only covered a truncated
-	 * prefix.
+	 * matching rows, and `loaded` is the number of network calls the client
+	 * received (at most the server-side cap). When `loaded` is below
+	 * `summary.total`, the search only covered a truncated prefix.
 	 */
 	search?: { loaded: number };
 }
@@ -64,7 +63,9 @@ export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
 				{blocked > 0 && (
 					<Badge svgSize="xs" className="gap-1 text-content-warning">
 						<BanIcon className="flex-shrink-0" />
-						<span className="sr-only">Blocked network calls: </span>
+						<span className="sr-only">
+							{search ? "Blocked matches: " : "Blocked network calls: "}
+						</span>
 						{blocked.toLocaleString("en-US")}
 					</Badge>
 				)}
@@ -86,17 +87,32 @@ const NetworkCallsList: FC<{
 	search?: { loaded: number };
 	sessionTotal: number;
 }> = ({ calls, search, sessionTotal }) => {
-	if (calls.length === 0) {
-		return (
-			<p className="m-0 px-4 py-3 text-sm font-normal text-content-secondary">
-				No network calls were recorded for this session.
-			</p>
-		);
-	}
-
 	const matches = calls.length;
 	const hiddenCount = sessionTotal - matches;
 	const isTruncated = search ? search.loaded < sessionTotal : hiddenCount > 0;
+
+	if (matches === 0) {
+		return (
+			<>
+				{search ? (
+					<p className="m-0 px-4 py-3 text-sm font-normal text-content-secondary">
+						No network calls match your search.
+					</p>
+				) : (
+					<p className="m-0 px-4 py-3 text-sm font-normal text-content-secondary">
+						No network calls were recorded for this session.
+					</p>
+				)}
+				{search && isTruncated && (
+					<p className="m-0 px-4 py-2 text-xs font-normal text-content-secondary border-0 border-t border-solid">
+						{`0 matches within the first ${search.loaded.toLocaleString(
+							"en-US",
+						)} of ${sessionTotal.toLocaleString("en-US")} network calls.`}
+					</p>
+				)}
+			</>
+		);
+	}
 
 	return (
 		<>

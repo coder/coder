@@ -179,6 +179,7 @@ export const SearchFiltersThreads: Story = {
 				"Can you check what files are in the project and summarize the structure?",
 			),
 		).not.toBeInTheDocument();
+		expect((await canvas.findAllByText("read_file")).length).toBeGreaterThan(0);
 	},
 };
 
@@ -212,7 +213,7 @@ export const SearchNoMatches: Story = {
 	},
 	play: async ({ canvas }) => {
 		await expect(
-			canvas.getByText("No events match your search."),
+			canvas.getByText("No events match your search in the loaded events."),
 		).toBeInTheDocument();
 		await expect(canvas.queryByText("Prompt")).not.toBeInTheDocument();
 	},
@@ -233,7 +234,7 @@ export const SearchNoMatchesWithNextPage: Story = {
 	},
 	play: async ({ args, canvas }) => {
 		await expect(
-			canvas.getByText("No events match your search."),
+			canvas.getByText("No events match your search in the loaded events."),
 		).toBeInTheDocument();
 		await expect(args.onFetchNextPage).not.toHaveBeenCalled();
 	},
