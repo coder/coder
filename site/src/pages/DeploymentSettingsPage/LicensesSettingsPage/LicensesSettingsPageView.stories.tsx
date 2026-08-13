@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
 import type { Feature } from "#/api/typesGenerated";
-import { MockLicenseResponse } from "#/testHelpers/entities";
+import {
+	MockAgentRuntimeHoursFeature,
+	MockLicenseResponse,
+} from "#/testHelpers/entities";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const meta: Meta<typeof LicensesSettingsPageView> = {
@@ -76,18 +79,16 @@ export const ActiveAIGovernanceAddOnUsage: Story = {
 	},
 };
 
-/** The Total agent hours panel renders full width, directly above Agent Workspace Builds. */
 export const TotalAgentHoursUsage: Story = {
 	args: {
 		agentRuntimeHoursFeature: {
-			enabled: true,
-			entitlement: "entitled",
+			...MockAgentRuntimeHoursFeature,
 			limit: 2000,
 			soft_limit: 1700,
 			actual: 435,
 			// 435 hours and 48 minutes: renders as 435.8.
 			actual_ms: 435 * 3_600_000 + 48 * 60_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
