@@ -25,7 +25,7 @@ type EditFilesArgs struct {
 }
 
 type editFileEdits struct {
-	Path  string         `json:"path" description:"Absolute path of the file to edit (for example /home/coder/project/main.go). Required in every entry, including repeated edits to the same file."`
+	Path  string         `json:"path" description:"The absolute path of the file to edit, for example /home/coder/project/main.go."`
 	Edits []editFileEdit `json:"edits" description:"Search and replace operations applied to this file in order."`
 }
 
@@ -101,23 +101,38 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"edit_files",
 		"Perform edits on one or more files by replacing old_text with"+
-			" new_text. Every files entry must include the absolute path of"+
-			" the file to edit and at least one edit. Matching is fuzzy"+
+			" new_text. Each entry in files must include the absolute path"+
+			" of the file to edit and at least one edit. Matching is fuzzy"+
 			" (tolerates whitespace and indentation differences) and preserves"+
 			" the file's existing indentation and line endings. Errors if"+
 			" old_text matches zero locations, or more than one unless"+
 			" replace_all is set. All edits in a batch are validated before"+
 			" any file is written.",
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			if len(args.Files) == 0 {
+				return fantasy.NewTextErrorResponse("files is required"), nil
+			}
+			for i := range args.Files {
+				args.Files[i].Path = strings.TrimSpace(args.Files[i].Path)
+				if args.Files[i].Path == "" {
+					return fantasy.NewTextErrorResponse(fmt.Sprintf(
+						"files[%d].path is required; provide the absolute path of the file to edit; no files in this batch were applied", i,
+					)), nil
+				}
+				if len(args.Files[i].Edits) == 0 {
+					return fantasy.NewTextErrorResponse(fmt.Sprintf(
+						"files[%d].edits must contain at least one edit; no files in this batch were applied", i,
+					)), nil
+				}
+			}
 			var planPath string
-			if options.IsPlanTurn && len(args.Files) > 0 {
+			if options.IsPlanTurn {
 				resolvedPlanPath, err := resolvePlanTurnPath(ctx, options.ResolvePlanPath)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
-				for i := range args.Files {
-					args.Files[i].Path = strings.TrimSpace(args.Files[i].Path)
-					if args.Files[i].Path != resolvedPlanPath {
+				for _, f := range args.Files {
+					if f.Path != resolvedPlanPath {
 						return fantasy.NewTextErrorResponse("during plan turns, edit_files is restricted to " + resolvedPlanPath), nil
 					}
 				}
@@ -146,31 +161,13 @@ func executeEditFilesTool(
 	args EditFilesArgs,
 	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
 ) (fantasy.ToolResponse, error) {
-	if len(args.Files) == 0 {
-		return fantasy.NewTextErrorResponse("files is required"), nil
-	}
-
 	var (
 		chatPath       string
 		home           string
 		planPathErr    error
 		planPathLoaded bool
 	)
-	for i := range args.Files {
-		args.Files[i].Path = strings.TrimSpace(args.Files[i].Path)
-		file := args.Files[i]
-
-		if file.Path == "" {
-			return fantasy.NewTextErrorResponse(fmt.Sprintf(
-				"files[%d].path is missing; every files entry must include the absolute path of the file to edit; no files in this batch were applied", i,
-			)), nil
-		}
-		if len(file.Edits) == 0 {
-			return fantasy.NewTextErrorResponse(fmt.Sprintf(
-				"files[%d].edits is empty; every files entry must include at least one old_text/new_text edit; no files in this batch were applied", i,
-			)), nil
-		}
-
+	for _, file := range args.Files {
 		hasPlanFileName := looksLikePlanFileName(file.Path)
 		if hasPlanFileName && !isAbsolutePath(file.Path) {
 			return fantasy.NewTextErrorResponse(
@@ -204,18 +201,24 @@ func executeEditFilesTool(
 	}), nil
 }
 
-// agentAPIErrorMessage extracts the message the model should see from a
-// workspace agent API error. codersdk.Error.Error() prefixes the HTTP
-// method, internal agent URL, and status code, which the model cannot
-// act on and which buries the actual problem.
+// agentAPIErrorMessage preserves the agent's actionable message while
+// dropping the transport metadata (HTTP method, URL, status code) that
+// codersdk.Error.Error() prefixes.
 func agentAPIErrorMessage(err error) string {
 	sdkErr, ok := codersdk.AsError(err)
 	if !ok || sdkErr.Message == "" {
 		return err.Error()
 	}
-	msg := sdkErr.Message
-	if sdkErr.Detail != "" {
-		msg += ": " + sdkErr.Detail
+	var sb strings.Builder
+	_, _ = sb.WriteString(sdkErr.Message)
+	if sdkErr.Helper != "" {
+		_, _ = sb.WriteString(": " + sdkErr.Helper)
 	}
-	return msg
+	if sdkErr.Detail != "" {
+		_, _ = sb.WriteString(": " + sdkErr.Detail)
+	}
+	for _, v := range sdkErr.Validations {
+		_, _ = sb.WriteString("\n- " + v.Field + ": " + v.Detail)
+	}
+	return sb.String()
 }
