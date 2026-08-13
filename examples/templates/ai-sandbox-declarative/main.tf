@@ -55,6 +55,17 @@ locals {
   # network. Terraform knows it; discovering it from inside the container
   # would be fragile.
   workspace_container = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  staging_dir         = "/opt/coder-ai"
+
+  # The Docker provider talks to the host daemon. A bind mount whose host_path
+  # points at path.module would therefore ask the daemon to read a path in the
+  # provisioner's filesystem, where the daemon usually cannot see it. Stage
+  # the scripts and agent init through the container entrypoint instead.
+  agent_init = replace(
+    coder_agent.main.init_script,
+    "/localhost|127\\.0\\.0\\.1/",
+    "host.docker.internal",
+  )
 }
 
 # The host agent: ordinary in every respect. It holds the owner's credentials
@@ -170,7 +181,21 @@ resource "docker_container" "workspace" {
   name     = local.workspace_container
   hostname = data.coder_workspace.me.name
 
-  entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
+  # Stage the sandbox scripts and the agent init script inside the workspace
+  # container before the agent starts. Everything is base64 encoded so script
+  # contents cannot break shell quoting. Do not bind-mount path.module here:
+  # Docker resolves host_path from the daemon's filesystem, not from the
+  # provisioner's filesystem.
+  entrypoint = ["sh", "-c", <<-EOT
+    set -eu
+    mkdir -p ${local.staging_dir}
+    printf '%s' '${base64encode(file("${path.module}/scripts/sandbox-up.sh"))}' | base64 -d > ${local.staging_dir}/sandbox-up.sh
+    printf '%s' '${base64encode(file("${path.module}/scripts/sandbox-down.sh"))}' | base64 -d > ${local.staging_dir}/sandbox-down.sh
+    printf '%s' '${base64encode(local.agent_init)}' | base64 -d > ${local.staging_dir}/init.sh
+    chmod +x ${local.staging_dir}/sandbox-up.sh ${local.staging_dir}/sandbox-down.sh ${local.staging_dir}/init.sh
+    exec sh ${local.staging_dir}/init.sh
+  EOT
+  ]
 
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
@@ -196,13 +221,6 @@ resource "docker_container" "workspace" {
     container_path = "/home/coder"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
-  }
-
-  # The sandbox scripts.
-  volumes {
-    container_path = "/opt/coder-ai"
-    host_path      = abspath("${path.module}/scripts")
-    read_only      = true
   }
 
   # The sandbox scripts drive Docker on the host, creating the sandbox as a

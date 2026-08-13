@@ -114,6 +114,32 @@ coder ssh ai-demo.main -- docker network ls --filter name=sbnet-
 The startup script's log, in the workspace page or `coder logs`, shows the
 proxy address it was given and the network it created.
 
+## Troubleshooting
+
+### `/opt/coder-ai/sandbox-up.sh: No such file or directory`
+
+Update to the version of the template that stages its scripts through the
+workspace container entrypoint, then rebuild the workspace:
+
+```bash
+coder templates push ai-sandbox-declarative \
+  -d examples/templates/ai-sandbox-declarative
+
+coder restart ai-demo
+```
+
+The earlier version bind-mounted `${path.module}/scripts` into the workspace.
+That does not work reliably when the Docker provider uses a host daemon:
+`path.module` is in the provisioner's filesystem, while Docker resolves
+`host_path` in the daemon's filesystem. The fixed template base64-encodes the
+scripts in Terraform and writes them to `/opt/coder-ai` before the agent starts.
+
+Verify staging before checking Docker:
+
+```bash
+coder ssh ai-demo.main -- 'ls -l /opt/coder-ai && head -1 /opt/coder-ai/sandbox-up.sh'
+```
+
 ## Demo walkthrough
 
 ### Two agents, one workspace, different privilege
