@@ -1,6 +1,5 @@
 import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
-import { v4 as uuidv4 } from "uuid";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { appearanceSettings } from "#/api/queries/users";
 import { workspaceUsage } from "#/api/queries/workspaces";
@@ -15,6 +14,7 @@ import {
 } from "#/modules/terminal/WorkspaceTerminal";
 import { WorkspaceTerminalAlerts } from "#/modules/terminal/WorkspaceTerminalAlerts";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
+import { generateConnectionSessionId } from "#/utils/random";
 
 /** Promote a freshly created terminal tab after this delay if no output has painted. */
 const READY_FALLBACK_MS = 100;
@@ -56,7 +56,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 	const { proxy } = useProxy();
 	const { metadata } = useEmbeddedMetadata();
 	const terminalRef = useRef<WorkspaceTerminalHandle>(null);
-	const [sessionId] = useState(() => uuidv4());
+	const [sessionId] = useState(() => generateConnectionSessionId());
 	const [isWarm, setIsWarm] = useState(Boolean(isHot));
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
