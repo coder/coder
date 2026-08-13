@@ -90,6 +90,7 @@ export const workspaceSkillsFromChat = (
 interface ChatPageTimelineProps {
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
+	liveEdgeSignal?: number;
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
@@ -109,6 +110,7 @@ interface ChatPageTimelineProps {
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	store,
 	persistedError,
+	liveEdgeSignal,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	hasFetchMoreError,
@@ -186,6 +188,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				hasFetchMoreError={hasFetchMoreError}
 				hasFilteredOutRows={hasFilteredOutRows}
 				onFetchMoreMessages={onFetchMoreMessages}
+				liveEdgeSignal={liveEdgeSignal}
 			>
 				{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled

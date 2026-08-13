@@ -92,14 +92,8 @@ describe("assignTimelineRows", () => {
 		expect(keys(after)).toEqual(["message:1", "message:2"]);
 	});
 
-	it("uses a separate slot for the live assistant", () => {
-		const rows = assignTimelineRows([durable(1, "user", "prompt")], true);
-
-		expect(keys(rows)).toEqual(["message:1", "message:1:assistant:0"]);
-	});
-
-	it("advances the live assistant slot past durable assistants in the turn", () => {
-		const rows = assignTimelineRows(
+	it("keys the live row independently of the loaded history", () => {
+		const withPrompt = assignTimelineRows(
 			[
 				durable(1, "user", "prompt"),
 				durable(2, "assistant", "first"),
@@ -108,15 +102,12 @@ describe("assignTimelineRows", () => {
 			true,
 		);
 
-		expect(keys(rows)).toEqual([
+		expect(keys(withPrompt)).toEqual([
 			"message:1",
 			"message:2",
 			"message:3",
-			"message:1:assistant:2",
+			"live-assistant",
 		]);
-	});
-
-	it("falls back to a live key when no durable user turn exists", () => {
 		expect(keys(assignTimelineRows([], true))).toEqual(["live-assistant"]);
 	});
 

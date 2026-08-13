@@ -1229,6 +1229,7 @@ const AgentChatPage: FC = () => {
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
+	const [liveEdgeSignal, setLiveEdgeSignal] = useState(0);
 	const {
 		store,
 		acceptServerChatStatus,
@@ -1616,6 +1617,9 @@ const AgentChatPage: FC = () => {
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
+		// Every accepted submission (send, edit, /compact) is an explicit ask
+		// to be at the live edge, even one that appends no visible prompt.
+		setLiveEdgeSignal((signal) => signal + 1);
 		// Wait for chat-setting mutations to settle before sending so the
 		// message observes the workspace and plan-mode choices the user just made.
 		await waitForPendingChatSettingsSyncs([
@@ -1959,6 +1963,7 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
 			store={store}
+			liveEdgeSignal={liveEdgeSignal}
 			editing={{ ...editing, handleEditUserMessage }}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}

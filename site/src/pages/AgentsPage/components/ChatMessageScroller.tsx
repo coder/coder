@@ -1,10 +1,11 @@
 import {
 	MessageScroller,
+	useMessageScroller,
 	useMessageScrollerScrollable,
 	useMessageScrollerVisibility,
 } from "@shadcn/react/message-scroller";
 import { ArrowDownIcon, RotateCcwIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect } from "react";
+import { type FC, type ReactNode, useEffect, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
@@ -92,10 +93,27 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 interface ChatMessageScrollerProps extends EarlierMessagesProps {
 	/** One `MessageScroller.Item` per transcript row, and nothing else. */
 	children: ReactNode;
+	/** Increment to return the reader to the live edge. */
+	liveEdgeSignal?: number;
 }
+
+// Submitting a turn is an explicit ask to be at the live edge, so this calls
+// the scroller's own command when the signal changes. useState with a
+// render-time adjustment, per React's pattern for reacting to prop changes;
+// not an effect.
+const LiveEdgeFollower: FC<{ signal?: number }> = ({ signal }) => {
+	const { scrollToEnd } = useMessageScroller();
+	const [followed, setFollowed] = useState(signal);
+	if (signal !== followed) {
+		setFollowed(signal);
+		scrollToEnd({ behavior: "smooth" });
+	}
+	return null;
+};
 
 export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
 	children,
+	liveEdgeSignal,
 	...earlierMessages
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
@@ -131,6 +149,7 @@ export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
 				</MessageScroller.Button>
 
 				<EarlierMessages {...earlierMessages} />
+				<LiveEdgeFollower signal={liveEdgeSignal} />
 			</MessageScroller.Root>
 		</MessageScroller.Provider>
 	);

@@ -11,36 +11,23 @@ type TimelineMessageRow = {
 
 type TimelineRow = TimelineMessageRow | { type: "live"; key: string };
 
-const assistantSlotKey = (turnKey: string, slot: number): string =>
-	`${turnKey}:assistant:${slot}`;
-
 /**
  * Durable rows keep their server IDs so prepending history never changes an
  * existing Item's identity. Merged read_file groups key off their newest
- * member, which pagination never changes. The live assistant uses a
- * turn-local slot until its durable message arrives.
+ * member, which pagination never changes. The live row is keyed independently
+ * of which history pages are loaded.
  */
 export const assignTimelineRows = (
 	displayMessages: readonly ParsedMessageEntry[],
 	hasLiveAssistant: boolean,
 ): readonly TimelineRow[] => {
 	const rows: TimelineMessageRow[] = [];
-	let turnKey: string | undefined;
-	let assistantsInTurn = 0;
 
 	for (const [index, entry] of displayMessages.entries()) {
-		const { message } = entry;
-		const key = getDisplayMessageKey(entry);
-		if (message.role === "user") {
-			turnKey = key;
-			assistantsInTurn = 0;
-		} else if (message.role === "assistant" && turnKey) {
-			assistantsInTurn += 1;
-		}
 		rows.push({
 			type: "message",
 			entry,
-			key,
+			key: getDisplayMessageKey(entry),
 			isLastInAssistantChain: false,
 			isLastMessage: index === displayMessages.length - 1,
 		});
@@ -65,13 +52,5 @@ export const assignTimelineRows = (
 	if (!hasLiveAssistant) {
 		return rows;
 	}
-	return [
-		...rows,
-		{
-			type: "live",
-			key: turnKey
-				? assistantSlotKey(turnKey, assistantsInTurn)
-				: "live-assistant",
-		},
-	];
+	return [...rows, { type: "live", key: "live-assistant" }];
 };

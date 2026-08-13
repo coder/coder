@@ -1183,10 +1183,10 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 				{ type: "text", text: "Streaming the final answer." },
 			]);
 		});
-		// The live assistant row mounts under its ephemeral turn-local key.
+		// The live assistant row mounts under its ephemeral key.
 		await waitFor(() => {
 			expect(
-				canvas.getByTestId("chat-message-message:41:assistant:0"),
+				canvas.getByTestId("chat-message-live-assistant"),
 			).toBeInTheDocument();
 		});
 		await settleScroller();
