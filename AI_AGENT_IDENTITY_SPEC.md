@@ -101,20 +101,29 @@ Alternatives considered and rejected:
 ### Credential boundaries are separate, and more numerous
 
 One identity may hold several API keys, one per **credential** boundary.
-This is what allows a sandbox to be rotated and revoked independently of
-its enclosing workspace while still attributing to the same principal.
+This is what allows a sandbox's credential to be rotated and revoked
+independently of its enclosing workspace's while still attributing to the
+same principal.
 
 | Credential            | Profile                                          | Named for     | Lifecycle                                                |
 |-----------------------|--------------------------------------------------|---------------|----------------------------------------------------------|
 | Chat key              | `ChatAgentProfile(chatID)`                       | the chat      | renewed while the chat lives                             |
 | Workspace session key | `WorkspaceAgentIdentityProfile(workspaceID)`     | the workspace | rotated on every start build; deleted on stop and delete |
-| Sandbox session key   | `SandboxIdentityProfile(workspaceID, sandboxID)` | the sandbox   | rotated on reconcile; deleted with the sandbox           |
+| Sandbox session key   | `SandboxIdentityProfile(workspaceID, sandboxID)` | the sandbox   | rotated on every start build; deleted on stop and delete |
 
 A sandbox therefore does **not** receive its own identity. It resolves the
 enclosing workspace's identity, creating the workspace-origin identity on
 first use if the workspace has none, and mints a sandbox-named key under
 it. Two sandboxes in one workspace share one identity and differ only by
 key.
+
+Sandboxes are declared in the template and created by the build, never
+created at runtime, so a sandbox key's lifecycle matches the workspace
+key's: minted during a start build, rotated on each subsequent start,
+deleted on stop and delete. The key is named per declared sandbox so that
+revoking one sandbox's credential does not disturb the enclosing
+workspace's, which is the only reason the two are separate keys rather than
+one.
 
 ### Package ownership
 
@@ -140,36 +149,58 @@ bypasses the package, so enforce the constraint with a test asserting that
 no package outside the identity package references the underlying insert
 queries.
 
-Three callers, and no others:
+Two callers, and no others:
 
-| Caller                     | Boundary it handles                                                            | When it runs                                   |
-|----------------------------|--------------------------------------------------------------------------------|------------------------------------------------|
-| The chat surface (`chatd`) | chat creation; chat key renewal                                                | at the API request that creates the chat       |
-| The provisioner server     | workspace opt-in detection; per-build key rotation; designation; agent binding | during build transitions only                  |
-| The sandbox lifecycle API  | sandbox key mint; child agent binding                                          | while the workspace is running, between builds |
+| Caller                     | Boundary it handles                                                                                         | When it runs                             |
+|----------------------------|-------------------------------------------------------------------------------------------------------------|------------------------------------------|
+| The chat surface (`chatd`) | chat creation; chat key renewal                                                                             | at the API request that creates the chat |
+| The provisioner server     | workspace opt-in detection; designation; agent binding; per-build key rotation for workspaces and sandboxes | during build transitions only            |
 
-The three-way split is not an assignment of responsibilities; it follows
-from one rule: **each mint runs in whatever component is alive when its
-boundary event occurs.** The provisioner server executes only while a
-build job is in flight and has no existence between builds. The workspace
-key belongs to it because mint and delivery are the same event: the key is
-injected into the build's Terraform environment, which is also why its
-rotation cadence is per start build. A sandbox, by contrast, is created on
-demand by the running parent agent with no build in flight, its key is
-returned over the API and handed to the create script, and it rotates on
-reconcile. Routing the sandbox mint through the provisioner would mean
-creating a sandbox requires a workspace rebuild, which destroys every
-running process in the workspace in order to add one beside them, and
-forecloses dynamic creation entirely.
+The split is not an assignment of responsibilities; it follows from one
+rule: **each mint runs in whatever component is alive when its boundary
+event occurs.** Chat creation is an API request, so it belongs to the chat
+surface. Everything workspace-shaped happens during a build, so it belongs
+to the provisioner server.
 
-One planned variant folds into the provisioner rather than adding a
-fourth caller: a Terraform-declared AI-bound agent is created at build
-time, so its identity resolution, binding, and key mint belong to the
-provisioner caller, exactly like the workspace opt-in path. The lifecycle
-API then serves only dynamically created sandboxes. This is the same
-declared-and-discovered hybrid used for devcontainers: children declared
-in the template are provisioner-created, children discovered or requested
-at runtime arrive through the agent API.
+Sandboxes are declared in the template, so a sandbox is created by the
+build that creates its enclosing workspace agents, and its identity
+resolution, binding, and key mint belong to the provisioner caller exactly
+as the workspace opt-in path does. There is deliberately no runtime
+sandbox-creation API and no third caller.
+
+Separate the two things the word "create" covers here, because only the
+first is an identity concern:
+
+| Step                                                              | When             | By what                                     |
+|-------------------------------------------------------------------|------------------|---------------------------------------------|
+| The sandbox's workspace-agent row exists, is bound, and has a key | during the build | the provisioner server                      |
+| The sandbox process, container, or VM is brought up               | at agent startup | the host agent, running the declared script |
+
+The host agent therefore never mints a credential. It consumes one that the
+build already minted for a row that already exists, which is the same
+pattern Terraform-declared devcontainer children follow: the agent updates
+configurable fields on a pre-provisioned row rather than creating one. This
+is what removes the runtime creation path without removing the host agent's
+role in actually standing the sandbox up.
+
+This is a narrowing of an earlier design that allowed sandboxes to be
+created dynamically by the running parent agent. Declaring them upfront
+costs the ability to add a sandbox to a running workspace without a
+rebuild, and buys three things that matter more:
+
+1. **One creation path for agent rows.** Credential starvation is enforced
+   per workspace-agent row, so every path that creates such a row must set
+   the binding column. Removing the runtime path removes an entire class of
+   bug in which a new creation path forgets to bind and silently produces
+   an unstarved agent inside a designated workspace.
+2. **Provisioner-attested declarations.** A sandbox's declared properties,
+   including any egress-enforcement attestation, arrive as build output
+   rather than as input from a process running inside the workspace. Build
+   output is server-trusted; in-workspace input is not.
+3. **One mint cadence.** Sandbox and workspace keys rotate and are revoked
+   on the same build transitions, so there is no separate reconcile path
+   that can mint a replacement credential after a delete has already
+   removed the old one.
 
 ### Conditions: when each path fires
 
@@ -195,22 +226,34 @@ so that build can bind its agents. Writing it in individual handlers is
 incorrect: a handler that forgets leaves an undesignated workspace, which
 then receives the sponsor's ambient credentials.
 
-**Sandbox creation.** Resolve the enclosing workspace's identity, mint a
-sandbox-named key, and bind the child workspace agent to that identity. In
-an ordinary undesignated workspace this is the first use of the
-workspace-origin identity and creates it.
+**Declared sandbox in a build.** For each sandbox the template declares,
+resolve the enclosing workspace's identity, mint a sandbox-named key, and
+bind the sandbox's workspace agent to that identity. In an ordinary
+undesignated workspace this is the first use of the workspace-origin
+identity and therefore creates it, which is the case that makes
+first-use resolution idempotency (below) load-bearing: several declared
+sandboxes in one workspace resolve the same identity concurrently within
+one build.
 
-**Rebuild.** Reuse the identity. Only keys rotate.
+Bind at agent insert rather than by a follow-up update. The build creates
+the sandbox's agent row, so the binding is known at insert time, and
+deferring it to a second statement is what allows a creation path to omit
+it.
+
+**Rebuild.** Reuse the identity. Only keys rotate. A rebuild that adds or
+removes declared sandboxes mints or revokes their keys accordingly; the
+enclosing workspace's identity is unaffected.
 
 Paths that must **not** mint an identity:
 
-| Situation                    | Correct behavior                               |
-|------------------------------|------------------------------------------------|
-| An agent creates a workspace | reuse the requester's identity                 |
-| An agent creates a sub-agent | inherit the parent agent's binding             |
-| A workspace is rebuilt       | reuse; rotate the key only                     |
-| An agent makes any API call  | nothing; the key already exists                |
-| A chat key expired           | re-mint under the same identity and token name |
+| Situation                          | Correct behavior                                     |
+|------------------------------------|------------------------------------------------------|
+| An agent creates a workspace       | reuse the requester's identity                       |
+| A build creates a declared sandbox | reuse the enclosing workspace's identity; mint a key |
+| An agent creates a sub-agent       | inherit the parent agent's binding                   |
+| A workspace is rebuilt             | reuse; rotate keys only                              |
+| An agent makes any API call        | nothing; the key already exists                      |
+| A chat key expired                 | re-mint under the same identity and token name       |
 
 ### Required properties of the resolution logic
 
@@ -668,12 +711,11 @@ Drive tests from these.
 7. **Guardrails.** Refuse agent targets on generic key routes; filter
    agent users out of user, organization member, group, and role listings.
 8. **Surfaces.** Chat (mint at creation, execute under the agent subject,
-   renew keys); provisioner (detect opt-in, designate, bind agents at
-   build completion, suppress the owner session token, rotate keys per
-   build); sandbox lifecycle (resolve identity, mint sandbox key, bind
-   child agent); AI gateway (sponsor liveness, plus a separate budget
-   principal so agent spend counts against the sponsor rather than the
-   credential-poor agent).
+   renew keys); provisioner (detect opt-in, designate, bind every agent
+   including declared sandboxes' agents, suppress the owner session token,
+   mint and rotate workspace and sandbox keys per build); AI gateway
+   (sponsor liveness, plus a separate budget principal so agent spend
+   counts against the sponsor rather than the credential-poor agent).
 
 Steps 1 to 5 are the foundation and are independently mergeable. Step 6
 needs only the designation column from step 1. Step 8 is parallelizable
@@ -681,13 +723,17 @@ per surface once step 4 lands.
 
 ## Known gaps and decisions still open
 
-- **Sub-agent binding propagation.** Credential starvation is enforced per
-  agent row, so every path that creates a workspace agent must set
-  `ai_agent_id`. A runtime sub-agent creation API that inherits the
-  parent's other fields but omits this one produces an unbound agent
-  inside a designated workspace, which passes every starvation check,
-  reverts attribution to the human, and bypasses the designation boundary.
-  Setting the column at insert rather than by follow-up update is the
+- **Sub-agent binding propagation.** Declaring sandboxes upfront removes
+  one runtime agent-creation path but not all of them: a runtime sub-agent
+  API remains for devcontainer autodetection, and it is authenticated by
+  the parent agent's token, which is present in the agent environment and
+  inherited by spawned processes. Such a path that inherits the parent's
+  other fields but omits `ai_agent_id` produces an unbound agent inside a
+  designated workspace, which passes every starvation check, reverts
+  attribution to the human, and is treated as non-AI by the designation
+  boundary. It is reachable deliberately by a process in the workspace and
+  accidentally by opening a devcontainer. Setting the column at insert, and
+  propagating the parent's binding on every child-creation path, is the
   durable fix.
 - **Authentication-side credential shape validation.** Until
   authentication rejects agent-owned keys whose shape matches no profile,

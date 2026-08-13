@@ -1876,10 +1876,20 @@ from the AI process.** Rules:
 ### Template envelope: Terraform
 
 Templates are the governance boundary: the confined process must not define
-its own confinement. The envelope declares what is possible, and runtime
-instantiates within it. This mirrors the devcontainer declared and
-discovered hybrid: chatd or the parent agent may create sandbox instances
-dynamically, but only within the envelope.
+its own confinement. Sandboxes are therefore declared in the template and
+created by the build, never created at runtime. An earlier revision allowed
+chatd or the parent agent to instantiate sandboxes dynamically within the
+envelope, mirroring the devcontainer declared-and-discovered hybrid; that
+is no longer the design.
+
+Declaring upfront costs the ability to add a sandbox to a running workspace
+without a rebuild. It buys a single creation path for workspace-agent rows,
+which is what makes per-row credential starvation reliable; declarations
+that arrive as provisioner output rather than as input from a process
+inside the workspace, which matters for the `egress_enforcement`
+attestation; and one mint cadence, so sandbox and workspace credentials
+rotate and revoke on the same build transitions with no separate reconcile
+path able to mint a replacement after a delete.
 
 Envelope contents: direct human AI-workspace opt-in through
 `coder_ai_agent`; an attestation floor (administrators can require that
