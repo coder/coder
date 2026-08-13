@@ -2,9 +2,11 @@ package workspacestats
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -26,7 +28,7 @@ func TestBatchStats(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	store, ps := dbtestutil.NewDB(t)
+	store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
 	// Set up some test dependencies.
 	deps1 := setupDeps(t, store, ps)
@@ -59,22 +61,54 @@ func TestBatchStats(t *testing.T) {
 	require.NoError(t, err, "should not error getting stats")
 	require.Empty(t, stats, "should have no stats for workspace")
 
-	// Given: a single data point is added for workspace
+	// Given: a stat per workspace, with session counts distinct per agent so
+	// that a positional misalignment on insert shows up.
 	t2 := t1.Add(time.Second)
-	t.Log("inserting 1 stat")
-	b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false)
+	t.Log("inserting 2 stats")
+	b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.Template.ID, deps1.User.ID, deps1.Workspace.ID, randStats(t, func(s *agentproto.Stats) {
+		s.SessionCounts = map[string]int64{"VSCode": 3, "ssh": 1, "idle-ide": 0}
+	}), false)
+	b.Add(t2.Add(time.Millisecond), deps2.Agent.ID, deps2.Template.ID, deps2.User.ID, deps2.Workspace.ID, randStats(t, func(s *agentproto.Stats) {
+		s.SessionCounts = map[string]int64{"jetbrains": 4, "reconnecting-pty": 2}
+	}), false)
 
 	// When: it becomes time to report stats
 	// Signal a tick and wait for a flush to complete.
 	tick <- t2
 	f = <-flushed // Wait for a flush to complete.
-	require.Equal(t, 1, f, "expected one stat to be flushed")
+	require.Equal(t, 2, f, "expected two stats to be flushed")
 	t.Log("flush 2 completed")
 
-	// Then: it should report a single stat.
+	// Then: counts reach the right agent, normalized, without the zero entry.
 	stats, err = store.GetWorkspaceAgentStats(ctx, t2)
 	require.NoError(t, err, "should not error getting stats")
-	require.Len(t, stats, 1, "should have stats for workspace")
+	require.Len(t, stats, 2, "should have stats for both workspaces")
+	byAgent := make(map[uuid.UUID]database.GetWorkspaceAgentStatsRow)
+	for _, stat := range stats {
+		byAgent[stat.AgentID] = stat
+	}
+	require.EqualValues(t, 3, byAgent[deps1.Agent.ID].SessionCountVSCode)
+	require.EqualValues(t, 1, byAgent[deps1.Agent.ID].SessionCountSSH)
+	require.EqualValues(t, 0, byAgent[deps1.Agent.ID].SessionCountJetBrains)
+	require.EqualValues(t, 4, byAgent[deps2.Agent.ID].SessionCountJetBrains)
+	require.EqualValues(t, 2, byAgent[deps2.Agent.ID].SessionCountReconnectingPTY)
+	require.EqualValues(t, 0, byAgent[deps2.Agent.ID].SessionCountVSCode)
+
+	// Each row stores its normalized session counts.
+	storedSessionCounts := func(agentID uuid.UUID) map[string]int64 {
+		var payload json.RawMessage
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `
+			SELECT session_counts
+			FROM workspace_agent_stats
+			WHERE agent_id = $1 AND created_at > $2
+		`, agentID, t2).Scan(&payload))
+
+		var counts map[string]int64
+		require.NoError(t, json.Unmarshal(payload, &counts))
+		return counts
+	}
+	require.Equal(t, map[string]int64{"ssh": 1, "vscode": 3}, storedSessionCounts(deps1.Agent.ID))
+	require.Equal(t, map[string]int64{"jetbrains": 4, "reconnecting_pty": 2}, storedSessionCounts(deps2.Agent.ID))
 
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
@@ -86,9 +120,9 @@ func TestBatchStats(t *testing.T) {
 		t.Logf("inserting %d stats", defaultBufferSize)
 		for i := 0; i < defaultBufferSize; i++ {
 			if i%2 == 0 {
-				b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false)
+				b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.Template.ID, deps1.User.ID, deps1.Workspace.ID, randStats(t), false)
 			} else {
-				b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randStats(t), false)
+				b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.Template.ID, deps2.User.ID, deps2.Workspace.ID, randStats(t), false)
 			}
 		}
 	}()

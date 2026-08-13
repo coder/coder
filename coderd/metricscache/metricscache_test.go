@@ -3,7 +3,6 @@ package metricscache_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -308,28 +307,13 @@ func TestCache_DeploymentStats(t *testing.T) {
 		DeploymentStats: time.Minute,
 	}, false)
 
-	err := db.InsertWorkspaceAgentStats(context.Background(), database.InsertWorkspaceAgentStatsParams{
-		ID:                 []uuid.UUID{uuid.New()},
-		CreatedAt:          []time.Time{clock.Now()},
-		WorkspaceID:        []uuid.UUID{uuid.New()},
-		UserID:             []uuid.UUID{uuid.New()},
-		TemplateID:         []uuid.UUID{uuid.New()},
-		AgentID:            []uuid.UUID{uuid.New()},
-		ConnectionsByProto: json.RawMessage(`[{}]`),
-
-		RxPackets:                   []int64{0},
-		RxBytes:                     []int64{1},
-		TxPackets:                   []int64{0},
-		TxBytes:                     []int64{1},
-		ConnectionCount:             []int64{1},
-		SessionCountVSCode:          []int64{1},
-		SessionCountJetBrains:       []int64{0},
-		SessionCountReconnectingPTY: []int64{0},
-		SessionCountSSH:             []int64{0},
-		ConnectionMedianLatencyMS:   []float64{10},
-		Usage:                       []bool{false},
-	})
-	require.NoError(t, err)
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 clock.Now(),
+		RxBytes:                   1,
+		TxBytes:                   1,
+		ConnectionCount:           1,
+		ConnectionMedianLatencyMS: 10,
+	}, map[string]int64{"vscode": 1})
 
 	// Wait for both ticker functions to be created (template build times and deployment stats)
 	tickerTrap.MustWait(ctx).MustRelease(ctx)

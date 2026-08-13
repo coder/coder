@@ -3908,12 +3908,11 @@ CREATE TABLE workspace_agent_stats (
     tx_packets bigint DEFAULT 0 NOT NULL,
     tx_bytes bigint DEFAULT 0 NOT NULL,
     connection_median_latency_ms double precision DEFAULT '-1'::integer NOT NULL,
-    session_count_vscode bigint DEFAULT 0 NOT NULL,
-    session_count_jetbrains bigint DEFAULT 0 NOT NULL,
-    session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
-    session_count_ssh bigint DEFAULT 0 NOT NULL,
-    usage boolean DEFAULT false NOT NULL
+    usage boolean DEFAULT false NOT NULL,
+    session_counts jsonb DEFAULT '{}'::jsonb NOT NULL
 );
+
+COMMENT ON COLUMN workspace_agent_stats.session_counts IS 'Positive session counts keyed by the canonical app name reported by the agent.';
 
 CREATE TABLE workspace_agent_volume_resource_monitors (
     agent_id uuid NOT NULL,
@@ -5032,7 +5031,7 @@ COMMENT ON INDEX workspace_agent_scripts_workspace_agent_id_idx IS 'Foreign key 
 
 CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_logs USING btree (agent_id, id);
 
-CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at, user_id) INCLUDE (session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, connection_median_latency_ms) WHERE (connection_count > 0);
+CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at, user_id) INCLUDE (connection_median_latency_ms) WHERE (connection_count > 0);
 
 COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Support index for template insights endpoint to build interval reports faster.';
 
