@@ -158,9 +158,11 @@ func TestPostLicense(t *testing.T) {
 		require.NotNil(t, feature.UsagePeriod)
 		// Actual is read from usage_events, which has no runtime events in
 		// this deployment. It is reported in whole hours, matching the unit
-		// of the claims above.
+		// of the claims above, with the precise milliseconds in ActualMs.
 		require.NotNil(t, feature.Actual)
 		require.EqualValues(t, 0, *feature.Actual)
+		require.NotNil(t, feature.ActualMs)
+		require.EqualValues(t, 0, *feature.ActualMs)
 		require.Empty(t, entitlements.Errors)
 		// Zero usage is below both thresholds, so no runtime warning
 		// fires. Unrelated warnings from this bare license are ignored.
