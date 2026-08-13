@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -150,6 +151,24 @@ func (api *API) putTemplateAIEgressPolicy(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, policy)
 }
 
+// writeUnlessAIBound reports whether the caller may read egress policy, and
+// writes a 403 when it may not. Egress policy is the confining party's
+// configuration, so the confined party must never receive it: only an unbound
+// agent can be an egress supervisor. This is the same predicate that governs
+// credential starvation, so policy delivery and credential denial cannot drift
+// apart. A confined process can map its own policy by probing, so this is an
+// invariant boundary rather than a secrecy boundary.
+func writeUnlessAIBound(ctx context.Context, rw http.ResponseWriter, agent database.WorkspaceAgent) bool {
+	if aiagentidentity.WorkspaceAgentAllowsOwnerCredentials(agent) {
+		return true
+	}
+	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		Message: "AI egress policy is not available to an AI-bound workspace agent.",
+		Detail:  "Egress policy is delivered to the supervising agent, never to the confined agent.",
+	})
+	return false
+}
+
 // @Summary Get workspace agent AI egress policy
 // @ID get-workspace-agent-ai-egress-policy
 // @Security CoderSessionToken
@@ -159,6 +178,9 @@ func (api *API) putTemplateAIEgressPolicy(rw http.ResponseWriter, r *http.Reques
 // @Router /api/v2/workspaceagents/me/ai-egress-policy [get]
 func (api *API) workspaceAgentAIEgressPolicy(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if !writeUnlessAIBound(ctx, rw, httpmw.WorkspaceAgent(r)) {
+		return
+	}
 	workspace, err := api.workspaceAgentWorkspace(ctx, r)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -187,6 +209,9 @@ func (api *API) watchWorkspaceAgentAIEgressPolicy(rw http.ResponseWriter, r *htt
 	r = r.WithContext(ctx)
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
+	if !writeUnlessAIBound(ctx, rw, workspaceAgent) {
+		return
+	}
 	workspace, err := api.workspaceAgentWorkspace(ctx, r)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

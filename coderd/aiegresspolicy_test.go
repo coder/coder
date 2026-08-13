@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -209,6 +210,69 @@ func TestAIEgressPolicyAgentGet(t *testing.T) {
 		{Host: "packages.example.com", Ports: []int{443}},
 		{Host: "coder.example.com", Ports: []int{443}},
 	}, policy.Rules)
+}
+
+// TestAIEgressPolicyAgentBoundForbidden asserts the confining-party rule:
+// egress policy is the supervisor's configuration, so an AI-bound agent, which
+// is the confined party, must not be able to read it on either the bootstrap or
+// the watch endpoint. The gate reuses the credential-starvation predicate so
+// policy delivery and credential denial cannot drift apart.
+func TestAIEgressPolicyAgentBoundForbidden(t *testing.T) {
+	t.Parallel()
+
+	accessURL, err := url.Parse("https://coder.example.com")
+	require.NoError(t, err)
+	client, db, user, template := setupAIEgressPolicyTemplate(t, &coderdtest.Options{AccessURL: accessURL})
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	_, err = client.UpdateTemplateAIEgressPolicy(ctx, template.ID, codersdk.UpdateAIEgressPolicyRequest{
+		Rules: []codersdk.AIEgressRule{{Host: "packages.example.com", Ports: []int{443}}},
+	})
+	require.NoError(t, err)
+
+	newAgent := func(t *testing.T) dbfake.WorkspaceResponse {
+		t.Helper()
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			TemplateID:     template.ID,
+		}).WithAgent().Do()
+	}
+	unbound := newAgent(t)
+	bound := newAgent(t)
+
+	agentUser, _, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        user.UserID,
+		OrganizationID: user.OrganizationID,
+		OriginType:     database.AIAgentOriginWorkspace,
+		OriginID:       uuid.New(),
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateWorkspaceAgentAIAgentID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentAIAgentIDParams{
+		ID:        bound.Agents[0].ID,
+		AIAgentID: uuid.NullUUID{UUID: agentUser.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// The unbound agent is the supervisor and still receives policy.
+	unboundClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(unbound.AgentToken))
+	policy, err := unboundClient.AIEgressPolicy(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, policy.Rules)
+
+	boundClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(bound.AgentToken))
+
+	_, err = boundClient.AIEgressPolicy(ctx)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+	// The watch endpoint must apply the same gate, otherwise the bound agent
+	// could subscribe to every future revision instead of reading one.
+	_, _, err = boundClient.WatchAIEgressPolicy(ctx)
+	require.Error(t, err)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 }
 
 func TestAIEgressPolicyWatch(t *testing.T) {
