@@ -38,6 +38,12 @@ type Object struct {
 	// Type is "workspace", "project", "app", etc
 	Type string `json:"type"`
 
+	// AIAgentID is the AI agent identity a workspace is designated to, or the
+	// empty string when the object is not designated. The policy compares it
+	// against the acting AI identity on the subject to confine an AI agent to
+	// its own workspaces. Empty must never match a populated acting identity.
+	AIAgentID string `json:"ai_agent_id"`
+
 	ACLUserList  map[string][]policy.Action ` json:"acl_user_list"`
 	ACLGroupList map[string][]policy.Action ` json:"acl_group_list"`
 }
@@ -103,6 +109,9 @@ func (z Object) Equal(b Object) bool {
 	if z.Type != b.Type {
 		return false
 	}
+	if z.AIAgentID != b.AIAgentID {
+		return false
+	}
 
 	if !equalACLLists(z.ACLUserList, b.ACLUserList) {
 		return false
@@ -140,11 +149,30 @@ func (z Object) RBACObject() Object {
 // All returns an object matching all resources of the same type.
 func (z Object) All() Object {
 	return Object{
-		Owner:        "",
-		OrgID:        "",
-		Type:         z.Type,
+		Owner: "",
+		OrgID: "",
+		Type:  z.Type,
+		// AIAgentID is deliberately cleared. An aggregate object covers every
+		// resource of this type, so it cannot claim one AI designation.
+		// Leaving it empty makes designation-protected AI authorizations
+		// against an aggregate object fail closed.
+		AIAgentID:    "",
 		ACLUserList:  map[string][]policy.Action{},
 		ACLGroupList: map[string][]policy.Action{},
+		AnyOrgOwner:  z.AnyOrgOwner,
+	}
+}
+
+// WithAIAgentID sets the AI agent identity this object is designated to.
+func (z Object) WithAIAgentID(aiAgentID string) Object {
+	return Object{
+		ID:           z.ID,
+		Owner:        z.Owner,
+		OrgID:        z.OrgID,
+		Type:         z.Type,
+		AIAgentID:    aiAgentID,
+		ACLUserList:  z.ACLUserList,
+		ACLGroupList: z.ACLGroupList,
 		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
@@ -155,6 +183,7 @@ func (z Object) WithIDString(id string) Object {
 		Owner:        z.Owner,
 		OrgID:        z.OrgID,
 		Type:         z.Type,
+		AIAgentID:    z.AIAgentID,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
 		AnyOrgOwner:  z.AnyOrgOwner,
@@ -167,6 +196,7 @@ func (z Object) WithID(id uuid.UUID) Object {
 		Owner:        z.Owner,
 		OrgID:        z.OrgID,
 		Type:         z.Type,
+		AIAgentID:    z.AIAgentID,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
 		AnyOrgOwner:  z.AnyOrgOwner,
@@ -180,6 +210,7 @@ func (z Object) InOrg(orgID uuid.UUID) Object {
 		Owner:        z.Owner,
 		OrgID:        orgID.String(),
 		Type:         z.Type,
+		AIAgentID:    z.AIAgentID,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
 		// InOrg implies AnyOrgOwner is false
@@ -194,6 +225,7 @@ func (z Object) AnyOrganization() Object {
 		// AnyOrgOwner cannot have an org owner also set.
 		OrgID:        "",
 		Type:         z.Type,
+		AIAgentID:    z.AIAgentID,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
 		AnyOrgOwner:  true,
@@ -207,6 +239,7 @@ func (z Object) WithOwner(ownerID string) Object {
 		Owner:        ownerID,
 		OrgID:        z.OrgID,
 		Type:         z.Type,
+		AIAgentID:    z.AIAgentID,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
 		AnyOrgOwner:  z.AnyOrgOwner,
@@ -220,6 +253,7 @@ func (z Object) WithACLUserList(acl map[string][]policy.Action) Object {
 		Owner:        z.Owner,
 		OrgID:        z.OrgID,
 		Type:         z.Type,
+		AIAgentID:    z.AIAgentID,
 		ACLUserList:  acl,
 		ACLGroupList: z.ACLGroupList,
 		AnyOrgOwner:  z.AnyOrgOwner,
@@ -232,6 +266,7 @@ func (z Object) WithGroupACL(groups map[string][]policy.Action) Object {
 		Owner:        z.Owner,
 		OrgID:        z.OrgID,
 		Type:         z.Type,
+		AIAgentID:    z.AIAgentID,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: groups,
 		AnyOrgOwner:  z.AnyOrgOwner,

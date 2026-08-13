@@ -110,13 +110,28 @@ type Subject struct {
 	Email string
 
 	// Type indicates what kind of subject this is (user, system, provisioner, etc.)
-	// It is not used in any functional way, only for logging.
+	// It is used for logging, and it is a functional policy input: the policy
+	// treats SubjectTypeAIAgent as an AI-delegated subject when applying the
+	// workspace designation boundary. Use AsAIAgent to set it for AI actors so
+	// the cached AST value is rebuilt.
 	Type SubjectType
 
-	ID     string
-	Roles  ExpandableRoles
-	Groups []string
-	Scope  ExpandableScope
+	ID string
+	// AIAgentID is the acting AI agent identity, or the empty string for a
+	// non-AI subject. ID remains the sponsoring human even for an AI actor,
+	// because authorization runs with the sponsor's roles. The policy requires
+	// this to equal a workspace's designation before permitting any protected
+	// workspace action.
+	//
+	// This field must stay exported. hashAuthorizeCall JSON-encodes the whole
+	// subject into a global cross-request authorization cache key, so an
+	// unexported acting identity would be omitted from the hash and two
+	// different AI agents with otherwise identical subjects could share a
+	// cached authorization result.
+	AIAgentID string
+	Roles     ExpandableRoles
+	Groups    []string
+	Scope     ExpandableScope
 
 	// cachedASTValue is the cached ast value for this subject.
 	cachedASTValue ast.Value
@@ -144,8 +159,33 @@ func (s Subject) WithCachedASTValue() Subject {
 	return tmp
 }
 
+// AsAIAgent marks the subject as acting for an AI agent identity. The subject
+// keeps the sponsoring human's ID, roles, and scope: only the acting identity
+// and type change, which is what the workspace designation boundary in
+// policy.rego compares. The cached AST value is rebuilt because both fields are
+// functional policy inputs, and a stale cached value would authorize with the
+// pre-decoration subject.
+func (s Subject) AsAIAgent(agentUserID uuid.UUID, friendlyName string) Subject {
+	tmp := s
+	tmp.Type = SubjectTypeAIAgent
+	tmp.FriendlyName = friendlyName
+	tmp.AIAgentID = agentUserID.String()
+	tmp.cachedASTValue = nil
+	return tmp.WithCachedASTValue()
+}
+
 func (s Subject) Equal(b Subject) bool {
 	if s.ID != b.ID {
+		return false
+	}
+
+	// Type and AIAgentID are functional policy inputs, so subjects that differ
+	// in either are not equal even when their roles and scope match.
+	if s.Type != b.Type {
+		return false
+	}
+
+	if s.AIAgentID != b.AIAgentID {
 		return false
 	}
 
