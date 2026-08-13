@@ -566,18 +566,11 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
 }
 
-// errUserOIDCRequiresDeploymentPerms marks an update refused by the
-// user_oidc gate inside the transaction, after the row is current,
-// so the handler can map it to a 403.
 var errUserOIDCRequiresDeploymentPerms = xerrors.New("managing user_oidc MCP server configs requires deployment-level permissions")
 
-// authorizeUserOIDCMCPServerConfig requires deployment-level
-// configuration permission for user_oidc MCP server configs.
-// user_oidc forwards each chat owner's upstream OIDC access token to
-// the configured URL with no per-user consent step, so organization
-// admins must not be able to create such configs or repoint their
-// URLs. Before organization scoping this was the boundary for every
-// config mutation.
+// authorizeUserOIDCMCPServerConfig requires deployment-level permission because
+// user_oidc sends each chat owner's upstream OIDC access token to the configured
+// URL without a per-user consent step.
 func (api *API) authorizeUserOIDCMCPServerConfig(rw http.ResponseWriter, r *http.Request) bool {
 	if api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		return true
@@ -848,10 +841,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Stored user grants are bound to the destination and auth
-		// flow they were consented for. Invalidate them when either
-		// changes so an updated config cannot replay members' tokens
-		// against a different endpoint.
+		// User grants are bound to the destination and auth flow authorized by the user.
+		// Invalidate them when either changes to prevent reuse against another endpoint.
 		if serverURL != existing.Url || authType != existing.AuthType {
 			if err := tx.DeleteMCPServerUserTokensByConfigID(ctx, existing.ID); err != nil {
 				return xerrors.Errorf("invalidate MCP server user tokens: %w", err)

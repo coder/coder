@@ -14,9 +14,9 @@ BEGIN
     END IF;
 END $$;
 
--- Originals move to the default organization with credentials intact:
--- it succeeds the deployment scope, so its operator-appointed admins
--- take over the inherited secrets. Copies below never get credentials.
+-- The deployment-wide originals move to the default organization with
+-- credentials intact, where operator-appointed admins inherit their
+-- secrets. Copies below never receive credentials.
 UPDATE mcp_server_configs
 SET organization_id = (SELECT id FROM organizations WHERE is_default = true LIMIT 1);
 
@@ -80,10 +80,8 @@ SELECT
     -- organization's admin re-enters them deliberately.
     CASE
         WHEN config.auth_type IN ('oauth2', 'api_key', 'custom_headers')
-            -- dbcrypt stores every nonblank value as ciphertext, so this
-            -- plaintext check only applies to unencrypted rows. Encrypted
-            -- rows fall back to the auth_type decision above; header
-            -- values are only sent for auth_type custom_headers anyway.
+            -- dbcrypt encrypts every nonblank value, including '{}'. Only treat
+            -- unencrypted, nonempty header maps as credentials here.
             OR (config.custom_headers_key_id IS NULL
                 AND config.custom_headers NOT IN ('', '{}'))
             THEN false

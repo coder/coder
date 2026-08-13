@@ -895,8 +895,7 @@ export const ForbiddenErrorWithRole: Story = {
 		).not.toBeInTheDocument();
 		// The generic ErrorAlert should surface the real backend message.
 		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
-		// The textbox should remain enabled since the user has the
-		// role. Enablement waits for the MCP server list to resolve.
+		// The textbox should remain enabled since the user has the role.
 		const textbox = canvas.getByRole("textbox");
 		await waitFor(() =>
 			expect(textbox).not.toHaveAttribute("aria-disabled", "true"),

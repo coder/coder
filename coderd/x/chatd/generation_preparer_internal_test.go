@@ -626,12 +626,12 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 	t.Parallel()
 
-	newOrgWithConfig := func(t *testing.T, db database.Store, enabled bool) (database.Organization, database.MCPServerConfig) {
+	newOrgWithConfig := func(t *testing.T, db database.Store) (database.Organization, database.MCPServerConfig) {
 		t.Helper()
 		org := dbgen.Organization(t, db, database.Organization{})
 		cfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: org.ID,
-			Enabled:        enabled,
+			Enabled:        true,
 		})
 		return org, cfg
 	}
@@ -644,9 +644,8 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		defaultOrg, err := db.GetDefaultOrganization(ctx)
 		require.NoError(t, err)
 
-		// Configs resolve strictly against the chat's organization; the
-		// default organization gets no special treatment.
-		chatOrg, chatOrgCfg := newOrgWithConfig(t, db, true)
+		// Configs resolve only within the chat's organization.
+		chatOrg, chatOrgCfg := newOrgWithConfig(t, db)
 		defaultOrgCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: defaultOrg.ID,
 			Enabled:        true,
@@ -663,8 +662,8 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		chatOrg, chatOrgCfg := newOrgWithConfig(t, db, true)
-		_, foreignCfg := newOrgWithConfig(t, db, true)
+		chatOrg, chatOrgCfg := newOrgWithConfig(t, db)
+		_, foreignCfg := newOrgWithConfig(t, db)
 
 		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, []uuid.UUID{chatOrgCfg.ID, foreignCfg.ID})
 		require.NoError(t, err)
@@ -707,9 +706,9 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// The array has no uniqueness constraint. Preserve the legacy SQL shape:
-		// one row per unique ID, ordered by display_name.
-		chatOrg, cfgA := newOrgWithConfig(t, db, true)
+		// The ID array may contain duplicates, but the query returns one row
+		// per unique ID ordered by display_name.
+		chatOrg, cfgA := newOrgWithConfig(t, db)
 		cfgB := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: chatOrg.ID,
 			Enabled:        true,
@@ -723,7 +722,6 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, configs, 2)
 		gotIDs := []uuid.UUID{configs[0].ID, configs[1].ID}
-		require.ElementsMatch(t, []uuid.UUID{cfgA.ID, cfgB.ID}, gotIDs)
 		wantOrder := []uuid.UUID{cfgA.ID, cfgB.ID}
 		if cfgA.DisplayName > cfgB.DisplayName {
 			wantOrder = []uuid.UUID{cfgB.ID, cfgA.ID}
@@ -739,8 +737,6 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		defaultOrg, err := db.GetDefaultOrganization(ctx)
 		require.NoError(t, err)
 
-		// A chat whose organization has no configs resolves nothing,
-		// even when the requested ID exists in the default organization.
 		chatOrg := dbgen.Organization(t, db, database.Organization{})
 		defaultOrgCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: defaultOrg.ID,

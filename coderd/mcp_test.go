@@ -650,7 +650,6 @@ func TestMCPServerConfigsUserOIDCRequiresDeploymentPerms(t *testing.T) {
 		}
 	}
 
-	// Org admins keep full control of non-user_oidc configs.
 	orgAdminOwned, err := orgAdminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, newRequest("org-admin-none", "none"))
 	require.NoError(t, err)
 
@@ -666,12 +665,10 @@ func TestMCPServerConfigsUserOIDCRequiresDeploymentPerms(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 
-	// Deployment admins retain the pre-org-scoping boundary.
 	deploymentOwned, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, newRequest("deployment-oidc", "user_oidc"))
 	require.NoError(t, err)
 
-	// Org admins cannot repoint an existing user_oidc config either;
-	// the URL controls where member tokens are sent.
+	// The URL determines where chat owners' OIDC tokens are sent.
 	newURL := "https://attacker.example.com/exfil"
 	_, err = orgAdminClient.UpdateMCPServerConfig(ctx, deploymentOwned.ID, codersdk.UpdateMCPServerConfigRequest{
 		URL: &newURL,
