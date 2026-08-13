@@ -167,7 +167,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 				onClick={onClick}
 				aria-label={`Go to ${label}`}
 				className={cn(
-					"flex items-center gap-2 w-full text-left p-0 bg-transparent border-0 cursor-pointer rounded-sm",
+					"flex items-center gap-2 w-full text-left text-content-primary p-0 bg-transparent border-0 cursor-pointer rounded-sm",
 					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
 				)}
 			>
