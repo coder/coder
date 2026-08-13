@@ -116,7 +116,7 @@ proxy address it was given and the network it created.
 
 ## Troubleshooting
 
-### `/opt/coder-ai/sandbox-up.sh: No such file or directory`
+### Sandbox scripts are missing or staging reports `Permission denied`
 
 Update to the version of the template that stages its scripts through the
 workspace container entrypoint, then rebuild the workspace:
@@ -128,16 +128,23 @@ coder templates push ai-sandbox-declarative \
 coder restart ai-demo
 ```
 
-The earlier version bind-mounted `${path.module}/scripts` into the workspace.
-That does not work reliably when the Docker provider uses a host daemon:
-`path.module` is in the provisioner's filesystem, while Docker resolves
-`host_path` in the daemon's filesystem. The fixed template base64-encodes the
-scripts in Terraform and writes them to `/opt/coder-ai` before the agent starts.
+Two earlier staging approaches were incorrect:
+
+1. Binding `${path.module}/scripts` into the workspace does not work reliably
+   when the Docker provider uses a host daemon. `path.module` is in the
+   provisioner's filesystem, while Docker resolves `host_path` in the daemon's
+   filesystem.
+2. Writing generated scripts under `/opt/coder-ai` fails because the workspace
+   image runs as an unprivileged user and `/opt` is root-owned.
+
+The fixed template base64-encodes the scripts in Terraform and writes them to
+the writable, per-container directory `/tmp/coder-ai` before the agent starts.
 
 Verify staging before checking Docker:
 
 ```bash
-coder ssh ai-demo.main -- 'ls -l /opt/coder-ai && head -1 /opt/coder-ai/sandbox-up.sh'
+coder ssh ai-demo.main -- \
+  'ls -l /tmp/coder-ai && head -1 /tmp/coder-ai/sandbox-up.sh'
 ```
 
 ## Demo walkthrough

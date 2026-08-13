@@ -55,7 +55,9 @@ locals {
   # network. Terraform knows it; discovering it from inside the container
   # would be fragile.
   workspace_container = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  staging_dir         = "/opt/coder-ai"
+  # The workspace image runs as an unprivileged user. /opt is normally owned
+  # by root, while /tmp is writable and recreated with the workspace container.
+  staging_dir = "/tmp/coder-ai"
 
   # The Docker provider talks to the host daemon. A bind mount whose host_path
   # points at path.module would therefore ask the daemon to read a path in the
@@ -141,7 +143,7 @@ resource "coder_script" "sandbox_up" {
     export CODER_AI_SANDBOX_WORKSPACE="${local.workspace_container}"
     export CODER_AI_AGENT_URL="$${CODER_AGENT_URL:-}"
     export CODER_AI_AGENT_TOKEN="${coder_agent.ai.token}"
-    exec bash /opt/coder-ai/sandbox-up.sh
+    exec bash ${local.staging_dir}/sandbox-up.sh
   EOT
 }
 
@@ -155,7 +157,7 @@ resource "coder_script" "sandbox_down" {
     #!/usr/bin/env bash
     set -euo pipefail
     export CODER_AI_SANDBOX_WORKSPACE="${local.workspace_container}"
-    exec bash /opt/coder-ai/sandbox-down.sh
+    exec bash ${local.staging_dir}/sandbox-down.sh
   EOT
 }
 
