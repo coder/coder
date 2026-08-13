@@ -141,12 +141,10 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 							aria-hidden="true"
 							className={cn("size-4", getLatencyColor(latency?.latencyMS))}
 						/>
-						{latency && (
-							<Latency
-								className="text-content-primary"
-								latency={latency.latencyMS}
-							/>
-						)}
+						<Latency
+							className={latency ? "text-content-primary" : undefined}
+							latency={latency?.latencyMS}
+						/>
 					</span>
 					<ChevronRightIcon
 						className={cn("ml-auto", open ? "rotate-90" : "")}
