@@ -727,21 +727,23 @@ Two further qualifications from the security review:
    and chat sharing can enqueue an inbox notification to one. Those
    assignments do not affect agent authorization, which always uses the
    sponsor's roles, but they are representable.
-5. **No self-escalation**: keys minted through the built-in profiles
-   cannot create or modify API keys (scope exclusion), so such an agent
-   cannot mint itself a broader credential.
+5. **No self-escalation**: generic session-key and token routes reject
+   `kind = 'ai_agent'` targets, so AI agent credentials can only be minted
+   through `aiagentidentity.MintKey`. Profile validation permits only the
+   exact scopes used by the built-in profiles, expands composite `coder:*`
+   scopes through RBAC, checks every resulting resource-action permission,
+   and rejects global allow-list entries. The built-in profiles exclude API
+   key permissions, so an agent cannot mint itself or its sponsor a broader
+   credential.
 
-   This invariant is currently FALSE for keys not minted through those
-   profiles. The generic key APIs never call `validateProfile`, which is
-   reachable only through `MintKey`, so a full-scope token can be created
-   for an agent user. Because the delegated subject ID is the sponsor and
-   organization members hold `api_key` actions on their own keys
-   (`coderd/rbac/roles.go:1189-1212`), such a token can then mint a normal
-   token for the human sponsor. A security review demonstrated this with
-   an executable test. The fix is to refuse `kind = 'ai_agent'` targets on
-   the generic key routes, and to treat the profile validator as an
-   allowlist rather than a denylist. See
-   `AI_AGENT_IDENTITY_SECURITY_REVIEW.md`.
+   This invariant was previously proven FALSE. Before these checks, the
+   generic key APIs bypassed `validateProfile` and could create a full-scope
+   token for an agent user. Because the delegated subject ID is the sponsor,
+   that token could then mint a normal human token for the sponsor. The
+   demonstrated path required site-owner-level privilege to create the
+   initial unsafe key; a built-in chat agent key could not call the generic
+   routes. A security review demonstrated the escalation with an executable
+   test. See `AI_AGENT_IDENTITY_SECURITY_REVIEW.md`.
 6. **Fail closed**: `users.kind = 'ai_agent'` without a live `ai_agents`
    row is an authentication error. This holds for both authentication
    middlewares. It does NOT currently hold in chatd, which treats a
