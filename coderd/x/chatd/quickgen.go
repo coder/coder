@@ -154,20 +154,20 @@ func quickgenDebugSpec(
 ) modelCallSpec {
 	route := candidate.resolved.route
 	return modelCallSpec{
-		purpose: callPurposeDebugRebuild,
+		purpose: "debug_rebuild",
 		chat:    chat,
 		config: configSelection{
 			mode:          configFixedModel,
 			modelName:     candidate.model,
 			configOptions: candidate.resolved.dbConfig.Options,
 		},
-		providerOptions:   providerOptionsOmit,
-		debug:             debugPolicyForced,
-		debugSvc:          debugSvc,
-		debugWrapProvider: candidate.provider,
-		debugWrapModel:    candidate.model,
-		routeOverride:     &route,
-		buildOptions:      buildOpts,
+		omitProviderOptions: true,
+		debug:               debugPolicyForced,
+		debugSvc:            debugSvc,
+		debugWrapProvider:   candidate.provider,
+		debugWrapModel:      candidate.model,
+		routeOverride:       &route,
+		buildOptions:        buildOpts,
 	}
 }
 
@@ -422,11 +422,7 @@ func (p *Server) maybeGenerateChatTitle(
 const titleMaxOutputTokens = int64(256)
 
 func titleObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
-	return resolved.newObjectCall(objectCallOverrides{
-		schemaName:        "propose_title",
-		schemaDescription: "Propose a short chat title.",
-		maxOutputTokens:   titleMaxOutputTokens,
-	})
+	return resolved.newObjectCall("propose_title", "Propose a short chat title.", titleMaxOutputTokens)
 }
 
 func (p *Server) prepareQuickgenDebugCandidate(
@@ -1047,11 +1043,7 @@ func boundTranscriptHeadTail(lines []string, maxRunes int) string {
 }
 
 func summaryObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
-	return resolved.newObjectCall(objectCallOverrides{
-		schemaName:        "chat_summary",
-		schemaDescription: "Summarize the whole chat in 1-3 sentences.",
-		maxOutputTokens:   summaryMaxOutputTokens,
-	})
+	return resolved.newObjectCall("chat_summary", "Summarize the whole chat in 1-3 sentences.", summaryMaxOutputTokens)
 }
 
 // generateChatSummary generates a 1-3 sentence whole-chat summary from a
@@ -1271,11 +1263,7 @@ const turnStatusLabelPrompt = "You write compact chat status labels for a sideba
 const turnStatusLabelMaxOutputTokens = int64(64)
 
 func turnStatusLabelObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
-	return resolved.newObjectCall(objectCallOverrides{
-		schemaName:        "propose_turn_status_label",
-		schemaDescription: "Propose a compact chat status label.",
-		maxOutputTokens:   turnStatusLabelMaxOutputTokens,
-	})
+	return resolved.newObjectCall("propose_turn_status_label", "Propose a compact chat status label.", turnStatusLabelMaxOutputTokens)
 }
 
 // generateTurnStatusLabel returns an empty string if generation fails.

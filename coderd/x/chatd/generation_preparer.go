@@ -668,6 +668,10 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
+	// The chat-model compaction summary historically sends no provider
+	// options; the override-model summary in generateCompaction keeps them.
+	summaryCall := resolved.newCompactionSummaryCall()
+	summaryCall.ProviderOptions = nil
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
@@ -685,7 +689,7 @@ func (server *Server) prepareGeneration(
 		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
-		SummaryCall:          resolved.newCall(compactionSummaryOverrides(true)),
+		SummaryCall:          summaryCall,
 	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
@@ -710,7 +714,7 @@ func (server *Server) prepareGeneration(
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
 		ModelConfigID:        modelConfig.ID,
-		CallTemplate:         resolved.newCall(callOverrides{}),
+		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
 		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
@@ -836,7 +840,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	resolved, err := server.resolveModelCall(ctx, chatModelSpec(callPurposeStatusLabel, chat, modelOpts))
+	resolved, err := server.resolveModelCall(ctx, chatModelSpec("turn_status_label", chat, modelOpts))
 	if err != nil {
 		// Preserve the text and IDs for the generic-label fallback.
 		logger.Warn(ctx, "derive final turn status label: resolve model", slog.Error(err))

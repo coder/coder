@@ -362,7 +362,7 @@ func (p *Server) newAdvisorRuntime(
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
 		Model:           advisor.model.LanguageModel(),
-		CallTemplate:    advisor.newCall(callOverrides{}),
+		CallTemplate:    advisor.newCall(),
 		MaxUsesPerRun:   maxUsesPerRun,
 		MaxOutputTokens: maxOutputTokens,
 	})
@@ -4793,7 +4793,7 @@ func (p *Server) resolveChatSummaryModel(
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, bool) {
-	resolved, err := p.resolveModelCall(ctx, chatModelSpec(callPurposeSummary, chat, modelOpts))
+	resolved, err := p.resolveModelCall(ctx, chatModelSpec("chat_summary", chat, modelOpts))
 	if err != nil {
 		logger.Debug(ctx, "failed to resolve chat model for summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))

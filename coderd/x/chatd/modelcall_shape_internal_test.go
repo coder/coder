@@ -309,25 +309,25 @@ func TestModelCallShapeProviderOptionPolicy(t *testing.T) {
 	server := titleOverrideTestServer(db, logger)
 
 	spec := modelCallSpec{
-		purpose:         callPurposeStatusLabel,
-		chat:            chat,
-		config:          configSelection{mode: configExplicit, config: config},
-		providerOptions: providerOptionsOmit,
-		buildOptions:    modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+		purpose:             "turn_status_label",
+		chat:                chat,
+		config:              configSelection{mode: configExplicit, config: config},
+		omitProviderOptions: true,
+		buildOptions:        modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	}
 	omitted, err := server.resolveModelCall(ctx, spec)
 	require.NoError(t, err)
 	require.Nil(t, omitted.providerOptions)
 
-	spec.providerOptions = providerOptionsDerive
+	spec.omitProviderOptions = false
 	derived, err := server.resolveModelCall(ctx, spec)
 	require.NoError(t, err)
 	require.NotNil(t, derived.providerOptions)
 
-	require.Equal(t, providerOptionsOmit, chatModelSpec(callPurposeSummary, chat, modelBuildOptions{}).providerOptions)
-	require.Equal(t, providerOptionsOmit, chatModelSpec(callPurposeStatusLabel, chat, modelBuildOptions{}).providerOptions)
-	require.Equal(t, providerOptionsDerive, standardTurnSpec(chat, modelBuildOptions{}).providerOptions)
-	require.Equal(t, providerOptionsDerive, titleChatSpec(chat, modelBuildOptions{}).providerOptions)
+	require.True(t, chatModelSpec("chat_summary", chat, modelBuildOptions{}).omitProviderOptions)
+	require.True(t, chatModelSpec("turn_status_label", chat, modelBuildOptions{}).omitProviderOptions)
+	require.False(t, standardTurnSpec(chat, modelBuildOptions{}).omitProviderOptions)
+	require.False(t, titleChatSpec(chat, modelBuildOptions{}).omitProviderOptions)
 }
 
 func TestModelCallShapeTurnStatusLabelEnvelope(t *testing.T) {
