@@ -147,7 +147,6 @@ export const PullRequestAndWorkingChanges: Story = {
 		).toBeVisible();
 
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// State pill is dropped; icon aria-label carries it instead.
 		await expect(switcher).toHaveTextContent("PR #23020");
 		await expect(switcher).not.toHaveTextContent("Open");
 		await expect(
@@ -251,7 +250,6 @@ export const DraftPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// State pill is dropped; icon aria-label carries it instead.
 		await expect(switcher).toHaveTextContent("PR #22950");
 		await expect(switcher).not.toHaveTextContent("Draft");
 		await expect(
@@ -285,7 +283,6 @@ export const MergedPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// State pill is dropped; icon aria-label carries it instead.
 		await expect(switcher).toHaveTextContent("PR #23000");
 		await expect(switcher).not.toHaveTextContent("Merged");
 		await expect(
@@ -319,7 +316,6 @@ export const ClosedPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		// State pill is dropped; icon aria-label carries it instead.
 		await expect(switcher).toHaveTextContent("PR #22800");
 		await expect(switcher).not.toHaveTextContent("Closed");
 		await expect(
