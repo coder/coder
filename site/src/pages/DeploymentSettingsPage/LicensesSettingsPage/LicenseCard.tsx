@@ -103,15 +103,26 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		license,
 		agentRuntimeHoursFeature,
 	);
-	// A license "wins" when its allocation matches the merged entitlement:
-	// equal limits, or an unlimited allocation with the merged limit omitted.
+	// The merged entitlement's usage period is stamped with the issued-at
+	// of the license the backend selected, so a license only "wins" when
+	// its own iat matches. Its allocation must also match the merged
+	// entitlement: equal limits, or an unlimited allocation with the
+	// merged limit omitted. Allocation alone is not enough because a
+	// renewal can carry the same allocation as the license it replaces.
+	const mergedUsagePeriodIssuedAt =
+		agentRuntimeHoursFeature?.usage_period?.issued_at;
+	const matchesMergedUsagePeriod =
+		license.claims.iat !== undefined &&
+		mergedUsagePeriodIssuedAt !== undefined &&
+		dayjs.unix(license.claims.iat).isSame(mergedUsagePeriodIssuedAt);
 	const isWinningAgentHoursLicense =
-		agentHoursAllocation === -1
+		matchesMergedUsagePeriod &&
+		(agentHoursAllocation === -1
 			? agentRuntimeHoursFeature?.enabled === true &&
 				agentRuntimeHoursFeature.limit === undefined
 			: agentHoursAllocation !== undefined &&
 				agentHoursAllocation > 0 &&
-				agentHoursAllocation === agentRuntimeHoursFeature?.limit;
+				agentHoursAllocation === agentRuntimeHoursFeature?.limit);
 	const canUseAgentHoursUsageForThisLicense =
 		isAgentHoursLicenseApplicable && isWinningAgentHoursLicense;
 	// Precise usage in tenths of hours, floored via integer math so the

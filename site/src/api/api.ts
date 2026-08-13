@@ -365,6 +365,10 @@ type Claims = {
 	license_expires: number;
 	// nbf is a standard JWT claim for "not before" - the license valid from date
 	nbf?: number;
+	// iat is a standard JWT claim for "issued at". Valid licenses always
+	// carry it; the merged entitlement's usage_period.issued_at is stamped
+	// from the winning license's iat.
+	iat?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;

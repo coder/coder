@@ -30,14 +30,11 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("#1")).toBeInTheDocument();
-		// The Users header field and the Coder Workspaces product card show
-		// the same seat usage.
 		await expect(canvas.getAllByText("4 / 10")).toHaveLength(2);
 		await expect(canvas.getByText("Enterprise")).toBeInTheDocument();
 		await expect(canvas.getByText("Standard")).toBeInTheDocument();
 		await expect(canvas.getByText("Products")).toBeInTheDocument();
 		await expect(canvas.getByText("Coder Workspaces")).toBeInTheDocument();
-		// Enterprise licenses do not get the Coder Agents product.
 		await expect(canvas.queryByText("Coder Agents")).not.toBeInTheDocument();
 	},
 };
@@ -121,8 +118,6 @@ export const Premium: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// A Premium license with no agent hours allocation shows the Coder
-		// Agents upgrade card, including deployment-wide usage.
 		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
 		await expect(
 			getMetricValue(canvas, "Max concurrent chats"),
@@ -135,10 +130,24 @@ export const Premium: Story = {
 	},
 };
 
-const premiumLicenseWithAgentHours = (allocation: number) => ({
+// Issued-at of the license that supplies the merged entitlement. The
+// merged usage period is stamped with this timestamp, so only the license
+// carrying the same iat claim shows usage and overage.
+const WINNING_ISSUED_AT = dayjs("2026-01-01T12:00:00Z");
+const winningUsagePeriod = {
+	issued_at: WINNING_ISSUED_AT.toISOString(),
+	start: WINNING_ISSUED_AT.toISOString(),
+	end: WINNING_ISSUED_AT.add(1, "year").toISOString(),
+};
+
+const premiumLicenseWithAgentHours = (
+	allocation: number,
+	issuedAt = WINNING_ISSUED_AT,
+) => ({
 	...MockLicenseResponse[1],
 	claims: {
 		...MockLicenseResponse[1].claims,
+		iat: issuedAt.unix(),
 		features: {
 			...MockLicenseResponse[1].claims.features,
 			agent_runtime_hours_allocation: allocation,
@@ -164,6 +173,7 @@ export const PremiumWithAgentHours: Story = {
 			actual: 16264,
 			// 16,264 hours and 18 minutes: renders as 16,264.3.
 			actual_ms: 16_264 * 3_600_000 + 18 * 60_000,
+			usage_period: winningUsagePeriod,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -195,6 +205,7 @@ export const PremiumWithAgentHoursExceeded: Story = {
 			hard_limit: 25000,
 			actual: 21000,
 			actual_ms: 21_000 * 3_600_000,
+			usage_period: winningUsagePeriod,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -203,7 +214,6 @@ export const PremiumWithAgentHoursExceeded: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"21,000.0 / 20,000",
 		);
-		// Concurrency is only capped once the hard limit is reached.
 		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -221,6 +231,7 @@ export const PremiumWithAgentHoursHardLimitExceeded: Story = {
 			hard_limit: 25000,
 			actual: 25000,
 			actual_ms: 25_000 * 3_600_000,
+			usage_period: winningUsagePeriod,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -249,6 +260,7 @@ export const PremiumWithAgentHoursExceededByFraction: Story = {
 			// the fraction alone flips the exceeded state.
 			actual: 20000,
 			actual_ms: 20_000 * 3_600_000 + 6 * 60_000,
+			usage_period: winningUsagePeriod,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -268,6 +280,7 @@ export const PremiumWithUnlimitedAgentHours: Story = {
 			entitlement: "entitled",
 			actual: 16264,
 			actual_ms: 16_264 * 3_600_000 + 18 * 60_000,
+			usage_period: winningUsagePeriod,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -284,13 +297,17 @@ export const PremiumWithUnlimitedAgentHours: Story = {
 
 export const LowerAgentHoursCardUsesMergedEntitlement: Story = {
 	args: {
-		license: premiumLicenseWithAgentHours(10000),
+		license: premiumLicenseWithAgentHours(
+			10000,
+			WINNING_ISSUED_AT.subtract(1, "year"),
+		),
 		agentRuntimeHoursFeature: {
 			enabled: true,
 			entitlement: "entitled",
 			limit: 20000,
 			actual: 16264,
 			actual_ms: 16_264 * 3_600_000 + 18 * 60_000,
+			usage_period: winningUsagePeriod,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -303,6 +320,39 @@ export const LowerAgentHoursCardUsesMergedEntitlement: Story = {
 		await expect(
 			canvas.queryByText("Agent hours exceeded"),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const ReplacedDuplicateAllocationShowsNoUsage: Story = {
+	args: {
+		// An older license with the same allocation as the winning renewal.
+		// Only the license whose iat matches the merged usage period shows
+		// usage, so this card stays free of usage and overage even though
+		// its allocation equals the merged limit.
+		license: premiumLicenseWithAgentHours(
+			20000,
+			WINNING_ISSUED_AT.subtract(1, "year"),
+		),
+		agentRuntimeHoursFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 20000,
+			soft_limit: 16000,
+			hard_limit: 25000,
+			actual: 26000,
+			actual_ms: 26_000 * 3_600_000,
+			usage_period: winningUsagePeriod,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Active")).toBeInTheDocument();
+		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+			"\u2014 / 20,000",
+		);
+		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+			"Unlimited",
+		);
 	},
 };
 

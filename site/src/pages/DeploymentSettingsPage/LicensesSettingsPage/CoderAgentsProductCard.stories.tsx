@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, screen, waitFor, within } from "storybook/test";
 import { CoderAgentsProductCard } from "./CoderAgentsProductCard";
 
 const meta: Meta<typeof CoderAgentsProductCard> = {
@@ -39,6 +39,37 @@ export const Default: Story = {
 			"href",
 			"/ai/settings/coder-agents",
 		);
+	},
+};
+
+export const TooltipInteractions: Story = {
+	play: async ({ canvasElement, userEvent, step }) => {
+		const canvas = within(canvasElement);
+		await step("open the Total Agent hours tooltip from keyboard", async () => {
+			await userEvent.tab();
+			await expect(
+				canvas.getByRole("button", { name: "Total Agent hours information" }),
+			).toHaveFocus();
+			await waitFor(async () => {
+				await expect(screen.getByRole("tooltip")).toHaveTextContent(
+					"Total agent runtime hours used out of the hours included in this license.",
+				);
+			});
+			await userEvent.keyboard("{Escape}");
+			await waitFor(async () => {
+				await expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+			});
+		});
+		await step("open the Concurrent chats tooltip on hover", async () => {
+			await userEvent.hover(
+				canvas.getByRole("button", { name: "Concurrent chats information" }),
+			);
+			await waitFor(async () => {
+				await expect(screen.getByRole("tooltip")).toHaveTextContent(
+					"Number of Coder Agents chats that can run at the same time.",
+				);
+			});
+		});
 	},
 };
 

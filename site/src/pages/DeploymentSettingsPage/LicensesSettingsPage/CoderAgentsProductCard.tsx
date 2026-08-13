@@ -16,7 +16,7 @@ import { cn } from "#/utils/cn";
 // enterprise/coderd/license).
 const unlimitedAllocation = -1;
 
-// Mirrors the backend's maxConcurrentRootAgents constant, which caps
+// Mirrors defaultMaxConcurrentRootAgents in coderd/x/chatd, which caps
 // concurrent chats once the hard limit is reached. It is not exposed via
 // the API, so keep this value in sync with the backend.
 const maxConcurrentChatsOverHardLimit = 5;

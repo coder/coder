@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, screen, waitFor, within } from "storybook/test";
 import { CoderWorkspacesProductCard } from "./CoderWorkspacesProductCard";
 
 const meta: Meta<typeof CoderWorkspacesProductCard> = {
@@ -22,6 +22,21 @@ export const Default: Story = {
 		const usageLabel = canvas.getByText("Active seat usage");
 		const usageValue = usageLabel.parentElement?.nextElementSibling;
 		await expect(usageValue).toHaveTextContent("4 / 10");
+	},
+};
+
+export const TooltipInteraction: Story = {
+	play: async ({ canvasElement, userEvent }) => {
+		const canvas = within(canvasElement);
+		await userEvent.tab();
+		await expect(
+			canvas.getByRole("button", { name: "Active seat usage information" }),
+		).toHaveFocus();
+		await waitFor(async () => {
+			await expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"Only Active user accounts consume license seats.",
+			);
+		});
 	},
 };
 
