@@ -25,8 +25,11 @@ In scope by that test:
 - AI agents.
 - `workspace_agent` entities, including the sub-agents created for
   devcontainers.
-- Sandboxes, which hold actors and so bear on the attribution of what those
-  actors do, even though a sandbox does not act.
+
+A sandbox is not tracked separately. It holds an actor, and it is that actor,
+the AI agent, whose lifecycle is journaled. Tracking the container as well as
+what it contains would produce two accounts of one thing, and the account that
+matters is the one naming the party whose acts are attributed.
 
 Terminology for these is fixed in `poc_audit/entity_model.md` and is
 authoritative over anything said here. In particular the bare word "agent"
@@ -75,24 +78,20 @@ the workspace does not.
 stay there. This directory composes them into operations that mean something,
 and owns the transaction those operations run in.
 
-## Where the analogous code lives today
+**Not a rewrite of how users are tracked.** Users are entities by the test
+above, and the concerns here apply to them in principle. Rewriting the existing
+mechanisms is nonetheless out of scope. User creation and the tables recording
+user history stay where they are and keep working as they do. What remains
+relevant after the proof of concept is the design question of whether one
+account should eventually cover every entity, which is a question for that time
+and not a licence to move code now.
 
-Nothing has moved here yet, and it is worth being exact about what has not, so
-that the gap is visible.
+## Shapes worth copying
 
-User creation is `api.CreateUser` at `coderd/users.go:1950`, a method on the
-coderd API struct sitting among HTTP handlers. It takes a `database.Store` as a
-parameter rather than capturing one, which is the property that lets a caller
-hand it a transaction.
-
-User history is not application code at all. `user_status_changes` and
-`user_deleted` are populated by the Postgres trigger
-`record_user_status_change`. Application code never mentions those tables.
-
-Two existing packages supply the shapes worth copying. `coderd/wsbuilder` owns
-transactional creation spanning several tables and takes the store as a
-parameter. `coderd/audit` shows how a journal writer is kept behind an
-interface.
+Nothing has moved here yet. Two existing packages supply the structure.
+`coderd/wsbuilder` owns transactional creation spanning several tables and
+takes the store as a parameter. `coderd/audit` shows how a journal writer is
+kept behind an interface.
 
 ## Conventions for code here
 
@@ -101,10 +100,23 @@ able to pass a transaction handle so that several operations commit together.
 This follows `api.CreateUser` and `wsbuilder.Build`, and it is what makes the
 next convention possible.
 
+**Join the caller's transaction, or open one.** Lifecycle events frequently
+have to be atomic with work that is not a lifecycle event, so the caller, not
+the function, decides the boundary. Given a transaction, the function operates
+within it and commits nothing itself. Given none, it opens its own, so that a
+caller with nothing else to coordinate is not obliged to manage one.
+
 **Journal writes go through their own function.** No lifecycle function writes
 a journal entry inline. The entry and the state change it accounts for must be
 able to commit in one transaction, and separating the write is what allows the
 lifecycle function to compose them rather than duplicate them.
+
+**An entity may not write entries about itself.** An account is rendered to a
+party, by someone answerable to that party. An entity reporting on its own
+conduct is not an account of it, and a journal that admitted such entries would
+be a log of what its subjects chose to say. That is not what an audit journal
+is: it is neither a raw log nor a record of activity, and its entries are
+written by the party accounting for the entity rather than by the entity.
 
 **The journal is entity-agnostic; creation is entity-specific.** One journal
 serves every entity here. That follows the audit approach, which is stated
@@ -120,19 +132,6 @@ Nothing in this directory is implemented beyond what a proof of concept
 requires, and the proof of concept lives on a branch that is not merging. Read
 `poc_audit/AGENTS.md` before treating any of the design documents referenced
 above as a description of current behavior. They describe an intent.
-
-## Not yet decided
-
-- Whether appending to the journal is authorized in `dbauthz` as its own
-  action, and whether an entity may append entries concerning itself.
-- How the lifecycle function behaves when called from inside an existing
-  transaction, which depends on what this codebase's `InTx` does when a
-  transaction is already open.
-- Whether user journaling eventually moves here and supersedes the trigger.
-  A trigger cannot see the actor that caused a change, so it cannot satisfy
-  the attribution the audit approach requires. That argues for application
-  code, but the trigger is the established precedent and displacing it is a
-  decision rather than a cleanup.
 
 ## On this file
 
