@@ -115,18 +115,19 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	// allocation, and red from the allocation to the hard cap. Each
 	// threshold also carries a marker line on the track at the same
 	// position, so a marker only stands out against fill of a different
-	// color once usage passes it. The exception is a metered allocation
-	// without a hard cap, where reaching the allocation turns the whole
-	// fill red (see fullRedFill below).
+	// color once usage passes it. The exception is an allocation at the
+	// track's right edge, where reaching it turns the whole fill red
+	// (see fullRedFill below).
 	const softMarkerPercent =
 		!isUnlimited && softLimit !== undefined && barScale > 0
 			? Math.min((softLimit / barScale) * 100, 100)
 			: undefined;
 	const limitBoundaryPercent = allocationMarkerPercent ?? 100;
-	// Without a hard cap the track ends at the allocation, so there is no
+	// When the allocation sits at the track's right edge (no hard cap, or
+	// a hard cap that coincides with the allocation), there is no
 	// position past the limit where a red segment could appear: reaching
 	// the allocation turns the whole fill red instead.
-	const fullRedFill = reachedAllocation && hardCap === undefined;
+	const fullRedFill = reachedAllocation && limitBoundaryPercent >= 100;
 	const greenWidth = fullRedFill
 		? 0
 		: Math.min(usagePercentage, softMarkerPercent ?? limitBoundaryPercent);

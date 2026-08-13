@@ -363,6 +363,30 @@ export const ReachedHardCap: Story = {
 	},
 };
 
+// The backend accepts a hard cap equal to the allocation. The shared
+// threshold sits at the track's right edge, so reaching it turns the
+// whole fill red while the pill and hard-cap tooltip still appear.
+export const ReachedCoincidentHardCap: Story = {
+	args: {
+		feature: {
+			...MockAgentRuntimeHoursFeature,
+			hard_limit: 1000,
+			actual: 1000,
+			actual_ms: 1000 * 3_600_000,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("1,000.0")).toBeInTheDocument();
+		await expect(canvas.getByText("Hard cap reached")).toBeInTheDocument();
+		const body = await hoverInfoIcon(canvasElement);
+		await expectTooltipText(
+			body,
+			/You've used 100% of your Total Agent hours for this license and reached the hard cap of 1,000 hours\. Contact sales to receive more Agent hours\./,
+		);
+	},
+};
+
 export const Disabled: Story = {
 	args: {
 		feature: {
