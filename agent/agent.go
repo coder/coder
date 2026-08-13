@@ -127,23 +127,10 @@ type Options struct {
 }
 
 type Client interface {
-	ConnectRPC29(ctx context.Context) (
-		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
-	)
-	// ConnectRPC29WithRole is like ConnectRPC29 but sends an explicit
-	// role query parameter to the server. The workspace agent should
-	// use role "agent" to enable connection monitoring.
-	ConnectRPC29WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
-	)
-	ConnectRPC210(ctx context.Context) (
-		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
-	)
-	// ConnectRPC210WithRole is like ConnectRPC210 but sends an explicit
-	// role query parameter to the server. The workspace agent should
-	// use role "agent" to enable connection monitoring.
-	ConnectRPC210WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
+	// ConnectRPC211WithRole connects to the Agent API v2.11. The workspace
+	// agent should use role "agent" to enable connection monitoring.
+	ConnectRPC211WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -1175,7 +1162,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC210WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC211WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -2161,13 +2148,12 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		stats.TxPackets += int64(counts.TxPackets)
 	}
 
-	// The count of active sessions; types without a protocol field are dropped.
-	sessionCounts := a.sshServer.SessionCounts()
-	stats.SessionCountSsh = sessionCounts[string(codersdk.AppFamilySSH)]
-	stats.SessionCountVscode = sessionCounts[string(codersdk.AppFamilyVSCode)]
-	stats.SessionCountJetbrains = sessionCounts[string(codersdk.AppFamilyJetBrains)]
-
-	stats.SessionCountReconnectingPty = a.reconnectingPTYServer.ConnCount()
+	// Active sessions per app; the deprecated fields stay zero. A client can
+	// label an ssh session "reconnecting_pty", so add rather than overwrite.
+	stats.SessionCounts = a.sshServer.SessionCounts()
+	if count := a.reconnectingPTYServer.ConnCount(); count > 0 {
+		stats.SessionCounts[string(codersdk.AppFamilyReconnectingPTY)] += count
+	}
 
 	// Compute the median connection latency!
 	a.logger.Debug(ctx, "starting peer latency measurement for stats")

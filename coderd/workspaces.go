@@ -1776,34 +1776,11 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !slices.Contains(codersdk.AllowedAppNames, req.AppName) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request",
-			Validations: []codersdk.ValidationError{{
-				Field:  "app_name",
-				Detail: fmt.Sprintf("must be one of %v", codersdk.AllowedAppNames),
-			}},
-		})
-		return
-	}
 
+	// Any app name is accepted, normalized at ingestion.
 	stat := &proto.Stats{
 		ConnectionCount: 1,
-	}
-	switch req.AppName {
-	case codersdk.UsageAppNameVscode:
-		stat.SessionCountVscode = 1
-	case codersdk.UsageAppNameJetbrains:
-		stat.SessionCountJetbrains = 1
-	case codersdk.UsageAppNameReconnectingPty:
-		stat.SessionCountReconnectingPty = 1
-	case codersdk.UsageAppNameSSH:
-		stat.SessionCountSsh = 1
-	default:
-		// This means the app_name is in the codersdk.AllowedAppNames but not being
-		// handled by this switch statement.
-		httpapi.InternalServerError(rw, xerrors.Errorf("unknown app_name %q", req.AppName))
-		return
+		SessionCounts:   map[string]int64{string(req.AppName): 1},
 	}
 
 	agent, err := api.Database.GetWorkspaceAgentByID(ctx, req.AgentID)
