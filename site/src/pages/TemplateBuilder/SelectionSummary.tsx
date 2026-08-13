@@ -2,6 +2,7 @@ import { cva } from "class-variance-authority";
 import { createContext, type PropsWithChildren, useContext } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { cn } from "#/utils/cn";
+import type { StepId } from "./steps";
 
 type Variant = "complete" | "current" | "upcoming" | null | undefined;
 
@@ -20,8 +21,20 @@ type SelectedModule = {
 
 type SelectionSummaryProps = {
 	currentStep: number;
+	/**
+	 * The highest sidebar group the user has reached. Groups at or below this
+	 * value stay `complete` and clickable even when the current step is lower,
+	 * so the sidebar behaves like a browser back-stack. Groups strictly above
+	 * are `upcoming` and inert.
+	 */
+	maxReachedStep: number;
 	selectedTemplate?: SelectedTemplate;
 	selectedModules?: SelectedModule[];
+	/**
+	 * Jump to a wizard step. Called from the numbered step labels and from the
+	 * selected base-template row.
+	 */
+	onNavigateStep: (stepId: StepId) => void;
 	/**
 	 * Jump to a specific module's configuration section. The consumer
 	 * switches to the module settings step and scrolls the module into view.
@@ -31,29 +44,62 @@ type SelectionSummaryProps = {
 
 export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	currentStep,
+	maxReachedStep,
 	selectedTemplate,
 	selectedModules,
+	onNavigateStep,
 	onNavigateModule,
 }) => {
-	const variant = (step: number) => {
+	const indicatorVariant = (step: number): Variant => {
 		if (currentStep === step) return "current";
-		if (currentStep > step) return "complete";
+		if (step <= maxReachedStep) return "complete";
 		return "upcoming";
 	};
+	// The vertical line below step N represents the path from N to N+1. It
+	// stays green once the user has advanced past N, even if the current step
+	// later drops back below N (backward navigation).
+	const dividerVariant = (step: number): Variant =>
+		maxReachedStep > step ? "complete" : "current";
+	const reachable = (step: number) => step <= maxReachedStep;
 	return (
 		<div>
 			<h2 className="text-xl font-semibold">Selection</h2>
 			<div className="text-sm">
-				<VariantContext.Provider value={variant(1)}>
-					<StepIndicator step={1}>Base Template</StepIndicator>
+				<VariantContext.Provider value={indicatorVariant(1)}>
+					<StepIndicator
+						step={1}
+						onClick={
+							reachable(1) ? () => onNavigateStep("base-infra") : undefined
+						}
+					>
+						Base Template
+					</StepIndicator>
+				</VariantContext.Provider>
+				<VariantContext.Provider value={dividerVariant(1)}>
 					{selectedTemplate ? (
-						<BaseTemplateSelection template={selectedTemplate} />
+						<BaseTemplateSelection
+							template={selectedTemplate}
+							onClick={
+								reachable(1)
+									? () => onNavigateStep("base-parameters")
+									: undefined
+							}
+						/>
 					) : (
 						<StepDivider />
 					)}
 				</VariantContext.Provider>
-				<VariantContext.Provider value={variant(2)}>
-					<StepIndicator step={2}>Modules</StepIndicator>
+				<VariantContext.Provider value={indicatorVariant(2)}>
+					<StepIndicator
+						step={2}
+						onClick={
+							reachable(2) ? () => onNavigateStep("module-select") : undefined
+						}
+					>
+						Modules
+					</StepIndicator>
+				</VariantContext.Provider>
+				<VariantContext.Provider value={dividerVariant(2)}>
 					{selectedModules ? (
 						<ModuleSelection
 							modules={selectedModules}
@@ -63,8 +109,15 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 						<StepDivider />
 					)}
 				</VariantContext.Provider>
-				<VariantContext.Provider value={variant(3)}>
-					<StepIndicator step={3}>Customizations</StepIndicator>
+				<VariantContext.Provider value={indicatorVariant(3)}>
+					<StepIndicator
+						step={3}
+						onClick={
+							reachable(3) ? () => onNavigateStep("customizations") : undefined
+						}
+					>
+						Customizations
+					</StepIndicator>
 				</VariantContext.Provider>
 			</div>
 		</div>
@@ -96,10 +149,33 @@ const stepLabelVariants = cva("font-normal mr-2", {
 
 type StepIndicatorProps = PropsWithChildren<{
 	step: number;
+	onClick?: () => void;
 }>;
 
-const StepIndicator: React.FC<StepIndicatorProps> = ({ step, children }) => {
+const StepIndicator: React.FC<StepIndicatorProps> = ({
+	step,
+	onClick,
+	children,
+}) => {
 	const variant = useContext(VariantContext);
+	const label = typeof children === "string" ? children : `step ${step}`;
+
+	if (onClick) {
+		return (
+			<button
+				type="button"
+				onClick={onClick}
+				aria-label={`Go to ${label}`}
+				className={cn(
+					"flex items-center gap-2 w-full text-left p-0 bg-transparent border-0 cursor-pointer rounded-sm",
+					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
+				)}
+			>
+				<div className={stepCircleVariants({ variant })}>{step}</div>
+				<span className={stepLabelVariants({ variant })}>{children}</span>
+			</button>
+		);
+	}
 
 	return (
 		<div className="flex items-center gap-2">
@@ -144,19 +220,37 @@ const StepDivider: React.FC<StepDividerProps> = ({ className, children }) => {
 
 type BaseTemplateSelectionProps = {
 	template: SelectedTemplate;
+	onClick?: () => void;
 };
 
 const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 	template,
+	onClick,
 }) => {
 	return (
 		<StepDivider>
-			<div className="flex items-start p-1">
-				<div className="h-[1lh] content-center">
+			{onClick ? (
+				<button
+					type="button"
+					onClick={onClick}
+					aria-label={`Configure ${template.name}`}
+					className={cn(
+						"flex items-center gap-2 w-full text-left p-1 rounded-sm bg-transparent border-0 cursor-pointer",
+						"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
+						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
+					)}
+				>
 					<Avatar src={template.iconUrl} size="sm" variant="icon" />
+					<span>{template.name}</span>
+				</button>
+			) : (
+				<div className="flex items-start p-1">
+					<div className="h-[1lh] content-center">
+						<Avatar src={template.iconUrl} size="sm" variant="icon" />
+					</div>
+					<span className="ml-2 text-content-secondary">{template.name}</span>
 				</div>
-				<span className="ml-2 text-content-secondary">{template.name}</span>
-			</div>
+			)}
 		</StepDivider>
 	);
 };
