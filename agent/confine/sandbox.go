@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -123,7 +124,47 @@ type SandboxControllerOptions struct {
 
 // SandboxController reconciles one sandbox and owns its proxy and session.
 type SandboxController struct {
-	options SandboxControllerOptions
+	options          SandboxControllerOptions
+	scriptEnvHandoff *sandboxScriptEnvHandoff
+}
+
+type sandboxScriptEnvHandoff struct {
+	ready chan struct{}
+	once  sync.Once
+	mu    sync.RWMutex
+	env   []string
+	err   error
+}
+
+func newSandboxScriptEnvHandoff() *sandboxScriptEnvHandoff {
+	return &sandboxScriptEnvHandoff{ready: make(chan struct{})}
+}
+
+func (e *sandboxScriptEnvHandoff) complete(env []string, err error) {
+	e.once.Do(func() {
+		e.mu.Lock()
+		e.env = append([]string(nil), env...)
+		e.err = err
+		e.mu.Unlock()
+		close(e.ready)
+	})
+}
+
+func (e *sandboxScriptEnvHandoff) wait(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-e.ready:
+		e.mu.RLock()
+		defer e.mu.RUnlock()
+		return e.err
+	}
+}
+
+func (e *sandboxScriptEnvHandoff) environment() []string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return append([]string(nil), e.env...)
 }
 
 // NewSandboxController validates and constructs a sandbox controller.
@@ -158,12 +199,32 @@ func NewSandboxController(options SandboxControllerOptions) (*SandboxController,
 	if options.Execer == nil {
 		options.Execer = agentexec.DefaultExecer
 	}
-	return &SandboxController{options: options}, nil
+	return &SandboxController{
+		options:          options,
+		scriptEnvHandoff: newSandboxScriptEnvHandoff(),
+	}, nil
+}
+
+// WaitForProxy waits until the proxy is listening and script environment is ready.
+func (c *SandboxController) WaitForProxy(ctx context.Context) error {
+	return c.scriptEnvHandoff.wait(ctx)
+}
+
+// ScriptExtraEnv returns the exec-time environment for workspace scripts.
+func (c *SandboxController) ScriptExtraEnv() []string {
+	return c.scriptEnvHandoff.environment()
 }
 
 // Run reconciles the declared sandbox, executes its scripts, and retains the
 // proxy and audit session until ctx is canceled.
-func (c *SandboxController) Run(ctx context.Context) error {
+func (c *SandboxController) Run(ctx context.Context) (retErr error) {
+	defer func() {
+		err := retErr
+		if err == nil {
+			err = xerrors.New("AI sandbox controller stopped before proxy was ready")
+		}
+		c.scriptEnvHandoff.complete(nil, err)
+	}()
 	if err := c.deleteStaleSandboxes(ctx); err != nil {
 		return err
 	}
@@ -219,6 +280,10 @@ func (c *SandboxController) Run(ctx context.Context) error {
 		slog.F("proxy_address", proxy.Addr().String()),
 		slog.F("sandbox_id", sandbox.ID),
 	)
+	c.scriptEnvHandoff.complete([]string{
+		EnvEgressProxy + "=" + proxy.Addr().String(),
+		EnvSandboxID + "=" + sandbox.ID.String(),
+	}, nil)
 
 	runCtx, stop := context.WithCancel(ctx)
 	batcherDone := make(chan struct{})

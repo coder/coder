@@ -269,6 +269,10 @@ func workspaceAgent() *serpent.Command {
 				return xerrors.Errorf("create agent execer: %w", err)
 			}
 
+			var (
+				scriptExtraEnv    func() []string
+				scriptStartupWait func(context.Context) error
+			)
 			// This is the interim declaration surface until the Terraform
 			// coder_ai_sandbox resource is available.
 			if _, ok := os.LookupEnv(confine.EnvAISandboxCreateScript); ok {
@@ -288,6 +292,8 @@ func workspaceAgent() *serpent.Command {
 				if err != nil {
 					return xerrors.Errorf("create AI sandbox controller: %w", err)
 				}
+				scriptExtraEnv = controller.ScriptExtraEnv
+				scriptStartupWait = controller.WaitForProxy
 
 				sandboxCtx, sandboxCancel := context.WithCancel(ctx)
 				sandboxDone := make(chan struct{})
@@ -424,6 +430,8 @@ func workspaceAgent() *serpent.Command {
 					// #nosec G115 - Safe conversion as tailnet listen port is within uint16 range (0-65535)
 					TailnetListenPort:    uint16(tailnetListenPort),
 					EnvironmentVariables: environmentVariables,
+					ScriptExtraEnv:       scriptExtraEnv,
+					ScriptStartupWait:    scriptStartupWait,
 					IgnorePorts:          ignorePorts,
 					SSHMaxTimeout:        sshMaxTimeout,
 					Subsystems:           subsystems,

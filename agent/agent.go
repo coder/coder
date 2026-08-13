@@ -92,6 +92,8 @@ type Options struct {
 	EnvironmentVariables   map[string]string
 	// ScriptExtraEnv supplies additional environment to scripts at exec time.
 	ScriptExtraEnv func() []string
+	// ScriptStartupWait blocks startup scripts until their dependencies are ready.
+	ScriptStartupWait func(context.Context) error
 	// EnvInfo overrides the session command environment source. Only
 	// tests set this. Nil defaults to usershell.SystemEnvInfo.
 	EnvInfo usershell.EnvInfoer
@@ -228,6 +230,7 @@ func New(options Options) Agent {
 		coordDisconnected:       make(chan struct{}),
 		environmentVariables:    options.EnvironmentVariables,
 		scriptExtraEnv:          options.ScriptExtraEnv,
+		scriptStartupWait:       options.ScriptStartupWait,
 		client:                  options.Client,
 		filesystem:              options.Filesystem,
 		logDir:                  options.LogDir,
@@ -311,6 +314,7 @@ type agent struct {
 
 	environmentVariables map[string]string
 	scriptExtraEnv       func() []string
+	scriptStartupWait    func(context.Context) error
 
 	manifest atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
 	// secrets are held separately from the manifest so that code paths that
@@ -1524,9 +1528,20 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// Measure the time immediately after the start scripts have
 				// finished (both start and post start). For instance, an
 				// autostarted devcontainer will be included in this time.
-				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
+				startupAllowed := true
+				var err error
+				if a.scriptStartupWait != nil {
+					err = a.scriptStartupWait(a.gracefulCtx)
+					if err != nil {
+						startupAllowed = false
+						err = xerrors.Errorf("wait for startup script dependencies: %w", err)
+					}
+				}
+				if startupAllowed {
+					err = a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
+				}
 
-				if a.devcontainers {
+				if startupAllowed && a.devcontainers {
 					// Start the container API after the startup scripts have
 					// been executed to ensure that the required tools can be
 					// installed.
@@ -1554,7 +1569,9 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 					label = "true"
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
-				a.scriptRunner.StartCron()
+				if startupAllowed {
+					a.scriptRunner.StartCron()
+				}
 
 				// Startup finished (success or terminal failure): release
 				// the context gate. MCP servers connect below and
