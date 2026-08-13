@@ -121,7 +121,7 @@ export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<TopbarIconButton asChild>
-						<RouterLink to="/workspaces">
+						<RouterLink to="/workspaces" aria-label="Back to workspaces">
 							<ChevronLeftIcon className="size-icon-sm" />
 						</RouterLink>
 					</TopbarIconButton>

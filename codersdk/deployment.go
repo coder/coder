@@ -3100,9 +3100,6 @@ communicating directly.`,
 			Value:      &c.OIDC.RedirectURL,
 			Group:      &deploymentGroupOIDC,
 			UseInstead: nil,
-			// In most deployments, this setting can only complicate and break OIDC.
-			// So hide it, and only surface it to the small number of users that need it.
-			Hidden: true,
 		},
 		{
 			Name: "OIDC Auto Repair Links",

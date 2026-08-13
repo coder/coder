@@ -698,6 +698,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
+	modelIntent,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const question = parsedArgs ? asString(parsedArgs.question) : "";
@@ -723,10 +724,6 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 		(typeof result === "string" && (hasError || resolvedResultType === "error")
 			? result
 			: "");
-	const advisorModel = rec ? asString(rec.advisor_model) : "";
-	const remainingUses = rec
-		? asNumber(rec.remaining_uses, { parseString: true })
-		: undefined;
 
 	return (
 		<AdvisorTool
@@ -736,8 +733,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 			resultType={resolvedResultType}
 			advice={advice}
 			errorMessage={errorMessage || undefined}
-			advisorModel={advisorModel || undefined}
-			remainingUses={remainingUses}
+			modelIntent={modelIntent}
 		/>
 	);
 };

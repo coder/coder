@@ -373,6 +373,8 @@ export const AgentRuntimeHoursAllocationReachedWithDiagnostic: Story = {
 	},
 };
 
+// Each diagnostic pins role=status (not alert) and a suppressed sales
+// link. Background mutedness is covered by the visual snapshot.
 const playMutedDiagnostic =
 	(message: string): Story["play"] =>
 	async ({ canvasElement }) => {

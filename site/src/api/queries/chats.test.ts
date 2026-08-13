@@ -43,6 +43,7 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	getChatListQueryString,
 	infiniteChats,
 	interruptChat,
 	invalidateChatACL,
@@ -1788,6 +1789,27 @@ describe("chatListKey shape", () => {
 			status: "all",
 			sources: [],
 		});
+	});
+});
+
+describe("getChatListQueryString", () => {
+	it("emits sidebar query shapes accepted by searchquery.Chats", () => {
+		// These strings must match TestSearchChatsFrontendEmitted in
+		// coderd/searchquery/search_test.go.
+		expect(getChatListQueryString(toChatListParams())).toBe("archived:false");
+		expect(
+			getChatListQueryString(toChatListParams({ chatStatus: "unread" })),
+		).toBe("archived:false has_unread:true");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					prStatuses: ["draft", "closed"],
+					sources: ["created_by_me", "shared_with_me"],
+				}),
+			),
+		).toBe(
+			"archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
+		);
 	});
 });
 
