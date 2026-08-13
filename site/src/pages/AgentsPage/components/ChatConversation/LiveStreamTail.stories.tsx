@@ -1,24 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { LiveStreamTailContent } from "./LiveStreamTail";
-import {
-	buildLiveStatus,
-	buildReconnectState,
-	buildRetryState,
-	buildStreamRenderState,
-	pinFixtureClock,
-	textResponseStreamParts,
-} from "./storyFixtures";
-
-const retryThenResumedStream = buildStreamRenderState(textResponseStreamParts);
+import { buildLiveStatus, pinFixtureClock } from "./storyFixtures";
 
 const defaultArgs: React.ComponentProps<typeof LiveStreamTailContent> = {
 	isTranscriptEmpty: true,
-	streamState: null,
-	streamTools: [],
 	liveStatus: buildLiveStatus(),
-	subagentTitles: new Map(),
-	subagentStatusOverrides: new Map(),
 };
 
 const meta: Meta<typeof LiveStreamTailContent> = {
@@ -245,36 +232,6 @@ export const TerminalMissingKeyError: Story = {
 	},
 };
 
-/** Retrying a transport timeout shows attempt + countdown. */
-export const RetryingTimeoutAnthropic: Story = {
-	args: {
-		...defaultArgs,
-		liveStatus: buildLiveStatus({
-			retryState: buildRetryState({
-				attempt: 2,
-				kind: "timeout",
-				error: "Anthropic is temporarily unavailable.",
-				provider: "anthropic",
-			}),
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: /request timed out/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic is temporarily unavailable/i),
-		).toBeVisible();
-		expect(canvas.getByText(/attempt 2/i)).toBeVisible();
-		// StatusCountdown renders label and seconds as separate text
-		// nodes, so match against the element's combined textContent.
-		await waitFor(() => {
-			expect(canvasElement).toHaveTextContent(/retrying in \d+s/i);
-		});
-	},
-};
-
 /** Terminal stream-silence timeouts get a specific heading without provider metadata. */
 export const TerminalStreamSilenceTimeoutError: Story = {
 	args: {
@@ -394,84 +351,5 @@ export const GenericErrorShowsProviderDetail: Story = {
 		).toBeVisible();
 		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
 		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
-	},
-};
-
-/** Reconnecting keeps already-streamed content visible without a terminal footer. */
-export const ReconnectingKeepsPartialOutputVisible: Story = {
-	args: {
-		...defaultArgs,
-		isTranscriptEmpty: false,
-		streamState: retryThenResumedStream.streamState,
-		streamTools: retryThenResumedStream.streamTools,
-		liveStatus: buildLiveStatus({
-			streamState: retryThenResumedStream.streamState,
-			reconnectState: buildReconnectState({
-				attempt: 2,
-				delayMs: 2000,
-			}),
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/storybook streamed answer/i)).toBeVisible();
-		expect(
-			canvas.getByRole("heading", { name: /reconnecting/i }),
-		).toBeVisible();
-		expect(canvas.getByText(/chat stream disconnected/i)).toBeVisible();
-		expect(
-			canvas.queryByRole("heading", { name: /request failed/i }),
-		).not.toBeInTheDocument();
-	},
-};
-
-/** Persisted errors yield to live streaming while the live tail is active. */
-export const PersistedGenericErrorDoesNotOverrideStreaming: Story = {
-	args: {
-		...defaultArgs,
-		isTranscriptEmpty: false,
-		streamState: retryThenResumedStream.streamState,
-		streamTools: retryThenResumedStream.streamTools,
-		liveStatus: buildLiveStatus({
-			streamState: retryThenResumedStream.streamState,
-			persistedError: {
-				kind: "generic",
-				message: "Stale persisted error.",
-			},
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText(/storybook streamed answer/i)).toBeVisible();
-		});
-		expect(
-			canvas.queryByRole("heading", { name: /request failed/i }),
-		).not.toBeInTheDocument();
-	},
-};
-
-/** Terminal failures keep partial output visible above the footer callout. */
-export const FailedStreamKeepsPartialOutputVisible: Story = {
-	args: {
-		...defaultArgs,
-		isTranscriptEmpty: false,
-		streamState: retryThenResumedStream.streamState,
-		streamTools: retryThenResumedStream.streamTools,
-		liveStatus: buildLiveStatus({
-			streamState: retryThenResumedStream.streamState,
-			streamError: {
-				kind: "generic",
-				message: "Provider request failed.",
-			},
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/storybook streamed answer/i)).toBeVisible();
-		expect(
-			canvas.getByRole("heading", { name: /request failed/i }),
-		).toBeVisible();
-		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
 	},
 };
