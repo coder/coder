@@ -17,7 +17,6 @@ const (
 	LicenseManagedAgentLimitExceededWarningText      = "You have built more workspaces with managed agents than your license allows."
 	LicenseAIGovernance90PercentWarningText          = "You have used %d%% of your AI Governance add-on seats."
 	LicenseAIGovernanceOverLimitWarningText          = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
-	LicenseManagedAgentUsageUnavailableErrorText     = "Unable to determine managed agent usage. The reported count is unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details."
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText = "A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued."
 )
 
