@@ -17133,6 +17133,18 @@ func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCP
 	return err
 }
 
+const deleteMCPServerUserTokensByConfigID = `-- name: DeleteMCPServerUserTokensByConfigID :exec
+DELETE FROM
+    mcp_server_user_tokens
+WHERE
+    mcp_server_config_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteMCPServerUserTokensByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteMCPServerUserTokensByConfigID, mcpServerConfigID)
+	return err
+}
+
 const getEnabledMCPServerConfigsByOrganization = `-- name: GetEnabledMCPServerConfigsByOrganization :many
 SELECT
     id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id

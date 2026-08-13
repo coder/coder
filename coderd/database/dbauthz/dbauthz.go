@@ -2301,6 +2301,17 @@ func (q *querier) DeleteMCPServerUserToken(ctx context.Context, arg database.Del
 	return q.db.DeleteMCPServerUserToken(ctx, arg)
 }
 
+func (q *querier) DeleteMCPServerUserTokensByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	config, err := q.db.GetMCPServerConfigByID(ctx, mcpServerConfigID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, config); err != nil {
+		return err
+	}
+	return q.db.DeleteMCPServerUserTokensByConfigID(ctx, mcpServerConfigID)
+}
+
 func (q *querier) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceOauth2App); err != nil {
 		return err

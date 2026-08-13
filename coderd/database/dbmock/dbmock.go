@@ -1035,6 +1035,20 @@ func (mr *MockStoreMockRecorder) DeleteMCPServerUserToken(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMCPServerUserToken", reflect.TypeOf((*MockStore)(nil).DeleteMCPServerUserToken), ctx, arg)
 }
 
+// DeleteMCPServerUserTokensByConfigID mocks base method.
+func (m *MockStore) DeleteMCPServerUserTokensByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteMCPServerUserTokensByConfigID", ctx, mcpServerConfigID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteMCPServerUserTokensByConfigID indicates an expected call of DeleteMCPServerUserTokensByConfigID.
+func (mr *MockStoreMockRecorder) DeleteMCPServerUserTokensByConfigID(ctx, mcpServerConfigID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMCPServerUserTokensByConfigID", reflect.TypeOf((*MockStore)(nil).DeleteMCPServerUserTokensByConfigID), ctx, mcpServerConfigID)
+}
+
 // DeleteOAuth2ProviderAppByClientID mocks base method.
 func (m *MockStore) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()

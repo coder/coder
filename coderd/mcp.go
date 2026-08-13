@@ -566,6 +566,11 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
 }
 
+// errUserOIDCRequiresDeploymentPerms marks an update refused by the
+// user_oidc gate inside the transaction, after the row is current,
+// so the handler can map it to a 403.
+var errUserOIDCRequiresDeploymentPerms = xerrors.New("managing user_oidc MCP server configs requires deployment-level permissions")
+
 // authorizeUserOIDCMCPServerConfig requires deployment-level
 // configuration permission for user_oidc MCP server configs.
 // user_oidc forwards each chat owner's upstream OIDC access token to
@@ -611,12 +616,6 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	touchesUserOIDC := existing.AuthType == "user_oidc" ||
-		(req.AuthType != nil && *req.AuthType == "user_oidc")
-	if touchesUserOIDC && !api.authorizeUserOIDCMCPServerConfig(rw, r) {
-		return
-	}
-
 	// Validated here rather than via a struct tag because an empty
 	// string is a valid value that clears the stored URL.
 	if req.OAuth2RevocationURL != nil {
@@ -656,6 +655,12 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
+		touchesUserOIDC := existing.AuthType == "user_oidc" ||
+			(req.AuthType != nil && *req.AuthType == "user_oidc")
+		if touchesUserOIDC && !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+			return errUserOIDCRequiresDeploymentPerms
+		}
+
 		displayName := existing.DisplayName
 		if req.DisplayName != nil {
 			displayName = strings.TrimSpace(*req.DisplayName)
@@ -843,6 +848,16 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Stored user grants are bound to the destination and auth
+		// flow they were consented for. Invalidate them when either
+		// changes so an updated config cannot replay members' tokens
+		// against a different endpoint.
+		if serverURL != existing.Url || authType != existing.AuthType {
+			if err := tx.DeleteMCPServerUserTokensByConfigID(ctx, existing.ID); err != nil {
+				return xerrors.Errorf("invalidate MCP server user tokens: %w", err)
+			}
+		}
+
 		updatedConfig, err := tx.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
 			DisplayName:             displayName,
 			Slug:                    slug,
@@ -881,6 +896,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}, nil)
 	if err != nil {
 		switch {
+		case errors.Is(err, errUserOIDCRequiresDeploymentPerms):
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Managing user_oidc MCP server configs requires deployment-level permissions.",
+			})
+			return
 		case httpapi.Is404Error(err):
 			httpapi.ResourceNotFound(rw)
 			return

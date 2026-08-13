@@ -267,6 +267,12 @@ WHERE
     mcp_server_config_id = @mcp_server_config_id::uuid
     AND user_id = @user_id::uuid;
 
+-- name: DeleteMCPServerUserTokensByConfigID :exec
+DELETE FROM
+    mcp_server_user_tokens
+WHERE
+    mcp_server_config_id = @mcp_server_config_id::uuid;
+
 -- name: CleanupDeletedMCPServerIDsFromChats :exec
 UPDATE chats
 SET mcp_server_ids = (

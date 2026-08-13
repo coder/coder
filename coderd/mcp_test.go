@@ -1,10 +1,12 @@
 package coderd_test
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -521,6 +523,108 @@ func TestMCPServerConfigsUserOIDCDirect(t *testing.T) {
 	require.False(t, created.HasOAuth2Secret)
 	require.False(t, created.HasAPIKey)
 	require.False(t, created.HasCustomHeaders)
+}
+
+func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
+	t.Parallel()
+
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	_, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	newConfig := func(ctx context.Context, t *testing.T, slug string) codersdk.MCPServerConfig {
+		t.Helper()
+		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "Grant Invalidation " + slug,
+			Slug:           slug,
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/" + slug,
+			AuthType:       "oauth2",
+			OAuth2ClientID: "cid",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: "https://auth.example.com/token",
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+		return created
+	}
+
+	seedToken := func(ctx context.Context, t *testing.T, configID uuid.UUID) {
+		t.Helper()
+		//nolint:gocritic // Seeding a member grant requires system access.
+		_, err := db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: configID,
+			UserID:            member.ID,
+			AccessToken:       "access-token",
+			RefreshToken:      "refresh-token",
+			TokenType:         "Bearer",
+			Expiry:            sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+		})
+		require.NoError(t, err)
+	}
+
+	tokenExists := func(ctx context.Context, t *testing.T, configID uuid.UUID) bool {
+		t.Helper()
+		//nolint:gocritic // Verifying persisted state requires system access.
+		_, err := db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: configID,
+			UserID:            member.ID,
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			return false
+		}
+		require.NoError(t, err)
+		return true
+	}
+
+	t.Run("URLChangeDeletesGrants", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := newConfig(ctx, t, "grant-url-change")
+		seedToken(ctx, t, config.ID)
+
+		newURL := "https://mcp.example.com/grant-url-change-moved"
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+			URL: &newURL,
+		})
+		require.NoError(t, err)
+		require.False(t, tokenExists(ctx, t, config.ID))
+	})
+
+	t.Run("AuthTypeChangeDeletesGrants", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := newConfig(ctx, t, "grant-auth-change")
+		seedToken(ctx, t, config.ID)
+
+		authType := "none"
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+			AuthType: &authType,
+		})
+		require.NoError(t, err)
+		require.False(t, tokenExists(ctx, t, config.ID))
+	})
+
+	t.Run("UnrelatedChangeKeepsGrants", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := newConfig(ctx, t, "grant-unrelated")
+		seedToken(ctx, t, config.ID)
+
+		displayName := "Grant Invalidation renamed"
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+			DisplayName: &displayName,
+		})
+		require.NoError(t, err)
+		require.True(t, tokenExists(ctx, t, config.ID))
+	})
 }
 
 func TestMCPServerConfigsUserOIDCRequiresDeploymentPerms(t *testing.T) {

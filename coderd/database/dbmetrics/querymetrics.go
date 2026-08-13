@@ -625,6 +625,14 @@ func (m queryMetricsStore) DeleteMCPServerUserToken(ctx context.Context, arg dat
 	return r0
 }
 
+func (m queryMetricsStore) DeleteMCPServerUserTokensByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteMCPServerUserTokensByConfigID(ctx, mcpServerConfigID)
+	m.queryLatencies.WithLabelValues("DeleteMCPServerUserTokensByConfigID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteMCPServerUserTokensByConfigID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteOAuth2ProviderAppByClientID(ctx, id)
