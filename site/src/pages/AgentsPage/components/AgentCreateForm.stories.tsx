@@ -12,7 +12,7 @@ import {
 	within,
 } from "storybook/test";
 import { API } from "#/api/api";
-import { permittedOrganizations } from "#/api/queries/organizations";
+import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
@@ -29,7 +29,7 @@ import {
 } from "../utils/reasoningEffort";
 import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
 
-const chatCreateOrganizationsQuery = permittedOrganizations({
+const permittedOrgsKey = permittedOrganizationsKey({
 	object: { resource_type: "chat", owner_id: "me" },
 	action: "create",
 });
@@ -906,7 +906,7 @@ export const WithOrganizationPicker: Story = {
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
 			{
-				key: chatCreateOrganizationsQuery.queryKey,
+				key: permittedOrgsKey,
 				data: [MockOrganization2, MockDefaultOrganization],
 			},
 		],
@@ -1330,7 +1330,7 @@ export const SingleOrgIgnoresStalePermittedCache: Story = {
 		organizations: [MockDefaultOrganization],
 		queries: [
 			{
-				key: chatCreateOrganizationsQuery.queryKey,
+				key: permittedOrgsKey,
 				data: [MockOrganization2],
 			},
 		],
@@ -1406,7 +1406,7 @@ export const OrgPickerTightSpacing: Story = {
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
 			{
-				key: chatCreateOrganizationsQuery.queryKey,
+				key: permittedOrgsKey,
 				data: [MockDefaultOrganization, MockOrganization2],
 			},
 		],
@@ -1579,5 +1579,51 @@ export const PermittedOrgsResolvesToSubset: Story = {
 			throw new Error("Expected onCreateChat to receive options");
 		}
 		expect(options.organizationId).toBe(MockOrganization2.id);
+	},
+};
+
+/**
+ * Member-scoped roles like agents-access grant chat:create only on
+ * chats the user owns, so the per-org check must carry owner context
+ * for the picker to render.
+ */
+export const MemberScopedPermissionsShowOrgPicker: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(
+				Object.entries(checks).map(([id, check]) => [
+					id,
+					check.object.owner_id === "me",
+				]),
+			),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const picker = await canvas.findByRole(
+			"button",
+			{ name: /^Organization:/ },
+			{ timeout: 3000 },
+		);
+		await userEvent.click(picker);
+		await screen.findByRole("option", {
+			name: MockDefaultOrganization.display_name,
+		});
+		await userEvent.click(
+			screen.getByRole("option", { name: MockOrganization2.display_name }),
+		);
+		expect(
+			canvas.getByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
 	},
 };
