@@ -2501,9 +2501,9 @@ func (q *querier) DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds in
 
 func (q *querier) DeleteStaleWorkspaceAgentContextResources(ctx context.Context, arg database.DeleteStaleWorkspaceAgentContextResourcesParams) error {
 	// Deleting stale context resources is part of updating the agent's
-	// pushed context state, so it authorizes as an update on the
-	// workspace rather than a delete of the workspace itself.
-	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdate); err != nil {
+	// pushed context state, so it authorizes as an agent update rather than
+	// a delete of the workspace itself.
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdateAgent); err != nil {
 		return err
 	}
 	return q.db.DeleteStaleWorkspaceAgentContextResources(ctx, arg)
@@ -8661,7 +8661,7 @@ func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, ar
 		return err
 	}
 
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdateAgent, workspace); err != nil {
 		return err
 	}
 
@@ -8679,7 +8679,7 @@ func (q *querier) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg d
 		return err
 	}
 
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdateAgent, workspace); err != nil {
 		return err
 	}
 
@@ -8694,7 +8694,7 @@ func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database
 	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
 		// Errors here will result in falling back to the GetWorkspaceAgentByID query, skipping
 		// the cache in case the cached data is stale.
-		if err := q.authorizeContext(ctx, policy.ActionUpdate, rbacObj); err == nil {
+		if err := q.authorizeContext(ctx, policy.ActionUpdateAgent, rbacObj); err == nil {
 			return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
 		}
 		q.log.Debug(ctx, "fast path authorization failed, using slow path",
@@ -8708,7 +8708,7 @@ func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database
 		return err
 	}
 
-	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace)
+	err = q.authorizeContext(ctx, policy.ActionUpdateAgent, workspace)
 	if err != nil {
 		return err
 	}
@@ -8727,7 +8727,7 @@ func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg datab
 		return err
 	}
 
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdateAgent, workspace); err != nil {
 		return err
 	}
 
@@ -8741,7 +8741,7 @@ func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database
 		return err
 	}
 
-	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.RBACObject())
+	err = q.authorizeContext(ctx, policy.ActionUpdateAgent, workspace.RBACObject())
 	if err != nil {
 		return err
 	}
@@ -9356,14 +9356,14 @@ func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.Upser
 }
 
 func (q *querier) UpsertWorkspaceAgentContextResource(ctx context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
-	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdate); err != nil {
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdateAgent); err != nil {
 		return database.WorkspaceAgentContextResource{}, err
 	}
 	return q.db.UpsertWorkspaceAgentContextResource(ctx, arg)
 }
 
 func (q *querier) UpsertWorkspaceAgentContextSnapshot(ctx context.Context, arg database.UpsertWorkspaceAgentContextSnapshotParams) (database.WorkspaceAgentContextSnapshot, error) {
-	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdate); err != nil {
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdateAgent); err != nil {
 		return database.WorkspaceAgentContextSnapshot{}, err
 	}
 	return q.db.UpsertWorkspaceAgentContextSnapshot(ctx, arg)
@@ -9393,6 +9393,11 @@ func (q *querier) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWor
 		return database.WorkspaceApp{}, err
 	}
 
+	// This path is shared by runtime agent app registration and by the
+	// provisioner inserting Terraform-declared apps. The provisioner role has
+	// workspace:update, not update_agent, so preserve the shared action here.
+	// Bound-agent app health and daemon bookkeeping use update_agent in their
+	// dedicated methods.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
 		return database.WorkspaceApp{}, err
 	}

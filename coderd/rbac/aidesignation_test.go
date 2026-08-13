@@ -130,6 +130,20 @@ func TestAIDesignationBoundary(t *testing.T) {
 
 		// Create must be authorized before the workspace has an ID to designate.
 		require.NoError(t, auth.Authorize(ctx, f.actorA, policy.ActionCreate, f.workspaceOwnedBySponsor()))
+
+		// Agent lifecycle actions update agent rows and daemon state, not the
+		// human workspace's runtime or credentials. Bound agents in ordinary
+		// workspaces need these to report startup, lifecycle, metadata, apps,
+		// and sub-agent state. Exact workspace scope and API parent checks
+		// remain responsible for constraining the target rows.
+		for _, action := range []policy.Action{
+			policy.ActionCreateAgent,
+			policy.ActionUpdateAgent,
+			policy.ActionDeleteAgent,
+		} {
+			require.NoError(t, auth.Authorize(ctx, f.actorA, action, f.workspaceOwnedBySponsor()),
+				"AI actor must be able to perform agent lifecycle action %s", action)
+		}
 	})
 
 	t.Run("HumanSubjectIsUnaffected", func(t *testing.T) {

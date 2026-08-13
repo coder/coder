@@ -430,8 +430,14 @@ is_workspace_object if {
 # Read supports workspace inventory for a chat, and create must be authorized
 # before the workspace has an ID to designate. Creation is covered instead by
 # the server designating every AI-created workspace before its first build.
+#
+# Agent lifecycle actions are daemon bookkeeping on agent rows, not access to
+# the human workspace's runtime or credentials. A bound agent in an ordinary
+# human workspace must be able to report startup, lifecycle, metadata, and app
+# health. The subject's exact workspace allow list and the agent API's parent
+# checks still constrain which rows it can create, update, or delete.
 ai_designation_exempt_action if {
-	input.action in {"read", "create"}
+	input.action in {"read", "create", "create_agent", "update_agent", "delete_agent"}
 }
 
 # Defining the exempt actions rather than the protected ones means any workspace

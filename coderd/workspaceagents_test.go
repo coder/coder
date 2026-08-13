@@ -3832,6 +3832,24 @@ func TestWorkspaceAgentAIBindingCredentialStarvation(t *testing.T) {
 	require.Equal(t, secretValue, string(unboundSecrets[0].Value))
 	require.Empty(t, manifestSecrets(t, boundClient))
 
+	// The bound agent is allowed to report its own daemon startup. This is
+	// authorized as workspace:update_agent rather than workspace:update:
+	// designation protects access to the human workspace's runtime, but agent
+	// bookkeeping must work in an ordinary undesignated workspace.
+	boundConn, err := boundClient.ConnectRPC(ctx)
+	require.NoError(t, err)
+	boundRPC := agentproto.NewDRPCAgentClient(boundConn)
+	_, err = boundRPC.GetManifest(ctx, &agentproto.GetManifestRequest{})
+	require.NoError(t, err)
+	_, err = boundRPC.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{
+		Startup: &agentproto.Startup{
+			Version:           "v0.0.0",
+			ExpandedDirectory: "/workspace",
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, boundConn.Close())
+
 	resp, err := unboundClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{ID: providerID})
 	require.NoError(t, err)
 	require.Equal(t, accessToken, resp.AccessToken)

@@ -356,18 +356,22 @@ The rule consumes two new policy-input attributes:
 1. **Non-AI subjects are unaffected.** A subject with a non-AI type and an
    empty acting ID passes the rule unconditionally. Human and system
    access to every workspace, designated or not, is unchanged.
-2. **Exempt actions: `read` and `create`.** An AI subject may read
-   workspace metadata sponsor-wide (inventory UX, "what workspaces do I
-   have?") and may create, which necessarily authorizes an ID-less
-   object. Creation safety comes from the chokepoint designating every
-   AI-created workspace before its first build, not from this rule.
-3. **Protected actions: everything else.** Any other action on a
-   workspace-typed object (`workspace`, `workspace_dormant`,
-   `prebuilt_workspace`), including `ssh`, `application_connect`,
-   `start`, `stop`, `update`, and `delete`, requires
-   `object.ai_agent_id == subject.ai_agent_id`, exact match. The
-   protected set is defined by exclusion so that future workspace actions
-   are protected by default.
+2. **Exempt actions: `read`, `create`, and agent lifecycle.** An AI
+   subject may read workspace metadata sponsor-wide (inventory UX, "what
+   workspaces do I have?") and may create, which necessarily authorizes
+   an ID-less object. Creation safety comes from the chokepoint
+   designating every AI-created workspace before its first build, not from
+   this rule. `create_agent`, `update_agent`, and `delete_agent` are also
+   exempt: they update agent rows and daemon state rather than entering the
+   human workspace's runtime or credentials. Exact workspace scope and API
+   parent checks constrain their targets.
+3. **Protected actions: workspace-runtime access and mutation.** Actions
+   on a workspace-typed object (`workspace`, `workspace_dormant`,
+   `prebuilt_workspace`) including `ssh`, `application_connect`, `start`,
+   `stop`, `update`, and `delete` require
+   `object.ai_agent_id == subject.ai_agent_id`, exact match. The protected
+   set is defined by exclusion so that future workspace actions are
+   protected by default unless explicitly classified as agent lifecycle.
 4. **Fail closed.** An undesignated object never matches a non-empty
    acting ID. An AI-typed subject whose acting ID is empty is denied
    protected actions rather than treated as human; a subject counts as
@@ -823,11 +827,13 @@ Two further qualifications from the security review:
    DRPC or WebSocket session keeps the subject it was created with, so a
    sponsor suspended mid-session retains access until that session ends.
    New requests and reconnections see the change immediately.
-8. **Designation boundary**: an AI subject is denied every workspace
-   action except `read` and `create` unless the workspace's designation
+8. **Designation boundary**: an AI subject is denied every protected
+   workspace-runtime action unless the workspace's designation
    (`workspaces.ai_agent_id`, Vertical 2) exactly matches its acting
-   identity. Undesignated workspaces, empty acting IDs, aggregate
-   objects, and workspaces designated to a different agent all deny.
+   identity. `read`, ID-less workspace `create`, and agent lifecycle
+   actions (`create_agent`, `update_agent`, `delete_agent`) are exempt.
+   Undesignated workspaces, empty acting IDs, aggregate objects, and
+   workspaces designated to a different agent all deny protected actions.
    Non-AI subjects never evaluate the rule.
 9. **Monotonic narrowing**: any credential minted as a side effect of an
    agent-initiated action must carry a profile whose expanded

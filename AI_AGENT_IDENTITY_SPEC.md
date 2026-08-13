@@ -53,9 +53,12 @@ the following properties.
    2. Key scopes are minted from **profiles**. The scopes granted to a
       chat differ from those granted to an AI-bound workspace agent.
       1. AI subjects hold workspace scopes including `ssh`, `start`,
-         `stop`, and `update`, but every workspace action other than
-         `read` and `create` resolves successfully only against
-         workspaces attributed to that agent.
+         `stop`, and `update`, but workspace-runtime actions other than
+         `read` and `create` resolve successfully only against workspaces
+         attributed to that agent. Agent-row lifecycle actions
+         (`create_agent`, `update_agent`, `delete_agent`) remain available
+         for daemon bookkeeping and sub-agent management; exact workspace
+         scope and API parent checks constrain their targets.
 6. **An agent's designated workspace never receives the sponsor's ambient
    credentials.** No owner session token, no user secrets, no external
    auth tokens, no Git SSH key.
@@ -541,9 +544,11 @@ is_workspace_object if {
 # Read supports workspace inventory for a chat. Create must be authorized
 # before the workspace has an ID to designate, and is covered instead by
 # the server designating every AI-created workspace before its first
-# build.
+# build. Agent lifecycle actions update agent rows and daemon state, not
+# the human workspace's runtime or credentials; exact workspace scope and
+# API parent checks constrain their targets.
 ai_designation_exempt_action if {
-    input.action in {"read", "create"}
+    input.action in {"read", "create", "create_agent", "update_agent", "delete_agent"}
 }
 
 # Defining the exempt actions rather than the protected ones means any
@@ -579,17 +584,18 @@ ai_workspace_designation_allow if {
 
 Resulting behavior:
 
-| Subject                       | Object                       | Action                      | Result    |
-|-------------------------------|------------------------------|-----------------------------|-----------|
-| Human or system               | any workspace                | any                         | unchanged |
-| AI                            | any workspace                | `read`                      | allow     |
-| AI                            | workspace with no ID yet     | `create`                    | allow     |
-| AI                            | its own designated workspace | any                         | allow     |
-| AI                            | undesignated workspace       | anything but read or create | deny      |
-| AI                            | another agent's workspace    | anything but read or create | deny      |
-| AI with empty acting identity | any workspace                | anything but read or create | deny      |
-| AI                            | aggregate workspace object   | anything but read or create | deny      |
-| AI                            | any non-workspace resource   | any                         | unchanged |
+| Subject                       | Object                       | Action                             | Result    |
+|-------------------------------|------------------------------|------------------------------------|-----------|
+| Human or system               | any workspace                | any                                | unchanged |
+| AI                            | any workspace                | `read`                             | allow     |
+| AI                            | workspace with no ID yet     | `create`                           | allow     |
+| AI                            | exact-scoped workspace       | agent lifecycle action             | allow     |
+| AI                            | its own designated workspace | any                                | allow     |
+| AI                            | undesignated workspace       | protected workspace-runtime action | deny      |
+| AI                            | another agent's workspace    | protected workspace-runtime action | deny      |
+| AI with empty acting identity | any workspace                | protected workspace-runtime action | deny      |
+| AI                            | aggregate workspace object   | protected workspace-runtime action | deny      |
+| AI                            | any non-workspace resource   | any                                | unchanged |
 
 **Partial evaluation.** If the policy is also compiled to SQL for list
 filtering, the new object field must be declared unknown and given a SQL
@@ -667,11 +673,14 @@ Drive tests from these.
    subject violates this. Distinguishing a legacy record from a corrupted
    one requires a durable per-record identity reference rather than an
    inference.
-7. **Designation boundary.** An AI subject is denied every workspace
-   action except read and create unless the workspace's designation
-   exactly equals its acting identity. Undesignated workspaces, empty
-   acting identities, aggregate objects, and workspaces designated to a
-   different agent all deny. Non-AI subjects never evaluate the rule.
+7. **Designation boundary.** An AI subject is denied every protected
+   workspace-runtime action unless the workspace's designation exactly
+   equals its acting identity. `read`, ID-less workspace `create`, and
+   agent-row lifecycle actions (`create_agent`, `update_agent`,
+   `delete_agent`) are exempt. Undesignated workspaces, empty acting
+   identities, aggregate objects, and workspaces designated to a
+   different agent all deny protected actions. Non-AI subjects never
+   evaluate the rule.
 8. **Monotonic narrowing.** Any credential minted as a side effect of an
    agent-initiated action carries a profile whose expanded permissions and
    allow-list reach are a subset of the acting profile's. Test it

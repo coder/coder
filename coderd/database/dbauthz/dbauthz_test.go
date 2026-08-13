@@ -3493,11 +3493,15 @@ func (s *MethodTestSuite) TestWorkspace() {
 		// Ensure the RBAC changed automatically.
 		require.Equal(s.T(), rbac.ResourceWorkspaceDormant.Type, ws.RBACObject().Type)
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
-		// Explicitly create the expected object.
+		// Explicitly create the expected object, including the AI designation
+		// when the randomized workspace carries one.
 		expected := rbac.ResourceWorkspaceDormant.
 			WithID(ws.ID).
 			InOrg(ws.OrganizationID).
 			WithOwner(ws.OwnerID.String())
+		if ws.AIAgentID.Valid {
+			expected = expected.WithAIAgentID(ws.AIAgentID.UUID.String())
+		}
 		check.Args(ws.ID).Asserts(expected, policy.ActionRead).Returns(ws)
 	}))
 	s.Run("GetWorkspaceByResourceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -3704,7 +3708,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		arg := database.UpdateWorkspaceAgentLifecycleStateByIDParams{ID: agt.ID, LifecycleState: database.WorkspaceAgentLifecycleStateCreated}
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate).Returns()
+		check.Args(arg).Asserts(w, policy.ActionUpdateAgent).Returns()
 	}))
 	s.Run("UpdateWorkspaceAgentMetadata", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
@@ -3712,7 +3716,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		arg := database.UpdateWorkspaceAgentMetadataParams{WorkspaceAgentID: agt.ID}
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().UpdateWorkspaceAgentMetadata(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate).Returns()
+		check.Args(arg).Asserts(w, policy.ActionUpdateAgent).Returns()
 	}))
 	s.Run("UpdateWorkspaceAgentLogOverflowByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
@@ -3721,7 +3725,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agt.ID).Return(agt, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().UpdateWorkspaceAgentLogOverflowByID(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate).Returns()
+		check.Args(arg).Asserts(w, policy.ActionUpdateAgent).Returns()
 	}))
 	s.Run("UpdateWorkspaceAgentStartupByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
@@ -3735,7 +3739,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agt.ID).Return(agt, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().UpdateWorkspaceAgentStartupByID(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate).Returns()
+		check.Args(arg).Asserts(w, policy.ActionUpdateAgent).Returns()
 	}))
 	s.Run("UpdateWorkspaceAgentDirectoryByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
@@ -4245,7 +4249,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		arg := database.UpdateWorkspaceAppHealthByIDParams{ID: app.ID, Health: database.WorkspaceAppHealthDisabled}
 		dbm.EXPECT().GetWorkspaceByWorkspaceAppID(gomock.Any(), app.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().UpdateWorkspaceAppHealthByID(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate).Returns()
+		check.Args(arg).Asserts(w, policy.ActionUpdateAgent).Returns()
 	}))
 	s.Run("UpdateWorkspaceAutostart", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
@@ -6311,7 +6315,7 @@ func (s *MethodTestSuite) TestWorkspaceAgentContext() {
 		}
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), arg).Return(database.WorkspaceAgentContextSnapshot{}, nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate)
+		check.Args(arg).Asserts(w, policy.ActionUpdateAgent)
 	}))
 	s.Run("UpsertWorkspaceAgentContextResource", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
@@ -6325,7 +6329,7 @@ func (s *MethodTestSuite) TestWorkspaceAgentContext() {
 		}
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), arg).Return(database.WorkspaceAgentContextResource{}, nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate)
+		check.Args(arg).Asserts(w, policy.ActionUpdateAgent)
 	}))
 	s.Run("DeleteStaleWorkspaceAgentContextResources", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
@@ -6337,8 +6341,8 @@ func (s *MethodTestSuite) TestWorkspaceAgentContext() {
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), arg).Return(nil).AnyTimes()
 		// Stale-resource deletion is part of updating the agent's
-		// context state, so it asserts ActionUpdate on the workspace.
-		check.Args(arg).Asserts(w, policy.ActionUpdate)
+		// pushed context state, so it authorizes as an agent update.
+		check.Args(arg).Asserts(w, policy.ActionUpdateAgent)
 	}))
 	s.Run("GetLatestWorkspaceAgentContextSnapshot", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
