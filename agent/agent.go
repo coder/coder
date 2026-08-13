@@ -90,6 +90,8 @@ type Options struct {
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
+	// ScriptExtraEnv supplies additional environment to scripts at exec time.
+	ScriptExtraEnv func() []string
 	// EnvInfo overrides the session command environment source. Only
 	// tests set this. Nil defaults to usershell.SystemEnvInfo.
 	EnvInfo usershell.EnvInfoer
@@ -225,6 +227,7 @@ func New(options Options) Agent {
 		hardCancel:              hardCancel,
 		coordDisconnected:       make(chan struct{}),
 		environmentVariables:    options.EnvironmentVariables,
+		scriptExtraEnv:          options.ScriptExtraEnv,
 		client:                  options.Client,
 		filesystem:              options.Filesystem,
 		logDir:                  options.LogDir,
@@ -307,6 +310,7 @@ type agent struct {
 	// end fields protected by closeMutex
 
 	environmentVariables map[string]string
+	scriptExtraEnv       func() []string
 
 	manifest atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
 	// secrets are held separately from the manifest so that code paths that
@@ -455,6 +459,7 @@ func (a *agent) init() {
 		Logger:      a.logger,
 		SSHServer:   sshSrv,
 		Filesystem:  a.filesystem,
+		ExtraEnv:    a.scriptExtraEnv,
 		GetScriptLogger: func(logSourceID uuid.UUID) agentscripts.ScriptLogger {
 			return a.logSender.GetScriptLogger(logSourceID)
 		},
