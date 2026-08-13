@@ -167,7 +167,7 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 		}}
 	}
 
-	supportedProviders := strings.Join(providers.Supported, ", ")
+	supportedProviders := strings.Join(providers.SupportedStrings(), ", ")
 	seen := make(map[modelKey]struct{}, len(requested))
 	var validations []codersdk.ValidationError
 
@@ -181,7 +181,7 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 				Field:  field + ".provider",
 				Detail: fmt.Sprintf("Provider is required. Supported providers: %s.", supportedProviders),
 			})
-		case !slices.Contains(providers.Supported, price.Provider):
+		case !slices.Contains(providers.Supported, database.AIProviderType(price.Provider)):
 			validations = append(validations, codersdk.ValidationError{
 				Field:  field + ".provider",
 				Detail: fmt.Sprintf("Provider %q is not supported. Supported providers: %s.", price.Provider, supportedProviders),
@@ -257,7 +257,7 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 		if populated == 0 {
 			validations = append(validations, codersdk.ValidationError{
 				Field:  field,
-				Detail: "At least one price must be set. Use 0 to declare a model free.",
+				Detail: "At least one price must be set. Use 0 to declare a model free of charge.",
 			})
 		}
 

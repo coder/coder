@@ -124,7 +124,7 @@ func readUpstream(path string) (map[string]upstreamProvider, error) {
 }
 
 func runPrices(upstream map[string]upstreamProvider) error {
-	rows, err := convert(upstream, providers.Supported)
+	rows, err := convert(upstream, providers.SupportedStrings())
 	if err != nil {
 		return err
 	}

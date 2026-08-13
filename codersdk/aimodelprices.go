@@ -12,7 +12,7 @@ import (
 // Prices are integer micro-units per million tokens, so 1000000 is $1.00 per
 // million tokens. A nil price means the price is not known, which the cost
 // calculation treats the same as zero. Distinguish that from an explicit 0,
-// which declares the model free.
+// which declares the model free of charge.
 type AIModelPrice struct {
 	Provider        string    `json:"provider"`
 	Model           string    `json:"model"`
