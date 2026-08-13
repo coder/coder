@@ -8,8 +8,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -40,9 +38,9 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 	defer span.End()
 
 	logs = loadtestutil.NewSyncWriter(logs)
-	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
-	r.client.SetLogger(logger)
-	r.client.SetLogBodies(true)
+	// The client's logger and body logging are configured by the caller. Callers
+	// that pass a shared client rely on this runner not mutating it, so they can
+	// bound the connection pool used across many concurrent user creations.
 
 	if r.cfg.Username == "" || r.cfg.Email == "" {
 		genUsername, genEmail, err := loadtestutil.GenerateUserIdentifier(id)
@@ -76,14 +74,9 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 	r.user = user
 
 	_, _ = fmt.Fprintln(logs, "\nLogging in as new user...")
-	// Duplicate the client with an independent transport to ensure each user
-	// login gets its own HTTP connection pool, preventing connection sharing
-	// during load testing.
-	client, err := loadtestutil.DupClientCopyingHeaders(r.client, nil)
-	if err != nil {
-		return User{}, xerrors.Errorf("duplicate client: %w", err)
-	}
-	loginRes, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+	// Log in on the provided client so the login request reuses its connection
+	// pool rather than opening an independent transport per user.
+	loginRes, err := r.client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 		Email:    r.cfg.Email,
 		Password: password,
 	})

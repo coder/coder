@@ -28,6 +28,23 @@ import (
 	"github.com/coder/serpent"
 )
 
+// scaletestSetupIdleConnTimeout keeps pooled setup connections warm between
+// requests so the bounded pool is reused across many user creations rather than
+// re-dialed per request.
+const scaletestSetupIdleConnTimeout = 60 * time.Second
+
+// boundPool returns a transport configuration that caps the connection pool at
+// limit, so a phase making many concurrent requests reuses a bounded set of
+// connections instead of opening one per request.
+func boundPool(limit int) func(*http.Transport) {
+	return func(t *http.Transport) {
+		t.MaxIdleConns = limit
+		t.MaxIdleConnsPerHost = limit
+		t.MaxConnsPerHost = limit
+		t.IdleConnTimeout = scaletestSetupIdleConnTimeout
+	}
+}
+
 func (r *RootCmd) scaletestNotifications() *serpent.Command {
 	var (
 		userCount               int64
@@ -35,6 +52,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 		notificationTimeout     time.Duration
 		smtpRequestTimeout      time.Duration
 		dialTimeout             time.Duration
+		setupConcurrency        int64
 		noCleanup               bool
 		smtpAPIURL              string
 
@@ -68,6 +86,10 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 			if userCount <= 0 {
 				return xerrors.Errorf("--user-count must be greater than 0")
+			}
+
+			if setupConcurrency <= 0 {
+				return xerrors.Errorf("--setup-concurrency must be greater than 0")
 			}
 
 			if templateAdminPercentage < 0 || templateAdminPercentage > 100 {
@@ -194,16 +216,20 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
 
+			// One shared client for all user setup (creation, login, role assignment)
+			// and cleanup, with a connection pool bounded by --setup-concurrency. This
+			// replaces the previous per-runner client, so the number of setup
+			// connections stays bounded instead of scaling with --user-count. Each
+			// runner still dials its own websocket on a separate per-user client.
+			setupClient, err := loadtestutil.DupClientConfiguringTransport(client, BypassHeader, boundPool(int(setupConcurrency)))
+			if err != nil {
+				return xerrors.Errorf("create setup client: %w", err)
+			}
+
 			for i, config := range configs {
 				id := strconv.Itoa(i)
 				name := fmt.Sprintf("notifications-%s", id)
-				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
-				// requests being unbalanced among Coder instances.
-				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
-				if err != nil {
-					return xerrors.Errorf("create runner client: %w", err)
-				}
-				var runner harness.Runnable = notifications.NewRunner(runnerClient, config)
+				var runner harness.Runnable = notifications.NewRunner(setupClient, config)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
@@ -295,6 +321,13 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			Default:     "10m",
 			Description: "Timeout for dialing the notification websocket endpoint.",
 			Value:       serpent.DurationOf(&dialTimeout),
+		},
+		{
+			Flag:        "setup-concurrency",
+			Env:         "CODER_SCALETEST_NOTIFICATION_SETUP_CONCURRENCY",
+			Default:     "10",
+			Description: "Maximum number of concurrent connections used to create users, log them in, and assign roles. Bounds the shared setup connection pool so it does not grow with --user-count. Raise it to speed up setup for large runs.",
+			Value:       serpent.Int64Of(&setupConcurrency),
 		},
 		{
 			Flag:        "no-cleanup",

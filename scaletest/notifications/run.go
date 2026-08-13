@@ -85,8 +85,10 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
-	r.client.SetLogger(logger)
-	r.client.SetLogBodies(true)
+	// Do not set the logger or body logging on r.client: it is shared by every
+	// runner so they can share one bounded setup connection pool, and mutating it
+	// here would race across runners and dump every request body on the shared
+	// client. The per-user client below keeps its own logger for the websocket.
 
 	r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
 	newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
