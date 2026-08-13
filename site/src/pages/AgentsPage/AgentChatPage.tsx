@@ -1647,9 +1647,13 @@ const AgentChatPage: FC = () => {
 			throw new CompactCommandPendingError();
 		}
 
-		// Every accepted submission (send, edit, /compact) is an explicit ask
-		// to be at the live edge, even one that appends no visible prompt.
-		scrollToEnd({ behavior: "smooth" });
+		// Sends and /compact are an explicit ask to be at the live edge,
+		// even one that appends no visible prompt. History edits scroll
+		// only after the mutation succeeds, so a rejected edit cannot
+		// pull a reader of older history to the live edge.
+		if (editedMessageID === undefined) {
+			scrollToEnd({ behavior: "smooth" });
+		}
 
 		if (isExactCompactSubmission && compactCommandResolution === "available") {
 			// Optimistically show the running state before awaiting so
@@ -1728,6 +1732,7 @@ const AgentChatPage: FC = () => {
 					void invalidateChatEntity(queryClient, agentId);
 				},
 			});
+			scrollToEnd({ behavior: "smooth" });
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,
