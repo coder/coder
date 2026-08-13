@@ -25,9 +25,8 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	const { limit, soft_limit: softLimit, actual } = feature;
 
 	// An enabled feature with the limit omitted is the unlimited
-	// allocation: the license grants unlimited runtime hours and carries no
-	// thresholds, so the bar renders full and neutral like
-	// SeatUsageBarCard's allowUnlimited state.
+	// allocation: the license grants unlimited runtime hours and carries
+	// no thresholds to warn about.
 	const isUnlimited = limit === undefined;
 
 	if (!isUnlimited && limit < 0) {
@@ -75,6 +74,18 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		!isUnlimited && softLimit !== undefined && meteredLimit > 0
 			? Math.floor((softLimit / meteredLimit) * 100)
 			: undefined;
+
+	// An unlimited allocation renders as a full bar of purple diagonal
+	// stripes: the hatched pattern reads as an unmetered allocation, so
+	// the full-width bar cannot be mistaken for 100% usage. The stripes
+	// use the theme's purple highlight over the track color.
+	const barClassName = isUnlimited
+		? "bg-[repeating-linear-gradient(-45deg,hsl(var(--highlight-purple)),hsl(var(--highlight-purple))_6px,transparent_6px,transparent_12px)]"
+		: reachedAllocation
+			? "bg-highlight-red"
+			: reachedSoftLimit
+				? "bg-highlight-orange"
+				: "bg-highlight-green";
 
 	let tooltip: string;
 	if (reachedAllocation) {
@@ -125,11 +136,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 						<div
 							className={cn(
 								"h-full rounded-l transition-[width] duration-300",
-								reachedAllocation
-									? "bg-highlight-red"
-									: reachedSoftLimit
-										? "bg-highlight-orange"
-										: "bg-highlight-green",
+								barClassName,
 							)}
 							style={{ width: `${usagePercentage}%` }}
 						/>

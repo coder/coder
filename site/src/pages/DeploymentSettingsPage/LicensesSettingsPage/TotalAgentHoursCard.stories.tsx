@@ -214,9 +214,9 @@ export const Disabled: Story = {
 };
 
 // An enabled feature with the limit omitted means the license grants
-// unlimited runtime hours: the bar renders full and neutral with no
-// threshold copy in the tooltip, mirroring SeatUsageBarCard's unlimited
-// state.
+// unlimited runtime hours: the bar renders as a full track of purple
+// diagonal stripes (an unmetered allocation, not 100% usage) with no
+// threshold copy in the tooltip.
 export const Unlimited: Story = {
 	args: {
 		feature: {
