@@ -107,6 +107,9 @@ func TestCreateDynamicClientRegistration_DCREnabled(t *testing.T) {
 	}
 }
 
+// TestCreateDynamicClientRegistration_ClientType verifies that whether a
+// client_secret is minted, and what client_type is persisted, follows the
+// requested token_endpoint_auth_method (RFC 7591 §2, OAuth 2.1 §2.1).
 func TestCreateDynamicClientRegistration_ClientType(t *testing.T) {
 	t.Parallel()
 
