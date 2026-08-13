@@ -40,11 +40,11 @@ export const GroupMemberBudgetCells: FC<{
 	const effectiveGroupName =
 		effectiveGroup?.display_name || effectiveGroup?.name;
 	const groupName = group.display_name || group.name;
-	// The governing group's page is reachable by its id; the members route
-	// accepts either an id or a name for the :groupName segment.
-	const budgetGroupHref = spend?.effective_group_id
-		? `/organizations/${group.organization_name}/groups/${spend.effective_group_id}`
-		: undefined;
+	// The members route resolves the :groupName segment by group name (not id),
+	// so links must use the group's name. The Everyone group is always named
+	// "Everyone".
+	const hrefForGroup = (routeName: string) =>
+		`/organizations/${group.organization_name}/groups/${encodeURIComponent(routeName)}`;
 	// A user override shows as "(individual)" next to the governing group's name.
 	const individualSuffix =
 		spend?.group_budget?.limit_source === "user_override"
@@ -62,7 +62,7 @@ export const GroupMemberBudgetCells: FC<{
 			budgetGroup = (
 				<BudgetGroupBadge
 					name="Everyone"
-					href={budgetGroupHref}
+					href={hrefForGroup("Everyone")}
 					suffix={spend?.group_budget ? individualSuffix : " (not allocated)"}
 				/>
 			);
@@ -71,7 +71,7 @@ export const GroupMemberBudgetCells: FC<{
 			budgetGroup = (
 				<BudgetGroupBadge
 					name={groupName}
-					href={budgetGroupHref}
+					href={hrefForGroup(group.name)}
 					suffix={individualSuffix}
 				/>
 			);
@@ -80,11 +80,11 @@ export const GroupMemberBudgetCells: FC<{
 			// Wait for the name to resolve rather than flashing the fallback.
 			if (isResolvingGroupName) {
 				budgetGroup = <Spinner loading size="sm" />;
-			} else if (effectiveGroupName) {
+			} else if (effectiveGroup) {
 				budgetGroup = (
 					<BudgetGroupBadge
-						name={effectiveGroupName}
-						href={budgetGroupHref}
+						name={effectiveGroupName ?? effectiveGroup.name}
+						href={hrefForGroup(effectiveGroup.name)}
 						suffix={individualSuffix}
 					/>
 				);

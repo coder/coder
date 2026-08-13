@@ -95,7 +95,7 @@ export const Unlimited: Story = {
 			canvas.getByRole("link", { name: "Everyone" }),
 		).toHaveAttribute(
 			"href",
-			`/organizations/${group.organization_name}/groups/${group.organization_id}`,
+			`/organizations/${group.organization_name}/groups/Everyone`,
 		);
 		const body = await openInfo(canvasElement);
 		await expect(await body.findByText(/isn't restricted/)).toBeInTheDocument();
@@ -124,7 +124,7 @@ export const UnlimitedEveryoneGroup: Story = {
 			canvas.getByRole("link", { name: "Everyone" }),
 		).toHaveAttribute(
 			"href",
-			`/organizations/${MockEveryoneGroup.organization_name}/groups/${MockEveryoneGroup.id}`,
+			`/organizations/${MockEveryoneGroup.organization_name}/groups/Everyone`,
 		);
 	},
 };
@@ -195,7 +195,7 @@ export const ZeroBudget: Story = {
 			canvas.getByRole("link", { name: "Front-End" }),
 		).toHaveAttribute(
 			"href",
-			`/organizations/${group.organization_name}/groups/${group.id}`,
+			`/organizations/${group.organization_name}/groups/${group.name}`,
 		);
 	},
 };
@@ -230,7 +230,7 @@ export const Regular: Story = {
 			canvas.getByRole("link", { name: "Front-End" }),
 		).toHaveAttribute(
 			"href",
-			`/organizations/${group.organization_name}/groups/${group.id}`,
+			`/organizations/${group.organization_name}/groups/${group.name}`,
 		);
 	},
 };
@@ -292,7 +292,7 @@ export const NotAttributed: Story = {
 			await canvas.findByRole("link", { name: "developer" }),
 		).toHaveAttribute(
 			"href",
-			`/organizations/${MockGroup2.organization_name}/groups/${MockGroup2.id}`,
+			`/organizations/${MockGroup2.organization_name}/groups/${MockGroup2.name}`,
 		);
 		const body = await openInfo(canvasElement);
 		await expect(
