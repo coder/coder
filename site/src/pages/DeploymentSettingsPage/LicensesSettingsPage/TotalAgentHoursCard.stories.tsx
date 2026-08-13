@@ -136,8 +136,8 @@ export const OverAllocation: Story = {
 	},
 };
 
-// 999 of 1,000 hours is 99.9% used: the tooltip floors to 99% because
-// rounding up would falsely claim the allocation is reached.
+// 999 of 1,000 hours is 99.9% used: the tooltip shows the one-decimal
+// percentage, floored so it never reads as a false 100%.
 export const NearAllocation: Story = {
 	args: {
 		feature: {
@@ -154,7 +154,7 @@ export const NearAllocation: Story = {
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 99% or more of your Total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+			/You've used 99\.9% or more of your Total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
 		);
 	},
 };
@@ -194,6 +194,82 @@ export const MissingActualZeroSoftLimit: Story = {
 		await expectTooltipText(
 			body,
 			/^Total time agents have been working across all workspaces this license\. A soft-limit warning appears at 0%$/,
+		);
+	},
+};
+
+// A hard cap scales the track to the enforcement range: the right edge
+// carries a solid red line with the hard cap label while the allocation
+// keeps a dotted yellow marker with the limit label at its interior
+// position.
+export const HardCap: Story = {
+	args: {
+		feature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 1000,
+			soft_limit: 850,
+			hard_limit: 1500,
+			actual: 400,
+		} satisfies Feature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("400")).toBeInTheDocument();
+		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+		await expect(canvas.getByText(/Hard cap:/)).toBeInTheDocument();
+		await expect(canvas.getByText("1,500")).toBeInTheDocument();
+		const body = await hoverInfoIcon(canvasElement);
+		await expectTooltipText(
+			body,
+			/^Total time agents have been working across all workspaces this license\. A soft-limit warning appears at 85%$/,
+		);
+	},
+};
+
+// When the allocation sits within the last 15% of the hard-cap track,
+// the limit label under its marker would collide with the hard cap
+// label at the right edge, so the hard cap text renders above the bar.
+export const HardCapNearAllocation: Story = {
+	args: {
+		feature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 1400,
+			soft_limit: 1200,
+			hard_limit: 1500,
+			actual: 400,
+		} satisfies Feature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("1,400")).toBeInTheDocument();
+		await expect(canvas.getByText(/Hard cap:/)).toBeInTheDocument();
+		await expect(canvas.getByText("1,500")).toBeInTheDocument();
+	},
+};
+
+// Usage at or beyond the hard cap fills the track with red diagonal
+// stripes and the tooltip reports the enforcement ceiling. The usage
+// percentage stays measured against the allocation.
+export const ReachedHardCap: Story = {
+	args: {
+		feature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 1000,
+			soft_limit: 850,
+			hard_limit: 1500,
+			actual: 1600,
+		} satisfies Feature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("1,600")).toBeInTheDocument();
+		const body = await hoverInfoIcon(canvasElement);
+		await expectTooltipText(
+			body,
+			/You've used 160% of your Total Agent hours for this license and reached the hard cap of 1,500 hours\. Contact sales to receive more Agent hours\./,
 		);
 	},
 };
