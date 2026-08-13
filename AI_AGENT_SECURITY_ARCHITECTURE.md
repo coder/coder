@@ -184,15 +184,25 @@ asymmetry with chats is accidental rather than principled.
   `coderd/aiagentidentity`, see below), built from the existing granular
   scope catalog (`coderd/rbac/scopes.go`, `scopes_catalog.go`):
 
-| Profile                                      | Scopes (starting set, tune during impl)                                                            | Allow list                                                            |
-|----------------------------------------------|----------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
-| `ChatAgentProfile(chatID, ...)`              | `coder:workspaces.create`, `coder:workspaces.operate`, `coder:workspaces.access`, chat read/update | chat-associated resources where expressible; wildcard where not (PoC) |
-| `WorkspaceAgentIdentityProfile(workspaceID)` | modeled on `rbac.WorkspaceAgentScope`: workspace operate/access + `no_user_data` exclusion         | that workspace's ID                                                   |
+| Profile                                      | Scopes (starting set, tune during impl)                                                                         | Allow list                                                                              |
+|----------------------------------------------|-----------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| `ChatAgentProfile(chatID, ...)`              | `coder:workspaces.create`, `coder:workspaces.operate`, `coder:workspaces.access`, chat read/update, `user:read` | exact chat ID; typed wildcards for workspace, template, organization-member, user (PoC) |
+| `WorkspaceAgentIdentityProfile(workspaceID)` | modeled on `rbac.WorkspaceAgentScope`: workspace operate/access + `no_user_data` exclusion                      | that workspace's ID, no wildcard                                                        |
 
 Hard exclusions in every profile: `coder:apikeys.manage_self` (agents must
 not mint or manage credentials), `coder:templates.author`, user-data scopes
 unless explicitly needed. Profiles are hardcoded for PoC; org-configurable
 profiles are future work.
+
+Profile scopes and allow lists cannot express "only this agent's
+workspaces". One action-independent allow list applies to the union of all
+selected scopes, it is fixed at mint time, and it must include a workspace
+wildcard for creation to authorize an object that has no ID yet. The chat
+profile's wildcard therefore reaches the sponsor's ordinary workspaces,
+including SSH. The designation boundary in Vertical 2 ("Designation as an
+RBAC authorization boundary") closes that reach inside `coderd/rbac`
+itself; `AI_AGENT_RBAC_PROFILE_REVIEW.md` holds the full reachability
+analysis that derived it.
 
 ### New package: `coderd/aiagentidentity`
 
@@ -506,7 +516,10 @@ Two further qualifications from the security review:
   the chat created. The sponsor ceiling still applies, so this is
   bounded by the human's own access, and chatd discards the key
   plaintext after minting, which makes the surface latent rather than
-  live. It is nonetheless wider than the design implies.
+  live. It is nonetheless wider than the design implies. The Vertical 2
+  designation boundary is the accepted fix: protected workspace actions
+  require an exact designation match, which collapses the wildcard's
+  reach to metadata read. See `AI_AGENT_RBAC_PROFILE_REVIEW.md`.
 
 ### Invariants (drive tests from these)
 
@@ -578,15 +591,16 @@ per-surface and parallelizable after 4.
 
 ### Review artifacts
 
-Three independent reviews of the identity work exist as separate
-documents. They are the source for the corrections and qualifications
-recorded above, and each states what it could not verify:
+Four independent reviews of this work exist as separate documents. They
+are the source for the corrections and qualifications recorded above, and
+each states what it could not verify:
 
-| Document | Question asked | Headline finding |
-|---|---|---|
-| (conformance pass, findings folded into this document) | Does the code do what this document claims? | Eight disagreements; a chat key could create an unmarked workspace and receive the sponsor's ambient credentials. Fixed at the `createWorkspace` chokepoint. |
-| `AI_AGENT_IDENTITY_SCHEMA_REVIEW.md` | Is the schema the right shape, and what would a better one be? | `users.kind` is the runtime discriminator rather than `ai_agents`, and the two can disagree in a direction that fails open. Includes proposed DDL and costs. |
-| `AI_AGENT_IDENTITY_SECURITY_REVIEW.md` | What can a compromised or misused agent credential actually reach? | Invariant 5 is false for keys minted outside the built-in profiles; demonstrated by executable test. Also inventories all 236 scopes and 50 resources against the validator. |
+| Document                                               | Question asked                                                                                                   | Headline finding                                                                                                                                                                                                                                |
+|--------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| (conformance pass, findings folded into this document) | Does the code do what this document claims?                                                                      | Eight disagreements; a chat key could create an unmarked workspace and receive the sponsor's ambient credentials. Fixed at the `createWorkspace` chokepoint.                                                                                    |
+| `AI_AGENT_IDENTITY_SCHEMA_REVIEW.md`                   | Is the schema the right shape, and what would a better one be?                                                   | `users.kind` is the runtime discriminator rather than `ai_agents`, and the two can disagree in a direction that fails open. Includes proposed DDL and costs.                                                                                    |
+| `AI_AGENT_IDENTITY_SECURITY_REVIEW.md`                 | What can a compromised or misused agent credential actually reach?                                               | Invariant 5 is false for keys minted outside the built-in profiles; demonstrated by executable test. Also inventories all 236 scopes and 50 resources against the validator.                                                                    |
+| `AI_AGENT_RBAC_PROFILE_REVIEW.md`                      | What do the scope profiles reach, and how should "only this agent's workspaces" be modeled inside `coderd/rbac`? | Eleven OPEN rows in the chat profile's reachability matrix, all through the workspace wildcard, including SSH into the sponsor's ordinary workspaces. Recommends an object-side designation boundary in `policy.rego`; specified in Vertical 2. |
 
 Findings still open are listed in those documents rather than duplicated
 here. The ones that change a stated invariant are marked inline above.
@@ -761,6 +775,46 @@ An AI-designated workspace uses the same human ownership and per-agent
 binding as every other workspace. Its distinction is that every workspace
 agent is bound to one AI identity.
 
+Designation is recorded on the workspace row itself:
+`workspaces.ai_agent_id` (nullable foreign key to `ai_agents.user_id`,
+migration 000567) names the single AI identity the workspace belongs to.
+It is not ownership; `owner_id` stays the human, and the sponsor's own
+access is never affected by it. The marker has three consumers:
+
+1. **Credential starvation** at build time: a designated workspace never
+   receives the ambient full-owner session token
+   (`coderd/provisionerdserver/provisionerdserver.go:586-607`).
+2. **Workspace-agent binding**: at build completion the provisioner copies
+   the marker into `workspace_agents.ai_agent_id` for every agent of that
+   build (`provisionerdserver.go:2234-2245`), so binding survives rebuilds.
+3. **The RBAC designation boundary** specified in the next section.
+
+Two events set the marker, and nothing clears it:
+
+1. **Creation by an AI actor.** The shared `createWorkspace` chokepoint
+   designates the new workspace with the requesting identity before its
+   first build, regardless of what the template declares
+   (`coderd/workspaces.go:776-782`).
+2. **Human opt-in.** A start build carrying `coder_ai_agent = true`
+   designates a not-yet-marked workspace with its workspace-origin
+   identity (`provisionerdserver.go:3292-3305`).
+
+The marker is deliberately a one-way ratchet, not a per-build derivation
+from the template declaration. Template version and build parameters are
+attacker-selectable inputs for an agent allowed to start its own
+workspace; if qualification were recomputed each build, the agent could
+rebuild its own workspace with a version or parameter set lacking the
+declaration, and the next build would mint a fresh full-owner session
+token into an environment the agent controls. The token decision
+therefore treats the stored marker as dominant over the current build's
+parameters (`provisionerdserver.go:589-591`), and the build that
+designates a previously ordinary workspace deletes any owner token minted
+by earlier undesignated builds. Un-designation has no API; the recovery
+path for a mistaken opt-in is workspace recreation. This asymmetry is
+intentional: un-designating is dangerous because a workspace that hosted
+an agent may carry agent-influenced state that would then receive full
+credentials, while recreation is cheap.
+
 #### Chat-created workspaces
 
 The chat workspace-creation tool forces AI designation. It must not depend
@@ -772,12 +826,15 @@ Creation follows these rules:
 1. Keep `workspaces.owner_id` set to the chat identity's sponsoring human.
 2. Reuse the requesting chat's AI identity. Do not create a workspace-origin
    identity.
-3. Set `workspace_agents.ai_agent_id` to that chat identity for every agent
+3. Set `workspaces.ai_agent_id` to that chat identity at the shared
+   `createWorkspace` chokepoint, before the first build, so designation
+   precedes any provisioning.
+4. Set `workspace_agents.ai_agent_id` to that chat identity for every agent
    produced by the workspace build, including agents added by subsequent
    builds.
-4. Suppress `data.coder_workspace_owner.me.session_token`, whose
+5. Suppress `data.coder_workspace_owner.me.session_token`, whose
    `coder:all` owner credential must never enter an AI-designated workspace.
-5. Provide the scoped AI session token instead.
+6. Provide the scoped AI session token instead.
 
 The server owns this designation and propagates it through the build. A
 Terraform template can add a direct human opt-in surface, but it cannot
@@ -790,6 +847,178 @@ no existing AI requester, Vertical 1 mints the workspace-origin identity.
 Vertical 2 binds every workspace agent in that workspace to that identity,
 suppresses the owner session token, and supplies the scoped AI session
 token. Rebuilds reuse the identity.
+
+### Designation as an RBAC authorization boundary
+
+Scope profiles alone cannot confine an agent to its own workspaces, for
+the structural reasons stated in Vertical 1: the allow list is static
+subject state fixed at mint time, one action-independent list applies to
+the union of every selected scope
+(`coderd/database/modelmethods.go:283-339`), and the list must contain a
+workspace wildcard because creation authorizes an object that has no ID
+yet (`coderd/workspaces.go:944-976`). Meanwhile the sponsor's ordinary
+workspaces hold exactly what starvation withholds: the ambient
+`coder:all` owner session token, external-auth tokens, and the Git SSH
+key. Without a further rule, `workspace:ssh` against the wildcard walks
+into an ordinary workspace and reads those credentials, and
+`workspace:start` rebuilds one with an attacker-selected template
+version. Note that start, not update, authorizes the version switch on a
+rebuild (`coderd/wsbuilder/wsbuilder.go:1253-1279`); waking a dormant
+workspace is the exception that authorizes through update.
+
+`AI_AGENT_RBAC_PROFILE_REVIEW.md` derives this from a reachability matrix
+of both profiles (eleven OPEN rows, all through the workspace wildcard),
+argues an object-side policy attribute against a dynamic allow list, and
+recommends the former. The dynamic allow list is rejected as unworkable
+rather than merely inferior: it cannot authorize creation before an ID
+exists, cannot differ per action, and turns credential rows into mutable
+request-time state with append, rotate, and revoke races. This section is
+the resulting specification.
+
+#### Mechanism
+
+The boundary is one new conjunct on the single existing `allow` rule in
+`coderd/rbac/policy.rego`, beside `permission_allow` and `scope_allow`.
+There is no middleware veto and no second authorization layer; the policy
+remains the only decision point, and list-query filtering continues to be
+derived from the same policy by partial evaluation.
+
+```rego
+allow if {
+    permission_allow
+    scope_allow
+    ai_workspace_designation_allow
+}
+
+# Passes unconditionally for non-AI subjects; passes for exempt actions;
+# otherwise requires exact designation lineage. Sketch:
+ai_workspace_designation_allow if {
+    not subject_is_ai_agent
+}
+
+ai_workspace_designation_allow if {
+    subject_is_ai_agent
+    not ai_workspace_action_requires_designation
+}
+
+ai_workspace_designation_allow if {
+    subject_is_ai_agent
+    not input.subject.ai_agent_id = ""
+    input.object.ai_agent_id = input.subject.ai_agent_id
+}
+```
+
+The rule consumes two new policy-input attributes:
+
+- `input.object.ai_agent_id`: the workspace's designation marker,
+  populated from `workspaces.ai_agent_id` in the RBAC object converters.
+  Empty string means undesignated.
+- `input.subject.ai_agent_id`: the acting AI identity, populated wherever
+  an AI actor is resolved. Empty string means a non-AI subject.
+  `Subject.ID` remains the sponsoring human; the identity split from
+  Vertical 1 is unchanged.
+
+#### Specified behavior
+
+1. **Non-AI subjects are unaffected.** A subject with a non-AI type and an
+   empty acting ID passes the rule unconditionally. Human and system
+   access to every workspace, designated or not, is unchanged.
+2. **Exempt actions: `read` and `create`.** An AI subject may read
+   workspace metadata sponsor-wide (inventory UX, "what workspaces do I
+   have?") and may create, which necessarily authorizes an ID-less
+   object. Creation safety comes from the chokepoint designating every
+   AI-created workspace before its first build, not from this rule.
+3. **Protected actions: everything else.** Any other action on a
+   workspace-typed object (`workspace`, `workspace_dormant`,
+   `prebuilt_workspace`), including `ssh`, `application_connect`,
+   `start`, `stop`, `update`, and `delete`, requires
+   `object.ai_agent_id == subject.ai_agent_id`, exact match. The
+   protected set is defined by exclusion so that future workspace actions
+   are protected by default.
+4. **Fail closed.** An undesignated object never matches a non-empty
+   acting ID. An AI-typed subject whose acting ID is empty is denied
+   protected actions rather than treated as human; a subject counts as
+   AI-delegated when either marker says so (subject type `ai_agent` or a
+   non-empty acting ID). Aggregate objects (`Object.All()`) carry no
+   designation and are denied.
+5. **Cross-agent isolation.** Exact equality denies agent A protected
+   actions on a workspace designated to agent B, shared sponsor
+   notwithstanding.
+
+#### Decided defaults
+
+| Decision                                           | Default                                                                           |
+|----------------------------------------------------|-----------------------------------------------------------------------------------|
+| Read/list of the sponsor's undesignated workspaces | Allowed. Metadata reach is accepted for chat inventory UX.                        |
+| SSH and application connect                        | Designation match required.                                                       |
+| Start, stop, update                                | Designation match required. Start covers rebuilds and template-version selection. |
+| Cross-agent access under one sponsor               | Denied. Exact identity equality, not merely non-null designation.                 |
+| Future workspace actions                           | Protected by default via the exemption-list structure.                            |
+| Workspace create                                   | Allowed without a match; the chokepoint designates the result before it builds.   |
+
+#### Implementation requirements
+
+Code-level requirements, anchored to current code; the review artifact
+carries fuller snippets for each.
+
+1. **Object attribute.** `rbac.Object` gains `AIAgentID string`
+   (`json:"ai_agent_id"`) and a `WithAIAgentID` builder
+   (`coderd/rbac/object.go:20-43`). Every value-copying helper preserves
+   it, `Equal` compares it, and `All()` deliberately clears it so
+   aggregate authorizations fail closed.
+2. **Subject attribute.** `rbac.Subject` gains `AIAgentID string`, and
+   `Type` becomes a functional policy input rather than logging-only
+   (`coderd/rbac/authz.go:99-123`). An `AsAIAgent(id, name)` helper sets
+   both and rebuilds `cachedASTValue`; mutating a functional field
+   without invalidating the cached AST poisons authorization. The field
+   stays exported and `Subject.Equal` compares it: the global
+   authorization cache hashes the JSON-encoded subject, and an
+   unexported field would let two different agents share cache entries
+   (`coderd/rbac/authz.go:37-59`).
+3. **Rego input.** Both attributes enter the manually built AST values in
+   `coderd/rbac/astvalue.go:83-100,114-143`. Empty strings are emitted,
+   not omitted; fail-closed equality depends on them.
+4. **Object population happens in converters only.**
+   `WorkspaceTable.RBACObject` sets the attribute when `AIAgentID.Valid`
+   (`coderd/database/modelmethods.go:538-555`). The same population
+   applies to `DormantRBAC`, `AsPrebuild`, and `WorkspaceIdentity`, and
+   `Workspace.WorkspaceTable` must copy the column when reducing.
+   Handlers never set it.
+5. **Subject population at all three resolution sites.** The HTTP agent
+   path (`coderd/httpmw/apikey.go:524-530`), in-process chat tool
+   subjects (`coderd/x/chatd/chattool/subject.go:56-70`), and
+   workspace-agent middleware
+   (`coderd/httpmw/workspaceagent.go:156-191`) call `AsAIAgent` after
+   building the sponsor subject. These sites construct input only; the
+   decision stays in the policy.
+6. **Partial evaluation and SQL.** `input.object.ai_agent_id` joins
+   `rego.Unknowns` (`coderd/rbac/authz.go:349-370`) and gets a
+   registered converter, `COALESCE(workspaces.ai_agent_id::text, '')`,
+   in `coderd/rbac/regosql/configs.go`; `regosql` rejects unmapped
+   variables outright (`coderd/rbac/regosql/compile.go:171-199`).
+   Because the action is ground at partial-evaluation time and `read` is
+   exempt, list queries produce no new SQL residual; workspace listing
+   is unchanged.
+7. **Refresh the build object at the chokepoint.** `createWorkspace`
+   designates the row but passes the earlier in-memory workspace to
+   `wsbuilder` (`coderd/workspaces.go:763-784,795-823`). The value
+   returned by `SetWorkspaceAIAgentID` must be copied back before the
+   initial build's `start` authorization, or every AI-created workspace
+   fails its own first build under the new rule.
+
+#### Test derivation
+
+- `Authorize` quadrants: AI subject on an undesignated workspace is
+  denied every protected action; AI subject on its own designated
+  workspace is allowed; agent A on agent B's workspace is denied; a human
+  subject is unchanged on all of the above.
+- Empty-input hardening: an AI subject type with an empty acting ID is
+  denied protected actions; `Object.All()` is denied.
+- `Prepare`/`CompileToSQL` on workspace list queries: identical SQL
+  before and after for `read`; protected-action prepared queries compile
+  with the designation predicate.
+- End to end: a chat-created workspace's first build succeeds (chokepoint
+  refresh); AI SSH to a sponsor's ordinary workspace is denied.
 
 ### Sandboxed agent in a human workspace
 
@@ -1396,8 +1625,13 @@ attribution and budget principals.
 
 ### Schema changes: summary
 
-1. Add `workspace_agents.ai_agent_id`, nullable foreign key to
-   `ai_agents.user_id`, and `workspace_agents.ai_credential_mode`, enum
+1. Add `workspaces.ai_agent_id`, nullable foreign key to
+   `ai_agents.user_id`: the sticky designation marker (one-way; set at AI
+   creation or first human opt-in build; never cleared) consumed by
+   credential starvation, workspace-agent binding, and the RBAC
+   designation boundary. Add `workspace_agents.ai_agent_id`, nullable
+   foreign key to `ai_agents.user_id`, copied from the workspace marker at
+   build completion, and `workspace_agents.ai_credential_mode`, enum
    `none | injected | brokered` with default `none`.
 2. Add sandbox instance records keyed to workspace and parent agent, with
    parent and child agent IDs, sandbox ID, create/destroy script version
@@ -1463,6 +1697,13 @@ Follow `.claude/docs/DATABASE.md` end-to-end for implementation: queries,
     sponsor permission ceiling, cascade suspend, attribution, no
     self-escalation, and fail-closed identity resolution apply beyond plain
     API-key requests.
+11. **Designation boundary**: an AI subject is denied every workspace
+    action except `read` and `create` unless the workspace's designation
+    exactly matches its acting identity. Undesignated workspaces, empty
+    acting IDs, aggregate objects, and workspaces designated to a
+    different agent all deny. Non-AI subjects never evaluate the rule.
+    Designation itself is a one-way ratchet: no code path clears
+    `workspaces.ai_agent_id`.
 
 ### Implementation order
 
@@ -1614,6 +1855,12 @@ it introduces.
 8. **Governance completion**: split AI Gateway attribution and budget
    principals, then verify sponsor budget enforcement across chat,
    AI-designated workspace, and sandbox traffic.
+9. **RBAC designation boundary**: add the object and subject designation
+   attributes, the `policy.rego` conjunct, partial-evaluation and
+   `regosql` support, subject population at all three resolution sites,
+   and the `createWorkspace` build-object refresh, per "Designation as an
+   RBAC authorization boundary" above. Depends only on phase 3's
+   designation flow; independently mergeable relative to phases 4 to 8.
 
 ### Non-goals: PoC and future work
 
