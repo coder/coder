@@ -143,6 +143,19 @@ func TestSandboxControllerHappyPath(t *testing.T) {
 	require.Equal(t, proxyAddress, workspaceScriptEnv[confine.EnvEgressProxy])
 	require.Equal(t, 1, countEnvironmentKey(createEnv, confine.EnvAIAgentToken))
 
+	// The exact control-plane host is implicitly allowed by policy and may
+	// resolve to loopback or another private address in development and on-prem
+	// deployments. The controller passes that one hostname through destination
+	// validation without weakening private-address denial for any other host.
+	proxyURL, err := url.Parse("http://" + proxyAddress)
+	require.NoError(t, err)
+	proxyClient := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}}
+	controlRequest, err := http.NewRequestWithContext(readyCtx, http.MethodGet, accessURL.String(), nil)
+	require.NoError(t, err)
+	controlResponse, err := proxyClient.Do(controlRequest)
+	require.NoError(t, err)
+	require.NoError(t, controlResponse.Body.Close())
+
 	connection, err := net.Dial("tcp", proxyAddress)
 	require.NoError(t, err)
 	_, err = fmt.Fprintf(connection, "CONNECT denied.example:443 HTTP/1.1\r\nHost: denied.example:443\r\n\r\n")
@@ -167,9 +180,11 @@ func TestSandboxControllerHappyPath(t *testing.T) {
 	require.Nil(t, state.sessions[0].EndedAt)
 	require.NotNil(t, state.sessions[len(state.sessions)-1].EndedAt)
 	require.Len(t, state.eventBatches, 1)
-	require.Len(t, state.eventBatches[0].Events, 1)
-	require.Equal(t, "denied.example", state.eventBatches[0].Events[0].Host)
-	require.Equal(t, agentsdk.AISandboxNetworkEventActionDenied, state.eventBatches[0].Events[0].Action)
+	require.Len(t, state.eventBatches[0].Events, 2)
+	require.Equal(t, accessURL.Hostname(), state.eventBatches[0].Events[0].Host)
+	require.Equal(t, agentsdk.AISandboxNetworkEventActionAllowed, state.eventBatches[0].Events[0].Action)
+	require.Equal(t, "denied.example", state.eventBatches[0].Events[1].Host)
+	require.Equal(t, agentsdk.AISandboxNetworkEventActionDenied, state.eventBatches[0].Events[1].Action)
 }
 
 func TestSandboxControllerDeletesStaleSandbox(t *testing.T) {

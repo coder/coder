@@ -307,7 +307,18 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 
 	sessionID := uuid.New()
 	batcher := newEventBatcher(c.options.Client, c.options.Logger, sessionID, eventQueueSize)
-	proxy, err := ListenProxy(c.options.Declaration.ProxyAddress, engine, batcher.Add)
+	proxy, err := ListenProxyWithOptions(
+		c.options.Declaration.ProxyAddress,
+		engine,
+		batcher.Add,
+		DestinationOptions{
+			// The exact control-plane host may resolve to a private address in
+			// local and on-prem deployments. It is policy-allowed implicitly,
+			// and this exemption lets only that hostname pass destination range
+			// validation; every other private destination remains denied.
+			AllowPrivateHost: c.options.AccessURL.Hostname(),
+		},
+	)
 	if err != nil {
 		return xerrors.Errorf("start AI sandbox egress proxy: %w", err)
 	}
