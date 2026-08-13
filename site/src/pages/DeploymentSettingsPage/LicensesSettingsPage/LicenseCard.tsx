@@ -89,34 +89,72 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		: undefined;
 
 	// Agent runtime hour claims, in hours. The -1 allocation is the
-	// unlimited sentinel; other non-positive allocations do not grant the
-	// feature. The hard limit only applies to positive allocations it is
-	// at or above, mirroring the backend's claim validation.
+	// unlimited sentinel; other negative allocations are ignored by the
+	// backend, and a zero allocation grants the feature disabled.
 	const agentHoursAllocation =
 		license.claims.features.agent_runtime_hours_allocation;
-	const agentHoursHardLimit =
-		license.claims.features.agent_runtime_hours_limit_hard;
+	// The backend decodes runtime hour claims for every license
+	// regardless of feature set, so an Enterprise license carrying a
+	// usable allocation claim also gets the Coder Agents product.
+	// Premium licenses without claims are grandfathered into the
+	// zero-hour (upgrade) display.
+	const hasAgentHoursClaim =
+		agentHoursAllocation !== undefined &&
+		(agentHoursAllocation >= 0 || agentHoursAllocation === -1);
 	const licenseGrantsAgentHours =
 		agentHoursAllocation !== undefined &&
 		(agentHoursAllocation > 0 || agentHoursAllocation === -1);
+	// Thresholds after the backend's claim validation: soft must be
+	// non-negative and below a positive allocation, hard at or above it.
+	// Invalid threshold claims are ignored rather than disqualifying the
+	// license.
+	const agentHoursSoftLimitClaim =
+		license.claims.features.agent_runtime_hours_limit_soft;
+	const agentHoursHardLimitClaim =
+		license.claims.features.agent_runtime_hours_limit_hard;
+	const agentHoursSoftLimit =
+		agentHoursAllocation !== undefined &&
+		agentHoursAllocation > 0 &&
+		agentHoursSoftLimitClaim !== undefined &&
+		agentHoursSoftLimitClaim >= 0 &&
+		agentHoursSoftLimitClaim < agentHoursAllocation
+			? agentHoursSoftLimitClaim
+			: undefined;
+	const agentHoursHardLimit =
+		agentHoursAllocation !== undefined &&
+		agentHoursAllocation > 0 &&
+		agentHoursHardLimitClaim !== undefined &&
+		agentHoursHardLimitClaim >= agentHoursAllocation
+			? agentHoursHardLimitClaim
+			: undefined;
 	const isAgentHoursLicenseApplicable = isLicenseApplicableForFeatureUsage(
 		license,
 		agentRuntimeHoursFeature,
 	);
-	// The merged entitlement's usage period is stamped with the issued-at
-	// of the license the backend selected, so a license only "wins" when
-	// its own iat matches. Its allocation must also match the merged
-	// entitlement: equal limits, or an unlimited allocation with the
-	// merged limit omitted. Allocation alone is not enough because a
-	// renewal can carry the same allocation as the license it replaces.
-	const mergedUsagePeriodIssuedAt =
-		agentRuntimeHoursFeature?.usage_period?.issued_at;
+	// The merged entitlement's usage period is copied verbatim from the
+	// license the backend selected (issued_at from iat, start from nbf,
+	// end from exp), so a license only "wins" when all three match.
+	// Feature.Compare tie-breaks equal issued-at values on the period
+	// end, so matching issued-at alone could mark two licenses with the
+	// same second-granularity iat as the winner.
+	const mergedUsagePeriod = agentRuntimeHoursFeature?.usage_period;
 	const matchesMergedUsagePeriod =
 		license.claims.iat !== undefined &&
-		mergedUsagePeriodIssuedAt !== undefined &&
-		dayjs.unix(license.claims.iat).isSame(mergedUsagePeriodIssuedAt);
+		license.claims.nbf !== undefined &&
+		license.claims.exp !== undefined &&
+		mergedUsagePeriod !== undefined &&
+		dayjs.unix(license.claims.iat).isSame(mergedUsagePeriod.issued_at) &&
+		dayjs.unix(license.claims.nbf).isSame(mergedUsagePeriod.start) &&
+		dayjs.unix(license.claims.exp).isSame(mergedUsagePeriod.end);
+	// Beyond the usage period, the license's allocation and validated
+	// thresholds must equal the merged entitlement's: equal limits (or an
+	// unlimited allocation with the merged limit omitted) and equal
+	// soft/hard thresholds, since the backend retains only the selected
+	// license's thresholds.
 	const isWinningAgentHoursLicense =
 		matchesMergedUsagePeriod &&
+		agentHoursSoftLimit === agentRuntimeHoursFeature?.soft_limit &&
+		agentHoursHardLimit === agentRuntimeHoursFeature?.hard_limit &&
 		(agentHoursAllocation === -1
 			? agentRuntimeHoursFeature?.enabled === true &&
 				agentRuntimeHoursFeature.limit === undefined
@@ -142,10 +180,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 			: undefined;
 	const isAgentHoursHardLimitExceeded =
 		canUseAgentHoursUsageForThisLicense &&
-		agentHoursAllocation !== undefined &&
-		agentHoursAllocation > 0 &&
 		agentHoursHardLimit !== undefined &&
-		agentHoursHardLimit >= agentHoursAllocation &&
 		agentHoursDisplayActual !== undefined &&
 		agentHoursDisplayActual >= agentHoursHardLimit;
 	const isAgentHoursExceeded =
@@ -300,7 +335,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 								userLimitActual={userLimitActual}
 								userLimitLimit={currentUserLimit}
 							/>
-							{isPremium && (
+							{(isPremium || hasAgentHoursClaim) && (
 								<CoderAgentsProductCard
 									allocation={agentHoursAllocation}
 									actual={agentHoursDisplayActual}

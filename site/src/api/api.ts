@@ -369,6 +369,11 @@ type Claims = {
 	// carry it; the merged entitlement's usage_period.issued_at is stamped
 	// from the winning license's iat.
 	iat?: number;
+	// exp is a standard JWT claim for "expires at": the end of the grace
+	// period (identical to license_expires when there is no grace period).
+	// The merged entitlement's usage_period.end is stamped from the
+	// winning license's exp, and usage_period.start from its nbf.
+	exp?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;

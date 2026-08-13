@@ -131,8 +131,9 @@ export const Premium: Story = {
 };
 
 // Issued-at of the license that supplies the merged entitlement. The
-// merged usage period is stamped with this timestamp, so only the license
-// carrying the same iat claim shows usage and overage.
+// merged usage period is copied from that license's iat/nbf/exp claims,
+// so only the license whose claims reproduce the whole period shows
+// usage and overage.
 const WINNING_ISSUED_AT = dayjs("2026-01-01T12:00:00Z");
 const winningUsagePeriod = {
 	issued_at: WINNING_ISSUED_AT.toISOString(),
@@ -148,6 +149,8 @@ const premiumLicenseWithAgentHours = (
 	claims: {
 		...MockLicenseResponse[1].claims,
 		iat: issuedAt.unix(),
+		nbf: issuedAt.unix(),
+		exp: issuedAt.add(1, "year").unix(),
 		features: {
 			...MockLicenseResponse[1].claims.features,
 			agent_runtime_hours_allocation: allocation,
@@ -352,6 +355,85 @@ export const ReplacedDuplicateAllocationShowsNoUsage: Story = {
 		);
 		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
 			"Unlimited",
+		);
+	},
+};
+
+const sameIssuedAtShorterTermLicense = (() => {
+	const license = premiumLicenseWithAgentHours(20000);
+	return {
+		...license,
+		claims: {
+			...license.claims,
+			exp: WINNING_ISSUED_AT.add(6, "month").unix(),
+		},
+	};
+})();
+
+export const SameIssuedAtDifferentTermEndShowsNoUsage: Story = {
+	args: {
+		// Same iat and allocation as the winning license, but a shorter
+		// term. Feature.Compare tie-breaks equal issued-at values on the
+		// period end, so this license loses and must not display the
+		// merged usage or overage.
+		license: sameIssuedAtShorterTermLicense,
+		agentRuntimeHoursFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 20000,
+			soft_limit: 16000,
+			hard_limit: 25000,
+			actual: 26000,
+			actual_ms: 26_000 * 3_600_000,
+			usage_period: winningUsagePeriod,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Active")).toBeInTheDocument();
+		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+			"\u2014 / 20,000",
+		);
+		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+			"Unlimited",
+		);
+	},
+};
+
+const enterpriseLicenseWithAgentHours = (() => {
+	const license = premiumLicenseWithAgentHours(20000);
+	return {
+		...license,
+		claims: {
+			...license.claims,
+			feature_set: "enterprise",
+		},
+	};
+})();
+
+export const EnterpriseWithAgentHours: Story = {
+	args: {
+		// The backend accepts runtime hour claims on any feature set, so
+		// an Enterprise license carrying an allocation renders the Coder
+		// Agents product with its usage.
+		license: enterpriseLicenseWithAgentHours,
+		agentRuntimeHoursFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 20000,
+			soft_limit: 16000,
+			hard_limit: 25000,
+			actual: 16264,
+			actual_ms: 16_264 * 3_600_000 + 18 * 60_000,
+			usage_period: winningUsagePeriod,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Enterprise")).toBeInTheDocument();
+		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
+		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+			"16,264.3 / 20,000",
 		);
 	},
 };
