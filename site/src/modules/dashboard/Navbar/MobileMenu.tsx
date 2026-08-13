@@ -142,7 +142,9 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 							className={cn("size-4", getLatencyColor(latency?.latencyMS))}
 						/>
 						<Latency
-							className={latency ? "text-content-primary" : undefined}
+							className={
+								latency?.latencyMS ? "text-content-primary" : undefined
+							}
 							latency={latency?.latencyMS}
 						/>
 					</span>
