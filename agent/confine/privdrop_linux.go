@@ -677,7 +677,11 @@ func validatePrivilegeDropConfig(config privilegeDropConfig) error {
 	if config.GID <= 0 {
 		return xerrors.New("target GID must be a non-root 32-bit identifier")
 	}
-	if config.UID > math.MaxUint32 || config.GID > math.MaxUint32 {
+	// Convert to uint64 before comparing. On 32-bit architectures, int cannot
+	// represent math.MaxUint32, so comparing an int directly with that untyped
+	// constant fails at compile time. UID and GID were validated as positive
+	// above, which makes these conversions safe.
+	if uint64(config.UID) > math.MaxUint32 || uint64(config.GID) > math.MaxUint32 {
 		return xerrors.New("target UID and GID must fit in 32 bits")
 	}
 	if config.UID == os.Geteuid() {
@@ -687,7 +691,7 @@ func validatePrivilegeDropConfig(config privilegeDropConfig) error {
 		return xerrors.New("target GID matches the helper GID")
 	}
 	if config.DeviceGID != nil {
-		if *config.DeviceGID <= 0 || *config.DeviceGID > math.MaxUint32 {
+		if *config.DeviceGID <= 0 || uint64(*config.DeviceGID) > math.MaxUint32 {
 			return xerrors.New("device GID must be a non-root 32-bit identifier")
 		}
 	}
