@@ -3,13 +3,14 @@ package agentmcp
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -100,7 +101,7 @@ func TestConvertResult(t *testing.T) {
 			name: "TextContent",
 			input: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "hello"},
+					&mcp.TextContent{Text: "hello"},
 				},
 			},
 			want: workspacesdk.CallMCPToolResponse{
@@ -113,16 +114,15 @@ func TestConvertResult(t *testing.T) {
 			name: "ImageContent",
 			input: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.ImageContent{
-						Type:     "image",
-						Data:     "base64data",
+					&mcp.ImageContent{
+						Data:     []byte("rawdata"),
 						MIMEType: "image/png",
 					},
 				},
 			},
 			want: workspacesdk.CallMCPToolResponse{
 				Content: []workspacesdk.MCPToolContent{
-					{Type: "image", Data: "base64data", MediaType: "image/png"},
+					{Type: "image", Data: base64.StdEncoding.EncodeToString([]byte("rawdata")), MediaType: "image/png"},
 				},
 			},
 		},
@@ -130,16 +130,15 @@ func TestConvertResult(t *testing.T) {
 			name: "AudioContent",
 			input: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.AudioContent{
-						Type:     "audio",
-						Data:     "base64audio",
+					&mcp.AudioContent{
+						Data:     []byte("rawaudio"),
 						MIMEType: "audio/mp3",
 					},
 				},
 			},
 			want: workspacesdk.CallMCPToolResponse{
 				Content: []workspacesdk.MCPToolContent{
-					{Type: "audio", Data: "base64audio", MediaType: "audio/mp3"},
+					{Type: "audio", Data: base64.StdEncoding.EncodeToString([]byte("rawaudio")), MediaType: "audio/mp3"},
 				},
 			},
 		},
@@ -147,7 +146,7 @@ func TestConvertResult(t *testing.T) {
 			name: "IsErrorPropagation",
 			input: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "fail"},
+					&mcp.TextContent{Text: "fail"},
 				},
 				IsError: true,
 			},
@@ -162,10 +161,9 @@ func TestConvertResult(t *testing.T) {
 			name: "MultipleContentItems",
 			input: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{Type: "text", Text: "caption"},
-					mcp.ImageContent{
-						Type:     "image",
-						Data:     "imgdata",
+					&mcp.TextContent{Text: "caption"},
+					&mcp.ImageContent{
+						Data:     []byte("imgdata"),
 						MIMEType: "image/jpeg",
 					},
 				},
@@ -173,7 +171,7 @@ func TestConvertResult(t *testing.T) {
 			want: workspacesdk.CallMCPToolResponse{
 				Content: []workspacesdk.MCPToolContent{
 					{Type: "text", Text: "caption"},
-					{Type: "image", Data: "imgdata", MediaType: "image/jpeg"},
+					{Type: "image", Data: base64.StdEncoding.EncodeToString([]byte("imgdata")), MediaType: "image/jpeg"},
 				},
 			},
 		},
@@ -181,9 +179,8 @@ func TestConvertResult(t *testing.T) {
 			name: "ResourceLink",
 			input: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.ResourceLink{
-						Type: "resource_link",
-						URI:  "file:///tmp/test.txt",
+					&mcp.ResourceLink{
+						URI: "file:///tmp/test.txt",
 					},
 				},
 			},
@@ -242,7 +239,7 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	// alive. Verify by listing tools (requires a live server).
 	listCtx, listCancel := context.WithTimeout(ctx, testutil.WaitShort)
 	defer listCancel()
-	result, err := client.ListTools(listCtx, mcp.ListToolsRequest{})
+	result, err := client.ListTools(listCtx, nil)
 	require.NoError(t, err, "ListTools should succeed, server must be alive after connect")
 	require.Len(t, result.Tools, 1)
 	assert.Equal(t, "echo", result.Tools[0].Name)
