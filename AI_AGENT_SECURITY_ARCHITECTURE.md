@@ -728,13 +728,13 @@ Two further qualifications from the security review:
    assignments do not affect agent authorization, which always uses the
    sponsor's roles, but they are representable.
 5. **No self-escalation**: generic session-key and token routes reject
-   `kind = 'ai_agent'` targets, so AI agent credentials can only be minted
-   through `aiagentidentity.MintKey`. Profile validation permits only the
-   exact scopes used by the built-in profiles, expands composite `coder:*`
-   scopes through RBAC, checks every resulting resource-action permission,
-   and rejects global allow-list entries. The built-in profiles exclude API
-   key permissions, so an agent cannot mint itself or its sponsor a broader
-   credential.
+   `kind = 'ai_agent'` targets, so those public routes cannot mint AI agent
+   credentials outside `aiagentidentity.MintKey`. Profile validation permits
+   only the exact scopes used by the built-in profiles, expands composite
+   `coder:*` scopes through RBAC, checks every resulting resource-action
+   permission, and rejects global allow-list entries. The built-in profiles
+   exclude API key permissions, so a built-in-profile credential cannot mint
+   itself or its sponsor a broader credential.
 
    This invariant was previously proven FALSE. Before these checks, the
    generic key APIs bypassed `validateProfile` and could create a full-scope
