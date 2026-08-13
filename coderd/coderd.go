@@ -1243,6 +1243,10 @@ func New(options *Options) *API {
 	r.Route("/oauth2", func(r chi.Router) {
 		r.Use(
 			httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
+			// Every response from this tree may carry a credential, so none of
+			// them may be retained by an intermediary cache. NoStore takes no
+			// configuration, so it is passed uncalled.
+			httpmw.NoStore,
 		)
 		r.Route("/authorize", func(r chi.Router) {
 			r.Use(
