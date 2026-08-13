@@ -2888,6 +2888,61 @@ func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg Get
 	return i, err
 }
 
+const getAIModelPrices = `-- name: GetAIModelPrices :many
+SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+FROM ai_model_prices
+    -- Filter by provider
+WHERE CASE
+        WHEN $1::text != '' THEN
+            provider = $1
+        ELSE true
+    END
+    -- Filter by model
+    AND CASE
+        WHEN $2::text != '' THEN
+            model = $2
+        ELSE true
+    END
+ORDER BY provider, model
+`
+
+type GetAIModelPricesParams struct {
+	Provider string `db:"provider" json:"provider"`
+	Model    string `db:"model" json:"model"`
+}
+
+func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error) {
+	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Provider, arg.Model)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIModelPrice
+	for rows.Next() {
+		var i AIModelPrice
+		if err := rows.Scan(
+			&i.Provider,
+			&i.Model,
+			&i.InputPrice,
+			&i.OutputPrice,
+			&i.CacheReadPrice,
+			&i.CacheWritePrice,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGroupAIBudget = `-- name: GetGroupAIBudget :one
 SELECT group_id, spend_limit_micros, created_at, updated_at
 FROM group_ai_budgets
