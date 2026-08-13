@@ -52,6 +52,7 @@ const UpdateMCPServerPage: FC = () => {
 			) : (
 				<UpdateMCPServerPageView
 					server={server}
+					listPath={listPath}
 					isSaving={updateMutation.isPending}
 					isDeleting={deleteMutation.isPending}
 					onCancel={() => void navigate(listPath)}

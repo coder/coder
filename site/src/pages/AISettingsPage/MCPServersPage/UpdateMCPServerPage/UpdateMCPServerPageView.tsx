@@ -5,6 +5,7 @@ import { MCPServerForm } from "../components/MCPServerForm";
 
 interface UpdateMCPServerPageViewProps {
 	server: TypesGen.MCPServerConfig;
+	listPath: string;
 	isSaving: boolean;
 	isDeleting: boolean;
 	onUpdateServer: (
@@ -18,6 +19,7 @@ interface UpdateMCPServerPageViewProps {
 
 const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	server,
+	listPath,
 	isSaving,
 	isDeleting,
 	onUpdateServer,
@@ -31,6 +33,7 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 			<MCPServerForm
 				key={server.id}
 				server={server}
+				listPath={listPath}
 				isSaving={isSaving}
 				isDeleting={isDeleting}
 				onUpdateServer={onUpdateServer}

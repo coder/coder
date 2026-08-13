@@ -15,6 +15,7 @@ import {
 
 type MCPServerFormCreateProps = {
 	server?: undefined;
+	listPath: string;
 	isSaving: boolean;
 	isDeleting?: false;
 	onCreateServer: (
@@ -28,6 +29,7 @@ type MCPServerFormCreateProps = {
 
 type MCPServerFormEditProps = {
 	server: TypesGen.MCPServerConfig;
+	listPath: string;
 	isSaving: boolean;
 	isDeleting: boolean;
 	onCreateServer?: undefined;
@@ -44,6 +46,7 @@ type MCPServerFormProps = MCPServerFormCreateProps | MCPServerFormEditProps;
 
 export const MCPServerForm: FC<MCPServerFormProps> = ({
 	server,
+	listPath,
 	isSaving,
 	isDeleting = false,
 	onCreateServer,
@@ -89,6 +92,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				server={server}
 				title={title}
 				iconUrl={form.values.iconURL}
+				listPath={listPath}
 				isEditing={isEditing}
 				isDisabled={isDisabled}
 				onRequestDelete={() => setConfirmingDelete(true)}

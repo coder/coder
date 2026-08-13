@@ -20,9 +20,9 @@ import {
 import { cn } from "#/utils/cn";
 import { MCPServerIcon } from "./MCPServerIcon";
 
-const MCPServerFormBackLink: FC = () => {
+const MCPServerFormBackLink: FC<{ to: string }> = ({ to }) => {
 	return (
-		<Link to="/ai/settings/mcp-servers" className="-ml-3">
+		<Link to={to} className="-ml-3">
 			<Button variant="subtle" type="button">
 				<ArrowLeftIcon />
 				<span>Back to MCP servers</span>
@@ -35,6 +35,7 @@ interface MCPServerFormHeaderProps {
 	server?: TypesGen.MCPServerConfig;
 	title: string;
 	iconUrl: string;
+	listPath: string;
 	isEditing: boolean;
 	isDisabled: boolean;
 	onRequestDelete: () => void;
@@ -45,6 +46,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	server,
 	title,
 	iconUrl,
+	listPath,
 	isEditing,
 	isDisabled,
 	onRequestDelete,
@@ -53,7 +55,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	return (
 		<>
 			<div className="flex items-center justify-between">
-				<MCPServerFormBackLink />
+				<MCPServerFormBackLink to={listPath} />
 				{isEditing && server && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>

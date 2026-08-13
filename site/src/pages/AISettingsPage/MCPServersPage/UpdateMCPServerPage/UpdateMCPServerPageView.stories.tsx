@@ -17,6 +17,7 @@ const meta: Meta<typeof UpdateMCPServerPageView> = {
 	component: UpdateMCPServerPageView,
 	args: {
 		server: MockCoderMCPServer,
+		listPath: "/ai/settings/mcp-servers",
 		isSaving: false,
 		isDeleting: false,
 		onUpdateServer,

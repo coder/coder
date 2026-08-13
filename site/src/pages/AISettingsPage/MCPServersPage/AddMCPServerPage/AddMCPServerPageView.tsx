@@ -3,6 +3,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { pageTitle } from "#/utils/page";
 import { MCPServerForm } from "../components/MCPServerForm";
 import { OrganizationPicker } from "../components/OrganizationPicker";
+import { mcpServersPath } from "../organizationParam";
 
 interface AddMCPServerPageViewProps {
 	isSaving: boolean;
@@ -34,6 +35,7 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 				onChange={onSelectOrganization}
 			/>
 			<MCPServerForm
+				listPath={mcpServersPath(organization)}
 				isSaving={isSaving}
 				onCreateServer={onCreateServer}
 				onCancel={onCancel}

@@ -200,6 +200,12 @@ export const AddSwitchesOrganization: Story = {
 			}),
 		);
 		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("GitHub");
+		await expect(
+			canvas.getByRole("link", { name: /back to mcp servers/i }),
+		).toHaveAttribute(
+			"href",
+			`/ai/settings/mcp-servers?org=${MockOrganization2.name}`,
+		);
 		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
 		await waitFor(() => {
 			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
