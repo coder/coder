@@ -6985,9 +6985,9 @@ export interface Pagination {
 	readonly after_id?: string;
 	/**
 	 * Limit sets the maximum number of records to be returned in a single
-	 * page. Endpoints that bound their page size document the accepted range
-	 * and reject a limit outside it. On an endpoint that does not, a limit
-	 * <= 0 means no limit and every record is returned.
+	 * page. An endpoint that bounds its page size rejects a limit outside its
+	 * range; otherwise a limit <= 0 means no limit and every record is
+	 * returned.
 	 */
 	readonly limit?: number;
 	/**
@@ -11506,10 +11506,6 @@ export interface WorkspaceUser extends MinimalUser {
  * accepts and the page size clients use when reading that endpoint to
  * exhaustion. A request that omits limit receives this many rows; a limit of 0
  * or greater than this is rejected.
- *
- * It is set well above the number of workspaces a deployment is expected to
- * hold so that a caller reading the list still receives it in one response, and
- * bounds the response for the cases that exceed it.
  */
 export const WorkspacesPageLimit = 1000;
 
@@ -11523,10 +11519,9 @@ export interface WorkspacesResponse {
 	readonly workspaces: readonly Workspace[];
 	/**
 	 * Count is the number of workspaces matching the filter before the limit and
-	 * offset are applied. It can exceed the length of Workspaces for a reason
-	 * other than the limit: the endpoint drops workspaces whose latest build or
-	 * template the requester cannot read after the limit is applied in SQL, so a
-	 * page shorter than the limit does not mean the result set is exhausted.
+	 * offset are applied. Workspaces the requester cannot fully read are omitted
+	 * from the page after the limit is applied, so a page shorter than the limit
+	 * does not mean the result set is exhausted.
 	 */
 	readonly count: number;
 }

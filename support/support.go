@@ -286,9 +286,8 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 			if d.Workspaces == nil {
 				d.Workspaces = &resp
 			}
-			// The endpoint orders by whether the latest build is running, which
-			// changes between requests, so a workspace can move to a later page and
-			// be returned again.
+			// The order depends on build state, which changes between requests, so a
+			// workspace can move to a page that has not been read yet.
 			for _, ws := range resp.Workspaces {
 				if _, ok := seen[ws.ID]; ok {
 					continue
@@ -313,11 +312,8 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 				break
 			}
 			// The offset advances by the requested limit rather than by the number
-			// of rows returned. The endpoint applies its limit in SQL and then
-			// drops rows whose latest build or template the caller cannot read, so
-			// advancing by len(resp.Workspaces) would re-request rows already
-			// collected. Count is the total before the limit and offset are
-			// applied.
+			// of rows returned, since a page can be shorter than the limit without
+			// the set being exhausted.
 			offset += codersdk.WorkspacesPageLimit
 			if offset >= count {
 				break
@@ -329,9 +325,8 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 			// Preserve server-reported total so Run() can log accurate truncation.
 			d.Workspaces.Count = count
 			if incomplete {
-				// The scan stopped on a permissions error, so the rows collected are
-				// all there are to report. The server-reported total describes a set
-				// this list does not cover.
+				// The scan stopped early, so the server total describes a set this
+				// list does not cover.
 				d.Workspaces.Count = len(all)
 			}
 		}

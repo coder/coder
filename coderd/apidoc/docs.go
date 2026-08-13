@@ -28732,7 +28732,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "count": {
-                    "description": "Count is the number of workspaces matching the filter before the limit and\noffset are applied. It can exceed the length of Workspaces for a reason\nother than the limit: the endpoint drops workspaces whose latest build or\ntemplate the requester cannot read after the limit is applied in SQL, so a\npage shorter than the limit does not mean the result set is exhausted.",
+                    "description": "Count is the number of workspaces matching the filter before the limit and\noffset are applied. Workspaces the requester cannot fully read are omitted\nfrom the page after the limit is applied, so a page shorter than the limit\ndoes not mean the result set is exhausted.",
                     "type": "integer"
                 },
                 "workspaces": {

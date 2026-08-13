@@ -1264,27 +1264,20 @@ class ApiMethods {
 
 	/**
 	 * Requests successive pages of workspaces until the offset reaches the total
-	 * the server reports, skipping workspaces that were already returned by an
-	 * earlier page. The offset advances by the page size rather than by the
-	 * number of rows received: the endpoint applies its limit in SQL and then
-	 * drops workspaces whose latest build or template the caller cannot read, so
-	 * a short page does not mean the result set is exhausted.
+	 * the server reports, skipping workspaces an earlier page already returned.
+	 * The offset advances by the page size rather than by the number of rows
+	 * received, since a page can be shorter than the limit without the result set
+	 * being exhausted.
 	 *
-	 * The pages are separate requests, so the result is not a snapshot. The
-	 * endpoint orders by whether the workspace is a favorite of the requester and
-	 * whether its latest build is running, both of which change while the pages
-	 * are being read. A workspace that moves later in that order is skipped here
-	 * by ID; one that moves earlier can pass the current offset and be missed.
-	 * Prefer a server-side filter that fits in one page when the result has to be
-	 * exact.
+	 * The pages are separate requests, so the result is not a snapshot. The order
+	 * depends on workspace state that changes between requests: a workspace that
+	 * moves later is skipped here by ID, and one that moves earlier can pass the
+	 * current offset and be missed. A page that fails rejects the whole call and
+	 * discards the rows already read; aborting `signal` rejects the page in
+	 * flight.
 	 *
 	 * `count` is the total the server reported for the last page and can exceed
 	 * the length of `workspaces`.
-	 *
-	 * A page that fails rejects the whole call; the pages already read are
-	 * discarded rather than returned as a shorter list. Aborting `signal` rejects
-	 * the page in flight and stops the walk. The number of requests follows the
-	 * total the server reports, which is not bounded here.
 	 */
 	getAllWorkspaces = async (
 		req: Omit<TypesGen.WorkspacesRequest, "limit" | "offset"> = {},

@@ -11,10 +11,6 @@ import (
 // accepts and the page size clients use when reading that endpoint to
 // exhaustion. A request that omits limit receives this many rows; a limit of 0
 // or greater than this is rejected.
-//
-// It is set well above the number of workspaces a deployment is expected to
-// hold so that a caller reading the list still receives it in one response, and
-// bounds the response for the cases that exceed it.
 const WorkspacesPageLimit = 1000
 
 // Pagination sets pagination options for the endpoints that support it.
@@ -26,9 +22,9 @@ type Pagination struct {
 	// request.
 	AfterID uuid.UUID `json:"after_id,omitempty" format:"uuid"`
 	// Limit sets the maximum number of records to be returned in a single
-	// page. Endpoints that bound their page size document the accepted range
-	// and reject a limit outside it. On an endpoint that does not, a limit
-	// <= 0 means no limit and every record is returned.
+	// page. An endpoint that bounds its page size rejects a limit outside its
+	// range; otherwise a limit <= 0 means no limit and every record is
+	// returned.
 	Limit int `json:"limit,omitempty"`
 	// Offset is used to indicate which page to return. An offset of 0
 	// returns the first 'limit' number of users.

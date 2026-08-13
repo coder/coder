@@ -97,10 +97,9 @@ type WorkspacesRequest struct {
 type WorkspacesResponse struct {
 	Workspaces []Workspace `json:"workspaces"`
 	// Count is the number of workspaces matching the filter before the limit and
-	// offset are applied. It can exceed the length of Workspaces for a reason
-	// other than the limit: the endpoint drops workspaces whose latest build or
-	// template the requester cannot read after the limit is applied in SQL, so a
-	// page shorter than the limit does not mean the result set is exhausted.
+	// offset are applied. Workspaces the requester cannot fully read are omitted
+	// from the page after the limit is applied, so a page shorter than the limit
+	// does not mean the result set is exhausted.
 	Count int `json:"count"`
 }
 
@@ -618,8 +617,7 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 }
 
 // Workspaces returns a single page of the workspaces the authenticated user has
-// access to. The endpoint bounds the page size, so an unset filter Limit does
-// not return every workspace; see AllWorkspaces to read every page.
+// access to. An unset filter Limit resolves to the endpoint's maximum page size.
 func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (WorkspacesResponse, error) {
 	page := Pagination{
 		Offset: filter.Offset,
@@ -640,26 +638,18 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 }
 
 // AllWorkspaces requests successive pages of workspaces matching the filter and
-// returns every row it receives, skipping rows it has already seen. Limit and
-// Offset on the filter are ignored.
+// returns every row it receives, skipping rows it has already returned. Limit
+// and Offset on the filter are ignored.
 //
 // The offset advances by the requested page size rather than by the number of
-// rows received. The endpoint applies its limit in SQL and then drops workspaces
-// whose latest build or template the caller cannot read, so a page shorter than
-// the page size does not mean the result set is exhausted. Count is the total
-// before the limit and offset are applied.
+// rows received, since a page can be shorter than the limit without the result
+// set being exhausted. The scan ends when the offset reaches Count.
 //
-// The pages are separate requests, so the result is not a snapshot. The
-// endpoint orders by whether the workspace is a favorite of the requester and
-// whether its latest build is running, both of which change while the pages are
-// being read. A row that moves later in that order is filtered out here by ID;
-// a row that moves earlier can pass the current offset and be missed entirely.
-// A caller that needs an exact result should narrow the filter until it fits in
-// one page.
-//
-// A page that fails ends the call; the pages already read are discarded rather
-// than returned as a shorter list. The number of requests follows the total the
-// endpoint reports, which is not bounded here, so cancel ctx to stop the walk.
+// The pages are separate requests, so the result is not a snapshot. The order
+// depends on workspace state that changes between requests: a row that moves
+// later is skipped here by ID, and one that moves earlier can pass the current
+// offset and be missed. A page that fails ends the call and discards the rows
+// already read.
 func (c *Client) AllWorkspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
 	filter.Limit = WorkspacesPageLimit
 	filter.Offset = 0

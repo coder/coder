@@ -236,16 +236,14 @@ type AllWorkspacesRequest = Omit<
 
 export function allWorkspacesKey(req: AllWorkspacesRequest = {}) {
 	// The `all` marker keeps this distinct from the single-page key for the same
-	// filter. The key stays two segments long with an object at the end so it is
-	// still matched by invalidateWorkspaceListQueries.
+	// filter. The key stays two segments long with an object at the end so it
+	// keeps the shape a workspace list key is matched by.
 	return [...workspacesQueryKeyPrefix, { ...req, all: true }] as const;
 }
 
-// allWorkspaces fetches every page of the filtered result set. Prefer a
-// server-side filter and a single page when the caller can express one: the
-// request count follows the size of the result set, the pages are read one at a
-// time, and a page that fails discards the ones already read. The query is
-// cancelled on unmount, which stops the walk at the page in flight.
+// allWorkspaces reads every page of the filtered result set. The request count
+// scales with the result set and a page that fails discards the rows already
+// read, so prefer a filter that fits in one page.
 export function allWorkspaces(req: AllWorkspacesRequest = {}) {
 	return {
 		queryKey: allWorkspacesKey(req),
