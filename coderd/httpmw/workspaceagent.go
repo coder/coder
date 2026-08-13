@@ -186,8 +186,10 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 					})
 					return
 				}
-				subject.Type = rbac.SubjectTypeAIAgent
-				subject.FriendlyName = identity.AgentUser.Username
+				// AsAIAgent carries the acting identity into the policy input so
+				// a bound workspace agent is confined to workspaces designated
+				// to its identity.
+				subject = subject.AsAIAgent(identity.AgentUser.ID, identity.AgentUser.Username)
 				ctx = aiagentidentity.WithActor(ctx, identity.Actor)
 			}
 

@@ -65,8 +65,10 @@ func PlatformSubject(ctx context.Context, db database.Store, ownerID uuid.UUID) 
 	if userStatus != database.UserStatusActive {
 		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("chat AI agent owner %s authorization is not active", ownerID)
 	}
-	actor.Type = rbac.SubjectTypeAIAgent
-	actor.FriendlyName = identity.AgentUser.Username
+	// AsAIAgent carries the acting identity into the policy input so the
+	// workspace designation boundary applies to in-process chat tools exactly as
+	// it does to bearer-token requests.
+	actor = actor.AsAIAgent(identity.AgentUser.ID, identity.AgentUser.Username)
 	return actor, identity.AgentUser.ID, nil
 }
 

@@ -775,12 +775,20 @@ func createWorkspace(
 		// so that build can bind its agents.
 		if aiActor, ok := aiagentidentity.ActorFromContext(ctx); ok {
 			//nolint:gocritic // Setting the internal designation marker requires system access.
-			if _, err := db.SetWorkspaceAIAgentID(dbauthz.AsSystemRestricted(ctx), database.SetWorkspaceAIAgentIDParams{
+			designated, err := db.SetWorkspaceAIAgentID(dbauthz.AsSystemRestricted(ctx), database.SetWorkspaceAIAgentIDParams{
 				ID:        workspace.ID,
 				AIAgentID: uuid.NullUUID{UUID: aiActor.AgentUserID, Valid: true},
-			}); err != nil {
+			})
+			if err != nil {
 				return xerrors.Errorf("designate AI-created workspace: %w", err)
 			}
+			// Keep the in-memory workspace in sync with the row. The initial
+			// build authorizes a workspace start against this value, and the
+			// designation boundary denies an AI actor a start on a workspace
+			// whose designation does not match its acting identity. A stale
+			// undesignated value here would fail every AI-created workspace's
+			// own first build.
+			workspace.AIAgentID = designated.AIAgentID
 		}
 
 		// If the postCreate hook is provided, execute it. This can be used to
