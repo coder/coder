@@ -172,22 +172,22 @@ func TestPaginationBounded(t *testing.T) {
 		{
 			Name:          "ZeroLimit",
 			Limit:         ptr.Ref("0"),
-			ExpectedError: "must be a positive integer no greater than 100",
+			ExpectedError: "must be an integer between 1 and 100",
 		},
 		{
 			Name:          "AboveMaxLimit",
 			Limit:         ptr.Ref("101"),
-			ExpectedError: "must be a positive integer no greater than 100",
+			ExpectedError: "must be an integer between 1 and 100",
 		},
 		{
 			Name:          "NegativeLimit",
 			Limit:         ptr.Ref("-1"),
-			ExpectedError: "must be a valid 32-bit positive integer: value is negative",
+			ExpectedError: "must be an integer between 1 and 100",
 		},
 		{
 			Name:          "UnparseableLimit",
 			Limit:         ptr.Ref("bogus"),
-			ExpectedError: "must be a valid 32-bit positive integer",
+			ExpectedError: "must be a valid integer",
 		},
 	}
 

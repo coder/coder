@@ -229,7 +229,10 @@ export function workspaces(req: WorkspacesRequest = {}) {
 	} as const satisfies QueryOptions<WorkspacesResponse>;
 }
 
-type AllWorkspacesRequest = Omit<WorkspacesRequest, "limit" | "offset">;
+type AllWorkspacesRequest = Omit<
+	WorkspacesRequest,
+	"limit" | "offset" | "after_id"
+>;
 
 export function allWorkspacesKey(req: AllWorkspacesRequest = {}) {
 	// The `all` marker keeps this distinct from the single-page key for the same

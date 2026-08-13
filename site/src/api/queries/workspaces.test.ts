@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { WorkspacesResponse } from "#/api/typesGenerated";
 import { getWorkspaceQuotaQueryKey } from "./workspaceQuota";
 import {
+	allWorkspacesKey,
 	autoCreateWorkspace,
 	buildLogsKey,
 	createWorkspace,
@@ -38,6 +39,9 @@ const seedWorkspaceFamilyQueries = (queryClient: QueryClient) => {
 		limit: 25,
 		offset: 50,
 	});
+	const exhaustiveListKey = allWorkspacesKey({
+		q: "owner:me organization:default",
+	});
 	const usageKey = workspaceUsage({
 		usageApp: "reconnecting-pty",
 		connectionStatus: "connected",
@@ -66,6 +70,7 @@ const seedWorkspaceFamilyQueries = (queryClient: QueryClient) => {
 	queryClient.setQueryData(rawListKey, workspacesResponse);
 	queryClient.setQueryData(defaultListKey, workspacesResponse);
 	queryClient.setQueryData(filteredListKey, workspacesResponse);
+	queryClient.setQueryData(exhaustiveListKey, workspacesResponse);
 	queryClient.setQueryData(usageKey, { tracked: true });
 	queryClient.setQueryData(buildLogs, []);
 	queryClient.setQueryData(workspacePermissionsKey, { read: true });
@@ -73,7 +78,7 @@ const seedWorkspaceFamilyQueries = (queryClient: QueryClient) => {
 	queryClient.setQueryData(organizationWorkspacePermissionsKey, { read: true });
 
 	return {
-		listKeys: [rawListKey, defaultListKey, filteredListKey],
+		listKeys: [rawListKey, defaultListKey, filteredListKey, exhaustiveListKey],
 		nonListKeys: [
 			usageKey,
 			buildLogs,

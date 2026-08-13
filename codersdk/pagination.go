@@ -21,9 +21,10 @@ type Pagination struct {
 	// set AfterID to the last UUID returned by the previous
 	// request.
 	AfterID uuid.UUID `json:"after_id,omitempty" format:"uuid"`
-	// Limit sets the maximum number of users to be returned
-	// in a single page. If the limit is <= 0, there is no limit
-	// and all users are returned.
+	// Limit sets the maximum number of records to be returned in a single
+	// page. Endpoints that bound their page size document the accepted range
+	// and reject a limit outside it. On an endpoint that does not, a limit
+	// <= 0 means no limit and every record is returned.
 	Limit int `json:"limit,omitempty"`
 	// Offset is used to indicate which page to return. An offset of 0
 	// returns the first 'limit' number of users.

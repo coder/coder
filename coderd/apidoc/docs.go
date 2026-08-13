@@ -13634,6 +13634,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspacesResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters, including a limit outside 1 to 100",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -28726,6 +28732,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "count": {
+                    "description": "Count is the number of workspaces matching the filter before the limit and\noffset are applied. It can exceed the length of Workspaces for a reason\nother than the limit: the endpoint drops workspaces whose latest build or\ntemplate the requester cannot read after the limit is applied in SQL, so a\npage shorter than the limit does not mean the result set is exhausted.",
                     "type": "integer"
                 },
                 "workspaces": {

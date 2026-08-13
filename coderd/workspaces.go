@@ -147,6 +147,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit, from 1 to 100. Defaults to 100 when omitted."
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
+// @Failure 400 {object} codersdk.Response "Invalid query parameters, including a limit outside 1 to 100"
 // @Router /api/v2/workspaces [get]
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

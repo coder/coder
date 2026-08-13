@@ -17657,10 +17657,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name         | Type                                              | Required | Restrictions | Description |
-|--------------|---------------------------------------------------|----------|--------------|-------------|
-| `count`      | integer                                           | false    |              |             |
-| `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    |              |             |
+| Name         | Type                                              | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                    |
+|--------------|---------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`      | integer                                           | false    |              | Count is the number of workspaces matching the filter before the limit and offset are applied. It can exceed the length of Workspaces for a reason other than the limit: the endpoint drops workspaces whose latest build or template the requester cannot read after the limit is applied in SQL, so a page shorter than the limit does not mean the result set is exhausted. |
+| `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                |
 
 ## derp.BytesSentRecv
 

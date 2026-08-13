@@ -37,10 +37,9 @@ func ParsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 // ParsePaginationBounded extracts pagination query params from the http request
 // and resolves limit against maxLimit. An omitted limit resolves to maxLimit. A
 // limit that is present must be an integer in [1, maxLimit]; anything else is
-// rejected rather than clamped, so a caller never receives fewer rows than it
-// asked for without being told. If an error is encountered, the error is written
+// rejected rather than clamped. If an error is encountered, the error is written
 // to w and ok is set to false.
-func ParsePaginationBounded(w http.ResponseWriter, r *http.Request, maxLimit int32) (p codersdk.Pagination, ok bool) {
+func ParsePaginationBounded(w http.ResponseWriter, r *http.Request, maxLimit int) (p codersdk.Pagination, ok bool) {
 	ctx := r.Context()
 	queryParams := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
@@ -50,12 +49,12 @@ func ParsePaginationBounded(w http.ResponseWriter, r *http.Request, maxLimit int
 	}
 
 	limitErrs := len(parser.Errors)
-	params.Limit = int(parser.PositiveInt32(queryParams, maxLimit, "limit"))
+	params.Limit = parser.Int(queryParams, maxLimit, "limit")
 	limitParsed := len(parser.Errors) == limitErrs
-	if limitParsed && (params.Limit < 1 || params.Limit > int(maxLimit)) {
+	if limitParsed && (params.Limit < 1 || params.Limit > maxLimit) {
 		parser.Errors = append(parser.Errors, codersdk.ValidationError{
 			Field:  "limit",
-			Detail: fmt.Sprintf("Query param \"limit\" must be a positive integer no greater than %d.", maxLimit),
+			Detail: fmt.Sprintf("Query param \"limit\" must be an integer between 1 and %d.", maxLimit),
 		})
 	}
 

@@ -96,7 +96,12 @@ type WorkspacesRequest struct {
 
 type WorkspacesResponse struct {
 	Workspaces []Workspace `json:"workspaces"`
-	Count      int         `json:"count"`
+	// Count is the number of workspaces matching the filter before the limit and
+	// offset are applied. It can exceed the length of Workspaces for a reason
+	// other than the limit: the endpoint drops workspaces whose latest build or
+	// template the requester cannot read after the limit is applied in SQL, so a
+	// page shorter than the limit does not mean the result set is exhausted.
+	Count int `json:"count"`
 }
 
 type ProvisionerLogLevel string
@@ -612,7 +617,9 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 	}
 }
 
-// Workspaces returns all workspaces the authenticated user has access to.
+// Workspaces returns a single page of the workspaces the authenticated user has
+// access to. The endpoint bounds the page size, so an unset filter Limit does
+// not return every workspace; see AllWorkspaces to read every page.
 func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (WorkspacesResponse, error) {
 	page := Pagination{
 		Offset: filter.Offset,

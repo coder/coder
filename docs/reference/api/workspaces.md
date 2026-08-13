@@ -1385,9 +1385,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                               |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspacesResponse](schemas.md#codersdkworkspacesresponse) |
+| Status | Meaning                                                          | Description                                                  | Schema                                                               |
+|--------|------------------------------------------------------------------|--------------------------------------------------------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK                                                           | [codersdk.WorkspacesResponse](schemas.md#codersdkworkspacesresponse) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Invalid query parameters, including a limit outside 1 to 100 | [codersdk.Response](schemas.md#codersdkresponse)                     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
