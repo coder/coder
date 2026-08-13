@@ -192,6 +192,64 @@ describe("LoginPage", () => {
 		await screen.findByText("Home");
 	});
 
+	it("does not follow a protocol-relative redirect after password login (CDM-02-001)", async () => {
+		// Given - user is NOT signed in
+		let loggedIn = false;
+		server.use(
+			http.get("/api/v2/users/me", () => {
+				if (!loggedIn) {
+					return HttpResponse.json(
+						{ message: "no user here" },
+						{ status: 401 },
+					);
+				}
+				return HttpResponse.json(MockUserOwner);
+			}),
+			http.post("/api/v2/users/login", () => {
+				loggedIn = true;
+				return HttpResponse.json({
+					session_token: "test-session-token",
+				});
+			}),
+		);
+
+		// When - the redirect param decodes to https://cure53.de//cure53.de,
+		// whose pathname is the protocol-relative url //cure53.de.
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/login",
+						element: <LoginPage />,
+					},
+					{
+						path: "/",
+						element: <h1>Home</h1>,
+					},
+				],
+				{
+					initialEntries: ["/login?redirect=https://cure53.de/%2fcure53.de"],
+				},
+			),
+		);
+
+		await waitForLoaderToBeRemoved();
+
+		await userEvent.type(screen.getByLabelText(/Email/), "test@coder.com");
+		await userEvent.type(screen.getByLabelText(/Password/), "password");
+		fireEvent.click(await screen.findByText("Sign In"));
+
+		// Then - the malicious redirect must be replaced with the fallback
+		// path on both navigation paths (hard reload and SPA navigation).
+		await waitFor(() => {
+			expect(locationHrefSpy).toHaveBeenCalledWith("/");
+		});
+		expect(locationHrefSpy).not.toHaveBeenCalledWith(
+			expect.stringContaining("//cure53.de"),
+		);
+		await screen.findByText("Home");
+	});
+
 	it("redirects to /oauth2/authorize via server-side redirect when signed in", async () => {
 		// Given - user is signed in
 		server.use(

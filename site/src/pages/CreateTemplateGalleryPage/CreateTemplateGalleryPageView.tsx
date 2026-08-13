@@ -15,12 +15,13 @@ import { StarterTemplates } from "./StarterTemplates";
 
 interface CreateTemplateGalleryPageViewProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
+	templateBuilderEnabled: boolean;
 	error?: unknown;
 }
 
 export const CreateTemplateGalleryPageView: FC<
 	CreateTemplateGalleryPageViewProps
-> = ({ starterTemplatesByTag, error }) => {
+> = ({ starterTemplatesByTag, templateBuilderEnabled, error }) => {
 	return (
 		<Margins className="pb-12">
 			<PageHeader
@@ -87,7 +88,10 @@ export const CreateTemplateGalleryPageView: FC<
 
 				{Boolean(!starterTemplatesByTag) && <Loader />}
 
-				<StarterTemplates starterTemplatesByTag={starterTemplatesByTag} />
+				<StarterTemplates
+					starterTemplatesByTag={starterTemplatesByTag}
+					templateBuilderEnabled={templateBuilderEnabled}
+				/>
 			</div>
 		</Margins>
 	);

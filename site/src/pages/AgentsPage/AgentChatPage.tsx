@@ -425,6 +425,50 @@ export const getWorkspaceOptionsWithLinkedWorkspace = (
 	return nextWorkspaceOptions;
 };
 
+// Keep this list in sync with app fields consumed by the chat UI, or live
+// updates to those fields can retain stale query data.
+const watchedAgentAppFields: readonly (keyof TypesGen.WorkspaceApp)[] = [
+	"id",
+	"slug",
+	"health",
+	"hidden",
+	"external",
+	"command",
+	"subdomain",
+	"subdomain_name",
+	"display_name",
+];
+
+/** @internal Exported for testing. */
+export const isWatchedWorkspaceViewUnchanged = (
+	prev: TypesGen.Workspace,
+	next: TypesGen.Workspace,
+	chatAgentId: string | undefined,
+): boolean => {
+	const prevAgent = getWorkspaceAgent(prev, chatAgentId);
+	const nextAgent = getWorkspaceAgent(next, chatAgentId);
+	const prevApps = prevAgent?.apps ?? [];
+	const nextApps = nextAgent?.apps ?? [];
+	return (
+		prev.latest_build.status === next.latest_build.status &&
+		prev.health.healthy === next.health.healthy &&
+		prev.name === next.name &&
+		prev.owner_name === next.owner_name &&
+		prevAgent?.id === nextAgent?.id &&
+		prevAgent?.status === nextAgent?.status &&
+		prevAgent?.name === nextAgent?.name &&
+		prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
+		prevAgent?.lifecycle_state === nextAgent?.lifecycle_state &&
+		prevApps.length === nextApps.length &&
+		prevApps.every((prevApp, index) => {
+			const nextApp = nextApps[index];
+			return watchedAgentAppFields.every(
+				(field) => prevApp[field] === nextApp[field],
+			);
+		})
+	);
+};
+
 const buildAttachmentMediaTypes = (
 	attachments?: readonly PendingAttachment[],
 ): ReadonlyMap<string, string> | undefined => {
@@ -811,6 +855,7 @@ type _UncoveredAgentFields = Omit<
 	| "display_apps"
 	| "log_sources"
 	| "scripts"
+	| "metadata"
 	| "startup_script_behavior"
 >;
 // If this errors, a new field was added to WorkspaceAgent.
@@ -968,19 +1013,9 @@ const AgentChatPage: FC = () => {
 					// reads has changed. This prevents react-query
 					// from notifying subscribers and avoids a full
 					// AgentChatPage re-render on every heartbeat.
-					const prevAgent = getWorkspaceAgent(prev, chatAgentId);
-					const nextAgent = getWorkspaceAgent(next, chatAgentId);
 					if (
 						prev &&
-						prev.latest_build.status === next.latest_build.status &&
-						prev.health.healthy === next.health.healthy &&
-						prev.name === next.name &&
-						prev.owner_name === next.owner_name &&
-						prevAgent?.id === nextAgent?.id &&
-						prevAgent?.status === nextAgent?.status &&
-						prevAgent?.name === nextAgent?.name &&
-						prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
-						prevAgent?.lifecycle_state === nextAgent?.lifecycle_state
+						isWatchedWorkspaceViewUnchanged(prev, next, chatAgentId)
 					) {
 						return prev;
 					}
@@ -1088,11 +1123,11 @@ const AgentChatPage: FC = () => {
 	const chatMessagesList = (() => {
 		const pages = chatMessagesQuery.data?.pages;
 		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages and deduplicate by ID.
-		// Cross-page duplication can occur when upsertCacheMessages
-		// writes a message into page 0 while the same ID still
-		// exists in a later page. Last occurrence wins so the
-		// most up-to-date content is preserved.
+		// Collect all messages and deduplicate by ID as a defense
+		// against cross-page duplicates. Cache upserts fan the same
+		// fresh value out to every page containing an ID, so any
+		// surviving duplicates are value-identical and either
+		// occurrence is safe to render.
 		const all = pages.flatMap((p) => p.messages);
 		const byID = new Map(all.map((m) => [m.id, m]));
 		const deduped = Array.from(byID.values());

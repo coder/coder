@@ -26,7 +26,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
@@ -132,7 +131,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					<NavLink to="/workspaces" className="inline-flex">
 						<ProductLogo className="size-6" />
 					</NavLink>
-					<FeatureStageBadge contentType="beta" size="xs" />
 				</div>
 			)}
 			{isSidebarCollapsed && (

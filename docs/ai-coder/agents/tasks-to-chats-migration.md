@@ -1,15 +1,12 @@
 # Migrating from the Tasks API to the Chats API
 
 The [Tasks API](../../reference/api/tasks.md) (`/api/v2/tasks`) and the
-[Chats API](../../reference/api/chats.md) (`/api/experimental/chats`) serve similar
+[Chats API](../../reference/api/chats.md) (`/api/v2/chats`) serve similar
 goals (programmatic access to AI-powered coding agents) but they differ
 significantly in architecture, capabilities, and usage patterns.
 
 This guide walks you through updating your integrations from the Tasks API
 to the Chats API.
-
-> [!NOTE]
-> The Chats API is experimental in current Coder releases. Endpoints live under `/api/experimental/chats` and may change without notice until the feature graduates to GA.
 
 ## When to migrate
 
@@ -44,21 +41,21 @@ Before mapping individual endpoints, understand the structural changes:
 
 The table below maps each Tasks API endpoint to its Chats API equivalent.
 
-| Operation         | Tasks API                                 | Chats API                                                           |
-|-------------------|-------------------------------------------|---------------------------------------------------------------------|
-| List              | `GET /api/v2/tasks`                       | `GET /api/experimental/chats`                                       |
-| Create            | `POST /api/v2/tasks/{user}`               | `POST /api/experimental/chats`                                      |
-| Get by ID         | `GET /api/v2/tasks/{user}/{task}`         | `GET /api/experimental/chats/{chat}`                                |
-| Delete            | `DELETE /api/v2/tasks/{user}/{task}`      | `PATCH /api/experimental/chats/{chat}` with `{"archived": true}`    |
-| Send follow-up    | `POST /api/v2/tasks/{user}/{task}/send`   | `POST /api/experimental/chats/{chat}/messages`                      |
-| Update input      | `PATCH /api/v2/tasks/{user}/{task}/input` | `PATCH /api/experimental/chats/{chat}/messages/{message}`           |
-| Get logs / stream | `GET /api/v2/tasks/{user}/{task}/logs`    | `GET /api/experimental/chats/{chat}/stream` (WebSocket)             |
-| Pause             | `POST /api/v2/tasks/{user}/{task}/pause`  | `POST /api/experimental/chats/{chat}/interrupt`                     |
-| Resume            | `POST /api/v2/tasks/{user}/{task}/resume` | `POST /api/experimental/chats/{chat}/messages` (send a new message) |
-| Watch all         | n/a                                       | `GET /api/experimental/chats/watch` (WebSocket)                     |
-| Get messages      | n/a                                       | `GET /api/experimental/chats/{chat}/messages`                       |
-| List models       | n/a                                       | `GET /api/experimental/chats/models`                                |
-| Upload file       | n/a                                       | `POST /api/experimental/chats/files`                                |
+| Operation         | Tasks API                                 | Chats API                                                 |
+|-------------------|-------------------------------------------|-----------------------------------------------------------|
+| List              | `GET /api/v2/tasks`                       | `GET /api/v2/chats`                                       |
+| Create            | `POST /api/v2/tasks/{user}`               | `POST /api/v2/chats`                                      |
+| Get by ID         | `GET /api/v2/tasks/{user}/{task}`         | `GET /api/v2/chats/{chat}`                                |
+| Delete            | `DELETE /api/v2/tasks/{user}/{task}`      | `PATCH /api/v2/chats/{chat}` with `{"archived": true}`    |
+| Send follow-up    | `POST /api/v2/tasks/{user}/{task}/send`   | `POST /api/v2/chats/{chat}/messages`                      |
+| Update input      | `PATCH /api/v2/tasks/{user}/{task}/input` | `PATCH /api/v2/chats/{chat}/messages/{message}`           |
+| Get logs / stream | `GET /api/v2/tasks/{user}/{task}/logs`    | `GET /api/v2/chats/{chat}/stream` (WebSocket)             |
+| Pause             | `POST /api/v2/tasks/{user}/{task}/pause`  | `POST /api/v2/chats/{chat}/interrupt`                     |
+| Resume            | `POST /api/v2/tasks/{user}/{task}/resume` | `POST /api/v2/chats/{chat}/messages` (send a new message) |
+| Watch all         | n/a                                       | `GET /api/v2/chats/watch` (WebSocket)                     |
+| Get messages      | n/a                                       | `GET /api/v2/chats/{chat}/messages`                       |
+| List models       | n/a                                       | `GET /api/v2/chats/models`                                |
+| Upload file       | n/a                                       | `POST /api/v2/chats/files`                                |
 
 ## Migration steps
 
@@ -97,7 +94,7 @@ path segment is required:
 
 ```sh
 # Chats API: create a chat
-curl -X POST https://coder.example.com/api/experimental/chats \
+curl -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -140,7 +137,7 @@ curl -X POST https://coder.example.com/api/v2/tasks/me/my-task/send \
 ```sh
 # Chats API: send a message
 curl -X POST \
-  https://coder.example.com/api/experimental/chats/$CHAT_ID/messages \
+  https://coder.example.com/api/v2/chats/$CHAT_ID/messages \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -168,7 +165,7 @@ curl https://coder.example.com/api/v2/tasks/me/my-task/logs \
 **Chats API**. You open a one-way WebSocket connection:
 
 ```txt
-GET wss://coder.example.com/api/experimental/chats/{chat}/stream
+GET wss://coder.example.com/api/v2/chats/{chat}/stream
 ```
 
 The WebSocket sends JSON envelopes with a `type` field (`"ping"`,
@@ -215,7 +212,7 @@ The Tasks API uses `DELETE` to remove a task. The Chats API uses archiving:
 - curl -X DELETE https://coder.example.com/api/v2/tasks/me/my-task \
 -   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 
-+ curl -X PATCH https://coder.example.com/api/experimental/chats/$CHAT_ID \
++ curl -X PATCH https://coder.example.com/api/v2/chats/$CHAT_ID \
 +   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 +   -H "Content-Type: application/json" \
 +   -d '{"archived": true}'
@@ -244,12 +241,12 @@ message resumes processing:
 ```sh
 # Chats API: interrupt
 curl -X POST \
-  https://coder.example.com/api/experimental/chats/$CHAT_ID/interrupt \
+  https://coder.example.com/api/v2/chats/$CHAT_ID/interrupt \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 
 # Chats API: resume by sending a new message
 curl -X POST \
-  https://coder.example.com/api/experimental/chats/$CHAT_ID/messages \
+  https://coder.example.com/api/v2/chats/$CHAT_ID/messages \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -480,7 +477,7 @@ WORKSPACE_ID=$(curl -s -X POST \
   }' | jq -r '.id')
 
 # 2. Create the chat bound to that workspace.
-curl -s -X POST https://coder.example.com/api/experimental/chats \
+curl -s -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
@@ -510,7 +507,7 @@ List available models to verify at least one provider is configured and
 reachable:
 
 ```sh
-curl -s https://coder.example.com/api/experimental/chats/models \
+curl -s https://coder.example.com/api/v2/chats/models \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.[].display_name'
 ```
 
@@ -522,7 +519,7 @@ If this returns an empty list or an error, revisit
 Create a simple chat that does not require a workspace:
 
 ```sh
-curl -s -X POST https://coder.example.com/api/experimental/chats \
+curl -s -X POST https://coder.example.com/api/v2/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -541,7 +538,7 @@ returns a response. Using [websocat](https://github.com/vi/websocat):
 
 ```sh
 websocat -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
-  "wss://coder.example.com/api/experimental/chats/$CHAT_ID/stream"
+  "wss://coder.example.com/api/v2/chats/$CHAT_ID/stream"
 ```
 
 You should see JSON envelopes with `"type": "data"` containing
@@ -554,7 +551,7 @@ Verify multi-turn conversation works:
 
 ```sh
 curl -s -X POST \
-  "https://coder.example.com/api/experimental/chats/$CHAT_ID/messages" \
+  "https://coder.example.com/api/v2/chats/$CHAT_ID/messages" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -584,7 +581,7 @@ as `execute`) against the attached workspace. After the chat finishes,
 verify the chat is bound to the workspace via the API:
 
 ```sh
-curl -s "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
+curl -s "https://coder.example.com/api/v2/chats/$CHAT_ID" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '{workspace_id, status}'
 ```
 
@@ -599,14 +596,14 @@ Start a long-running chat and interrupt it:
 
 ```sh
 curl -s -X POST \
-  "https://coder.example.com/api/experimental/chats/$CHAT_ID/interrupt" \
+  "https://coder.example.com/api/v2/chats/$CHAT_ID/interrupt" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 ```
 
 Then confirm the chat status returns to `"waiting"`:
 
 ```sh
-curl -s "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
+curl -s "https://coder.example.com/api/v2/chats/$CHAT_ID" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.status'
 ```
 
@@ -615,20 +612,20 @@ curl -s "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
 ```sh
 # Archive
 curl -s -X PATCH \
-  "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
+  "https://coder.example.com/api/v2/chats/$CHAT_ID" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"archived": true}'
 
 # Confirm it no longer appears in the default list
-curl -s "https://coder.example.com/api/experimental/chats" \
+curl -s "https://coder.example.com/api/v2/chats" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   | jq --arg id "$CHAT_ID" '[.[] | select(.id == $id)] | length'
 # Should return 0
 
 # Restore
 curl -s -X PATCH \
-  "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
+  "https://coder.example.com/api/v2/chats/$CHAT_ID" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"archived": false}'
