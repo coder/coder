@@ -58,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/idemetadata"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -426,17 +427,16 @@ func (a *agent) init() {
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
 		ReportConnection: func(id uuid.UUID, magicType agentssh.MagicSessionType, ip string) func(code int, reason string) {
 			var connectionType proto.Connection_Type
-			switch magicType {
-			case agentssh.MagicSessionTypeSSH:
+			// Connection_Type is a fixed enum, stored as a database enum in
+			// the connection log, so it can only hold a family.
+			switch idemetadata.Family(string(magicType)) {
+			case idemetadata.AppNameSSH:
 				connectionType = proto.Connection_SSH
-			case agentssh.MagicSessionTypeVSCode:
+			case idemetadata.AppNameVSCode:
 				connectionType = proto.Connection_VSCODE
-			case agentssh.MagicSessionTypeJetBrains:
+			case idemetadata.AppNameJetBrains:
 				connectionType = proto.Connection_JETBRAINS
-			case agentssh.MagicSessionTypeUnknown:
-				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			default:
-				a.logger.Error(a.hardCtx, "unhandled magic session type when reporting connection", slog.F("magic_type", magicType))
 				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			}
 
@@ -2162,11 +2162,11 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		stats.TxPackets += int64(counts.TxPackets)
 	}
 
-	// The count of active sessions.
-	sshStats := a.sshServer.ConnStats()
-	stats.SessionCountSsh = sshStats.Sessions
-	stats.SessionCountVscode = sshStats.VSCode
-	stats.SessionCountJetbrains = sshStats.JetBrains
+	// The count of active sessions; types without a protocol field are dropped.
+	sessionCounts := a.sshServer.SessionCounts()
+	stats.SessionCountSsh = sessionCounts[idemetadata.AppNameSSH]
+	stats.SessionCountVscode = sessionCounts[idemetadata.AppNameVSCode]
+	stats.SessionCountJetbrains = sessionCounts[idemetadata.AppNameJetBrains]
 
 	stats.SessionCountReconnectingPty = a.reconnectingPTYServer.ConnCount()
 
