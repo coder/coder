@@ -103,6 +103,40 @@ type Story = StoryObj<typeof ProxyMenu>;
 
 export const Closed: Story = {};
 
+export const ClosedWarningLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockWorkspaceProxies[0].id]: {
+					accurate: true,
+					latencyMS: 224,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ClosedCriticalLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockWorkspaceProxies[0].id]: {
+					accurate: true,
+					latencyMS: 471,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
 export const Opened: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
