@@ -502,11 +502,10 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
 }
 
-// enrichChatWithWorkspaceAgentIDs fills missing AgentIDs and repairs stale
-// ones for chats with a bound workspace: chatd persists the binding lazily and
-// only rebinds on the next turn, so after a workspace rebuild the persisted
-// agent can reference a previous build. Best-effort and response-only; on
-// error the field keeps its persisted value.
+// enrichChatWithWorkspaceAgentIDs fills missing AgentIDs and repairs ones
+// that no longer resolve in the workspace's latest build (chatd persists
+// bindings lazily and a rebuild replaces agents). Best-effort and
+// response-only; on error the field keeps its persisted value.
 func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []codersdk.Chat) {
 	candidateChats := make([]*codersdk.Chat, 0, len(chats))
 	var workspaceIDs []uuid.UUID
@@ -550,8 +549,8 @@ func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []cod
 	}
 
 	for _, chat := range candidateChats {
-		// A binding that still exists in the latest build is authoritative:
-		// chatd bound it, so do not second-guess the selection.
+		// Preserve bindings that still resolve in the latest build instead
+		// of replacing them with the selected agent.
 		if chat.AgentID != nil && slices.ContainsFunc(
 			agentsByWorkspace[*chat.WorkspaceID],
 			func(agent database.WorkspaceAgent) bool { return agent.ID == *chat.AgentID },

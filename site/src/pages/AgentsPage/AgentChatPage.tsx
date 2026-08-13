@@ -472,12 +472,9 @@ export const isWatchedWorkspaceViewUnchanged = (
 };
 
 /**
- * True when the chat's persisted agent binding does not resolve in the
- * running workspace, which happens between a workspace rebuild and the next
- * chat turn (or before the first binding is persisted). Chat reads repair the
- * binding server-side, so the chat should be refetched. Requires agents in
- * the latest build so a refetch is only requested when the server can
- * actually re-resolve the binding.
+ * True when a running workspace has agents but the chat's agent ID is absent
+ * from the latest build (stale after a rebuild, or not yet persisted). Chat
+ * reads can return a repaired ID, so callers should refetch the chat.
  *
  * @internal Exported for testing.
  */
@@ -488,10 +485,8 @@ export const isChatAgentBindingUnresolved = (
 	if (!workspace || workspace.latest_build.status !== "running") {
 		return false;
 	}
-	if (getWorkspaceAgents(workspace).length === 0) {
-		return false;
-	}
-	return getWorkspaceAgent(workspace, chatAgentId) === undefined;
+	const agents = getWorkspaceAgents(workspace);
+	return agents.length > 0 && !agents.some((agent) => agent.id === chatAgentId);
 };
 
 const buildAttachmentMediaTypes = (
@@ -1084,10 +1079,9 @@ const AgentChatPage: FC = () => {
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
 
-	// After a workspace rebuild the chat's persisted agent binding can
-	// reference an agent from a previous build until the next turn rebinds
-	// it. Chat reads repair the binding, so refetch the chat, once per
-	// build/binding pair to stay loop-safe when repair is impossible.
+	// A rebuild can leave the chat's persisted agent ID absent from the
+	// latest build. Chat reads can return a repaired ID, so refetch, once
+	// per chat/build/binding key to stay loop-safe when repair fails.
 	const workspaceBuildId = workspace?.latest_build.id;
 	const agentBindingUnresolved = isChatAgentBindingUnresolved(
 		workspace,

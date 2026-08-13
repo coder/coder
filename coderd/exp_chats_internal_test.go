@@ -207,9 +207,6 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 			{WorkspaceID: &workspaceID, AgentID: &valid},
 		}
 		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
-		// The stale binding is repaired to the selected agent, while a
-		// binding still present in the latest build is kept even though
-		// selection would prefer another agent.
 		require.Equal(t, rootAgentID, *chats[0].AgentID)
 		require.Equal(t, secondRootAgentID, *chats[1].AgentID)
 	})
