@@ -28,6 +28,7 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
+	chatEntityKey,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
@@ -1054,7 +1055,16 @@ const AgentChatPage: FC = () => {
 				return;
 			}
 			agentBindingRefetchKeyRef.current = refetchKey;
-			void invalidateChatEntity(queryClient, agentId);
+			void invalidateChatEntity(queryClient, agentId).then(() => {
+				// The query client does not retry, so clear the key after a
+				// failed refetch to let the next watch event try again.
+				if (
+					agentBindingRefetchKeyRef.current === refetchKey &&
+					queryClient.getQueryState(chatEntityKey(agentId))?.error
+				) {
+					agentBindingRefetchKeyRef.current = undefined;
+				}
+			});
 		},
 	);
 	useEffect(() => {
