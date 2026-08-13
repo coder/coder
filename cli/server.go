@@ -983,6 +983,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("convert external auth config: %w", err)
 			}
 			for _, c := range options.ExternalAuthConfigs {
+				c.HTTPClient = httpClient
 				logger.Debug(
 					ctx, "loaded external auth config",
 					slog.F("id", c.ID),

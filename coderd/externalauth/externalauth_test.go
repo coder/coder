@@ -54,7 +54,7 @@ func TestConfigGitMemoizesProvider(t *testing.T) {
 	const etag = `"config-git-memo-etag"`
 	var conditionalRequests atomic.Int64
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if inm := r.Header.Get("If-None-Match"); inm != "" {
 			conditionalRequests.Add(1)
 			assert.Equal(t, etag, inm)
@@ -71,9 +71,10 @@ func TestConfigGitMemoizesProvider(t *testing.T) {
 	cfg := &externalauth.Config{
 		Type:       string(codersdk.EnhancedExternalAuthProviderGitHub),
 		APIBaseURL: srv.URL + "/api/v3",
+		HTTPClient: srv.Client(),
 	}
 
-	gp1, err := cfg.Git(srv.Client())
+	gp1, err := cfg.Git()
 	require.NoError(t, err)
 	require.NotNil(t, gp1)
 
@@ -84,7 +85,7 @@ func TestConfigGitMemoizesProvider(t *testing.T) {
 	require.NoError(t, err)
 
 	// Re-resolve the provider, as the worker does on every poll.
-	gp2, err := cfg.Git(srv.Client())
+	gp2, err := cfg.Git()
 	require.NoError(t, err)
 	require.NotNil(t, gp2)
 	assert.Same(t, gp1, gp2, "Git must return the same provider instance so its ETag cache survives across calls")

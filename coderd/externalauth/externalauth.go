@@ -114,6 +114,9 @@ type Config struct {
 	// (e.g., "https://api.github.com" for GitHub). Derived from
 	// defaults when not explicitly configured.
 	APIBaseURL string
+	// HTTPClient is the HTTP client used for git provider API calls.
+	// If nil, http.DefaultClient is used.
+	HTTPClient *http.Client
 	// AppInstallURL is for GitHub App's (and hopefully others eventually)
 	// to provide a link to install the app. There's installation
 	// of the application, and user authentication. It's possible
@@ -176,8 +179,9 @@ type Config struct {
 //
 // The provider is built on the first successful call and cached for
 // the lifetime of the Config, so its in-memory response cache
-// survives across calls.
-func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
+// survives across calls. The provider uses c.HTTPClient for API
+// requests; if c.HTTPClient is nil, http.DefaultClient is used.
+func (c *Config) Git() (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
 		return nil, nil //nolint:nilnil // nil provider means non-git type, not an error
@@ -187,7 +191,7 @@ func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
 	if c.gitProvider != nil {
 		return c.gitProvider, nil
 	}
-	p, err := gitprovider.New(norm, c.APIBaseURL, client)
+	p, err := gitprovider.New(norm, c.APIBaseURL, c.HTTPClient)
 	if err != nil {
 		return nil, err
 	}
