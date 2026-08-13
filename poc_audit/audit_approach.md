@@ -92,6 +92,27 @@ that which the audit journal describes.
   coherence is achieved after the fact rather than atomically. Reconciliation
   is the mechanism that achieves it.
 
+### Reconciliation is out of scope for this phase
+
+**No reconciliation is being built at this phase of the proof of concept.** The
+journal is written; nothing yet reads it back and compares it against the world.
+
+Two consequences follow, and they are stated here so that neither is mistaken
+for an oversight.
+
+Divergence is not detectable. Since detection is what makes a divergence
+visible, the classes described under Derived below are properties of the design
+rather than of anything running. Whether the journal and the world agree is at
+this phase an unanswered question, not an answered one.
+
+Divergence is therefore not a defect in code review. Phantoms and orphans are
+expected while the entities an entry refers to are still being built, and they
+are excluded from review of this work. They return as review material when
+there is enough of a system for their absence to mean something.
+
+This is a statement about what is being built now, not a retreat from
+reconciliation. The positions above stand.
+
 ### Relationship to the existing mechanism
 
 The mechanism currently called `audit_logs`, with its supporting packages in
