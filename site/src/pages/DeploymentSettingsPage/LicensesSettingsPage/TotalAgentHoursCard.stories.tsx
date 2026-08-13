@@ -224,7 +224,12 @@ export const HardCap: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("400.0")).toBeInTheDocument();
-		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+		// The limit label renders in both responsive layouts; exactly one
+		// is visible at the test viewport.
+		const limitLabels = canvas
+			.getAllByText("1,000")
+			.filter((label) => label.checkVisibility());
+		await expect(limitLabels).toHaveLength(1);
 		await expect(canvas.getByText(/Hard cap:/)).toBeInTheDocument();
 		await expect(canvas.getByText("1,500")).toBeInTheDocument();
 		await expect(

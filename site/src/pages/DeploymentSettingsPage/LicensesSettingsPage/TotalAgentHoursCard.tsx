@@ -102,6 +102,13 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	// instead, left-aligned at its marker.
 	const limitLabelAboveBar =
 		allocationMarkerPercent !== undefined && allocationMarkerPercent < 15;
+	// At interior marker positions the centered limit label can still
+	// collide with the right-aligned hard cap label when the card is
+	// narrow, so below the md breakpoint it moves above the bar instead.
+	const limitLabelStacksNarrow =
+		allocationMarkerPercent !== undefined &&
+		!limitLabelAboveBar &&
+		!hardCapLabelAboveBar;
 
 	// The fill is segmented by position instead of switching color as a
 	// whole: green until the soft limit, yellow from the soft limit to the
@@ -219,16 +226,35 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 						</Tooltip>
 					</div>
 
-					{(reachedHardCap || hardCapLabelAboveBar || limitLabelAboveBar) && (
-						<div className="flex items-center justify-end gap-3">
-							{limitLabelAboveBar && (
+					{(reachedHardCap ||
+						hardCapLabelAboveBar ||
+						limitLabelAboveBar ||
+						limitLabelStacksNarrow) && (
+						<div
+							className={cn(
+								"flex items-center justify-end gap-3",
+								!reachedHardCap &&
+									!hardCapLabelAboveBar &&
+									!limitLabelAboveBar &&
+									"md:hidden",
+							)}
+						>
+							{(limitLabelAboveBar || limitLabelStacksNarrow) && (
 								// In-flow so the row keeps its height, offset to the
 								// marker by a percentage margin (the row and the track
 								// share a width), with the auto margin keeping the
-								// hard-cap pill on the right.
+								// hard-cap pill on the right. The narrow-only variant
+								// left-aligns instead of following the marker.
 								<p
-									className="m-0 mr-auto text-sm font-medium whitespace-nowrap text-content-secondary"
-									style={{ marginLeft: `${allocationMarkerPercent}%` }}
+									className={cn(
+										"m-0 mr-auto text-sm font-medium whitespace-nowrap text-content-secondary",
+										limitLabelStacksNarrow && "md:hidden",
+									)}
+									style={
+										limitLabelAboveBar
+											? { marginLeft: `${allocationMarkerPercent}%` }
+											: undefined
+									}
 								>
 									Limit:{" "}
 									<span className="text-content-primary">{limitLabel}</span>
@@ -344,14 +370,16 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 								    stays readable on the hard-cap scaled track. Near the
 								    right edge it right-aligns to the marker to stay
 								    inside the card; near the left edge it renders above
-								    the bar instead. */}
+								    the bar instead, as does the centered label on cards
+								    below the md breakpoint, where it would collide with
+								    the hard cap label. */}
 								{!limitLabelAboveBar && (
 									<p
 										className={cn(
 											"absolute m-0 text-content-secondary",
 											hardCapLabelAboveBar
 												? "-translate-x-full"
-												: "-translate-x-1/2",
+												: "hidden -translate-x-1/2 md:block",
 										)}
 										style={{ left: `${allocationMarkerPercent}%` }}
 									>
