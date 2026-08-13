@@ -3382,8 +3382,8 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 	return manifest
 }
 
-func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC210(ctx)
+func postStartup(ctx context.Context, t testing.TB, client *agentsdk.Client, startup *agentproto.Startup) error {
+	aAPI, _, err := client.ConnectRPC211(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()
