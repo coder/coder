@@ -540,7 +540,10 @@ func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 		LastModelConfigID: modelConfig.ID,
 	})
 
-	resolved, err := server.resolveModelCall(ctx, standardTurnSpec(chat, modelBuildOptions{}))
+	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose: "standard_turn",
+		chat:    chat,
+	})
 	require.ErrorContains(t, err, "is disabled")
 	require.Equal(t, resolvedModelCall{}, resolved)
 }

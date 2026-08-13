@@ -445,7 +445,9 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		require.True(t, gotModel.Valid())
 		require.Equal(t, "openai", gotModel.Provider())
 		require.Equal(t, "gpt-5.2", gotModel.ModelID())
-		require.Equal(t, fallbackCallConfig, gotCfg)
+		require.Equal(t, codersdk.ChatModelCallConfig{
+			MaxOutputTokens: ptr.Ref(defaultChatMaxOutputTokens),
+		}, gotCfg)
 	})
 }
 

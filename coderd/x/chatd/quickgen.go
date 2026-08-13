@@ -144,33 +144,6 @@ type shortTextCandidate struct {
 	resolved resolvedModelCall
 }
 
-// quickgenDebugSpec preserves the candidate's route, client options, and
-// attribution labels while enabling HTTP recording.
-func quickgenDebugSpec(
-	chat database.Chat,
-	candidate shortTextCandidate,
-	debugSvc *chatdebug.Service,
-	buildOpts modelBuildOptions,
-) modelCallSpec {
-	route := candidate.resolved.route
-	return modelCallSpec{
-		purpose: "debug_rebuild",
-		chat:    chat,
-		config: configSelection{
-			mode:          configFixedModel,
-			modelName:     candidate.model,
-			configOptions: candidate.resolved.dbConfig.Options,
-		},
-		omitProviderOptions: true,
-		debug:               debugPolicyForced,
-		debugSvc:            debugSvc,
-		debugWrapProvider:   candidate.provider,
-		debugWrapModel:      candidate.model,
-		routeOverride:       &route,
-		buildOptions:        buildOpts,
-	}
-}
-
 func selectPreferredConfiguredShortTextModelConfig(
 	configs []database.GetEnabledChatModelConfigsRow,
 ) (database.ChatModelConfig, bool) {
@@ -256,7 +229,11 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		}
 		modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 		turnCtx := titleCtx
-		fallback, err := p.resolveModelCall(turnCtx, titleChatSpec(chat, modelOpts))
+		fallback, err := p.resolveModelCall(turnCtx, modelCallSpec{
+			purpose:      "title",
+			chat:         chat,
+			buildOptions: modelOpts,
+		})
 		if err != nil {
 			logger.Debug(titleCtx, "failed to resolve model for automatic title generation",
 				slog.Error(err),
@@ -363,15 +340,13 @@ func (p *Server) maybeGenerateChatTitle(
 	)
 
 	candidateCtx := titleCtx
-	candidateModel := candidate.resolved.model
 	finishDebugRun := func(error) {}
 	if debugEnabled {
-		candidateCtx, candidateModel, finishDebugRun = p.prepareQuickgenDebugCandidate(
+		candidateCtx, finishDebugRun = prepareQuickgenDebugCandidate(
 			titleCtx,
 			chat,
 			debugSvc,
 			candidate,
-			modelOpts,
 			chatdebug.KindTitleGeneration,
 			triggerMessageID,
 			historyTipMessageID,
@@ -380,7 +355,7 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 	}
 
-	title, err := generateTitle(candidateCtx, candidateModel.LanguageModel(), titleObjectCall(candidate.resolved), input)
+	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), input)
 	finishDebugRun(err)
 	if err != nil {
 		if overrideSet {
@@ -425,35 +400,18 @@ func titleObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_title", "Propose a short chat title.", titleMaxOutputTokens)
 }
 
-func (p *Server) prepareQuickgenDebugCandidate(
+func prepareQuickgenDebugCandidate(
 	ctx context.Context,
 	chat database.Chat,
 	debugSvc *chatdebug.Service,
 	candidate shortTextCandidate,
-	modelOpts modelBuildOptions,
 	kind chatdebug.RunKind,
 	triggerMessageID int64,
 	historyTipMessageID int64,
 	seedSummary map[string]any,
 	logger slog.Logger,
-) (context.Context, chatprovider.Model, func(error)) {
+) (context.Context, func(error)) {
 	finishDebugRun := func(error) {}
-	if debugSvc == nil {
-		return ctx, candidate.resolved.model, finishDebugRun
-	}
-
-	debugResolved, err := p.resolveModelCall(ctx, quickgenDebugSpec(chat, candidate, debugSvc, modelOpts))
-	if err != nil {
-		logger.Warn(ctx, "failed to build short-text debug model",
-			slog.F("chat_id", chat.ID),
-			slog.F("run_kind", kind),
-			slog.F("provider", candidate.provider),
-			slog.F("model", candidate.model),
-			slog.Error(err),
-		)
-		return ctx, candidate.resolved.model, finishDebugRun
-	}
-	debugModel := debugResolved.model
 
 	// Debug instrumentation must not eat into the quickgen budget
 	// (30s titleCtx / summaryCtx on the caller). Detach and bound
@@ -482,7 +440,7 @@ func (p *Server) prepareQuickgenDebugCandidate(
 			slog.F("model", candidate.model),
 			slog.Error(err),
 		)
-		return ctx, candidate.resolved.model, finishDebugRun
+		return ctx, finishDebugRun
 	}
 
 	runContext := chatdebugRunContext(run)
@@ -503,7 +461,7 @@ func (p *Server) prepareQuickgenDebugCandidate(
 			)
 		}
 	}
-	return runCtx, debugModel, finishDebugRun
+	return runCtx, finishDebugRun
 }
 
 func quickgenPrompt(systemPrompt, userInput string) fantasy.Prompt {
@@ -1267,13 +1225,12 @@ func turnStatusLabelObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 }
 
 // generateTurnStatusLabel returns an empty string if generation fails.
-func (p *Server) generateTurnStatusLabel(
+func generateTurnStatusLabel(
 	ctx context.Context,
 	chat database.Chat,
 	status database.ChatStatus,
 	assistantText string,
 	resolved resolvedModelCall,
-	modelOpts modelBuildOptions,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 	triggerMessageID int64,
@@ -1298,15 +1255,13 @@ func (p *Server) generateTurnStatusLabel(
 	statusSeedSummary := chatdebug.SeedSummary("Turn status label")
 
 	candidateCtx := labelCtx
-	candidateModel := candidate.resolved.model
 	finishDebugRun := func(error) {}
 	if debugEnabled {
-		candidateCtx, candidateModel, finishDebugRun = p.prepareQuickgenDebugCandidate(
+		candidateCtx, finishDebugRun = prepareQuickgenDebugCandidate(
 			labelCtx,
 			chat,
 			debugSvc,
 			candidate,
-			modelOpts,
 			chatdebug.KindQuickgen,
 			triggerMessageID,
 			historyTipMessageID,
@@ -1317,7 +1272,7 @@ func (p *Server) generateTurnStatusLabel(
 
 	generatedLabel, err := generateStructuredTurnStatusLabel(
 		candidateCtx,
-		candidateModel.LanguageModel(),
+		candidate.resolved.model.LanguageModel(),
 		turnStatusLabelObjectCall(resolved),
 		turnStatusLabelPrompt,
 		input,

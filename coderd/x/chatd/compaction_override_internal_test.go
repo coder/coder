@@ -169,11 +169,13 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	require.NotNil(t, resolved)
 	require.Equal(t, overrideConfig.ID, resolved.Config.ID)
 
-	override, err := server.resolveModelCall(ctx, compactionOverrideSpec(
-		chat,
-		resolved.Config,
-		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
-	))
+	override, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose:          "compaction",
+		chat:             chat,
+		explicitConfig:   &resolved.Config,
+		chatdScopedRoute: true,
+		buildOptions:     modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	})
 	require.NoError(t, err)
 	require.True(t, override.model.Valid())
 	require.Equal(t, overrideConfig.ID, override.dbConfig.ID)

@@ -17,60 +17,27 @@ import (
 
 const defaultChatMaxOutputTokens = int64(32_000)
 
-type configSelectionMode int
-
-const (
-	// configFromChat resolves the chat's last model config, falling back to
-	// the deployment default. The config must be enabled.
-	configFromChat configSelectionMode = iota
-	// configExplicit uses a config row the caller already selected (override
-	// and preferred-model flows own their selection and fallback policy).
-	configExplicit
-	// configFixedModel builds a client for a provider/model pair without a
-	// config row (computer use, debug transport rebuilds).
-	configFixedModel
-)
-
-type configSelection struct {
-	mode          configSelectionMode
-	config        database.ChatModelConfig
-	providerType  string
-	modelName     string
-	configOptions []byte
-	callConfig    codersdk.ChatModelCallConfig
+// fixedModelCall selects a provider/model pair that has no config row of its
+// own (computer use).
+type fixedModelCall struct {
+	providerType string
+	modelName    string
+	callConfig   codersdk.ChatModelCallConfig
 }
 
-type debugPolicy int
-
-const (
-	debugPolicyOff debugPolicy = iota
-	// debugPolicyAware records only when chat debug is enabled.
-	debugPolicyAware
-	// debugPolicyForced records after the caller has enabled debugging.
-	debugPolicyForced
-)
-
-// modelCallSpec declares config, routing, and construction policy for one LLM
-// call. Build it with a purpose-specific constructor.
 type modelCallSpec struct {
 	// purpose labels resolver logs only; it does not affect call behavior.
-	purpose         string
-	chat            database.Chat
-	config          configSelection
+	purpose        string
+	chat           database.Chat
+	explicitConfig *database.ChatModelConfig
+	fixedModel     *fixedModelCall
+	// requestedEffort overrides the config's default reasoning effort.
 	requestedEffort *string
-
-	omitProviderOptions bool
-	debug               debugPolicy
-	debugSvc            *chatdebug.Service
-	debugWrapProvider   string
-	debugWrapModel      string
-	routeOverride       *aiGatewayModelRoute
 	// chatdScopedRoute resolves the route with chatd scope. Deployment-wide
 	// override models must route for user-owned chats regardless of the
 	// caller's actor.
-	chatdScopedRoute       bool
-	defaultMaxOutputTokens bool
-	buildOptions           modelBuildOptions
+	chatdScopedRoute bool
+	buildOptions     modelBuildOptions
 }
 
 func chatRequestedEffort(chat database.Chat) *string {
@@ -78,139 +45,6 @@ func chatRequestedEffort(chat database.Chat) *string {
 		return nil
 	}
 	return new(string(chat.LastReasoningEffort.ChatReasoningEffort))
-}
-
-func standardTurnSpec(chat database.Chat, buildOpts modelBuildOptions) modelCallSpec {
-	return modelCallSpec{
-		purpose:                "standard_turn",
-		chat:                   chat,
-		config:                 configSelection{mode: configFromChat},
-		requestedEffort:        chatRequestedEffort(chat),
-		debug:                  debugPolicyAware,
-		defaultMaxOutputTokens: true,
-		buildOptions:           buildOpts,
-	}
-}
-
-// chatModelSpec preserves summary and status-label behavior: no provider
-// options and no standard-turn token default.
-func chatModelSpec(purpose string, chat database.Chat, buildOpts modelBuildOptions) modelCallSpec {
-	return modelCallSpec{
-		purpose:             purpose,
-		chat:                chat,
-		config:              configSelection{mode: configFromChat},
-		omitProviderOptions: true,
-		debug:               debugPolicyAware,
-		buildOptions:        buildOpts,
-	}
-}
-
-// Background title generation uses the config's default reasoning effort, not
-// the user's per-turn choice.
-func titleChatSpec(chat database.Chat, buildOpts modelBuildOptions) modelCallSpec {
-	return modelCallSpec{
-		purpose:      "title",
-		chat:         chat,
-		config:       configSelection{mode: configFromChat},
-		debug:        debugPolicyAware,
-		buildOptions: buildOpts,
-	}
-}
-
-// titleOverrideSpec uses chatd scope so owners need not have provider read
-// access.
-func titleOverrideSpec(chat database.Chat, config database.ChatModelConfig, buildOpts modelBuildOptions) modelCallSpec {
-	return modelCallSpec{
-		purpose:          "title",
-		chat:             chat,
-		config:           configSelection{mode: configExplicit, config: config},
-		chatdScopedRoute: true,
-		buildOptions:     buildOpts,
-	}
-}
-
-// manualTitleSpec leaves debug instrumentation to a separate rebuild to
-// preserve manual-title behavior.
-func manualTitleSpec(chat database.Chat, config database.ChatModelConfig, buildOpts modelBuildOptions) modelCallSpec {
-	return modelCallSpec{
-		purpose:      "title",
-		chat:         chat,
-		config:       configSelection{mode: configExplicit, config: config},
-		buildOptions: buildOpts,
-	}
-}
-
-// compactionOverrideSpec receives a config with resolved reasoning effort and
-// uses chatd scope so owners need not have provider read access.
-func compactionOverrideSpec(chat database.Chat, config database.ChatModelConfig, buildOpts modelBuildOptions) modelCallSpec {
-	return modelCallSpec{
-		purpose:          "compaction",
-		chat:             chat,
-		config:           configSelection{mode: configExplicit, config: config},
-		debug:            debugPolicyAware,
-		chatdScopedRoute: true,
-		buildOptions:     buildOpts,
-	}
-}
-
-// advisorOverrideSpec omits provider options until the advisor pins its
-// reasoning effort and output cap.
-func advisorOverrideSpec(chat database.Chat, config database.ChatModelConfig, buildOpts modelBuildOptions) modelCallSpec {
-	return modelCallSpec{
-		purpose:             "advisor",
-		chat:                chat,
-		config:              configSelection{mode: configExplicit, config: config},
-		omitProviderOptions: true,
-		buildOptions:        buildOpts,
-	}
-}
-
-// manualTitleDebugSpec preserves the resolved route and caller-selected
-// attribution labels while enabling HTTP recording.
-func manualTitleDebugSpec(
-	chat database.Chat,
-	config database.ChatModelConfig,
-	route aiGatewayModelRoute,
-	debugSvc *chatdebug.Service,
-	routeProvider string,
-	buildOpts modelBuildOptions,
-) modelCallSpec {
-	return modelCallSpec{
-		purpose:             "debug_rebuild",
-		chat:                chat,
-		config:              configSelection{mode: configExplicit, config: config},
-		omitProviderOptions: true,
-		debug:               debugPolicyForced,
-		debugSvc:            debugSvc,
-		debugWrapProvider:   routeProvider,
-		debugWrapModel:      config.Model,
-		routeOverride:       &route,
-		buildOptions:        buildOpts,
-	}
-}
-
-// computerUseSpec uses the chat config only for per-call options because the
-// fixed computer-use model has no config row.
-func computerUseSpec(
-	chat database.Chat,
-	modelProvider string,
-	modelName string,
-	chatCallConfig codersdk.ChatModelCallConfig,
-	buildOpts modelBuildOptions,
-) modelCallSpec {
-	return modelCallSpec{
-		purpose: "computer_use",
-		chat:    chat,
-		config: configSelection{
-			mode:         configFixedModel,
-			providerType: modelProvider,
-			modelName:    modelName,
-			callConfig:   chatCallConfig,
-		},
-		requestedEffort: chatRequestedEffort(chat),
-		debug:           debugPolicyAware,
-		buildOptions:    buildOpts,
-	}
 }
 
 // modelCallConfigParseError lets the advisor distinguish malformed options
@@ -241,8 +75,14 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 
 	var modelName string
 	var configOptions []byte
-	switch spec.config.mode {
-	case configFromChat:
+	switch {
+	case spec.fixedModel != nil:
+		modelName = spec.fixedModel.modelName
+	case spec.explicitConfig != nil:
+		out.dbConfig = *spec.explicitConfig
+		modelName = out.dbConfig.Model
+		configOptions = out.dbConfig.Options
+	default:
 		dbConfig, err := p.resolveModelConfig(ctx, spec.chat)
 		if err != nil {
 			return resolvedModelCall{}, xerrors.Errorf("resolve model config: %w", err)
@@ -253,51 +93,41 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		out.dbConfig = dbConfig
 		modelName = dbConfig.Model
 		configOptions = dbConfig.Options
-	case configExplicit:
-		out.dbConfig = spec.config.config
-		modelName = out.dbConfig.Model
-		configOptions = out.dbConfig.Options
-	case configFixedModel:
-		modelName = spec.config.modelName
-		configOptions = spec.config.configOptions
 	}
 
-	// clientCallConfig always comes from configOptions: it drives client
-	// construction (beta headers, OpenAI transport override), while
-	// out.callConfig drives per-call option derivation and can differ for
-	// configFixedModel (computer use derives options from the chat model).
+	// clientCallConfig drives client construction; out.callConfig drives
+	// per-call option derivation and comes from the chat model for computer
+	// use, whose fixed model has no config of its own.
 	clientCallConfig, err := parseModelConfigOptions(configOptions)
 	if err != nil {
 		return resolvedModelCall{}, modelCallConfigParseError{err: err}
 	}
-	if spec.config.mode == configFixedModel {
-		out.callConfig = spec.config.callConfig
+	if spec.fixedModel != nil {
+		out.callConfig = spec.fixedModel.callConfig
 	} else {
 		out.callConfig = clientCallConfig
 	}
-	if spec.defaultMaxOutputTokens && out.callConfig.MaxOutputTokens == nil {
+	if out.callConfig.MaxOutputTokens == nil {
 		out.callConfig.MaxOutputTokens = ptr.Ref(defaultChatMaxOutputTokens)
 	}
 
-	if spec.routeOverride != nil {
-		out.route = *spec.routeOverride
+	routeCtx := ctx
+	if spec.chatdScopedRoute {
+		//nolint:gocritic // Deployment-wide override models need chatd-scoped provider reads for user-owned chats.
+		routeCtx = dbauthz.AsChatd(ctx)
+	}
+	if spec.fixedModel != nil {
+		out.route, err = p.resolveModelRouteForProviderType(routeCtx, spec.chat.OwnerID, spec.fixedModel.providerType)
 	} else {
-		routeCtx := ctx
-		if spec.chatdScopedRoute {
-			//nolint:gocritic // Deployment-wide override models need chatd-scoped provider reads for user-owned chats.
-			routeCtx = dbauthz.AsChatd(ctx)
-		}
-		var err error
-		if spec.config.mode == configFixedModel {
-			out.route, err = p.resolveModelRouteForProviderType(routeCtx, spec.chat.OwnerID, spec.config.providerType)
-		} else {
-			out.route, err = p.resolveModelRouteForConfig(routeCtx, spec.chat.OwnerID, out.dbConfig)
-		}
-		if err != nil {
-			return resolvedModelCall{}, err
-		}
+		out.route, err = p.resolveModelRouteForConfig(routeCtx, spec.chat.OwnerID, out.dbConfig)
+	}
+	if err != nil {
+		return resolvedModelCall{}, err
 	}
 
+	// The resolved identity feeds metadata, logs, and debug labels. The
+	// client is constructed with the configured model string so gateway
+	// validation sees the name exactly as configured.
 	out.resolvedProvider, out.resolvedModel, err = chatprovider.ResolveModelWithProviderHint(
 		modelName,
 		out.route.ModelProviderHint,
@@ -306,59 +136,33 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		return resolvedModelCall{}, xerrors.Errorf("resolve model metadata: %w", err)
 	}
 
-	debugSvc := spec.debugSvc
-	switch spec.debug {
-	case debugPolicyAware:
-		if debugSvc == nil {
-			debugSvc = p.debugService()
-		}
-		out.debugEnabled = debugSvc != nil && debugSvc.IsEnabled(ctx, spec.chat.ID, spec.chat.OwnerID)
-	case debugPolicyForced:
-		out.debugEnabled = true
-	case debugPolicyOff:
-	}
-
-	clientModelName := modelName
-	clientRoute := out.route
-	if spec.debug == debugPolicyAware {
-		// Debug-aware calls preserve their historical use of the resolved identity;
-		// other flows pass the configured model name.
-		clientRoute.ModelProviderHint = out.resolvedProvider
-		clientModelName = out.resolvedModel
-	}
+	debugSvc := p.debugService()
+	out.debugEnabled = debugSvc != nil && debugSvc.IsEnabled(ctx, spec.chat.ID, spec.chat.OwnerID)
 
 	buildOpts := spec.buildOptions
 	buildOpts.RecordHTTP = out.debugEnabled
 	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:         spec.chat,
-		ModelName:    clientModelName,
+		ModelName:    modelName,
 		UserAgent:    chatprovider.UserAgent(),
 		ExtraHeaders: chatprovider.CoderHeaders(spec.chat),
 		CallConfig:   clientCallConfig,
-	}, clientRoute, buildOpts)
+	}, out.route, buildOpts)
 	if err != nil {
 		return resolvedModelCall{}, xerrors.Errorf("create model: %w", err)
 	}
 
-	if out.debugEnabled && debugSvc != nil {
-		wrapProvider := out.resolvedProvider
-		wrapModel := out.resolvedModel
-		if spec.debug == debugPolicyForced {
-			wrapProvider = spec.debugWrapProvider
-			wrapModel = spec.debugWrapModel
-		}
+	if out.debugEnabled {
 		model = model.WithLanguageModel(chatdebug.WrapModel(model.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
 			ChatID:   spec.chat.ID,
 			OwnerID:  spec.chat.OwnerID,
-			Provider: wrapProvider,
-			Model:    wrapModel,
+			Provider: out.resolvedProvider,
+			Model:    out.resolvedModel,
 		}))
 	}
 	out.model = model
 
-	if !spec.omitProviderOptions {
-		out.providerOptions = out.deriveProviderOptions(out.callConfig, spec.requestedEffort)
-	}
+	out.providerOptions = out.deriveProviderOptions(out.callConfig, spec.requestedEffort)
 
 	p.logger.Debug(ctx, "resolved model call",
 		slog.F("purpose", spec.purpose),
@@ -382,15 +186,16 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 	}
 }
 
-// Compaction summaries omit sampling and output-token options. The chat-model
-// summary passes nil provider options; the override-model summary passes its
-// resolved options.
-func compactionSummaryCall(providerOptions fantasy.ProviderOptions) fantasy.Call {
+// compactionSummaryCall follows the resolved call template, except summaries
+// must not call tools and must not carry the default output cap: the summary
+// request is non-streaming, and the Anthropic SDK rejects non-streaming
+// requests whose max_tokens implies a completion longer than ten minutes.
+func compactionSummaryCall(resolved resolvedModelCall) fantasy.Call {
+	call := resolved.newCall()
 	toolChoiceNone := fantasy.ToolChoiceNone
-	return fantasy.Call{
-		ToolChoice:      &toolChoiceNone,
-		ProviderOptions: providerOptions,
-	}
+	call.ToolChoice = &toolChoiceNone
+	call.MaxOutputTokens = nil
+	return call
 }
 
 // deriveProviderOptions is the only production ProviderOptionsForCall call
@@ -404,6 +209,11 @@ func (r resolvedModelCall) newObjectCall(schemaName, schemaDescription string, m
 		SchemaName:        schemaName,
 		SchemaDescription: schemaDescription,
 		MaxOutputTokens:   ptr.Ref(maxOutputTokens),
+		Temperature:       r.callConfig.Temperature,
+		TopP:              r.callConfig.TopP,
+		TopK:              r.callConfig.TopK,
+		PresencePenalty:   r.callConfig.PresencePenalty,
+		FrequencyPenalty:  r.callConfig.FrequencyPenalty,
 		ProviderOptions:   r.providerOptions,
 	}
 }

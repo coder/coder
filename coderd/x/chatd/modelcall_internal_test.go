@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -29,7 +31,23 @@ func modelCallSentinelOptions(t *testing.T, user string) json.RawMessage {
 	return raw
 }
 
-func TestChatModelSpecOmitsProviderOptions(t *testing.T) {
+// The transport decides which of the two OpenAI option shapes derivation
+// produces, so both are accepted.
+func requireOpenAIUserOption(t *testing.T, options fantasy.ProviderOptions, user string) {
+	t.Helper()
+	switch opts := options[fantasyopenai.Name].(type) {
+	case *fantasyopenai.ResponsesProviderOptions:
+		require.NotNil(t, opts.User)
+		require.Equal(t, user, *opts.User)
+	case *fantasyopenai.ProviderOptions:
+		require.NotNil(t, opts.User)
+		require.Equal(t, user, *opts.User)
+	default:
+		t.Fatalf("unexpected openai provider options type %T", opts)
+	}
+}
+
+func TestResolveModelCallDerivesProviderOptions(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -51,8 +69,12 @@ func TestChatModelSpecOmitsProviderOptions(t *testing.T) {
 	}}, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	resolved, err := server.resolveModelCall(ctx, chatModelSpec("chat_summary", chat, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()}))
+	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose:      "chat_summary",
+		chat:         chat,
+		buildOptions: modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	})
 	require.NoError(t, err)
-	require.Nil(t, resolved.providerOptions)
-	require.Nil(t, summaryObjectCall(resolved).ProviderOptions)
+	requireOpenAIUserOption(t, resolved.providerOptions, "summary-options-sentinel")
+	requireOpenAIUserOption(t, summaryObjectCall(resolved).ProviderOptions, "summary-options-sentinel")
 }

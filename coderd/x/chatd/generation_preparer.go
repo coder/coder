@@ -106,7 +106,13 @@ func (server *Server) prepareGeneration(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	resolved, err := server.resolveModelCall(ctx, standardTurnSpec(chat, modelOpts))
+	requestedEffort := chatRequestedEffort(chat)
+	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose:         "standard_turn",
+		chat:            chat,
+		requestedEffort: requestedEffort,
+		buildOptions:    modelOpts,
+	})
 	if err != nil {
 		return generationPrepared{}, err
 	}
@@ -126,13 +132,17 @@ func (server *Server) prepareGeneration(
 		if err != nil {
 			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
 		}
-		cuResolved, cuErr := server.resolveModelCall(ctx, computerUseSpec(
-			chat,
-			cuModelProvider,
-			cuModelName,
-			resolved.callConfig,
-			modelOpts,
-		))
+		cuResolved, cuErr := server.resolveModelCall(ctx, modelCallSpec{
+			purpose: "computer_use",
+			chat:    chat,
+			fixedModel: &fixedModelCall{
+				providerType: cuModelProvider,
+				modelName:    cuModelName,
+				callConfig:   resolved.callConfig,
+			},
+			requestedEffort: requestedEffort,
+			buildOptions:    modelOpts,
+		})
 		if cuErr != nil {
 			return generationPrepared{}, xerrors.Errorf(
 				"resolve computer use model for provider %q model %q: %w",
@@ -685,8 +695,7 @@ func (server *Server) prepareGeneration(
 		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
-		// The chat-model summary historically sends no provider options.
-		SummaryCall: compactionSummaryCall(nil),
+		SummaryCall:          compactionSummaryCall(resolved),
 	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
@@ -837,7 +846,11 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	resolved, err := server.resolveModelCall(ctx, chatModelSpec("turn_status_label", chat, modelOpts))
+	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose:      "turn_status_label",
+		chat:         chat,
+		buildOptions: modelOpts,
+	})
 	if err != nil {
 		// Preserve the text and IDs for the generic-label fallback.
 		logger.Warn(ctx, "derive final turn status label: resolve model", slog.Error(err))
@@ -851,7 +864,6 @@ func (server *Server) deriveFinalTurnRunResult(
 	return runChatResult{
 		FinalAssistantText:  finalAssistantText,
 		StatusLabelCall:     &resolved,
-		ModelBuildOptions:   modelOpts,
 		TriggerMessageID:    triggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 	}

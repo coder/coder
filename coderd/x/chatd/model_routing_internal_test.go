@@ -631,28 +631,37 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 	}
 }
 
+func computerUseTestServer(t *testing.T, factory *aibridgeTestFactory) *Server {
+	t.Helper()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{
+		aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai),
+	}, nil).AnyTimes()
+	return &Server{db: db, aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+}
+
 func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	t.Parallel()
 
-	providerID := uuid.New()
 	apiKeyID := uuid.NewString()
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("computer use model construction must not send a request")
 		return nil, xerrors.New("unreachable")
 	})}
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	server := &Server{
-		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
-	}
+	server := computerUseTestServer(t, factory)
 	provider := codersdk.ChatComputerUseProviderOpenAI
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 
 	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), "context-key-must-be-ignored")
-	spec := computerUseSpec(chat, modelProvider, modelName, codersdk.ChatModelCallConfig{}, modelBuildOptions{ActiveAPIKeyID: apiKeyID})
-	route := aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai))
-	spec.routeOverride = &route
-	resolved, err := server.resolveModelCall(ctx, spec)
+	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose:      "computer_use",
+		chat:         chat,
+		fixedModel:   &fixedModelCall{providerType: modelProvider, modelName: modelName},
+		buildOptions: modelBuildOptions{ActiveAPIKeyID: apiKeyID},
+	})
 	require.NoError(t, err)
 	require.True(t, resolved.model.Valid())
 	require.False(t, resolved.debugEnabled)
@@ -669,22 +678,23 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 func TestComputerUseModelCall_TransportIndependentOfChatConfig(t *testing.T) {
 	t.Parallel()
 
-	providerID := uuid.New()
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("computer use model construction must not send a request")
 		return nil, xerrors.New("unreachable")
 	})}
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+	server := computerUseTestServer(t, factory)
 
 	provider := codersdk.ChatComputerUseProviderOpenAI
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 
-	spec := computerUseSpec(chat, modelProvider, modelName, codersdk.ChatModelCallConfig{}, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
-	route := aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai))
-	spec.routeOverride = &route
-	resolved, err := server.resolveModelCall(t.Context(), spec)
+	resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
+		purpose:      "computer_use",
+		chat:         chat,
+		fixedModel:   &fixedModelCall{providerType: modelProvider, modelName: modelName},
+		buildOptions: modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	})
 	require.NoError(t, err)
 
 	wantTransport := chatopenai.TransportFor(modelProvider, modelName, nil)
@@ -699,23 +709,21 @@ func TestComputerUseModelCall_TransportIndependentOfChatConfig(t *testing.T) {
 func TestComputerUseModelCall_AIGatewayMissingAPIKeyID(t *testing.T) {
 	t.Parallel()
 
-	providerID := uuid.New()
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("transport must not be used without an API key ID")
 		return nil, xerrors.New("unreachable")
 	})}
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	server := &Server{
-		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
-	}
+	server := computerUseTestServer(t, factory)
 	provider := codersdk.ChatComputerUseProviderOpenAI
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 
-	spec := computerUseSpec(chat, modelProvider, modelName, codersdk.ChatModelCallConfig{}, modelBuildOptions{})
-	route := aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai))
-	spec.routeOverride = &route
-	resolved, err := server.resolveModelCall(t.Context(), spec)
+	resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
+		purpose:    "computer_use",
+		chat:       chat,
+		fixedModel: &fixedModelCall{providerType: modelProvider, modelName: modelName},
+	})
 	require.Error(t, err)
 	require.False(t, resolved.model.Valid())
 	require.False(t, resolved.debugEnabled)

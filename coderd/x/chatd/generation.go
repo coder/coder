@@ -959,7 +959,13 @@ func (s *taskStarter) generateCompaction(
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
 	if override := prepared.Compaction.Override; override != nil {
 		// A usable override that fails to build is a hard generation failure.
-		overrideModel, err := s.server.resolveModelCall(ctx, compactionOverrideSpec(prepared.Chat, override.Config, prepared.ModelBuildOptions))
+		overrideModel, err := s.server.resolveModelCall(ctx, modelCallSpec{
+			purpose:          "compaction",
+			chat:             prepared.Chat,
+			explicitConfig:   &override.Config,
+			chatdScopedRoute: true,
+			buildOptions:     prepared.ModelBuildOptions,
+		})
 		if err != nil {
 			return xerrors.Errorf("build compaction model override: %w", err)
 		}
@@ -971,7 +977,7 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
-		compactionOpts.SummaryCall = compactionSummaryCall(overrideModel.providerOptions)
+		compactionOpts.SummaryCall = compactionSummaryCall(overrideModel)
 		compactionOpts.Messages = sanitizeCompactionPrompt(
 			ctx,
 			logger,

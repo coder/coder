@@ -172,9 +172,13 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.Equal(t, defaultChatMaxOutputTokens, *prepared.CallTemplate.MaxOutputTokens)
 
 	require.NotNil(t, prepared.Compaction)
-	require.Nil(t, prepared.Compaction.Options.SummaryCall.ProviderOptions)
-	require.NotNil(t, prepared.Compaction.Options.SummaryCall.ToolChoice)
-	require.Equal(t, fantasy.ToolChoiceNone, *prepared.Compaction.Options.SummaryCall.ToolChoice)
+	summaryCall := prepared.Compaction.Options.SummaryCall
+	require.Equal(t, prepared.CallTemplate.ProviderOptions, summaryCall.ProviderOptions)
+	require.NotNil(t, summaryCall.ToolChoice)
+	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
+	// Non-streaming summaries must not inherit the default output cap the
+	// Anthropic SDK rejects.
+	require.Nil(t, summaryCall.MaxOutputTokens)
 }
 
 func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {
