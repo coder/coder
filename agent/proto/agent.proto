@@ -664,18 +664,18 @@ message PushContextStateResponse {
 // workspace, and its owner while authenticating, so a caller that restated
 // them could only restate them wrongly.
 message CreateAIAgentRequest {
-	// poc_marker_path is a proof of concept stub and is not part of the
-	// intended interface. The handler touches this path so that the call can
-	// be observed before there is anything downstream to observe. It only
-	// works because the test runs coderd on the same host as the workspace.
-	// Remove it, and the stub in the handler, once the handler persists.
-	string poc_marker_path = 1;
+	// Reserved from the pre-release v2.11 schema. poc_marker_path carried a
+	// filesystem path the handler touched, so that the call could be observed
+	// before it persisted anything. It was removed once the handler wrote a
+	// journal entry, which is observable without it.
+	reserved 1;
 }
 
-// CreateAIAgentResponse will eventually carry the identifier coderd mints for
-// the AI agent, and the credential it issues. It is empty while the handler is
-// a stub.
-message CreateAIAgentResponse {}
+// CreateAIAgentResponse carries the identifier coderd minted for the AI agent.
+// It will eventually also carry the credential coderd issues.
+message CreateAIAgentResponse {
+	bytes id = 1;
+}
 
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);

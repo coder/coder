@@ -14746,6 +14746,54 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 	return err
 }
 
+const getEntityJournalEntriesByActor = `-- name: GetEntityJournalEntriesByActor :many
+SELECT
+	id, recorded_at, event, subject_type, subject, actor_type, actor
+FROM
+	entity_journal
+WHERE
+	actor_type = $1
+	AND actor = $2
+ORDER BY
+	id
+`
+
+type GetEntityJournalEntriesByActorParams struct {
+	ActorType string    `db:"actor_type" json:"actor_type"`
+	Actor     uuid.UUID `db:"actor" json:"actor"`
+}
+
+func (q *sqlQuerier) GetEntityJournalEntriesByActor(ctx context.Context, arg GetEntityJournalEntriesByActorParams) ([]EntityJournal, error) {
+	rows, err := q.db.QueryContext(ctx, getEntityJournalEntriesByActor, arg.ActorType, arg.Actor)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityJournal
+	for rows.Next() {
+		var i EntityJournal
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecordedAt,
+			&i.Event,
+			&i.SubjectType,
+			&i.Subject,
+			&i.ActorType,
+			&i.Actor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEntityJournalEntriesBySubject = `-- name: GetEntityJournalEntriesBySubject :many
 SELECT
 	id, recorded_at, event, subject_type, subject, actor_type, actor

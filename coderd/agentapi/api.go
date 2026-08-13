@@ -264,6 +264,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		AgentID:     agent.ID,
 		WorkspaceID: opts.WorkspaceID,
 		OwnerID:     opts.OwnerID,
+		Database:    opts.Database,
 		Log:         opts.Log,
 	}
 

@@ -595,6 +595,7 @@ type sqlcQuerier interface {
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabledChatModelConfigsRow, error)
 	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
+	GetEntityJournalEntriesByActor(ctx context.Context, arg GetEntityJournalEntriesByActorParams) ([]EntityJournal, error)
 	GetEntityJournalEntriesBySubject(ctx context.Context, arg GetEntityJournalEntriesBySubjectParams) ([]EntityJournal, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
 	// non-deleted external agents on the latest build of every running workspace

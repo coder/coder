@@ -23,63 +23,32 @@ import (
 // TestAIAgentIdentity is the acceptance test for work package WP1 in
 // poc_audit/work_breakdown.md. It is being built incrementally.
 //
-// Revision 4 completes the path from the workspace to the control plane. A
-// startup script launched from the manifest runs an executable, that
-// executable calls CreateAIAgent on the workspace_agent over its local socket,
-// and the workspace_agent forwards to coderd over its own authenticated
-// connection.
+// Revision 5 removes the last of the scaffolding. A startup script launched
+// from the manifest runs an executable, that executable calls CreateAIAgent on
+// the workspace_agent over its local socket, the workspace_agent forwards to
+// coderd over its own authenticated connection, and coderd mints an identity
+// for the AI agent and journals its creation.
 //
-// It still asserts nothing about AI agent identity, because none of that code
-// exists. The stub now lives in coderd, in coderd/agentapi/aiagent.go, where
-// it touches a file and returns. Each increment moves that stub one hop
-// further from the caller, until the last one replaces it with the behavior
-// itself.
+// Every earlier revision observed the call by having whichever handler it had
+// reached touch a file. That marker is gone. What the test reads now is the
+// journal entry itself, which is what the system is for rather than a stand in
+// for it.
 //
 // What the two hops carry differs, and the difference is the point. The socket
 // request names the workspace and presents a credential, because the socket is
-// local IPC that authenticates nobody. The coderd request names neither:
+// local IPC that authenticates nobody. The coderd request carries nothing:
 // coderd resolved the workspace, its owner, and this workspace_agent while
-// authenticating the connection. So the identifiers in the marker were never
-// sent by anyone. They are what coderd concluded.
+// authenticating the connection. So the entry's contents were stated by nobody.
+// They are what coderd concluded.
 //
 // The test passes on two independent conditions: the executable exited zero,
-// observed through the script timings the agent reports, and the marker file
-// coderd writes holds the identifiers coderd resolved.
+// observed through the script timings the agent reports, and the journal holds
+// one creation entry attributed to the workspace_agent.
 //
-// The marker has reached its limit here. It survives this hop only because
-// this test runs coderd on the same host as the workspace, which no real
-// deployment does. The increment that persists an AI agent identity replaces
-// it with a database row, which is what the work breakdown calls for anyway.
-//
-// # Checking that the marker assertion is load-bearing
-//
-// The two subtests below cover the probe's own failure handling, so they run
-// automatically. One check cannot: whether this test would notice if the
-// marker stopped being written while the call still succeeded. Go has no
-// expect-failure mechanism, so that one is a manual procedure. Run it after
-// changing what the handler does or how success is observed.
-//
-//  1. In coderd/agentapi/aiagent.go, in CreateAIAgent, redirect the write so
-//     that no marker appears where the test looks for it:
-//
-//     os.WriteFile(markerPath+".disabled", ...)
-//
-//     Redirecting rather than deleting the call keeps the os import used, so
-//     the package still builds.
-//
-//  2. Run: go test ./poc_tests/ -run TestAIAgentIdentity -count=1
-//
-//  3. Expect ProbeReachesAgentOverSocket to fail on the missing marker, with
-//     an empty script log, because the probe exited zero. If it passes, the
-//     marker assertion has stopped meaning anything and needs fixing.
-//
-//  4. Revert the change.
-//
-// This could be made automatic with the subprocess pattern used in
-// agent/reaper/reaper_test.go, re-running the test binary with a fault
-// injected and asserting the child fails. That was judged not worth the
-// runtime and the fault-injection plumbing while the assertions are this
-// simple.
+// The manual control that earlier revisions needed is gone with the marker. It
+// existed because a missing file could not be told apart from a script that
+// never ran. A query for entries returns an empty set either way, and the test
+// requires exactly one, so the check now runs automatically.
 func TestAIAgentIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -90,7 +59,6 @@ func TestAIAgentIdentity(t *testing.T) {
 
 		probeBin := buildProbe(t)
 		socketPath := testutil.AgentSocketPath(t)
-		markerPath := filepath.Join(t.TempDir(), "probe-marker")
 
 		// The agent writes each script's output under its log directory. Point
 		// that at a directory the test owns so a failure can show what the
@@ -124,10 +92,10 @@ func TestAIAgentIdentity(t *testing.T) {
 		// receives those exactly as it would in a real workspace and the test
 		// does not supply them.
 		//
-		// The remaining three have no production source. Nothing exports the
-		// socket path today, and the binary and marker paths exist only for
-		// this test. Agent-level variables are the mechanism the agent itself
-		// uses, and they take precedence over everything else.
+		// The remaining two have no production source. Nothing exports the
+		// socket path today, and the binary path exists only for this test.
+		// Agent-level variables are the mechanism the agent itself uses, and
+		// they take precedence over everything else.
 		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 			// agenttest sets a socket path but leaves the server disabled, so
 			// without this there is nothing listening for the probe to dial.
@@ -137,40 +105,43 @@ func TestAIAgentIdentity(t *testing.T) {
 			o.EnvironmentVariables = map[string]string{
 				"CODER_AGENT_SOCKET_PATH": socketPath,
 				"CODER_POC_PROBE_BIN":     probeBin,
-				"CODER_POC_MARKER_PATH":   markerPath,
 			}
 		})
 		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).AgentNames([]string{}).Wait()
 
-		// The marker is written by the CreateAIAgent handler inside the
-		// workspace_agent, so its presence means the call arrived there.
+		// Reading the journal needs system permission, which is the same
+		// reason the workspace_agent cannot write to it. See the handler in
+		// coderd/agentapi/aiagent.go.
+		//nolint:gocritic // Reading the journal and the agent's timings needs a system context.
+		systemCtx := dbauthz.AsSystemRestricted(ctx)
+
+		// The entry names the workspace_agent as the actor, which is how the
+		// test finds it: the identity of the AI agent is minted by coderd and
+		// is not known here. Nothing the probe sent appears in the entry.
+		require.Len(t, r.Agents, 1, "the fake build should have exactly one agent")
+		var entries []database.EntityJournal
 		if !assert.Eventually(t, func() bool {
-			_, err := os.Stat(markerPath)
-			return err == nil
+			var err error
+			entries, err = db.GetEntityJournalEntriesByActor(systemCtx, database.GetEntityJournalEntriesByActorParams{
+				ActorType: "workspace_agent",
+				Actor:     r.Agents[0].ID,
+			})
+			return err == nil && len(entries) > 0
 		}, testutil.WaitLong, testutil.IntervalMedium) {
-			t.Fatalf("CreateAIAgent never wrote its marker at %q.\nscript log:\n%s",
-				markerPath, readScriptLog(scriptLogPath))
+			t.Fatalf("no journal entry was written for agent %s.\nscript log:\n%s",
+				r.Agents[0].ID, readScriptLog(scriptLogPath))
 		}
 
-		// coderd writes what it resolved while authenticating the connection,
-		// not what the caller sent. Neither identifier below appeared in any
-		// request, so matching them against the workspace this test built
-		// checks attribution rather than echo.
-		require.Len(t, r.Agents, 1, "the fake build should have exactly one agent")
-		wantMarker := "CreateAIAgent\n" +
-			"workspace_id=" + r.Workspace.ID.String() + "\n" +
-			"agent_id=" + r.Agents[0].ID.String() + "\n"
+		require.Len(t, entries, 1, "one creation should produce one entry")
+		got := entries[0]
+		require.Equal(t, "created", got.Event)
+		require.Equal(t, "ai_agent", got.SubjectType, "the subject should be the AI agent")
+		require.NotEqual(t, uuid.Nil, got.Subject, "coderd should have minted an identity")
+		require.NotZero(t, got.RecordedAt)
 
-		contents, err := os.ReadFile(markerPath)
-		require.NoError(t, err)
-		require.Equal(t, wantMarker, string(contents),
-			"marker should carry the workspace and agent coderd resolved from the connection")
-
-		// Exit status is checked independently of the marker. The agent
-		// reports it, so a probe that wrote the marker and then failed would
-		// still be caught.
-		//nolint:gocritic // Reading the agent's own reported timings needs a system context.
-		systemCtx := dbauthz.AsSystemRestricted(ctx)
+		// Exit status is checked independently of the journal. The agent
+		// reports it, so a probe whose call succeeded and which then failed
+		// would still be caught.
 		var timing database.GetWorkspaceAgentScriptTimingsByBuildIDRow
 		require.Eventually(t, func() bool {
 			timings, err := db.GetWorkspaceAgentScriptTimingsByBuildID(systemCtx, r.Build.ID)
@@ -201,12 +172,10 @@ func TestAIAgentIdentity(t *testing.T) {
 	t.Run("ProbeFailsWhenSocketIsAbsent", func(t *testing.T) {
 		t.Parallel()
 
-		markerPath := filepath.Join(t.TempDir(), "probe-marker")
 		absentSocket := filepath.Join(t.TempDir(), "nothing-listening.sock")
 
 		out, err := runProbe(t, map[string]string{
 			"CODER_AGENT_SOCKET_PATH": absentSocket,
-			"CODER_POC_MARKER_PATH":   markerPath,
 			"CODER_WORKSPACE_ID":      uuid.NewString(),
 			"CODER_AGENT_TOKEN":       uuid.NewString(),
 		})
@@ -214,8 +183,6 @@ func TestAIAgentIdentity(t *testing.T) {
 		require.Error(t, err, "probe should fail when nothing is listening on the socket")
 		require.Contains(t, out, "connect to agent socket",
 			"failure should name the socket rather than fail obscurely")
-		require.NoFileExists(t, markerPath,
-			"a failed probe must not leave a marker, or the marker stops meaning success")
 	})
 
 	t.Run("ProbeFailsWhenAVariableIsMissing", func(t *testing.T) {
@@ -226,7 +193,6 @@ func TestAIAgentIdentity(t *testing.T) {
 		// eventual create-agent call the wrong workspace or credential.
 		required := []string{
 			"CODER_AGENT_SOCKET_PATH",
-			"CODER_POC_MARKER_PATH",
 			"CODER_WORKSPACE_ID",
 			"CODER_AGENT_TOKEN",
 		}
@@ -235,10 +201,8 @@ func TestAIAgentIdentity(t *testing.T) {
 			t.Run(missing, func(t *testing.T) {
 				t.Parallel()
 
-				markerPath := filepath.Join(t.TempDir(), "probe-marker")
 				env := map[string]string{
 					"CODER_AGENT_SOCKET_PATH": filepath.Join(t.TempDir(), "unused.sock"),
-					"CODER_POC_MARKER_PATH":   markerPath,
 					"CODER_WORKSPACE_ID":      uuid.NewString(),
 					"CODER_AGENT_TOKEN":       uuid.NewString(),
 				}
@@ -249,7 +213,6 @@ func TestAIAgentIdentity(t *testing.T) {
 				require.Error(t, err, "probe should fail when %s is missing", missing)
 				require.Contains(t, out, missing+" is not set",
 					"failure should name the missing variable")
-				require.NoFileExists(t, markerPath)
 			})
 		}
 	})

@@ -2089,6 +2089,14 @@ func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetEntityJournalEntriesByActor(ctx context.Context, arg database.GetEntityJournalEntriesByActorParams) ([]database.EntityJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEntityJournalEntriesByActor(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetEntityJournalEntriesByActor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEntityJournalEntriesByActor").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetEntityJournalEntriesBySubject(ctx context.Context, arg database.GetEntityJournalEntriesBySubjectParams) ([]database.EntityJournal, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetEntityJournalEntriesBySubject(ctx, arg)
