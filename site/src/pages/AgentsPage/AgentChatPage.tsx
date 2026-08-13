@@ -1048,12 +1048,9 @@ const AgentChatPage: FC = () => {
 					return next;
 				},
 			);
-			// Cool down refetches per chat/build/binding key: repair can fail
-			// with no query error (server enrichment is best-effort and can
-			// return the stale binding), so a bare latch would block retries
-			// while an unconditional refetch would fire on every watch event.
-			// Workspace watches send current state after reconnecting, so
-			// rebuilds missed while disconnected still trigger a refetch.
+			// Cool down each chat/build/binding key because best-effort repair can return
+			// a stale binding without a query error, while unconditional refetches would run
+			// on every event. Reconnects replay state, so missed rebuilds still refetch.
 			if (!agentId || !isChatAgentBindingUnresolved(next, chatAgentId)) {
 				return;
 			}
