@@ -105,6 +105,10 @@ const ChatScrollContainer: FC<{
 	onFetchMoreMessages: () => void;
 	messageCount: number;
 	children: ReactNode;
+	// Rendered as an absolutely-positioned sibling of the scroller inside the
+	// relative wrapper. Used to hang overlays such as the timeline rail
+	// alongside the scrollbar without scrolling with the content.
+	overlay?: ReactNode;
 }> = ({
 	scrollContainerRef,
 	scrollToBottomRef,
@@ -113,6 +117,7 @@ const ChatScrollContainer: FC<{
 	onFetchMoreMessages,
 	messageCount,
 	children,
+	overlay,
 }) => {
 	const [scrollContainerElement, setScrollContainerElement] =
 		useState<HTMLDivElement | null>(null);
@@ -172,6 +177,7 @@ const ChatScrollContainer: FC<{
 					{children}
 				</InfiniteScroll>
 			</div>
+			{overlay}
 			<ScrollToBottomButton
 				scrollContainerElement={scrollContainerElement}
 				messageCount={messageCount}
