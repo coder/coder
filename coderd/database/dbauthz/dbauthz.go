@@ -3842,6 +3842,13 @@ func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MC
 	return q.db.GetEnabledMCPServerConfigs(ctx)
 }
 
+func (q *querier) GetEntityJournalEntriesBySubject(ctx context.Context, arg database.GetEntityJournalEntriesBySubjectParams) ([]database.EntityJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetEntityJournalEntriesBySubject(ctx, arg)
+}
+
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
 // scaletest agentfake path calls this query directly via a connection to the
 // database. There is no production code path that uses this method, and it is
@@ -6218,6 +6225,20 @@ func (q *querier) InsertDeploymentID(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.InsertDeploymentID(ctx, value)
+}
+
+// InsertEntityJournalEntry is guarded by ResourceSystem, which is coarse: it
+// does not tell appending to the journal apart from other internal writes.
+// It is chosen for a property that outweighs that for now. An entity's own
+// credential is scoped to its workspace and carries no system permission, so
+// an entity cannot append entries. Only the control plane can, which makes
+// "an entity may not write entries about itself" a rule the database enforces
+// rather than one code is trusted to follow. Revisit for production.
+func (q *querier) InsertEntityJournalEntry(ctx context.Context, arg database.InsertEntityJournalEntryParams) (database.EntityJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.EntityJournal{}, err
+	}
+	return q.db.InsertEntityJournalEntry(ctx, arg)
 }
 
 func (q *querier) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {

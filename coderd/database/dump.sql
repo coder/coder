@@ -2324,6 +2324,27 @@ COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revo
 
 COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
 
+CREATE TABLE entity_journal (
+    id bigint NOT NULL,
+    recorded_at timestamp with time zone NOT NULL,
+    event text NOT NULL,
+    subject_type text NOT NULL,
+    subject uuid NOT NULL,
+    actor_type text NOT NULL,
+    actor uuid NOT NULL
+);
+
+COMMENT ON TABLE entity_journal IS 'Journal of persistent state changes to entities, against which the state of the world can be reconciled. Distinct from audit_logs, which is a separate mechanism recording requests.';
+
+CREATE SEQUENCE entity_journal_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE entity_journal_id_seq OWNED BY entity_journal.id;
+
 CREATE TABLE external_auth_links (
     provider_id text NOT NULL,
     user_id uuid NOT NULL,
@@ -4231,6 +4252,8 @@ ALTER TABLE ONLY chat_queued_messages ALTER COLUMN id SET DEFAULT nextval('chat_
 
 ALTER TABLE ONLY chat_usage_limit_config ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_config_id_seq'::regclass);
 
+ALTER TABLE ONLY entity_journal ALTER COLUMN id SET DEFAULT nextval('entity_journal_id_seq'::regclass);
+
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -4347,6 +4370,9 @@ ALTER TABLE ONLY dbcrypt_keys
 
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
+
+ALTER TABLE ONLY entity_journal
+    ADD CONSTRAINT entity_journal_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
