@@ -1319,9 +1319,6 @@ export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
 
 export const SingleOrgIgnoresStalePermittedCache: Story = {
 	parameters: {
-		// showOrganizations is false (org count dropped to one), but the
-		// disabled query still holds a cached permitted list naming an
-		// org the dashboard no longer knows. It must be ignored.
 		showOrganizations: false,
 		organizations: [MockDefaultOrganization],
 		queries: [

@@ -292,10 +292,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}),
 		enabled: showOrganizations,
 	});
-	// A disabled query retains cached data, so once showOrganizations
-	// turns false (org count dropped to one) the dashboard list is
-	// authoritative; the stale permitted list could keep a removed org
-	// selected and submitting.
+	// Disabled queries retain cached data. When the dashboard hides organization
+	// selection, its organization list is authoritative so a removed org cannot
+	// remain selected for submission.
 	const permittedOrgs = showOrganizations
 		? (permittedOrgsQuery.data ?? organizations)
 		: organizations;
