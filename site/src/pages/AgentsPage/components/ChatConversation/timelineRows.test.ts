@@ -152,6 +152,23 @@ describe("assignTimelineRows", () => {
 		expect(keys(afterPrepend)).toEqual(keys(loadedFirst));
 	});
 
+	it("keeps a singleton read_file row's key stable when a prepend extends the run", () => {
+		const loadedFirst = assignTimelineRows(
+			buildDisplayMessages([readFileMessage(50, "read-50")]),
+			false,
+		);
+		const afterPrepend = assignTimelineRows(
+			buildDisplayMessages([
+				readFileMessage(49, "read-49"),
+				readFileMessage(50, "read-50"),
+			]),
+			false,
+		);
+
+		expect(keys(loadedFirst)).toEqual(["read-file-group:through:50"]);
+		expect(keys(afterPrepend)).toEqual(keys(loadedFirst));
+	});
+
 	it("marks only the last message of an assistant chain", () => {
 		const rows = assignTimelineRows(
 			[

@@ -31,7 +31,7 @@ const withMessageScroller: Decorator = (Story, { parameters }) => {
 				hasMoreMessages={false}
 				isFetchingMoreMessages={false}
 				hasFetchMoreError={false}
-				hasVisibleRows={true}
+				hasFilteredOutRows={false}
 				onFetchMoreMessages={async () => {}}
 			>
 				<Story />

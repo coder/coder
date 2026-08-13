@@ -14,7 +14,7 @@ interface EarlierMessagesProps {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
-	hasVisibleRows: boolean;
+	hasFilteredOutRows: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 }
 
@@ -27,17 +27,18 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	hasFetchMoreError,
-	hasVisibleRows,
+	hasFilteredOutRows,
 	onFetchMoreMessages,
 }) => {
 	const { start: canScrollTowardStart } = useMessageScrollerScrollable();
 	const { visibleMessageIds } = useMessageScrollerVisibility();
 
 	// "Cannot scroll toward the start" also holds before any row is measured,
-	// and a history page can filter down to zero rendered rows; both mean keep
-	// loading rather than treating the transcript as exhausted.
+	// so only page once rows exist, or when a loaded page filtered down to
+	// zero rows and there may be visible history behind it.
 	const isAtHistoryStart =
-		!canScrollTowardStart && (visibleMessageIds.length > 0 || !hasVisibleRows);
+		!canScrollTowardStart &&
+		(visibleMessageIds.length > 0 || hasFilteredOutRows);
 	const shouldLoadEarlierMessages =
 		isAtHistoryStart &&
 		hasMoreMessages &&

@@ -195,13 +195,11 @@ const isReadFileOnlyMessage = (entry: ParsedMessageEntry): boolean => {
 const mergeReadFileMessageGroup = (
 	group: readonly ParsedMessageEntry[],
 ): ParsedMessageEntry => {
-	if (group.length === 1) {
-		return group[0];
-	}
-
 	const [first] = group;
 	return {
 		message: first.message,
+		// Singletons carry mergedFrom too: a prepend can extend the run, and
+		// the row key must not change when it does.
 		mergedFrom: group.map((entry) => entry.message.id),
 		parsed: {
 			markdown: "",

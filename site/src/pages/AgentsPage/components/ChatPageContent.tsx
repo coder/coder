@@ -168,7 +168,11 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
-	const hasVisibleRows = buildDisplayMessages(parsedMessages).length > 0;
+	// An empty store (initial hydration) must not trigger paging, but a loaded
+	// page whose messages all filter out of the timeline must keep paging.
+	const hasFilteredOutRows =
+		parsedMessages.length > 0 &&
+		buildDisplayMessages(parsedMessages).length === 0;
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
@@ -177,7 +181,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				hasMoreMessages={hasMoreMessages}
 				isFetchingMoreMessages={isFetchingMoreMessages}
 				hasFetchMoreError={hasFetchMoreError}
-				hasVisibleRows={hasVisibleRows}
+				hasFilteredOutRows={hasFilteredOutRows}
 				onFetchMoreMessages={onFetchMoreMessages}
 			>
 				{/* VNC sessions for completed agents may already be
