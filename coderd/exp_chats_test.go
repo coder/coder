@@ -8312,13 +8312,19 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "attachment limit")
 
 		// The initial assistant reply is generated asynchronously, so compare
-		// message content instead of message counts.
+		// message content instead of message counts. A busy chat queues the
+		// send before file-link validation, so scan queued messages too.
 		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
+		var persisted []codersdk.ChatMessagePart
 		for _, msg := range messages.Messages {
-			for _, part := range msg.Content {
-				require.NotContains(t, part.Text, "one too many", "rejected send should not persist a message")
-			}
+			persisted = append(persisted, msg.Content...)
+		}
+		for _, queued := range messages.QueuedMessages {
+			persisted = append(persisted, queued.Content...)
+		}
+		for _, part := range persisted {
+			require.NotContains(t, part.Text, "one too many", "rejected send should not persist a message")
 		}
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
