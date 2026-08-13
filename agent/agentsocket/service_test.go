@@ -2,7 +2,6 @@ package agentsocket_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -71,13 +70,11 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		for _, tc := range []struct {
 			name                string
 			workspaceCredential []byte
-			markerPath          string
 			wantErr             string
 		}{
 			{
 				name:                "NoWorkspaceCredential",
 				workspaceCredential: nil,
-				markerPath:          "marker",
 				wantErr:             "workspace_credential is required",
 			},
 			{
@@ -85,7 +82,6 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				// valid request reaches the forwarding guard.
 				name:                "NotConnectedToCoderd",
 				workspaceCredential: []byte("credential"),
-				markerPath:          "marker",
 				wantErr:             "agent not connected to coderd",
 			},
 		} {
@@ -103,19 +99,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 				client := newSocketClient(ctx, t, socketPath)
 
-				// A marker path is given in every case but the one under test,
-				// so a rejection cannot be mistaken for a write that failed.
-				markerPath := tc.markerPath
-				if markerPath != "" {
-					markerPath = filepath.Join(t.TempDir(), markerPath)
-				}
-
-				err = client.CreateAIAgent(ctx, uuid.New(), tc.workspaceCredential, markerPath)
+				id, err := client.CreateAIAgent(ctx, uuid.New(), tc.workspaceCredential)
 				require.ErrorContains(t, err, tc.wantErr)
-				if markerPath != "" {
-					require.NoFileExists(t, markerPath,
-						"a rejected request must not leave a marker")
-				}
+				require.Equal(t, uuid.Nil, id, "a rejected request mints nothing")
 			})
 		}
 	})

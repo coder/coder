@@ -80,8 +80,9 @@ func (*DRPCAgentSocketService) Ping(_ context.Context, _ *proto.PingRequest) (*p
 // over. Passing them on would be redundant, and passing a caller's credential
 // on would be worse than redundant.
 //
-// So this handler validates, and then drops, both. What crosses is the marker
-// path, which is itself a proof of concept stub living in coderd now.
+// So this handler validates, and then drops, both. Nothing crosses. What
+// returns is the identifier coderd minted, which this handler passes back
+// untouched.
 func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.CreateAIAgentRequest) (*proto.CreateAIAgentResponse, error) {
 	// Converted rather than validated. Deciding whether it names a workspace,
 	// and whether this caller may act for it, is production work that this
@@ -110,13 +111,12 @@ func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.C
 	s.logger.Info(ctx, "forwarding CreateAIAgent to coderd",
 		slog.F("workspace_id", workspaceID))
 
-	if _, err := api.CreateAIAgent(ctx, &agentproto.CreateAIAgentRequest{
-		PocMarkerPath: req.GetPocMarkerPath(),
-	}); err != nil {
+	resp, err := api.CreateAIAgent(ctx, &agentproto.CreateAIAgentRequest{})
+	if err != nil {
 		return nil, xerrors.Errorf("forward CreateAIAgent to coderd: %w", err)
 	}
 
-	return &proto.CreateAIAgentResponse{}, nil
+	return &proto.CreateAIAgentResponse{Id: resp.GetId()}, nil
 }
 
 // SyncStart starts a unit in the dependency graph.

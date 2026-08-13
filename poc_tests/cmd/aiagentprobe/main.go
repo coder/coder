@@ -1,23 +1,24 @@
 // Command aiagentprobe is the executable run from a workspace startup script
 // by the proof of concept acceptance tests.
 //
-// It stands in for the code that will eventually tell the control plane that
-// an AI agent was created. It calls CreateAIAgent on the workspace_agent's
-// local socket, which is the first hop of that eventual path. The rest of the
-// path does not exist yet, so the handler it reaches is a stub.
+// It stands in for the code that tells the control plane an AI agent was
+// created. It calls CreateAIAgent on the workspace_agent's local socket, which
+// forwards to coderd, which mints an identity and journals the creation.
 //
-// It reads four environment variables. The first three already exist in a real
+// It reads three environment variables, all of which exist in a real
 // workspace:
 //
 //	CODER_AGENT_SOCKET_PATH  where the workspace_agent listens
 //	CODER_WORKSPACE_ID       the workspace the AI agent belongs to
 //	CODER_AGENT_TOKEN        the credential issued to the workspace
-//	CODER_POC_MARKER_PATH    where the handler records that it was called
 //
-// The workspace identifier and the credential are sent with the call. Neither
-// is used for anything yet, since the handler is a stub, but the data path
-// they travel is the one the real call will use. The credential is read as
+// The workspace identifier and the credential are sent over the socket, which
+// authenticates nobody. They travel no further: coderd resolves both from the
+// connection the workspace_agent forwards over. The credential is read as
 // bytes and passed on untouched.
+//
+// The minted identifier is printed to stdout, which the workspace_agent
+// captures into the startup script's log.
 //
 // Exit status is meaningful: zero only if every step succeeded, including the
 // socket call. Any failure exits non-zero.
@@ -49,11 +50,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	markerPath, err := requiredEnv("CODER_POC_MARKER_PATH")
-	if err != nil {
-		return err
-	}
-
 	rawWorkspaceID, err := requiredEnv("CODER_WORKSPACE_ID")
 	if err != nil {
 		return err
@@ -76,13 +72,15 @@ func run() error {
 	}
 	defer client.Close()
 
-	// The marker is not written here. The handler on the other side of the
-	// socket writes it, so its presence proves the call arrived rather than
-	// merely that this executable ran. The path travels in the request only
-	// because that handler is still a stub.
-	if err := client.CreateAIAgent(ctx, workspaceID, []byte(workspaceCredential), markerPath); err != nil {
+	id, err := client.CreateAIAgent(ctx, workspaceID, []byte(workspaceCredential))
+	if err != nil {
 		return xerrors.Errorf("create AI agent: %w", err)
 	}
+
+	// Nothing observes this executable directly any more. What proves the call
+	// arrived is the journal entry coderd wrote, which is read from the
+	// database. This line is for a person reading the script log.
+	_, _ = fmt.Printf("created AI agent %s\n", id)
 
 	return nil
 }

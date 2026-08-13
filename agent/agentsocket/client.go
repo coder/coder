@@ -82,20 +82,23 @@ func (c *Client) Ping(ctx context.Context) error {
 
 // CreateAIAgent registers an AI agent created inside this workspace, on behalf
 // of the workspace identified by workspaceID and authenticated by
-// workspaceCredential.
+// workspaceCredential. It returns the identifier the control plane minted.
 //
 // The credential is an opaque blob and is passed through untouched.
-//
-// pocMarkerPath is a proof of concept stub. The handler touches that path
-// instead of registering anything. Both the parameter and the stub go away
-// once the handler forwards to the control plane.
-func (c *Client) CreateAIAgent(ctx context.Context, workspaceID uuid.UUID, workspaceCredential []byte, pocMarkerPath string) error {
-	_, err := c.client.CreateAIAgent(ctx, &proto.CreateAIAgentRequest{
+func (c *Client) CreateAIAgent(ctx context.Context, workspaceID uuid.UUID, workspaceCredential []byte) (uuid.UUID, error) {
+	resp, err := c.client.CreateAIAgent(ctx, &proto.CreateAIAgentRequest{
 		WorkspaceId:         workspaceID[:],
 		WorkspaceCredential: workspaceCredential,
-		PocMarkerPath:       pocMarkerPath,
 	})
-	return err
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	id, err := uuid.FromBytes(resp.GetId())
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("control plane returned a malformed id: %w", err)
+	}
+	return id, nil
 }
 
 // SyncStart starts a unit in the dependency graph.

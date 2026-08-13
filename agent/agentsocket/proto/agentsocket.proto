@@ -21,18 +21,17 @@ message CreateAIAgentRequest {
   // It is an opaque blob. Nothing in transit may parse it, inspect it, or
   // assume a shape for it.
   bytes workspace_credential = 2;
-  // poc_marker_path is a proof of concept stub and is not part of the intended
-  // interface. The handler touches this path to show that it was called, so
-  // that the call can be observed before there is anything downstream to
-  // observe. Remove it, and the stub in the handler, once the handler forwards
-  // to the control plane.
-  string poc_marker_path = 3;
+  // Reserved. poc_marker_path carried a filesystem path the handler touched so
+  // that the call could be observed before anything downstream persisted. It
+  // was removed once the control plane wrote a journal entry.
+  reserved 3;
 }
 
-// CreateAIAgentResponse will eventually carry the identifier the control plane
-// mints for the AI agent, and the credential it issues. It is empty while the
-// handler is a stub.
-message CreateAIAgentResponse {}
+// CreateAIAgentResponse carries the identifier the control plane minted for the
+// AI agent. It will eventually also carry the credential it issues.
+message CreateAIAgentResponse {
+  bytes id = 1;
+}
 
 message SyncStartRequest {
   string unit = 1;

@@ -513,6 +513,14 @@ func (s *MethodTestSuite) TestEntityJournal() {
 		dbm.EXPECT().GetEntityJournalEntriesBySubject(gomock.Any(), arg).Return([]database.EntityJournal{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetEntityJournalEntriesByActor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetEntityJournalEntriesByActorParams{
+			ActorType: "workspace_agent",
+			Actor:     uuid.New(),
+		}
+		dbm.EXPECT().GetEntityJournalEntriesByActor(gomock.Any(), arg).Return([]database.EntityJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestAuditLogs() {

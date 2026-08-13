@@ -10,13 +10,12 @@
 #
 #   CODER_POC_PROBE_BIN      the executable to run
 #   CODER_AGENT_SOCKET_PATH  where the workspace_agent listens
-#   CODER_WORKSPACE_ID       the workspace the AI agent would belong to
-#   CODER_AGENT_TOKEN        the workspace_agent credential
-#   CODER_POC_MARKER_PATH    where the executable records that it ran
+#   CODER_WORKSPACE_ID       the workspace the AI agent belongs to
+#   CODER_AGENT_TOKEN        the credential issued to the workspace
 #
 # The exit status of the executable becomes the exit status of this script,
 # which the agent reports back to the control plane, so the test can observe
-# failure without relying on the marker alone.
+# failure independently of what reached the database.
 
 set -euo pipefail
 

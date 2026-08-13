@@ -2,13 +2,15 @@ package agentapi
 
 import (
 	"context"
-	"os"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/entity"
 )
 
 // AIAgentAPI serves requests about AI agents created inside a workspace.
@@ -17,43 +19,41 @@ type AIAgentAPI struct {
 	WorkspaceID uuid.UUID
 	OwnerID     uuid.UUID
 
-	Log slog.Logger
+	Database database.Store
+	Log      slog.Logger
 }
 
-// CreateAIAgent registers an AI agent created inside the workspace.
+// CreateAIAgent registers an AI agent created inside the workspace and returns
+// the identity minted for it.
 //
-// PROOF OF CONCEPT STUB. This does not register anything. It touches the path
-// given in the request and returns an empty response.
+// The request carries nothing. The workspace, its owner, and the
+// workspace_agent that sent this all come from the connection: coderd resolved
+// them while authenticating, so the request has no need to state them and no
+// way to state them more reliably.
 //
-// The workspace, its owner, and the workspace_agent that sent this all come
-// from the connection rather than the request. coderd resolved them while
-// authenticating, so the request has no need to state them and no way to
-// state them more reliably.
-//
-// The marker is the last of the stub to survive. It works only because the
-// acceptance test runs coderd on the same host as the workspace, which a real
-// deployment does not. The increment that persists an AI agent identity
-// replaces it with a row, and this file loses its dependency on os.
-func (a *AIAgentAPI) CreateAIAgent(ctx context.Context, req *agentproto.CreateAIAgentRequest) (*agentproto.CreateAIAgentResponse, error) {
-	markerPath := req.GetPocMarkerPath()
-	if markerPath == "" {
-		return nil, xerrors.New("poc_marker_path is required while this handler is a stub")
+// The entry names the workspace_agent as the actor, since it is the party that
+// made the request and the only one authenticated on this connection. Telling
+// apart the party that asked from the party that relayed needs data these
+// calls do not yet carry.
+func (a *AIAgentAPI) CreateAIAgent(ctx context.Context, _ *agentproto.CreateAIAgentRequest) (*agentproto.CreateAIAgentResponse, error) {
+	// Appending to the journal requires system permission, which this
+	// connection's subject does not hold: it is scoped to one workspace. That
+	// is deliberate. An entity cannot write entries, including about itself,
+	// so the control plane writes them on its behalf and names it as actor.
+	//nolint:gocritic // Writing the journal is the control plane's act, not the agent's.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+
+	id, err := entity.CreateAIAgent(systemCtx, a.Database, entity.CreateAIAgentParams{
+		Actor: entity.Ref{Type: entity.TypeWorkspaceAgent, ID: a.AgentID},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("create AI agent: %w", err)
 	}
 
-	// The identifiers written here are the ones coderd derived, not ones the
-	// caller supplied. A test comparing them against the workspace it built is
-	// therefore checking attribution and not merely echo.
-	marker := "CreateAIAgent\n" +
-		"workspace_id=" + a.WorkspaceID.String() + "\n" +
-		"agent_id=" + a.AgentID.String() + "\n"
-	if err := os.WriteFile(markerPath, []byte(marker), 0o600); err != nil {
-		return nil, xerrors.Errorf("write poc marker %q: %w", markerPath, err)
-	}
-
-	a.Log.Info(ctx, "poc stub: CreateAIAgent called",
+	a.Log.Debug(ctx, "created AI agent",
+		slog.F("ai_agent_id", id),
 		slog.F("workspace_id", a.WorkspaceID),
-		slog.F("agent_id", a.AgentID),
-		slog.F("marker_path", markerPath))
+		slog.F("agent_id", a.AgentID))
 
-	return &agentproto.CreateAIAgentResponse{}, nil
+	return &agentproto.CreateAIAgentResponse{Id: id[:]}, nil
 }

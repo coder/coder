@@ -3900,6 +3900,21 @@ func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigs(ctx any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigs), ctx)
 }
 
+// GetEntityJournalEntriesByActor mocks base method.
+func (m *MockStore) GetEntityJournalEntriesByActor(ctx context.Context, arg database.GetEntityJournalEntriesByActorParams) ([]database.EntityJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEntityJournalEntriesByActor", ctx, arg)
+	ret0, _ := ret[0].([]database.EntityJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEntityJournalEntriesByActor indicates an expected call of GetEntityJournalEntriesByActor.
+func (mr *MockStoreMockRecorder) GetEntityJournalEntriesByActor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEntityJournalEntriesByActor", reflect.TypeOf((*MockStore)(nil).GetEntityJournalEntriesByActor), ctx, arg)
+}
+
 // GetEntityJournalEntriesBySubject mocks base method.
 func (m *MockStore) GetEntityJournalEntriesBySubject(ctx context.Context, arg database.GetEntityJournalEntriesBySubjectParams) ([]database.EntityJournal, error) {
 	m.ctrl.T.Helper()

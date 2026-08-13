@@ -21,3 +21,14 @@ WHERE
 	AND subject = $2
 ORDER BY
 	id;
+
+-- name: GetEntityJournalEntriesByActor :many
+SELECT
+	*
+FROM
+	entity_journal
+WHERE
+	actor_type = $1
+	AND actor = $2
+ORDER BY
+	id;
