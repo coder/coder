@@ -1,3 +1,4 @@
+import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { ChatMessageScroller } from "../ChatMessageScroller";
@@ -11,15 +12,17 @@ const meta: Meta<typeof TerminalStatusRow> = {
 	decorators: [
 		(Story) => (
 			<div className="flex h-[320px] flex-col">
-				<ChatMessageScroller
-					hasMoreMessages={false}
-					isFetchingMoreMessages={false}
-					hasFetchMoreError={false}
-					hasFilteredOutRows={false}
-					onFetchMoreMessages={async () => {}}
-				>
-					<Story />
-				</ChatMessageScroller>
+				<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+					<ChatMessageScroller
+						hasMoreMessages={false}
+						isFetchingMoreMessages={false}
+						hasFetchMoreError={false}
+						hasFilteredOutRows={false}
+						onFetchMoreMessages={async () => {}}
+					>
+						<Story />
+					</ChatMessageScroller>
+				</MessageScroller.Provider>
 			</div>
 		),
 	],

@@ -1,3 +1,4 @@
+import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, type FC, useRef, useState } from "react";
 import {
@@ -201,7 +202,16 @@ const meta: Meta<typeof AgentChatPageView> = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
 	},
-	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
+	decorators: [
+		(Story) => (
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<Story />
+			</MessageScroller.Provider>
+		),
+		withAuthProvider,
+		withDashboardProvider,
+		withProxyProvider(),
+	],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,

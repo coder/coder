@@ -129,8 +129,6 @@ interface AgentChatPageViewProps {
 
 	// Store handle.
 	store: ChatStoreHandle;
-	/** Incremented on each accepted submission to return to the live edge. */
-	liveEdgeSignal?: number;
 
 	// Editing state.
 	editing: EditingState;
@@ -326,7 +324,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	workspace,
 	chatBuildId,
 	store,
-	liveEdgeSignal,
 	editing,
 	effectiveSelectedModel,
 	setSelectedModel,
@@ -909,7 +906,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						<ChatPageTimeline
 							key={agentId}
 							store={store}
-							liveEdgeSignal={liveEdgeSignal}
 							persistedError={persistedError}
 							hasMoreMessages={hasMoreMessages}
 							isFetchingMoreMessages={isFetchingMoreMessages}

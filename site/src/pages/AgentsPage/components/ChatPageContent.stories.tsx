@@ -1,3 +1,4 @@
+import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, within } from "storybook/test";
@@ -11,14 +12,16 @@ import { ChatPageTimeline } from "./ChatPageContent";
 const StoryChatPageTimeline: FC<{
 	store: ReturnType<typeof createChatStore>;
 }> = ({ store }) => (
-	<ChatPageTimeline
-		store={store}
-		persistedError={undefined}
-		hasMoreMessages={false}
-		isFetchingMoreMessages={false}
-		hasFetchMoreError={false}
-		onFetchMoreMessages={async () => {}}
-	/>
+	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+		<ChatPageTimeline
+			store={store}
+			persistedError={undefined}
+			hasMoreMessages={false}
+			isFetchingMoreMessages={false}
+			hasFetchMoreError={false}
+			onFetchMoreMessages={async () => {}}
+		/>
+	</MessageScroller.Provider>
 );
 
 const meta = {

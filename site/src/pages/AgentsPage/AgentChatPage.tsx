@@ -1,4 +1,8 @@
 import {
+	MessageScroller,
+	useMessageScroller,
+} from "@shadcn/react/message-scroller";
+import {
 	type FC,
 	useEffect,
 	useEffectEvent,
@@ -1229,7 +1233,7 @@ const AgentChatPage: FC = () => {
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
-	const [liveEdgeSignal, setLiveEdgeSignal] = useState(0);
+	const { scrollToEnd } = useMessageScroller();
 	const {
 		store,
 		acceptServerChatStatus,
@@ -1617,15 +1621,16 @@ const AgentChatPage: FC = () => {
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
-		// Every accepted submission (send, edit, /compact) is an explicit ask
-		// to be at the live edge, even one that appends no visible prompt.
-		setLiveEdgeSignal((signal) => signal + 1);
 		// Wait for chat-setting mutations to settle before sending so the
 		// message observes the workspace and plan-mode choices the user just made.
 		await waitForPendingChatSettingsSyncs([
 			pendingPlanModeSyncRef.current,
 			pendingWorkspaceSyncRef.current,
 		]);
+
+		// Every accepted submission (send, edit, /compact) is an explicit ask
+		// to be at the live edge, even one that appends no visible prompt.
+		scrollToEnd({ behavior: "smooth" });
 
 		// "/compact" on its own (no attachments or file references)
 		// requests a manual context compaction instead of sending a
@@ -1963,7 +1968,6 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
 			store={store}
-			liveEdgeSignal={liveEdgeSignal}
 			editing={{ ...editing, handleEditUserMessage }}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
@@ -2046,7 +2050,11 @@ const AgentChatPage: FC = () => {
 // internal state (drafts, editing, queries) cleanly.
 const KeyedAgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
-	return <AgentChatPage key={agentId} />;
+	return (
+		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+			<AgentChatPage key={agentId} />
+		</MessageScroller.Provider>
+	);
 };
 
 export default KeyedAgentChatPage;

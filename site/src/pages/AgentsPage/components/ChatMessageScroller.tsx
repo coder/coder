@@ -1,11 +1,10 @@
 import {
 	MessageScroller,
-	useMessageScroller,
 	useMessageScrollerScrollable,
 	useMessageScrollerVisibility,
 } from "@shadcn/react/message-scroller";
 import { ArrowDownIcon, RotateCcwIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useState } from "react";
+import { type FC, type ReactNode, useEffect } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
@@ -93,64 +92,44 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 interface ChatMessageScrollerProps extends EarlierMessagesProps {
 	/** One `MessageScroller.Item` per transcript row, and nothing else. */
 	children: ReactNode;
-	/** Increment to return the reader to the live edge. */
-	liveEdgeSignal?: number;
 }
-
-// Submitting a turn is an explicit ask to be at the live edge, so this calls
-// the scroller's own command when the signal changes. useState with a
-// render-time adjustment, per React's pattern for reacting to prop changes;
-// not an effect.
-const LiveEdgeFollower: FC<{ signal?: number }> = ({ signal }) => {
-	const { scrollToEnd } = useMessageScroller();
-	const [followed, setFollowed] = useState(signal);
-	if (signal !== followed) {
-		setFollowed(signal);
-		scrollToEnd({ behavior: "smooth" });
-	}
-	return null;
-};
 
 export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
 	children,
-	liveEdgeSignal,
 	...earlierMessages
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 
 	return (
-		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-			<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-				<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
-					<MessageScroller.Content
-						data-testid="conversation-timeline"
-						aria-busy={earlierMessages.isFetchingMoreMessages || undefined}
-						className={cn(
-							"mx-auto flex w-full flex-col gap-2 px-4 py-6",
-							chatWidthClass(chatFullWidth),
-						)}
-					>
-						{children}
-					</MessageScroller.Content>
-				</MessageScroller.Viewport>
-
-				<MessageScroller.Button
-					direction="end"
-					aria-label="Scroll to bottom"
-					render={
-						<Button
-							variant="outline"
-							size="icon"
-							className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-surface-primary shadow-md transition-all duration-200 data-[active=false]:translate-y-2 data-[active=false]:opacity-0"
-						/>
-					}
+		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+				<MessageScroller.Content
+					data-testid="conversation-timeline"
+					aria-busy={earlierMessages.isFetchingMoreMessages || undefined}
+					className={cn(
+						"mx-auto flex w-full flex-col gap-2 px-4 py-6",
+						chatWidthClass(chatFullWidth),
+					)}
 				>
-					<ArrowDownIcon />
-				</MessageScroller.Button>
+					{children}
+				</MessageScroller.Content>
+			</MessageScroller.Viewport>
 
-				<EarlierMessages {...earlierMessages} />
-				<LiveEdgeFollower signal={liveEdgeSignal} />
-			</MessageScroller.Root>
-		</MessageScroller.Provider>
+			<MessageScroller.Button
+				direction="end"
+				aria-label="Scroll to bottom"
+				render={
+					<Button
+						variant="outline"
+						size="icon"
+						className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-surface-primary shadow-md transition-all duration-200 data-[active=false]:translate-y-2 data-[active=false]:opacity-0"
+					/>
+				}
+			>
+				<ArrowDownIcon />
+			</MessageScroller.Button>
+
+			<EarlierMessages {...earlierMessages} />
+		</MessageScroller.Root>
 	);
 };
