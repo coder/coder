@@ -3,6 +3,7 @@ package coderd
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -163,10 +164,9 @@ func (f buildFixture) convert(api *API) ([]codersdk.WorkspaceBuild, error) {
 }
 
 // TestConvertWorkspaceBuildsAgentOrder covers the ordering that the shared
-// index is responsible for: agents come back sorted by display order, and the
-// order does not depend on how many builds read the same rows. The fixture
-// assigns display order in reverse of agent name, so the expected result is
-// names in descending order.
+// index is responsible for: agents come back sorted by display order. The
+// fixture assigns display order in reverse of agent name, so the expected
+// result is names in descending order.
 func TestConvertWorkspaceBuildsAgentOrder(t *testing.T) {
 	t.Parallel()
 
@@ -186,6 +186,107 @@ func TestConvertWorkspaceBuildsAgentOrder(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestConvertWorkspaceBuildsAgentNameTiebreak covers the second half of the
+// agent comparison: agents sharing a display order are ordered by name.
+func TestConvertWorkspaceBuildsAgentNameTiebreak(t *testing.T) {
+	t.Parallel()
+
+	api := newConvertAPI()
+	fixture := newBuildFixture(1, 1, 3, 1)
+	for i := range fixture.agents {
+		fixture.agents[i].DisplayOrder = 0
+	}
+
+	builds, err := fixture.convert(api)
+	require.NoError(t, err)
+	require.Len(t, builds, 1)
+	require.Len(t, builds[0].Resources, 1)
+
+	agents := builds[0].Resources[0].Agents
+	require.Len(t, agents, 3)
+	for i := 1; i < len(agents); i++ {
+		require.Less(t, agents[i-1].Name, agents[i].Name)
+	}
+}
+
+// TestConvertWorkspaceBuildsRowsPerBuild asserts that a build receives only the
+// rows keyed to its own job and agents. The fixture encodes the build index in
+// every row name, so rows read from another build are detectable by name.
+func TestConvertWorkspaceBuildsRowsPerBuild(t *testing.T) {
+	t.Parallel()
+
+	const (
+		buildCount      = 3
+		resourcesPerJob = 2
+		agentsPerRes    = 2
+		appsPerAgent    = 2
+	)
+
+	api := newConvertAPI()
+	fixture := newBuildFixture(buildCount, resourcesPerJob, agentsPerRes, appsPerAgent)
+
+	builds, err := fixture.convert(api)
+	require.NoError(t, err)
+	require.Len(t, builds, buildCount)
+
+	for b, build := range builds {
+		require.Len(t, build.Resources, resourcesPerJob)
+
+		for _, resource := range build.Resources {
+			require.Equal(t, fixture.jobs[b].ProvisionerJob.ID, resource.JobID)
+			require.True(t, strings.HasPrefix(resource.Name, fmt.Sprintf("resource-%d-", b)), resource.Name)
+			require.Len(t, resource.Metadata, 1)
+			require.Equal(t, "key", resource.Metadata[0].Key)
+			require.Equal(t, "value", resource.Metadata[0].Value)
+			require.Len(t, resource.Agents, agentsPerRes)
+
+			for _, agent := range resource.Agents {
+				require.True(t, strings.HasPrefix(agent.Name, fmt.Sprintf("agent-%d-", b)), agent.Name)
+				require.Len(t, agent.Scripts, 1)
+				require.Equal(t, "echo hello", agent.Scripts[0].Script)
+				require.Len(t, agent.LogSources, 1)
+				require.Equal(t, "startup", agent.LogSources[0].DisplayName)
+				require.Len(t, agent.Apps, appsPerAgent)
+
+				for _, app := range agent.Apps {
+					require.True(t, strings.HasPrefix(app.Slug, fmt.Sprintf("app-%d-", b)), app.Slug)
+					require.Len(t, app.Statuses, 1)
+					require.Equal(t, app.ID, app.Statuses[0].AppID)
+				}
+			}
+		}
+	}
+}
+
+// TestConvertWorkspaceBuildsMatchedProvisioners asserts that eligible daemons
+// are matched to the build whose job they were fetched for. The last build in
+// the batch has no daemon rows, so it reports zero counts while the others
+// report one.
+func TestConvertWorkspaceBuildsMatchedProvisioners(t *testing.T) {
+	t.Parallel()
+
+	api := newConvertAPI()
+	fixture := newBuildFixture(3, 1, 1, 1)
+	fixture.daemons = fixture.daemons[:len(fixture.daemons)-1]
+
+	builds, err := fixture.convert(api)
+	require.NoError(t, err)
+	require.Len(t, builds, 3)
+
+	for _, build := range builds[:2] {
+		require.NotNil(t, build.MatchedProvisioners)
+		require.Equal(t, 1, build.MatchedProvisioners.Count)
+		require.Equal(t, 1, build.MatchedProvisioners.Available)
+		require.True(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
+	}
+
+	last := builds[2]
+	require.NotNil(t, last.MatchedProvisioners)
+	require.Equal(t, 0, last.MatchedProvisioners.Count)
+	require.Equal(t, 0, last.MatchedProvisioners.Available)
+	require.False(t, last.MatchedProvisioners.MostRecentlySeen.Valid)
 }
 
 func BenchmarkConvertWorkspaceBuilds(b *testing.B) {
