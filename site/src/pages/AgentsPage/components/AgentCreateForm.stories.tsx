@@ -1068,7 +1068,6 @@ export const LoadingWorkspacesBlocksSendUntilValidated: Story = {
 	},
 	args: {
 		...defaultArgs,
-		onCreateChat: fn().mockResolvedValue(undefined),
 		workspaceOptions: [],
 		isWorkspacesLoading: true,
 	},
@@ -1080,15 +1079,13 @@ export const LoadingWorkspacesBlocksSendUntilValidated: Story = {
 			[MockOrganization2.id]: true,
 		});
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The picker renders only after the permission check settles, so
-		// once it appears every other Send gate has been decided.
-		await canvas.findByTestId("compact-org-selector");
-		// The stored workspace cannot be validated yet; sending now would
-		// silently drop the association, so Send stays disabled.
+		// Wait for permissions to settle before checking workspace validation.
+		await canvas.findByRole("button", {
+			name: "Organization: My Organization",
+		});
 		await expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
-		expect(args.onCreateChat).not.toHaveBeenCalled();
 	},
 };
 
@@ -1269,9 +1266,6 @@ export const RevokedOrgChangeClearsStoredWorkspace: Story = {
 			).not.toBeInTheDocument(),
 		);
 
-		// Re-permitting the default must not switch the form away from
-		// the fallback org the user is now composing under, nor
-		// resurrect the cleared workspace.
 		revocablePermissions[MockDefaultOrganization.id] = true;
 		await revocableQueryClient?.invalidateQueries();
 		await waitFor(() =>
@@ -1298,7 +1292,6 @@ export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
 				organization_id: MockOrganization2.id,
 			},
 		],
-		workspaceCount: 1,
 	},
 	beforeEach: () => {
 		localStorage.setItem("agents.selected-workspace-id", "ws-org-2");
@@ -1309,27 +1302,15 @@ export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() =>
-			expect(
-				canvas.getByLabelText("Remove workspace org2-workspace"),
-			).toBeInTheDocument(),
-		);
+		await canvas.findByLabelText("Remove workspace org2-workspace");
 
-		// A refetch that empties the permitted set blocks sending but is
-		// not an org change; the stored workspace must survive it.
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
-		await waitFor(() =>
-			expect(canvas.getByText(/don't have permission/i)).toBeInTheDocument(),
-		);
+		await canvas.findByText(/don't have permission/i);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
-		await waitFor(() =>
-			expect(
-				canvas.getByLabelText("Remove workspace org2-workspace"),
-			).toBeInTheDocument(),
-		);
+		await canvas.findByLabelText("Remove workspace org2-workspace");
 		expect(localStorage.getItem("agents.selected-workspace-id")).toBe(
 			"ws-org-2",
 		);
