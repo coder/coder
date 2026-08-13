@@ -3240,10 +3240,10 @@ func TestMigration000574MCPServerConfigsOrganizationID(t *testing.T) {
 	require.Zero(t, danglingIDs)
 }
 
-func TestMigration000571MCPServerConfigACL(t *testing.T) {
+func TestMigration000572MCPServerConfigACL(t *testing.T) {
 	t.Parallel()
 
-	const priorMigrationVersion = 570
+	const priorMigrationVersion = 571
 
 	sqlDB := testSQLDB(t)
 	next, err := migrations.Stepper(sqlDB)
@@ -3289,7 +3289,7 @@ func TestMigration000571MCPServerConfigACL(t *testing.T) {
 
 	version, _, err := next()
 	require.NoError(t, err)
-	require.EqualValues(t, 571, version)
+	require.EqualValues(t, 572, version)
 
 	for i, configID := range configIDs {
 		var displayName, description string
@@ -3351,7 +3351,7 @@ func TestMigration000571MCPServerConfigACL(t *testing.T) {
 	require.JSONEq(t, `{}`, explicitGroupACL)
 	require.JSONEq(t, explicitACL, explicitUserACL)
 
-	downSQL, err := os.ReadFile("000571_mcp_server_config_acl.down.sql")
+	downSQL, err := os.ReadFile("000572_mcp_server_config_acl.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
