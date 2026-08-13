@@ -16,9 +16,9 @@ const assistantSlotKey = (turnKey: string, slot: number): string =>
 
 /**
  * Durable rows keep their server IDs so prepending history never changes an
- * existing Item's identity. Merged read_file groups key off the visible row
- * before them for the same reason. The live assistant uses a turn-local slot
- * until its durable message arrives.
+ * existing Item's identity. Merged read_file groups key off their newest
+ * member, which pagination never changes. The live assistant uses a
+ * turn-local slot until its durable message arrives.
  */
 export const assignTimelineRows = (
 	displayMessages: readonly ParsedMessageEntry[],
