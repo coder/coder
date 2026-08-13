@@ -37,7 +37,10 @@ import {
 	useChatSelector,
 	type useChatStore,
 } from "./ChatConversation/chatStore";
-import { LiveStreamTailContent } from "./ChatConversation/LiveStreamTail";
+import {
+	LiveStreamTailContent,
+	TerminalStatusRow,
+} from "./ChatConversation/LiveStreamTail";
 import { deriveLiveStatus } from "./ChatConversation/liveStatusModel";
 import { buildDisplayMessages } from "./ChatConversation/messageHelpers";
 import {
@@ -208,9 +211,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
 				/>
+				<TerminalStatusRow liveStatus={liveStatus} />
 			</ChatMessageScroller>
-			{/* The empty state and the terminal failure callout sit outside the
-			    scroller content, which holds transcript rows only. */}
+			{/* The empty state sits outside the scroller content, which holds
+			    transcript rows only. */}
 			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
 				<LiveStreamTailContent
 					isTranscriptEmpty={parsedMessages.length === 0}
