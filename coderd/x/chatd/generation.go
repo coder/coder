@@ -971,7 +971,7 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
-		compactionOpts.SummaryCall = overrideModel.newCompactionSummaryCall()
+		compactionOpts.SummaryCall = compactionSummaryCall(overrideModel.providerOptions)
 		compactionOpts.Messages = sanitizeCompactionPrompt(
 			ctx,
 			logger,

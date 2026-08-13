@@ -382,12 +382,14 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 	}
 }
 
-// Compaction summaries omit sampling and output-token options.
-func (r resolvedModelCall) newCompactionSummaryCall() fantasy.Call {
+// Compaction summaries omit sampling and output-token options. The chat-model
+// summary passes nil provider options; the override-model summary passes its
+// resolved options.
+func compactionSummaryCall(providerOptions fantasy.ProviderOptions) fantasy.Call {
 	toolChoiceNone := fantasy.ToolChoiceNone
 	return fantasy.Call{
 		ToolChoice:      &toolChoiceNone,
-		ProviderOptions: r.providerOptions,
+		ProviderOptions: providerOptions,
 	}
 }
 
