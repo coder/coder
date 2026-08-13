@@ -183,6 +183,8 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
+		initialChatStatus: "waiting" as const,
+		initialMessages: [],
 		...overrides,
 		store,
 		editing: buildEditing(editing),

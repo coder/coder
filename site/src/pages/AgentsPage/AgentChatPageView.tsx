@@ -129,8 +129,10 @@ interface AgentChatPageViewProps {
 
 	// Store handle.
 	store: ChatStoreHandle;
-	/** Anchor key of the turn already running when the page opened, if any. */
-	initialActiveAnchorKey?: string;
+	/** Chat status when the page first loaded, before any in-session turn. */
+	initialChatStatus: TypesGen.ChatStatus;
+	/** Messages as first loaded; read once at mount for the initial anchor. */
+	initialMessages: readonly TypesGen.ChatMessage[];
 
 	// Editing state.
 	editing: EditingState;
@@ -326,7 +328,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	workspace,
 	chatBuildId,
 	store,
-	initialActiveAnchorKey,
+	initialChatStatus,
+	initialMessages,
 	editing,
 	effectiveSelectedModel,
 	setSelectedModel,
@@ -411,6 +414,17 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	};
 
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
+	// The turn already running when the page loaded must not anchor the
+	// scroller; captured once at mount, after the loading gate guarantees the
+	// initial queries have resolved.
+	const [initialActiveAnchorKey] = useState<string | undefined>(() => {
+		const lastUser = initialMessages.findLast(
+			(message) => message.role === "user",
+		);
+		return initialChatStatus === "running" && lastUser
+			? `message:${lastUser.id}`
+			: undefined;
+	});
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);

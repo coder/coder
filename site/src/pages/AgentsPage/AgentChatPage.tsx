@@ -1254,24 +1254,6 @@ const AgentChatPage: FC = () => {
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
-	// A turn already running when the page opens must not anchor the scroller:
-	// the store hydrates after the first render, so the timeline cannot tell it
-	// apart from a prompt submitted in-session. Captured on the first render
-	// where the initial queries have resolved; a prompt submitted later is
-	// never recorded.
-	const [initialActiveAnchorKey, setInitialActiveAnchorKey] = useState<
-		string | undefined | null
-	>(null);
-	if (initialActiveAnchorKey === null && chatQuery.data && chatMessagesList) {
-		const lastUser = chatMessagesList.findLast(
-			(message) => message.role === "user",
-		);
-		setInitialActiveAnchorKey(
-			chatQuery.data.status === "running" && lastUser
-				? `message:${lastUser.id}`
-				: undefined,
-		);
-	}
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
 		chatRecord,
@@ -1992,7 +1974,8 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
 			store={store}
-			initialActiveAnchorKey={initialActiveAnchorKey ?? undefined}
+			initialChatStatus={chatQuery.data.status}
+			initialMessages={chatMessagesList ?? []}
 			editing={{ ...editing, handleEditUserMessage }}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
