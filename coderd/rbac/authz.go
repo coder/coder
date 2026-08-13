@@ -402,6 +402,12 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 				"input.object.id",
 				"input.object.owner",
 				"input.object.org_owner",
+				// The designation is unknown for the same reason the owner is:
+				// it is a per-row column resolved by the SQL filter. Every
+				// converter that can receive a designation-protected action
+				// must register a matcher for it, because regosql rejects
+				// unmapped variables.
+				"input.object.ai_agent_id",
 				"input.object.acl_user_list",
 				"input.object.acl_group_list",
 			}),
@@ -461,10 +467,12 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 }
 
 type authSubject struct {
-	ID     string   `json:"id"`
-	Roles  []Role   `json:"roles"`
-	Groups []string `json:"groups"`
-	Scope  Scope    `json:"scope"`
+	ID        string      `json:"id"`
+	Type      SubjectType `json:"type"`
+	AIAgentID string      `json:"ai_agent_id"`
+	Roles     []Role      `json:"roles"`
+	Groups    []string    `json:"groups"`
+	Scope     Scope       `json:"scope"`
 }
 
 // Authorize is the intended function to be used outside this package.

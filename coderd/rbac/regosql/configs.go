@@ -18,6 +18,16 @@ func userOwnerMatcher() sqltypes.VariableMatcher {
 	return sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"})
 }
 
+// aiAgentDesignationMatcher maps a workspace's AI designation. COALESCE is
+// required because the policy compares against a concrete empty string for an
+// undesignated workspace, while the column is NULL.
+func aiAgentDesignationMatcher() sqltypes.VariableMatcher {
+	return sqltypes.StringVarMatcher(
+		"COALESCE(workspaces.ai_agent_id :: text, '')",
+		[]string{"input", "object", "ai_agent_id"},
+	)
+}
+
 func groupACLMatcher(m sqltypes.VariableMatcher) ACLMappingVar {
 	return ACLMappingMatcher(m, "group_acl", []string{"input", "object", "acl_group_list"})
 }
@@ -45,6 +55,7 @@ func WorkspaceConverter() *sqltypes.VariableConverter {
 		resourceIDMatcher(),
 		sqltypes.StringVarMatcher("workspaces.organization_id :: text", []string{"input", "object", "org_owner"}),
 		userOwnerMatcher(),
+		aiAgentDesignationMatcher(),
 	)
 	matcher.RegisterMatcher(
 		ACLMappingMatcher(matcher, "workspaces.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),

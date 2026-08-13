@@ -85,6 +85,18 @@ func (s Subject) regoValue() (ast.Value, error) {
 			ast.StringTerm("id"),
 			ast.StringTerm(s.ID),
 		},
+		// type and ai_agent_id drive the workspace designation boundary. Both
+		// are always emitted, including as empty strings, because the policy
+		// treats a missing field as "not an AI agent" and an empty acting
+		// identity as a subject that cannot satisfy any designation match.
+		[2]*ast.Term{
+			ast.StringTerm("type"),
+			ast.StringTerm(string(s.Type)),
+		},
+		[2]*ast.Term{
+			ast.StringTerm("ai_agent_id"),
+			ast.StringTerm(s.AIAgentID),
+		},
 		[2]*ast.Term{
 			ast.StringTerm("roles"),
 			ast.NewTerm(regoSlice(subjRoles)),
@@ -131,6 +143,12 @@ func (z Object) regoValue() ast.Value {
 		[2]*ast.Term{
 			ast.StringTerm("type"),
 			ast.StringTerm(z.Type),
+		},
+		// Always emitted. An empty designation must be a concrete empty string
+		// so it can never unify with a populated acting AI identity.
+		[2]*ast.Term{
+			ast.StringTerm("ai_agent_id"),
+			ast.StringTerm(z.AIAgentID),
 		},
 		[2]*ast.Term{
 			ast.StringTerm("acl_user_list"),

@@ -392,6 +392,78 @@ object_is_included_in_scope_allow_list if {
 }
 
 #==============================================================================#
+# AI agent designation rules                                                   #
+#==============================================================================#
+
+# An AI agent acts with its sponsoring human's roles, so input.subject.id is the
+# sponsor and cannot identify the agent. The acting AI identity is carried
+# separately in input.subject.ai_agent_id, and a workspace records the identity
+# it is designated to in input.object.ai_agent_id. These rules confine an AI
+# actor to workspaces designated to it, which is what keeps a chat agent out of
+# its sponsor's ordinary workspaces and out of a sibling agent's workspaces.
+
+# acting_ai_agent_id is defaulted rather than read directly. In rego,
+# `not input.subject.missing_field = ""` evaluates to true, so reading the field
+# directly would classify a subject whose field is absent as an AI agent and
+# deny it every protected workspace action. Defaulting to the empty string makes
+# an absent field mean "not an AI agent", which keeps humans unaffected if the
+# input ever stops carrying the field.
+default acting_ai_agent_id := ""
+
+acting_ai_agent_id := input.subject.ai_agent_id
+
+# Either marker is sufficient. Checking both means a half-populated subject
+# fails closed instead of being treated as a human.
+subject_is_ai_agent if {
+	input.subject.type = "ai_agent"
+}
+
+subject_is_ai_agent if {
+	acting_ai_agent_id != ""
+}
+
+# All three types address workspace rows.
+is_workspace_object if {
+	input.object.type in {"workspace", "workspace_dormant", "prebuilt_workspace"}
+}
+
+# Read supports workspace inventory for a chat, and create must be authorized
+# before the workspace has an ID to designate. Creation is covered instead by
+# the server designating every AI-created workspace before its first build.
+ai_designation_exempt_action if {
+	input.action in {"read", "create"}
+}
+
+# Defining the exempt actions rather than the protected ones means any workspace
+# action added later is protected by default.
+ai_workspace_action_requires_designation if {
+	is_workspace_object
+	not ai_designation_exempt_action
+}
+
+# Human and system subjects never evaluate designation.
+ai_workspace_designation_allow if {
+	not subject_is_ai_agent
+}
+
+# AI subjects may perform exempt actions, and are unaffected on every
+# non-workspace resource.
+ai_workspace_designation_allow if {
+	subject_is_ai_agent
+	not ai_workspace_action_requires_designation
+}
+
+# Protected actions require a populated acting identity and an exact match. An
+# undesignated workspace carries the empty string and never matches, and a
+# workspace designated to a different agent never matches. Unification is used
+# on the object side because the object may be a partial value.
+ai_workspace_designation_allow if {
+	subject_is_ai_agent
+	acting_ai_agent_id != ""
+	input.object.ai_agent_id = acting_ai_agent_id
+}
+
+#==============================================================================#
 # ACL rules                                                                    #
 #==============================================================================#
 
@@ -458,6 +530,10 @@ allow if {
 
 	# ...and allowed by the scope
 	scope_allow
+
+	# ...and, for an AI agent actor, allowed by workspace designation. This
+	# always holds for human and system subjects.
+	ai_workspace_designation_allow
 }
 
 #==============================================================================#

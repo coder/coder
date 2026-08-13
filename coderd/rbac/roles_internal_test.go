@@ -111,10 +111,12 @@ func TestRegoInputValue(t *testing.T) {
 		// This is the input that would be passed to the rego policy.
 		jsonInput := map[string]any{
 			"subject": authSubject{
-				ID:     actor.ID,
-				Roles:  must(actor.Roles.Expand()),
-				Groups: actor.Groups,
-				Scope:  must(actor.Scope.Expand()),
+				ID:        actor.ID,
+				Type:      actor.Type,
+				AIAgentID: actor.AIAgentID,
+				Roles:     must(actor.Roles.Expand()),
+				Groups:    actor.Groups,
+				Scope:     must(actor.Scope.Expand()),
 			},
 			"action": action,
 			"object": obj,
@@ -142,10 +144,12 @@ func TestRegoInputValue(t *testing.T) {
 		// This is the input that would be passed to the rego policy.
 		jsonInput := map[string]any{
 			"subject": authSubject{
-				ID:     actor.ID,
-				Roles:  must(actor.Roles.Expand()),
-				Groups: actor.Groups,
-				Scope:  must(actor.Scope.Expand()),
+				ID:        actor.ID,
+				Type:      actor.Type,
+				AIAgentID: actor.AIAgentID,
+				Roles:     must(actor.Roles.Expand()),
+				Groups:    actor.Groups,
+				Scope:     must(actor.Scope.Expand()),
 			},
 			"action": action,
 			"object": map[string]any{
