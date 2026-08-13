@@ -49,12 +49,19 @@ type Entry struct {
 	Actor   Ref
 }
 
-// AppendEntry writes one entry to the journal. It is the only writer of
-// entries. Lifecycle functions call it rather than inserting inline, so that
-// an entry and the state change it accounts for can commit together.
+// AppendEntry writes one entry to the journal. Lifecycle functions call it
+// rather than inserting inline, so that an entry and the state change it
+// accounts for can commit together. That they do so is a convention recorded
+// in DIRECTORY.md, which this function does not enforce and cannot.
 //
 // store may be a transaction handle, in which case the entry commits with
 // whatever else that transaction carries.
+//
+// This is not production quality and is not trying to be. The validation a
+// real implementation would need is deliberately absent, and deliberately not
+// specified here either: writing that specification now would fix decisions
+// the proof of concept has not earned. Callers are trusted to hand it well
+// formed entries.
 //
 // Nothing here checks that the actor differs from the subject. An entity
 // acting on itself is ordinary, as when a user deletes their own account, and
