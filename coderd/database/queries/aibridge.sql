@@ -299,13 +299,53 @@ SELECT (
 )::bigint as total_deleted;
 
 -- name: CountAIBridgeSessions :one
+-- Counts one row per session by keeping only each session's latest matching
+-- interception, the same anti-join ListAIBridgeSessions uses. Counting the
+-- anti-join lets idx_aibridge_interceptions_session_latest answer the probe,
+-- instead of hashing every interception to deduplicate session keys.
 SELECT
-	COUNT(DISTINCT (aibridge_interceptions.session_id, aibridge_interceptions.initiator_id))
+	COUNT(*)
 FROM
 	aibridge_interceptions
 WHERE
 	-- Remove inflight interceptions (ones which lack an ended_at value).
 	aibridge_interceptions.ended_at IS NOT NULL
+	-- Keep one interception per session: the latest one that matches the
+	-- filters. The filters below are repeated inside the probe so a session
+	-- is represented by its latest matching interception, not by an interception
+	-- that the filters exclude.
+	AND NOT EXISTS (
+		SELECT 1
+		FROM aibridge_interceptions newer
+		WHERE newer.session_id = aibridge_interceptions.session_id
+			AND newer.initiator_id = aibridge_interceptions.initiator_id
+			AND newer.ended_at IS NOT NULL
+			AND CASE
+				WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN newer.started_at >= @started_after::timestamptz
+				ELSE true
+			END
+			AND CASE
+				WHEN @started_before::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN newer.started_at <= @started_before::timestamptz
+				ELSE true
+			END
+			AND CASE
+				WHEN @provider::text != '' THEN newer.provider = @provider::text
+				ELSE true
+			END
+			AND CASE
+				WHEN @provider_name::text != '' THEN newer.provider_name = @provider_name::text
+				ELSE true
+			END
+			AND CASE
+				WHEN @model::text != '' THEN newer.model = @model::text
+				ELSE true
+			END
+			AND CASE
+				WHEN @client::text != '' THEN COALESCE(newer.client, 'Unknown') = @client::text
+				ELSE true
+			END
+			AND (newer.started_at, newer.id) > (aibridge_interceptions.started_at, aibridge_interceptions.id)
+	)
 	-- Filter by time frame
 	AND CASE
 		WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= @started_after::timestamptz
@@ -354,50 +394,107 @@ WHERE
 -- the most recent user prompt. A "session" is a logical grouping of
 -- interceptions that share the same session_id (set by the client).
 --
--- Pagination-first strategy: identify the page of sessions cheaply via a
--- single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
--- first-interception metadata) only for the ~page-size result set.
+-- Pagination-first strategy: identify the page of sessions with an ordered
+-- index scan that stops after LIMIT rows, then do the expensive aggregation
+-- (tokens, prompts, first-interception metadata) only for that page.
+--
+-- Sessions are represented by their latest matching interception, found by an
+-- anti-join probing for a newer interception in the same session. That makes
+-- the session key a single indexed row, so ordering the list is an index scan
+-- over idx_aibridge_interceptions_session_latest rather than an aggregate over
+-- every interception.
 WITH cursor_pos AS (
-	-- Resolve the cursor's last_active_at once, outside the HAVING clause,
-	-- so the planner cannot accidentally re-evaluate it per group. Direct
-	-- LEFT JOIN is safe here since we only use MAX/MIN aggregates (no COUNT
-	-- affected by fan-out from multiple prompts per interception).
-	-- COALESCE falls back to MIN(ai.started_at) so the cursor value is
-	-- never NULL, which would silently drop rows from the HAVING comparison.
-	SELECT COALESCE(MAX(up.created_at), MIN(ai.started_at)) AS last_active_at
+	-- Resolve the cursor session's latest matching interception once. The same
+	-- filters apply here as in session_keys, so the cursor sits at the same
+	-- position in the ordering the page uses.
+	SELECT ai.started_at, ai.id
 	FROM aibridge_interceptions ai
-	LEFT JOIN aibridge_user_prompts up ON up.interception_id = ai.id
-	WHERE ai.session_id = @after_session_id AND ai.ended_at IS NOT NULL
+	WHERE ai.session_id = @after_session_id
+		AND ai.ended_at IS NOT NULL
+		AND CASE
+			WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at >= @started_after::timestamptz
+			ELSE true
+		END
+		AND CASE
+			WHEN @started_before::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at <= @started_before::timestamptz
+			ELSE true
+		END
+		AND CASE
+			WHEN @provider::text != '' THEN ai.provider = @provider::text
+			ELSE true
+		END
+		AND CASE
+			WHEN @provider_name::text != '' THEN ai.provider_name = @provider_name::text
+			ELSE true
+		END
+		AND CASE
+			WHEN @model::text != '' THEN ai.model = @model::text
+			ELSE true
+		END
+		AND CASE
+			WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
+			ELSE true
+		END
+		-- session_id is not unique on its own: it derives from a client-supplied
+		-- value, so two users can present the same one. Restricting the cursor to
+		-- the filtered initiator keeps paging on the same user's session.
+		AND CASE
+			WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = @initiator_id::uuid
+			ELSE true
+		END
+	ORDER BY ai.started_at DESC, ai.id DESC
+	LIMIT 1
 ),
-session_page AS (
-	-- Paginate at the session level first; only cheap aggregates here.
-	-- A lateral correlated subquery for prompts keeps the join one-to-one
-	-- with aibridge_interceptions so COUNT(*) for thread tallies is not
-	-- inflated. LIMIT 1 combined with the (interception_id, created_at DESC)
-	-- index makes this an index-only lookup per interception row rather than
-	-- a full-table-scan GROUP BY over all prompts.
-	-- last_active_at is the latest prompt timestamp, falling back to
-	-- MIN(started_at) for sessions with no prompts. The COALESCE ensures
-	-- it is never NULL so the HAVING row-value cursor comparison is safe.
+session_keys AS (
+	-- One row per session: its latest interception that matches the filters.
+	-- The ORDER BY plus LIMIT means the scan stops as soon as the page is full.
 	SELECT
 		ai.session_id,
 		ai.initiator_id,
-		MIN(ai.started_at) AS started_at,
-		MAX(ai.ended_at) AS ended_at,
-		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads,
-		COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at))::timestamptz AS last_active_at
+		ai.started_at AS last_interception_at,
+		ai.id AS last_interception_id
 	FROM
 		aibridge_interceptions ai
-	LEFT JOIN LATERAL (
-		SELECT created_at AS latest_prompt_at
-		FROM aibridge_user_prompts
-		WHERE interception_id = ai.id
-		ORDER BY created_at DESC
-		LIMIT 1
-	) latest_prompt ON true
 	WHERE
 		-- Remove inflight interceptions (ones which lack an ended_at value).
 		ai.ended_at IS NOT NULL
+		-- Keep only the session's latest matching interception. The filters are
+		-- repeated inside the probe so that a filtered list orders sessions by
+		-- their latest matching interception. initiator_id and session_id need no
+		-- repetition: the probe already joins on both, so their filters hold for
+		-- the probed rows by construction.
+		AND NOT EXISTS (
+			SELECT 1
+			FROM aibridge_interceptions newer
+			WHERE newer.session_id = ai.session_id
+				AND newer.initiator_id = ai.initiator_id
+				AND newer.ended_at IS NOT NULL
+				AND CASE
+					WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN newer.started_at >= @started_after::timestamptz
+					ELSE true
+				END
+				AND CASE
+					WHEN @started_before::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN newer.started_at <= @started_before::timestamptz
+					ELSE true
+				END
+				AND CASE
+					WHEN @provider::text != '' THEN newer.provider = @provider::text
+					ELSE true
+				END
+				AND CASE
+					WHEN @provider_name::text != '' THEN newer.provider_name = @provider_name::text
+					ELSE true
+				END
+				AND CASE
+					WHEN @model::text != '' THEN newer.model = @model::text
+					ELSE true
+				END
+				AND CASE
+					WHEN @client::text != '' THEN COALESCE(newer.client, 'Unknown') = @client::text
+					ELSE true
+				END
+				AND (newer.started_at, newer.id) > (ai.started_at, ai.id)
+		)
 		-- Filter by time frame
 		AND CASE
 			WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at >= @started_after::timestamptz
@@ -437,29 +534,57 @@ session_page AS (
 			WHEN @session_id::text != '' THEN ai.session_id = @session_id::text
 			ELSE true
 		END
-		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
-		-- @authorize_filter
-	GROUP BY
-		ai.session_id, ai.initiator_id
-	HAVING
-		-- Cursor pagination: uses a composite (last_active_at, session_id) cursor to
-		-- support keyset pagination. The less-than comparison matches the DESC
-		-- sort order so rows after the cursor come later in results. The cursor
-		-- value comes from cursor_pos to guarantee single evaluation.
-		CASE
-			WHEN @after_session_id::text != '' THEN (
-				(COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at)), ai.session_id) < (
-					(SELECT last_active_at FROM cursor_pos),
-					@after_session_id::text
-				)
-			)
+		-- Cursor pagination: (started_at, id) of the session's latest matching
+		-- interception is unique and matches the ORDER BY below, so pages are
+		-- disjoint and complete. Sessions are keyed by a single row, so a session
+		-- cannot reappear on a later page through an older interception.
+		AND CASE
+			WHEN @after_session_id::text != '' THEN
+				(ai.started_at, ai.id) < (SELECT started_at, id FROM cursor_pos)
 			ELSE true
 		END
+		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions.
+		-- The probe above needs no filter of its own: it joins on initiator_id, and
+		-- authorization for an interception depends only on that column.
+		-- @authorize_filter
 	ORDER BY
-		last_active_at DESC,
-		ai.session_id DESC
+		ai.started_at DESC,
+		ai.id DESC
 	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 	OFFSET @offset_
+),
+session_page AS (
+	-- Aggregate only the page's sessions. A lateral correlated subquery for
+	-- prompts keeps the join one-to-one with aibridge_interceptions so COUNT(*)
+	-- for thread tallies is not inflated. LIMIT 1 combined with the
+	-- (interception_id, created_at DESC) index makes this an index-only lookup
+	-- per interception row.
+	-- last_active_at is the latest prompt timestamp, falling back to
+	-- MIN(started_at) for sessions with no prompts.
+	SELECT
+		k.session_id,
+		k.initiator_id,
+		k.last_interception_at,
+		k.last_interception_id,
+		MIN(ai.started_at) AS started_at,
+		MAX(ai.ended_at) AS ended_at,
+		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads,
+		COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at))::timestamptz AS last_active_at
+	FROM
+		session_keys k
+	JOIN aibridge_interceptions ai
+		ON ai.session_id = k.session_id
+		AND ai.initiator_id = k.initiator_id
+		AND ai.ended_at IS NOT NULL
+	LEFT JOIN LATERAL (
+		SELECT created_at AS latest_prompt_at
+		FROM aibridge_user_prompts
+		WHERE interception_id = ai.id
+		ORDER BY created_at DESC
+		LIMIT 1
+	) latest_prompt ON true
+	GROUP BY
+		k.session_id, k.initiator_id, k.last_interception_at, k.last_interception_id
 )
 SELECT
 	sp.session_id,
@@ -554,8 +679,8 @@ LEFT JOIN LATERAL (
 		AND afi.agent_firewall_sequence_number IS NOT NULL
 ) bnc ON true
 ORDER BY
-	sp.last_active_at DESC,
-	sp.session_id DESC
+	sp.last_interception_at DESC,
+	sp.last_interception_id DESC
 ;
 
 -- name: GetAIBridgeSessionTopDomains :many

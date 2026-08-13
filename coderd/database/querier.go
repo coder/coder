@@ -91,6 +91,10 @@ type sqlcQuerier interface {
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
+	// Counts one row per session by keeping only each session's latest matching
+	// interception, the same anti-join ListAIBridgeSessions uses. Counting the
+	// anti-join lets idx_aibridge_interceptions_session_latest answer the probe,
+	// instead of hashing every interception to deduplicate session keys.
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
@@ -1233,9 +1237,15 @@ type sqlcQuerier interface {
 	// the most recent user prompt. A "session" is a logical grouping of
 	// interceptions that share the same session_id (set by the client).
 	//
-	// Pagination-first strategy: identify the page of sessions cheaply via a
-	// single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
-	// first-interception metadata) only for the ~page-size result set.
+	// Pagination-first strategy: identify the page of sessions with an ordered
+	// index scan that stops after LIMIT rows, then do the expensive aggregation
+	// (tokens, prompts, first-interception metadata) only for that page.
+	//
+	// Sessions are represented by their latest matching interception, found by an
+	// anti-join probing for a newer interception in the same session. That makes
+	// the session key a single indexed row, so ordering the list is an index scan
+	// over idx_aibridge_interceptions_session_latest rather than an aggregate over
+	// every interception.
 	// The last interception in a session has no next row, so next_seq uses
 	// the largest sequence_number instead of NULL. The lookup stays a plain
 	// range, so the (session_id, sequence_number) index answers it alone.

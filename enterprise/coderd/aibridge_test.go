@@ -87,6 +87,40 @@ func auditLogByNewSpendLimit(t *testing.T, rows []database.GetAuditLogsOffsetRow
 	return matches[0]
 }
 
+// pageAIBridgeSessionIDs walks the whole session list with keyset pagination,
+// asserting that no session id is returned on more than one page, and returns
+// the session ids in the order they were paged through.
+func pageAIBridgeSessionIDs(ctx context.Context, t *testing.T, client *codersdk.Client, filter codersdk.AIBridgeListSessionsFilter, pageSize int) []string {
+	t.Helper()
+
+	var (
+		ids   []string
+		seen  = make(map[string]struct{})
+		after string
+	)
+	// Bound the loop so a broken cursor cannot page forever.
+	for range 100 {
+		f := filter
+		f.Pagination = codersdk.Pagination{Limit: pageSize}
+		f.AfterSessionID = after
+		res, err := client.AIBridgeListSessions(ctx, f)
+		require.NoError(t, err)
+		if len(res.Sessions) == 0 {
+			return ids
+		}
+		require.LessOrEqual(t, len(res.Sessions), pageSize, "page larger than requested limit")
+		for _, s := range res.Sessions {
+			_, dup := seen[s.ID]
+			require.Falsef(t, dup, "session %q returned on more than one page (pages so far: %v)", s.ID, ids)
+			seen[s.ID] = struct{}{}
+			ids = append(ids, s.ID)
+		}
+		after = res.Sessions[len(res.Sessions)-1].ID
+	}
+	t.Fatalf("keyset pagination did not terminate, collected %d ids", len(ids))
+	return nil
+}
+
 func TestAIBridgeListSessions(t *testing.T) {
 	t.Parallel()
 
@@ -1132,23 +1166,28 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.Equal(t, "session-c", res.Sessions[2].ID)
 	})
 
-	// PromptlessSessionSortsByStartedAt verifies that a session whose root
-	// interception has no associated user prompts still appears in results and
-	// sorts by MIN(started_at) as a fallback. Without the COALESCE fallback a
-	// NULL last_active_at would cause the HAVING row-value comparison to
-	// evaluate to NULL (not false), silently dropping the session from all
-	// result pages.
+	// PromptlessSessionOrdersByLatestInterception verifies that a session whose
+	// interception has no associated user prompts still appears in results, and
+	// that it takes its place in the ordering from its latest completed
+	// interception.
 	//
-	// Three sessions are arranged so that the promptless session sits between
-	// two prompted sessions in sort order:
+	// The list orders sessions by the started_at of the session's latest
+	// completed interception. last_active_at is still returned for display: it is
+	// the latest prompt timestamp, falling back to MIN(started_at) for sessions
+	// with no prompts. The two can disagree, for example when interceptions in a
+	// session overlap in time, or when a prompt lands after a later interception
+	// has already started.
 	//
-	//   A: started=now,    prompt=now      → last_active_at=now
-	//   B: started=now-1h, NO prompt       → last_active_at=now-1h (fallback)
-	//   C: started=now-2h, prompt=now-30m  → last_active_at=now-30m
+	// Three sessions, each with a single interception:
 	//
-	// Sort order by last_active_at DESC: C (now-30m) > B (now-1h), so: A, C, B.
-	// B disappearing would indicate the fallback is broken.
-	t.Run("PromptlessSessionSortsByStartedAt", func(t *testing.T) {
+	//	A: started=now,    prompt=now      -> last_active_at=now
+	//	B: started=now-1h, NO prompt       -> last_active_at=now-1h (fallback)
+	//	C: started=now-2h, prompt=now-30m  -> last_active_at=now-30m
+	//
+	// Order by latest interception DESC: A, B, C. C sorts last even though its
+	// last_active_at (now-30m) is the second highest. B disappearing would
+	// indicate the promptless session is being dropped.
+	t.Run("PromptlessSessionOrdersByLatestInterception", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1168,7 +1207,8 @@ func TestAIBridgeListSessions(t *testing.T) {
 			CreatedAt:      now,
 		})
 
-		// Session B: no prompt at all, exercises the MIN(started_at) fallback.
+		// Session B: no prompt at all, exercises the MIN(started_at) fallback
+		// for last_active_at.
 		bEndedAt := now.Add(time.Minute)
 		bInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:     firstUser.UserID,
@@ -1176,8 +1216,8 @@ func TestAIBridgeListSessions(t *testing.T) {
 			ClientSessionID: sql.NullString{String: "session-b", Valid: true},
 		}, &bEndedAt)
 
-		// Session C: has a prompt more recent than B's started_at, so C sorts
-		// above B even though C started earlier.
+		// Session C: has a prompt more recent than B's started_at. It still sorts
+		// below B, because ordering follows the latest completed interception.
 		cEndedAt := now.Add(time.Minute)
 		cInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:     firstUser.UserID,
@@ -1190,36 +1230,44 @@ func TestAIBridgeListSessions(t *testing.T) {
 			CreatedAt:      now.Add(-30 * time.Minute),
 		})
 
-		//nolint:gocritic // Owner role is irrelevant; testing sort fallback.
+		//nolint:gocritic // Owner role is irrelevant; testing sort order.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
 		require.NoError(t, err)
 		require.Len(t, res.Sessions, 3, "promptless session B must appear in results")
 
-		// Expected order: A (last_active_at=now), C (last_active_at=now-30m), B (last_active_at=now-1h via fallback).
-		require.Equal(t, aInterception.SessionID, res.Sessions[0].ID, "session A should be first")
-		require.Equal(t, cInterception.SessionID, res.Sessions[1].ID, "session C should be second (prompt=now-30m beats B's started_at=now-1h)")
-		require.Equal(t, bInterception.SessionID, res.Sessions[2].ID, "session B should be last (no prompt, falls back to started_at=now-1h)")
+		// Expected order by latest completed interception: A (now), B (now-1h),
+		// C (now-2h).
+		require.Equal(t, aInterception.SessionID, res.Sessions[0].ID, "session A should be first (interception at now)")
+		require.Equal(t, bInterception.SessionID, res.Sessions[1].ID, "session B should be second (interception at now-1h)")
+		require.Equal(t, cInterception.SessionID, res.Sessions[2].ID, "session C should be last (interception at now-2h)")
 
 		// All sessions have last_active_at; session B falls back to started_at.
 		require.NotZero(t, res.Sessions[0].LastActiveAt, "session A should have last_active_at set")
-		require.NotZero(t, res.Sessions[1].LastActiveAt, "session C should have last_active_at set")
-		require.WithinDuration(t, bInterception.StartedAt, res.Sessions[2].LastActiveAt, time.Millisecond, "session B has no prompts, last_active_at should equal started_at")
+		require.WithinDuration(t, bInterception.StartedAt, res.Sessions[1].LastActiveAt, time.Millisecond, "session B has no prompts, last_active_at should equal started_at")
+		// C's last_active_at is higher than B's, yet C sorts below B: the display
+		// value and the ordering key are allowed to disagree.
+		require.WithinDuration(t, now.Add(-30*time.Minute), res.Sessions[2].LastActiveAt, time.Millisecond, "session C last_active_at should be its prompt timestamp")
+		require.True(t, res.Sessions[2].LastActiveAt.After(res.Sessions[1].LastActiveAt), "session C is more recently active than B but still sorts below it")
 	})
 
-	// SortsByLastActive verifies that sessions are ordered by last_active_at.
-	// Every session here has at least one prompt, so last_active_at equals
-	// the latest prompt timestamp rather than the started_at fallback.
+	// SortsByLatestInterception verifies that sessions are ordered by the
+	// started_at of their latest completed interception.
 	//
-	// Three sessions are created with intentionally crossing timestamps so that
-	// the "prompt time" order differs from the "started_at" order:
+	// last_active_at is still returned for display, and is the latest prompt
+	// timestamp (falling back to MIN(started_at) for promptless sessions). The
+	// ordering key and last_active_at can disagree, for example when
+	// interceptions in a session overlap in time, or when a prompt lands after a
+	// later interception has already started, which is what this fixture does.
 	//
-	//   X: started=now,   prompt=now      → last_active_at = now
-	//   Y: started=now-2h, prompt=now-30m  → last_active_at = now-30m
-	//   Z: started=now-1h, prompt=now-1h   → last_active_at = now-1h
+	// Three sessions with intentionally crossing timestamps:
 	//
-	// Order by started_at DESC: X, Z, Y
-	// Order by last_active_at DESC: X, Y, Z
-	t.Run("SortsByLastActive", func(t *testing.T) {
+	//	X: started=now,   prompt=now      -> last_active_at = now
+	//	Y: started=now-2h, prompt=now-30m  -> last_active_at = now-30m
+	//	Z: started=now-1h, prompt=now-1h   -> last_active_at = now-1h
+	//
+	// Order by latest interception DESC: X, Z, Y
+	// Order by last_active_at DESC:      X, Y, Z
+	t.Run("SortsByLatestInterception", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1270,16 +1318,399 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Sessions, 3)
 
-		// Expected order: X (now), Y (now-30m), Z (now-1h).
-		// If sorted by started_at the order would be X, Z, Y.
-		require.Equal(t, xInterception.SessionID, res.Sessions[0].ID, "session X should be first (prompt=now)")
-		require.Equal(t, yInterception.SessionID, res.Sessions[1].ID, "session Y should be second (prompt=now-30m beats Z's now-1h)")
-		require.Equal(t, zInterception.SessionID, res.Sessions[2].ID, "session Z should be last (prompt=now-1h)")
+		// Expected order: X (now), Z (now-1h), Y (now-2h).
+		// If sorted by last_active_at the order would be X, Y, Z.
+		require.Equal(t, xInterception.SessionID, res.Sessions[0].ID, "session X should be first (interception at now)")
+		require.Equal(t, zInterception.SessionID, res.Sessions[1].ID, "session Z should be second (interception at now-1h)")
+		require.Equal(t, yInterception.SessionID, res.Sessions[2].ID, "session Y should be last (interception at now-2h)")
 
-		// All sessions have LastActiveAt populated.
-		require.NotNil(t, res.Sessions[0].LastActiveAt, "session X should have last_active_at set")
-		require.NotNil(t, res.Sessions[1].LastActiveAt, "session Y should have last_active_at set")
-		require.NotNil(t, res.Sessions[2].LastActiveAt, "session Z should have last_active_at set")
+		// last_active_at still reports the latest prompt per session, so Y
+		// reports more recent activity than Z while sorting below it.
+		require.WithinDuration(t, now, res.Sessions[0].LastActiveAt, time.Millisecond, "session X last_active_at should be its prompt timestamp")
+		require.WithinDuration(t, now.Add(-time.Hour), res.Sessions[1].LastActiveAt, time.Millisecond, "session Z last_active_at should be its prompt timestamp")
+		require.WithinDuration(t, now.Add(-30*time.Minute), res.Sessions[2].LastActiveAt, time.Millisecond, "session Y last_active_at should be its prompt timestamp")
+		require.True(t, res.Sessions[2].LastActiveAt.After(res.Sessions[1].LastActiveAt), "session Y is more recently active than Z but still sorts below it")
+	})
+
+	// KeysetPaginationWithModelFilter pages through a filtered list in small
+	// pages and asserts the pages are disjoint and their union equals the
+	// unpaginated filtered list. This is the regression test for the cursor
+	// ignoring the filters, which made filtered pages repeat sessions.
+	//
+	// Every matching session also contains a newer non-matching interception
+	// carrying a newer prompt, so the session's position in the filtered
+	// ordering must come from its latest *matching* interception. The old query
+	// resolved the cursor from all of the session's interceptions, so the cursor
+	// sat later in the ordering than the cursor session itself and the session
+	// was returned again on the next page.
+	t.Run("KeysetPaginationWithModelFilter", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		unique := time.Now().UnixNano()
+		wantModel := fmt.Sprintf("model-want-%d", unique)
+		otherModel := fmt.Sprintf("model-other-%d", unique)
+
+		// mkInterception creates a completed interception plus one prompt at its
+		// started_at, so last_active_at tracks the interception timestamps.
+		mkInterception := func(sessionID, model string, startedAt time.Time) {
+			endedAt := startedAt.Add(time.Minute)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				Model:           model,
+				StartedAt:       startedAt,
+				ClientSessionID: sql.NullString{String: sessionID, Valid: true},
+			}, &endedAt)
+			dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+				InterceptionID: intc.ID,
+				Prompt:         fmt.Sprintf("prompt for %s", sessionID),
+				CreatedAt:      startedAt,
+			})
+		}
+
+		const sessionCount = 8
+		var wantSessionIDs []string
+		for i := range sessionCount {
+			sessionID := fmt.Sprintf("session-%d-%d", unique, i)
+			base := now.Add(-time.Duration(i) * time.Hour)
+
+			// Sessions 2 and 5 only ever use the other model, so the filtered
+			// list must skip them.
+			matches := i != 2 && i != 5
+			if matches {
+				mkInterception(sessionID, wantModel, base)
+				wantSessionIDs = append(wantSessionIDs, sessionID)
+			}
+
+			// A newer interception on the other model, with a newer prompt. It
+			// must not determine the session's position in the filtered
+			// ordering.
+			mkInterception(sessionID, otherModel, base.Add(30*time.Minute))
+		}
+
+		filter := codersdk.AIBridgeListSessionsFilter{Model: wantModel}
+
+		// Unpaginated filtered list.
+		//nolint:gocritic // Owner role is irrelevant; testing pagination.
+		all, err := client.AIBridgeListSessions(ctx, filter)
+		require.NoError(t, err)
+		allIDs := make([]string, 0, len(all.Sessions))
+		for _, s := range all.Sessions {
+			allIDs = append(allIDs, s.ID)
+		}
+		require.Equal(t, wantSessionIDs, allIDs, "filtered list must contain exactly the matching sessions, newest first")
+
+		// Paging in twos must yield the same sessions, once each, in the same
+		// order.
+		pagedIDs := pageAIBridgeSessionIDs(ctx, t, client, filter, 2)
+		require.Equal(t, allIDs, pagedIDs, "filtered keyset pages must be disjoint and complete")
+
+		// A page size that does not divide the result set exercises the final
+		// short page.
+		pagedIDs = pageAIBridgeSessionIDs(ctx, t, client, filter, 4)
+		require.Equal(t, allIDs, pagedIDs, "filtered keyset pages must be disjoint and complete")
+	})
+
+	// KeysetPaginationUnfiltered pages through an unfiltered list and asserts
+	// the pages are disjoint and their union equals the unpaginated list.
+	t.Run("KeysetPaginationUnfiltered", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		unique := time.Now().UnixNano()
+
+		// Six sessions, each with two completed interceptions, so a session
+		// keyed by the wrong interception would show up twice.
+		const sessionCount = 6
+		var wantSessionIDs []string
+		for i := range sessionCount {
+			sessionID := fmt.Sprintf("session-%d-%d", unique, i)
+			base := now.Add(-time.Duration(i) * time.Hour)
+			for _, offset := range []time.Duration{0, 20 * time.Minute} {
+				startedAt := base.Add(offset)
+				endedAt := startedAt.Add(time.Minute)
+				dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+					InitiatorID:     firstUser.UserID,
+					StartedAt:       startedAt,
+					ClientSessionID: sql.NullString{String: sessionID, Valid: true},
+				}, &endedAt)
+			}
+			wantSessionIDs = append(wantSessionIDs, sessionID)
+		}
+
+		//nolint:gocritic // Owner role is irrelevant; testing pagination.
+		all, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		allIDs := make([]string, 0, len(all.Sessions))
+		for _, s := range all.Sessions {
+			allIDs = append(allIDs, s.ID)
+		}
+		require.Equal(t, wantSessionIDs, allIDs)
+
+		for _, pageSize := range []int{1, 2, 4} {
+			pagedIDs := pageAIBridgeSessionIDs(ctx, t, client, codersdk.AIBridgeListSessionsFilter{}, pageSize)
+			require.Equalf(t, allIDs, pagedIDs, "unfiltered keyset pages (size %d) must be disjoint and complete", pageSize)
+		}
+	})
+
+	// OrderedByLatestMatchingInterception verifies that with a per-interception
+	// filter, sessions are ordered by their latest interception that matches the
+	// filter, not by their latest interception overall.
+	//
+	//	S1: wantModel at now-30m, otherModel at now-1m
+	//	S2: wantModel at now-10m
+	//
+	// Unfiltered order: S1 (now-1m), S2 (now-10m).
+	// Filtered by wantModel: S2 (now-10m), S1 (now-30m).
+	t.Run("OrderedByLatestMatchingInterception", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		unique := time.Now().UnixNano()
+		wantModel := fmt.Sprintf("model-want-%d", unique)
+		otherModel := fmt.Sprintf("model-other-%d", unique)
+		s1 := fmt.Sprintf("session-1-%d", unique)
+		s2 := fmt.Sprintf("session-2-%d", unique)
+
+		mkInterception := func(sessionID, model string, startedAt time.Time) {
+			endedAt := startedAt.Add(time.Second)
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				Model:           model,
+				StartedAt:       startedAt,
+				ClientSessionID: sql.NullString{String: sessionID, Valid: true},
+			}, &endedAt)
+		}
+
+		mkInterception(s1, wantModel, now.Add(-30*time.Minute))
+		mkInterception(s1, otherModel, now.Add(-time.Minute))
+		mkInterception(s2, wantModel, now.Add(-10*time.Minute))
+
+		// Unfiltered: S1 leads on its newest interception overall.
+		//nolint:gocritic // Owner role is irrelevant; testing sort order.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 2)
+		require.Equal(t, s1, res.Sessions[0].ID, "unfiltered: S1 first (newest interception now-1m)")
+		require.Equal(t, s2, res.Sessions[1].ID, "unfiltered: S2 second (newest interception now-10m)")
+
+		// Filtered: S1's newest matching interception is now-30m, so it sorts
+		// below S2.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{Model: wantModel})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 2)
+		require.Equal(t, s2, res.Sessions[0].ID, "filtered: S2 first (matching interception now-10m)")
+		require.Equal(t, s1, res.Sessions[1].ID, "filtered: S1 second (matching interception now-30m)")
+	})
+
+	// CountMatchesListedRows verifies the count query agrees with the number of
+	// rows an unpaginated list returns, with and without a filter.
+	t.Run("CountMatchesListedRows", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		unique := time.Now().UnixNano()
+		wantModel := fmt.Sprintf("model-want-%d", unique)
+		otherModel := fmt.Sprintf("model-other-%d", unique)
+
+		// Five sessions. Sessions 0, 1 and 3 have at least one interception on
+		// wantModel; sessions 2 and 4 do not. Sessions with multiple
+		// interceptions must still count once.
+		const sessionCount = 5
+		for i := range sessionCount {
+			sessionID := fmt.Sprintf("session-%d-%d", unique, i)
+			base := now.Add(-time.Duration(i) * time.Hour)
+			model := wantModel
+			if i == 2 || i == 4 {
+				model = otherModel
+			}
+			for _, offset := range []time.Duration{0, 10 * time.Minute} {
+				startedAt := base.Add(offset)
+				endedAt := startedAt.Add(time.Minute)
+				dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+					InitiatorID:     firstUser.UserID,
+					Model:           model,
+					StartedAt:       startedAt,
+					ClientSessionID: sql.NullString{String: sessionID, Valid: true},
+				}, &endedAt)
+			}
+		}
+
+		//nolint:gocritic // Owner role is irrelevant; testing count.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, sessionCount)
+		require.EqualValues(t, len(res.Sessions), res.Count, "unfiltered count must match listed rows")
+
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{Model: wantModel})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 3)
+		require.EqualValues(t, len(res.Sessions), res.Count, "filtered count must match listed rows")
+
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{Model: otherModel})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 2)
+		require.EqualValues(t, len(res.Sessions), res.Count, "filtered count must match listed rows")
+	})
+
+	// NewerInflightInterception verifies a session is still listed, and keyed by
+	// its latest *completed* interception, when a newer interception is still in
+	// flight. Sessions whose interceptions are all in flight are excluded, which
+	// the InflightSessions subtest above covers.
+	t.Run("NewerInflightInterception", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		unique := time.Now().UnixNano()
+		mixed := fmt.Sprintf("session-mixed-%d", unique)
+		inflightOnly := fmt.Sprintf("session-inflight-%d", unique)
+		other := fmt.Sprintf("session-other-%d", unique)
+
+		// Mixed session: completed interception at now-2h, in-flight one at now.
+		// Its key is the completed interception, so it sorts below `other`.
+		mixedEndedAt := now.Add(-2*time.Hour + time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now.Add(-2 * time.Hour),
+			ClientSessionID: sql.NullString{String: mixed, Valid: true},
+		}, &mixedEndedAt)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: mixed, Valid: true},
+		}, nil)
+
+		// Fully in-flight session: excluded entirely.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now.Add(-time.Minute),
+			ClientSessionID: sql.NullString{String: inflightOnly, Valid: true},
+		}, nil)
+
+		otherEndedAt := now.Add(-time.Hour + time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now.Add(-time.Hour),
+			ClientSessionID: sql.NullString{String: other, Valid: true},
+		}, &otherEndedAt)
+
+		//nolint:gocritic // Owner role is irrelevant; testing inflight handling.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 2)
+		require.EqualValues(t, 2, res.Count)
+		require.Equal(t, other, res.Sessions[0].ID, "session keyed by its completed interception at now-1h")
+		require.Equal(t, mixed, res.Sessions[1].ID, "mixed session keyed by its completed interception at now-2h, not the in-flight one at now")
+	})
+
+	// AggregatesSpanUnfilteredInterceptions pins the aggregate scope: with a
+	// per-interception filter, started_at, ended_at, threads and last_active_at
+	// (and the providers/models/client/token laterals) are computed over all
+	// completed interceptions of the session, not only the ones matching the
+	// filter. Only the session's position in the list is decided by its latest
+	// matching interception.
+	//
+	// One session with two standalone (thread-root) interceptions that overlap in
+	// time:
+	//
+	//	otherModel: started=now-2h, ended=now-10m, prompt=now-30m
+	//	wantModel:  started=now-1h, ended=now-59m, prompt=now-45m
+	//
+	// Filtering on wantModel still reports started_at=now-2h, ended_at=now-10m,
+	// threads=2 and last_active_at=now-30m. Aggregating only the matching
+	// interception would report now-1h, now-59m, 1 and now-45m.
+	t.Run("AggregatesSpanUnfilteredInterceptions", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		unique := time.Now().UnixNano()
+		wantModel := fmt.Sprintf("model-want-%d", unique)
+		otherModel := fmt.Sprintf("model-other-%d", unique)
+		sessionID := fmt.Sprintf("session-%d", unique)
+
+		// Non-matching interception: starts first and ends last, so it decides
+		// both reported timestamps. Its prompt is the most recent in the session.
+		otherStartedAt := now.Add(-2 * time.Hour)
+		otherEndedAt := now.Add(-10 * time.Minute)
+		otherIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "openai",
+			Model:           otherModel,
+			StartedAt:       otherStartedAt,
+			ClientSessionID: sql.NullString{String: sessionID, Valid: true},
+		}, &otherEndedAt)
+		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: otherIntc.ID,
+			Prompt:         "prompt on the non-matching interception",
+			CreatedAt:      now.Add(-30 * time.Minute),
+		})
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: otherIntc.ID,
+			InputTokens:    200,
+			OutputTokens:   20,
+			CreatedAt:      otherStartedAt,
+		})
+
+		// Matching interception: a second thread root, fully inside the other
+		// interception's window.
+		wantStartedAt := now.Add(-time.Hour)
+		wantEndedAt := now.Add(-59 * time.Minute)
+		wantIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           wantModel,
+			StartedAt:       wantStartedAt,
+			ClientSessionID: sql.NullString{String: sessionID, Valid: true},
+		}, &wantEndedAt)
+		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: wantIntc.ID,
+			Prompt:         "prompt on the matching interception",
+			CreatedAt:      now.Add(-45 * time.Minute),
+		})
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: wantIntc.ID,
+			InputTokens:    100,
+			OutputTokens:   10,
+			CreatedAt:      wantStartedAt,
+		})
+
+		//nolint:gocritic // Owner role is irrelevant; testing aggregate scope.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{Model: wantModel})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 1)
+		require.EqualValues(t, 1, res.Count)
+
+		s := res.Sessions[0]
+		require.Equal(t, sessionID, s.ID)
+		require.WithinDuration(t, otherStartedAt, s.StartedAt, time.Millisecond,
+			"started_at is MIN over all completed interceptions, including the filtered-out one")
+		require.NotNil(t, s.EndedAt)
+		require.WithinDuration(t, otherEndedAt, *s.EndedAt, time.Millisecond,
+			"ended_at is MAX over all completed interceptions, including the filtered-out one")
+		require.EqualValues(t, 2, s.Threads,
+			"threads counts thread roots across all completed interceptions, including the filtered-out one")
+		require.WithinDuration(t, now.Add(-30*time.Minute), s.LastActiveAt, time.Millisecond,
+			"last_active_at is the latest prompt across all completed interceptions, including the filtered-out one")
+
+		// The remaining per-session fields are unfiltered for the same reason.
+		require.ElementsMatch(t, []string{wantModel, otherModel}, s.Models)
+		require.ElementsMatch(t, []string{"anthropic", "openai"}, s.Providers)
+		require.NotNil(t, s.LastPrompt)
+		require.Equal(t, "prompt on the non-matching interception", *s.LastPrompt)
+		require.EqualValues(t, 300, s.TokenUsageSummary.InputTokens)
+		require.EqualValues(t, 30, s.TokenUsageSummary.OutputTokens)
 	})
 }
 

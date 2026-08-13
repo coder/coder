@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_aibridge_interceptions_session_latest;

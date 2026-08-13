@@ -4709,6 +4709,8 @@ CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING
 
 CREATE INDEX idx_aibridge_interceptions_session_id ON aibridge_interceptions USING btree (session_id) WHERE (ended_at IS NOT NULL);
 
+CREATE INDEX idx_aibridge_interceptions_session_latest ON aibridge_interceptions USING btree (session_id, initiator_id, started_at DESC, id DESC) WHERE (ended_at IS NOT NULL);
+
 CREATE INDEX idx_aibridge_interceptions_sessions_filter ON aibridge_interceptions USING btree (initiator_id, started_at DESC, id DESC) WHERE (ended_at IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_started_id_desc ON aibridge_interceptions USING btree (started_at DESC, id DESC);

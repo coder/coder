@@ -1026,15 +1026,17 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 	}
 
 	query := fmt.Sprintf("-- name: ListAuthorizedAIBridgeSessions :many\n%s", filtered)
+	// Argument order matches the placeholders in the generated
+	// listAIBridgeSessions query.
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.AfterSessionID,
 		arg.StartedAfter,
 		arg.StartedBefore,
-		arg.InitiatorID,
 		arg.Provider,
 		arg.ProviderName,
 		arg.Model,
 		arg.Client,
+		arg.InitiatorID,
 		arg.SessionID,
 		arg.Offset,
 		arg.Limit,
@@ -1095,14 +1097,16 @@ func (q *sqlQuerier) CountAuthorizedAIBridgeSessions(ctx context.Context, arg Co
 	}
 
 	query := fmt.Sprintf("-- name: CountAuthorizedAIBridgeSessions :one\n%s", filtered)
+	// Argument order matches the placeholders in the generated
+	// countAIBridgeSessions query.
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.StartedAfter,
 		arg.StartedBefore,
-		arg.InitiatorID,
 		arg.Provider,
 		arg.ProviderName,
 		arg.Model,
 		arg.Client,
+		arg.InitiatorID,
 		arg.SessionID,
 	)
 	if err != nil {
