@@ -123,7 +123,7 @@ func TestRender(t *testing.T) {
 			[]priceRow{row("anthropic", "fresh", 3_000_000, 4_000_000), row("openai", "gpt", 2_000_000, 3_000_000)},
 		))
 
-		require.Contains(t, out, "1 model added, 1 model removed, 2 prices changed across 1 model.")
+		require.Contains(t, out, "1 model added, 1 model removed, 1 model changed.")
 		require.Contains(t, out, "### Added\n\n- anthropic/fresh\n")
 		require.Contains(t, out, "### Removed\n\n- anthropic/gone\n")
 		// A model that repriced across two fields is listed once.

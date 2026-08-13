@@ -199,10 +199,9 @@ func render(d diff) string {
 	}
 
 	changedModels := changedModelNames(d.changed)
-	write("%s added, %s removed, %s changed across %s.\n",
+	write("%s added, %s removed, %s changed.\n",
 		plural(len(d.added), "model"),
 		plural(len(d.removed), "model"),
-		plural(len(d.changed), "price"),
 		plural(len(changedModels), "model"),
 	)
 
