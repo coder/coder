@@ -3102,6 +3102,9 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 			apiKeyHeader:            "Authorization",
 			customHeaders:           "{}",
 		},
+		// Under dbcrypt an empty header map is stored as ciphertext, so
+		// the copy decision must not read it as real credentials.
+		{id: uuid.New(), slug: "migration-568-none-dbcrypt", authType: "none", apiKeyHeader: "Authorization", customHeaders: "empty-map-ciphertext", customHeadersKeyID: keyID},
 	}
 
 	originalJSON := make(map[uuid.UUID]string, len(configs))

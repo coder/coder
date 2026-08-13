@@ -80,7 +80,12 @@ SELECT
     -- organization's admin re-enters them deliberately.
     CASE
         WHEN config.auth_type IN ('oauth2', 'api_key', 'custom_headers')
-            OR config.custom_headers NOT IN ('', '{}')
+            -- dbcrypt stores every nonblank value as ciphertext, so this
+            -- plaintext check only applies to unencrypted rows. Encrypted
+            -- rows fall back to the auth_type decision above; header
+            -- values are only sent for auth_type custom_headers anyway.
+            OR (config.custom_headers_key_id IS NULL
+                AND config.custom_headers NOT IN ('', '{}'))
             THEN false
         ELSE config.enabled
     END,
