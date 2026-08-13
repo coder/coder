@@ -157,8 +157,9 @@ instead, since at that point the URI is only whatever the request supplied.
 
 ## Token exchange
 
-The negotiated scope is stored on the authorization code and copied to the API
-key and refresh token. The client does not restate it:
+The negotiated scope is stored on the authorization code and copied onto the
+refresh token record. The API key the exchange mints does not carry it yet, so
+what a token is allowed to do is unchanged. The client does not restate it:
 
 ```sh
 curl -X POST https://coder.example.com/oauth2/tokens \
@@ -194,3 +195,8 @@ describing more than exists:
   exactly the omitted-scope case where an app receives its whole allowlist.
 - `POST /oauth2/tokens` parses a `scope` parameter but nothing reads it. The
   refresh path is where it would narrow an existing grant.
+- The API key minted by the token exchange carries no scope. The negotiated
+  value reaches `oauth2_provider_app_tokens.scope`, but `apikey.Generate` is
+  called without one, so enforcement still sees an unrestricted key. This is
+  the phase boundary in its most visible form: authorization requests are
+  already narrowed, the tokens they produce are not.

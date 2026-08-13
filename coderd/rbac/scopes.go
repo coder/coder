@@ -329,11 +329,16 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 // side is an error rather than a false, since a caller cannot tell those apart
 // safely.
 //
-// The comparison is deliberately asymmetric about what it ignores. Permissions
-// on the allowed side that this does not model are dropped, which can only
-// make the answer stricter. Anything on the requested side that is not modeled
-// fails closed instead, because ignoring it would answer "covered" about
-// authority that was never compared.
+// The comparison is deliberately asymmetric about what it ignores. Positive
+// permissions on the allowed side that this does not model are dropped, which
+// can only make the answer stricter. Anything on the requested side that is
+// not modeled fails closed instead, because ignoring it would answer
+// "covered" about authority that was never compared.
+//
+// Negative permissions are the exception to that asymmetry and fail closed on
+// both sides. Dropping an anti-grant from the ceiling would widen it, so the
+// direction that makes the rest of the allowed side safe to ignore does not
+// hold for them.
 func ScopesCover(allowed []ScopeName, requested ScopeName) (bool, error) {
 	want, err := ExpandScope(requested)
 	if err != nil {
@@ -366,6 +371,15 @@ func ScopesCover(allowed []ScopeName, requested ScopeName) (bool, error) {
 		// overstate the ceiling.
 		if !allowListContainsAll(expanded.AllowIDList) {
 			return false, xerrors.Errorf("allowed scope %q carries a resource allow list, which coverage does not model", name)
+		}
+		// A negative permission is the one thing on this side that cannot be
+		// dropped safely. Ignoring an unmodelled grant narrows the ceiling,
+		// but ignoring an anti-grant widens it: an "everything except delete"
+		// scope would otherwise cover a request for delete.
+		for _, perm := range expanded.Site {
+			if perm.Negate {
+				return false, xerrors.Errorf("allowed scope %q carries a negative permission, which coverage does not model", name)
+			}
 		}
 		granted = append(granted, expanded.Site...)
 	}

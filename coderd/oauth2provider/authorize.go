@@ -8,6 +8,7 @@ import (
 	htmltemplate "html/template"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,8 +31,8 @@ import (
 //
 // Each is wrapped with the offending value ahead of it, because xerrors only
 // wraps without repeating the sentinel's own text when %w is the final verb.
-// These messages are rendered into error_description and onto the authorize
-// error page, so a doubled one is read by a person.
+// These messages are rendered into error_description, so a doubled one is read
+// by a person.
 var (
 	// errUnknownScope is returned for a scope name outside the external scope
 	// catalog, whether unrecognized entirely or recognized but internal-only.
@@ -158,7 +159,7 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 		//
 		// Named with the pre-filter list, since that is what was registered
 		// and what the app owner has to change.
-		return "", xerrors.Errorf("%v: %w", allowed, errNoGrantableScope)
+		return "", xerrors.Errorf("%q: %w", strings.Join(allowed, " "), errNoGrantableScope)
 	}
 	// Canonicalized so both sides expand: rbac.ExpandScope knows `coder:all`
 	// and not the `all` alias that IsExternalScope accepts.
@@ -203,7 +204,11 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 // here, so this splits rather than rewrites.
 func consentScopes(granted string) []string {
 	names := strings.Fields(granted)
-	if len(names) == 1 && names[0] == string(database.ApiKeyScopeCoderAll) {
+	// Presence, not sole occupancy: an allowlist registered as
+	// `coder:all coder:workspaces.access` defaults to both names, and listing
+	// them would show the user the entry this function exists to avoid showing
+	// while understating a grant that is in fact unrestricted.
+	if slices.Contains(names, string(database.ApiKeyScopeCoderAll)) {
 		return nil
 	}
 	return names

@@ -136,7 +136,6 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		})
 	}
 
-	// A scope outside the app's allowlist is rejected and no code is issued.
 	t.Run("OutOfAllowlistRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

@@ -366,3 +366,45 @@ func TestHashOAuth2State(t *testing.T) {
 			"same state should produce identical hash")
 	})
 }
+
+// consentScopes decides the sentence a user reads before approving a grant, so
+// the case that matters is the one where a listed name would understate the
+// authority being handed over.
+func TestConsentScopes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		granted string
+		want    []string
+	}{
+		{
+			name:    "NarrowGrantListed",
+			granted: "workspace:ssh template:read",
+			want:    []string{"workspace:ssh", "template:read"},
+		},
+		{
+			// nil, not the name: the page says "full access" instead, which
+			// tells a user more than coder:all does.
+			name:    "UnrestrictedAloneCollapses",
+			granted: string(database.ApiKeyScopeCoderAll),
+			want:    nil,
+		},
+		{
+			// An allowlist registered as `coder:all coder:workspaces.access`
+			// defaults to both names. Listing them would show the very entry
+			// this collapse exists to hide, while describing an unrestricted
+			// grant as if it were bounded by the other name.
+			name:    "UnrestrictedAmongOthersCollapses",
+			granted: string(database.ApiKeyScopeCoderAll) + " coder:workspaces.access",
+			want:    nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, test.want, consentScopes(test.granted))
+		})
+	}
+}

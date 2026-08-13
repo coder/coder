@@ -124,9 +124,12 @@ links */}}
         <span class="user-name">{{ .Username }}</span> account with these
         permissions?
       </p>
-      <ul id="scope-list">
+      {{- /* role="list" and role="listitem" are explicit because WebKit drops
+      the implicit list semantics when list-style is none, which would leave
+      VoiceOver announcing the permissions as loose text. */}}
+      <ul id="scope-list" role="list">
         {{- range .Scopes }}
-        <li>{{ . }}</li>
+        <li role="listitem">{{ . }}</li>
         {{- end }}
       </ul>
       {{- else }}
