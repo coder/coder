@@ -2,6 +2,7 @@ package agentsocket
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"sync"
@@ -37,11 +38,27 @@ type ContextManager interface {
 	Resync(ctx context.Context) (agentcontext.Snapshot, error)
 }
 
+// WorkspaceIdentity reports what the workspace_agent knows about itself, so
+// that the service can check a caller's claims against it.
+//
+// Both are read when a call arrives rather than captured once. The manifest is
+// replaced on reconnection and the credential can be refreshed, so a snapshot
+// of either goes stale and would reject legitimate callers.
+type WorkspaceIdentity interface {
+	// WorkspaceID reports the workspace this workspace_agent serves. ok is
+	// false until the first manifest has arrived.
+	WorkspaceID() (id uuid.UUID, ok bool)
+	// Credential reports the credential this workspace_agent currently
+	// authenticates to the control plane with.
+	Credential() string
+}
+
 // DRPCAgentSocketService implements the DRPC agent socket service.
 type DRPCAgentSocketService struct {
-	unitManager    *unit.Manager
-	contextManager ContextManager
-	logger         slog.Logger
+	unitManager       *unit.Manager
+	contextManager    ContextManager
+	workspaceIdentity WorkspaceIdentity
+	logger            slog.Logger
 
 	mu       sync.Mutex
 	agentAPI agentproto.DRPCAgentClient211
@@ -80,22 +97,17 @@ func (*DRPCAgentSocketService) Ping(_ context.Context, _ *proto.PingRequest) (*p
 // over. Passing them on would be redundant, and passing a caller's credential
 // on would be worse than redundant.
 //
-// So this handler validates, and then drops, both. Nothing crosses. What
+// So this handler verifies, and then drops, both. Nothing crosses. What
 // returns is the identifier coderd minted, which this handler passes back
 // untouched.
 func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.CreateAIAgentRequest) (*proto.CreateAIAgentResponse, error) {
-	// Converted rather than validated. Deciding whether it names a workspace,
-	// and whether this caller may act for it, is production work that this
-	// proof of concept does not do.
 	workspaceID, err := uuid.FromBytes(req.GetWorkspaceId())
 	if err != nil {
 		return nil, xerrors.Errorf("workspace_id is not a uuid: %w", err)
 	}
 
-	// The credential is an opaque blob in transit. It is not parsed, inspected,
-	// or assumed to have a shape. Only its presence is required.
-	if len(req.GetWorkspaceCredential()) == 0 {
-		return nil, xerrors.New("workspace_credential is required")
+	if err := s.verifyCaller(workspaceID, req.GetWorkspaceCredential()); err != nil {
+		return nil, err
 	}
 
 	s.mu.Lock()
@@ -117,6 +129,45 @@ func (s *DRPCAgentSocketService) CreateAIAgent(ctx context.Context, req *proto.C
 	}
 
 	return &proto.CreateAIAgentResponse{Id: resp.GetId()}, nil
+}
+
+// verifyCaller checks a caller's claims against what the workspace_agent knows
+// about itself.
+//
+// What this establishes is narrow, and worth stating so that it is not relied
+// on for more. The workspace_agent exports its credential to every process it
+// starts, so any of them can present it. A caller that passes this check has
+// shown that it is inside this workspace. It has not shown which process it
+// is, and nothing here distinguishes one from another.
+//
+// It fails closed. A workspace_agent that does not yet know its own identity
+// cannot verify anyone, and answering as though it could would be worse than
+// refusing.
+func (s *DRPCAgentSocketService) verifyCaller(workspaceID uuid.UUID, credential []byte) error {
+	if s.workspaceIdentity == nil {
+		return xerrors.New("this workspace_agent cannot verify callers")
+	}
+
+	ownID, ok := s.workspaceIdentity.WorkspaceID()
+	if !ok {
+		return xerrors.New("this workspace_agent does not yet know its workspace")
+	}
+	if workspaceID != ownID {
+		return xerrors.Errorf("workspace_id %s is not this workspace", workspaceID)
+	}
+
+	// The credential is an opaque blob. It is not parsed, inspected, or assumed
+	// to have a shape, only compared. The comparison is constant time because
+	// the operands are secrets, even though one of them is ambient here.
+	ownCredential := s.workspaceIdentity.Credential()
+	if ownCredential == "" {
+		return xerrors.New("this workspace_agent has no credential to compare against")
+	}
+	if subtle.ConstantTimeCompare([]byte(ownCredential), credential) != 1 {
+		return xerrors.New("workspace_credential does not match this workspace")
+	}
+
+	return nil
 }
 
 // SyncStart starts a unit in the dependency graph.

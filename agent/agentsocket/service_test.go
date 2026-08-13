@@ -26,6 +26,18 @@ func (m *fakeAgentAPI) UpdateAppStatus(ctx context.Context, req *agentproto.Upda
 	return m.updateAppStatus(ctx, req)
 }
 
+// fakeWorkspaceIdentity stands in for what a real workspace_agent knows about
+// itself. known is separate from id so that a test can express the state
+// before the first manifest has arrived.
+type fakeWorkspaceIdentity struct {
+	id         uuid.UUID
+	known      bool
+	credential string
+}
+
+func (f fakeWorkspaceIdentity) WorkspaceID() (uuid.UUID, bool) { return f.id, f.known }
+func (f fakeWorkspaceIdentity) Credential() string             { return f.credential }
+
 // newSocketClient creates a DRPC client connected to the Unix socket at the given path.
 func newSocketClient(ctx context.Context, t *testing.T, socketPath string) *agentsocket.Client {
 	t.Helper()
@@ -60,28 +72,67 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// CreateAIAgent forwards to coderd. These cases cover what it does before
-	// forwarding, and both outlive the proof of concept: a request with no
-	// credential is meaningless whatever handles it, and there is nothing to
-	// forward over until the workspace_agent has a connection.
+	// CreateAIAgent verifies the caller against what the workspace_agent knows
+	// about itself, then forwards to coderd. These cases cover the verifying,
+	// and all of them outlive the proof of concept: a caller that cannot show
+	// it belongs to this workspace has no business creating an AI agent in it.
 	t.Run("CreateAIAgent", func(t *testing.T) {
 		t.Parallel()
 
+		const ownCredential = "the workspace_agent's own credential"
+		ownWorkspace := uuid.New()
+
 		for _, tc := range []struct {
 			name                string
+			identity            agentsocket.WorkspaceIdentity
+			workspaceID         uuid.UUID
 			workspaceCredential []byte
 			wantErr             string
 		}{
 			{
-				name:                "NoWorkspaceCredential",
-				workspaceCredential: nil,
-				wantErr:             "workspace_credential is required",
+				// Fails closed. An agent that cannot verify refuses rather
+				// than waving the caller through.
+				name:                "NoIdentity",
+				identity:            nil,
+				workspaceID:         ownWorkspace,
+				workspaceCredential: []byte(ownCredential),
+				wantErr:             "cannot verify callers",
 			},
 			{
-				// The server under test never had SetAgentAPI called, so a
-				// valid request reaches the forwarding guard.
+				name:                "WorkspaceNotYetKnown",
+				identity:            fakeWorkspaceIdentity{credential: ownCredential},
+				workspaceID:         ownWorkspace,
+				workspaceCredential: []byte(ownCredential),
+				wantErr:             "does not yet know its workspace",
+			},
+			{
+				name:                "WrongWorkspace",
+				identity:            fakeWorkspaceIdentity{id: ownWorkspace, known: true, credential: ownCredential},
+				workspaceID:         uuid.New(),
+				workspaceCredential: []byte(ownCredential),
+				wantErr:             "is not this workspace",
+			},
+			{
+				name:                "NoWorkspaceCredential",
+				identity:            fakeWorkspaceIdentity{id: ownWorkspace, known: true, credential: ownCredential},
+				workspaceID:         ownWorkspace,
+				workspaceCredential: nil,
+				wantErr:             "does not match this workspace",
+			},
+			{
+				name:                "WrongCredential",
+				identity:            fakeWorkspaceIdentity{id: ownWorkspace, known: true, credential: ownCredential},
+				workspaceID:         ownWorkspace,
+				workspaceCredential: []byte("a credential from somewhere else"),
+				wantErr:             "does not match this workspace",
+			},
+			{
+				// Verification passes, so the request reaches the forwarding
+				// guard. The server under test never had SetAgentAPI called.
 				name:                "NotConnectedToCoderd",
-				workspaceCredential: []byte("credential"),
+				identity:            fakeWorkspaceIdentity{id: ownWorkspace, known: true, credential: ownCredential},
+				workspaceID:         ownWorkspace,
+				workspaceCredential: []byte(ownCredential),
 				wantErr:             "agent not connected to coderd",
 			},
 		} {
@@ -90,16 +141,20 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 				socketPath := testutil.AgentSocketPath(t)
 				ctx := testutil.Context(t, testutil.WaitShort)
+				opts := []agentsocket.Option{agentsocket.WithPath(socketPath)}
+				if tc.identity != nil {
+					opts = append(opts, agentsocket.WithWorkspaceIdentity(tc.identity))
+				}
 				server, err := agentsocket.NewServer(
 					slog.Make().Leveled(slog.LevelDebug),
-					agentsocket.WithPath(socketPath),
+					opts...,
 				)
 				require.NoError(t, err)
 				defer server.Close()
 
 				client := newSocketClient(ctx, t, socketPath)
 
-				id, err := client.CreateAIAgent(ctx, uuid.New(), tc.workspaceCredential)
+				id, err := client.CreateAIAgent(ctx, tc.workspaceID, tc.workspaceCredential)
 				require.ErrorContains(t, err, tc.wantErr)
 				require.Equal(t, uuid.Nil, id, "a rejected request mints nothing")
 			})

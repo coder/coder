@@ -573,6 +573,25 @@ func (a *agent) init() {
 	go a.runLoop()
 }
 
+// workspaceIdentity reports what this workspace_agent knows about itself, for
+// verifying callers on the local socket. Both values are read on demand: the
+// manifest is replaced on reconnection and the session token can be refreshed.
+type workspaceIdentity struct {
+	a *agent
+}
+
+func (w workspaceIdentity) WorkspaceID() (uuid.UUID, bool) {
+	manifest := w.a.manifest.Load()
+	if manifest == nil {
+		return uuid.Nil, false
+	}
+	return manifest.WorkspaceID, true
+}
+
+func (w workspaceIdentity) Credential() string {
+	return w.a.client.GetSessionToken()
+}
+
 // initSocketServer initializes server that allows direct communication with a workspace agent using IPC.
 func (a *agent) initSocketServer() {
 	if !a.socketServerEnabled {
@@ -584,6 +603,7 @@ func (a *agent) initSocketServer() {
 		a.logger.Named("socket"),
 		agentsocket.WithPath(a.socketPath),
 		agentsocket.WithContextManager(a.contextManager),
+		agentsocket.WithWorkspaceIdentity(workspaceIdentity{a: a}),
 	)
 	if err != nil {
 		a.logger.Error(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))

@@ -17,8 +17,9 @@ import (
 type Option func(*options)
 
 type options struct {
-	path           string
-	contextManager ContextManager
+	path              string
+	contextManager    ContextManager
+	workspaceIdentity WorkspaceIdentity
 }
 
 // WithPath sets the socket path. If not provided or empty, the client will
@@ -37,6 +38,14 @@ func WithPath(path string) Option {
 func WithContextManager(cm ContextManager) Option {
 	return func(opts *options) {
 		opts.contextManager = cm
+	}
+}
+
+// WithWorkspaceIdentity supplies what the workspace_agent knows about itself,
+// which the server uses to verify callers. Server-only; ignored by the client.
+func WithWorkspaceIdentity(wi WorkspaceIdentity) Option {
+	return func(opts *options) {
+		opts.workspaceIdentity = wi
 	}
 }
 
