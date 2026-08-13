@@ -58,7 +58,3 @@ administrator account.
 
 Once you've signed in, you'll be brought to an empty workspaces page, which
 we'll soon populate with your first development environments.
-
-## Next steps
-
-TODO: Add link to next page.
