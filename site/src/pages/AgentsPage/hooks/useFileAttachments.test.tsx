@@ -171,6 +171,32 @@ describe("useFileAttachments org scoping", () => {
 		).not.toContain("file-x");
 	});
 
+	it("hides attachments when authorization leaves no org", async () => {
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
+		);
+		const { result, rerender } = renderAttachments({ orgId: "org-a" });
+		await waitFor(() => {
+			expect(uploadedFileIds(result.current)).toStrictEqual(["file-a"]);
+		});
+
+		// Losing the org entirely (empty permitted set) must hide the
+		// previous org's attachments so they cannot be removed, while
+		// keeping them persisted for when the org returns.
+		rerender({ orgId: undefined });
+		expect(result.current.attachments).toStrictEqual([]);
+		expect(uploadedFileIds(result.current)).toStrictEqual([]);
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toContain(
+			"file-a",
+		);
+
+		rerender({ orgId: "org-a" });
+		await waitFor(() => {
+			expect(uploadedFileIds(result.current)).toStrictEqual(["file-a"]);
+		});
+	});
+
 	it("does not prune storage during a render that never commits", () => {
 		localStorage.setItem(
 			persistedAttachmentsStorageKey,

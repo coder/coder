@@ -539,15 +539,13 @@ export function useFileAttachments(
 		}
 	};
 
-	// Between a permission-driven org change committing and the
-	// adoption effect running, state still belongs to the previous
-	// org. Expose it as empty so a send in that window cannot pair
-	// the old org's file IDs with the new org.
+	// Whenever adopted state does not belong to the current org, expose it
+	// as empty: between an org change committing and the adoption effect
+	// running, a send could pair the old org's file IDs with the new org,
+	// and when authorization leaves no org at all, remove buttons could
+	// still delete the previous org's persisted attachments.
 	const orgMismatch =
-		persist &&
-		stateOrgId !== null &&
-		Boolean(organizationId) &&
-		stateOrgId !== organizationId;
+		persist && stateOrgId !== null && stateOrgId !== organizationId;
 
 	return {
 		organizationAdopted:
