@@ -1,7 +1,8 @@
-import { InfoIcon } from "lucide-react";
+import { BanIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import type { Feature } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -63,8 +64,8 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 			? hardLimit
 			: undefined;
 	// The backend warns with >= for both thresholds, so "reached" (not
-	// "exceeded") flips the bar color. An unlimited allocation has no
-	// thresholds to reach.
+	// "exceeded") drives the warning copy and the used-label color. An
+	// unlimited allocation has no thresholds to reach.
 	const reachedAllocation =
 		!isUnlimited && actualMs !== undefined && usedHours >= meteredLimit;
 	const reachedHardCap =
@@ -97,6 +98,30 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	const hardCapLabelAboveBar =
 		allocationMarkerPercent !== undefined && allocationMarkerPercent > 85;
 
+	// The fill is segmented by position instead of switching color as a
+	// whole: green until the soft limit, yellow from the soft limit to the
+	// allocation, and red from the allocation to the hard cap. Each
+	// threshold also carries a marker line on the track at the same
+	// position, so a marker only stands out against fill of a different
+	// color once usage passes it.
+	const softMarkerPercent =
+		!isUnlimited && softLimit !== undefined && barScale > 0
+			? Math.min((softLimit / barScale) * 100, 100)
+			: undefined;
+	const limitBoundaryPercent = allocationMarkerPercent ?? 100;
+	const greenWidth = Math.min(
+		usagePercentage,
+		softMarkerPercent ?? limitBoundaryPercent,
+	);
+	const yellowWidth =
+		softMarkerPercent === undefined
+			? 0
+			: Math.max(
+					0,
+					Math.min(usagePercentage, limitBoundaryPercent) - softMarkerPercent,
+				);
+	const redWidth = Math.max(0, usagePercentage - limitBoundaryPercent);
+
 	// Usage always renders with exactly one decimal (e.g. 42.0, 10.3). The
 	// value is already floored to tenths, so no rounding happens here. The
 	// limit and hard cap labels stay whole because the claims are whole
@@ -128,21 +153,12 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	// An unlimited allocation renders as green diagonal stripes whose
 	// right half fades out into the track: the hatched, trailing-off bar
 	// reads as an unmetered allocation rather than 100% usage. The mask
-	// needs the -webkit- prefix for Safari. Usage at or beyond the hard
-	// cap swaps the solid red fill for red diagonal stripes.
-	const barClassName = isUnlimited
-		? cn(
-				"bg-[repeating-linear-gradient(-45deg,hsl(var(--highlight-green)),hsl(var(--highlight-green))_6px,transparent_6px,transparent_12px)]",
-				"[mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
-				"[-webkit-mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
-			)
-		: reachedHardCap
-			? "bg-[repeating-linear-gradient(-45deg,hsl(var(--highlight-red)),hsl(var(--highlight-red))_6px,transparent_6px,transparent_12px)]"
-			: reachedAllocation
-				? "bg-highlight-red"
-				: reachedSoftLimit
-					? "bg-highlight-orange"
-					: "bg-highlight-green";
+	// needs the -webkit- prefix for Safari.
+	const unlimitedBarClassName = cn(
+		"bg-[repeating-linear-gradient(-45deg,hsl(var(--highlight-green)),hsl(var(--highlight-green))_6px,transparent_6px,transparent_12px)]",
+		"[mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
+		"[-webkit-mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
+	);
 
 	let tooltip: string;
 	if (reachedAllocation) {
@@ -190,38 +206,90 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 						</Tooltip>
 					</div>
 
-					{hardCapLabelAboveBar && (
-						<p className="m-0 self-end text-sm font-medium whitespace-nowrap text-content-secondary">
-							Hard cap:{" "}
-							<span className="text-content-primary">{hardCapLabel}</span>
-						</p>
+					{(reachedHardCap || hardCapLabelAboveBar) && (
+						<div className="flex items-center justify-end gap-3">
+							{reachedHardCap && (
+								<Badge variant="destructive" size="sm" className="rounded-full">
+									<BanIcon />
+									Hard cap reached - chat concurrency enforced
+								</Badge>
+							)}
+							{hardCapLabelAboveBar && (
+								<p className="m-0 text-sm font-medium whitespace-nowrap text-content-secondary">
+									Hard cap:{" "}
+									<span className="text-content-primary">{hardCapLabel}</span>
+								</p>
+							)}
+						</div>
 					)}
 
-					<div
-						className="relative h-5 w-full overflow-hidden rounded bg-surface-secondary"
-						aria-hidden="true"
-					>
-						<div
-							className={cn(
-								"h-full rounded-l transition-[width] duration-300",
-								barClassName,
+					{/* The marker lines overshoot the track on both sides, so they
+					    live outside the track's overflow clipping. */}
+					<div className="relative" aria-hidden="true">
+						<div className="relative h-5 w-full overflow-hidden rounded bg-surface-secondary">
+							{isUnlimited ? (
+								<div
+									className={cn(
+										"h-full w-full rounded-l",
+										unlimitedBarClassName,
+									)}
+								/>
+							) : (
+								<>
+									<div
+										className="absolute inset-y-0 left-0 rounded-l bg-highlight-green transition-[width] duration-300"
+										style={{ width: `${greenWidth}%` }}
+									/>
+									{softMarkerPercent !== undefined && (
+										<div
+											className="absolute inset-y-0 bg-yellow-400 transition-[width] duration-300"
+											style={{
+												left: `${softMarkerPercent}%`,
+												width: `${yellowWidth}%`,
+											}}
+										/>
+									)}
+									{hardCap !== undefined && (
+										<div
+											className="absolute inset-y-0 bg-highlight-red transition-[width] duration-300"
+											style={{
+												left: `${limitBoundaryPercent}%`,
+												width: `${redWidth}%`,
+											}}
+										/>
+									)}
+								</>
 							)}
-							style={{ width: `${usagePercentage}%` }}
-						/>
-						{allocationMarkerPercent !== undefined && (
-							// Dotted yellow line marking the allocation on the hard-cap
-							// scaled track. The default palette yellow is used because
-							// the theme has no yellow highlight token and the soft-limit
-							// state already fills the bar with the orange one.
-							<div
-								className="absolute inset-y-0 border-0 border-l-2 border-dotted border-yellow-400"
-								style={{ left: `${allocationMarkerPercent}%` }}
-							/>
-						)}
-						{hardCap !== undefined && (
-							// Solid red line marking the hard cap at the track's right
-							// edge.
-							<div className="absolute inset-y-0 right-0 w-0.5 bg-highlight-red" />
+						</div>
+						{!isUnlimited && (
+							<>
+								{softMarkerPercent !== undefined && (
+									// Dotted yellow line marking the soft limit. The default
+									// palette yellow is used because the theme has no yellow
+									// highlight token.
+									<div
+										className="absolute -inset-y-1 border-0 border-l-2 border-dotted border-yellow-400"
+										style={{ left: `${softMarkerPercent}%` }}
+									/>
+								)}
+								{hardCap === undefined ? (
+									// Without a hard cap the allocation is the track's right
+									// edge, where its red marker line sits.
+									<div className="absolute -inset-y-1 right-0 w-0.5 bg-highlight-red" />
+								) : (
+									<>
+										<div
+											className="absolute -inset-y-1 w-0.5 bg-highlight-red"
+											style={{ left: `${allocationMarkerPercent}%` }}
+										/>
+										{/* Double-width line marking the hard cap. It uses the
+										    theme's primary content color (white in the dark
+										    theme) so it stays visible over the light theme's
+										    white card background. */}
+										<div className="absolute -inset-y-1 right-0 w-1 bg-content-primary" />
+									</>
+								)}
+							</>
 						)}
 					</div>
 
