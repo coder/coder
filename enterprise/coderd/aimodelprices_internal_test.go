@@ -106,14 +106,14 @@ func TestValidateAIModelPrices(t *testing.T) {
 			name: "MissingAllPriceKeys",
 			body: `{"prices":[{"provider":"anthropic","model":"my-model"}]}`,
 			want: []codersdk.ValidationError{
-				{Field: "prices[0]", Detail: "At least one price must be set. Use 0 to declare a model free."},
+				{Field: "prices[0]", Detail: "At least one price must be set. Use 0 to declare a model free of charge."},
 			},
 		},
 		{
 			name: "AllPricesNull",
 			body: `{"prices":[{"provider":"anthropic","model":"my-model","input_price":null,"output_price":null,"cache_read_price":null,"cache_write_price":null}]}`,
 			want: []codersdk.ValidationError{
-				{Field: "prices[0]", Detail: "At least one price must be set. Use 0 to declare a model free."},
+				{Field: "prices[0]", Detail: "At least one price must be set. Use 0 to declare a model free of charge."},
 			},
 		},
 		{
@@ -153,7 +153,7 @@ func TestValidateAIModelPrices(t *testing.T) {
 			body: `{"prices":[{"provider":"unknown-provider","model":"my-model"}]}`,
 			want: []codersdk.ValidationError{
 				{Field: "prices[0].provider", Detail: `Provider "unknown-provider" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel.`},
-				{Field: "prices[0]", Detail: "At least one price must be set. Use 0 to declare a model free."},
+				{Field: "prices[0]", Detail: "At least one price must be set. Use 0 to declare a model free of charge."},
 			},
 		},
 		{
