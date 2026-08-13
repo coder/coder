@@ -50,6 +50,7 @@ func TestCreateAndMintKey(t *testing.T) {
 	profile := aiagentidentity.ChatAgentProfile(originID)
 	key, token, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, profile)
 	require.NoError(t, err)
+	require.True(t, aiagentidentity.APIKeyMatchesBuiltInProfile(key))
 	require.NotEmpty(t, token)
 	require.Equal(t, agentUser.ID, key.UserID)
 	require.Equal(t, database.LoginTypeToken, key.LoginType)
@@ -64,17 +65,25 @@ func TestCreateAndMintKey(t *testing.T) {
 	require.Equal(t, agentUser.ID, resolved.Actor.AgentUserID)
 
 	profileTests := []struct {
-		name    string
-		profile aiagentidentity.Profile
-		wantErr string
+		name         string
+		profile      aiagentidentity.Profile
+		wantErr      string
+		matchesShape bool
 	}{
 		{
-			name:    "chat profile",
-			profile: aiagentidentity.ChatAgentProfile(uuid.New()),
+			name:         "chat profile",
+			profile:      aiagentidentity.ChatAgentProfile(uuid.New()),
+			matchesShape: true,
 		},
 		{
-			name:    "workspace profile",
-			profile: aiagentidentity.WorkspaceAgentIdentityProfile(uuid.New()),
+			name:         "workspace profile",
+			profile:      aiagentidentity.WorkspaceAgentIdentityProfile(uuid.New()),
+			matchesShape: true,
+		},
+		{
+			name:         "sandbox profile",
+			profile:      aiagentidentity.SandboxIdentityProfile(uuid.New(), uuid.New()),
+			matchesShape: true,
 		},
 		{
 			name: "user read",
@@ -125,10 +134,16 @@ func TestCreateAndMintKey(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			require.Equal(t, tt.matchesShape, aiagentidentity.APIKeyMatchesBuiltInProfile(key))
 			require.NotEmpty(t, key.Scopes)
 			require.NotEmpty(t, key.AllowList)
 		})
 	}
+
+	require.False(t, aiagentidentity.APIKeyMatchesBuiltInProfile(database.APIKey{
+		Scopes:    database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+		AllowList: database.AllowList{rbac.AllowListAll()},
+	}))
 
 	_, _, err = aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.Profile{})
 	require.ErrorContains(t, err, "at least one scope")
