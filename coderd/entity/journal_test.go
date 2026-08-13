@@ -80,9 +80,10 @@ func TestAppendEntry(t *testing.T) {
 
 			// A refusal must leave nothing behind, or the journal ends up
 			// holding the entries it just rejected.
-			entries, err := db.GetEntityJournalEntriesBySubject(ctx, database.GetEntityJournalEntriesBySubjectParams{
+			entries, err := db.GetLifecycleEntriesBySubject(ctx, database.GetLifecycleEntriesBySubjectParams{
 				SubjectType: string(tc.entry.Subject.Type),
 				Subject:     tc.entry.Subject.ID,
+				Limit:       entity.LifecycleEntryLimit,
 			})
 			require.NoError(t, err)
 			require.Empty(t, entries)

@@ -3900,36 +3900,6 @@ func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigs(ctx any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigs), ctx)
 }
 
-// GetEntityJournalEntriesByActor mocks base method.
-func (m *MockStore) GetEntityJournalEntriesByActor(ctx context.Context, arg database.GetEntityJournalEntriesByActorParams) ([]database.EntityJournal, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEntityJournalEntriesByActor", ctx, arg)
-	ret0, _ := ret[0].([]database.EntityJournal)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetEntityJournalEntriesByActor indicates an expected call of GetEntityJournalEntriesByActor.
-func (mr *MockStoreMockRecorder) GetEntityJournalEntriesByActor(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEntityJournalEntriesByActor", reflect.TypeOf((*MockStore)(nil).GetEntityJournalEntriesByActor), ctx, arg)
-}
-
-// GetEntityJournalEntriesBySubject mocks base method.
-func (m *MockStore) GetEntityJournalEntriesBySubject(ctx context.Context, arg database.GetEntityJournalEntriesBySubjectParams) ([]database.EntityJournal, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEntityJournalEntriesBySubject", ctx, arg)
-	ret0, _ := ret[0].([]database.EntityJournal)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetEntityJournalEntriesBySubject indicates an expected call of GetEntityJournalEntriesBySubject.
-func (mr *MockStoreMockRecorder) GetEntityJournalEntriesBySubject(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEntityJournalEntriesBySubject", reflect.TypeOf((*MockStore)(nil).GetEntityJournalEntriesBySubject), ctx, arg)
-}
-
 // GetExternalAgentTokensByTemplateID mocks base method.
 func (m *MockStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	m.ctrl.T.Helper()
@@ -4453,6 +4423,36 @@ func (m *MockStore) GetLicenses(ctx context.Context) ([]database.License, error)
 func (mr *MockStoreMockRecorder) GetLicenses(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLicenses", reflect.TypeOf((*MockStore)(nil).GetLicenses), ctx)
+}
+
+// GetLifecycleEntriesByActor mocks base method.
+func (m *MockStore) GetLifecycleEntriesByActor(ctx context.Context, arg database.GetLifecycleEntriesByActorParams) ([]database.EntityJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLifecycleEntriesByActor", ctx, arg)
+	ret0, _ := ret[0].([]database.EntityJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLifecycleEntriesByActor indicates an expected call of GetLifecycleEntriesByActor.
+func (mr *MockStoreMockRecorder) GetLifecycleEntriesByActor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLifecycleEntriesByActor", reflect.TypeOf((*MockStore)(nil).GetLifecycleEntriesByActor), ctx, arg)
+}
+
+// GetLifecycleEntriesBySubject mocks base method.
+func (m *MockStore) GetLifecycleEntriesBySubject(ctx context.Context, arg database.GetLifecycleEntriesBySubjectParams) ([]database.EntityJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLifecycleEntriesBySubject", ctx, arg)
+	ret0, _ := ret[0].([]database.EntityJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLifecycleEntriesBySubject indicates an expected call of GetLifecycleEntriesBySubject.
+func (mr *MockStoreMockRecorder) GetLifecycleEntriesBySubject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLifecycleEntriesBySubject", reflect.TypeOf((*MockStore)(nil).GetLifecycleEntriesBySubject), ctx, arg)
 }
 
 // GetLogoURL mocks base method.

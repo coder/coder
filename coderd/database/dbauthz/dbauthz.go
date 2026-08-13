@@ -3867,20 +3867,6 @@ func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MC
 	return q.db.GetEnabledMCPServerConfigs(ctx)
 }
 
-func (q *querier) GetEntityJournalEntriesByActor(ctx context.Context, arg database.GetEntityJournalEntriesByActorParams) ([]database.EntityJournal, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetEntityJournalEntriesByActor(ctx, arg)
-}
-
-func (q *querier) GetEntityJournalEntriesBySubject(ctx context.Context, arg database.GetEntityJournalEntriesBySubjectParams) ([]database.EntityJournal, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetEntityJournalEntriesBySubject(ctx, arg)
-}
-
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
 // scaletest agentfake path calls this query directly via a connection to the
 // database. There is no production code path that uses this method, and it is
@@ -4140,6 +4126,20 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 		return q.db.GetLicenses(ctx)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
+}
+
+func (q *querier) GetLifecycleEntriesByActor(ctx context.Context, arg database.GetLifecycleEntriesByActorParams) ([]database.EntityJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetLifecycleEntriesByActor(ctx, arg)
+}
+
+func (q *querier) GetLifecycleEntriesBySubject(ctx context.Context, arg database.GetLifecycleEntriesBySubjectParams) ([]database.EntityJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetLifecycleEntriesBySubject(ctx, arg)
 }
 
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {

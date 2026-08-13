@@ -522,20 +522,22 @@ func (s *MethodTestSuite) TestEntityJournal() {
 		dbm.EXPECT().InsertEntityJournalEntry(gomock.Any(), arg).Return(database.EntityJournal{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("GetEntityJournalEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetEntityJournalEntriesBySubjectParams{
+	s.Run("GetLifecycleEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetLifecycleEntriesBySubjectParams{
 			SubjectType: "ai_agent",
 			Subject:     uuid.New(),
+			Limit:       10,
 		}
-		dbm.EXPECT().GetEntityJournalEntriesBySubject(gomock.Any(), arg).Return([]database.EntityJournal{}, nil).AnyTimes()
+		dbm.EXPECT().GetLifecycleEntriesBySubject(gomock.Any(), arg).Return([]database.EntityJournal{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetEntityJournalEntriesByActor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetEntityJournalEntriesByActorParams{
+	s.Run("GetLifecycleEntriesByActor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetLifecycleEntriesByActorParams{
 			ActorType: "workspace_agent",
 			Actor:     uuid.New(),
+			Limit:     10,
 		}
-		dbm.EXPECT().GetEntityJournalEntriesByActor(gomock.Any(), arg).Return([]database.EntityJournal{}, nil).AnyTimes()
+		dbm.EXPECT().GetLifecycleEntriesByActor(gomock.Any(), arg).Return([]database.EntityJournal{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }
