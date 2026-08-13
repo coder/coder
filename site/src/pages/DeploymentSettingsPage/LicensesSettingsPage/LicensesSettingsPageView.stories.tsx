@@ -85,6 +85,8 @@ export const TotalAgentHoursUsage: Story = {
 			limit: 2000,
 			soft_limit: 1700,
 			actual: 435,
+			// 435 hours and 48 minutes: renders as 435.8.
+			actual_ms: 435 * 3_600_000 + 48 * 60_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
@@ -92,7 +94,7 @@ export const TotalAgentHoursUsage: Story = {
 		const agentHoursHeading = canvas.getByRole("heading", {
 			name: "Total agent hours",
 		});
-		await expect(canvas.getByText("435")).toBeInTheDocument();
+		await expect(canvas.getByText("435.8")).toBeInTheDocument();
 		await expect(canvas.getByText("2,000")).toBeInTheDocument();
 		const managedAgentsSection = canvas.getByText(
 			"Agent Workspace Builds Disabled",

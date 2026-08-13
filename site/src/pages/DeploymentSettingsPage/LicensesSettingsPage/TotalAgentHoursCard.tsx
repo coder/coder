@@ -26,7 +26,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		limit,
 		soft_limit: softLimit,
 		hard_limit: hardLimit,
-		actual,
+		actual_ms: actualMs,
 	} = feature;
 
 	// An enabled feature with the limit omitted is the unlimited
@@ -45,7 +45,12 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	}
 
 	const meteredLimit = limit ?? 0;
-	const usedHours = actual ?? 0;
+	// Usage in tenths of hours, floored via integer math from the exact
+	// milliseconds so the displayed number and the reached states below
+	// flip at the same instant as the backend's whole-hour thresholds
+	// (floor_tenths(x) >= N is equivalent to x >= N for integer N).
+	const usedHours =
+		actualMs === undefined ? 0 : Math.floor(actualMs / 360_000) / 10;
 	// The backend only attaches a hard limit to a positive allocation and
 	// guarantees hard >= allocation, ignoring unusable hard limit claims,
 	// so anything else here comes from a decoding bug and is ignored the
@@ -61,16 +66,16 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	// "exceeded") flips the bar color. An unlimited allocation has no
 	// thresholds to reach.
 	const reachedAllocation =
-		!isUnlimited && actual !== undefined && usedHours >= meteredLimit;
+		!isUnlimited && actualMs !== undefined && usedHours >= meteredLimit;
 	const reachedHardCap =
-		hardCap !== undefined && actual !== undefined && usedHours >= hardCap;
+		hardCap !== undefined && actualMs !== undefined && usedHours >= hardCap;
 	// Missing usage data (the usage query failed) must not count as
 	// reaching the soft limit: a soft limit of zero is valid and would
 	// otherwise compare as reached against the defaulted zero usage.
 	const reachedSoftLimit =
 		!isUnlimited &&
 		!reachedAllocation &&
-		actual !== undefined &&
+		actualMs !== undefined &&
 		softLimit !== undefined &&
 		usedHours >= softLimit;
 	// With a hard cap the track spans the full enforcement range: its
@@ -92,8 +97,17 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	const hardCapLabelAboveBar =
 		allocationMarkerPercent !== undefined && allocationMarkerPercent > 85;
 
+	// Usage always renders with exactly one decimal (e.g. 42.0, 10.3). The
+	// value is already floored to tenths, so no rounding happens here. The
+	// limit and hard cap labels stay whole because the claims are whole
+	// hours.
 	const usedLabel =
-		actual === undefined ? "\u2014" : usedHours.toLocaleString("en-US");
+		actualMs === undefined
+			? "\u2014"
+			: usedHours.toLocaleString("en-US", {
+					minimumFractionDigits: 1,
+					maximumFractionDigits: 1,
+				});
 	const limitLabel = isUnlimited
 		? "Unlimited"
 		: meteredLimit.toLocaleString("en-US");

@@ -14,6 +14,8 @@ const meta: Meta<typeof TotalAgentHoursCard> = {
 			limit: 1000,
 			soft_limit: 850,
 			actual: 400,
+			// 400 hours and 18 minutes: renders as 400.3.
+			actual_ms: 400 * 3_600_000 + 18 * 60_000,
 		} satisfies Feature,
 	},
 };
@@ -44,7 +46,7 @@ const expectTooltipText = async (
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("400")).toBeInTheDocument();
+		await expect(canvas.getByText("400.3")).toBeInTheDocument();
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
@@ -61,6 +63,7 @@ export const NoSoftLimit: Story = {
 			entitlement: "entitled",
 			limit: 1000,
 			actual: 400,
+			actual_ms: 400 * 3_600_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
@@ -80,11 +83,12 @@ export const ReachedSoftLimit: Story = {
 			limit: 1000,
 			soft_limit: 850,
 			actual: 850,
+			actual_ms: 850 * 3_600_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("850")).toBeInTheDocument();
+		await expect(canvas.getByText("850.0")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -101,11 +105,13 @@ export const ReachedAllocation: Story = {
 			limit: 1000,
 			soft_limit: 850,
 			actual: 1000,
+			actual_ms: 1000 * 3_600_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getAllByText("1,000")).toHaveLength(2);
+		await expect(canvas.getByText("1,000.0")).toBeInTheDocument();
+		await expect(canvas.getByText("1,000")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -122,16 +128,42 @@ export const OverAllocation: Story = {
 			limit: 1000,
 			soft_limit: 850,
 			actual: 1200,
+			actual_ms: 1200 * 3_600_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,200")).toBeInTheDocument();
+		await expect(canvas.getByText("1,200.0")).toBeInTheDocument();
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
 			/You've used 120% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+		);
+	},
+};
+
+// The whole-hour actual sits exactly at the allocation, but the extra
+// 6 minutes push the tenths-precision value past it, so the fraction
+// alone flips the reached state and the red bar.
+export const ReachedAllocationByFraction: Story = {
+	args: {
+		feature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 1000,
+			soft_limit: 850,
+			actual: 1000,
+			actual_ms: 1000 * 3_600_000 + 6 * 60_000,
+		} satisfies Feature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("1,000.1")).toBeInTheDocument();
+		const body = await hoverInfoIcon(canvasElement);
+		await expectTooltipText(
+			body,
+			/You've used 100% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
 		);
 	},
 };
@@ -146,11 +178,12 @@ export const NearAllocation: Story = {
 			limit: 1000,
 			soft_limit: 999,
 			actual: 999,
+			actual_ms: 999 * 3_600_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("999")).toBeInTheDocument();
+		await expect(canvas.getByText("999.0")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -211,11 +244,12 @@ export const HardCap: Story = {
 			soft_limit: 850,
 			hard_limit: 1500,
 			actual: 400,
+			actual_ms: 400 * 3_600_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("400")).toBeInTheDocument();
+		await expect(canvas.getByText("400.0")).toBeInTheDocument();
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();
 		await expect(canvas.getByText(/Hard cap:/)).toBeInTheDocument();
 		await expect(canvas.getByText("1,500")).toBeInTheDocument();
@@ -239,6 +273,7 @@ export const HardCapNearAllocation: Story = {
 			soft_limit: 1200,
 			hard_limit: 1500,
 			actual: 400,
+			actual_ms: 400 * 3_600_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
@@ -261,11 +296,12 @@ export const ReachedHardCap: Story = {
 			soft_limit: 850,
 			hard_limit: 1500,
 			actual: 1600,
+			actual_ms: 1600 * 3_600_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,600")).toBeInTheDocument();
+		await expect(canvas.getByText("1,600.0")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -299,11 +335,13 @@ export const Unlimited: Story = {
 			enabled: true,
 			entitlement: "entitled",
 			actual: 1200,
+			// 1,200 hours and 30 minutes: renders as 1,200.5.
+			actual_ms: 1200 * 3_600_000 + 30 * 60_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,200")).toBeInTheDocument();
+		await expect(canvas.getByText("1,200.5")).toBeInTheDocument();
 		await expect(canvas.getByText("Unlimited")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText("Invalid license usage limits"),
@@ -326,6 +364,7 @@ export const ErrorInvalidLimit: Story = {
 			// never a negative one.
 			limit: -100,
 			actual: 100,
+			actual_ms: 100 * 3_600_000,
 		} satisfies Feature,
 	},
 	play: async ({ canvasElement }) => {
