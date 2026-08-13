@@ -16,6 +16,7 @@ import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import {
 	getFormHelpers,
 	iconValidator,
+	isHttpUrl,
 	nameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
@@ -37,18 +38,6 @@ type OAuth2AppFormProps = {
 };
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
-
-const isHttpUrl = (value: string | undefined): boolean => {
-	if (!value) {
-		return false;
-	}
-	try {
-		const url = new URL(value);
-		return url.protocol === "http:" || url.protocol === "https:";
-	} catch {
-		return false;
-	}
-};
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),

@@ -26,7 +26,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { docs } from "#/utils/docs";
-import { getFormHelpers } from "#/utils/formUtils";
+import { getFormHelpers, isHttpUrl } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
 
 export type ProviderFormValues = {
@@ -165,7 +165,10 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
 		icon: Yup.string(),
-		baseUrl: Yup.string().required("Endpoint is required"),
+		baseUrl: Yup.string()
+			.trim()
+			.required("Endpoint is required")
+			.test("http-url", "Endpoint must be a valid URL", isHttpUrl),
 		apiKey: editing
 			? Yup.string()
 			: Yup.string().required("API key is required"),
@@ -252,7 +255,10 @@ const makeCopilotSchema = (editing: boolean) =>
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
 		icon: Yup.string(),
-		baseUrl: Yup.string().required("Endpoint is required"),
+		baseUrl: Yup.string()
+			.trim()
+			.required("Endpoint is required")
+			.test("http-url", "Endpoint must be a valid URL", isHttpUrl),
 		enabled: Yup.boolean(),
 	});
 
@@ -495,7 +501,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						{iconField}
 						<FormField
 							required
-							field={getFieldHelpers("baseUrl")}
+							field={getFieldHelpers("baseUrl", {
+								backendFieldName: "base_url",
+							})}
 							label="Endpoint"
 							description={
 								typeSelectValue === "copilot" ? (
@@ -579,7 +587,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						</div>
 						<FormField
 							required
-							field={getFieldHelpers("baseUrl")}
+							field={getFieldHelpers("baseUrl", {
+								backendFieldName: "base_url",
+							})}
 							label="Endpoint"
 							description={
 								<>
