@@ -450,8 +450,22 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// A turn already active at first render must not anchor: the scroller
 		// leaves initial-render anchors unhandled, and its fallback for
 		// mutations that are neither clean appends nor prepends jumps to the
-		// oldest unhandled anchor.
-		const [initialAnchorKey, setInitialAnchorKey] = useState<string>();
+		// oldest unhandled anchor. The initializer runs once at mount, so a
+		// prompt first submitted later is never mistaken for the initial turn.
+		const [mountedActiveAnchorKey] = useState<string | undefined>(() => {
+			const turnActive =
+				Boolean(liveStatus && shouldRenderLiveAssistant(liveStatus)) ||
+				Boolean(isAwaitingFirstStreamChunk);
+			if (!turnActive) {
+				return undefined;
+			}
+			for (let i = parsedMessages.length - 1; i >= 0; i--) {
+				if (parsedMessages[i].message.role === "user") {
+					return `message:${parsedMessages[i].message.id}`;
+				}
+			}
+			return undefined;
+		});
 
 		const displayMessages = buildDisplayMessages(parsedMessages);
 		const renderRows = assignTimelineRows(
@@ -508,10 +522,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			hasLiveAssistant || isAwaitingFirstStreamChunk
 				? userRowKeys[userRowKeys.length - 1]
 				: undefined;
-		if (initialAnchorKey === undefined && anchorUserRowKey !== undefined) {
-			setInitialAnchorKey(anchorUserRowKey);
-		}
-		const suppressInitialAnchor = anchorUserRowKey === initialAnchorKey;
+		const suppressInitialAnchor =
+			anchorUserRowKey !== undefined &&
+			anchorUserRowKey === mountedActiveAnchorKey;
 		const userNeighborsByKey = new Map<
 			string,
 			{ prevKey?: string; nextKey?: string }
