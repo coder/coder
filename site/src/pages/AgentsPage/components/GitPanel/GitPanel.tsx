@@ -50,10 +50,6 @@ const GIT_NOT_SETUP_BODY =
 const GIT_STATUS_LOADING_TITLE = "Waiting for Git status";
 const GIT_STATUS_LOADING_BODY = "Checking the workspace for Git repositories.";
 
-// Toolbar horizontal padding (`px-3`), subtracted twice from the panel
-// width to size the switcher dropdown to the toolbar's inner content.
-const TOOLBAR_PADDING_PX = 12;
-
 interface DiffStats {
 	additions: number;
 	deletions: number;
@@ -212,20 +208,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
 
-	// Track panel width so the switcher dropdown can stretch to match.
-	const panelRef = useRef<HTMLDivElement>(null);
-	const [panelWidth, setPanelWidth] = useState(0);
-	useEffect(() => {
-		const el = panelRef.current;
-		if (!el) return;
-		const observer = new ResizeObserver(([entry]) => {
-			if (entry) {
-				setPanelWidth(entry.contentRect.width);
-			}
-		});
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, []);
+	// The switcher dropdown stretches to this element's width.
+	const [panelEl, setPanelEl] = useState<HTMLDivElement | null>(null);
 
 	const handleRefresh = () => {
 		const sent = onRefresh();
@@ -343,7 +327,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	};
 
 	return (
-		<div ref={panelRef} className="flex h-full flex-col">
+		<div ref={setPanelEl} className="flex h-full flex-col">
 			{/* Toolbar */}
 			<div className="flex shrink-0 items-center gap-2 px-3 pt-1.5 pb-1">
 				<div className="min-w-0 flex-1">
@@ -351,7 +335,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						items={items}
 						activeItem={activeItem}
 						onSelect={handleSelectItem}
-						panelWidth={panelWidth}
+						panelEl={panelEl}
 					/>
 				</div>
 				{/* Controls */}
@@ -455,16 +439,17 @@ interface GitViewSwitcherProps {
 	items: ReadonlyArray<ViewItem>;
 	activeItem?: ViewItem;
 	onSelect: (item: ViewItem) => void;
-	/** Measured width of the git panel container; sizes the dropdown. */
-	panelWidth: number;
+	/** Panel element the dropdown stretches to (minus toolbar padding). */
+	panelEl: HTMLDivElement | null;
 }
 
 const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	items,
 	activeItem,
 	onSelect,
-	panelWidth,
+	panelEl,
 }) => {
+	const [menuWidth, setMenuWidth] = useState<number>();
 	if (!activeItem) {
 		return (
 			<div
@@ -527,7 +512,13 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	);
 
 	return (
-		<DropdownMenu>
+		<DropdownMenu
+			onOpenChange={(open) => {
+				if (open && panelEl) {
+					setMenuWidth(panelEl.clientWidth - 24);
+				}
+			}}
+		>
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
@@ -540,11 +531,8 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				style={
-					panelWidth > 0
-						? { width: panelWidth - TOOLBAR_PADDING_PX * 2 }
-						: undefined
-				}
+				// Measured per open; the menu dismisses before the panel can resize.
+				style={menuWidth ? { width: menuWidth } : undefined}
 				className="flex flex-col gap-1 p-1"
 			>
 				{items.map((item) => {
