@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestNoStore(t *testing.T) {
@@ -100,29 +99,4 @@ func TestNoStore(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestNoStoreAfterExperimentGate shows what an experiment gate ahead of
-// NoStore costs: a rejected request never reaches it, so the response carries
-// neither header. That is harmless, since the rejection carries no credential.
-// The chain is built here rather than read off the router, so a reordering in
-// coderd.go would go undetected. It asserts against RequireExperiment because
-// the production RequireExperimentWithDevBypass short-circuits on
-// buildinfo.IsDev() in a test binary.
-func TestNoStoreAfterExperimentGate(t *testing.T) {
-	t.Parallel()
-
-	handler := httpmw.RequireExperiment(codersdk.Experiments{}, codersdk.ExperimentOAuth2)(
-		httpmw.NoStore(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
-			rw.WriteHeader(http.StatusOK)
-		})),
-	)
-
-	req := httptest.NewRequest(http.MethodGet, "/oauth2/tokens", nil)
-	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
-
-	require.Equal(t, http.StatusForbidden, res.Code)
-	require.Empty(t, res.Header().Get("Cache-Control"))
-	require.Empty(t, res.Header().Get("Pragma"))
 }

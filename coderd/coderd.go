@@ -1244,7 +1244,9 @@ func New(options *Options) *API {
 		r.Use(
 			httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
 			// Every response from this tree may carry a credential, so none of
-			// them may be retained by an intermediary cache.
+			// them may be retained by an intermediary cache. Mounted after
+			// the gate, so a request the gate rejects gets no headers. That
+			// rejection carries no credential, so it needs none.
 			httpmw.NoStore,
 		)
 		r.Route("/authorize", func(r chi.Router) {
