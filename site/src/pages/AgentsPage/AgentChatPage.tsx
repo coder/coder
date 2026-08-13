@@ -128,7 +128,7 @@ export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
-const AGENT_BINDING_REFETCH_COOLDOWN_MS = 30_000;
+const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
 class CompactCommandPendingError extends Error {}
 
@@ -943,6 +943,21 @@ const AgentChatPage: FC = () => {
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
+		// Poll while the binding is unresolved: repair happens on chat reads
+		// and watch events cannot be relied on for retries because an idle
+		// workspace publishes none.
+		refetchInterval: ({ state }) => {
+			const workspaceId = state.data?.workspace_id;
+			const workspace = workspaceId
+				? queryClient.getQueryData<TypesGen.Workspace>(
+						workspaceByIdKey(workspaceId),
+					)
+				: undefined;
+			return isChatAgentBindingUnresolved(workspace, state.data?.agent_id)
+				? AGENT_BINDING_REPAIR_POLL_MS
+				: false;
+		},
+		refetchIntervalInBackground: false,
 	});
 	const chatMessagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
@@ -1025,9 +1040,7 @@ const AgentChatPage: FC = () => {
 		chatModelsQuery.data,
 	);
 
-	const agentBindingRefetchRef = useRef<
-		{ key: string; at: number } | undefined
-	>(undefined);
+	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
 	const applyWatchedWorkspaceUpdate = useEffectEvent(
@@ -1048,22 +1061,17 @@ const AgentChatPage: FC = () => {
 					return next;
 				},
 			);
-			// Cool down each chat/build/binding key because best-effort repair can return
-			// a stale binding without a query error, while unconditional refetches would run
-			// on every event. Reconnects replay state, so missed rebuilds still refetch.
+			// Refetch once per chat/build/binding key for immediate repair
+			// after a rebuild; the chat query's refetchInterval owns retries
+			// when repair fails, so the latch never blocks recovery.
 			if (!agentId || !isChatAgentBindingUnresolved(next, chatAgentId)) {
 				return;
 			}
 			const refetchKey = `${agentId}:${next.latest_build.id}:${chatAgentId ?? ""}`;
-			const lastRefetch = agentBindingRefetchRef.current;
-			const now = Date.now();
-			if (
-				lastRefetch?.key === refetchKey &&
-				now - lastRefetch.at < AGENT_BINDING_REFETCH_COOLDOWN_MS
-			) {
+			if (agentBindingRefetchKeyRef.current === refetchKey) {
 				return;
 			}
-			agentBindingRefetchRef.current = { key: refetchKey, at: now };
+			agentBindingRefetchKeyRef.current = refetchKey;
 			void invalidateChatEntity(queryClient, agentId);
 		},
 	);
