@@ -625,6 +625,46 @@ func TestRefreshToken(t *testing.T) {
 		require.Equal(t, int64(1), refreshCalls.Load())
 	})
 
+	// CachedErrorForEmptyRefreshToken tests that when the refresh token is
+	// missing, we refer to the cached error, since likely the token was removed in
+	// a previous attempt and we want to return the original error rather than
+	// "token is missing".
+	t.Run("CachedErrorForEmptyRefreshToken", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		var refreshCalls atomic.Int64
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					refreshCalls.Add(1)
+					return xerrors.New("should not be called")
+				}),
+			},
+			ExternalAuthLinkOpts: func(link *database.ExternalAuthLink) {
+				link.OAuthExpiry = expired
+				link.OauthRefreshFailureReason = "test cached error"
+				link.OAuthRefreshToken = ""
+			},
+		})
+
+		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
+
+		// Allow getting the lease.
+		mDB.EXPECT().AcquireExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
+			Return(link, nil).Times(1)
+		mDB.EXPECT().ReleaseExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
+			Return(nil).Times(1)
+
+		// It should return the cached error message.
+		_, err := config.RefreshToken(ctx, mDB, link)
+		require.Equal(t, int64(0), refreshCalls.Load())
+		require.Error(t, err)
+		require.ErrorContains(t, err, "test cached error")
+	})
+
 	t.Run("ReturnsReleaseError", func(t *testing.T) {
 		t.Parallel()
 
@@ -1117,7 +1157,7 @@ func TestRefreshToken(t *testing.T) {
 			"DB errors should not be treated as invalid token")
 	})
 
-	t.Run("WaitsIfLeased", func(t *testing.T) {
+	t.Run("WaitsIfLeasedOK", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
@@ -1163,6 +1203,52 @@ func TestRefreshToken(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, refreshed.OAuthAccessToken, updated.OAuthAccessToken)
 		require.Equal(t, refreshed.OAuthRefreshToken, updated.OAuthRefreshToken)
+	})
+
+	t.Run("WaitsIfLeasedError", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					return xerrors.New("should not be called")
+				}),
+				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+					return jwt.MapClaims{}, nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				// Faster polling for faster tests.
+				cfg.RefreshLeaseInitialBackoff = time.Millisecond
+				cfg.RefreshLeaseMaxBackoff = time.Millisecond
+			},
+			ExternalAuthLinkOpts: func(link *database.ExternalAuthLink) {
+				link.OAuthExpiry = expired
+			},
+		})
+
+		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
+
+		refreshed := database.ExternalAuthLink{
+			OauthRefreshFailureReason: "failed to refresh",
+		}
+
+		// Simulate another replica already having a lease the first time, then
+		// resolve with the failure the second time.
+		mDB.EXPECT().AcquireExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
+			Return(database.ExternalAuthLink{}, sql.ErrNoRows).Times(1)
+		mDB.EXPECT().AcquireExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
+			Return(refreshed, nil).Times(1)
+		mDB.EXPECT().ReleaseExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).
+			Return(nil).Times(1)
+
+		_, err := config.RefreshToken(ctx, mDB, link)
+		require.Error(t, err)
+		require.ErrorContains(t, err, refreshed.OauthRefreshFailureReason)
 	})
 
 	// OptimisticLockPreventsStaleOverwrite verifies that the

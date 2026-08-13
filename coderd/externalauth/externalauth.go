@@ -330,12 +330,25 @@ refresh:
 	// while we were waiting or before we got a hold of the lease but after we
 	// initially fetched the link.
 	if dblink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
+		if dblink.OauthRefreshFailureReason != "" {
+			return externalAuthLink, refreshError(dblink, dblink.OauthRefreshFailureReason)
+		}
 		return dblink, nil
 	}
 
 	// Otherwise the token has still not been updated; refresh it now.
 	newLink, refreshErr = c.refreshAndValidateToken(ctx, db, dblink, lease)
 	return newLink, refreshErr
+}
+
+// refreshError converts a failure reason to an error.
+func refreshError(link database.ExternalAuthLink, reason string) error {
+	return InvalidTokenError(fmt.Sprintf("token expired and refreshing failed %s with: %s",
+		// Do not return the exact time, because then we have to know what timezone
+		// the user is in. This approximate time is good enough.
+		humanize.Time(link.UpdatedAt),
+		reason,
+	))
 }
 
 // refreshAndValidateToken does the actual token refresh, persists the result to
@@ -379,7 +392,7 @@ func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store,
 				// spamming the database with long error messages.
 				reason = reason[:failureReasonLimit]
 			}
-			dblink, updateErr := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
+			_, updateErr := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 				ProviderID: externalAuthLink.ProviderID,
 				UserID:     externalAuthLink.UserID,
 				UpdatedAt:  dbtime.Now(),
@@ -403,7 +416,9 @@ func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store,
 				// This error should be rare.
 				return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token failed: %q, then removing refresh token failed: %q", err.Error(), updateErr.Error()))
 			}
-			externalAuthLink = dblink
+			// The refresh token was cleared
+			externalAuthLink.OAuthRefreshToken = ""
+			externalAuthLink.UpdatedAt = dbtime.Now()
 		}
 
 		// Unfortunately have to match exactly on the error message string.
@@ -417,12 +432,7 @@ func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store,
 			if externalAuthLink.OauthRefreshFailureReason != "" {
 				// A cached refresh failure error exists. So the refresh token was set, but was invalid, and zeroed out.
 				// Return this cached error for the original refresh attempt.
-				return externalAuthLink, InvalidTokenError(fmt.Sprintf("token expired and refreshing failed %s with: %s",
-					// Do not return the exact time, because then we have to know what timezone the
-					// user is in. This approximate time is good enough.
-					humanize.Time(externalAuthLink.UpdatedAt),
-					externalAuthLink.OauthRefreshFailureReason,
-				))
+				return externalAuthLink, refreshError(externalAuthLink, externalAuthLink.OauthRefreshFailureReason)
 			}
 
 			return externalAuthLink, InvalidTokenError("token expired, refreshing failed and will not be retried")
