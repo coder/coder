@@ -2235,12 +2235,6 @@ const rebuildRecoveryChat: TypesGen.Chat = {
 	status: "waiting",
 };
 
-/**
- * A rebuild replaces workspace agents, leaving the chat's persisted agent ID
- * stale. The workspace watch stream delivers the rebuilt workspace, the page
- * refetches the chat, and the repaired binding restores agent-backed controls
- * such as the Terminal tab.
- */
 export const RecoversSidebarAfterWorkspaceRebuild: Story = {
 	beforeEach: () => {
 		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");

@@ -502,27 +502,23 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
 }
 
-// enrichChatsWithMissingAgentIDs fills nil AgentIDs from each workspace's
-// latest build. List reads use it because validating existing bindings
-// costs a per-workspace authorization lookup per listed chat.
+// enrichChatsWithMissingAgentIDs skips existing bindings on list reads to avoid
+// one authorization check per bound workspace.
 func (api *API) enrichChatsWithMissingAgentIDs(ctx context.Context, chats []codersdk.Chat) {
 	api.enrichChatAgentIDs(ctx, chats, func(chat *codersdk.Chat) bool {
 		return chat.AgentID == nil
 	})
 }
 
-// repairChatAgentIDs fills missing AgentIDs and repairs ones that no
-// longer resolve in the workspace's latest build (chatd persists bindings
-// lazily and a rebuild replaces agents). Reserved for single-chat reads
-// because of the per-workspace authorization cost.
+// repairChatAgentIDs handles stale bindings left by workspace rebuilds. List
+// reads skip this work to avoid authorization checks for bound workspaces.
 func (api *API) repairChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
 	api.enrichChatAgentIDs(ctx, chats, func(*codersdk.Chat) bool {
 		return true
 	})
 }
 
-// enrichChatAgentIDs is best-effort and response-only; on error each
-// AgentID keeps its persisted value. shouldEnrich selects candidates.
+// enrichChatAgentIDs performs best-effort response-only updates.
 func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat, shouldEnrich func(*codersdk.Chat) bool) {
 	candidateChats := make([]*codersdk.Chat, 0, len(chats))
 	var workspaceIDs []uuid.UUID

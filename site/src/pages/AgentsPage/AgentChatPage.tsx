@@ -1043,12 +1043,9 @@ const AgentChatPage: FC = () => {
 					return next;
 				},
 			);
-			// A rebuild can leave the chat's persisted agent ID absent from
-			// the latest build. Chat reads return a repaired ID, so refetch,
-			// once per chat/build/binding key to stay loop-safe when repair
-			// fails. The watch stream replays the current workspace on every
-			// (re)connect, so this also covers rebuilds missed while
-			// disconnected.
+			// Key refetches by chat, build, and binding so a failed repair cannot loop.
+			// Workspace watches send current state after reconnecting, so rebuilds missed
+			// while disconnected still trigger a refetch.
 			if (!agentId || !isChatAgentBindingUnresolved(next, chatAgentId)) {
 				return;
 			}
