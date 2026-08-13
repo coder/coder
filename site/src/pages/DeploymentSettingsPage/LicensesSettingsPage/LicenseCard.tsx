@@ -114,12 +114,20 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				agentHoursAllocation === agentRuntimeHoursFeature?.limit;
 	const canUseAgentHoursUsageForThisLicense =
 		isAgentHoursLicenseApplicable && isWinningAgentHoursLicense;
+	// Precise usage in tenths of hours, floored via integer math so the
+	// displayed number and the exceeded state below flip at the same
+	// instant as the backend's whole-hour warning thresholds.
+	const agentHoursActualMs = agentRuntimeHoursFeature?.actual_ms;
+	const agentHoursActual =
+		agentHoursActualMs === undefined
+			? undefined
+			: Math.floor(agentHoursActualMs / 360_000) / 10;
 	// Usage applies to the winning license's quota. Licenses without an
 	// allocation show deployment-wide usage in their upgrade card instead.
 	const agentHoursDisplayActual =
 		isAgentHoursLicenseApplicable &&
 		(isWinningAgentHoursLicense || !licenseGrantsAgentHours)
-			? agentRuntimeHoursFeature?.actual
+			? agentHoursActual
 			: undefined;
 	const isAgentHoursHardLimitExceeded =
 		canUseAgentHoursUsageForThisLicense &&

@@ -30,8 +30,9 @@ type CoderAgentsProductCardProps = {
 	allocation?: number;
 	/**
 	 * Agent runtime hours used in the current usage period, from the
-	 * merged entitlements. Undefined when usage does not apply to this
-	 * license (another license provides the feature) or is unknown.
+	 * merged entitlements, floored to tenths of an hour. Undefined when
+	 * usage does not apply to this license (another license provides the
+	 * feature) or is unknown.
 	 */
 	actual?: number;
 	/** Usage is above this license's allocation. */
@@ -84,6 +85,14 @@ const totalAgentHoursTooltip =
 const concurrentChatsTooltip =
 	"Number of Coder Agents chats that can run at the same time.";
 
+// Usage always renders with exactly one decimal (e.g. 42.0, 10.3). The
+// value is already floored to tenths, so no rounding happens here.
+const formatHoursUsed = (hours: number) =>
+	hours.toLocaleString("en-US", {
+		minimumFractionDigits: 1,
+		maximumFractionDigits: 1,
+	});
+
 export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 	allocation,
 	actual,
@@ -109,7 +118,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 						<div className="mt-3 font-medium text-content-secondary">
 							Agent hours used:{" "}
 							<span className="font-normal text-content-primary">
-								{actual.toLocaleString("en-US")}
+								{formatHoursUsed(actual)}
 							</span>
 						</div>
 					)}
@@ -122,8 +131,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 	}
 
 	const isOverage = isExceeded || isHardLimitExceeded;
-	const actualLabel =
-		actual === undefined ? "\u2014" : actual.toLocaleString("en-US");
+	const actualLabel = actual === undefined ? "\u2014" : formatHoursUsed(actual);
 
 	return (
 		<CardContainer

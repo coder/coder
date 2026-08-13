@@ -115,6 +115,8 @@ export const Premium: Story = {
 			entitlement: "entitled",
 			limit: 0,
 			actual: 137,
+			// 137 hours and 18 minutes: renders as 137.3.
+			actual_ms: 137 * 3_600_000 + 18 * 60_000,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -126,7 +128,7 @@ export const Premium: Story = {
 			getMetricValue(canvas, "Max concurrent chats"),
 		).toHaveTextContent("5");
 		await expect(canvas.getByText(/Agent hours used/)).toHaveTextContent(
-			"Agent hours used: 137",
+			"Agent hours used: 137.3",
 		);
 		const upgrade = canvas.getByRole("link", { name: "Upgrade" });
 		await expect(upgrade).toHaveAttribute("href", "mailto:sales@coder.com");
@@ -160,13 +162,15 @@ export const PremiumWithAgentHours: Story = {
 			soft_limit: 16000,
 			hard_limit: 25000,
 			actual: 16264,
+			// 16,264 hours and 18 minutes: renders as 16,264.3.
+			actual_ms: 16_264 * 3_600_000 + 18 * 60_000,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Active")).toBeInTheDocument();
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"16,264 / 20,000",
+			"16,264.3 / 20,000",
 		);
 		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
 			"Unlimited",
@@ -190,13 +194,14 @@ export const PremiumWithAgentHoursExceeded: Story = {
 			soft_limit: 16000,
 			hard_limit: 25000,
 			actual: 21000,
+			actual_ms: 21_000 * 3_600_000,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Agent hours exceeded")).toBeInTheDocument();
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"21,000 / 20,000",
+			"21,000.0 / 20,000",
 		);
 		// Concurrency is only capped once the hard limit is reached.
 		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
@@ -215,16 +220,42 @@ export const PremiumWithAgentHoursHardLimitExceeded: Story = {
 			soft_limit: 16000,
 			hard_limit: 25000,
 			actual: 25000,
+			actual_ms: 25_000 * 3_600_000,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Hard limit exceeded")).toBeInTheDocument();
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"25,000 / 20,000",
+			"25,000.0 / 20,000",
 		);
 		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
 			"5",
+		);
+	},
+};
+
+export const PremiumWithAgentHoursExceededByFraction: Story = {
+	args: {
+		license: premiumLicenseWithAgentHours(20000),
+		agentRuntimeHoursFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 20000,
+			soft_limit: 16000,
+			hard_limit: 25000,
+			// The whole-hour actual sits exactly at the allocation, but the
+			// extra 6 minutes push the tenths-precision value past it, so
+			// the fraction alone flips the exceeded state.
+			actual: 20000,
+			actual_ms: 20_000 * 3_600_000 + 6 * 60_000,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Agent hours exceeded")).toBeInTheDocument();
+		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+			"20,000.1 / 20,000",
 		);
 	},
 };
@@ -236,6 +267,7 @@ export const PremiumWithUnlimitedAgentHours: Story = {
 			enabled: true,
 			entitlement: "entitled",
 			actual: 16264,
+			actual_ms: 16_264 * 3_600_000 + 18 * 60_000,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -258,6 +290,7 @@ export const LowerAgentHoursCardUsesMergedEntitlement: Story = {
 			entitlement: "entitled",
 			limit: 20000,
 			actual: 16264,
+			actual_ms: 16_264 * 3_600_000 + 18 * 60_000,
 		},
 	},
 	play: async ({ canvasElement }) => {

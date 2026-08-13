@@ -8,7 +8,9 @@ const meta: Meta<typeof CoderAgentsProductCard> = {
 	component: CoderAgentsProductCard,
 	args: {
 		allocation: 20000,
-		actual: 16264,
+		// Fractional usage renders with one decimal; whole values render
+		// with a trailing .0 (see Exceeded).
+		actual: 16264.3,
 		isExceeded: false,
 		isHardLimitExceeded: false,
 	},
@@ -25,7 +27,7 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"16,264 / 20,000",
+			"16,264.3 / 20,000",
 		);
 		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
 			"Unlimited",
@@ -75,7 +77,7 @@ export const Exceeded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"21,000 / 20,000",
+			"21,000.0 / 20,000",
 		);
 		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
 			"Unlimited",
@@ -91,7 +93,7 @@ export const HardLimitExceeded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"25,000 / 20,000",
+			"25,000.0 / 20,000",
 		);
 		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
 			"5",
@@ -120,12 +122,12 @@ export const NoAllocation: Story = {
 export const NoAllocationWithUsage: Story = {
 	args: {
 		allocation: undefined,
-		actual: 1234,
+		actual: 1234.5,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/Agent hours used/)).toHaveTextContent(
-			"Agent hours used: 1,234",
+			"Agent hours used: 1,234.5",
 		);
 		await expect(
 			canvas.getByRole("link", { name: "Upgrade" }),
