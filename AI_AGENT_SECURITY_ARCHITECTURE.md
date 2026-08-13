@@ -486,6 +486,28 @@ resolve the human it acts for. It does not permit `user:read_personal`,
 global `*:*` allow list. The validator rejects those; an earlier revision
 accepted `coder:all` and `*:*`, which the review caught.
 
+Two further qualifications from the security review:
+
+- **The validator is allow-by-default and has drifted.** The generated
+  API key scope enum has 236 values and the RBAC catalog has 50 concrete
+  resource types, while `validateProfile` names four scopes explicitly
+  and applies semantic rules to five resource families
+  (`coderd/aiagentidentity/profile.go:92-133`). Everything else is
+  accepted. Composite `coder:*` scopes are also checked by string prefix
+  rather than expanded permission by permission. It should be an
+  allowlist.
+- **The chat profile's allow list is broader than "the chat's own
+  resources".** It uses typed wildcards for workspaces, templates,
+  organization members, and users, because a workspace being created has
+  no ID to pin in advance. The scope machinery applies one
+  action-independent allow list to the union of selected scopes, so a
+  compromised chat bearer key can read, start, stop, update, SSH into,
+  and connect to every workspace its sponsor can reach, not only the one
+  the chat created. The sponsor ceiling still applies, so this is
+  bounded by the human's own access, and chatd discards the key
+  plaintext after minting, which makes the surface latent rather than
+  live. It is nonetheless wider than the design implies.
+
 ### Invariants (drive tests from these)
 
 1. **Ceiling**: agent's effective permissions ⊆ owner's permissions at all
@@ -504,8 +526,21 @@ accepted `coder:all` and `*:*`, which the review caught.
    and chat sharing can enqueue an inbox notification to one. Those
    assignments do not affect agent authorization, which always uses the
    sponsor's roles, but they are representable.
-5. **No self-escalation**: agent keys cannot create or modify API keys
-   (scope exclusion), so an agent cannot mint itself a broader credential.
+5. **No self-escalation**: keys minted through the built-in profiles
+   cannot create or modify API keys (scope exclusion), so such an agent
+   cannot mint itself a broader credential.
+
+   This invariant is currently FALSE for keys not minted through those
+   profiles. The generic key APIs never call `validateProfile`, which is
+   reachable only through `MintKey`, so a full-scope token can be created
+   for an agent user. Because the delegated subject ID is the sponsor and
+   organization members hold `api_key` actions on their own keys
+   (`coderd/rbac/roles.go:1189-1212`), such a token can then mint a normal
+   token for the human sponsor. A security review demonstrated this with
+   an executable test. The fix is to refuse `kind = 'ai_agent'` targets on
+   the generic key routes, and to treat the profile validator as an
+   allowlist rather than a denylist. See
+   `AI_AGENT_IDENTITY_SECURITY_REVIEW.md`.
 6. **Fail closed**: `users.kind = 'ai_agent'` without a live `ai_agents`
    row is an authentication error. This holds for both authentication
    middlewares. It does NOT currently hold in chatd, which treats a
@@ -540,6 +575,21 @@ accepted `coder:all` and `*:*`, which the review caught.
 
 Steps 1 to 6 are the foundation and independently mergeable; 7 to 9 are
 per-surface and parallelizable after 4.
+
+### Review artifacts
+
+Three independent reviews of the identity work exist as separate
+documents. They are the source for the corrections and qualifications
+recorded above, and each states what it could not verify:
+
+| Document | Question asked | Headline finding |
+|---|---|---|
+| (conformance pass, findings folded into this document) | Does the code do what this document claims? | Eight disagreements; a chat key could create an unmarked workspace and receive the sponsor's ambient credentials. Fixed at the `createWorkspace` chokepoint. |
+| `AI_AGENT_IDENTITY_SCHEMA_REVIEW.md` | Is the schema the right shape, and what would a better one be? | `users.kind` is the runtime discriminator rather than `ai_agents`, and the two can disagree in a direction that fails open. Includes proposed DDL and costs. |
+| `AI_AGENT_IDENTITY_SECURITY_REVIEW.md` | What can a compromised or misused agent credential actually reach? | Invariant 5 is false for keys minted outside the built-in profiles; demonstrated by executable test. Also inventories all 236 scopes and 50 resources against the validator. |
+
+Findings still open are listed in those documents rather than duplicated
+here. The ones that change a stated invariant are marked inline above.
 
 ### Known follow-ups (found in conformance review)
 
