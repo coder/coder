@@ -142,11 +142,34 @@ queries.
 
 Three callers, and no others:
 
-| Caller                     | Boundary it handles                                                            |
-|----------------------------|--------------------------------------------------------------------------------|
-| The chat surface (`chatd`) | chat creation; chat key renewal                                                |
-| The provisioner server     | workspace opt-in detection; per-build key rotation; designation; agent binding |
-| The sandbox lifecycle API  | sandbox key mint; child agent binding                                          |
+| Caller                     | Boundary it handles                                                            | When it runs                                   |
+|----------------------------|--------------------------------------------------------------------------------|------------------------------------------------|
+| The chat surface (`chatd`) | chat creation; chat key renewal                                                | at the API request that creates the chat       |
+| The provisioner server     | workspace opt-in detection; per-build key rotation; designation; agent binding | during build transitions only                  |
+| The sandbox lifecycle API  | sandbox key mint; child agent binding                                          | while the workspace is running, between builds |
+
+The three-way split is not an assignment of responsibilities; it follows
+from one rule: **each mint runs in whatever component is alive when its
+boundary event occurs.** The provisioner server executes only while a
+build job is in flight and has no existence between builds. The workspace
+key belongs to it because mint and delivery are the same event: the key is
+injected into the build's Terraform environment, which is also why its
+rotation cadence is per start build. A sandbox, by contrast, is created on
+demand by the running parent agent with no build in flight, its key is
+returned over the API and handed to the create script, and it rotates on
+reconcile. Routing the sandbox mint through the provisioner would mean
+creating a sandbox requires a workspace rebuild, which destroys every
+running process in the workspace in order to add one beside them, and
+forecloses dynamic creation entirely.
+
+One planned variant folds into the provisioner rather than adding a
+fourth caller: a Terraform-declared AI-bound agent is created at build
+time, so its identity resolution, binding, and key mint belong to the
+provisioner caller, exactly like the workspace opt-in path. The lifecycle
+API then serves only dynamically created sandboxes. This is the same
+declared-and-discovered hybrid used for devcontainers: children declared
+in the template are provisioner-created, children discovered or requested
+at runtime arrive through the agent API.
 
 ### Conditions: when each path fires
 
