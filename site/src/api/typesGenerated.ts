@@ -360,7 +360,7 @@ export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
  * Prices are integer micro-units per million tokens, so 1000000 is $1.00 per
  * million tokens. A nil price means the price is not known, which the cost
  * calculation treats the same as zero. Distinguish that from an explicit 0,
- * which declares the model free.
+ * which declares the model free of charge.
  */
 export interface AIModelPrice {
 	readonly provider: string;
