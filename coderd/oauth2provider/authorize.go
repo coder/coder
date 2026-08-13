@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 )
@@ -59,16 +60,10 @@ var (
 // value set-valued, which is what a space-separated scope denotes.
 func canonicalScopes(names []string) []string {
 	canonical := make([]string, 0, len(names))
-	seen := make(map[string]struct{}, len(names))
 	for _, name := range names {
-		name = string(rbac.CanonicalScopeName(rbac.ScopeName(name)))
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		canonical = append(canonical, name)
+		canonical = append(canonical, string(rbac.CanonicalScopeName(rbac.ScopeName(name))))
 	}
-	return canonical
+	return slice.Unique(canonical)
 }
 
 // noScopeAllowlist reports whether an app has no scope allowlist configured.

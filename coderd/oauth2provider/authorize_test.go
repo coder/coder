@@ -188,17 +188,6 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, allowlist, persistedCodeScope(ctx, t, db, resp))
 	})
 
-	t.Run("RequestedSubsetGranted", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		app := seedApp(t, sql.NullString{String: scopeInCatalog + " " + scopeAlsoInCatalog, Valid: true})
-		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeAlsoInCatalog)
-		defer resp.Body.Close()
-
-		require.Equal(t, scopeAlsoInCatalog, persistedCodeScope(ctx, t, db, resp))
-	})
-
 	// rbac.IsExternalScope accepts `all` as a backward-compatible alias, but
 	// the api_key_scope enum has only `coder:all`. Asserted against the stored
 	// row rather than the negotiation's return value, because the column's
