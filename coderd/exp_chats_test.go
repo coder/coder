@@ -8299,8 +8299,6 @@ func TestChatMessageWithFiles(t *testing.T) {
 		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
-		messagesBefore, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "one too many"},
@@ -8313,9 +8311,27 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		messagesAfter, err := client.GetChatMessages(ctx, chat.ID, nil)
+		// getChatMessages reads history before queued messages, so a promotion
+		// can make one response miss the message in both places. Wait for the
+		// queue to empty, then read history again because promotion inserts a
+		// history row.
+		require.Eventually(t, func() bool {
+			m, err := client.GetChatMessages(ctx, chat.ID, nil)
+			return err == nil && len(m.QueuedMessages) == 0
+		}, testutil.WaitLong, testutil.IntervalMedium)
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
-		require.Len(t, messagesAfter.Messages, len(messagesBefore.Messages), "rejected send should not persist a message")
+		for _, msg := range messages.Messages {
+			for _, part := range msg.Content {
+				require.NotContains(t, part.Text, "one too many", "rejected send should not persist a message")
+			}
+		}
+		for _, queued := range messages.QueuedMessages {
+			for _, part := range queued.Content {
+				require.NotContains(t, part.Text, "one too many", "rejected send should not queue a message")
+			}
+		}
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
