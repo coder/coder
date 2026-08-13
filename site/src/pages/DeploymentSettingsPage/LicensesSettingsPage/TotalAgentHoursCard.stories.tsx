@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
-import type { Feature } from "#/api/typesGenerated";
+import { MockAgentRuntimeHoursFeature } from "#/testHelpers/entities";
 import { TotalAgentHoursCard } from "./TotalAgentHoursCard";
 
 const meta: Meta<typeof TotalAgentHoursCard> = {
@@ -9,14 +9,10 @@ const meta: Meta<typeof TotalAgentHoursCard> = {
 	component: TotalAgentHoursCard,
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			soft_limit: 850,
-			actual: 400,
+			...MockAgentRuntimeHoursFeature,
 			// 400 hours and 18 minutes: renders as 400.3.
 			actual_ms: 400 * 3_600_000 + 18 * 60_000,
-		} satisfies Feature,
+		},
 	},
 };
 
@@ -59,12 +55,9 @@ export const Default: Story = {
 export const NoSoftLimit: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			actual: 400,
-			actual_ms: 400 * 3_600_000,
-		} satisfies Feature,
+			...MockAgentRuntimeHoursFeature,
+			soft_limit: undefined,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const body = await hoverInfoIcon(canvasElement);
@@ -78,13 +71,10 @@ export const NoSoftLimit: Story = {
 export const ReachedSoftLimit: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			soft_limit: 850,
+			...MockAgentRuntimeHoursFeature,
 			actual: 850,
 			actual_ms: 850 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -100,13 +90,10 @@ export const ReachedSoftLimit: Story = {
 export const ReachedAllocation: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			soft_limit: 850,
+			...MockAgentRuntimeHoursFeature,
 			actual: 1000,
 			actual_ms: 1000 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -123,13 +110,10 @@ export const ReachedAllocation: Story = {
 export const OverAllocation: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			soft_limit: 850,
+			...MockAgentRuntimeHoursFeature,
 			actual: 1200,
 			actual_ms: 1200 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -149,13 +133,10 @@ export const OverAllocation: Story = {
 export const ReachedAllocationByFraction: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			soft_limit: 850,
+			...MockAgentRuntimeHoursFeature,
 			actual: 1000,
 			actual_ms: 1000 * 3_600_000 + 6 * 60_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -173,13 +154,11 @@ export const ReachedAllocationByFraction: Story = {
 export const NearAllocation: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
+			...MockAgentRuntimeHoursFeature,
 			soft_limit: 999,
 			actual: 999,
 			actual_ms: 999 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -195,11 +174,10 @@ export const NearAllocation: Story = {
 export const MissingActual: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			soft_limit: 850,
-		} satisfies Feature,
+			...MockAgentRuntimeHoursFeature,
+			actual: undefined,
+			actual_ms: undefined,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -214,11 +192,11 @@ export const MissingActual: Story = {
 export const MissingActualZeroSoftLimit: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
+			...MockAgentRuntimeHoursFeature,
 			soft_limit: 0,
-		} satisfies Feature,
+			actual: undefined,
+			actual_ms: undefined,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -239,14 +217,9 @@ export const MissingActualZeroSoftLimit: Story = {
 export const HardCap: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			soft_limit: 850,
+			...MockAgentRuntimeHoursFeature,
 			hard_limit: 1500,
-			actual: 400,
-			actual_ms: 400 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -270,14 +243,11 @@ export const HardCap: Story = {
 export const HardCapBetweenSoftLimitAndLimit: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			soft_limit: 850,
+			...MockAgentRuntimeHoursFeature,
 			hard_limit: 1500,
 			actual: 900,
 			actual_ms: 900 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -299,14 +269,11 @@ export const HardCapBetweenSoftLimitAndLimit: Story = {
 export const HardCapBetweenLimitAndHardCap: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			soft_limit: 850,
+			...MockAgentRuntimeHoursFeature,
 			hard_limit: 1500,
 			actual: 1200,
 			actual_ms: 1200 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -328,14 +295,11 @@ export const HardCapBetweenLimitAndHardCap: Story = {
 export const HardCapNearAllocation: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
+			...MockAgentRuntimeHoursFeature,
 			limit: 1400,
 			soft_limit: 1200,
 			hard_limit: 1500,
-			actual: 400,
-			actual_ms: 400 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -352,14 +316,13 @@ export const HardCapNearAllocation: Story = {
 export const HardCapFarFromAllocation: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
+			...MockAgentRuntimeHoursFeature,
 			limit: 100,
 			soft_limit: 85,
 			hard_limit: 10_000,
 			actual: 40,
 			actual_ms: 40 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -377,14 +340,11 @@ export const HardCapFarFromAllocation: Story = {
 export const ReachedHardCap: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			soft_limit: 850,
+			...MockAgentRuntimeHoursFeature,
 			hard_limit: 1500,
 			actual: 1600,
 			actual_ms: 1600 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -401,9 +361,10 @@ export const ReachedHardCap: Story = {
 export const Disabled: Story = {
 	args: {
 		feature: {
+			...MockAgentRuntimeHoursFeature,
 			enabled: false,
 			entitlement: "not_entitled",
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -420,12 +381,13 @@ export const Disabled: Story = {
 export const Unlimited: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
+			...MockAgentRuntimeHoursFeature,
+			limit: undefined,
+			soft_limit: undefined,
 			actual: 1200,
 			// 1,200 hours and 30 minutes: renders as 1,200.5.
 			actual_ms: 1200 * 3_600_000 + 30 * 60_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -445,15 +407,12 @@ export const Unlimited: Story = {
 export const ErrorInvalidLimit: Story = {
 	args: {
 		feature: {
-			enabled: true,
-			entitlement: "entitled",
+			...MockAgentRuntimeHoursFeature,
 			// A negative limit can only come from a decoding bug: the
 			// claim-level unlimited sentinel decodes to an omitted limit,
 			// never a negative one.
 			limit: -100,
-			actual: 100,
-			actual_ms: 100 * 3_600_000,
-		} satisfies Feature,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

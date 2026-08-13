@@ -2701,6 +2701,18 @@ export const mockApiError = ({
 	},
 });
 
+// A metered agent runtime hours entitlement: a 1,000 hour allocation
+// with an 850 hour soft limit and 400 hours used. Stories spread this
+// base and override the fields that drive the state under test.
+export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
+	enabled: true,
+	entitlement: "entitled",
+	limit: 1000,
+	soft_limit: 850,
+	actual: 400,
+	actual_ms: 400 * 3_600_000,
+};
+
 export const MockEntitlements: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
