@@ -565,6 +565,7 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
 	providerID := uuid.New()
 	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+	overrideConfig.Options = modelCallSentinelOptions(t, "title-options-sentinel")
 	provider := database.AIProvider{
 		ID:      providerID,
 		Name:    "primary-openai",
@@ -574,9 +575,13 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	apiKeyID := uuid.NewString()
 	wantTitle := "Synthetic title"
 	seenAPIKeyID := make(chan string, 1)
+	seenBody := make(chan []byte, 1)
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		delegatedID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
 		seenAPIKeyID <- delegatedID
+		bodyBytes, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+		seenBody <- bodyBytes
 		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
 		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4.1","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
 		return &http.Response{
@@ -620,6 +625,12 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantTitle, title)
 	require.Equal(t, apiKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
+
+	// The manual-title flow derives provider options from the override
+	// config, so the sentinel must reach the request body.
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(testutil.RequireReceive(ctx, t, seenBody), &raw))
+	require.Equal(t, "title-options-sentinel", raw["user"])
 }
 
 func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T) {

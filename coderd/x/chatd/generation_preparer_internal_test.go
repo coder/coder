@@ -105,6 +105,11 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		Type: database.AIProviderTypeOpenai,
 	}, "test-key")
 	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
+		ProviderOptions: &codersdk.ChatModelProviderOptions{
+			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+				User: ptr.Ref("turn-options-sentinel"),
+			},
+		},
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
 			Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
 			Max:     ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
@@ -160,6 +165,20 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
 	require.NotNil(t, providerOptions.ReasoningEffort)
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
+
+	// The standard-turn template carries the config's provider options and
+	// the default output cap.
+	require.NotNil(t, providerOptions.User)
+	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
+	require.NotNil(t, prepared.CallTemplate.MaxOutputTokens)
+	require.Equal(t, defaultChatMaxOutputTokens, *prepared.CallTemplate.MaxOutputTokens)
+
+	// The prepared compaction summary template historically sends no
+	// provider options and forbids tool calls.
+	require.NotNil(t, prepared.Compaction)
+	require.Nil(t, prepared.Compaction.Options.SummaryCall.ProviderOptions)
+	require.NotNil(t, prepared.Compaction.Options.SummaryCall.ToolChoice)
+	require.Equal(t, fantasy.ToolChoiceNone, *prepared.Compaction.Options.SummaryCall.ToolChoice)
 }
 
 func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {

@@ -1031,6 +1031,10 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		model := &chattest.FakeModel{
 			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 				require.Equal(t, "propose_turn_status_label", call.SchemaName)
+				require.NotNil(t, call.MaxOutputTokens)
+				require.Equal(t, turnStatusLabelMaxOutputTokens, *call.MaxOutputTokens)
+				require.NotNil(t, call.Temperature)
+				require.Equal(t, quickgenTemperature, *call.Temperature)
 				return &fantasy.ObjectResponse{
 					Object: map[string]any{"label": "Submitted PR"},
 				}, nil
