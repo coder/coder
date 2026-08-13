@@ -18,8 +18,7 @@ AI Governance Cost Control requires:
 
 > [!NOTE]
 > AI Governance Cost Control reports approximate spend rather than billed cost.
-> These figures will not match your provider invoices exactly. For details, see
-> [How spend is calculated](#how-spend-is-calculated).
+> These figures will not match your provider invoices exactly. For details, visit [How spend is calculated](#how-spend-is-calculated).
 
 These terms appear throughout this page and in the Coder dashboard:
 
