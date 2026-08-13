@@ -5675,6 +5675,291 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 	})
 }
 
+func TestActiveServer_ManualClear(t *testing.T) {
+	t.Parallel()
+
+	const clearSentinel = "Previous conversation context was cleared by the user."
+
+	t.Run("clears synchronously and the next prompt starts fresh", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var streamCount atomic.Int32
+		var secondStreamBody atomic.Value
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			if streamCount.Add(1) == 2 {
+				secondStreamBody.Store(anthropicRequestBody(t, *req))
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.Equal(t, int32(1), streamCount.Load())
+		preClearMessageCount := len(chatMessages(ctx, t, db, chat.ID))
+
+		// The clear commits synchronously: no model call, no running
+		// status, and the persisted row is already waiting.
+		cleared, err := server.ClearChat(ctx, chat)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, cleared.Status)
+		require.Equal(t, int32(1), streamCount.Load(),
+			"clearing must not trigger any model call")
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		require.Len(t, messages, preClearMessageCount+2,
+			"user-visible history grows by the clear tool call/result pair")
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatClearedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.summaries, 1,
+			"prompt history contains the compressed sentinel boundary")
+		require.Equal(t, clearSentinel, messageText(t, compressed.summaries[0]))
+		require.Len(t, compressed.calls, 1)
+		require.Len(t, compressed.results, 1)
+		resultPart := singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult)
+		require.Equal(t, "chat_cleared", resultPart.ToolName)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(resultPart.Result, &result))
+		require.Equal(t, "manual", result["source"])
+
+		// A second clear and a compaction both find nothing after the
+		// fresh boundary.
+		_, err = server.ClearChat(ctx, chat)
+		require.ErrorIs(t, err, chatd.ErrNothingToClear)
+		_, err = server.CompactChat(ctx, chat)
+		require.ErrorIs(t, err, chatd.ErrNothingToCompact)
+
+		// The next prompt starts from the sentinel: pre-clear
+		// conversation must not reach the model.
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("continue after clear"),
+			},
+		})
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.Equal(t, int32(2), streamCount.Load())
+		body, _ := secondStreamBody.Load().(string)
+		require.Contains(t, body, clearSentinel)
+		require.Contains(t, body, "continue after clear")
+		require.NotContains(t, body, "hello from the user",
+			"pre-clear user content must not reach the model")
+		require.NotContains(t, body, "assistant answer",
+			"pre-clear assistant content must not reach the model")
+
+		// New conversation after the boundary makes the chat
+		// clearable again.
+		_, err = server.ClearChat(ctx, chat)
+		require.NoError(t, err)
+	})
+
+	t.Run("clears an errored chat and clears last_error", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		machine := chatstate.NewChatMachine(db, ps, chat.ID)
+		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.FinishError(chatstate.FinishErrorInput{
+				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
+					Message: "input length exceeds the maximum allowed input length",
+					Kind:    codersdk.ChatErrorKindGeneric,
+				}),
+			})
+			return err
+		}))
+		chat, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusError, chat.Status)
+		require.True(t, chat.LastError.Valid)
+
+		cleared, err := server.ClearChat(ctx, chat)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, cleared.Status)
+		require.False(t, cleared.LastError.Valid,
+			"clearing from the error state clears last_error")
+
+		// The chat still works: a follow-up generates against the
+		// cleared context with a fresh retry budget.
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("continue after clear"),
+			},
+		})
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+	})
+
+	t.Run("does not auto-compact from stale pre-clear usage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var streamCount atomic.Int32
+		var compactionRequests atomic.Int32
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if !req.Stream {
+				if strings.Contains(body, "You are performing a context compaction") {
+					compactionRequests.Add(1)
+					return anthropicCompactionResponse("unexpected summary")
+				}
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			// The first turn reports usage over the 70% threshold, so
+			// without the clear the next turn would auto-compact.
+			usage := chattest.AnthropicUsage{InputTokens: 90, OutputTokens: 5}
+			if streamCount.Add(1) > 1 {
+				usage = chattest.AnthropicUsage{InputTokens: 10, OutputTokens: 5}
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(usage, "assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		model = updateChatModelCompressionThreshold(t, db, model, 100, 70)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.Equal(t, int32(1), streamCount.Load())
+
+		_, err := server.ClearChat(ctx, chat)
+		require.NoError(t, err)
+
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("continue after clear"),
+			},
+		})
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.Equal(t, int32(2), streamCount.Load())
+		require.Equal(t, int32(0), compactionRequests.Load(),
+			"pre-clear usage must not trigger auto-compaction after the boundary")
+	})
+
+	t.Run("respects a compaction boundary", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if !req.Stream {
+				if strings.Contains(body, "You are performing a context compaction") {
+					return anthropicCompactionResponse("compaction summary")
+				}
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		_, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		// Nothing model-visible follows the compaction summary, so a
+		// clear across that boundary is rejected.
+		_, err = server.ClearChat(ctx, chat)
+		require.ErrorIs(t, err, chatd.ErrNothingToClear)
+
+		// New conversation after the compaction makes the chat
+		// clearable.
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("continue after compaction"),
+			},
+		})
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		_, err = server.ClearChat(ctx, chat)
+		require.NoError(t, err)
+	})
+
+	t.Run("busy chat rejects manual clear", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		release := make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		streamStarted := make(chan struct{}, 1)
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			select {
+			case streamStarted <- struct{}{}:
+			default:
+			}
+			// Hold the generation open so the chat stays running.
+			<-release
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("done")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		// Registered after newActiveTestServer so this cleanup runs
+		// before server shutdown: a failed assertion must not leave
+		// shutdown waiting on the blocked stream.
+		t.Cleanup(releaseOnce)
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "stay busy")
+		testutil.TryReceive(ctx, t, streamStarted)
+
+		_, err := server.ClearChat(ctx, chat)
+		require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
+
+		releaseOnce()
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	})
+}
+
 type compressedCompactionMessages struct {
 	summaries []database.ChatMessage
 	calls     []database.ChatMessage
@@ -5704,6 +5989,37 @@ func compressedChatSummarizedMessages(t *testing.T, messages []database.ChatMess
 				}
 			case codersdk.ChatMessagePartTypeToolResult:
 				if part.ToolName == "chat_summarized" {
+					out.results = append(out.results, msg)
+				}
+			}
+		}
+	}
+	return out
+}
+
+func compressedChatClearedMessages(t *testing.T, messages []database.ChatMessage) compressedCompactionMessages {
+	t.Helper()
+	seen := map[int64]bool{}
+	var out compressedCompactionMessages
+	for _, msg := range messages {
+		if !msg.Compressed || seen[msg.ID] {
+			continue
+		}
+		seen[msg.ID] = true
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		for _, part := range parts {
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeText:
+				if msg.Role == database.ChatMessageRoleUser {
+					out.summaries = append(out.summaries, msg)
+				}
+			case codersdk.ChatMessagePartTypeToolCall:
+				if part.ToolName == "chat_cleared" {
+					out.calls = append(out.calls, msg)
+				}
+			case codersdk.ChatMessagePartTypeToolResult:
+				if part.ToolName == "chat_cleared" {
 					out.results = append(out.results, msg)
 				}
 			}
