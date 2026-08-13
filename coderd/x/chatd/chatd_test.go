@@ -23,8 +23,7 @@ import (
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
@@ -81,6 +80,40 @@ func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *at
 
 func openAIToolName(tool chattest.OpenAITool) string {
 	return cmp.Or(tool.Function.Name, tool.Name, tool.Type)
+}
+
+func newTestMCPServer(name string) *mcp.Server {
+	return mcp.NewServer(&mcp.Implementation{Name: name, Version: "1.0.0"}, nil)
+}
+
+func addTestMCPTextTool(server *mcp.Server, name, description, outputPrefix string) {
+	server.AddTool(&mcp.Tool{
+		Name:        name,
+		Description: description,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"input": map[string]any{
+					"type":        "string",
+					"description": "The input string",
+				},
+			},
+			"required": []string{"input"},
+		},
+	}, func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var arguments map[string]any
+		_ = json.Unmarshal(req.Params.Arguments, &arguments)
+		input, _ := arguments["input"].(string)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: outputPrefix + input}},
+		}, nil
+	})
+}
+
+func testMCPHTTPHandler(server *mcp.Server) http.Handler {
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return server
+	}, &mcp.StreamableHTTPOptions{Stateless: true})
 }
 
 func mustChatLastErrorRawMessage(t testing.TB, payload codersdk.ChatError) pqtype.NullRawMessage {
@@ -366,21 +399,9 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 
 	// Start an external MCP server whose tools should remain available to the
 	// root plan-mode chat but stay hidden from plan-mode subagents.
-	mcpSrv := mcpserver.NewMCPServer("plan-root-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	mcpSrv := newTestMCPServer("plan-root-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
 	mcpConfig, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
@@ -661,38 +682,14 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	externalMCP := mcpserver.NewMCPServer("external-snapshot-mcp", "1.0.0")
-	externalMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	externalMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(externalMCP))
+	externalMCP := newTestMCPServer("external-snapshot-mcp")
+	addTestMCPTextTool(externalMCP, "echo", "Echoes the input", "echo: ")
+	externalMCPServer := httptest.NewServer(testMCPHTTPHandler(externalMCP))
 	defer externalMCPServer.Close()
 
-	secondMCP := mcpserver.NewMCPServer("second-mcp", "1.0.0")
-	secondMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	secondMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(secondMCP))
+	secondMCP := newTestMCPServer("second-mcp")
+	addTestMCPTextTool(secondMCP, "echo", "Echoes the input", "echo: ")
+	secondMCPServer := httptest.NewServer(testMCPHTTPHandler(secondMCP))
 	defer secondMCPServer.Close()
 
 	var (
@@ -842,21 +839,9 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	externalMCP := mcpserver.NewMCPServer("root-explore-runtime-mcp", "1.0.0")
-	externalMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	externalMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(externalMCP))
+	externalMCP := newTestMCPServer("root-explore-runtime-mcp")
+	addTestMCPTextTool(externalMCP, "echo", "Echoes the input", "echo: ")
+	externalMCPServer := httptest.NewServer(testMCPHTTPHandler(externalMCP))
 	defer externalMCPServer.Close()
 
 	var (
@@ -1024,21 +1009,9 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	newEchoMCPServer := func(name string) *httptest.Server {
 		t.Helper()
 
-		mcpSrv := mcpserver.NewMCPServer(name, "1.0.0")
-		mcpSrv.AddTools(mcpserver.ServerTool{
-			Tool: mcpgo.NewTool("echo",
-				mcpgo.WithDescription("Echoes the input"),
-				mcpgo.WithString("input",
-					mcpgo.Description("The input string"),
-					mcpgo.Required(),
-				),
-			),
-			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-				input, _ := req.GetArguments()["input"].(string)
-				return mcpgo.NewToolResultText("echo: " + input), nil
-			},
-		})
-		mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+		mcpSrv := newTestMCPServer(name)
+		addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 		t.Cleanup(mcpTS.Close)
 		return mcpTS
 	}
@@ -1183,53 +1156,15 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	echoMCP := mcpserver.NewMCPServer("plan-visibility-echo", "1.0.0")
-	echoMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	echoTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(echoMCP))
+	echoMCP := newTestMCPServer("plan-visibility-echo")
+	addTestMCPTextTool(echoMCP, "echo", "Echoes the input", "echo: ")
+	echoTS := httptest.NewServer(testMCPHTTPHandler(echoMCP))
 	t.Cleanup(echoTS.Close)
 
-	filteredMCP := mcpserver.NewMCPServer("plan-visibility-filtered", "1.0.0")
-	filteredMCP.AddTools(
-		mcpserver.ServerTool{
-			Tool: mcpgo.NewTool("visible",
-				mcpgo.WithDescription("Visible tool"),
-				mcpgo.WithString("input",
-					mcpgo.Description("The input string"),
-					mcpgo.Required(),
-				),
-			),
-			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-				input, _ := req.GetArguments()["input"].(string)
-				return mcpgo.NewToolResultText("visible: " + input), nil
-			},
-		},
-		mcpserver.ServerTool{
-			Tool: mcpgo.NewTool("hidden",
-				mcpgo.WithDescription("Hidden tool"),
-				mcpgo.WithString("input",
-					mcpgo.Description("The input string"),
-					mcpgo.Required(),
-				),
-			),
-			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-				input, _ := req.GetArguments()["input"].(string)
-				return mcpgo.NewToolResultText("hidden: " + input), nil
-			},
-		},
-	)
-	filteredTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(filteredMCP))
+	filteredMCP := newTestMCPServer("plan-visibility-filtered")
+	addTestMCPTextTool(filteredMCP, "visible", "Visible tool", "visible: ")
+	addTestMCPTextTool(filteredMCP, "hidden", "Hidden tool", "hidden: ")
+	filteredTS := httptest.NewServer(testMCPHTTPHandler(filteredMCP))
 	t.Cleanup(filteredTS.Close)
 
 	var (
@@ -2459,12 +2394,12 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 
 	toolName := "my_dynamic_tool"
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        toolName,
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type:       "object",
-			Properties: map[string]any{},
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
 		},
 	}})
 	require.NoError(t, err)
@@ -2969,15 +2904,15 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -3765,15 +3700,15 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 	})
 
 	// Create a chat with a dynamic tool.
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -3935,15 +3870,15 @@ func TestDynamicToolNamedProposePlanRemainsAvailableOutsidePlanMode(t *testing.T
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 	})
 
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "propose_plan",
 		Description: "A dynamic tool whose name collides with the hidden built-in.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -4052,15 +3987,15 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 	})
 
 	// Create a chat with a dynamic tool.
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -4194,15 +4129,15 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 	})
 
 	// Create a chat with a dynamic tool.
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -6734,12 +6669,12 @@ func setupToolExecutionAgentConn(
 
 func dynamicToolJSON(t *testing.T, name string) []byte {
 	t.Helper()
-	encoded, err := json.Marshal([]mcpgo.Tool{{
+	encoded, err := json.Marshal([]mcp.Tool{{
 		Name:        name,
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"query": map[string]any{"type": "string"},
 			},
 		},
@@ -7691,10 +7626,10 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
-		dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 			Name:        "mcp_tool",
 			Description: "dynamic test tool",
-			InputSchema: mcpgo.ToolInputSchema{Type: "object", Properties: map[string]any{"q": map[string]any{"type": "string"}}},
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}},
 		}})
 		require.NoError(t, err)
 
@@ -10490,21 +10425,9 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Start a real MCP server that exposes an "echo" tool.
-	mcpSrv := mcpserver.NewMCPServer("test-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpHTTP := mcpserver.NewStreamableHTTPServer(mcpSrv)
+	mcpSrv := newTestMCPServer("test-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpHTTP := testMCPHTTPHandler(mcpSrv)
 	mcpTS := httptest.NewServer(mcpHTTP)
 	t.Cleanup(mcpTS.Close)
 
@@ -10672,21 +10595,9 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	mcpSrv := mcpserver.NewMCPServer("plan-mode-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	mcpSrv := newTestMCPServer("plan-mode-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
 	var (
@@ -10777,21 +10688,9 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	mcpSrv := mcpserver.NewMCPServer("plan-workflow-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	mcpSrv := newTestMCPServer("plan-workflow-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
 	var (
@@ -10977,21 +10876,9 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	// Start a real MCP server with an auth middleware that only
 	// accepts the fresh access token. An expired token (or any
 	// other value) gets a 401.
-	mcpSrv := mcpserver.NewMCPServer("authed-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpHTTP := mcpserver.NewStreamableHTTPServer(mcpSrv)
+	mcpSrv := newTestMCPServer("authed-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpHTTP := testMCPHTTPHandler(mcpSrv)
 	// Wrap with auth check.
 	authMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")

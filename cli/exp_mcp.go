@@ -1,10 +1,10 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -13,8 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
+	coderdmcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
@@ -692,11 +692,12 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 		cliui.Infof(inv.Stderr, "Allowed Tools  : %v", allowedTools)
 	}
 
-	mcpSrv := server.NewMCPServer(
-		"Coder Agent",
-		buildinfo.Version(),
-		server.WithInstructions(instructions),
-	)
+	mcpSrv := mcp.NewServer(&mcp.Implementation{
+		Name:    "Coder Agent",
+		Version: buildinfo.Version(),
+	}, &mcp.ServerOptions{
+		Instructions: instructions,
+	})
 
 	// If neither the user client nor the agent socket is available, there
 	// are no tools we can enable.
@@ -751,14 +752,16 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 			continue
 		}
 
-		mcpSrv.AddTools(mcpFromSDK(tool, toolDeps))
+		coderdmcp.RegisterSDKTool(mcpSrv, tool, toolDeps)
 	}
 
-	srv := server.NewStdioServer(mcpSrv)
 	done := make(chan error)
 	go func() {
 		defer close(done)
-		srvErr := srv.Listen(ctx, inv.Stdin, inv.Stdout)
+		srvErr := mcpSrv.Run(ctx, &mcp.IOTransport{
+			Reader: io.NopCloser(inv.Stdin),
+			Writer: nopWriteCloser{inv.Stdout},
+		})
 		done <- srvErr
 	}()
 
@@ -771,6 +774,14 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 
 	return nil
 }
+
+// nopWriteCloser adapts the invocation's stdout to the WriteCloser
+// the SDK transport requires without closing the underlying stream.
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (nopWriteCloser) Close() error { return nil }
 
 type ClaudeConfig struct {
 	ConfigPath       string
@@ -983,46 +994,4 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
-}
-
-// mcpFromSDK adapts a toolsdk.Tool to go-mcp's server.ServerTool.
-// It assumes that the tool responds with a valid JSON object.
-func mcpFromSDK(sdkTool toolsdk.GenericTool, tb toolsdk.Deps) server.ServerTool {
-	// NOTE: some clients will silently refuse to use tools if there is an issue
-	// with the tool's schema or configuration.
-	if sdkTool.Schema.Properties == nil {
-		panic("developer error: schema properties cannot be nil")
-	}
-	return server.ServerTool{
-		Tool: mcp.Tool{
-			Name:        sdkTool.Tool.Name,
-			Description: sdkTool.Description,
-			InputSchema: mcp.ToolInputSchema{
-				Type:       "object", // Default of mcp.NewTool()
-				Properties: sdkTool.Schema.Properties,
-				Required:   sdkTool.Schema.Required,
-			},
-			Annotations: mcp.ToolAnnotation{
-				ReadOnlyHint:    mcp.ToBoolPtr(sdkTool.MCPAnnotations.ReadOnlyHint),
-				DestructiveHint: mcp.ToBoolPtr(sdkTool.MCPAnnotations.DestructiveHint),
-				IdempotentHint:  mcp.ToBoolPtr(sdkTool.MCPAnnotations.IdempotentHint),
-				OpenWorldHint:   mcp.ToBoolPtr(sdkTool.MCPAnnotations.OpenWorldHint),
-			},
-		},
-		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(request.Params.Arguments); err != nil {
-				return nil, xerrors.Errorf("failed to encode request arguments: %w", err)
-			}
-			result, err := sdkTool.Handler(ctx, tb, buf.Bytes())
-			if err != nil {
-				return nil, err
-			}
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{
-					mcp.NewTextContent(string(result)),
-				},
-			}, nil
-		},
-	}
 }
