@@ -510,6 +510,9 @@ func (w Workspace) WorkspaceTable() WorkspaceTable {
 		NextStartAt:       w.NextStartAt,
 		GroupACL:          w.GroupACL,
 		UserACL:           w.UserACL,
+		// The AI designation must survive the reduction: RBACObject reads it to
+		// build the designation boundary input.
+		AIAgentID: w.AIAgentID,
 	}
 }
 
@@ -528,11 +531,23 @@ func (w Workspace) IsPrebuild() bool {
 // Otherwise, it returns a normal workspace RBAC object.
 func (w Workspace) AsPrebuild() rbac.Object {
 	if w.IsPrebuild() {
-		return rbac.ResourcePrebuiltWorkspace.WithID(w.ID).
+		return withAIAgentDesignation(rbac.ResourcePrebuiltWorkspace.WithID(w.ID).
 			InOrg(w.OrganizationID).
-			WithOwner(w.OwnerID.String())
+			WithOwner(w.OwnerID.String()), w.AIAgentID)
 	}
 	return w.RBACObject()
+}
+
+// withAIAgentDesignation copies a workspace's AI designation marker onto its
+// RBAC object. An unset marker leaves the object's designation empty, which the
+// policy treats as undesignated and therefore never matches an acting AI
+// identity. Every workspace-typed RBAC object must route through here so a new
+// converter cannot silently omit the designation and fail open.
+func withAIAgentDesignation(obj rbac.Object, aiAgentID uuid.NullUUID) rbac.Object {
+	if !aiAgentID.Valid {
+		return obj
+	}
+	return obj.WithAIAgentID(aiAgentID.UUID.String())
 }
 
 func (w WorkspaceTable) RBACObject() rbac.Object {
@@ -540,10 +555,10 @@ func (w WorkspaceTable) RBACObject() rbac.Object {
 		return w.DormantRBAC()
 	}
 
-	obj := rbac.ResourceWorkspace.
+	obj := withAIAgentDesignation(rbac.ResourceWorkspace.
 		WithID(w.ID).
 		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
+		WithOwner(w.OwnerID.String()), w.AIAgentID)
 
 	if rbac.WorkspaceACLDisabled() {
 		return obj
@@ -555,10 +570,10 @@ func (w WorkspaceTable) RBACObject() rbac.Object {
 }
 
 func (w WorkspaceTable) DormantRBAC() rbac.Object {
-	return rbac.ResourceWorkspaceDormant.
+	return withAIAgentDesignation(rbac.ResourceWorkspaceDormant.
 		WithID(w.ID).
 		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
+		WithOwner(w.OwnerID.String()), w.AIAgentID)
 }
 
 // IsPrebuild returns true if the workspace is a prebuild workspace.
@@ -969,6 +984,11 @@ type WorkspaceIdentity struct {
 
 	// Lifecycle fields needed for stats reporting
 	AutostartSchedule sql.NullString
+
+	// AIAgentID carries the workspace's AI designation marker so RBAC checks
+	// built from this reduced struct evaluate the designation boundary with the
+	// same input as a full workspace.
+	AIAgentID uuid.NullUUID
 }
 
 func (w WorkspaceIdentity) RBACObject() rbac.Object {
@@ -981,6 +1001,7 @@ func (w WorkspaceIdentity) RBACObject() rbac.Object {
 		OwnerUsername:     w.OwnerUsername,
 		TemplateName:      w.TemplateName,
 		AutostartSchedule: w.AutostartSchedule,
+		AIAgentID:         w.AIAgentID,
 	}.RBACObject()
 }
 
@@ -993,7 +1014,8 @@ func (w WorkspaceIdentity) IsPrebuild() bool {
 func (w WorkspaceIdentity) Equal(w2 WorkspaceIdentity) bool {
 	return w.ID == w2.ID && w.OwnerID == w2.OwnerID && w.OrganizationID == w2.OrganizationID &&
 		w.TemplateID == w2.TemplateID && w.Name == w2.Name && w.OwnerUsername == w2.OwnerUsername &&
-		w.TemplateName == w2.TemplateName && w.AutostartSchedule == w2.AutostartSchedule
+		w.TemplateName == w2.TemplateName && w.AutostartSchedule == w2.AutostartSchedule &&
+		w.AIAgentID == w2.AIAgentID
 }
 
 func WorkspaceIdentityFromWorkspace(w Workspace) WorkspaceIdentity {
@@ -1006,6 +1028,7 @@ func WorkspaceIdentityFromWorkspace(w Workspace) WorkspaceIdentity {
 		OwnerUsername:     w.OwnerUsername,
 		TemplateName:      w.TemplateName,
 		AutostartSchedule: w.AutostartSchedule,
+		AIAgentID:         w.AIAgentID,
 	}
 }
 
