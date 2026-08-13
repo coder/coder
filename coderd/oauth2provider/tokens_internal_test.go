@@ -110,6 +110,10 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			form.Set("client_id", "test-client")
 			form.Set("client_secret", "test-secret")
 			form.Set("code", "test-code")
+			// This test only exercises scope parsing, but code_verifier is
+			// validated unconditionally for this grant type, so use a value
+			// that satisfies the RFC 7636 §4.1 length floor.
+			form.Set("code_verifier", strings.Repeat("a", 43))
 			if tc.scopeParam != "" {
 				form.Set("scope", tc.scopeParam)
 			}
@@ -147,22 +151,22 @@ func TestExtractTokenParams_ScopesURLEncoded(t *testing.T) {
 	}{
 		{
 			name:           "PlusEncodedSpaces",
-			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&scope=scope1+scope2+scope3",
+			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&code_verifier=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&scope=scope1+scope2+scope3",
 			expectedScopes: []string{"scope1", "scope2", "scope3"},
 		},
 		{
 			name:           "PercentEncodedSpaces",
-			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&scope=scope1%20scope2%20scope3",
+			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&code_verifier=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&scope=scope1%20scope2%20scope3",
 			expectedScopes: []string{"scope1", "scope2", "scope3"},
 		},
 		{
 			name:           "MixedEncoding",
-			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&scope=scope1+scope2%20scope3",
+			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&code_verifier=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&scope=scope1+scope2%20scope3",
 			expectedScopes: []string{"scope1", "scope2", "scope3"},
 		},
 		{
 			name:           "ColonEncodedInScope",
-			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&scope=coder%3Aworkspace.create+coder%3Aworkspace.operate",
+			rawQuery:       "grant_type=authorization_code&client_id=test&client_secret=secret&code=code&code_verifier=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&scope=coder%3Aworkspace.create+coder%3Aworkspace.operate",
 			expectedScopes: []string{"coder:workspace.create", "coder:workspace.operate"},
 		},
 	}
@@ -216,6 +220,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
+				form.Set("code_verifier", strings.Repeat("a", 43))
 				return form
 			},
 			expectedScopes: []string{},
@@ -229,6 +234,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
+				form.Set("code_verifier", strings.Repeat("a", 43))
 				form.Set("scope", "   ")
 				return form
 			},
@@ -244,6 +250,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
+				form.Set("code_verifier", strings.Repeat("a", 43))
 				form.Set("scope", longScope)
 				return form
 			},
@@ -318,7 +325,10 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			query.Set("response_type", "code")
 			query.Set("client_id", "test-client")
 			query.Set("redirect_uri", "http://localhost:3000/callback")
-			query.Set("code_challenge", "test-challenge")
+			// This test only exercises scope parsing, but code_challenge is
+			// still required for response_type=code and must satisfy the
+			// RFC 7636 §4.1 length floor, so use a valid-length value.
+			query.Set("code_challenge", strings.Repeat("a", 43))
 			if tc.scopeParam != "" {
 				query.Set("scope", tc.scopeParam)
 			}
@@ -338,6 +348,74 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, validationErrs)
 			require.Equal(t, tc.expectedScopes, params.scope)
+		})
+	}
+}
+
+// TestExtractAuthorizeParams_CodeChallengeFormat ensures a code_challenge is
+// rejected at the authorization request (RFC 7636 §4.4.1) when it does not
+// meet the same length and character bounds as a code_verifier, rather than
+// being stored and failing later at token exchange.
+func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		codeChallenge string
+		expectValid   bool
+	}{
+		{
+			name:          "ValidLength",
+			codeChallenge: strings.Repeat("a", 43),
+			expectValid:   true,
+		},
+		{
+			name:          "TooShort",
+			codeChallenge: strings.Repeat("a", 42),
+			expectValid:   false,
+		},
+		{
+			name:          "TooLong",
+			codeChallenge: strings.Repeat("a", 129),
+			expectValid:   false,
+		},
+		{
+			name:          "DisallowedCharacter",
+			codeChallenge: strings.Repeat("a", 42) + "+",
+			expectValid:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			callbackURL, err := url.Parse("http://localhost:3000/callback")
+			require.NoError(t, err)
+
+			query := url.Values{}
+			query.Set("response_type", "code")
+			query.Set("client_id", "test-client")
+			query.Set("redirect_uri", "http://localhost:3000/callback")
+			query.Set("code_challenge", tc.codeChallenge)
+
+			reqURL, err := url.Parse("http://localhost:8080/oauth2/authorize?" + query.Encode())
+			require.NoError(t, err)
+
+			req := &http.Request{
+				Method: http.MethodGet,
+				URL:    reqURL,
+			}
+
+			_, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+			if tc.expectValid {
+				require.NoError(t, err)
+				require.Empty(t, validationErrs)
+			} else {
+				require.Error(t, err)
+				require.Len(t, validationErrs, 1)
+				require.Equal(t, "code_challenge", validationErrs[0].Field)
+			}
 		})
 	}
 }

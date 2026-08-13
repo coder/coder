@@ -640,6 +640,24 @@ func TestEntitlements(t *testing.T) {
 				require.WithinDuration(t, agentUsagePeriodEnd, agentEntitlement.UsagePeriod.End, time.Second)
 				continue
 			}
+			if featureName == codersdk.FeatureAgentRuntimeHours {
+				// Premium licenses without agent runtime hour claims are
+				// grandfathered into a zero-hour allocation over the
+				// license term, with usage still measured. See license.go
+				// for more details.
+				runtimeEntitlement := entitlements.Features[featureName]
+				require.False(t, runtimeEntitlement.Enabled)
+				require.Equal(t, codersdk.EntitlementEntitled, runtimeEntitlement.Entitlement)
+				require.NotNil(t, runtimeEntitlement.Limit)
+				require.EqualValues(t, 0, *runtimeEntitlement.Limit)
+				require.NotNil(t, runtimeEntitlement.UsagePeriod)
+				require.Equal(t, time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC), runtimeEntitlement.UsagePeriod.IssuedAt)
+				require.WithinDuration(t, licenseOptions.NotBefore, runtimeEntitlement.UsagePeriod.Start, time.Second)
+				require.WithinDuration(t, licenseOptions.ExpiresAt, runtimeEntitlement.UsagePeriod.End, time.Second)
+				require.NotNil(t, runtimeEntitlement.Actual)
+				require.EqualValues(t, 0, *runtimeEntitlement.Actual)
+				continue
+			}
 			if featureName.IsAddonFeature() {
 				continue
 			}
@@ -935,6 +953,12 @@ func TestEntitlements(t *testing.T) {
 				return true
 			})).
 			Return(int64(175), nil)
+		// The premium grandfather default grants a zero-hour agent runtime
+		// allocation, so that usage is queried too. It is not what this
+		// test is about.
+		mDB.EXPECT().
+			GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
+			Return(int64(0), nil)
 		mDB.EXPECT().
 			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
 			Return([]database.Template{}, nil)
@@ -1217,6 +1241,12 @@ func TestEntitlements(t *testing.T) {
 				mDB.EXPECT().
 					GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
 					Return(int64(0), nil)
+				// The premium grandfather default grants a zero-hour agent
+				// runtime allocation, so that usage is queried too. It is
+				// not what this test is about.
+				mDB.EXPECT().
+					GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
+					Return(int64(0), nil)
 				mDB.EXPECT().
 					GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
 					Return([]database.Template{}, nil)
@@ -1410,6 +1440,12 @@ func TestEntitlements(t *testing.T) {
 			mDB.EXPECT().
 				GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
 				Return(int64(0), nil)
+			// The premium grandfather default grants a zero-hour agent
+			// runtime allocation, so that usage is queried too. It is not
+			// what this test is about.
+			mDB.EXPECT().
+				GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
+				Return(int64(0), nil)
 			mDB.EXPECT().
 				GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
 				Return([]database.Template{}, nil)
@@ -1513,6 +1549,15 @@ func TestLicenseEntitlements(t *testing.T) {
 	// reads or writes these, so parallel siblings cannot race them.
 	var agentRuntimeUsageQueryFrom, agentRuntimeUsageQueryTo time.Time
 	var agentRuntimeUsageQueryCalled bool
+
+	// grandfatherIssuedAt is the fixed UsagePeriod.IssuedAt carried by the
+	// zero-hour agent runtime allocation that premium licenses without
+	// agent runtime hour claims are grandfathered into; see license.go.
+	grandfatherIssuedAt := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	// runtimeClaimIssuedAt mints claim-bearing licenses in the grandfather
+	// precedence cases below, so the merged feature's UsagePeriod.IssuedAt
+	// identifies which candidate won.
+	runtimeClaimIssuedAt := dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second)
 
 	premiumLicense := func() *coderdenttest.LicenseOptions {
 		return (&coderdenttest.LicenseOptions{
@@ -1903,8 +1948,10 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			// A license without the allocation claim does not grant the
-			// feature, so usage is never queried and nothing warns.
+			// An enterprise license without the allocation claim does not
+			// grant the feature, so usage is never queried and nothing
+			// warns. Only premium licenses are grandfathered into a
+			// zero-hour allocation.
 			Name: "AgentRuntimeHours/NoClaimNoFeature",
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().UserLimit(100),
@@ -2064,6 +2111,131 @@ func TestLicenseEntitlements(t *testing.T) {
 				assert.Equal(t, int64(100), *feature.Actual)
 				assert.Contains(t, entitlements.Warnings,
 					fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText, 100, 100))
+			},
+		},
+		{
+			// A premium license without agent runtime hour claims is
+			// grandfathered into a zero-hour allocation: granted disabled
+			// with a zero limit over the license term, usage still
+			// measured, and no deployment-wide warning even with nonzero
+			// usage.
+			Name: "AgentRuntimeHours/PremiumGrandfathered",
+			Licenses: []*coderdenttest.LicenseOptions{
+				premiumLicense().UserLimit(100),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: hoursToMsFn(50),
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.False(t, feature.Enabled)
+				assert.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+				require.NotNil(t, feature.Limit)
+				assert.Equal(t, int64(0), *feature.Limit)
+				assert.Nil(t, feature.SoftLimit)
+				assert.Nil(t, feature.HardLimit)
+				require.NotNil(t, feature.UsagePeriod)
+				assert.Equal(t, grandfatherIssuedAt, feature.UsagePeriod.IssuedAt)
+				// The usage period is the license term (premiumLicense is
+				// valid from roughly now until 60 days out), not the
+				// managed-agent default's fixed 100-year window.
+				assert.WithinDuration(t, time.Now(), feature.UsagePeriod.Start, 5*time.Minute)
+				assert.WithinDuration(t, time.Now().Add(60*24*time.Hour), feature.UsagePeriod.End, 5*time.Minute)
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(50), *feature.Actual)
+			},
+		},
+		{
+			// A grace-period premium license grandfathers the same
+			// zero-hour allocation with a grace entitlement.
+			Name: "AgentRuntimeHours/PremiumGrandfatheredGracePeriod",
+			Licenses: []*coderdenttest.LicenseOptions{
+				premiumLicense().UserLimit(100).GracePeriod(time.Now()),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: hoursToMsFn(50),
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.False(t, feature.Enabled)
+				assert.Equal(t, codersdk.EntitlementGracePeriod, feature.Entitlement)
+				require.NotNil(t, feature.Limit)
+				assert.Equal(t, int64(0), *feature.Limit)
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(50), *feature.Actual)
+			},
+		},
+		{
+			// The grandfathered default carries a fixed early
+			// UsagePeriod.IssuedAt, so a license actually carrying the
+			// allocation claim wins the merge even when the claim-less
+			// premium license is issued later.
+			Name: "AgentRuntimeHours/GrandfatherLosesToAllocation",
+			Licenses: []*coderdenttest.LicenseOptions{
+				premiumLicense().UserLimit(100).WithIssuedAt(dbtime.Now().Add(-time.Hour)),
+				agentRuntimeHoursLicense(20000, nil).WithIssuedAt(runtimeClaimIssuedAt),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: hoursToMsFn(50),
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.True(t, feature.Enabled)
+				require.NotNil(t, feature.Limit)
+				assert.Equal(t, int64(20000), *feature.Limit)
+				require.NotNil(t, feature.UsagePeriod)
+				assert.WithinDuration(t, runtimeClaimIssuedAt, feature.UsagePeriod.IssuedAt, time.Second)
+			},
+		},
+		{
+			// An unlimited allocation on any license outranks the
+			// grandfathered zero-hour default.
+			Name: "AgentRuntimeHours/GrandfatherLosesToUnlimited",
+			Licenses: []*coderdenttest.LicenseOptions{
+				premiumLicense().UserLimit(100),
+				enterpriseLicense().UserLimit(100).AgentRuntimeHours(license.AgentRuntimeHoursUnlimitedAllocation, nil, nil),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: hoursToMsFn(1_000_000),
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.True(t, feature.Enabled)
+				assert.Nil(t, feature.Limit)
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(1_000_000), *feature.Actual)
+			},
+		},
+		{
+			// An explicit zero allocation and the grandfathered default
+			// have identical semantics; the explicit claim's later issue
+			// time wins the merge, which pins the Compare path.
+			Name: "AgentRuntimeHours/GrandfatherLosesToExplicitZero",
+			Licenses: []*coderdenttest.LicenseOptions{
+				premiumLicense().UserLimit(100),
+				agentRuntimeHoursLicense(0, nil).WithIssuedAt(runtimeClaimIssuedAt),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: hoursToMsFn(50),
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.False(t, feature.Enabled)
+				require.NotNil(t, feature.Limit)
+				assert.Equal(t, int64(0), *feature.Limit)
+				require.NotNil(t, feature.UsagePeriod)
+				assert.WithinDuration(t, runtimeClaimIssuedAt, feature.UsagePeriod.IssuedAt, time.Second)
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(50), *feature.Actual)
 			},
 		},
 		{
@@ -2504,6 +2676,11 @@ func TestOldStyleManagedAgentLicenses(t *testing.T) {
 			ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
 				return actualAgents, nil
 			},
+			// The premium grandfather default grants a zero-hour agent
+			// runtime allocation, so a runtime closure is required too.
+			AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+				return 0, nil
+			},
 		}
 
 		entitlements, err := license.LicensesEntitlements(
@@ -2588,6 +2765,11 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 			ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
 				return actualAgents, nil
 			},
+			// The premium grandfather default grants a zero-hour agent
+			// runtime allocation, so a runtime closure is required too.
+			AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+				return 0, nil
+			},
 		}
 
 		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{lic}, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments)
@@ -2633,6 +2815,11 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 			ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
 				return actualAgents, nil
 			},
+			// The premium grandfather default grants a zero-hour agent
+			// runtime allocation, so a runtime closure is required too.
+			AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+				return 0, nil
+			},
 		}
 
 		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{lic}, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments)
@@ -2677,6 +2864,11 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 			ExternalAuthCount: 0,
 			ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
 				return actualAgents, nil
+			},
+			// The premium grandfather default grants a zero-hour agent
+			// runtime allocation, so a runtime closure is required too.
+			AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+				return 0, nil
 			},
 		}
 
@@ -2996,6 +3188,66 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 			require.WithinDuration(t, lic2Iat, feature.UsagePeriod.IssuedAt, 2*time.Second)
 			require.WithinDuration(t, lic2Nbf, feature.UsagePeriod.Start, 2*time.Second)
 			require.WithinDuration(t, lic2Exp, feature.UsagePeriod.End, 2*time.Second)
+		}
+	})
+
+	// When an unlimited and a metered license are minted with identical
+	// issued-at and expiry claims, the unlimited grant must win the tie,
+	// regardless of load order.
+	t.Run("UnlimitedOutranksMeteredOnTie", func(t *testing.T) {
+		t.Parallel()
+
+		// JWT NumericDate claims have second granularity, so truncate to
+		// keep the round-tripped issued-at values identical.
+		iat := time.Now().Add(-time.Minute).Truncate(time.Second)
+		nbf := iat
+		exp := iat.Add(time.Hour).Truncate(time.Second)
+		unlimited := database.License{
+			ID:         1,
+			UploadedAt: time.Now(),
+			Exp:        exp,
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				IssuedAt:  iat,
+				NotBefore: nbf,
+				ExpiresAt: exp,
+				Features: license.Features{
+					license.ClaimAgentRuntimeHoursAllocation: license.AgentRuntimeHoursUnlimitedAllocation,
+				},
+			}),
+		}
+		metered := database.License{
+			ID:         2,
+			UploadedAt: time.Now(),
+			Exp:        exp,
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				IssuedAt:  iat,
+				NotBefore: nbf,
+				ExpiresAt: exp,
+				Features: license.Features{
+					license.ClaimAgentRuntimeHoursAllocation: 100,
+					license.ClaimAgentRuntimeHoursLimitSoft:  80,
+					license.ClaimAgentRuntimeHoursLimitHard:  120,
+				},
+			}),
+		}
+
+		for _, order := range [][]database.License{
+			{unlimited, metered},
+			{metered, unlimited},
+		} {
+			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), order, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, noRuntime())
+			require.NoError(t, err)
+
+			feature, ok := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+			require.True(t, ok, "feature %s not found", codersdk.FeatureAgentRuntimeHours)
+			require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+			require.True(t, feature.Enabled)
+			require.Nil(t, feature.Limit)
+			require.Nil(t, feature.SoftLimit)
+			require.Nil(t, feature.HardLimit)
+			require.NotNil(t, feature.UsagePeriod)
 		}
 	})
 

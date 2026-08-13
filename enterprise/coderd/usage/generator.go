@@ -49,10 +49,13 @@ const (
 // events from data already persisted in the database, so it can
 // deterministically backfill hours missed while the deployment was down,
 // zero-filling idle hours. Deterministic event IDs make concurrent replicas
-// safe without locking: a re-insert of a committed bucket is a no-op via the
-// insert's ON CONFLICT (id) arbiter, and two replicas racing an uncommitted
-// bucket surface a unique violation that generateBucket recognizes as the
-// other replica winning.
+// safe without locking: the insert's ON CONFLICT (id) arbiter turns a
+// re-insert of a bucket into a no-op, even when the competing insert is
+// still in flight (once its arbiter index entry is visible, PostgreSQL
+// waits on that transaction and takes the DO NOTHING path if it commits).
+// Only the narrow speculative-insertion race, before the competing row's
+// arbiter entry exists, surfaces a bucket unique violation instead, which
+// generateBucket recognizes as the other replica winning.
 //
 // Events are generated unconditionally in enterprise builds; the
 // publish_usage_data license flag only gates publishing to Tallyman.
@@ -158,12 +161,24 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 		return xerrors.Errorf("list existing agent runtime events: %w", err)
 	}
 	// A row marks its bucket complete regardless of publish outcome, so a
-	// bucket whose event Tallyman permanently rejected is never regenerated
-	// (re-inserting under the deterministic ID is a no-op via the insert's
-	// ON CONFLICT (id) arbiter). The runtime is not lost locally: the row
-	// keeps it, and clearing the row's publish columns re-queues it while
-	// the bucket is within SelectUsageEventsForPublishing's 30-day
-	// created_at cutoff.
+	// bucket whose event Tallyman permanently rejected is never
+	// regenerated (re-inserting under the deterministic ID is a no-op via
+	// the insert's ON CONFLICT (id) arbiter).
+	//
+	// The runtime is not lost locally: the row still holds it, and the
+	// event can be re-queued for publishing with
+	//
+	//	UPDATE usage_events
+	//	SET published_at = NULL, publish_started_at = NULL, failure_message = NULL
+	//	WHERE id = 'hb_agent_runtime_v1:<bucket start, e.g. 2026-07-15_14:00:00>';
+	//
+	// That re-arm only has an effect while the bucket is inside the
+	// publisher's 30-day cutoff: SelectUsageEventsForPublishing also
+	// filters created_at > now - INTERVAL '30 days', and created_at is the
+	// bucket start, so past that the UPDATE reports success but the row is
+	// never picked up again. The release gate (Tallyman must accept this
+	// event type before coderd ships it) is what keeps permanent
+	// rejections exceptional.
 	existing := make(map[time.Time]struct{}, len(existingTimes))
 	for _, ts := range existingTimes {
 		// created_at is always the exact bucket start for this event type;
@@ -227,10 +242,13 @@ func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error 
 	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
 	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
 	if database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
-		// The insert's ON CONFLICT (id) arbiter only sees committed rows, so
-		// a concurrent replica inserting the same bucket can trip the bucket
-		// unique index instead. Either way a row for this bucket already
-		// exists, which is all generateBucket needs.
+		// The insert's ON CONFLICT (id) arbiter absorbs most duplicate
+		// inserts, including in-flight ones: once a competing row's arbiter
+		// index entry is visible, PostgreSQL waits on that transaction and
+		// takes the DO NOTHING path if it commits. Only the narrow
+		// speculative-insertion race, before that entry exists, trips the
+		// bucket unique index instead. Either way a row for this bucket
+		// already exists, which is all generateBucket needs.
 		return nil
 	}
 	if err != nil {

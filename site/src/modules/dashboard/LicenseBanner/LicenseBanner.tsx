@@ -191,22 +191,22 @@ export const LicenseBanner: FC = () => {
 	);
 
 	const messages: LicenseBannerMessage[] = [
-		...errors.map((message) => ({
-			message,
-			// Measurement diagnostics travel in the errors channel but are
-			// not license errors; see diagnosticMessages.
-			variant: isDiagnosticMessage(message)
-				? ("warning" as const)
-				: ("error" as const),
-			link: messageLink(message),
-		})),
-		...normalizedWarnings.map((message) => ({
-			message,
-			variant: isMutedWarning(message)
-				? ("warning" as const)
-				: ("warningProminent" as const),
-			link: messageLink(message),
-		})),
+		...errors.map(
+			(message): LicenseBannerMessage => ({
+				message,
+				// Measurement diagnostics travel in the errors channel but are
+				// not license errors; see diagnosticMessages.
+				variant: isDiagnosticMessage(message) ? "warning" : "error",
+				link: messageLink(message),
+			}),
+		),
+		...normalizedWarnings.map(
+			(message): LicenseBannerMessage => ({
+				message,
+				variant: isMutedWarning(message) ? "warning" : "warningProminent",
+				link: messageLink(message),
+			}),
+		),
 	];
 
 	if (messages.length === 0) {
