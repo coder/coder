@@ -1628,10 +1628,6 @@ const AgentChatPage: FC = () => {
 			pendingWorkspaceSyncRef.current,
 		]);
 
-		// Every accepted submission (send, edit, /compact) is an explicit ask
-		// to be at the live edge, even one that appends no visible prompt.
-		scrollToEnd({ behavior: "smooth" });
-
 		// "/compact" on its own (no attachments or file references)
 		// requests a manual context compaction instead of sending a
 		// message. Only new sends are intercepted; history and queued
@@ -1650,6 +1646,11 @@ const AgentChatPage: FC = () => {
 			);
 			throw new CompactCommandPendingError();
 		}
+
+		// Every accepted submission (send, edit, /compact) is an explicit ask
+		// to be at the live edge, even one that appends no visible prompt.
+		scrollToEnd({ behavior: "smooth" });
+
 		if (isExactCompactSubmission && compactCommandResolution === "available") {
 			// Optimistically show the running state before awaiting so
 			// a fast compaction cannot race this write: the worker's
@@ -2045,14 +2046,18 @@ const AgentChatPage: FC = () => {
 	);
 };
 
-// Keyed wrapper so that navigating between agents (changing the
-// :agentId param) fully remounts the component, resetting all
-// internal state (drafts, editing, queries) cleanly.
+// Keyed so that navigating between agents (changing the :agentId param)
+// fully remounts the component, resetting all internal state (drafts,
+// editing, queries, scroller) cleanly.
 const KeyedAgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	return (
-		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-			<AgentChatPage key={agentId} />
+		<MessageScroller.Provider
+			key={agentId}
+			autoScroll
+			defaultScrollPosition="end"
+		>
+			<AgentChatPage />
 		</MessageScroller.Provider>
 	);
 };
