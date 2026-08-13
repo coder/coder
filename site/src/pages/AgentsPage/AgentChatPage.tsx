@@ -28,7 +28,6 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
-	chatEntityKey,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
@@ -128,6 +127,9 @@ import {
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+
+const AGENT_BINDING_REFETCH_COOLDOWN_MS = 30_000;
+
 class CompactCommandPendingError extends Error {}
 
 /** @internal Exported for testing. */
@@ -1023,7 +1025,9 @@ const AgentChatPage: FC = () => {
 		chatModelsQuery.data,
 	);
 
-	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
+	const agentBindingRefetchRef = useRef<
+		{ key: string; at: number } | undefined
+	>(undefined);
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
 	const applyWatchedWorkspaceUpdate = useEffectEvent(
@@ -1044,27 +1048,26 @@ const AgentChatPage: FC = () => {
 					return next;
 				},
 			);
-			// Key refetches by chat, build, and binding so a failed repair cannot loop.
-			// Workspace watches send current state after reconnecting, so rebuilds missed
-			// while disconnected still trigger a refetch.
+			// Cool down refetches per chat/build/binding key: repair can fail
+			// with no query error (server enrichment is best-effort and can
+			// return the stale binding), so a bare latch would block retries
+			// while an unconditional refetch would fire on every watch event.
+			// Workspace watches send current state after reconnecting, so
+			// rebuilds missed while disconnected still trigger a refetch.
 			if (!agentId || !isChatAgentBindingUnresolved(next, chatAgentId)) {
 				return;
 			}
 			const refetchKey = `${agentId}:${next.latest_build.id}:${chatAgentId ?? ""}`;
-			if (agentBindingRefetchKeyRef.current === refetchKey) {
+			const lastRefetch = agentBindingRefetchRef.current;
+			const now = Date.now();
+			if (
+				lastRefetch?.key === refetchKey &&
+				now - lastRefetch.at < AGENT_BINDING_REFETCH_COOLDOWN_MS
+			) {
 				return;
 			}
-			agentBindingRefetchKeyRef.current = refetchKey;
-			void invalidateChatEntity(queryClient, agentId).then(() => {
-				// The query client does not retry, so clear the key after a
-				// failed refetch to let the next watch event try again.
-				if (
-					agentBindingRefetchKeyRef.current === refetchKey &&
-					queryClient.getQueryState(chatEntityKey(agentId))?.error
-				) {
-					agentBindingRefetchKeyRef.current = undefined;
-				}
-			});
+			agentBindingRefetchRef.current = { key: refetchKey, at: now };
+			void invalidateChatEntity(queryClient, agentId);
 		},
 	);
 	useEffect(() => {
