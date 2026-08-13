@@ -762,3 +762,57 @@ export const UnsavedChangesPrompt: Story = {
 		).toBeInTheDocument();
 	},
 };
+
+// Regression coverage for issue #27980: a single-label hostname such as an
+// internal Docker DNS name (http://localai:8080/v1) is a valid endpoint and
+// must not be rejected by frontend URL validation.
+export const AddOpenAICompatSingleLabelHost: Story = {
+	args: {
+		initialValues: {
+			type: "openai-compat",
+			name: "localai",
+			baseUrl: "http://localai:8080/v1",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		await userEvent.type(apiKeyInput, "sk-local");
+
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		expect(canvas.queryByText("Endpoint must be a valid URL")).toBeNull();
+
+		await userEvent.click(submitButton);
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ baseUrl: "http://localai:8080/v1" }),
+			),
+		);
+	},
+};
+
+// The endpoint must still be required even though URL-shape validation is
+// deferred to the backend.
+export const AddOpenAICompatEmptyEndpointBlocked: Story = {
+	args: {
+		initialValues: {
+			type: "openai-compat",
+			name: "localai",
+			baseUrl: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		await userEvent.type(apiKeyInput, "sk-local");
+
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		expect(args.onSubmit).not.toHaveBeenCalled();
+	},
+};

@@ -45,7 +45,6 @@ export type ProviderFormValues = {
 	enabled: boolean;
 };
 
-const HTTP_SCHEME_REGEX = /^https?:\/\//i;
 // AWS Bedrock InvokeModel URL, e.g. https://bedrock-runtime.{region}.amazonaws.com
 const BEDROCK_INVOKE_MODEL_URL_REGEX =
 	/^https:\/\/bedrock-runtime\.([a-z0-9-]+)\.amazonaws\.com\/?$/i;
@@ -166,10 +165,7 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
 		icon: Yup.string(),
-		baseUrl: Yup.string()
-			.url("Endpoint must be a valid URL")
-			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
-			.required("Endpoint is required"),
+		baseUrl: Yup.string().required("Endpoint is required"),
 		apiKey: editing
 			? Yup.string()
 			: Yup.string().required("API key is required"),
@@ -201,7 +197,6 @@ const makeBedrockSchema = (editing: boolean) =>
 			.oneOf(["invoke-model", "mantle"] as const)
 			.required(),
 		baseUrl: Yup.string()
-			.url("Endpoint must be a valid URL")
 			.when("protocol", {
 				is: "mantle",
 				then: (schema) =>
@@ -257,10 +252,7 @@ const makeCopilotSchema = (editing: boolean) =>
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
 		icon: Yup.string(),
-		baseUrl: Yup.string()
-			.url("Endpoint must be a valid URL")
-			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
-			.required("Endpoint is required"),
+		baseUrl: Yup.string().required("Endpoint is required"),
 		enabled: Yup.boolean(),
 	});
 
