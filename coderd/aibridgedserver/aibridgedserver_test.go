@@ -2985,11 +2985,15 @@ func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
 				Return(database.AIUserDailySpend{}, nil)
 			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
-			// The group and user are resolved once per interception that
-			// notifies, regardless of how many thresholds it crosses.
+			// The group, organization, and user are resolved once per
+			// interception that notifies, regardless of how many thresholds it
+			// crosses.
 			if len(tc.wantTemplates) > 0 {
+				orgID := uuid.New()
 				db.EXPECT().GetGroupByID(gomock.Any(), groupID).
-					Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+					Return(database.Group{ID: groupID, Name: "Engineering", OrganizationID: orgID}, nil)
+				db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
+					Return(database.Organization{ID: orgID, Name: "coder"}, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
 					Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
 				// No admins configured, so only the user is notified.
@@ -3083,8 +3087,11 @@ func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
 			gotPeriodStart = p.PeriodStart
 			return database.GetUserAISpendSinceRow{SpendMicros: warnAt}, nil
 		})
+	orgID := uuid.New()
 	db.EXPECT().GetGroupByID(gomock.Any(), groupID).
-		Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+		Return(database.Group{ID: groupID, Name: "Engineering", OrganizationID: orgID}, nil)
+	db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
+		Return(database.Organization{ID: orgID, Name: "coder"}, nil)
 	db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
 		Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
 	// No admins configured, so only the user is notified.
@@ -3366,8 +3373,11 @@ func TestRecordTokenUsageBudgetAdminNotification(t *testing.T) {
 				Return(database.AIUserDailySpend{}, nil)
 			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
+			orgID := uuid.New()
 			db.EXPECT().GetGroupByID(gomock.Any(), groupID).
-				Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+				Return(database.Group{ID: groupID, Name: "Engineering", OrganizationID: orgID}, nil)
+			db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
+				Return(database.Organization{ID: orgID, Name: "coder"}, nil)
 			db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
 				Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
 			db.EXPECT().GetUsers(gomock.Any(), database.GetUsersParams{
@@ -3409,6 +3419,7 @@ func TestRecordTokenUsageBudgetAdminNotification(t *testing.T) {
 			require.Equal(t, tc.wantThreshold, adminSent[0].Labels["threshold"])
 			require.Equal(t, "$100.00", adminSent[0].Labels["limit"])
 			require.Equal(t, "Engineering", adminSent[0].Labels["effective_group_name"])
+			require.Equal(t, "coder", adminSent[0].Labels["organization_name"])
 			require.Equal(t, tc.wantLimitSource, adminSent[0].Labels["limit_source"])
 		})
 	}
