@@ -97,6 +97,11 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	// so the hard cap text moves above the bar.
 	const hardCapLabelAboveBar =
 		allocationMarkerPercent !== undefined && allocationMarkerPercent > 85;
+	// Near the left edge the centered limit label would spill outside the
+	// card and over the Used label, so the limit text moves above the bar
+	// instead, left-aligned at its marker.
+	const limitLabelAboveBar =
+		allocationMarkerPercent !== undefined && allocationMarkerPercent < 15;
 
 	// The fill is segmented by position instead of switching color as a
 	// whole: green until the soft limit, yellow from the soft limit to the
@@ -125,10 +130,10 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	// Usage always renders with exactly one decimal (e.g. 42.0, 10.3). The
 	// value is already floored to tenths, so no rounding happens here. The
 	// limit and hard cap labels stay whole because the claims are whole
-	// hours.
+	// hours. Missing usage data falls back to N/A rather than a dash.
 	const usedLabel =
 		actualMs === undefined
-			? "\u2014"
+			? "N/A"
 			: usedHours.toLocaleString("en-US", {
 					minimumFractionDigits: 1,
 					maximumFractionDigits: 1,
@@ -206,8 +211,21 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 						</Tooltip>
 					</div>
 
-					{(reachedHardCap || hardCapLabelAboveBar) && (
+					{(reachedHardCap || hardCapLabelAboveBar || limitLabelAboveBar) && (
 						<div className="flex items-center justify-end gap-3">
+							{limitLabelAboveBar && (
+								// In-flow so the row keeps its height, offset to the
+								// marker by a percentage margin (the row and the track
+								// share a width), with the auto margin keeping the
+								// enforcement pill on the right.
+								<p
+									className="m-0 mr-auto text-sm font-medium whitespace-nowrap text-content-secondary"
+									style={{ marginLeft: `${allocationMarkerPercent}%` }}
+								>
+									Limit:{" "}
+									<span className="text-content-primary">{limitLabel}</span>
+								</p>
+							)}
 							{reachedHardCap && (
 								<Badge variant="destructive" size="sm" className="rounded-full">
 									<BanIcon />
@@ -314,19 +332,22 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 								{/* The limit label follows its marker so the allocation
 								    stays readable on the hard-cap scaled track. Near the
 								    right edge it right-aligns to the marker to stay
-								    inside the card. */}
-								<p
-									className={cn(
-										"absolute m-0 text-content-secondary",
-										hardCapLabelAboveBar
-											? "-translate-x-full"
-											: "-translate-x-1/2",
-									)}
-									style={{ left: `${allocationMarkerPercent}%` }}
-								>
-									Limit:{" "}
-									<span className="text-content-primary">{limitLabel}</span>
-								</p>
+								    inside the card; near the left edge it renders above
+								    the bar instead. */}
+								{!limitLabelAboveBar && (
+									<p
+										className={cn(
+											"absolute m-0 text-content-secondary",
+											hardCapLabelAboveBar
+												? "-translate-x-full"
+												: "-translate-x-1/2",
+										)}
+										style={{ left: `${allocationMarkerPercent}%` }}
+									>
+										Limit:{" "}
+										<span className="text-content-primary">{limitLabel}</span>
+									</p>
+								)}
 								{!hardCapLabelAboveBar && (
 									<p className="m-0 text-content-secondary">
 										Hard cap:{" "}

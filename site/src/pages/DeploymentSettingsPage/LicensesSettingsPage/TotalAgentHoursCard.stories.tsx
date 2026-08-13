@@ -203,7 +203,7 @@ export const MissingActual: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("\u2014")).toBeInTheDocument();
+		await expect(canvas.getByText("N/A")).toBeInTheDocument();
 	},
 };
 
@@ -222,7 +222,7 @@ export const MissingActualZeroSoftLimit: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("\u2014")).toBeInTheDocument();
+		await expect(canvas.getByText("N/A")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -342,6 +342,31 @@ export const HardCapNearAllocation: Story = {
 		await expect(canvas.getByText("1,400")).toBeInTheDocument();
 		await expect(canvas.getByText(/Hard cap:/)).toBeInTheDocument();
 		await expect(canvas.getByText("1,500")).toBeInTheDocument();
+	},
+};
+
+// When the allocation sits within the first 15% of the hard-cap track
+// (here 100 of 10,000 hours, a 1% marker), the centered limit label
+// would spill outside the card and over the Used label, so the limit
+// text renders above the bar, left-aligned at its marker.
+export const HardCapFarFromAllocation: Story = {
+	args: {
+		feature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 100,
+			soft_limit: 85,
+			hard_limit: 10_000,
+			actual: 40,
+			actual_ms: 40 * 3_600_000,
+		} satisfies Feature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("40.0")).toBeInTheDocument();
+		await expect(canvas.getByText("100")).toBeInTheDocument();
+		await expect(canvas.getByText(/Hard cap:/)).toBeInTheDocument();
+		await expect(canvas.getByText("10,000")).toBeInTheDocument();
 	},
 };
 
