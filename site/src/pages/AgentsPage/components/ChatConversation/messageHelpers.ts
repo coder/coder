@@ -202,6 +202,7 @@ const mergeReadFileMessageGroup = (
 	const [first] = group;
 	return {
 		message: first.message,
+		mergedFrom: group.map((entry) => entry.message.id),
 		parsed: {
 			markdown: "",
 			reasoning: "",
@@ -213,6 +214,23 @@ const mergeReadFileMessageGroup = (
 			hookNotices: [],
 		},
 	};
+};
+
+// A merged group's row key cannot come from its members: prepending history
+// changes the first member, live streaming changes the last. Key off the
+// visible entry before the group instead; a group at the start of loaded
+// history falls back to its newest member.
+export const getDisplayMessageKey = (
+	entry: ParsedMessageEntry,
+	previousVisible: ParsedMessageEntry | undefined,
+): string => {
+	if (entry.mergedFrom === undefined) {
+		return `message:${entry.message.id}`;
+	}
+	if (previousVisible !== undefined) {
+		return `read-file-group:after:${previousVisible.message.id}`;
+	}
+	return `read-file-group:through:${entry.mergedFrom[entry.mergedFrom.length - 1]}`;
 };
 
 // Real transcripts place hidden tool-result-only messages between

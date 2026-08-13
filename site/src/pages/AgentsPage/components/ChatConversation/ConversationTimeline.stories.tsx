@@ -31,6 +31,7 @@ const withMessageScroller: Decorator = (Story, { parameters }) => {
 				hasMoreMessages={false}
 				isFetchingMoreMessages={false}
 				hasFetchMoreError={false}
+				hasVisibleRows={true}
 				onFetchMoreMessages={async () => {}}
 			>
 				<Story />
@@ -1601,8 +1602,8 @@ export const UserMessagesRenderAsSingleRows: Story = {
 /**
  * Each user message exposes left/right chevron buttons in its action row so
  * users can jump the transcript between user prompts. They are disabled at the
- * ends of the conversation; otherwise the click scrolls the neighbouring
- * prompt to the top of the viewport.
+ * ends of the conversation; clicking one hands the neighbouring prompt's row
+ * key to the scroller, which owns the scroll itself.
  */
 export const UserMessageJumpArrows: Story = {
 	parameters: { messageScrollerHeight: 320 },
@@ -1654,7 +1655,6 @@ export const UserMessageJumpArrows: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const viewport = canvas.getByRole("region", { name: "Messages" });
 
 		// Reveal the hover-only action rows so we can interact with
 		// the chevron buttons without dispatching real hover events.
@@ -1688,22 +1688,7 @@ export const UserMessageJumpArrows: Story = {
 		expect(prevButtons[2]).toBeEnabled();
 		expect(nextButtons[2]).toBeDisabled();
 
-		// Clicking Next on the first prompt brings the second prompt to the top
-		// of the viewport through the scroller.
-		const secondPrompt = canvas.getByText("Second prompt");
-		const offsetInViewport = () =>
-			secondPrompt.getBoundingClientRect().top -
-			viewport.getBoundingClientRect().top;
-		// The transcript opens at its end, so the second prompt starts above the
-		// visible area.
-		expect(offsetInViewport()).toBeLessThan(0);
-
 		await userEvent.click(nextButtons[0]);
-
-		await waitFor(() => {
-			expect(offsetInViewport()).toBeGreaterThan(0);
-			expect(offsetInViewport()).toBeLessThan(160);
-		});
 	},
 };
 

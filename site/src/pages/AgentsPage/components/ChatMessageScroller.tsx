@@ -14,6 +14,7 @@ interface EarlierMessagesProps {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
+	hasVisibleRows: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 }
 
@@ -26,26 +27,27 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	hasFetchMoreError,
+	hasVisibleRows,
 	onFetchMoreMessages,
 }) => {
 	const { start: canScrollTowardStart } = useMessageScrollerScrollable();
 	const { visibleMessageIds } = useMessageScrollerVisibility();
 
-	// The scroller reports that it cannot scroll toward the start both before it
-	// has measured anything and once the viewport sits at the start edge, so wait
-	// for a measured row before reading that as a request for older history. A
-	// transcript that does not fill the viewport stays at the start edge, which
-	// keeps paging until it overflows or history runs out.
+	// "Cannot scroll toward the start" also holds before any row is measured,
+	// and a history page can filter down to zero rendered rows; both mean keep
+	// loading rather than treating the transcript as exhausted.
 	const isAtHistoryStart =
-		!canScrollTowardStart && visibleMessageIds.length > 0;
+		!canScrollTowardStart && (visibleMessageIds.length > 0 || !hasVisibleRows);
 	const shouldLoadEarlierMessages =
 		isAtHistoryStart &&
 		hasMoreMessages &&
 		!isFetchingMoreMessages &&
 		!hasFetchMoreError;
 
-	// isFetchingMoreMessages (from React Query) is the only fence: the effect
-	// does not re-fire while a page request is already running.
+	// The scroller exposes position only as state, with no "reached the top"
+	// event, so paging is synced from that state here. Scroll events cannot
+	// replace this: they never fire when the transcript is shorter than the
+	// viewport, which is exactly when more history is needed.
 	useEffect(() => {
 		if (shouldLoadEarlierMessages) {
 			void onFetchMoreMessages();

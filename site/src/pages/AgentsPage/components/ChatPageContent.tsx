@@ -1,4 +1,11 @@
-import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
+import {
+	type FC,
+	Profiler,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
@@ -117,6 +124,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	mcpServers,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const [hasVisibleRows, setHasVisibleRows] = useState(true);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
@@ -175,6 +183,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				hasMoreMessages={hasMoreMessages}
 				isFetchingMoreMessages={isFetchingMoreMessages}
 				hasFetchMoreError={hasFetchMoreError}
+				hasVisibleRows={hasVisibleRows}
 				onFetchMoreMessages={onFetchMoreMessages}
 			>
 				{/* VNC sessions for completed agents may already be
@@ -184,6 +193,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					   renders correctly. */}
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
+					onVisibleRowsChange={setHasVisibleRows}
 					streamState={streamState}
 					streamTools={streamTools}
 					liveStatus={liveStatus}
