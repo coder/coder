@@ -15,6 +15,18 @@
 
 import { isHtml, type MdastNode } from "./mdast";
 
+// A `<details>` block is recognized only when its opener and closer arrive as
+// sibling raw-HTML nodes: DETAILS_OPEN must start the opening node and
+// DETAILS_CLOSE must end the closing node. `transform` recurses into every
+// parent first, so a `<details>` nested inside a list item is still converted,
+// as long as those two delimiters are clean.
+//
+// Known limitation: a closing node that carries trailing markup on the same
+// line, e.g. `</details><br>`, does not match DETAILS_CLOSE, so the block is
+// left as a native `<details>` disclosure instead of an Accordion. The fallback
+// still renders (the inner Markdown, including callouts, converts); it is just
+// not Accordion-styled. Author `<details>` and `</details>` each alone on their
+// own line to get the Accordion.
 const DETAILS_OPEN = /^<details\b[^>]*>/i;
 const DETAILS_CLOSE = /<\/details>\s*$/i;
 const SUMMARY = /<summary\b[^>]*>([\s\S]*?)<\/summary>/i;
