@@ -199,8 +199,7 @@ https://github.com/coder/coder/blob/release/<VERSION>/coderd/aibridge/prices/dat
 Replace `<VERSION>` with your Coder minor version, for example `2.36`.
 
 > [!IMPORTANT]
-> Approximate spend can differ from provider-reported amounts, and some usage
-> might not count toward spend:
+> Approximate spend can differ from provider-reported amounts, and some usage might not count toward spend:
 >
 > - Approximate spend excludes negotiated discounts, committed-use pricing, and
 >   provider-specific billing rules.
