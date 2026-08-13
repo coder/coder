@@ -663,10 +663,14 @@ describe("api.ts", () => {
 });
 
 describe("getAllWorkspaces", () => {
+	let nextWorkspaceID = 0;
+
+	// Every row gets an ID distinct from every other row handed out by this
+	// helper, so pages never overlap unless a test builds them that way.
 	const workspacePage = (count: number, rows: number) => ({
-		workspaces: Array.from({ length: rows }, (_, i) => ({
+		workspaces: Array.from({ length: rows }, () => ({
 			...MockWorkspace,
-			id: `ws-${i}`,
+			id: `ws-${nextWorkspaceID++}`,
 		})),
 		count,
 	});
@@ -717,5 +721,19 @@ describe("getAllWorkspaces", () => {
 		expect(getWorkspaces).toHaveBeenCalledTimes(2);
 		expect(result.workspaces).toHaveLength(90);
 		expect(result.count).toBe(150);
+	});
+
+	// The order the endpoint applies depends on workspace state, so a row can
+	// move to a later page while the pages are being read and be returned twice.
+	it("skips a workspace an earlier page already returned", async () => {
+		const repeated = { ...MockWorkspace, id: "repeated" };
+		const unique = { ...MockWorkspace, id: "unique" };
+		vi.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce({ workspaces: [repeated], count: 150 })
+			.mockResolvedValueOnce({ workspaces: [repeated, unique], count: 150 });
+
+		const result = await API.getAllWorkspaces();
+
+		expect(result.workspaces).toStrictEqual([repeated, unique]);
 	});
 });

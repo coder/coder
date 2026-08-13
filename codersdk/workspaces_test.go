@@ -316,7 +316,8 @@ func TestAllWorkspaces(t *testing.T) {
 	t.Parallel()
 
 	// newClient serves pages of the given sizes, recording the limit and offset
-	// of every request. count is reported as the total on every response.
+	// of every request. count is reported as the total on every response, and
+	// every row across every page gets a distinct ID.
 	newClient := func(t *testing.T, count int, pageSizes ...int) (*codersdk.Client, *[][2]int) {
 		t.Helper()
 		var requests [][2]int
@@ -332,10 +333,15 @@ func TestAllWorkspaces(t *testing.T) {
 			}
 			page++
 
+			workspaces := make([]codersdk.Workspace, rows)
+			for i := range workspaces {
+				workspaces[i].ID = uuid.New()
+			}
+
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(codersdk.WorkspacesResponse{
-				Workspaces: make([]codersdk.Workspace, rows),
+				Workspaces: workspaces,
 				Count:      count,
 			})
 		}))
@@ -415,5 +421,42 @@ func TestAllWorkspaces(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, [][2]int{{codersdk.WorkspacesPageLimit, 0}}, *requests)
+	})
+
+	// The order the endpoint applies depends on workspace state, so a row can
+	// move to a later page while the pages are being read and be returned twice.
+	t.Run("SkipsRepeatedRows", func(t *testing.T) {
+		t.Parallel()
+
+		repeated := codersdk.Workspace{ID: uuid.New()}
+		unique := codersdk.Workspace{ID: uuid.New()}
+		pages := [][]codersdk.Workspace{
+			{repeated},
+			{repeated, unique},
+		}
+		page := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var workspaces []codersdk.Workspace
+			if page < len(pages) {
+				workspaces = pages[page]
+			}
+			page++
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(codersdk.WorkspacesResponse{
+				Workspaces: workspaces,
+				Count:      codersdk.WorkspacesPageLimit + 1,
+			})
+		}))
+		t.Cleanup(srv.Close)
+
+		u, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		workspaces, err := codersdk.New(u).AllWorkspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.Workspace{repeated, unique}, workspaces)
 	})
 }

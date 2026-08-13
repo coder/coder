@@ -1261,15 +1261,28 @@ class ApiMethods {
 
 	/**
 	 * Requests successive pages of workspaces until the offset reaches the total
-	 * the server reports. The offset advances by the page size rather than by the
+	 * the server reports, skipping workspaces that were already returned by an
+	 * earlier page. The offset advances by the page size rather than by the
 	 * number of rows received: the endpoint applies its limit in SQL and then
 	 * drops workspaces whose latest build or template the caller cannot read, so
 	 * a short page does not mean the result set is exhausted.
+	 *
+	 * The pages are separate requests, so the result is not a snapshot. The
+	 * endpoint orders by whether the workspace is a favorite of the requester and
+	 * whether its latest build is running, both of which change while the pages
+	 * are being read. A workspace that moves later in that order is skipped here
+	 * by ID; one that moves earlier can pass the current offset and be missed.
+	 * Prefer a server-side filter that fits in one page when the result has to be
+	 * exact.
+	 *
+	 * `count` is the total the server reported for the last page and can exceed
+	 * the length of `workspaces`.
 	 */
 	getAllWorkspaces = async (
 		req: Omit<TypesGen.WorkspacesRequest, "limit" | "offset"> = {},
 	): Promise<TypesGen.WorkspacesResponse> => {
 		const workspaces: TypesGen.Workspace[] = [];
+		const seen = new Set<string>();
 		let count = 0;
 		let offset = 0;
 		do {
@@ -1278,7 +1291,13 @@ class ApiMethods {
 				limit: TypesGen.WorkspacesPageLimit,
 				offset,
 			});
-			workspaces.push(...page.workspaces);
+			for (const workspace of page.workspaces) {
+				if (seen.has(workspace.id)) {
+					continue;
+				}
+				seen.add(workspace.id);
+				workspaces.push(workspace);
+			}
 			count = page.count;
 			offset += TypesGen.WorkspacesPageLimit;
 		} while (offset < count);

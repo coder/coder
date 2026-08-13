@@ -633,23 +633,39 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 }
 
 // AllWorkspaces requests successive pages of workspaces matching the filter and
-// returns every row. Limit and Offset on the filter are ignored.
+// returns every row it receives, skipping rows it has already seen. Limit and
+// Offset on the filter are ignored.
 //
 // The offset advances by the requested page size rather than by the number of
 // rows received. The endpoint applies its limit in SQL and then drops workspaces
 // whose latest build or template the caller cannot read, so a page shorter than
 // the page size does not mean the result set is exhausted. Count is the total
 // before the limit and offset are applied.
+//
+// The pages are separate requests, so the result is not a snapshot. The
+// endpoint orders by whether the workspace is a favorite of the requester and
+// whether its latest build is running, both of which change while the pages are
+// being read. A row that moves later in that order is filtered out here by ID;
+// a row that moves earlier can pass the current offset and be missed entirely.
+// A caller that needs an exact result should narrow the filter until it fits in
+// one page.
 func (c *Client) AllWorkspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
 	filter.Limit = WorkspacesPageLimit
 	filter.Offset = 0
 	var all []Workspace
+	seen := make(map[uuid.UUID]struct{})
 	for {
 		page, err := c.Workspaces(ctx, filter)
 		if err != nil {
 			return nil, err
 		}
-		all = append(all, page.Workspaces...)
+		for _, workspace := range page.Workspaces {
+			if _, ok := seen[workspace.ID]; ok {
+				continue
+			}
+			seen[workspace.ID] = struct{}{}
+			all = append(all, workspace)
+		}
 		filter.Offset += WorkspacesPageLimit
 		if filter.Offset >= page.Count {
 			return all, nil
