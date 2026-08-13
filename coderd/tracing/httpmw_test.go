@@ -136,37 +136,37 @@ func Test_Middleware_SessionID(t *testing.T) {
 		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
 		fields := requestFields(t, tp, "/api/v2/workspaces", tracing.SessionIDBaggageKey+"="+testSessionID)
 
-		val, ok := fieldValue(fields, "session_id")
-		require.True(t, ok, "session_id should be on the log context")
+		val, ok := fieldValue(fields, "client_session_id")
+		require.True(t, ok, "client_session_id should be on the log context")
 		require.Equal(t, testSessionID, val)
 
-		require.Contains(t, tp.span.attributes(), attribute.String("session_id", testSessionID))
+		require.Contains(t, tp.span.attributes(), attribute.String("client_session_id", testSessionID))
 	})
 
 	t.Run("TracingEnabledNoBaggage", func(t *testing.T) {
 		t.Parallel()
 
 		// With tracing on but no baggage, the session ID is empty and the
-		// middleware must not set an empty session_id span attribute or log
+		// middleware must not set an empty client_session_id span attribute or log
 		// field.
 		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
 		fields := requestFields(t, tp, "/api/v2/workspaces", "")
 
-		_, ok := fieldValue(fields, "session_id")
-		require.False(t, ok, "session_id should be absent when no baggage is sent")
-		require.False(t, hasAttrKey(tp.span.attributes(), "session_id"),
-			"no session_id attribute should be set when no baggage is sent")
+		_, ok := fieldValue(fields, "client_session_id")
+		require.False(t, ok, "client_session_id should be absent when no baggage is sent")
+		require.False(t, hasAttrKey(tp.span.attributes(), "client_session_id"),
+			"no client_session_id attribute should be set when no baggage is sent")
 	})
 
 	t.Run("TracingDisabled", func(t *testing.T) {
 		t.Parallel()
 
-		// A nil tracer provider disables span creation, but the session_id
+		// A nil tracer provider disables span creation, but the client_session_id
 		// must still land on the log context.
 		fields := requestFields(t, nil, "/api/v2/workspaces", tracing.SessionIDBaggageKey+"="+testSessionID)
 
-		val, ok := fieldValue(fields, "session_id")
-		require.True(t, ok, "session_id should be on the log context even when tracing is disabled")
+		val, ok := fieldValue(fields, "client_session_id")
+		require.True(t, ok, "client_session_id should be on the log context even when tracing is disabled")
 		require.Equal(t, testSessionID, val)
 	})
 
@@ -174,8 +174,8 @@ func Test_Middleware_SessionID(t *testing.T) {
 		t.Parallel()
 
 		fields := requestFields(t, nil, "/api/v2/workspaces", "")
-		_, ok := fieldValue(fields, "session_id")
-		require.False(t, ok, "session_id should be absent when no baggage is sent")
+		_, ok := fieldValue(fields, "client_session_id")
+		require.False(t, ok, "client_session_id should be absent when no baggage is sent")
 	})
 
 	t.Run("MalformedBaggage", func(t *testing.T) {
@@ -184,26 +184,26 @@ func Test_Middleware_SessionID(t *testing.T) {
 		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
 		fields := requestFields(t, tp, "/api/v2/workspaces", tracing.SessionIDBaggageKey+"=not-a-valid-session-id")
 
-		_, ok := fieldValue(fields, "session_id")
-		require.False(t, ok, "malformed session_id should be ignored")
-		require.False(t, hasAttrKey(tp.span.attributes(), "session_id"),
-			"no session_id attribute should be set for malformed baggage")
+		_, ok := fieldValue(fields, "client_session_id")
+		require.False(t, ok, "malformed client_session_id should be ignored")
+		require.False(t, hasAttrKey(tp.span.attributes(), "client_session_id"),
+			"no client_session_id attribute should be set for malformed baggage")
 	})
 
 	t.Run("NonMatchingRoute", func(t *testing.T) {
 		t.Parallel()
 
 		// The middleware only runs on matched API/app routes. Static and
-		// asset routes must not extract session_id, even from well-formed
+		// asset routes must not extract client_session_id, even from well-formed
 		// baggage, so client-controlled baggage is never logged for every
 		// request.
 		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
 		fields := requestFields(t, tp, "/index.html", tracing.SessionIDBaggageKey+"="+testSessionID)
 
-		_, ok := fieldValue(fields, "session_id")
-		require.False(t, ok, "session_id must not be logged on a non-matching route")
-		require.False(t, hasAttrKey(tp.span.attributes(), "session_id"),
-			"no session_id attribute should be set on a non-matching route")
+		_, ok := fieldValue(fields, "client_session_id")
+		require.False(t, ok, "client_session_id must not be logged on a non-matching route")
+		require.False(t, hasAttrKey(tp.span.attributes(), "client_session_id"),
+			"no client_session_id attribute should be set on a non-matching route")
 	})
 
 	// FieldNamesMatchBaggageKey pins the baggage key, the log field name, and
@@ -214,7 +214,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 	t.Run("FieldNamesMatchBaggageKey", func(t *testing.T) {
 		t.Parallel()
 
-		require.Equal(t, "session_id", tracing.SessionIDBaggageKey)
+		require.Equal(t, "client_session_id", tracing.SessionIDBaggageKey)
 
 		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
 		fields := requestFields(t, tp, "/api/v2/workspaces", tracing.SessionIDBaggageKey+"="+testSessionID)
