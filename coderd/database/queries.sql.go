@@ -14808,6 +14808,99 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 	return err
 }
 
+const getEntityJournalEntriesBySubject = `-- name: GetEntityJournalEntriesBySubject :many
+SELECT
+	id, recorded_at, event, subject_type, subject, actor_type, actor
+FROM
+	entity_journal
+WHERE
+	subject_type = $1
+	AND subject = $2
+ORDER BY
+	id
+`
+
+type GetEntityJournalEntriesBySubjectParams struct {
+	SubjectType string    `db:"subject_type" json:"subject_type"`
+	Subject     uuid.UUID `db:"subject" json:"subject"`
+}
+
+func (q *sqlQuerier) GetEntityJournalEntriesBySubject(ctx context.Context, arg GetEntityJournalEntriesBySubjectParams) ([]EntityJournal, error) {
+	rows, err := q.db.QueryContext(ctx, getEntityJournalEntriesBySubject, arg.SubjectType, arg.Subject)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityJournal
+	for rows.Next() {
+		var i EntityJournal
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecordedAt,
+			&i.Event,
+			&i.SubjectType,
+			&i.Subject,
+			&i.ActorType,
+			&i.Actor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertEntityJournalEntry = `-- name: InsertEntityJournalEntry :one
+INSERT INTO
+	entity_journal (
+		recorded_at,
+		event,
+		subject_type,
+		subject,
+		actor_type,
+		actor
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6) RETURNING id, recorded_at, event, subject_type, subject, actor_type, actor
+`
+
+type InsertEntityJournalEntryParams struct {
+	RecordedAt  time.Time `db:"recorded_at" json:"recorded_at"`
+	Event       string    `db:"event" json:"event"`
+	SubjectType string    `db:"subject_type" json:"subject_type"`
+	Subject     uuid.UUID `db:"subject" json:"subject"`
+	ActorType   string    `db:"actor_type" json:"actor_type"`
+	Actor       uuid.UUID `db:"actor" json:"actor"`
+}
+
+func (q *sqlQuerier) InsertEntityJournalEntry(ctx context.Context, arg InsertEntityJournalEntryParams) (EntityJournal, error) {
+	row := q.db.QueryRowContext(ctx, insertEntityJournalEntry,
+		arg.RecordedAt,
+		arg.Event,
+		arg.SubjectType,
+		arg.Subject,
+		arg.ActorType,
+		arg.Actor,
+	)
+	var i EntityJournal
+	err := row.Scan(
+		&i.ID,
+		&i.RecordedAt,
+		&i.Event,
+		&i.SubjectType,
+		&i.Subject,
+		&i.ActorType,
+		&i.Actor,
+	)
+	return i, err
+}
+
 const deleteExternalAuthLink = `-- name: DeleteExternalAuthLink :exec
 DELETE FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
 `

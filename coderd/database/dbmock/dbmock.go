@@ -3900,6 +3900,21 @@ func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigs(ctx any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigs), ctx)
 }
 
+// GetEntityJournalEntriesBySubject mocks base method.
+func (m *MockStore) GetEntityJournalEntriesBySubject(ctx context.Context, arg database.GetEntityJournalEntriesBySubjectParams) ([]database.EntityJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEntityJournalEntriesBySubject", ctx, arg)
+	ret0, _ := ret[0].([]database.EntityJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEntityJournalEntriesBySubject indicates an expected call of GetEntityJournalEntriesBySubject.
+func (mr *MockStoreMockRecorder) GetEntityJournalEntriesBySubject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEntityJournalEntriesBySubject", reflect.TypeOf((*MockStore)(nil).GetEntityJournalEntriesBySubject), ctx, arg)
+}
+
 // GetExternalAgentTokensByTemplateID mocks base method.
 func (m *MockStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	m.ctrl.T.Helper()
@@ -8063,6 +8078,21 @@ func (m *MockStore) InsertDeploymentID(ctx context.Context, value string) error 
 func (mr *MockStoreMockRecorder) InsertDeploymentID(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDeploymentID", reflect.TypeOf((*MockStore)(nil).InsertDeploymentID), ctx, value)
+}
+
+// InsertEntityJournalEntry mocks base method.
+func (m *MockStore) InsertEntityJournalEntry(ctx context.Context, arg database.InsertEntityJournalEntryParams) (database.EntityJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertEntityJournalEntry", ctx, arg)
+	ret0, _ := ret[0].(database.EntityJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertEntityJournalEntry indicates an expected call of InsertEntityJournalEntry.
+func (mr *MockStoreMockRecorder) InsertEntityJournalEntry(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertEntityJournalEntry", reflect.TypeOf((*MockStore)(nil).InsertEntityJournalEntry), ctx, arg)
 }
 
 // InsertExternalAuthLink mocks base method.

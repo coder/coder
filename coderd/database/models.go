@@ -5478,6 +5478,17 @@ type DBCryptKey struct {
 	Test string `db:"test" json:"test"`
 }
 
+// Journal of persistent state changes to entities, against which the state of the world can be reconciled. Distinct from audit_logs, which is a separate mechanism recording requests.
+type EntityJournal struct {
+	ID          int64     `db:"id" json:"id"`
+	RecordedAt  time.Time `db:"recorded_at" json:"recorded_at"`
+	Event       string    `db:"event" json:"event"`
+	SubjectType string    `db:"subject_type" json:"subject_type"`
+	Subject     uuid.UUID `db:"subject" json:"subject"`
+	ActorType   string    `db:"actor_type" json:"actor_type"`
+	Actor       uuid.UUID `db:"actor" json:"actor"`
+}
+
 type ExternalAuthLink struct {
 	ProviderID        string    `db:"provider_id" json:"provider_id"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`

@@ -490,6 +490,31 @@ func (s *MethodTestSuite) TestAIAgents() {
 	}))
 }
 
+// TestEntityJournal covers the journal described in coderd/entity/DIRECTORY.md.
+// It is a separate mechanism from the audit logs tested below, and shares no
+// code with them.
+func (s *MethodTestSuite) TestEntityJournal() {
+	s.Run("InsertEntityJournalEntry", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertEntityJournalEntryParams{
+			Event:       "created",
+			SubjectType: "ai_agent",
+			Subject:     uuid.New(),
+			ActorType:   "workspace_agent",
+			Actor:       uuid.New(),
+		}
+		dbm.EXPECT().InsertEntityJournalEntry(gomock.Any(), arg).Return(database.EntityJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetEntityJournalEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetEntityJournalEntriesBySubjectParams{
+			SubjectType: "ai_agent",
+			Subject:     uuid.New(),
+		}
+		dbm.EXPECT().GetEntityJournalEntriesBySubject(gomock.Any(), arg).Return([]database.EntityJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+}
+
 func (s *MethodTestSuite) TestAuditLogs() {
 	s.Run("InsertAuditLog", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertAuditLogParams{ResourceType: database.ResourceTypeOrganization, Action: database.AuditActionCreate, Diff: json.RawMessage("{}"), AdditionalFields: json.RawMessage("{}")}

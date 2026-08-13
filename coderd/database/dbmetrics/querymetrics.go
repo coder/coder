@@ -2105,6 +2105,14 @@ func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetEntityJournalEntriesBySubject(ctx context.Context, arg database.GetEntityJournalEntriesBySubjectParams) ([]database.EntityJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEntityJournalEntriesBySubject(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetEntityJournalEntriesBySubject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEntityJournalEntriesBySubject").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAgentTokensByTemplateID(ctx, arg)
@@ -4303,6 +4311,14 @@ func (m queryMetricsStore) InsertDeploymentID(ctx context.Context, value string)
 	m.queryLatencies.WithLabelValues("InsertDeploymentID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertDeploymentID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) InsertEntityJournalEntry(ctx context.Context, arg database.InsertEntityJournalEntryParams) (database.EntityJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertEntityJournalEntry(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertEntityJournalEntry").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertEntityJournalEntry").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
