@@ -794,6 +794,12 @@ func LicensesEntitlements(
 		if ok {
 			actualHours := agentRuntimeMsToHours(runtimeMs)
 			runtimeHours.Actual = &actualHours
+			// ActualMs carries the exact stored milliseconds so clients can
+			// render fractional hours. Negative input clamps to 0, mirroring
+			// agentRuntimeMsToHours, since AgentRuntimeMsFn is a
+			// caller-supplied seam.
+			actualMs := max(runtimeMs, 0)
+			runtimeHours.ActualMs = &actualMs
 			// Written back directly rather than through AddFeature; see
 			// the managed-agent write-back above for why.
 			entitlements.Features[codersdk.FeatureAgentRuntimeHours] = runtimeHours

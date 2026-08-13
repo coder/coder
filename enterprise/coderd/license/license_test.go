@@ -1882,6 +1882,8 @@ func TestLicenseEntitlements(t *testing.T) {
 				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
 				require.NotNil(t, feature.Actual)
 				assert.Equal(t, int64(80), *feature.Actual)
+				require.NotNil(t, feature.ActualMs)
+				assert.Equal(t, (80 * time.Hour).Milliseconds(), *feature.ActualMs)
 			},
 		},
 		{
@@ -1927,7 +1929,8 @@ func TestLicenseEntitlements(t *testing.T) {
 		},
 		{
 			// Partial hours are floored, so 99h59m59s does not reach the
-			// 100 hour allocation.
+			// 100 hour allocation. ActualMs still carries the exact
+			// milliseconds so clients can render the fraction.
 			Name: "AgentRuntimeHours/PartialHourFloored",
 			Licenses: []*coderdenttest.LicenseOptions{
 				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
@@ -1945,6 +1948,53 @@ func TestLicenseEntitlements(t *testing.T) {
 				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
 				require.NotNil(t, feature.Actual)
 				assert.Equal(t, int64(99), *feature.Actual)
+				require.NotNil(t, feature.ActualMs)
+				assert.Equal(t, (100*time.Hour).Milliseconds()-1, *feature.ActualMs)
+			},
+		},
+		{
+			// A fractional-hour runtime: Actual floors to whole hours
+			// while ActualMs preserves the fraction (10.3 hours here).
+			Name: "AgentRuntimeHours/FractionalHours",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return (10*time.Hour + 18*time.Minute).Milliseconds(), nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(10), *feature.Actual)
+				require.NotNil(t, feature.ActualMs)
+				assert.Equal(t, int64(37_080_000), *feature.ActualMs)
+			},
+		},
+		{
+			// Negative runtime is not producible by the production query,
+			// but AgentRuntimeMsFn is a caller-supplied seam, so both
+			// Actual and ActualMs clamp to 0.
+			Name: "AgentRuntimeHours/NegativeRuntimeClamped",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return -1, nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(0), *feature.Actual)
+				require.NotNil(t, feature.ActualMs)
+				assert.Equal(t, int64(0), *feature.ActualMs)
 			},
 		},
 		{
@@ -2951,6 +3001,8 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 		// Actual is populated from usage, which is zero for this license.
 		require.NotNil(t, feature.Actual)
 		require.EqualValues(t, 0, *feature.Actual)
+		require.NotNil(t, feature.ActualMs)
+		require.EqualValues(t, 0, *feature.ActualMs)
 		require.NotNil(t, feature.UsagePeriod)
 		require.WithinDuration(t, licIat, feature.UsagePeriod.IssuedAt, 2*time.Second)
 		require.WithinDuration(t, licNbf, feature.UsagePeriod.Start, 2*time.Second)
@@ -2968,6 +3020,7 @@ func TestAgentRuntimeHoursLicenses(t *testing.T) {
 		require.EqualValues(t, 100, rawFeature["limit"])
 		require.EqualValues(t, 80, rawFeature["soft_limit"])
 		require.EqualValues(t, 120, rawFeature["hard_limit"])
+		require.EqualValues(t, 0, rawFeature["actual_ms"])
 		require.Contains(t, rawFeature, "usage_period")
 	})
 
