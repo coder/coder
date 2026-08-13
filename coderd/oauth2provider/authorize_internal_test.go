@@ -116,10 +116,57 @@ func TestValidateRequestedScope(t *testing.T) {
 			want:      alsoInCatalog,
 		},
 		{
+			// coder:workspaces.access grants template:read but not
+			// template:update, so the second name asks for authority the
+			// allowlist never carried.
 			name:      "PartiallyOutOfAllowlistRejected",
-			requested: []string{inCatalog, "template:read"},
+			requested: []string{inCatalog, "template:update"},
 			appScope:  sql.NullString{String: inCatalog, Valid: true},
 			wantErr:   errScopeNotAllowed,
+		},
+		{
+			// The allowlist bounds authority, not spelling. A client asking
+			// for one permission the composite already grants gets a token
+			// narrower than the ceiling instead of being forced to request
+			// the whole composite to get any token at all.
+			name:      "LowLevelScopeCoveredByCompositeAllowlistAccepted",
+			requested: []string{"workspace:ssh"},
+			appScope:  sql.NullString{String: inCatalog, Valid: true},
+			want:      "workspace:ssh",
+		},
+		{
+			// Coverage is per requested name, so a request mixing a covered
+			// name with an uncovered one is refused whole rather than
+			// silently trimmed to the covered part.
+			name:      "PartiallyCoveredRequestRejectedWhole",
+			requested: []string{"workspace:ssh", "workspace:delete"},
+			appScope:  sql.NullString{String: inCatalog, Valid: true},
+			wantErr:   errScopeNotAllowed,
+		},
+		{
+			// The wildcard action is wider than the composite that covers
+			// its read half, so it is not covered by it.
+			name:      "WildcardActionNotCoveredByCompositeAllowlist",
+			requested: []string{"workspace:*"},
+			appScope:  sql.NullString{String: inCatalog, Valid: true},
+			wantErr:   errScopeNotAllowed,
+		},
+		{
+			// coder:all expands to the wildcard resource and action, so it
+			// is a ceiling over every requestable name.
+			name:      "AllAllowlistCoversAnyScope",
+			requested: []string{"user_secret:delete"},
+			appScope:  sql.NullString{String: string(database.ApiKeyScopeCoderAll), Valid: true},
+			want:      "user_secret:delete",
+		},
+		{
+			// Coverage reads the allowlist as one ceiling rather than
+			// checking each entry alone, so a request may draw on more than
+			// one entry at once.
+			name:      "CoverageSpansMultipleAllowlistEntries",
+			requested: []string{"file:create", "workspace:ssh"},
+			appScope:  sql.NullString{String: inCatalog + " " + alsoInCatalog, Valid: true},
+			want:      "file:create workspace:ssh",
 		},
 		{
 			// Catalog drift. The stale entry is dropped by the filter, and

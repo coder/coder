@@ -54,6 +54,9 @@ const (
 	scopeInCatalog     = "coder:workspaces.access"
 	scopeAlsoInCatalog = "coder:templates.build"
 	scopeOutOfCatalog  = "some_removed_scope"
+	// In the catalog, and outside the authority scopeInCatalog carries: that
+	// composite grants template:read but never template:update.
+	scopeOutOfAllowlist = "template:update"
 )
 
 // The callback every app in these tests registers, and the state every request
@@ -91,10 +94,24 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
-		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeInCatalog+" template:read")
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeInCatalog+" "+scopeOutOfAllowlist)
 		defer resp.Body.Close()
 
 		requireInvalidScope(t, resp, reasonScopeNotAllowed)
+	})
+
+	// The allowlist bounds authority rather than spelling, so a name it never
+	// lists is still granted when the permissions it expands to are ones the
+	// allowlist already carries.
+	t.Run("ScopeCoveredByAllowlistGranted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "workspace:ssh")
+		defer resp.Body.Close()
+
+		require.Equal(t, "workspace:ssh", persistedCodeScope(ctx, t, db, resp))
 	})
 
 	// The catalog half of the same guarantee: a scope name the enforcement
@@ -230,7 +247,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 
 		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
 
-		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog+" template:read")
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog+" "+scopeOutOfAllowlist)
 		defer resp.Body.Close()
 		requireInvalidScope(t, resp, reasonScopeNotAllowed)
 		require.NotContains(t, readBody(t, resp), `id="allow-form"`,

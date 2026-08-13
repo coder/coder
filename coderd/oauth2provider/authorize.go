@@ -160,23 +160,35 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 		// and what the app owner has to change.
 		return "", xerrors.Errorf("%v: %w", allowed, errNoGrantableScope)
 	}
-	// Canonicalized so the subset check below compares one spelling against
-	// one spelling: an allowlist entry of `all` covers a request for
-	// `coder:all`, and vice versa.
+	// Canonicalized so both sides expand: rbac.ExpandScope knows `coder:all`
+	// and not the `all` alias that IsExternalScope accepts.
 	filtered = canonicalScopes(filtered)
 
 	if len(requested) == 0 {
 		return strings.Join(filtered, " "), nil // RFC 6749 §3.3 default
 	}
 
-	// The subset check runs against the filtered allowlist, not the raw one,
-	// so a dropped entry cannot be requested explicitly either.
-	allowedSet := make(map[string]bool, len(filtered))
+	// The allowlist is a ceiling on authority, not a menu of spellings, so the
+	// check is permission coverage rather than name membership. An app allowed
+	// `coder:workspaces.access` can approve a client asking only for
+	// `workspace:read`, which the composite already grants; under name
+	// matching that client's only route to a token was to request the broader
+	// composite instead. Coverage runs against the filtered allowlist, not the
+	// raw one, so a dropped entry grants nothing.
+	allowedNames := make([]rbac.ScopeName, 0, len(filtered))
 	for _, a := range filtered {
-		allowedSet[a] = true
+		allowedNames = append(allowedNames, rbac.ScopeName(a))
 	}
-	for _, s := range requested {
-		if !allowedSet[string(rbac.CanonicalScopeName(rbac.ScopeName(s)))] {
+	for _, s := range granted {
+		covered, err := rbac.ScopesCover(allowedNames, rbac.ScopeName(s))
+		if err != nil {
+			// Coverage could not be decided, so the request is refused rather
+			// than granted on an incomplete comparison. %w is last because
+			// xerrors repeats a wrapped message that is not, and this text is
+			// rendered into error_description for a person to read.
+			return "", xerrors.Errorf("%q (%v): %w", s, err, errScopeNotAllowed)
+		}
+		if !covered {
 			return "", xerrors.Errorf("%q: %w", s, errScopeNotAllowed)
 		}
 	}
