@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,6 +56,14 @@ const (
 	scopeOutOfCatalog  = "some_removed_scope"
 )
 
+// The callback every app in these tests registers, and the state every request
+// sends. A rejection redirects to the first carrying the second, so both are
+// named rather than inlined.
+const (
+	appCallbackURL = "https://example.com/callback"
+	authorizeState = "test-authorize-state"
+)
+
 func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 	t.Parallel()
 
@@ -73,7 +80,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		t.Helper()
 		return dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
 			Name:        testutil.GetRandomName(t),
-			CallbackURL: "https://example.com/callback",
+			CallbackURL: appCallbackURL,
 			Scope:       appScope,
 		})
 	}
@@ -225,14 +232,39 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 
 		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog+" template:read")
 		defer resp.Body.Close()
-		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		body := readBody(t, resp)
-		require.NotContains(t, body, `id="allow-form"`,
+		requireInvalidScope(t, resp, reasonScopeNotAllowed)
+		require.NotContains(t, readBody(t, resp), `id="allow-form"`,
 			"the consent page must not render for a scope the app cannot be granted")
-		// The counterpart to ErrorPageBlamesTheAppNotTheRequester: here the
-		// request really did ask for something outside the allowlist, so the
-		// page names the request.
-		require.Contains(t, body, descriptionRequestAtFault)
+	})
+
+	// The other half of RFC 6749 §4.1.2.1: a redirect URI that does not match
+	// the app's registration is never a destination this server sends anyone
+	// to, however the request fails. That validation running first is what
+	// keeps the rejection redirect above from being reachable with a
+	// request-supplied URI.
+	t.Run("MismatchedRedirectURINotRedirected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			query := authorizeQuery(t, app.ID.String(), "not_a_real_scope")
+			query.Set("redirect_uri", "https://not-the-registered-callback.example/cb")
+
+			resp := sendAuthorizeRequest(ctx, t, client, method, query)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+				"%s: an unregistered redirect_uri must fail on Coder", method)
+			require.Empty(t, resp.Header.Get("Location"),
+				"%s: the user must not be redirected to a URI the app did not register", method)
+			// Pinned so the case cannot pass on some unrelated 400: the
+			// request also carries an invalid scope, and the redirect URI is
+			// what must reject it first.
+			require.Contains(t, readBody(t, resp), "must exactly match",
+				"%s: the rejection must come from redirect_uri validation", method)
+		}
 
 		// Positive control: the same handler still renders the consent page for
 		// a request the app can be granted, so the assertion above is about the
@@ -258,7 +290,7 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	registration, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
-		RedirectURIs: []string{"https://example.com/callback"},
+		RedirectURIs: []string{appCallbackURL},
 		ClientName:   testutil.GetRandomName(t),
 		Scope:        "openid profile email",
 	})
@@ -284,23 +316,42 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
 
-	// The user who lands on this page requested nothing wrong, and cannot make
-	// the request succeed by changing it, so the page must not tell them to.
-	t.Run("ErrorPageBlamesTheAppNotTheRequester", func(t *testing.T) {
+	// The break is only recoverable by whoever registered the app, and the
+	// redirect is what reaches them: their own callback handler logs the
+	// description. It has to name the scopes they registered, since the
+	// request that triggered this carried none.
+	t.Run("RejectionNamesTheRegisteredScopes", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		resp := authorizeRequest(ctx, t, client, http.MethodGet, registration.ClientID, "")
 		defer resp.Body.Close()
-		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		requireInvalidScope(t, resp, reasonNoGrantableScope)
 
-		body := readBody(t, resp)
-		require.Contains(t, body, descriptionAppAtFault)
-		require.NotContains(t, body, descriptionRequestAtFault,
-			"the requester did not send a scope, so nothing about their request can be at fault")
-		require.Contains(t, body, "openid profile email",
-			"the warning must name the registered scopes the app owner has to change")
+		location, err := url.Parse(resp.Header.Get("Location"))
+		require.NoError(t, err)
+		require.Contains(t, location.Query().Get("error_description"), "openid profile email",
+			"the app owner cannot act on this without knowing which registered scopes are the problem")
 	})
+}
+
+// authorizeQuery builds a well-formed /oauth2/authorize query. Callers that
+// need to vary a parameter the happy path does not, such as redirect_uri,
+// mutate the result and pass it to sendAuthorizeRequest.
+func authorizeQuery(t *testing.T, clientID, scope string) url.Values {
+	t.Helper()
+
+	_, challenge := oauth2providertest.GeneratePKCE(t)
+	query := url.Values{}
+	query.Set("client_id", clientID)
+	query.Set("response_type", "code")
+	query.Set("state", authorizeState)
+	query.Set("code_challenge", challenge)
+	query.Set("code_challenge_method", "S256")
+	if scope != "" {
+		query.Set("scope", scope)
+	}
+	return query
 }
 
 // authorizeRequest issues an /oauth2/authorize request for the given app.
@@ -309,19 +360,14 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 func authorizeRequest(ctx context.Context, t *testing.T, client *codersdk.Client, method, clientID, scope string) *http.Response {
 	t.Helper()
 
+	return sendAuthorizeRequest(ctx, t, client, method, authorizeQuery(t, clientID, scope))
+}
+
+func sendAuthorizeRequest(ctx context.Context, t *testing.T, client *codersdk.Client, method string, query url.Values) *http.Response {
+	t.Helper()
+
 	authURL, err := url.Parse(client.URL.String() + "/oauth2/authorize")
 	require.NoError(t, err)
-
-	_, challenge := oauth2providertest.GeneratePKCE(t)
-	query := url.Values{}
-	query.Set("client_id", clientID)
-	query.Set("response_type", "code")
-	query.Set("state", uuid.NewString())
-	query.Set("code_challenge", challenge)
-	query.Set("code_challenge_method", "S256")
-	if scope != "" {
-		query.Set("scope", scope)
-	}
 	authURL.RawQuery = query.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, method, authURL.String(), nil)
@@ -368,23 +414,27 @@ const (
 	reasonScopeNotAllowed  = "not in this app's allowed scope list"
 )
 
-// The two Invalid Scope page descriptions in authorize.go, which differ by who
-// is able to act on the failure.
-const (
-	descriptionRequestAtFault = "The requested scope is invalid or exceeds what this application is allowed to request."
-	descriptionAppAtFault     = "This application is not registered with a scope this deployment can grant."
-)
-
-// requireInvalidScope asserts the RFC 6749 §4.1.2.1 rejection, that it came
-// from the branch the caller named, and that the request produced no
-// authorization code at all.
+// requireInvalidScope asserts the RFC 6749 §4.1.2.1 rejection: the client
+// learns of the failure by a redirect to its own registered callback, carrying
+// the error code, a description from the branch the caller named, and the
+// state it sent, and carrying no authorization code.
 func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
 	t.Helper()
 
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	require.Empty(t, resp.Header.Get("Location"), "a rejected request must not redirect with a code")
-	oauth2providertest.RequireOAuth2ErrorWithDescription(t, resp,
-		string(codersdk.OAuth2ErrorCodeInvalidScope), wantReason)
+	require.Equal(t, http.StatusFound, resp.StatusCode)
+
+	location, err := url.Parse(resp.Header.Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, appCallbackURL, location.Scheme+"://"+location.Host+location.Path,
+		"the error must go to the app's registered callback and nowhere else")
+
+	query := location.Query()
+	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), query.Get("error"))
+	require.Contains(t, query.Get("error_description"), wantReason,
+		"the rejection must come from the branch this case covers")
+	require.Equal(t, authorizeState, query.Get("state"),
+		"the client cannot correlate the failure with its request without its state")
+	require.Empty(t, query.Get("code"), "a rejected request must not issue a code")
 }
 
 func readBody(t *testing.T, resp *http.Response) string {
