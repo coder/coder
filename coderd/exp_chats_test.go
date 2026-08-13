@@ -8311,9 +8311,15 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		// The initial assistant reply is generated asynchronously, so compare
-		// message content instead of message counts. A busy chat queues the
-		// send before file-link validation, so scan queued messages too.
+		// The endpoint reads history before the queue, so a queued message
+		// can be promoted between the two reads. Wait for the queue to
+		// drain; any promoted message must then appear in a fresh history
+		// read because history is append-only.
+		require.Eventually(t, func() bool {
+			m, err := client.GetChatMessages(ctx, chat.ID, nil)
+			return err == nil && len(m.QueuedMessages) == 0
+		}, testutil.WaitLong, testutil.IntervalMedium)
+
 		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		for _, msg := range messages.Messages {
