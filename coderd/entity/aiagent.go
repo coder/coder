@@ -33,11 +33,10 @@ type CreateAIAgentParams struct {
 // nothing itself, so that creation can be made atomic with work that is not
 // creation. Given a plain store, it opens its own.
 func CreateAIAgent(ctx context.Context, store database.Store, params CreateAIAgentParams) (uuid.UUID, error) {
+	// The actor's type is not checked here. AppendEntry checks it, and an
+	// absent type is one of the values it rejects.
 	if params.Actor.ID == uuid.Nil {
 		return uuid.Nil, xerrors.New("an entry needs an actor, so creation needs one")
-	}
-	if params.Actor.Type == "" {
-		return uuid.Nil, xerrors.New("an actor identifier means nothing without its type")
 	}
 
 	id := uuid.New()

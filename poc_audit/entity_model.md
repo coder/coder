@@ -264,6 +264,22 @@ and `coderd/agentapi`.
 `site/src/pages/AgentsPage` is the AI chat UI. The collision is already live
 between frontend vocabulary and schema vocabulary.
 
+**A system actor is stored as a user because there was nowhere else to put
+it.** The account that creates prebuilt workspaces is a row in `users`, added
+by `000308_system_user.up.sql` and referred to as
+`database.PrebuildsSystemUserID`. It is not a person and has no credential a
+person uses.
+
+It is a user because `users` was the only table holding identities that other
+tables could point at. That is the same gap the `(type, identifier)` pair works
+around: there is no union of identity tables to refer into, so an identity with
+no home is filed under the nearest one that exists.
+
+**Post proof of concept: it should not be a user.** Any work that gives system
+actors their own identity should take this row with it, rather than leaving a
+non-person filed among people and every query about users carrying an exception
+for it.
+
 ## Open
 
 - **Sandbox ontology.** Whether a sandbox is a resource the workspace provides,
