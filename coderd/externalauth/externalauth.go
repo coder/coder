@@ -938,7 +938,9 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
+// httpClient is the client git providers use for API calls; if nil,
+// http.DefaultClient is used.
+func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL, httpClient *http.Client) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
@@ -1028,6 +1030,7 @@ func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []
 			ClientSecret:                  entry.ClientSecret,
 			Regex:                         regex,
 			APIBaseURL:                    entry.APIBaseURL,
+			HTTPClient:                    httpClient,
 			Type:                          entry.Type,
 			NoRefresh:                     entry.NoRefresh,
 			ValidateURL:                   entry.ValidateURL,
