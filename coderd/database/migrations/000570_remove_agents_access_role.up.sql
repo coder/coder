@@ -1,8 +1,9 @@
 -- The 'agents-access' (Coder Agents User) role is removed. Chat access is
--- now part of the implicit organization-member permission floor, so stored
--- grants of the role must be scrubbed: once the built-in role no longer
--- exists, expanding a stale role string would fail authorization for the
--- affected user.
+-- now part of the implicit organization-member permission floor. Stale
+-- stored grants are inert for authorization (rolestore.Expand skips role
+-- names it cannot resolve), but they still render as raw strings in role
+-- UIs and fail validation on role-update paths that re-submit the existing
+-- set, so scrub them from every column that can store role names.
 UPDATE organization_members
 SET roles = array_remove(roles, 'agents-access')
 WHERE 'agents-access' = ANY(roles);
