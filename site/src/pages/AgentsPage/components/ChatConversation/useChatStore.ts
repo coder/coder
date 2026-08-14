@@ -105,6 +105,7 @@ export const useChatStore = (
 	options: UseChatStoreOptions,
 ): {
 	store: ChatStore;
+	isHydratingMessages: boolean;
 	acceptServerChatStatus: () => void;
 	clearStreamError: () => void;
 	setCacheQueuedMessages: (
@@ -220,6 +221,10 @@ export const useChatStore = (
 		[chatID, queryClient],
 	);
 
+	const [lastHydratedMessages, setLastHydratedMessages] = useState<
+		readonly TypesGen.ChatMessage[] | null
+	>(null);
+
 	useEffect(() => {
 		store.batch(() => {
 			// When the active chat changes, clear stale messages
@@ -247,6 +252,7 @@ export const useChatStore = (
 					chatMessages.length !== prev.length ||
 					chatMessages.some((m, i) => m !== prev[i]);
 				lastSyncedMessagesRef.current = chatMessages;
+				setLastHydratedMessages(chatMessages);
 
 				const storeSnap = store.getSnapshot();
 				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
@@ -269,6 +275,11 @@ export const useChatStore = (
 			}
 		});
 	}, [chatID, chatMessages, store]);
+
+	// True when the query has data the store has not yet ingested. Used to
+	// keep the history-paging gate closed until hydration catches up.
+	const isHydratingMessages =
+		chatMessages !== undefined && chatMessages !== lastHydratedMessages;
 
 	useEffect(() => {
 		if (pendingStatusResync) {
@@ -742,6 +753,7 @@ export const useChatStore = (
 	]);
 	return {
 		store,
+		isHydratingMessages,
 		clearStreamError: () => {
 			store.clearStreamError();
 		},

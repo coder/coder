@@ -1236,6 +1236,7 @@ const AgentChatPage: FC = () => {
 	const { scrollToEnd } = useMessageScroller();
 	const {
 		store,
+		isHydratingMessages,
 		acceptServerChatStatus,
 		clearStreamError,
 		setCacheQueuedMessages,
@@ -2039,7 +2040,9 @@ const AgentChatPage: FC = () => {
 			isChildChat={parentChatID !== undefined}
 			urlTransform={urlTransform}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
-			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+			isFetchingMoreMessages={
+				chatMessagesQuery.isFetchingNextPage || isHydratingMessages
+			}
 			hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
 			desktopChatId={desktopEnabled ? agentId : undefined}
