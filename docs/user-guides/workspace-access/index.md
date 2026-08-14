@@ -26,7 +26,7 @@ customization options, keyboard shortcuts, and troubleshooting guides.
 
 ## SSH
 
-### Through with the CLI
+### Through the CLI
 
 Coder will use the optimal path for an SSH connection (determined by your
 deployment's [networking configuration](../../admin/infrastructure/index.md))
