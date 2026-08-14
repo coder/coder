@@ -16,12 +16,7 @@
 // strict node_modules it is not guaranteed to resolve from this file, and the
 // walk we need is trivial.
 
-type MdastNode = {
-	type: string;
-	children?: MdastNode[];
-	value?: string;
-	[key: string]: unknown;
-};
+import type { MdastNode } from "./mdast";
 
 type GithubAlert = "NOTE" | "TIP" | "IMPORTANT" | "WARNING" | "CAUTION";
 

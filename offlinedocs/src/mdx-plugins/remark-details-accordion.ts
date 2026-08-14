@@ -26,7 +26,9 @@ import { isHtml, type MdastNode } from "./mdast";
 // left as a native `<details>` disclosure instead of an Accordion. The fallback
 // still renders (the inner Markdown, including callouts, converts); it is just
 // not Accordion-styled. Author `<details>` and `</details>` each alone on their
-// own line to get the Accordion.
+// own line to get the Accordion. A `<details>` that contains another
+// `<details>` also falls back to a native disclosure. Depth-balancing is not
+// attempted.
 const DETAILS_OPEN = /^<details\b[^>]*>/i;
 const DETAILS_CLOSE = /<\/details>\s*$/i;
 const SUMMARY = /<summary\b[^>]*>([\s\S]*?)<\/summary>/i;
@@ -68,6 +70,11 @@ function buildAccordion(
 	let endIndex = -1;
 	for (let j = contentStart; j < children.length; j++) {
 		const node = children[j];
+		// A nested <details> opener means depth-tracking would be needed -
+		// return null so the whole run falls back to native disclosure.
+		if (isHtml(node) && DETAILS_OPEN.test(node.value.trim())) {
+			return null;
+		}
 		if (isHtml(node) && DETAILS_CLOSE.test(node.value.trim())) {
 			endIndex = j;
 			break;

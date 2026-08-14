@@ -72,12 +72,31 @@ test("normalizeStepHeadings rewrites 'Step N:' headings and skips fences", () =>
 });
 
 test("stripHtmlComments removes comments, preserves line count, keeps fenced", () => {
-	assert.equal(stripHtmlComments("a <!-- x --> b"), "a  b");
-	assert.equal(stripHtmlComments("<!-- a\nb -->\ntail"), "\n\ntail");
+	assert.equal(stripHtmlComments("a <!-- x --> b").content, "a  b");
+	assert.equal(stripHtmlComments("<!-- a\nb -->\ntail").content, "\n\ntail");
 	assert.equal(
-		stripHtmlComments("```\n<!-- keep -->\n```"),
+		stripHtmlComments("```\n<!-- keep -->\n```").content,
 		"```\n<!-- keep -->\n```",
 	);
+	// A comment inside a blockquoted fence is code, not a comment: left untouched.
+	assert.equal(
+		stripHtmlComments("> ```\n> <!-- keep -->\n> ```").content,
+		"> ```\n> <!-- keep -->\n> ```",
+	);
+	// A well-formed comment reports no unclosed opener.
+	assert.equal(stripHtmlComments("a <!-- x --> b").unclosedCommentLine, null);
+});
+
+test("stripHtmlComments reports an unclosed comment by its opening line", () => {
+	// The comment opens on line 5 and never closes, so it would otherwise swallow
+	// the rest of the file; the 1-based opening line is returned so the caller can
+	// fail and name it instead of shipping a truncated page.
+	const { content, unclosedCommentLine } = stripHtmlComments(
+		"# T\n\nFirst.\n\n<!-- unclosed\n\nrest\n",
+	);
+	assert.equal(unclosedCommentLine, 5);
+	assert.equal(content.startsWith("# T\n\nFirst.\n\n"), true);
+	assert.equal(content.includes("rest"), false);
 });
 
 test("normalizeAngleBrackets rewrites autolinks and escapes stray <", () => {
@@ -162,6 +181,37 @@ test("rewriteTarget uses the remote image base when configured", () => {
 	);
 });
 
+test("rewriteTarget points source-tree links at GitHub via ctx.sourceLink", () => {
+	const ctx = {
+		imageRemote: "",
+		resolveMd: () => null,
+		copyImage: () => null,
+		sourceLink: (repoRel) => `https://gh/${repoRel}`,
+	};
+	// A non-image, non-.md target that escapes docs/ resolves against the repo
+	// root and is handed to sourceLink.
+	assert.equal(
+		rewriteTarget("../../coderd", "install/x.md", ctx),
+		"https://gh/coderd",
+	);
+	// The anchor survives the rewrite.
+	assert.equal(
+		rewriteTarget("../../coderd/database#schema", "install/x.md", ctx),
+		"https://gh/coderd/database#schema",
+	);
+	// Images that escape docs/ are not rewritten (they would need bundling).
+	assert.equal(rewriteTarget("../../logo.png", "install/x.md", ctx), null);
+	// With no sourceLink in ctx, an escaping target is left unchanged.
+	assert.equal(
+		rewriteTarget("../../coderd", "install/x.md", {
+			imageRemote: "",
+			resolveMd: () => null,
+			copyImage: () => null,
+		}),
+		null,
+	);
+});
+
 test("rewriteContent rewrites markdown links and html attrs, skips fences", () => {
 	const ctx = {
 		imageRemote: "",
@@ -178,4 +228,11 @@ test("rewriteContent rewrites markdown links and html attrs, skips fences", () =
 		rewriteContent("```\n[x](b.md)\n```", "a.md", ctx),
 		"```\n[x](b.md)\n```",
 	);
+	// A fence nested in a blockquote is code too: its link text is not rewritten.
+	assert.equal(
+		rewriteContent("> ```\n> see [x](b.md)\n> ```", "a.md", ctx),
+		"> ```\n> see [x](b.md)\n> ```",
+	);
+	// A plain blockquote (no fence) is prose, so its link is still rewritten.
+	assert.equal(rewriteContent("> see [x](b.md)", "a.md", ctx), "> see [x](/b)");
 });

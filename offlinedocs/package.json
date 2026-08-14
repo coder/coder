@@ -12,12 +12,12 @@
 		"lint:types": "pnpm sync && fumadocs-mdx && next typegen && tsc --noEmit",
 		"format": "prettier --cache --write './**/*.{css,js,jsx,json,mjs,ts,tsx,yaml,yml}'",
 		"format:check": "prettier --cache --check './**/*.{css,js,jsx,json,mjs,ts,tsx,yaml,yml}'",
-		"test": "node --test 'scripts/**/*.test.mjs' && node --import tsx --test 'src/mdx-plugins/**/*.test.ts'"
+		"test": "node --test 'scripts/**/*.test.mjs' && node --import tsx --test 'src/mdx-plugins/**/*.test.ts' && node --import tsx --import ./test/jsdom-setup.mjs --test 'src/components/**/*.test.tsx'"
 	},
 	"dependencies": {
-		"@phosphor-icons/react": "2.1.10",
 		"@fontsource-variable/geist": "5.3.0",
 		"@fontsource-variable/geist-mono": "5.3.0",
+		"@phosphor-icons/react": "2.1.10",
 		"fumadocs-core": "16.10.5",
 		"fumadocs-mdx": "15.0.12",
 		"fumadocs-ui": "16.10.5",
@@ -32,6 +32,7 @@
 		"@types/node": "22.20.1",
 		"@types/react": "19.2.17",
 		"@types/react-dom": "19.2.3",
+		"jsdom": "25.0.1",
 		"postcss": "8.5.15",
 		"prettier": "3.9.4",
 		"tailwindcss": "4.3.1",

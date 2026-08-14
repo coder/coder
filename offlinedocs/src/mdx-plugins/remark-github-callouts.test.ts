@@ -2,23 +2,23 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { remarkGithubCallouts } from "./remark-github-callouts";
+import type { MdastNode } from "./mdast";
 
-// The plugin's MdastNode type is internal, so mirror the minimal shape here.
-type Node = {
-	type: string;
-	children?: Node[];
-	value?: string;
-	[key: string]: unknown;
-};
+const text = (value: string): MdastNode => ({ type: "text", value });
+const para = (children: MdastNode[]): MdastNode => ({
+	type: "paragraph",
+	children,
+});
+const quote = (children: MdastNode[]): MdastNode => ({
+	type: "blockquote",
+	children,
+});
+const kids = (n: MdastNode): MdastNode[] => (n.children ?? []) as MdastNode[];
+const attrs = (n: MdastNode): MdastNode[] =>
+	(n.attributes as MdastNode[]) ?? [];
 
-const text = (value: string): Node => ({ type: "text", value });
-const para = (children: Node[]): Node => ({ type: "paragraph", children });
-const quote = (children: Node[]): Node => ({ type: "blockquote", children });
-const kids = (n: Node): Node[] => (n.children ?? []) as Node[];
-const attrs = (n: Node): Node[] => (n.attributes as Node[]) ?? [];
-
-function run(children: Node[]): Node {
-	const tree: Node = { type: "root", children };
+function run(children: MdastNode[]): MdastNode {
+	const tree: MdastNode = { type: "root", children };
 	remarkGithubCallouts()(tree);
 	return tree;
 }

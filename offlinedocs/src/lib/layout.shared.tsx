@@ -1,6 +1,11 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { CoderMark } from "@/components/coder-mark";
-import { appName, gitConfig } from "./shared";
+
+const appName = "Coder Docs";
+
+// The corpus is rendered from the public coder/coder repository. Used for the
+// GitHub link in the top navigation.
+const githubRepo = "coder/coder";
 
 export function baseOptions(): BaseLayoutProps {
 	return {
@@ -12,6 +17,6 @@ export function baseOptions(): BaseLayoutProps {
 				</span>
 			),
 		},
-		githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
+		githubUrl: `https://github.com/${githubRepo}`,
 	};
 }

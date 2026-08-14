@@ -118,9 +118,3 @@ export function getMDXComponents(components?: MDXComponents) {
 		a: createDocsLink(InternalLink),
 	} satisfies MDXComponents;
 }
-
-export const useMDXComponents = getMDXComponents;
-
-declare global {
-	type MDXProvidedComponents = ReturnType<typeof getMDXComponents>;
-}

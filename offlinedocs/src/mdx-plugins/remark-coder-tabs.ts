@@ -188,7 +188,11 @@ function expandOSTabs(tabs: TabDef[]): TabDef[] {
 				});
 			});
 		} else {
-			out.push(tab);
+			// A solo OS heading written with an alias must still emit under its
+			// canonical name so the escaped value matches the OSTab icon map and
+			// OS detection, and so the shared `os` group does not fragment by
+			// spelling. `parts` is null for non-OS labels, which are left untouched.
+			out.push({ label: parts?.[0] ?? tab.label, content: tab.content });
 		}
 	}
 	return out;

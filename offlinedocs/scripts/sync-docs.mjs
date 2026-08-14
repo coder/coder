@@ -12,8 +12,9 @@
  *   3. Generate per-directory `meta.json` from docs/manifest.json for ordering.
  *   4. Emit `.md` (not `.mdx`) so raw custom tags never break the build.
  *
- * The pure string transforms live in ./lib/transform.mjs so they can be tested
- * in isolation.
+ * The pure string transforms live in ./lib/transform.mjs and the pure route and
+ * ordering logic in ./lib/routes.mjs, so both can be tested without running the
+ * sync.
  */
 import {
 	cpSync,
@@ -27,19 +28,21 @@ import {
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+	buildDirModel,
+	buildDirRoutes,
+	buildFileMap,
+	buildManifestModel,
+	buildMeta,
+} from "./lib/routes.mjs";
+import {
 	escapeCurlyBraces,
 	extractTitle,
-	isIndexFile,
-	lastSeg,
 	normalizeAngleBrackets,
 	normalizeFences,
-	normalizeManifestPath,
 	normalizeStepHeadings,
 	rewriteContent,
 	selfCloseVoidElements,
-	slugSegment,
 	stripHtmlComments,
-	titleCase,
 } from "./lib/transform.mjs";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
@@ -52,9 +55,20 @@ const DOCS = resolve(
 const OUT_CONTENT = resolve(siteRoot, "content/docs");
 const OUT_PUBLIC = resolve(siteRoot, "public");
 
+// coder/coder repository slug and ref that source-tree links (targets outside
+// the docs/ corpus) are pointed at on GitHub, since they can never resolve to a
+// synced page in the offline bundle.
+const SOURCE_REPO = "coder/coder";
+const SOURCE_REF = "main";
+
 if (!existsSync(join(DOCS, "manifest.json"))) {
 	console.error(
-		`[sync-docs] no docs manifest at ${join(DOCS, "manifest.json")}`,
+		`[sync-docs] no docs manifest at ${join(DOCS, "manifest.json")}.\n\n` +
+			"This script renders the coder/coder docs/ corpus, so it expects a " +
+			"checkout with a docs/ directory that contains manifest.json. It reads " +
+			"../docs relative to offlinedocs by default; set CODER_DOCS_DIR to point " +
+			"at another checkout's docs/ directory, for example:\n" +
+			"  CODER_DOCS_DIR=/path/to/coder/docs pnpm sync",
 	);
 	process.exit(1);
 }
@@ -78,81 +92,21 @@ function routeHref(route) {
 	return route === "" ? "/" : `/${route}`;
 }
 
-// pass 1: collect every markdown file
+// pass 1: collect every markdown file, then map each to its output path + route
 const allMd = walk(DOCS)
 	.map((f) => relative(DOCS, f).split("\\").join("/"))
 	.filter((rel) => rel.endsWith(".md"))
 	.filter((rel) => !rel.startsWith(".style/"));
 
-const dirRoutes = new Set();
-for (const rel of allMd) {
-	const parts = rel.split("/");
-	parts.pop();
-	const dirSlugs = parts.map(slugSegment);
-	for (let i = 1; i <= dirSlugs.length; i++) {
-		dirRoutes.add(dirSlugs.slice(0, i).join("/"));
-	}
-}
-
-function mapMdPath(relPath) {
-	const parts = relPath.split("/");
-	const base = parts.pop();
-	const dirSlugs = parts.map(slugSegment);
-	if (isIndexFile(base)) {
-		const route = dirSlugs.join("/");
-		const outRel = (route ? `${route}/` : "") + "index.md";
-		return { outRel, route };
-	}
-	const route = [...dirSlugs, slugSegment(base)].join("/");
-	if (dirRoutes.has(route)) {
-		return { outRel: `${route}/index.md`, route };
-	}
-	return { outRel: `${route}.md`, route };
-}
-
-const fileMap = new Map();
-for (const rel of allMd) {
-	fileMap.set(rel, mapMdPath(rel));
-}
+const dirRoutes = buildDirRoutes(allMd);
+const { fileMap, collisions } = buildFileMap(allMd, dirRoutes);
 
 // pass 2: manifest (titles, descriptions, ordering)
 const manifest = JSON.parse(readFileSync(join(DOCS, "manifest.json"), "utf8"));
-const manifestMeta = new Map();
-const routeOrder = new Map();
-const childOrderByDir = new Map();
-let order = 0;
-
-function manifestRoute(node) {
-	return node.path ? mapMdPath(normalizeManifestPath(node.path)).route : null;
-}
-
-function walkManifest(nodes) {
-	for (const node of nodes || []) {
-		const r = manifestRoute(node);
-		if (r !== null) {
-			if (!manifestMeta.has(r)) {
-				manifestMeta.set(r, {
-					title: node.title,
-					description: node.description,
-				});
-			}
-			if (!routeOrder.has(r)) routeOrder.set(r, order++);
-		}
-		if (node.children && node.children.length) {
-			const childRoutes = node.children
-				.map(manifestRoute)
-				.filter((x) => x !== null);
-			if (r !== null && r !== "") childOrderByDir.set(r, childRoutes);
-			walkManifest(node.children);
-		}
-	}
-}
-walkManifest(manifest.routes);
-
-const rootOrder = (manifest.routes || [])
-	.map(manifestRoute)
-	.filter((x) => x !== null);
-childOrderByDir.set("", rootOrder);
+const { manifestMeta, routeOrder, childOrderByDir } = buildManifestModel(
+	manifest,
+	dirRoutes,
+);
 
 // Restrict output to pages referenced by the manifest so the generated sidebar
 // matches docs/manifest.json exactly. Files that exist under docs/ but are not
@@ -162,9 +116,20 @@ const manifestMd = allMd.filter((rel) =>
 	routeOrder.has(fileMap.get(rel).route),
 );
 
+// Two distinct source files that map to the same output path silently overwrite
+// each other. Only pages that are actually written (manifest routes) can lose
+// content, so restrict the collision check to those and fail below, naming every
+// source involved.
+const manifestSet = new Set(manifestMd);
+const outputCollisions = collisions
+	.map(({ outRel, sources }) => ({
+		outRel,
+		sources: sources.filter((rel) => manifestSet.has(rel)),
+	}))
+	.filter(({ sources }) => sources.length > 1);
+
 // pass 3: rewrite + write content
 const copiedAssets = new Set();
-let unmappedMdLinks = 0;
 // Inter-doc links whose target could not be mapped to a synced page, collected
 // with the source file that contains them so the sync can name each one and
 // fail instead of silently shipping a dead relative link in the offline bundle.
@@ -173,6 +138,10 @@ const unmappedLinks = [];
 // same way as unmappedLinks so a broken image reference fails the build instead
 // of shipping a broken <img> in the offline bundle.
 const unresolvedImages = [];
+// HTML comments that open with `<!--` but never close, collected with the file
+// and the 1-based line where they began. An unterminated comment would otherwise
+// silently swallow the rest of the page, so it fails the sync the same way.
+const unclosedComments = [];
 // Source file currently being rewritten, so resolveMd/copyImage can attribute an
 // unmapped link or image to the doc it appears in.
 let currentSourceRel = "";
@@ -195,7 +164,6 @@ const rewriteCtx = {
 	resolveMd(resolvedRel) {
 		const mapped = fileMap.get(resolvedRel);
 		if (mapped) return routeHref(mapped.route);
-		unmappedMdLinks++;
 		unmappedLinks.push({ source: currentSourceRel, target: resolvedRel });
 		return null;
 	},
@@ -203,6 +171,17 @@ const rewriteCtx = {
 		if (copyAsset(resolvedRel)) return `/${resolvedRel}`;
 		unresolvedImages.push({ source: currentSourceRel, target: resolvedRel });
 		return null;
+	},
+	// A repo path outside the docs/ corpus (e.g. a `../../coderd` source-tree
+	// link). It can never resolve to a synced page or a bundled asset, so point
+	// it at the file or directory on GitHub rather than leave a relative path
+	// that 404s in the offline bundle. Use `/blob/` for a path whose last segment
+	// looks like a file (has a dot) and `/tree/` for a directory; GitHub
+	// redirects between the two, so this only avoids a needless redirect.
+	sourceLink(repoRel) {
+		const base = repoRel.slice(repoRel.lastIndexOf("/") + 1);
+		const kind = base.includes(".") ? "blob" : "tree";
+		return `https://github.com/${SOURCE_REPO}/${kind}/${SOURCE_REF}/${repoRel}`;
 	},
 };
 
@@ -241,7 +220,11 @@ for (const rel of manifestMd) {
 		if (lines[h1Line] === "") lines.splice(h1Line, 1);
 		body = lines.join("\n");
 	}
-	body = stripHtmlComments(body);
+	const stripped = stripHtmlComments(body);
+	body = stripped.content;
+	if (stripped.unclosedCommentLine !== null) {
+		unclosedComments.push({ source: rel, line: stripped.unclosedCommentLine });
+	}
 	currentSourceRel = rel;
 	body = rewriteContent(body, rel, rewriteCtx);
 	body = normalizeFences(body);
@@ -270,75 +253,19 @@ if (existsSync(join(DOCS, "images"))) {
 }
 
 // pass 4: meta.json per directory
-const dirModel = new Map();
-function ensureDir(d) {
-	if (!dirModel.has(d)) {
-		dirModel.set(d, { files: new Set(), subdirs: new Set() });
-	}
-	return dirModel.get(d);
-}
-ensureDir("");
-for (const rel of manifestMd) {
-	const { outRel } = fileMap.get(rel);
-	const parts = outRel.split("/");
-	const base = parts.pop();
-	let prev = "";
-	for (let i = 0; i < parts.length; i++) {
-		const cur = parts.slice(0, i + 1).join("/");
-		ensureDir(cur);
-		ensureDir(prev).subdirs.add(parts[i]);
-		prev = cur;
-	}
-	if (!/^index\.md$/i.test(base)) {
-		ensureDir(parts.join("/")).files.add(base.replace(/\.md$/, ""));
-	}
-}
-
-function minOrderUnder(route) {
-	let best = Infinity;
-	for (const [r, o] of routeOrder) {
-		if (r === route || r.startsWith(`${route}/`)) best = Math.min(best, o);
-	}
-	return best;
-}
-
+const dirModel = buildDirModel(
+	manifestMd.map((rel) => fileMap.get(rel).outRel),
+);
+const metas = buildMeta(dirModel, {
+	routeOrder,
+	childOrderByDir,
+	manifestMeta,
+});
 let metaFilesWritten = 0;
-for (const [dir, model] of dirModel) {
-	const childOrder = childOrderByDir.get(dir) || [];
-	const items = [];
-	for (const name of model.subdirs) {
-		items.push({
-			name,
-			route: dir === "" ? name : `${dir}/${name}`,
-			isDir: true,
-		});
-	}
-	for (const name of model.files) {
-		items.push({
-			name,
-			route: dir === "" ? name : `${dir}/${name}`,
-			isDir: false,
-		});
-	}
-
-	function keyFor(it) {
-		const pos = childOrder.indexOf(it.route);
-		if (pos >= 0) return pos;
-		const ord = it.isDir ? minOrderUnder(it.route) : routeOrder.get(it.route);
-		return 100000 + (ord === undefined || ord === Infinity ? 99999 : ord);
-	}
-	items.sort((a, b) => keyFor(a) - keyFor(b) || a.name.localeCompare(b.name));
-
-	const pages = items.map((i) => i.name);
-	if (dir === "") pages.unshift("index");
-
+for (const { dir, title, pages } of metas) {
 	const metaObj = {};
-	if (dir !== "") {
-		const t = manifestMeta.get(dir)?.title || titleCase(lastSeg(dir));
-		if (t) metaObj.title = t;
-	}
+	if (title) metaObj.title = title;
 	metaObj.pages = pages;
-
 	const dest = join(OUT_CONTENT, dir, "meta.json");
 	mkdirSync(dirname(dest), { recursive: true });
 	writeFileSync(dest, `${JSON.stringify(metaObj, null, 2)}\n`);
@@ -350,20 +277,26 @@ console.log(
 		`(skipped ${allMd.length - manifestMd.length} non-manifest), ` +
 		`meta.json=${metaFilesWritten}, ` +
 		`images=${copiedAssets.size} referenced (+ full images/ tree), ` +
-		`unmapped .md links=${unmappedMdLinks}, ` +
+		`unmapped .md links=${unmappedLinks.length}, ` +
 		`unresolved images=${unresolvedImages.length}`,
 );
 
-// Fail the sync (and therefore the offlinedocs build and the release target) if
-// any inter-doc link could not be resolved to a synced page. Such a link is
-// otherwise left as a raw relative path and 404s inside the offline bundle.
-// Naming the source file and target keeps a docs change that breaks a link
-// actionable in CI instead of shipping silently.
-if (unmappedLinks.length > 0 || unresolvedImages.length > 0) {
+// Fail the sync (and therefore the offlinedocs build and the release target) on
+// any defect that would otherwise ship silently: a dead inter-doc link, a broken
+// image reference, an unterminated HTML comment that blanks a page, or two
+// source files whose routes collide and overwrite one another. Each is named
+// with its source so a docs change that introduces one is actionable in CI
+// instead of shipping.
+if (
+	unmappedLinks.length > 0 ||
+	unresolvedImages.length > 0 ||
+	unclosedComments.length > 0 ||
+	outputCollisions.length > 0
+) {
 	if (unmappedLinks.length > 0) {
 		console.error(
 			`\n[sync-docs] ERROR: ${unmappedLinks.length} inter-doc link(s) do not ` +
-				`resolve to a synced page and would ship as dead links:`,
+				"resolve to a synced page and would ship as dead links:",
 		);
 		for (const { source, target } of unmappedLinks) {
 			console.error(`  ${source} -> ${target}`);
@@ -377,7 +310,7 @@ if (unmappedLinks.length > 0 || unresolvedImages.length > 0) {
 	if (unresolvedImages.length > 0) {
 		console.error(
 			`\n[sync-docs] ERROR: ${unresolvedImages.length} image reference(s) do ` +
-				`not resolve to a file under docs/ and would ship as broken images:`,
+				"not resolve to a file under docs/ and would ship as broken images:",
 		);
 		for (const { source, target } of unresolvedImages) {
 			console.error(`  ${source} -> ${target}`);
@@ -385,6 +318,32 @@ if (unmappedLinks.length > 0 || unresolvedImages.length > 0) {
 		console.error(
 			"\nFix each image path to point at an existing file under docs/, or " +
 				"remove the reference.",
+		);
+	}
+	if (unclosedComments.length > 0) {
+		console.error(
+			`\n[sync-docs] ERROR: ${unclosedComments.length} HTML comment(s) open ` +
+				"with `<!--` but never close, which would blank the rest of the page:",
+		);
+		for (const { source, line } of unclosedComments) {
+			console.error(`  ${source}:${line}`);
+		}
+		console.error(
+			"\nClose each comment with `-->`, or remove the stray `<!--`.",
+		);
+	}
+	if (outputCollisions.length > 0) {
+		console.error(
+			`\n[sync-docs] ERROR: ${outputCollisions.length} output path(s) are ` +
+				"claimed by more than one source file, so one page would overwrite " +
+				"the other:",
+		);
+		for (const { outRel, sources } of outputCollisions) {
+			console.error(`  ${outRel} <- ${sources.join(", ")}`);
+		}
+		console.error(
+			"\nRename one of the colliding files so their routes differ (slugs are " +
+				"case- and separator-insensitive).",
 		);
 	}
 	process.exit(1);

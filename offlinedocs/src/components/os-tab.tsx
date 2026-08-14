@@ -123,9 +123,20 @@ export function OSTab({
 			persist
 			value={value}
 			onValueChange={(next) => {
-				// Only adopt a group value this set can display. The seeded/broadcast
-				// value may be an OS this set does not offer; adopting it would select
-				// no panel and render an empty box.
+				// Clamp the shared group value to an OS this set actually offers.
+				// Without this guard, a set that omits the stored OS (e.g. a
+				// macOS/Windows set when another set has stored `os = linux`) adopts
+				// `linux`, matches no panel, and renders an empty box - the exact
+				// regression that shipped once before this clamp existed.
+				//
+				// The clamp sits on three couplings to fumadocs-ui internals; a
+				// refactor that breaks any of them silently reintroduces the empty
+				// box: (1) this set's storage key (OS_GROUP) is the same key
+				// fumadocs' groupId store reads and writes; (2) escapeValue here
+				// matches fumadocs' own label escaping byte-for-byte, so `values`
+				// compares against the same strings; (3) fumadocs applies a stored
+				// group value by calling onValueChange (rather than writing its
+				// internal state directly), which is where this runs.
 				if (values.includes(next)) setValue(next);
 			}}
 		>

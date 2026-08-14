@@ -129,6 +129,58 @@ test("a bundled OS heading expands into one tab per OS", () => {
 	);
 });
 
+test("solo OS alias headings emit under canonical names", () => {
+	const tree = run([
+		html('<div class="tabs">'),
+		heading(3, "OSX"),
+		para("mac"),
+		heading(3, "Windows"),
+		para("win"),
+		html("</div>"),
+	]);
+	const set = kids(tree)[0];
+	assert.equal(set.name, "OSTab");
+	// The items array must use canonical names, not the alias spelling.
+	const items = (
+		attrs(set)[0] as any
+	).value.data.estree.body[0].expression.elements.map(
+		(e: { value: string }) => e.value,
+	);
+	assert.deepEqual(items, ["macOS", "Windows"]);
+	// Each child Tab value must also be the canonical name.
+	assert.deepEqual(
+		kids(set).map((tab) => attrs(tab)[0].value),
+		["macOS", "Windows"],
+	);
+});
+
+test("structuredClone isolates duplicated content across expanded OS tabs", () => {
+	const tree = run([
+		html('<div class="tabs">'),
+		heading(3, "Linux/macOS"),
+		html('<div class="tabs">'),
+		heading(4, "Sub1"),
+		para("sub1"),
+		heading(4, "Sub2"),
+		para("sub2"),
+		html("</div>"),
+		html("</div>"),
+	]);
+	const set = kids(tree)[0];
+	assert.equal(set.name, "OSTab");
+	const linuxTab = kids(set)[0];
+	const macTab = kids(set)[1];
+	assert.equal(attrs(linuxTab)[0].value, "Linux");
+	assert.equal(attrs(macTab)[0].value, "macOS");
+	// (a) The two tabs must hold distinct content arrays - not the same reference.
+	assert.notStrictEqual(linuxTab.children, macTab.children);
+	// (b) Deep-mutating one tab's content must not affect the other.
+	const lenBefore = (macTab.children as MdastNode[]).length;
+	const sentinel: MdastNode = { type: "text", value: "SENTINEL" };
+	(linuxTab.children as MdastNode[]).push(sentinel);
+	assert.equal((macTab.children as MdastNode[]).length, lenBefore);
+});
+
 test("an unclosed tabs block is left untouched", () => {
 	const tree = run([html('<div class="tabs">'), heading(3, "UI"), para("ui")]);
 	assert.equal(kids(tree)[0].type, "html");

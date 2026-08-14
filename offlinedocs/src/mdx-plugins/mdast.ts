@@ -1,8 +1,7 @@
-// Shared mdast helpers for the block-scanning remark plugins
-// (remark-coder-tabs, remark-details-accordion). Both walk a node's direct
-// children looking for raw-HTML delimiters, so the minimal working node shape
-// and the `html` node type guard live here instead of being copy-pasted into
-// each plugin.
+// Shared mdast helpers for all remark plugins in this directory
+// (remark-coder-tabs, remark-details-accordion, remark-github-callouts). All
+// walk or inspect a node tree, so the minimal working node shape and the `html`
+// node type guard live here instead of being copy-pasted into each plugin.
 
 export type MdastNode = {
 	type: string;

@@ -26,7 +26,7 @@ type HastNode = {
 
 const HEADINGS = new Set(["h1", "h2", "h3", "h4", "h5", "h6"]);
 
-function fix(node: HastNode): void {
+function restoreStepProps(node: HastNode): void {
 	if (
 		node.type === "element" &&
 		node.tagName &&
@@ -44,12 +44,12 @@ function fix(node: HastNode): void {
 		}
 	}
 	if (node.children) {
-		for (const child of node.children) fix(child);
+		for (const child of node.children) restoreStepProps(child);
 	}
 }
 
 export function rehypeStepTocNumbers() {
 	return (tree: HastNode): void => {
-		fix(tree);
+		restoreStepProps(tree);
 	};
 }
