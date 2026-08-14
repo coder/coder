@@ -40,6 +40,12 @@ const UpdateMCPServerPage: FC = () => {
 	const deleteMutation = useMutation(
 		deleteMCPServerConfig(queryClient, serverOrganization),
 	);
+	// A 404 must win over cached data: a refetch failure keeps stale data,
+	// which would otherwise render a form for a deleted or concealed server.
+	const notFound =
+		serverQuery.isError &&
+		isApiError(serverQuery.error) &&
+		serverQuery.error.response.status === 404;
 	const [searchParams] = useSearchParams();
 	// When the detail 404s (deleted or concealed), the navigation-carried
 	// organization keeps the redirect on the selected organization's list.
@@ -58,18 +64,14 @@ const UpdateMCPServerPage: FC = () => {
 					<title>{pageTitle("Loading...", "AI Settings")}</title>
 					<Loader fullscreen />
 				</>
-			) : serverQuery.isError &&
-				!(
-					isApiError(serverQuery.error) &&
-					serverQuery.error.response.status === 404
-				) ? (
+			) : serverQuery.isError && !notFound ? (
 				<>
 					<title>{pageTitle("MCP servers", "AI Settings")}</title>
 					<div className="mb-4">
 						<ErrorAlert error={serverQuery.error} />
 					</div>
 				</>
-			) : !server ? (
+			) : notFound || !server ? (
 				<Navigate to={listPath} replace />
 			) : (
 				<UpdateMCPServerPageView
