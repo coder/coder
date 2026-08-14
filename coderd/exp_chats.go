@@ -1227,10 +1227,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Limit memory used to decode dynamic tool schemas.
-	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
-
 	var req codersdk.CreateChatRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
 
@@ -1266,8 +1264,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 	// NOTE: This authorize check is intentionally placed after request
 	// parsing because we need req.OrganizationID to scope the RBAC check
-	// to the correct org. The request body is bounded by MaxBytesReader
-	// above, limiting the cost of parsing before rejection.
+	// to the correct org. The request body is bounded by the ReadLimit above,
+	// limiting the cost of parsing before rejection.
 	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(req.OrganizationID)) {
 		httpapi.Forbidden(rw)
 		return
@@ -4504,9 +4502,8 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	}
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
-	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 	var req codersdk.UpdateChatSystemPromptRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
 	sanitizedPrompt := chatd.SanitizePromptText(req.SystemPrompt)
@@ -4577,10 +4574,8 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
-	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
-
 	var req codersdk.UpdateChatPlanModeInstructionsRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
 
@@ -5558,10 +5553,8 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	)
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
-	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
-
 	var params codersdk.UserChatCustomPrompt
-	if !httpapi.Read(ctx, rw, r, &params) {
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &params) {
 		return
 	}
 
@@ -7221,10 +7214,9 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cap the raw request body to prevent excessive memory use.
-	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 	var req codersdk.SubmitToolResultsRequest
 
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
 

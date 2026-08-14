@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -139,6 +141,184 @@ func TestRead(t *testing.T) {
 		require.Equal(t, "value", v.Validations[0].Field)
 		require.Equal(t, "Validation failed for tag \"required\" with value: \"\"", v.Validations[0].Detail)
 	})
+}
+
+// readBody is decoded by the request body limit tests. It carries no validate
+// tags so that a decode failure is unambiguously a body-size failure.
+type readBody struct {
+	Value string `json:"value"`
+}
+
+// jsonBodyOfSize returns a JSON object that decodes into readBody and is
+// exactly size bytes long.
+func jsonBodyOfSize(size int) string {
+	const (
+		prefix = `{"value":"`
+		suffix = `"}`
+	)
+	return prefix + strings.Repeat("a", size-len(prefix)-len(suffix)) + suffix
+}
+
+func TestReadBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	// requireTooLarge asserts the 413 response shape shared by every
+	// over-limit case.
+	requireTooLarge := func(t *testing.T, rw *httptest.ResponseRecorder, limit int) {
+		t.Helper()
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+		require.Equal(t, "Request body too large.", resp.Message)
+		require.Contains(t, resp.Detail, strconv.Itoa(limit),
+			"the detail must name the limit so the error is actionable")
+	}
+
+	t.Run("AtDefaultLimit", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+
+		var v readBody
+		require.True(t, httpapi.Read(context.Background(), rw, r, &v))
+		require.Len(t, v.Value, httpapi.DefaultMaxRequestBodyBytes-len(`{"value":""}`))
+	})
+
+	t.Run("OverDefaultLimitByOneByte", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes + 1)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+
+		var v readBody
+		require.False(t, httpapi.Read(context.Background(), rw, r, &v))
+		requireTooLarge(t, rw, httpapi.DefaultMaxRequestBodyBytes)
+	})
+
+	// The limit is enforced on bytes actually read, so neither an absent nor a
+	// dishonest Content-Length can raise it. Asserted in-process rather than
+	// over a connection because a client still streaming an oversized body may
+	// see the connection reset instead of the 413, which would make a
+	// network-driven assertion racy.
+	t.Run("NoContentLength", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes + 1)
+		rw := httptest.NewRecorder()
+		// io.NopCloser hides the length, which is what net/http sees for a
+		// chunked request.
+		r := httptest.NewRequest(http.MethodPost, "/", io.NopCloser(strings.NewReader(body)))
+		r.TransferEncoding = []string{"chunked"}
+		require.EqualValues(t, -1, r.ContentLength)
+
+		var v readBody
+		require.False(t, httpapi.Read(context.Background(), rw, r, &v))
+		requireTooLarge(t, rw, httpapi.DefaultMaxRequestBodyBytes)
+	})
+
+	t.Run("UnderstatedContentLength", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes + 1)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		r.ContentLength = 10
+
+		var v readBody
+		require.False(t, httpapi.Read(context.Background(), rw, r, &v))
+		requireTooLarge(t, rw, httpapi.DefaultMaxRequestBodyBytes)
+	})
+
+	t.Run("ChunkedUnderLimit", func(t *testing.T) {
+		t.Parallel()
+		body := jsonBodyOfSize(httpapi.DefaultMaxRequestBodyBytes)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", io.NopCloser(strings.NewReader(body)))
+		r.TransferEncoding = []string{"chunked"}
+
+		var v readBody
+		require.True(t, httpapi.Read(context.Background(), rw, r, &v))
+	})
+}
+
+func TestReadLimit(t *testing.T) {
+	t.Parallel()
+
+	// A limit above the default must not be tightened by the default that Read
+	// installs. This is the unit-level regression test for the endpoints that
+	// legitimately accept more than DefaultMaxRequestBodyBytes; without
+	// ReadLimit they would be silently capped at the default.
+	t.Run("AboveDefaultIsNotTightened", func(t *testing.T) {
+		t.Parallel()
+		const limit = 8 << 20
+		body := jsonBodyOfSize(6 << 20)
+		require.Greater(t, len(body), httpapi.DefaultMaxRequestBodyBytes)
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+
+		var v readBody
+		require.True(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
+		require.Len(t, v.Value, len(body)-len(`{"value":""}`))
+	})
+
+	t.Run("BelowDefaultIsEnforced", func(t *testing.T) {
+		t.Parallel()
+		const limit = 1024
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(limit+1)))
+
+		var v readBody
+		require.False(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+		require.Contains(t, resp.Detail, strconv.Itoa(limit))
+	})
+
+	t.Run("AtLimit", func(t *testing.T) {
+		t.Parallel()
+		const limit = 1024
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(limit)))
+
+		var v readBody
+		require.True(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
+	})
+}
+
+// TestMaxBytesReaderNesting pins how http.MaxBytesReader composes: nesting two
+// readers yields the tighter of the two limits, regardless of which one is
+// outermost. httpapi.Read wraps the body it decodes, so handlers that need a
+// different limit cannot get one by wrapping the body themselves, and must use
+// httpapi.ReadLimit instead. That requirement is only true because composition
+// behaves this way, so it is asserted here rather than assumed.
+func TestMaxBytesReaderNesting(t *testing.T) {
+	t.Parallel()
+
+	const (
+		tight = 4
+		loose = 8
+	)
+	body := strings.Repeat("a", loose+1)
+
+	// readNested wraps body in two MaxBytesReaders and reports how many bytes
+	// were readable before the limit tripped.
+	readNested := func(t *testing.T, outer, inner int64) int {
+		t.Helper()
+		rw := httptest.NewRecorder()
+		rc := io.NopCloser(strings.NewReader(body))
+		rc = http.MaxBytesReader(rw, rc, inner)
+		rc = http.MaxBytesReader(rw, rc, outer)
+
+		read, err := io.ReadAll(rc)
+		_, ok := errors.AsType[*http.MaxBytesError](err)
+		require.True(t, ok, "expected *http.MaxBytesError, got %v", err)
+		return len(read)
+	}
+
+	require.Equal(t, tight, readNested(t, tight, loose), "tight limit outside a loose one must win")
+	require.Equal(t, tight, readNested(t, loose, tight), "tight limit inside a loose one must win")
 }
 
 func TestWebsocketCloseMsg(t *testing.T) {
