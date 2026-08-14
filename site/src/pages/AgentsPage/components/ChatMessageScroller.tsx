@@ -45,14 +45,27 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 		!isHydratingMessages &&
 		!hasFetchMoreError;
 
-	// The scroller exposes position only as state, with no "reached the top"
-	// event, so paging is synced from that state here. Scroll events cannot
-	// replace this: they never fire when the transcript is shorter than the
-	// viewport, which is exactly when more history is needed.
+	// The scroller only tells us where the scroll position is through React
+	// state. There is no "reached the top" callback to hang this off, so the
+	// fetch has to happen in an effect that watches that state. A plain scroll
+	// listener cannot replace it: scroll events only fire when there is
+	// something to scroll, and the case that needs more history is a
+	// transcript shorter than the viewport, where nothing scrolls.
+	//
+	// The fetch is deferred one frame because the scroller updates its state
+	// on an animation frame after new rows appear. Without the wait, a page
+	// that just arrived and made the transcript overflow still looks
+	// unscrollable for one frame, and we would fetch a page we do not need.
+	// If the new page did overflow, the state flips during the wait, this
+	// effect re-runs, and the cleanup cancels the fetch before it fires.
 	useEffect(() => {
-		if (shouldLoadEarlierMessages) {
-			void onFetchMoreMessages();
+		if (!shouldLoadEarlierMessages) {
+			return;
 		}
+		const frame = requestAnimationFrame(() => {
+			void onFetchMoreMessages();
+		});
+		return () => cancelAnimationFrame(frame);
 	}, [shouldLoadEarlierMessages, onFetchMoreMessages]);
 
 	if (isFetchingMoreMessages) {
