@@ -573,8 +573,6 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 var errUserOIDCRequiresDeploymentPerms = xerrors.New("managing user_oidc MCP server configs requires deployment-level permissions")
 
-// errMCPConfigSupersededDuringAuth rejects OAuth callbacks whose config
-// changed destination or OAuth identity while the exchange was in flight.
 var errMCPConfigSupersededDuringAuth = xerrors.New("MCP server config superseded during authorization")
 
 // authorizeUserOIDCMCPServerConfig requires deployment-level permission because
@@ -1180,10 +1178,9 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	}
 
 	err = api.Database.InTx(func(tx database.Store) error {
-		// Lock and re-read the config so a concurrent update cannot commit
-		// its grant invalidation between the token exchange and this store,
-		// which would recreate a grant obtained under the old destination
-		// or OAuth identity.
+		// Hold the config lock through the grant write so a concurrent update
+		// cannot invalidate grants and then have this callback recreate one
+		// for the old config.
 		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, config.ID)
 		if err != nil {
 			return xerrors.Errorf("re-read MCP server config: %w", err)

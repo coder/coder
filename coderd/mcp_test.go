@@ -689,10 +689,6 @@ func TestMCPServerConfigsOAuth2CallbackRejectsSupersededConfig(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-	// The token endpoint repoints the config's URL before returning the
-	// token, simulating an admin update committing while the exchange is
-	// in flight. The callback must reject the grant it obtained under the
-	// superseded configuration.
 	var configID atomic.Pointer[uuid.UUID]
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if id := configID.Load(); id != nil {
