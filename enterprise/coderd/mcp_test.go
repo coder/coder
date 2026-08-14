@@ -1,7 +1,9 @@
 package coderd_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -141,20 +143,31 @@ func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 		})
 	}
 
-	// Status alone would not catch a body-level existence leak: the whole
-	// disconnect response for a concealed config must be indistinguishable
-	// from disconnecting a nonexistent config ID.
+	// Compare raw responses because SDK decoding can hide body differences
+	// that reveal whether the config exists.
 	t.Run("OAuthDisconnectBodyMatchesNonexistent", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		hiddenResp, err := otherClient.MCPServerOAuth2DisconnectWithResponse(ctx, config.ID)
-		require.NoError(t, err)
-		missingResp, err := otherClient.MCPServerOAuth2DisconnectWithResponse(ctx, uuid.New())
-		require.NoError(t, err)
-		require.Equal(t, missingResp, hiddenResp)
-		require.False(t, hiddenResp.TokenRevoked)
-		require.Empty(t, hiddenResp.TokenRevocationError)
+		rawDisconnect := func(id uuid.UUID) (int, string) {
+			res, err := otherClient.Request(ctx, http.MethodDelete,
+				"/api/experimental/mcp/servers/"+id.String()+"/oauth2/disconnect", nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			return res.StatusCode, string(body)
+		}
+
+		hiddenStatus, hiddenBody := rawDisconnect(config.ID)
+		missingStatus, missingBody := rawDisconnect(uuid.New())
+		require.Equal(t, missingStatus, hiddenStatus)
+		require.Equal(t, missingBody, hiddenBody)
+
+		var disconnect codersdk.MCPServerOAuth2DisconnectResponse
+		require.NoError(t, json.Unmarshal([]byte(hiddenBody), &disconnect))
+		require.False(t, disconnect.TokenRevoked)
+		require.Empty(t, disconnect.TokenRevocationError)
 	})
 }
 
