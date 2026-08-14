@@ -420,7 +420,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// sequence, so every user row created after mount (sends, queue
 	// promotions, edit re-sends) has an id above the initial maximum.
 	const [initialActiveTurnMaxMessageId] = useState<number | undefined>(() =>
-		initialChatStatus === "running"
+		initialChatStatus === "running" || initialChatStatus === "interrupting"
 			? (initialMessages.at(-1)?.id ?? -1)
 			: undefined,
 	);
