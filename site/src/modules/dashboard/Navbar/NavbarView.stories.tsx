@@ -280,6 +280,12 @@ export const ForMember: Story = {
 		adminPermissions: {},
 		canCreateChat: true,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const agentsLink = canvas.getByRole("link", { name: "Agents" });
+		await expect(agentsLink).toHaveAttribute("href", "/agents");
+		await userEvent.click(agentsLink);
+	},
 };
 
 export const ForMemberWithModelAccess: Story = {
@@ -319,6 +325,12 @@ export const ForMemberWithoutChatPermission: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("link", { name: "Agents" }),
+		).not.toBeInTheDocument();
 	},
 };
 
