@@ -18,6 +18,7 @@ const StoryChatPageTimeline: FC<{
 			persistedError={undefined}
 			hasMoreMessages={false}
 			isFetchingMoreMessages={false}
+			isHydratingMessages={false}
 			hasFetchMoreError={false}
 			onFetchMoreMessages={async () => {}}
 		/>

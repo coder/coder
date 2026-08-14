@@ -210,6 +210,7 @@ interface AgentChatPageViewProps {
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
+	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 
@@ -381,6 +382,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isArchivingThisChat,
 	hasMoreMessages,
 	isFetchingMoreMessages,
+	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 	urlTransform,
@@ -926,6 +928,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							persistedError={persistedError}
 							hasMoreMessages={hasMoreMessages}
 							isFetchingMoreMessages={isFetchingMoreMessages}
+							isHydratingMessages={isHydratingMessages}
 							hasFetchMoreError={hasFetchMoreError}
 							onFetchMoreMessages={onFetchMoreMessages}
 							onEditUserMessage={

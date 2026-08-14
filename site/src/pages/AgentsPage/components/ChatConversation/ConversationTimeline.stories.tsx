@@ -32,6 +32,7 @@ const withMessageScroller: Decorator = (Story, { parameters }) => {
 				<ChatMessageScroller
 					hasMoreMessages={false}
 					isFetchingMoreMessages={false}
+					isHydratingMessages={false}
 					hasFetchMoreError={false}
 					hasTranscriptRows={true}
 					onFetchMoreMessages={async () => {}}

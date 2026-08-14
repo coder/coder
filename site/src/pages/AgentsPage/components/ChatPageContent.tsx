@@ -92,6 +92,7 @@ interface ChatPageTimelineProps {
 	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
+	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 	onEditUserMessage?: (
@@ -112,6 +113,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
 	isFetchingMoreMessages,
+	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 	onEditUserMessage,
@@ -179,6 +181,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 			<ChatMessageScroller
 				hasMoreMessages={hasMoreMessages}
 				isFetchingMoreMessages={isFetchingMoreMessages}
+				isHydratingMessages={isHydratingMessages}
 				hasFetchMoreError={hasFetchMoreError}
 				hasTranscriptRows={parsedMessages.length > 0}
 				onFetchMoreMessages={onFetchMoreMessages}

@@ -12,6 +12,9 @@ import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 interface EarlierMessagesProps {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
+	// True while fetched pages have not reached the store yet. Blocks paging
+	// without showing the loader: hydration is not a history request.
+	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	hasTranscriptRows: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
@@ -25,6 +28,7 @@ interface EarlierMessagesProps {
 const EarlierMessages: FC<EarlierMessagesProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
+	isHydratingMessages,
 	hasFetchMoreError,
 	hasTranscriptRows,
 	onFetchMoreMessages,
@@ -38,6 +42,7 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 		isAtHistoryStart &&
 		hasMoreMessages &&
 		!isFetchingMoreMessages &&
+		!isHydratingMessages &&
 		!hasFetchMoreError;
 
 	// The scroller exposes position only as state, with no "reached the top"

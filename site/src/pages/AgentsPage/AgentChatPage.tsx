@@ -2040,9 +2040,8 @@ const AgentChatPage: FC = () => {
 			isChildChat={parentChatID !== undefined}
 			urlTransform={urlTransform}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
-			isFetchingMoreMessages={
-				chatMessagesQuery.isFetchingNextPage || isHydratingMessages
-			}
+			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+			isHydratingMessages={isHydratingMessages}
 			hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
 			desktopChatId={desktopEnabled ? agentId : undefined}
