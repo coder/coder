@@ -8,6 +8,7 @@ import (
 	htmltemplate "html/template"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -190,6 +191,24 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 	return strings.Join(granted, " "), nil
 }
 
+// consentScopes lists a negotiated scope for the consent page. The
+// unrestricted grant is returned as nil, since "coder:all" states to a user
+// far less than the page's own full-access wording does.
+//
+// The negotiated value is canonical and deduplicated by the time it arrives
+// here, so this splits rather than rewrites.
+func consentScopes(granted string) []string {
+	names := strings.Fields(granted)
+	// Presence, not sole occupancy: an allowlist registered as
+	// `coder:all coder:workspaces.access` defaults to both names, and listing
+	// them would show the user the entry this function exists to avoid showing
+	// while understating a grant that is in fact unrestricted.
+	if slices.Contains(names, string(database.ApiKeyScopeCoderAll)) {
+		return nil
+	}
+	return names
+}
+
 type authorizeParams struct {
 	clientID            string
 	redirectURL         *url.URL
@@ -325,11 +344,12 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 
 		// Reject a scope the app can never be granted before the consent page
 		// renders, rather than after the user clicks Allow. Both handlers run
-		// the check for that reason: this one to decide whether the page
-		// renders at all, the POST side to persist the result. The two
+		// the check for that reason: this one to decide what the page states
+		// and whether it renders at all, the POST side to persist it. The two
 		// negotiate the same query string, since the consent form posts back
 		// to this URL.
-		if _, err := validateRequestedScope(params.scope, app.Scope); err != nil {
+		grantedScope, err := validateRequestedScope(params.scope, app.Scope)
+		if err != nil {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusBadRequest,
 				HideStatus:  false,
@@ -380,6 +400,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			DashboardURL: accessURL.String(),
 			CSRFToken:    nosurf.Token(r),
 			Username:     ua.FriendlyName,
+			Scopes:       consentScopes(grantedScope),
 		})
 	}
 }
