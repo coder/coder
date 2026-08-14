@@ -318,3 +318,94 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 		AllowIDList: []AllowListElement{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 	}
 }
+
+// ScopesCover reports whether every permission the requested scope grants is
+// also granted by at least one of the allowed scopes. It is the semantic form
+// of "is this request within this ceiling", as opposed to comparing the names
+// themselves: `coder:workspaces.access` covers `workspace:read` because it
+// expands to include it, and `coder:all` covers everything.
+//
+// Names must be canonical (see CanonicalScopeName). An unknown name on either
+// side is an error rather than a false, since a caller cannot tell those apart
+// safely.
+//
+// The comparison is deliberately asymmetric about what it ignores. Positive
+// permissions on the allowed side that this does not model are dropped, which
+// can only make the answer stricter. Anything on the requested side that is
+// not modeled fails closed instead, because ignoring it would answer
+// "covered" about authority that was never compared.
+//
+// Negative permissions are the exception to that asymmetry and fail closed on
+// both sides. Dropping an anti-grant from the ceiling would widen it, so the
+// direction that makes the rest of the allowed side safe to ignore does not
+// hold for them.
+func ScopesCover(allowed []ScopeName, requested ScopeName) (bool, error) {
+	want, err := ExpandScope(requested)
+	if err != nil {
+		return false, xerrors.Errorf("expand requested scope: %w", err)
+	}
+	// Scope expansion populates Site only, with a wildcard allow list and no
+	// negative permissions. These guards hold that invariant: if a future
+	// scope breaks it, coverage stops being decidable here and the request is
+	// refused rather than approved on an incomplete comparison.
+	if len(want.User) > 0 || len(want.ByOrgID) > 0 {
+		return false, xerrors.Errorf("scope %q grants org or user permissions, which coverage does not model", requested)
+	}
+	for _, perm := range want.Site {
+		if perm.Negate {
+			return false, xerrors.Errorf("scope %q carries a negative permission, which coverage does not model", requested)
+		}
+	}
+	if !allowListContainsAll(want.AllowIDList) {
+		return false, xerrors.Errorf("scope %q carries a resource allow list, which coverage does not model", requested)
+	}
+
+	granted := make([]Permission, 0, len(allowed)*4)
+	for _, name := range allowed {
+		expanded, err := ExpandScope(name)
+		if err != nil {
+			return false, xerrors.Errorf("expand allowed scope %q: %w", name, err)
+		}
+		// A narrower allow list on the allowed side would make these
+		// permissions conditional, and treating them as unconditional would
+		// overstate the ceiling.
+		if !allowListContainsAll(expanded.AllowIDList) {
+			return false, xerrors.Errorf("allowed scope %q carries a resource allow list, which coverage does not model", name)
+		}
+		// A negative permission is the one thing on this side that cannot be
+		// dropped safely. Ignoring an unmodelled grant narrows the ceiling,
+		// but ignoring an anti-grant widens it: an "everything except delete"
+		// scope would otherwise cover a request for delete.
+		for _, perm := range expanded.Site {
+			if perm.Negate {
+				return false, xerrors.Errorf("allowed scope %q carries a negative permission, which coverage does not model", name)
+			}
+		}
+		granted = append(granted, expanded.Site...)
+	}
+
+	for _, needed := range want.Site {
+		if !permissionCovered(needed, granted) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// permissionCovered reports whether any granted permission subsumes needed,
+// treating the wildcard resource type and action as covering every value.
+func permissionCovered(needed Permission, granted []Permission) bool {
+	for _, perm := range granted {
+		if perm.Negate {
+			continue
+		}
+		if perm.ResourceType != needed.ResourceType && perm.ResourceType != policy.WildcardSymbol {
+			continue
+		}
+		if perm.Action != needed.Action && perm.Action != policy.WildcardSymbol {
+			continue
+		}
+		return true
+	}
+	return false
+}
