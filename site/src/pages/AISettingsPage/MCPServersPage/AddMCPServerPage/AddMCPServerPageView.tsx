@@ -33,6 +33,7 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 				organizations={organizations}
 				organization={organization}
 				onChange={onSelectOrganization}
+				disabled={isSaving}
 			/>
 			<MCPServerForm
 				listPath={mcpServersPath(organization)}

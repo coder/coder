@@ -24,6 +24,7 @@ type OrganizationAutocompleteProps = {
 	options: readonly Organization[];
 	id?: string;
 	required?: boolean;
+	disabled?: boolean;
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
@@ -32,6 +33,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	options,
 	id,
 	required,
+	disabled,
 }) => {
 	const [open, setOpen] = useState(false);
 
@@ -41,6 +43,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 				<Button
 					id={id}
 					variant="outline"
+					disabled={disabled}
 					aria-expanded={open}
 					aria-required={required}
 					data-testid="organization-autocomplete"

@@ -202,6 +202,36 @@ export const AddToSelectedOrganization: Story = {
 	},
 };
 
+export const AddDisablesOrganizationWhileSaving: Story = {
+	render: () => <AddMCPServerPage />,
+	parameters: {
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers/add" },
+			routing: { path: "/ai/settings/mcp-servers/add" },
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "createMCPServerConfig").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(canvas.getByLabelText(/display name/i), "GitHub");
+		await userEvent.type(
+			canvas.getByLabelText(/server url/i),
+			"https://api.githubcopilot.com/mcp/",
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Organization" }),
+			).toBeDisabled();
+		});
+	},
+};
+
 export const AddSwitchesOrganization: Story = {
 	render: () => <AddMCPServerPage />,
 	parameters: {

@@ -10,6 +10,7 @@ interface OrganizationPickerProps {
 	organization: Organization | undefined;
 	onChange: (organization: Organization) => void;
 	className?: string;
+	disabled?: boolean;
 }
 
 export const OrganizationPicker: FC<OrganizationPickerProps> = ({
@@ -18,6 +19,7 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 	organization,
 	onChange,
 	className,
+	disabled,
 }) => {
 	if (organizations.length <= 1) {
 		return null;
@@ -36,6 +38,7 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 				}}
 				options={organizations}
 				required
+				disabled={disabled}
 			/>
 		</div>
 	);
