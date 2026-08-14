@@ -90,7 +90,7 @@ export const workspaceSkillsFromChat = (
 interface ChatPageTimelineProps {
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
-	initialActiveAnchorKey?: string;
+	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
@@ -110,7 +110,7 @@ interface ChatPageTimelineProps {
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	store,
 	persistedError,
-	initialActiveAnchorKey,
+	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	hasFetchMoreError,
@@ -196,7 +196,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					   renders correctly. */}
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
-					initialActiveAnchorKey={initialActiveAnchorKey}
+					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 					streamState={streamState}
 					streamTools={streamTools}
 					liveStatus={liveStatus}

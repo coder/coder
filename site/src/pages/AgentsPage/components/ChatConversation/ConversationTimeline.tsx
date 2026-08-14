@@ -400,7 +400,7 @@ const ChatMessageItem = memo<{
 
 interface ConversationTimelineProps {
 	parsedMessages: readonly ParsedMessageEntry[];
-	initialActiveAnchorKey?: string;
+	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
 	streamTools?: readonly MergedTool[];
 	liveStatus?: LiveStatusModel;
@@ -426,7 +426,7 @@ interface ConversationTimelineProps {
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		parsedMessages,
-		initialActiveAnchorKey,
+		initialActiveTurnMaxMessageId,
 		streamState,
 		streamTools = [],
 		liveStatus,
@@ -504,7 +504,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			hasLiveAssistant || isAwaitingFirstStreamChunk
 				? userRowKeys[userRowKeys.length - 1]
 				: undefined;
-		const suppressInitialAnchor = anchorUserRowKey === initialActiveAnchorKey;
 		const userNeighborsByKey = new Map<
 			string,
 			{ prevKey?: string; nextKey?: string }
@@ -576,6 +575,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					}
 					const { message, parsed } = row.entry;
 					const isUser = message.role === "user";
+					const suppressInitialAnchor =
+						initialActiveTurnMaxMessageId !== undefined &&
+						message.id <= initialActiveTurnMaxMessageId;
 					const neighbors = userNeighborsByKey.get(row.key);
 					const isAfterEditingMessage = afterEditingMessageIds.has(message.id);
 					return (

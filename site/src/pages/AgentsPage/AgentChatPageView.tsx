@@ -415,16 +415,15 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	// The turn already running when the page loaded must not anchor the
-	// scroller; captured once at mount, after the loading gate guarantees the
-	// initial queries have resolved.
-	const [initialActiveAnchorKey] = useState<string | undefined>(() => {
-		const lastUser = initialMessages.findLast(
-			(message) => message.role === "user",
-		);
-		return initialChatStatus === "running" && lastUser
-			? `message:${lastUser.id}`
-			: undefined;
-	});
+	// scroller, even if its prompt is older than the newest messages page and
+	// only renders after the user pages up. Message ids are allocated from one
+	// sequence, so every user row created after mount (sends, queue
+	// promotions, edit re-sends) has an id above the initial maximum.
+	const [initialActiveTurnMaxMessageId] = useState<number | undefined>(() =>
+		initialChatStatus === "running"
+			? (initialMessages.at(-1)?.id ?? -1)
+			: undefined,
+	);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
@@ -923,7 +922,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						<ChatPageTimeline
 							key={agentId}
 							store={store}
-							initialActiveAnchorKey={initialActiveAnchorKey}
+							initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 							persistedError={persistedError}
 							hasMoreMessages={hasMoreMessages}
 							isFetchingMoreMessages={isFetchingMoreMessages}
