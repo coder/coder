@@ -242,13 +242,9 @@ func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error 
 	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
 	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
 	if database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
-		// The insert's ON CONFLICT (id) arbiter absorbs most duplicate
-		// inserts, including in-flight ones: once a competing row's arbiter
-		// index entry is visible, PostgreSQL waits on that transaction and
-		// takes the DO NOTHING path if it commits. Only the narrow
-		// speculative-insertion race, before that entry exists, trips the
-		// bucket unique index instead. Either way a row for this bucket
-		// already exists, which is all generateBucket needs.
+		// Another replica already created this bucket's row. The Generator
+		// doc comment explains why this race reaches the bucket unique
+		// index instead of the insert's ON CONFLICT (id) arbiter.
 		return nil
 	}
 	if err != nil {
