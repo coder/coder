@@ -221,9 +221,15 @@ export const useChatStore = (
 		[chatID, queryClient],
 	);
 
+	// Content snapshot of the messages the hydration effect last ingested.
+	// State (not a ref) so the paging gate re-renders when hydration lands.
+	// Only updated when the message content itself changed, never when an
+	// unrelated field like queued_messages handed us a fresh array, so a
+	// caller passing an unmemoized array cannot loop: content-equal renders
+	// skip the setState, and equal state bails out of the re-render.
 	const [lastHydratedMessages, setLastHydratedMessages] = useState<
-		readonly TypesGen.ChatMessage[] | null
-	>(null);
+		readonly TypesGen.ChatMessage[]
+	>([]);
 
 	useEffect(() => {
 		store.batch(() => {
@@ -252,7 +258,9 @@ export const useChatStore = (
 					chatMessages.length !== prev.length ||
 					chatMessages.some((m, i) => m !== prev[i]);
 				lastSyncedMessagesRef.current = chatMessages;
-				setLastHydratedMessages(chatMessages);
+				if (contentChanged) {
+					setLastHydratedMessages(chatMessages);
+				}
 
 				const storeSnap = store.getSnapshot();
 				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
@@ -278,8 +286,12 @@ export const useChatStore = (
 
 	// True when the query has data the store has not yet ingested. Used to
 	// keep the history-paging gate closed until hydration catches up.
+	// Content comparison, not identity: unmemoized callers produce a fresh
+	// array identity every render even when nothing changed.
 	const isHydratingMessages =
-		chatMessages !== undefined && chatMessages !== lastHydratedMessages;
+		chatMessages !== undefined &&
+		(chatMessages.length !== lastHydratedMessages.length ||
+			chatMessages.some((m, i) => m !== lastHydratedMessages[i]));
 
 	useEffect(() => {
 		if (pendingStatusResync) {
