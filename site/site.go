@@ -798,6 +798,10 @@ type RenderOAuthAllowData struct {
 	DashboardURL string
 	CSRFToken    string
 	Username     string
+	// Scopes are the permissions the authorization will carry, listed for the
+	// user before they approve it. Nil states unrestricted access instead,
+	// since the name a full grant carries is not one a user would recognize.
+	Scopes []string
 }
 
 // RenderOAuthAllowPage renders the static page for a user to "Allow" an create
