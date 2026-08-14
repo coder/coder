@@ -118,7 +118,7 @@ function stepFence(line, plain, quoted) {
 				fenced: delim || scan.next.inFence,
 				delim,
 				opening: scan.opening,
-				quoted_delim: delim,
+				quotedDelim: delim,
 				match: scan.match,
 			};
 		}
@@ -132,7 +132,7 @@ function stepFence(line, plain, quoted) {
 		fenced: delim || scan.next.inFence,
 		delim,
 		opening: scan.opening,
-		quoted_delim: false,
+		quotedDelim: false,
 		match: scan.match,
 	};
 }
@@ -162,7 +162,7 @@ function mapLines(content, fn) {
 			prose: !s.fenced,
 			delim: s.delim,
 			opening: s.opening,
-			quoted: s.quoted_delim,
+			quoted: s.quotedDelim,
 			match: s.match,
 		});
 	}
@@ -214,10 +214,10 @@ export function normalizeStepHeadings(content) {
 // it also keeps the corpus valid for a future `.mdx` flip, where an HTML
 // comment is a parse error. The line count is preserved (a line that was only a
 // comment becomes an empty line) so markdown block structure around comment
-// lines, such as paragraph boundaries, is unchanged. Comments inside fenced
-// code blocks (including blockquoted fences) are content and are left
-// untouched. Runs before every other content transform so commented-out
-// markdown never feeds them.
+// lines, such as paragraph boundaries, is unchanged. A `<!--` inside a fenced
+// code block (including a blockquoted fence) or an inline code span is content,
+// not a comment, and is left untouched. Runs before every other content
+// transform so commented-out markdown never feeds them.
 //
 // Returns `{ content, unclosedCommentLine }`. A comment that opens but never
 // closes would otherwise swallow the rest of the file to end-of-input silently;
@@ -251,17 +251,26 @@ export function stripHtmlComments(content) {
 					pos = end + 3;
 					inComment = false;
 				}
+				continue;
+			}
+			// Outside a comment, an inline code span is opaque: a `<!--` inside
+			// backticks is code, not a comment opener. Whichever comes first, the
+			// next code span or the next opener, is handled first.
+			const tick = line.indexOf("`", pos);
+			const start = line.indexOf("<!--", pos);
+			if (start === -1 && tick === -1) {
+				result += line.slice(pos);
+				pos = line.length;
+			} else if (tick !== -1 && (start === -1 || tick < start)) {
+				result += line.slice(pos, tick);
+				const span = inlineCodeSpan(line, tick);
+				result += line.slice(tick, tick + span);
+				pos = tick + span;
 			} else {
-				const start = line.indexOf("<!--", pos);
-				if (start === -1) {
-					result += line.slice(pos);
-					pos = line.length;
-				} else {
-					result += line.slice(pos, start);
-					pos = start + 4;
-					inComment = true;
-					commentOpenLine = i + 1;
-				}
+				result += line.slice(pos, start);
+				pos = start + 4;
+				inComment = true;
+				commentOpenLine = i + 1;
 			}
 		}
 		if (result !== line) lines[i] = result.trimEnd();
@@ -272,10 +281,34 @@ export function stripHtmlComments(content) {
 	};
 }
 
-// Apply `fn` to the parts of `line` outside inline code spans. CommonMark
-// code spans open with a backtick run and close at the next run of the same
-// length; unmatched runs are literal text. Spans crossing line boundaries are
-// not handled (processing is per-line); the corpus has none.
+// Number of characters at `line[start]` (a backtick run) to treat as opaque
+// inline code: the whole span when the run is matched by a later run of the
+// same length, or just the run itself when it is unmatched (literal backticks).
+// Callers copy that many characters verbatim and resume scanning after them, so
+// a matched span is skipped as a unit while a stray backtick passes through
+// without hiding the text after it. CommonMark code-span rule; spans crossing
+// line boundaries are not handled (processing is per-line) and the corpus has
+// none.
+function inlineCodeSpan(line, start) {
+	let n = 0;
+	while (line[start + n] === "`") n++;
+	let k = start + n;
+	while (k < line.length) {
+		const idx = line.indexOf("`".repeat(n), k);
+		if (idx === -1) break;
+		let m = 0;
+		while (line[idx + m] === "`") m++;
+		if (m === n) return idx + n - start;
+		k = idx + m;
+	}
+	return n;
+}
+
+// Apply `fn` to the parts of `line` outside inline code spans, leaving code
+// spans byte-identical. The single inline-code scanner every prose transform
+// shares (link rewriting, comment stripping, brace/autolink/void
+// normalization), so a `.md` link, HTML comment, or `{token}` inside backticks
+// is never rewritten.
 function mapOutsideInlineCode(line, fn) {
 	let out = "";
 	let i = 0;
@@ -287,28 +320,9 @@ function mapOutsideInlineCode(line, fn) {
 			i = j;
 			continue;
 		}
-		let n = 0;
-		while (line[i + n] === "`") n++;
-		let close = -1;
-		let k = i + n;
-		while (k < line.length) {
-			const idx = line.indexOf("`".repeat(n), k);
-			if (idx === -1) break;
-			let m = 0;
-			while (line[idx + m] === "`") m++;
-			if (m === n) {
-				close = idx;
-				break;
-			}
-			k = idx + m;
-		}
-		if (close === -1) {
-			out += line.slice(i, i + n);
-			i += n;
-		} else {
-			out += line.slice(i, close + n);
-			i = close + n;
-		}
+		const span = inlineCodeSpan(line, i);
+		out += line.slice(i, i + span);
+		i += span;
 	}
 	return out;
 }
@@ -377,27 +391,95 @@ export function selfCloseVoidElements(content) {
 	);
 }
 
-// Extract the page title from the first H1 outside code fences, returning the
-// line index of that H1 (so the caller can strip it). Falls back to the
-// manifest title, then a title-cased route segment. `manifestMeta` maps a
-// route to `{ title, description }`.
+// Parse a leading YAML frontmatter block: a `---` line at the very top of the
+// file, its body, and a closing `---`. `make gen` prepends such a block to the
+// API and CLI reference docs, with a `# Code generated ... DO NOT EDIT.` YAML
+// comment and a `title:` (sometimes a `description:`). A body scan that does
+// not skip this block mistakes the comment line for the page's H1 (it matches
+// `# ...`), so the whole REST API and CLI reference would take that comment as
+// their title and leak the original `---` delimiters into the body.
+//
+// Returns `{ title, description, endLine }`: the block's `title`/`description`
+// scalar values (or null), and `endLine`, the line index just past the closing
+// `---` (0 when there is no frontmatter, so callers treat the whole file as
+// body). This is not a general YAML parser: top-level `key: value` scalars are
+// read, while comment (`#`), blank, and indented continuation lines (e.g. a
+// `state:` YAML list on an early-access page) are skipped. A block whose
+// top-level lines are not all `key: value` is treated as ordinary content (a
+// `---` thematic rule), not frontmatter, so real content is never stripped.
+export function parseFrontmatter(content) {
+	const none = { title: null, description: null, endLine: 0 };
+	const lines = content.split("\n");
+	if (!/^---\s*$/.test(lines[0] ?? "")) return none;
+	let end = -1;
+	for (let i = 1; i < lines.length; i++) {
+		if (/^---\s*$/.test(lines[i])) {
+			end = i;
+			break;
+		}
+	}
+	if (end === -1) return none;
+	const data = { title: null, description: null };
+	for (let i = 1; i < end; i++) {
+		const line = lines[i];
+		if (line.trim() === "" || /^\s*#/.test(line)) continue;
+		// An indented line continues a multi-line value (e.g. a `state:` YAML
+		// list), so it is part of the block, not a top-level entry to validate.
+		if (/^\s/.test(line)) continue;
+		const m = /^([A-Za-z][\w-]*)\s*:\s*(.*)$/.exec(line);
+		if (!m) return none;
+		const key = m[1].toLowerCase();
+		if (key !== "title" && key !== "description") continue;
+		let value = m[2].trim();
+		if (
+			value.length >= 2 &&
+			((value[0] === '"' && value[value.length - 1] === '"') ||
+				(value[0] === "'" && value[value.length - 1] === "'"))
+		) {
+			value = value.slice(1, -1);
+		}
+		if (value) data[key] = value;
+	}
+	return { title: data.title, description: data.description, endLine: end + 1 };
+}
+
+// Resolve the page title and locate the lines to strip from the emitted body.
+// Precedence mirrors the renderer this replaces: a frontmatter `title`, then
+// the first body H1 outside code fences, then the manifest title, then a
+// title-cased route segment. Returns `{ title, h1Line, frontmatterEnd,
+// description }`: `frontmatterEnd` is the first body line (frontmatter, if any,
+// spans `[0, frontmatterEnd)`), `h1Line` is the index of the body H1 to strip
+// (or -1), both in the original content's line coordinates, and `description`
+// is the frontmatter description (or null). The body H1 is scanned after the
+// frontmatter with fresh fence state, so a make gen file's frontmatter comment
+// is never taken as the title. `manifestMeta` maps a route to
+// `{ title, description }`.
 export function extractTitle(content, route, manifestMeta = new Map()) {
-	let title = null;
-	let h1Line = -1;
-	mapLines(content, (line, info) => {
-		if (title === null && info.prose) {
+	const fm = parseFrontmatter(content);
+	const body =
+		fm.endLine > 0 ? content.split("\n").slice(fm.endLine).join("\n") : content;
+	let h1Title = null;
+	let h1BodyLine = -1;
+	mapLines(body, (line, info) => {
+		if (h1Title === null && info.prose) {
 			const m = /^#\s+(.+?)\s*#*\s*$/.exec(line);
 			if (m) {
-				title = m[1].replace(/`/g, "").trim();
-				h1Line = info.index;
+				h1Title = m[1].replace(/`/g, "").trim();
+				h1BodyLine = info.index;
 			}
 		}
 		return line;
 	});
-	if (title !== null) return { title, h1Line };
+	const h1Line = h1BodyLine === -1 ? -1 : fm.endLine + h1BodyLine;
 	const meta = manifestMeta.get(route);
-	if (meta?.title) return { title: meta.title, h1Line: -1 };
-	return { title: titleCase(lastSeg(route) || "Docs"), h1Line: -1 };
+	const title =
+		fm.title ?? h1Title ?? meta?.title ?? titleCase(lastSeg(route) || "Docs");
+	return {
+		title,
+		h1Line,
+		frontmatterEnd: fm.endLine,
+		description: fm.description,
+	};
 }
 
 // Rewrite a single link/image target relative to `currentRel` (a path relative
@@ -454,26 +536,31 @@ export function rewriteTarget(target, currentRel, ctx) {
 }
 
 function rewriteLine(line, currentRel, ctx) {
-	line = line.replace(
-		/(\]\()([^)\s]+)(\s+"[^"]*")?(\))/g,
-		(full, open, target, title, close) => {
-			const next = rewriteTarget(target, currentRel, ctx);
-			return next ? `${open}${next}${title || ""}${close}` : full;
-		},
-	);
-	line = line.replace(
-		/\b(src|href)=("|')([^"']+)\2/g,
-		(full, attr, q, target) => {
-			const next = rewriteTarget(target, currentRel, ctx);
-			return next ? `${attr}=${q}${next}${q}` : full;
-		},
-	);
-	return line;
+	// Route both replacers through the shared inline-code scanner so a link or
+	// src/href inside `...` (e.g. a Markdown example) is left verbatim rather
+	// than rewritten to a route (which would also trigger an image copy).
+	return mapOutsideInlineCode(line, (seg) => {
+		seg = seg.replace(
+			/(\]\()([^)\s]+)(\s+"[^"]*")?(\))/g,
+			(full, open, target, title, close) => {
+				const next = rewriteTarget(target, currentRel, ctx);
+				return next ? `${open}${next}${title || ""}${close}` : full;
+			},
+		);
+		seg = seg.replace(
+			/\b(src|href)=("|')([^"']+)\2/g,
+			(full, attr, q, target) => {
+				const next = rewriteTarget(target, currentRel, ctx);
+				return next ? `${attr}=${q}${next}${q}` : full;
+			},
+		);
+		return seg;
+	});
 }
 
 // Rewrite Markdown links and inline HTML src/href attributes in `content`.
-// Fenced code blocks (including blockquoted fences) are skipped so link-like
-// text inside examples is left verbatim.
+// Fenced code blocks (including blockquoted fences) and inline code spans are
+// skipped so link-like text inside examples is left verbatim.
 export function rewriteContent(content, currentRel, ctx) {
 	return mapLines(content, (line, info) =>
 		info.prose ? rewriteLine(line, currentRel, ctx) : line,

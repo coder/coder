@@ -7,6 +7,7 @@ import {
 	buildFileMap,
 	buildManifestModel,
 	buildMeta,
+	findUnbackedManifestRoutes,
 	manifestRoute,
 	mapMdPath,
 } from "./routes.mjs";
@@ -98,6 +99,52 @@ test("buildManifestModel tolerates a duplicate manifest entry", () => {
 	assert.equal(routeOrder.size, 1);
 	assert.equal(routeOrder.get("dup"), 0);
 	assert.equal(manifestMeta.get("dup").title, "First");
+});
+
+test("findUnbackedManifestRoutes flags a manifest route with no backing file", () => {
+	// The manifest lists present.md (a real file) and missing.md (deleted or
+	// renamed without updating the manifest). buildManifestModel records both
+	// routes, but only present.md maps from disk, so the unbacked route must be
+	// returned with the manifest path that named it.
+	const allMd = ["present.md"];
+	const dirRoutes = buildDirRoutes(allMd);
+	const { fileMap } = buildFileMap(allMd, dirRoutes);
+	const manifest = {
+		routes: [
+			{ title: "Present", path: "present.md" },
+			{ title: "Missing", path: "missing.md" },
+		],
+	};
+	const { routeOrder, manifestPathByRoute } = buildManifestModel(
+		manifest,
+		dirRoutes,
+	);
+	const backedRoutes = new Set(allMd.map((rel) => fileMap.get(rel).route));
+	assert.deepEqual(
+		findUnbackedManifestRoutes(routeOrder, manifestPathByRoute, backedRoutes),
+		[{ route: "missing", path: "missing.md" }],
+	);
+});
+
+test("findUnbackedManifestRoutes returns nothing when every route is backed", () => {
+	const allMd = ["a.md", "b.md"];
+	const dirRoutes = buildDirRoutes(allMd);
+	const { fileMap } = buildFileMap(allMd, dirRoutes);
+	const manifest = {
+		routes: [
+			{ title: "A", path: "a.md" },
+			{ title: "B", path: "b.md" },
+		],
+	};
+	const { routeOrder, manifestPathByRoute } = buildManifestModel(
+		manifest,
+		dirRoutes,
+	);
+	const backedRoutes = new Set(allMd.map((rel) => fileMap.get(rel).route));
+	assert.deepEqual(
+		findUnbackedManifestRoutes(routeOrder, manifestPathByRoute, backedRoutes),
+		[],
+	);
 });
 
 test("buildMeta orders children by manifest child order, then by name", () => {

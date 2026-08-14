@@ -16,7 +16,7 @@
 // This plugin runs between `rehype-raw` and the default plugins and rewrites
 // the value back to a number under the dashed key `rehypeToc` reads.
 
-type HastNode = {
+export type HastNode = {
 	type: string;
 	tagName?: string;
 	properties?: Record<string, unknown>;

@@ -86,7 +86,9 @@ function createDocsLink(InternalLink: ElementType) {
 			);
 		}
 		return (
-			<a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+			// Spread caller props first so the safe external-link defaults below
+			// (target/rel) always win over any same-named attribute in props.
+			<a {...props} href={href} target="_blank" rel="noopener noreferrer">
 				{children}
 				<ArrowSquareOut
 					aria-hidden

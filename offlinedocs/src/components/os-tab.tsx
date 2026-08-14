@@ -48,11 +48,20 @@ function escapeValue(value: string): string {
 	return value.toLowerCase().replace(/\s/, "-");
 }
 
-// Best-effort OS detection from the user agent. Returns the matching label from
-// `items` (so a set that omits an OS simply falls through) or undefined.
-function detectOS(items: string[]): string | undefined {
-	if (typeof navigator === "undefined") return undefined;
-	const ua = `${navigator.userAgent} ${navigator.platform ?? ""}`;
+// The current user agent string (userAgent + platform), or "" when there is no
+// navigator (server render). Split out from detectOS so detectOS stays a pure
+// function of its inputs and can be unit-tested against fixed UA strings.
+export function currentUserAgent(): string {
+	if (typeof navigator === "undefined") return "";
+	return `${navigator.userAgent} ${navigator.platform ?? ""}`;
+}
+
+// Best-effort OS detection from a user agent string. Returns the matching label
+// from `items` (so a set that omits an OS simply falls through) or undefined.
+// `ua` is injected (see currentUserAgent) rather than read from `navigator`, so
+// the three UA regexes are testable without a browser.
+export function detectOS(items: string[], ua: string): string | undefined {
+	if (!ua) return undefined;
 	const matches: Record<(typeof OS_ORDER)[number], boolean> = {
 		macOS: /Mac/i.test(ua) && !/(iPhone|iPad|iPod)/i.test(ua),
 		Linux: /(Linux|X11)/i.test(ua) && !/Android/i.test(ua),
@@ -107,7 +116,7 @@ export function OSTab({
 			const stored =
 				sessionStorage.getItem(OS_GROUP) ?? localStorage.getItem(OS_GROUP);
 			if (!stored) {
-				const os = detectOS(items);
+				const os = detectOS(items, currentUserAgent());
 				if (os) sessionStorage.setItem(OS_GROUP, escapeValue(os));
 			}
 		} catch {

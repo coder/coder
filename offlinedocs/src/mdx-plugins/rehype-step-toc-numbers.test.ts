@@ -1,16 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { rehypeStepTocNumbers } from "./rehype-step-toc-numbers";
-
-// The plugin's HastNode type is internal, so mirror the minimal shape here.
-type HastNode = {
-	type: string;
-	tagName?: string;
-	properties?: Record<string, unknown>;
-	children?: HastNode[];
-	[key: string]: unknown;
-};
+import { rehypeStepTocNumbers, type HastNode } from "./rehype-step-toc-numbers";
 
 const element = (
 	tagName: string,

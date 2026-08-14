@@ -33,6 +33,7 @@ import {
 	buildFileMap,
 	buildManifestModel,
 	buildMeta,
+	findUnbackedManifestRoutes,
 } from "./lib/routes.mjs";
 import {
 	escapeCurlyBraces,
@@ -103,10 +104,8 @@ const { fileMap, collisions } = buildFileMap(allMd, dirRoutes);
 
 // pass 2: manifest (titles, descriptions, ordering)
 const manifest = JSON.parse(readFileSync(join(DOCS, "manifest.json"), "utf8"));
-const { manifestMeta, routeOrder, childOrderByDir } = buildManifestModel(
-	manifest,
-	dirRoutes,
-);
+const { manifestMeta, manifestPathByRoute, routeOrder, childOrderByDir } =
+	buildManifestModel(manifest, dirRoutes);
 
 // Restrict output to pages referenced by the manifest so the generated sidebar
 // matches docs/manifest.json exactly. Files that exist under docs/ but are not
@@ -128,6 +127,18 @@ const outputCollisions = collisions
 	}))
 	.filter(({ sources }) => sources.length > 1);
 
+// A manifest route that no source file backs (a doc deleted or renamed without
+// updating docs/manifest.json) is silently dropped from the generated sidebar.
+// Unlike the other defect classes below, nothing writes or counts it, so collect
+// each such route with the manifest path that names it and fail the sync the
+// same way. `backedRoutes` is every route a docs file actually maps to.
+const backedRoutes = new Set(allMd.map((rel) => fileMap.get(rel).route));
+const missingManifestRoutes = findUnbackedManifestRoutes(
+	routeOrder,
+	manifestPathByRoute,
+	backedRoutes,
+);
+
 // pass 3: rewrite + write content
 const copiedAssets = new Set();
 // Inter-doc links whose target could not be mapped to a synced page, collected
@@ -142,9 +153,6 @@ const unresolvedImages = [];
 // and the 1-based line where they began. An unterminated comment would otherwise
 // silently swallow the rest of the page, so it fails the sync the same way.
 const unclosedComments = [];
-// Source file currently being rewritten, so resolveMd/copyImage can attribute an
-// unmapped link or image to the doc it appears in.
-let currentSourceRel = "";
 
 function copyAsset(resolvedRel) {
 	if (copiedAssets.has(resolvedRel)) return true;
@@ -157,33 +165,40 @@ function copyAsset(resolvedRel) {
 	return true;
 }
 
-// Environment the pure rewrite transform needs. `imageRemote` is empty so
-// images are copied locally (offline bundle) rather than pointed at a remote URL.
-const rewriteCtx = {
-	imageRemote: "",
-	resolveMd(resolvedRel) {
-		const mapped = fileMap.get(resolvedRel);
-		if (mapped) return routeHref(mapped.route);
-		unmappedLinks.push({ source: currentSourceRel, target: resolvedRel });
-		return null;
-	},
-	copyImage(resolvedRel) {
-		if (copyAsset(resolvedRel)) return `/${resolvedRel}`;
-		unresolvedImages.push({ source: currentSourceRel, target: resolvedRel });
-		return null;
-	},
-	// A repo path outside the docs/ corpus (e.g. a `../../coderd` source-tree
-	// link). It can never resolve to a synced page or a bundled asset, so point
-	// it at the file or directory on GitHub rather than leave a relative path
-	// that 404s in the offline bundle. Use `/blob/` for a path whose last segment
-	// looks like a file (has a dot) and `/tree/` for a directory; GitHub
-	// redirects between the two, so this only avoids a needless redirect.
-	sourceLink(repoRel) {
-		const base = repoRel.slice(repoRel.lastIndexOf("/") + 1);
-		const kind = base.includes(".") ? "blob" : "tree";
-		return `https://github.com/${SOURCE_REPO}/${kind}/${SOURCE_REF}/${repoRel}`;
-	},
-};
+// Build the environment the pure rewrite transform needs for one source file.
+// A fresh ctx per file closes over `sourceRel`, so resolveMd/copyImage attribute
+// an unmapped link or missing image to the doc it appears in without a
+// module-scoped "current file" that every caller has to remember to set.
+// `imageRemote` is empty so images are copied locally (offline bundle) rather
+// than pointed at a remote URL.
+function createRewriteCtx(sourceRel) {
+	return {
+		imageRemote: "",
+		resolveMd(resolvedRel) {
+			const mapped = fileMap.get(resolvedRel);
+			if (mapped) return routeHref(mapped.route);
+			unmappedLinks.push({ source: sourceRel, target: resolvedRel });
+			return null;
+		},
+		copyImage(resolvedRel) {
+			if (copyAsset(resolvedRel)) return `/${resolvedRel}`;
+			unresolvedImages.push({ source: sourceRel, target: resolvedRel });
+			return null;
+		},
+		// A repo path outside the docs/ corpus (e.g. a `../../coderd` source-tree
+		// link). It can never resolve to a synced page or a bundled asset, so
+		// point it at the file or directory on GitHub rather than leave a relative
+		// path that 404s in the offline bundle. Use `/blob/` for a path whose last
+		// segment looks like a file (has a dot) and `/tree/` for a directory;
+		// GitHub redirects between the two, so this only avoids a needless
+		// redirect.
+		sourceLink(repoRel) {
+			const base = repoRel.slice(repoRel.lastIndexOf("/") + 1);
+			const kind = base.includes(".") ? "blob" : "tree";
+			return `https://github.com/${SOURCE_REPO}/${kind}/${SOURCE_REF}/${repoRel}`;
+		},
+	};
+}
 
 rmSync(OUT_CONTENT, { recursive: true, force: true });
 mkdirSync(OUT_CONTENT, { recursive: true });
@@ -201,41 +216,50 @@ for (const rel of manifestMd) {
 	const raw = readFileSync(join(DOCS, rel), "utf8");
 
 	const meta = manifestMeta.get(route);
-	const { title: manifestTitle, h1Line } = extractTitle(
-		raw,
-		route,
-		manifestMeta,
-	);
+	const {
+		title: extractedTitle,
+		h1Line,
+		frontmatterEnd,
+		description: frontmatterDescription,
+	} = extractTitle(raw, route, manifestMeta);
 	// The manifest's first route (the README homepage, route "") is titled
 	// "About" so coder.com's static landing page keeps working, but coder.com
 	// itself renders that root entry as "Home" in the sidebar and derives a
 	// separate "About" section from its children. Mirror that here so the offline
 	// sidebar shows a single "Home" landing instead of a second "About" entry that
 	// collides with the About folder (screenshots, support, contributing).
-	const title = route === "" ? "Home" : manifestTitle;
+	const title = route === "" ? "Home" : extractedTitle;
+	// Strip the leading frontmatter block (if any) and the body H1 in one pass,
+	// so a make gen file's `---`/`title:`/`---` header never survives into the
+	// emitted body and the H1 is not duplicated below the injected frontmatter.
 	let body = raw;
-	if (h1Line >= 0) {
+	if (frontmatterEnd > 0 || h1Line >= 0) {
 		const lines = raw.split("\n");
-		lines.splice(h1Line, 1);
-		if (lines[h1Line] === "") lines.splice(h1Line, 1);
-		body = lines.join("\n");
+		const drop = new Set();
+		for (let i = 0; i < frontmatterEnd; i++) drop.add(i);
+		if (h1Line >= 0) {
+			drop.add(h1Line);
+			if (lines[h1Line + 1] === "") drop.add(h1Line + 1);
+		}
+		body = lines.filter((_, i) => !drop.has(i)).join("\n");
 	}
 	const stripped = stripHtmlComments(body);
 	body = stripped.content;
 	if (stripped.unclosedCommentLine !== null) {
 		unclosedComments.push({ source: rel, line: stripped.unclosedCommentLine });
 	}
-	currentSourceRel = rel;
-	body = rewriteContent(body, rel, rewriteCtx);
+	body = rewriteContent(body, rel, createRewriteCtx(rel));
 	body = normalizeFences(body);
 	body = normalizeStepHeadings(body);
 	body = normalizeAngleBrackets(body);
 	body = escapeCurlyBraces(body);
 	body = selfCloseVoidElements(body);
 
+	// Prefer a description from the source's own frontmatter (make gen CLI pages
+	// carry one), then the manifest's.
+	const description = frontmatterDescription || meta?.description;
 	const fm = [`title: ${yamlString(title)}`];
-	if (meta?.description)
-		fm.push(`description: ${yamlString(meta.description)}`);
+	if (description) fm.push(`description: ${yamlString(description)}`);
 	const out = `---\n${fm.join("\n")}\n---\n\n${body.replace(/^\n+/, "")}`;
 
 	const dest = join(OUT_CONTENT, outRel);
@@ -283,15 +307,16 @@ console.log(
 
 // Fail the sync (and therefore the offlinedocs build and the release target) on
 // any defect that would otherwise ship silently: a dead inter-doc link, a broken
-// image reference, an unterminated HTML comment that blanks a page, or two
-// source files whose routes collide and overwrite one another. Each is named
-// with its source so a docs change that introduces one is actionable in CI
-// instead of shipping.
+// image reference, an unterminated HTML comment that blanks a page, two source
+// files whose routes collide and overwrite one another, or a manifest route with
+// no backing file. Each is named with its source so a docs change that
+// introduces one is actionable in CI instead of shipping.
 if (
 	unmappedLinks.length > 0 ||
 	unresolvedImages.length > 0 ||
 	unclosedComments.length > 0 ||
-	outputCollisions.length > 0
+	outputCollisions.length > 0 ||
+	missingManifestRoutes.length > 0
 ) {
 	if (unmappedLinks.length > 0) {
 		console.error(
@@ -344,6 +369,19 @@ if (
 		console.error(
 			"\nRename one of the colliding files so their routes differ (slugs are " +
 				"case- and separator-insensitive).",
+		);
+	}
+	if (missingManifestRoutes.length > 0) {
+		console.error(
+			`\n[sync-docs] ERROR: ${missingManifestRoutes.length} manifest ` +
+				"route(s) name a doc with no backing file, so they would be dropped " +
+				"from the sidebar with no page:",
+		);
+		for (const { route, path } of missingManifestRoutes) {
+			console.error(`  ${route || "(root)"} <- ${path ?? "(no path)"}`);
+		}
+		console.error(
+			"\nRestore the missing file, or remove the entry from docs/manifest.json.",
 		);
 	}
 	process.exit(1);

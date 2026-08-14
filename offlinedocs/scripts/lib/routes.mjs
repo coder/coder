@@ -84,16 +84,18 @@ export function manifestRoute(node, dirRoutes) {
 		: null;
 }
 
-// Walk the manifest tree once, deriving three views used downstream:
-//   manifestMeta     route -> { title, description }
-//   routeOrder       route -> first-seen index (the manifest's document order)
-//   childOrderByDir  directory route -> its child routes, in manifest order
+// Walk the manifest tree once, deriving the views used downstream:
+//   manifestMeta        route -> { title, description }
+//   manifestPathByRoute route -> the manifest path that first named it
+//   routeOrder          route -> first-seen index (the manifest's document order)
+//   childOrderByDir     directory route -> its child routes, in manifest order
 // A route that appears more than once (the manifest lists a page twice) keeps
 // its first metadata and order; later occurrences are ignored. This mirrors the
 // sync's historical tolerance of duplicate manifest entries rather than failing
 // on them.
 export function buildManifestModel(manifest, dirRoutes) {
 	const manifestMeta = new Map();
+	const manifestPathByRoute = new Map();
 	const routeOrder = new Map();
 	const childOrderByDir = new Map();
 	let order = 0;
@@ -107,6 +109,7 @@ export function buildManifestModel(manifest, dirRoutes) {
 						title: node.title,
 						description: node.description,
 					});
+					manifestPathByRoute.set(r, node.path);
 				}
 				if (!routeOrder.has(r)) routeOrder.set(r, order++);
 			}
@@ -126,7 +129,28 @@ export function buildManifestModel(manifest, dirRoutes) {
 		.filter((x) => x !== null);
 	childOrderByDir.set("", rootOrder);
 
-	return { manifestMeta, routeOrder, childOrderByDir };
+	return { manifestMeta, manifestPathByRoute, routeOrder, childOrderByDir };
+}
+
+// Manifest routes that no source file backs. buildManifestModel records every
+// route the manifest names; if the manifest lists a path whose file was deleted
+// or renamed without updating the manifest, that route has no file to emit and
+// is dropped from the generated sidebar with no error (unlike the sync's other
+// defect classes, which count or write something). Return each as
+// `{ route, path }` for the caller to fail on. `backedRoutes` is the set of
+// routes that a docs file actually maps to.
+export function findUnbackedManifestRoutes(
+	routeOrder,
+	manifestPathByRoute,
+	backedRoutes,
+) {
+	const missing = [];
+	for (const route of routeOrder.keys()) {
+		if (!backedRoutes.has(route)) {
+			missing.push({ route, path: manifestPathByRoute.get(route) ?? null });
+		}
+	}
+	return missing;
 }
 
 // Build the directory model (the files and subdirectories under each directory
