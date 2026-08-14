@@ -37,7 +37,10 @@ import {
 	useChatSelector,
 	type useChatStore,
 } from "./ChatConversation/chatStore";
-import { LiveStreamTailContent } from "./ChatConversation/LiveStreamTail";
+import {
+	LiveStreamTailContent,
+	TerminalStatusRow,
+} from "./ChatConversation/LiveStreamTail";
 import { deriveLiveStatus } from "./ChatConversation/liveStatusModel";
 import {
 	buildSubagentMaps,
@@ -48,6 +51,7 @@ import { buildStreamTools } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import { ChatMessageScroller } from "./ChatMessageScroller";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -85,6 +89,12 @@ export const workspaceSkillsFromChat = (
 interface ChatPageTimelineProps {
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
+	initialActiveTurnMaxMessageId?: number;
+	hasMoreMessages: boolean;
+	isFetchingMoreMessages: boolean;
+	isHydratingMessages: boolean;
+	hasFetchMoreError: boolean;
+	onFetchMoreMessages: () => Promise<unknown>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -100,6 +110,12 @@ interface ChatPageTimelineProps {
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	store,
 	persistedError,
+	initialActiveTurnMaxMessageId,
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	isHydratingMessages,
+	hasFetchMoreError,
+	onFetchMoreMessages,
 	onEditUserMessage,
 	editingMessageId,
 	onImplementPlan,
@@ -162,12 +178,13 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 
 	return (
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<div
-				data-testid="chat-timeline-wrapper"
-				className={cn(
-					"mx-auto flex w-full flex-col py-6",
-					chatWidthClass(chatFullWidth),
-				)}
+			<ChatMessageScroller
+				hasMoreMessages={hasMoreMessages}
+				isFetchingMoreMessages={isFetchingMoreMessages}
+				isHydratingMessages={isHydratingMessages}
+				hasFetchMoreError={hasFetchMoreError}
+				hasTranscriptRows={parsedMessages.length > 0}
+				onFetchMoreMessages={onFetchMoreMessages}
 			>
 				{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
@@ -176,6 +193,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					   renders correctly. */}
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
+					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 					streamState={streamState}
 					streamTools={streamTools}
 					liveStatus={liveStatus}
@@ -193,6 +211,11 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
 				/>
+				<TerminalStatusRow liveStatus={liveStatus} />
+			</ChatMessageScroller>
+			{/* The empty state sits outside the scroller content, which holds
+			    transcript rows only. */}
+			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
 				<LiveStreamTailContent
 					isTranscriptEmpty={parsedMessages.length === 0}
 					liveStatus={liveStatus}

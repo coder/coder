@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { useRef } from "react";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -50,7 +49,6 @@ import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 // Layout wrapper: provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentChatPageLayout: FC = () => {
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	return (
 		<div className="flex h-full">
 			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -74,7 +72,6 @@ const AgentChatPageLayout: FC = () => {
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
 							onChatReady: () => {},
-							scrollContainerRef,
 						} satisfies AgentsPageOutletContext
 					}
 				/>
@@ -3146,6 +3143,72 @@ export const SendResponseAfterChatSwitch: Story = {
 				canvas.queryByTestId("live-activity-slot"),
 			).not.toBeInTheDocument();
 		});
+	},
+};
+
+/**
+ * The send flow renders the durable user row once the server accepts the
+ * prompt, before the assistant turn produces any output.
+ */
+export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Durable send",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		let releaseSend: (() => void) | undefined;
+		const sendGate = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockImplementation(async () => {
+			await sendGate;
+			return {
+				queued: false,
+				message: {
+					...MockChatMessage,
+					id: 60,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [{ type: "text", text: "Durable prompt" }],
+				},
+			};
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Durable prompt");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
+		expect(
+			timeline.queryByTestId("chat-message-message:60"),
+		).not.toBeInTheDocument();
+
+		releaseSend?.();
+		expect(
+			await timeline.findByTestId("chat-message-message:60"),
+		).toHaveTextContent("Durable prompt");
+		// The turn is still waiting on its first chunk, so the durable row is in
+		// place before any assistant output exists.
+		expect(canvas.getByTestId("live-activity-slot")).toBeVisible();
 	},
 };
 

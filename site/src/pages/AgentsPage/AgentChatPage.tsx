@@ -1,4 +1,8 @@
 import {
+	MessageScroller,
+	useMessageScroller,
+} from "@shadcn/react/message-scroller";
+import {
 	type FC,
 	useEffect,
 	useEffectEvent,
@@ -338,10 +342,9 @@ export const settlePromotedQueueHead = async (
 	);
 };
 
-export async function submitEditAndScroll({
+export async function submitEdit({
 	editMessage,
 	editArgs,
-	scrollToBottom,
 	onError,
 }: {
 	editMessage: (args: {
@@ -354,7 +357,6 @@ export async function submitEditAndScroll({
 		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
 	};
-	scrollToBottom: (() => void) | null | undefined;
 	onError: (error: unknown) => void;
 }): Promise<void> {
 	try {
@@ -363,13 +365,6 @@ export async function submitEditAndScroll({
 		onError(error);
 		throw error;
 	}
-	// Scroll after the mutation resolves so the optimistic
-	// truncation and server reconciliation have already been
-	// applied to the DOM. Scrolling before this point causes
-	// the sticky user message to cycle through prior messages
-	// as the IntersectionObserver reacts to rapid layout
-	// shifts between the old and truncated content.
-	scrollToBottom?.();
 }
 
 /** @internal Exported for testing. */
@@ -882,7 +877,6 @@ const AgentChatPage: FC = () => {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
-		scrollContainerRef,
 	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
@@ -891,7 +885,6 @@ const AgentChatPage: FC = () => {
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
 	const isEditReasoningEffortDirtyRef = useRef(false);
-	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -1240,8 +1233,10 @@ const AgentChatPage: FC = () => {
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
+	const { scrollToEnd } = useMessageScroller();
 	const {
 		store,
+		isHydratingMessages,
 		acceptServerChatStatus,
 		clearStreamError,
 		setCacheQueuedMessages,
@@ -1652,6 +1647,15 @@ const AgentChatPage: FC = () => {
 			);
 			throw new CompactCommandPendingError();
 		}
+
+		// Sends and /compact are an explicit ask to be at the live edge,
+		// even one that appends no visible prompt. History edits scroll
+		// only after the mutation succeeds, so a rejected edit cannot
+		// pull a reader of older history to the live edge.
+		if (editedMessageID === undefined) {
+			scrollToEnd({ behavior: "smooth" });
+		}
+
 		if (isExactCompactSubmission && compactCommandResolution === "available") {
 			// Optimistically show the running state before awaiting so
 			// a fast compaction cannot race this write: the worker's
@@ -1662,7 +1666,6 @@ const AgentChatPage: FC = () => {
 			clearStreamError();
 			store.clearStreamState();
 			store.setChatStatus("running");
-			scrollToBottomRef.current?.();
 			try {
 				await compact();
 			} catch (error) {
@@ -1715,14 +1718,13 @@ const AgentChatPage: FC = () => {
 				store.setChatStatus("running");
 				store.clearStreamState();
 			});
-			await submitEditAndScroll({
+			await submitEdit({
 				editMessage,
 				editArgs: {
 					messageId: editedMessageID,
 					optimisticMessage,
 					req: request,
 				},
-				scrollToBottom: scrollToBottomRef.current,
 				onError: (error) => {
 					restoreOptimisticRequestSnapshot(store, previousSnapshot);
 					handleRequestError(error);
@@ -1731,6 +1733,7 @@ const AgentChatPage: FC = () => {
 					void invalidateChatEntity(queryClient, agentId);
 				},
 			});
+			scrollToEnd({ behavior: "smooth" });
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,
@@ -1758,7 +1761,6 @@ const AgentChatPage: FC = () => {
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
-		scrollToBottomRef.current?.();
 
 		// An errored-chat send may promote the queue head that existed when the request began.
 		const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
@@ -1973,6 +1975,8 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
 			store={store}
+			initialChatStatus={chatQuery.data.status}
+			initialMessages={chatMessagesList ?? []}
 			editing={{ ...editing, handleEditUserMessage }}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
@@ -2035,12 +2039,11 @@ const AgentChatPage: FC = () => {
 			isPinned={(chatRecord?.pin_order ?? 0) > 0}
 			isChildChat={parentChatID !== undefined}
 			urlTransform={urlTransform}
-			scrollContainerRef={scrollContainerRef}
-			scrollToBottomRef={scrollToBottomRef}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+			isHydratingMessages={isHydratingMessages}
+			hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			messageCount={storeMessageCount}
 			desktopChatId={desktopEnabled ? agentId : undefined}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}
@@ -2052,12 +2055,20 @@ const AgentChatPage: FC = () => {
 	);
 };
 
-// Keyed wrapper so that navigating between agents (changing the
-// :agentId param) fully remounts the component, resetting all
-// internal state (drafts, editing, queries) cleanly.
+// Keyed so that navigating between agents (changing the :agentId param)
+// fully remounts the component, resetting all internal state (drafts,
+// editing, queries, scroller) cleanly.
 const KeyedAgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
-	return <AgentChatPage key={agentId} />;
+	return (
+		<MessageScroller.Provider
+			key={agentId}
+			autoScroll
+			defaultScrollPosition="end"
+		>
+			<AgentChatPage />
+		</MessageScroller.Provider>
+	);
 };
 
 export default KeyedAgentChatPage;

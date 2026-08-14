@@ -1,3 +1,4 @@
+import { getDisplayMessageKey } from "./messageHelpers";
 import type { ParsedMessageEntry } from "./types";
 
 type TimelineMessageRow = {
@@ -10,6 +11,12 @@ type TimelineMessageRow = {
 
 type TimelineRow = TimelineMessageRow | { type: "live"; key: string };
 
+/**
+ * Durable rows keep their server IDs so prepending history never changes an
+ * existing Item's identity. Merged read_file groups key off their newest
+ * member, which pagination never changes. The live row is keyed independently
+ * of which history pages are loaded.
+ */
 export const assignTimelineRows = (
 	displayMessages: readonly ParsedMessageEntry[],
 	hasLiveAssistant: boolean,
@@ -20,7 +27,7 @@ export const assignTimelineRows = (
 		rows.push({
 			type: "message",
 			entry,
-			key: `message:${entry.message.id}`,
+			key: getDisplayMessageKey(entry),
 			isLastInAssistantChain: false,
 			isLastMessage: index === displayMessages.length - 1,
 		});
