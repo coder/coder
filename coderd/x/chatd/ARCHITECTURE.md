@@ -854,14 +854,6 @@ The generation goroutine supports:
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
 
-##### Model call resolution
-
-TODO(PR author): Document the model-call resolver introduced in `modelcall.go`:
-
-- `Server.resolveModelCall` is the single pipeline from a `modelCallSpec` to a ready client plus call metadata (`resolvedModelCall`). It owns config selection, `chat_model_configs.options` parsing, route resolution, client construction, the debug-recording wrap, and provider-option derivation.
-- Every call behaves the same: provider options are always derived, `MaxOutputTokens` always defaults, and debug recording is always on when chat debug is enabled. The spec carries only flow-specific inputs: the model source (chat config, explicit config row, or fixed provider/model pair for computer use), the requested reasoning effort, chatd-scoped route resolution for deployment-selected override models, and the active API key for AI Gateway transport.
-- `resolvedModelCall.newCall` and `newObjectCall` are the only production constructors of `fantasy.Call` and `fantasy.ObjectCall`; flows pass prebuilt templates through options (`chatloop.GenerateAssistantOptions.CallTemplate`, the compaction `SummaryCall`, `chatadvisor.RuntimeConfig.CallTemplate`) and downstream packages copy the template and attach the prompt and tools they own.
-
 ##### Reasoning effort
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.
@@ -884,9 +876,7 @@ Request preparation reads the transport from the model instead of recomputing it
 
 The first two happen together in `chatprovider.ProviderOptionsForCall`, the only entry point in `chatprovider` that builds provider options for a call; it delegates transport-aware OpenAI conversion to `chatopenai.ProviderOptionsFromChatConfig`. Config conversion and effort injection cannot pick different option types because one function owns both.
 
-TODO(PR author): Update this paragraph for the model-call resolver. All client-building paths (compaction override, quick generation, advisor runtime) now go through `resolveModelCall`, and every path derives provider options through `ProviderOptionsForCall`; the previous exceptions for turn status labels and chat summaries are gone. Computer-use turns still substitute a hardcoded default model that has no config of its own; it carries its own transport, so the chat model's `openai_config` does not follow it.
-
-Paths that build their own clients get a `Model` from the same constructor, including the compaction override, quick generation (used by turn status labels and debug models), and the advisor runtime. Within quick generation, only title generation converts the model config through `ProviderOptionsForCall`; the turn status label and chat summary paths deliberately send no provider options, because they are short structured calls that set their own output bounds. Debug recording replaces the wrapped client and preserves the resolved transport. Computer-use turns substitute a hardcoded default model that has no config of its own; it carries its own transport, so the chat model's `openai_config` does not follow it.
+Debug recording replaces the wrapped client and preserves the resolved transport. Computer-use turns substitute a hardcoded default model that has no config of its own; it carries its own transport, so the chat model's `openai_config` does not follow it.
 
 Azure is deliberately exempt: its provider always enables the Responses API for known models and exposes no equivalent per-model hook, so the transport keeps following the known-model list for Azure. Ignoring the override there is what keeps the decisions above in agreement with the Azure client. The exemption is narrower than it appears, because chatd never builds an azure-typed provider as a fantasy azure client: `fantasyConfigForAIBridge` folds every provider type other than anthropic, bedrock, and openai into openai-compat, which always speaks Chat Completions.
 
