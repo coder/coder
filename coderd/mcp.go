@@ -989,6 +989,10 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 // @Tags MCP
 // @Produce html
 // @Param mcpServer path string true "MCP server config ID" format(uuid)
+// @Param code query string false "Authorization code issued by the provider. Required together with state on success."
+// @Param state query string false "Opaque state issued by the connect endpoint. Required together with code on success."
+// @Param error query string false "Provider error code. Present instead of code when authorization fails."
+// @Param error_description query string false "Provider error description accompanying error."
 // @Success 200
 // @Router /api/experimental/mcp/servers/{mcpServer}/oauth2/callback [get]
 // @x-apidocgen {"skip": true}
