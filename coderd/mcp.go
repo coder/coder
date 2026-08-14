@@ -657,9 +657,10 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
-		// Re-fetch on the transaction handle so omitted fields come from the latest
-		// row visible to this transaction, not the middleware snapshot.
-		current, err := tx.GetMCPServerConfigByID(ctx, existing.ID)
+		// Lock and re-fetch the row so omitted fields come from the latest
+		// version and grant invalidation serializes with in-flight OAuth
+		// callbacks verifying the same config.
+		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, existing.ID)
 		if err != nil {
 			return err
 		}
