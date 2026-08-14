@@ -887,8 +887,8 @@ export const ForbiddenErrorWithRole: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The friendly "role required" alert must NOT appear because the
-		// user has the agents-access role.
+		// The friendly "permission required" alert must NOT appear because
+		// the user has chat permission.
 		await expect(
 			canvas.queryByText("Permission required"),
 		).not.toBeInTheDocument();
@@ -939,7 +939,7 @@ export const RestrictedMultiOrganizationUser: Story = {
 			MockDefaultOrganization,
 			MockOrganization2,
 		]);
-		// Model agents-access: "me" supplies the owner for member-scoped chat:create.
+		// Model member-scoped chat:create: "me" supplies the owner.
 		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
 			Object.fromEntries(
 				Object.entries(checks).map(([id, check]) => [
@@ -1583,9 +1583,9 @@ export const PermittedOrgsResolvesToSubset: Story = {
 };
 
 /**
- * Member-scoped roles like agents-access grant chat:create only on
- * chats the user owns, so the per-org check must carry owner context
- * for the picker to render.
+ * The organization-member floor grants chat:create only on chats the
+ * user owns, so the per-org check must carry owner context for the
+ * picker to render.
  */
 export const MemberScopedPermissionsShowOrgPicker: Story = {
 	parameters: {

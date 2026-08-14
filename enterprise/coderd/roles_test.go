@@ -506,7 +506,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            false,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: false,
 				{Name: codersdk.RoleOrganizationWorkspaceAccess, OrganizationID: owner.OrganizationID}:      false,
-				{Name: codersdk.RoleAgentsAccess, OrganizationID: owner.OrganizationID}:                     false,
 			}),
 		},
 		{
@@ -541,7 +540,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
 				{Name: codersdk.RoleOrganizationWorkspaceAccess, OrganizationID: owner.OrganizationID}:      true,
-				{Name: codersdk.RoleAgentsAccess, OrganizationID: owner.OrganizationID}:                     true,
 			}),
 		},
 		{
@@ -576,7 +574,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
 				{Name: codersdk.RoleOrganizationWorkspaceAccess, OrganizationID: owner.OrganizationID}:      true,
-				{Name: codersdk.RoleAgentsAccess, OrganizationID: owner.OrganizationID}:                     true,
 			}),
 		},
 	}

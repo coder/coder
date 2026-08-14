@@ -248,13 +248,12 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// GIVEN: a user with the agents-access role at the org level.
+	// GIVEN: a plain organization member.
 	org := dbgen.Organization(t, db, database.Organization{})
 	userWithRole := dbgen.User(t, db, database.User{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		OrganizationID: org.ID,
 		UserID:         userWithRole.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	_, tokenWithRole := dbgen.APIKey(t, db, database.APIKey{
 		UserID:    userWithRole.ID,
@@ -269,18 +268,18 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	require.Equal(t, http.StatusOK, rw.Code)
 
 	// THEN: the SSR-rendered permissions include createChat = true
-	// because the agents-access role grants org-scoped chat create
-	// permission, and the any_org check picks it up.
+	// because the organization-member floor grants org-scoped chat
+	// create permission, and the any_org check picks it up.
 	var permsWithRole codersdk.AuthorizationResponse
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithRole)
 	require.NoError(t, err)
-	assert.True(t, permsWithRole["createChat"], "user with agents-access role should have createChat = true")
+	assert.True(t, permsWithRole["createChat"], "org member should have createChat = true")
 	// THEN: createWorkspace = true because the organization-member role
 	// grants creating a workspace owned by the member, and owner_id "me"
 	// resolves to the requesting user.
 	assert.True(t, permsWithRole["createWorkspace"], "org member should have createWorkspace = true")
 
-	// GIVEN: a user without the agents-access role.
+	// GIVEN: a user with no organization membership.
 	userWithoutRole := dbgen.User(t, db, database.User{})
 	_, tokenWithoutRole := dbgen.APIKey(t, db, database.APIKey{
 		UserID:    userWithoutRole.ID,
@@ -294,12 +293,13 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	handler.ServeHTTP(rw, r)
 	require.Equal(t, http.StatusOK, rw.Code)
 
-	// THEN: createChat = false because the member role does not
-	// grant chat permissions.
+	// THEN: createChat = false because chat permissions come from
+	// the organization-member floor and the user belongs to no
+	// organization.
 	var permsWithoutRole codersdk.AuthorizationResponse
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithoutRole)
 	require.NoError(t, err)
-	assert.False(t, permsWithoutRole["createChat"], "user without agents-access role should have createChat = false")
+	assert.False(t, permsWithoutRole["createChat"], "user without an org membership should have createChat = false")
 	// THEN: createWorkspace = false because the user belongs to no
 	// organization, so the any_org check has no memberships to satisfy it.
 	assert.False(t, permsWithoutRole["createWorkspace"], "user without an org membership should have createWorkspace = false")

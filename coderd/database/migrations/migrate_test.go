@@ -1190,6 +1190,139 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
+func TestMigration000570RemoveAgentsAccessRole(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 570
+
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before 000570.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Seed: a user carrying agents-access at both the site level and
+	// in an org membership alongside other roles, a user without the
+	// role, an org that grants agents-access by default, and an org
+	// that does not.
+	userWithRole := uuid.New()
+	userWithoutRole := uuid.New()
+	orgWithDefault := uuid.New()
+	orgWithoutDefault := uuid.New()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userWithRole, "user-with-role", "withrole@test.com", []byte{}, now, now, "active", pq.StringArray{"auditor", "agents-access"}, "password"},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userWithoutRole, "user-without-role", "withoutrole@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password"},
+		},
+		{
+			`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default, default_org_member_roles)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{orgWithDefault, "org-with-default", "Org With Default", "", "", now, now, false, pq.StringArray{"organization-workspace-access", "agents-access"}},
+		},
+		{
+			`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default, default_org_member_roles)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{orgWithoutDefault, "org-without-default", "Org Without Default", "", "", now, now, false, pq.StringArray{"organization-workspace-access"}},
+		},
+		{
+			`INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles)
+			VALUES ($1, $2, $3, $4, $5)`,
+			[]any{orgWithDefault, userWithRole, now, now, pq.StringArray{"agents-access", "organization-auditor"}},
+		},
+		{
+			`INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles)
+			VALUES ($1, $2, $3, $4, $5)`,
+			[]any{orgWithDefault, userWithoutRole, now, now, pq.StringArray{}},
+		},
+	}
+
+	for i, f := range fixtures {
+		_, err := tx.ExecContext(ctx, f.query, f.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+	require.NoError(t, tx.Commit())
+
+	// Run migration 000570.
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Verify: agents-access is removed from users.rbac_roles while
+	// other site roles survive.
+	var siteRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT rbac_roles FROM users WHERE id = $1", userWithRole,
+	).Scan(&siteRoles)
+	require.NoError(t, err)
+	require.Equal(t, pq.StringArray{"auditor"}, siteRoles,
+		"agents-access should be removed from users.rbac_roles, other roles preserved")
+
+	// Verify: agents-access is removed from the org membership while
+	// other org roles survive.
+	var orgRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT roles FROM organization_members WHERE user_id = $1 AND organization_id = $2",
+		userWithRole, orgWithDefault,
+	).Scan(&orgRoles)
+	require.NoError(t, err)
+	require.Equal(t, pq.StringArray{"organization-auditor"}, orgRoles,
+		"agents-access should be removed from organization_members.roles, other roles preserved")
+
+	// Verify: the membership without the role is untouched.
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT roles FROM organization_members WHERE user_id = $1 AND organization_id = $2",
+		userWithoutRole, orgWithDefault,
+	).Scan(&orgRoles)
+	require.NoError(t, err)
+	require.Empty(t, orgRoles, "membership without the role should be unchanged")
+
+	// Verify: agents-access is removed from
+	// organizations.default_org_member_roles while other defaults
+	// survive, and the org without it is untouched.
+	var defaultRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT default_org_member_roles FROM organizations WHERE id = $1", orgWithDefault,
+	).Scan(&defaultRoles)
+	require.NoError(t, err)
+	require.Equal(t, pq.StringArray{"organization-workspace-access"}, defaultRoles,
+		"agents-access should be removed from default_org_member_roles, other defaults preserved")
+
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT default_org_member_roles FROM organizations WHERE id = $1", orgWithoutDefault,
+	).Scan(&defaultRoles)
+	require.NoError(t, err)
+	require.Equal(t, pq.StringArray{"organization-workspace-access"}, defaultRoles,
+		"org without the default should be unchanged")
+}
+
 func TestMigration000504AIProvidersBackfill(t *testing.T) {
 	t.Parallel()
 

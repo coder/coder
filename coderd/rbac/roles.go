@@ -22,7 +22,6 @@ const (
 	templateAdmin string = "template-admin"
 	userAdmin     string = "user-admin"
 	auditor       string = "auditor"
-	agentsAccess  string = "agents-access"
 	// customSiteRole is a placeholder for all custom site roles.
 	// This is used for what roles can assign other roles.
 	// TODO: Make this more dynamic to allow other roles to grant.
@@ -143,7 +142,6 @@ func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAd
 func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
 func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
 func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
-func RoleAgentsAccess() string          { return agentsAccess }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -201,10 +199,6 @@ func ScopedRoleOrgTemplateAdmin(organizationID uuid.UUID) RoleIdentifier {
 
 func ScopedRoleOrgWorkspaceCreationBan(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgWorkspaceCreationBan(), OrganizationID: organizationID}
-}
-
-func ScopedRoleAgentsAccess(organizationID uuid.UUID) RoleIdentifier {
-	return RoleIdentifier{Name: RoleAgentsAccess(), OrganizationID: organizationID}
 }
 
 func ScopedRoleOrgWorkspaceAccess(organizationID uuid.UUID) RoleIdentifier {
@@ -727,29 +721,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-		// ActionDelete is intentionally excluded because hard-deletion goes through
-		// ResourceSystem in dbpurge.
-		agentsAccess: func(organizationID uuid.UUID) Role {
-			return Role{
-				Identifier:  RoleIdentifier{Name: agentsAccess, OrganizationID: organizationID},
-				DisplayName: "Coder Agents User",
-				Site:        []Permission{},
-				User:        []Permission{},
-				ByOrgID: map[string]OrgPermissions{
-					organizationID.String(): {
-						Org: []Permission{},
-						Member: Permissions(map[string][]policy.Action{
-							ResourceChat.Type: {
-								policy.ActionCreate,
-								policy.ActionRead,
-								policy.ActionShare,
-								policy.ActionUpdate,
-							},
-						}),
-					},
-				},
-			}
-		},
 	}
 
 	builtInRoles.Store(&roles)
@@ -776,7 +747,6 @@ var assignRoles = map[string]map[string]bool{
 		userAdmin:               true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
-		agentsAccess:            true,
 	},
 	owner: {
 		owner:                   true,
@@ -793,13 +763,11 @@ var assignRoles = map[string]map[string]bool{
 		userAdmin:               true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
-		agentsAccess:            true,
 	},
 	userAdmin: {
 		member:             true,
 		orgMember:          true,
 		orgWorkspaceAccess: true,
-		agentsAccess:       true,
 	},
 	orgAdmin: {
 		orgAdmin:                true,
@@ -810,12 +778,10 @@ var assignRoles = map[string]map[string]bool{
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
 		customOrganizationRole:  true,
-		agentsAccess:            true,
 	},
 	orgUserAdmin: {
 		orgMember:          true,
 		orgWorkspaceAccess: true,
-		agentsAccess:       true,
 	},
 }
 
@@ -1186,8 +1152,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Chat access requires the agents-access role and is intentionally
-	// not granted in the floor.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},
@@ -1195,6 +1159,16 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		// Read-self group-membership record. GroupMember.RBACObject
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
+
+		// Members can use Coder Agents chats they own. ActionDelete is
+		// excluded because hard-deletion goes through ResourceSystem in
+		// dbpurge.
+		ResourceChat.Type: {
+			policy.ActionCreate,
+			policy.ActionRead,
+			policy.ActionShare,
+			policy.ActionUpdate,
+		},
 
 		// Members can create and update AI Bridge interceptions they
 		// initiate (dbauthz layer sets WithOwner(InitiatorID)) but
@@ -1266,8 +1240,8 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 
 		// Service accounts can create and update AI Bridge interceptions
 		// they initiate (dbauthz layer sets WithOwner(InitiatorID)) but
-		// cannot read them back. Chat access requires the agents-access
-		// role and is intentionally not granted here.
+		// cannot read them back. Chat access is intentionally not
+		// granted to service accounts.
 		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 
 		// Own session tokens and workspace agent auth keys.

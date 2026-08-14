@@ -8044,12 +8044,6 @@ export interface Role {
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
  */
-export const RoleAgentsAccess = "agents-access";
-
-// From codersdk/rbacroles.go
-/**
- * Ideally these roles would be generated from the rbac/roles.go package.
- */
 export const RoleAuditor = "auditor";
 
 // From codersdk/rbacroles.go

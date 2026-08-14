@@ -110,15 +110,15 @@ export const ForMember: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},
-		canCreateChat: false,
+		canCreateChat: true,
 	},
 };
 
-export const ForMemberWithAgentsAccess: Story = {
+export const ForMemberWithoutChatPermission: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},
-		canCreateChat: true,
+		canCreateChat: false,
 	},
 };
 
