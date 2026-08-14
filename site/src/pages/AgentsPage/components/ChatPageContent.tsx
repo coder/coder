@@ -29,15 +29,22 @@ import {
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectReconnectState,
+	selectRetryState,
+	selectStreamError,
+	selectStreamState,
+	selectSubagentStatusOverrides,
 	useChatSelector,
 	type useChatStore,
 } from "./ChatConversation/chatStore";
-import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
+import { LiveStreamTailContent } from "./ChatConversation/LiveStreamTail";
+import { deriveLiveStatus } from "./ChatConversation/liveStatusModel";
 import {
 	buildSubagentMaps,
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
+import { buildStreamTools } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
@@ -109,7 +116,28 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		store,
 		selectIsAwaitingFirstStreamChunk,
 	);
+	const streamState = useChatSelector(store, selectStreamState);
+	const streamError = useChatSelector(store, selectStreamError);
+	const retryState = useChatSelector(store, selectRetryState);
+	const reconnectState = useChatSelector(store, selectReconnectState);
+	const subagentStatusOverrides = useChatSelector(
+		store,
+		selectSubagentStatusOverrides,
+	);
 	const isChatCompleted = !hasStream;
+
+	const liveStatus = deriveLiveStatus({
+		streamState,
+		retryState,
+		reconnectState,
+		streamError,
+		persistedError: persistedError ?? null,
+		isAwaitingFirstStreamChunk,
+	});
+	const streamTools = buildStreamTools(
+		streamState?.toolCalls,
+		streamState?.toolResults,
+	);
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -148,6 +176,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					   renders correctly. */}
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
+					streamState={streamState}
+					streamTools={streamTools}
+					liveStatus={liveStatus}
+					subagentStatusOverrides={subagentStatusOverrides}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					onEditUserMessage={onEditUserMessage}
@@ -161,14 +193,9 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
 				/>
-				<LiveStreamTail
-					store={store}
-					persistedError={persistedError}
+				<LiveStreamTailContent
 					isTranscriptEmpty={parsedMessages.length === 0}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					urlTransform={urlTransform}
-					mcpServers={mcpServers}
+					liveStatus={liveStatus}
 				/>
 			</div>
 		</Profiler>
