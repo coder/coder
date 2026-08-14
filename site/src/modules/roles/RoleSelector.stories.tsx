@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import {
 	assignableRole,
-	MockAgentsAccessRole,
 	MockAuditorRole,
 	MockOrganizationAdminRole,
 	MockOrganizationAuditorRole,
@@ -80,7 +79,6 @@ const orgMemberRoles = [
 	assignableRole(MockOrganizationUserAdminRole, true),
 	assignableRole(MockOrganizationTemplateAdminRole, true),
 	assignableRole(MockOrganizationAuditorRole, true),
-	assignableRole(MockAgentsAccessRole, true),
 	assignableRole(MockWorkspaceCreationBanRole, true),
 ];
 
@@ -93,10 +91,7 @@ export const OrganizationMemberRoles: Story = {
 export const WithAdditionalImpliedRoles: Story = {
 	args: {
 		availableRoles: orgMemberRoles,
-		additionalImpliedRoles: [
-			assignableRole(MockAgentsAccessRole, true),
-			assignableRole(MockOrganizationAuditorRole, true),
-		],
+		additionalImpliedRoles: [assignableRole(MockOrganizationAuditorRole, true)],
 	},
 };
 
@@ -105,7 +100,6 @@ const mixedBuiltInAndCustomRoles = [
 	assignableRole(MockOrganizationUserAdminRole, true),
 	assignableRole(MockOrganizationTemplateAdminRole, true),
 	{ ...assignableRole(MockOrganizationAuditorRole, true), built_in: false },
-	{ ...assignableRole(MockAgentsAccessRole, true), built_in: false },
 ];
 
 export const WithDisabledReason: Story = {

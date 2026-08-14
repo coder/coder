@@ -1,0 +1,3 @@
+-- No-op. The rollback is lossy by design: the set of users who previously
+-- held 'agents-access' cannot be reconstructed, and chat access is implicit
+-- for organization members going forward.
