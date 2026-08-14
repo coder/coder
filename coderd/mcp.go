@@ -573,6 +573,10 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 var errUserOIDCRequiresDeploymentPerms = xerrors.New("managing user_oidc MCP server configs requires deployment-level permissions")
 
+// errMCPConfigSupersededDuringAuth rejects OAuth callbacks whose config
+// changed destination or OAuth identity while the exchange was in flight.
+var errMCPConfigSupersededDuringAuth = xerrors.New("MCP server config superseded during authorization")
+
 // authorizeUserOIDCMCPServerConfig requires deployment-level permission because
 // user_oidc sends each chat owner's upstream OIDC access token to the configured
 // URL without a per-user consent step.
@@ -1174,17 +1178,39 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		expiry = sql.NullTime{Time: token.Expiry, Valid: true}
 	}
 
-	//nolint:gocritic // Users store their own tokens.
-	_, err = api.Database.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
-		MCPServerConfigID: config.ID,
-		UserID:            apiKey.UserID,
-		AccessToken:       token.AccessToken,
-		AccessTokenKeyID:  sql.NullString{},
-		RefreshToken:      refreshToken,
-		RefreshTokenKeyID: sql.NullString{},
-		TokenType:         token.TokenType,
-		Expiry:            expiry,
-	})
+	err = api.Database.InTx(func(tx database.Store) error {
+		// Lock and re-read the config so a concurrent update cannot commit
+		// its grant invalidation between the token exchange and this store,
+		// which would recreate a grant obtained under the old destination
+		// or OAuth identity.
+		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, config.ID)
+		if err != nil {
+			return xerrors.Errorf("re-read MCP server config: %w", err)
+		}
+		if current.Url != config.Url || current.AuthType != config.AuthType ||
+			current.OAuth2TokenURL != config.OAuth2TokenURL || current.OAuth2ClientID != config.OAuth2ClientID {
+			return errMCPConfigSupersededDuringAuth
+		}
+		//nolint:gocritic // Users store their own tokens.
+		_, err = tx.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: config.ID,
+			UserID:            apiKey.UserID,
+			AccessToken:       token.AccessToken,
+			AccessTokenKeyID:  sql.NullString{},
+			RefreshToken:      refreshToken,
+			RefreshTokenKeyID: sql.NullString{},
+			TokenType:         token.TokenType,
+			Expiry:            expiry,
+		})
+		return err
+	}, nil)
+	if errors.Is(err, errMCPConfigSupersededDuringAuth) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "MCP server configuration changed during authorization.",
+			Detail:  "The server's destination or OAuth settings were updated while the connection was in progress. Reconnect to authorize against the current configuration.",
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to store OAuth2 token.",

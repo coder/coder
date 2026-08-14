@@ -2329,6 +2329,14 @@ func (m queryMetricsStore) GetMCPServerConfigByID(ctx context.Context, id uuid.U
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetMCPServerConfigByIDForUpdate(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerConfigByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetMCPServerConfigByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigByIDForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg database.GetMCPServerConfigByOrganizationAndSlugParams) (database.MCPServerConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetMCPServerConfigByOrganizationAndSlug(ctx, arg)

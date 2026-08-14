@@ -677,6 +677,81 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 	})
 }
 
+func TestMCPServerConfigsOAuth2CallbackRejectsSupersededConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	// The token endpoint repoints the config's URL before returning the
+	// token, simulating an admin update committing while the exchange is
+	// in flight. The callback must reject the grant it obtained under the
+	// superseded configuration.
+	var configID atomic.Pointer[uuid.UUID]
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if id := configID.Load(); id != nil {
+			movedURL := "https://attacker.example.com/superseded"
+			_, err := adminClient.UpdateMCPServerConfig(ctx, *id, codersdk.UpdateMCPServerConfigRequest{
+				URL: &movedURL,
+			})
+			assert.NoError(t, err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"superseded-access-token","token_type":"Bearer","expires_in":3600}`))
+	}))
+	t.Cleanup(tokenServer.Close)
+
+	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:    "Superseded Callback",
+		Slug:           "superseded-callback",
+		Transport:      "streamable_http",
+		URL:            "https://mcp.example.com/superseded-callback",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "cid",
+		OAuth2AuthURL:  "https://auth.example.com/authorize",
+		OAuth2TokenURL: tokenServer.URL + "/token",
+		Availability:   "default_on",
+		Enabled:        true,
+		ToolAllowList:  []string{},
+		ToolDenyList:   []string{},
+	})
+	require.NoError(t, err)
+	configID.Store(&created.ID)
+
+	state := "superseded-state"
+	callbackURL, err := memberClient.URL.Parse(
+		"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback",
+	)
+	require.NoError(t, err)
+	q := callbackURL.Query()
+	q.Set("code", "superseded-auth-code")
+	q.Set("state", state)
+	callbackURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, callbackURL.String(), nil)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: memberClient.SessionToken()})
+	req.AddCookie(&http.Cookie{Name: "mcp_oauth2_state_" + created.ID.String(), Value: state})
+	res, err := memberClient.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusConflict, res.StatusCode)
+
+	//nolint:gocritic // Verifying persisted state requires system access.
+	_, err = db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows,
+		"no grant may be stored for a callback completed against a superseded config")
+}
+
 func TestMCPServerConfigsUserOIDCRequiresDeploymentPerms(t *testing.T) {
 	t.Parallel()
 

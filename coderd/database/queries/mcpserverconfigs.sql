@@ -6,6 +6,15 @@ FROM
 WHERE
     id = @id::uuid;
 
+-- name: GetMCPServerConfigByIDForUpdate :one
+SELECT
+    *
+FROM
+    mcp_server_configs
+WHERE
+    id = @id::uuid
+FOR UPDATE;
+
 -- name: GetMCPServerConfigByOrganizationAndSlug :one
 SELECT
     *
