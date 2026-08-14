@@ -42,7 +42,6 @@ import {
 	TerminalStatusRow,
 } from "./ChatConversation/LiveStreamTail";
 import { deriveLiveStatus } from "./ChatConversation/liveStatusModel";
-import { buildDisplayMessages } from "./ChatConversation/messageHelpers";
 import {
 	buildSubagentMaps,
 	getPendingToolCallIDs,
@@ -173,11 +172,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
-	// An empty store (initial hydration) must not trigger paging, but a loaded
-	// page whose messages all filter out of the timeline must keep paging.
-	const hasFilteredOutRows =
-		parsedMessages.length > 0 &&
-		buildDisplayMessages(parsedMessages).length === 0;
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
@@ -186,7 +180,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				hasMoreMessages={hasMoreMessages}
 				isFetchingMoreMessages={isFetchingMoreMessages}
 				hasFetchMoreError={hasFetchMoreError}
-				hasFilteredOutRows={hasFilteredOutRows}
+				hasTranscriptRows={parsedMessages.length > 0}
 				onFetchMoreMessages={onFetchMoreMessages}
 			>
 				{/* VNC sessions for completed agents may already be

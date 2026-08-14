@@ -1,7 +1,6 @@
 import {
 	MessageScroller,
 	useMessageScrollerScrollable,
-	useMessageScrollerVisibility,
 } from "@shadcn/react/message-scroller";
 import { ArrowDownIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect } from "react";
@@ -14,7 +13,7 @@ interface EarlierMessagesProps {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
-	hasFilteredOutRows: boolean;
+	hasTranscriptRows: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 }
 
@@ -27,18 +26,14 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	hasFetchMoreError,
-	hasFilteredOutRows,
+	hasTranscriptRows,
 	onFetchMoreMessages,
 }) => {
 	const { start: canScrollTowardStart } = useMessageScrollerScrollable();
-	const { visibleMessageIds } = useMessageScrollerVisibility();
 
 	// "Cannot scroll toward the start" also holds before any row is measured,
-	// so only page once rows exist, or when a loaded page filtered down to
-	// zero rows and there may be visible history behind it.
-	const isAtHistoryStart =
-		!canScrollTowardStart &&
-		(visibleMessageIds.length > 0 || hasFilteredOutRows);
+	// so only page once rows exist.
+	const isAtHistoryStart = !canScrollTowardStart && hasTranscriptRows;
 	const shouldLoadEarlierMessages =
 		isAtHistoryStart &&
 		hasMoreMessages &&

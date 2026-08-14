@@ -17,7 +17,7 @@ const meta: Meta<typeof TerminalStatusRow> = {
 						hasMoreMessages={false}
 						isFetchingMoreMessages={false}
 						hasFetchMoreError={false}
-						hasFilteredOutRows={false}
+						hasTranscriptRows={true}
 						onFetchMoreMessages={async () => {}}
 					>
 						<Story />
