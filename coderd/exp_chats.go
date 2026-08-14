@@ -6781,7 +6781,7 @@ func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model 
 		return &chatModelConfigProviderModelError{
 			Response: codersdk.Response{
 				Message: "OpenRouter-like provider configured as type openai does not support slash-namespaced models.",
-				Detail:  "Change the AI provider type to openrouter or openai-compat. The openai type strips the vendor prefix from slash-namespaced model IDs, routing to the wrong upstream provider.",
+				Detail:  "Change the AI provider type to openrouter or openai-compat. Slash-namespaced model IDs on OpenRouter-like gateways require one of those provider types.",
 			},
 		}
 	}
