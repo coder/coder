@@ -1,3 +1,10 @@
+// Next.js configuration for the offlinedocs static export. It wires the Fumadocs
+// MDX plugin into the build (createMDX/withMDX) and pins the settings that make
+// the docs a self-contained static bundle: a production-only static export into
+// out/, the workspace root pinned to this folder, trailing-slash routes emitted
+// as <route>/index.html, and unoptimized images. It exists to produce the
+// coder_docs_<version>.tgz artifact the release pipeline ships for offline use.
+
 import { createMDX } from "fumadocs-mdx/next";
 
 const withMDX = createMDX();
@@ -26,9 +33,9 @@ const config = {
 	// Canonical URLs end in a slash and every route is emitted as
 	// <route>/index.html, which is what a plain static file server expects.
 	trailingSlash: true,
-	// Doc images are copied into the bundle (see scripts/sync-docs.mjs) and
-	// served as-is; next/image optimization needs a running server, which a
-	// static export does not have.
+	// Doc images are copied into the bundle (refer to scripts/sync-docs.mjs)
+	// and served as-is; next/image optimization needs a running server,
+	// which a static export does not have.
 	images: {
 		unoptimized: true,
 	},
