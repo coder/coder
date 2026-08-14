@@ -163,17 +163,31 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndp
 					}
 				}
 			}
-		} else {
-			// Custom scheme validation for public clients (RFC 8252 section 7.1)
-			if isPublicClient {
-				// For public clients, custom schemes should follow RFC 8252 recommendations
-				// Should be reverse domain notation based on domain under their control
-				if !isValidCustomScheme(uri.Scheme) {
-					return xerrors.Errorf("redirect URI at index %d: custom scheme %s should use reverse domain notation (e.g. com.example.app)", i, uri.Scheme)
-				}
+		} else if isPublicClient {
+			// mailto, tel, and sms hand off to a mail client, dialer, or SMS
+			// app rather than returning control to the application that
+			// started the flow. A public client has no other way to obtain
+			// its authorization code, so registering one of these would
+			// produce a client that can never complete authorization.
+			//
+			// This check runs only for public clients because that is how
+			// custom-scheme validation was scoped before this change, not
+			// because these three schemes are known to be safe for a
+			// confidential client's redirect; confidential clients were
+			// never subject to any scheme-shape check beyond validateScheme
+			// and remain so here.
+			switch uri.Scheme {
+			case "mailto", "tel", "sms":
+				return xerrors.Errorf("redirect URI at index %d: public clients may not use the %s scheme", i, uri.Scheme)
 			}
-			// For confidential clients, custom schemes are less common but allowed
 		}
+		// Beyond that, custom schemes need no further check: validateScheme
+		// already blocked the ones that are dangerous in a redirect context,
+		// and RFC 8252 §7.1 only recommends reverse-domain notation rather
+		// than requiring it. Rejecting bare schemes such as vscode:// or
+		// jetbrains:// would penalize the native and CLI apps this client
+		// type exists for; PKCE, not the scheme's spelling, is what secures
+		// the redirect.
 
 		// Prevent URI fragments (RFC 6749 section 3.1.2)
 		if uri.Fragment != "" || strings.Contains(uriStr, "#") {
@@ -294,23 +308,4 @@ func isLoopbackAddress(hostname string) bool {
 	return hostname == "localhost" ||
 		hostname == "127.0.0.1" ||
 		hostname == "::1"
-}
-
-// isValidCustomScheme validates custom schemes for public clients (RFC 8252)
-func isValidCustomScheme(scheme string) bool {
-	// For security and RFC compliance, require reverse domain notation
-	// Should contain at least one period and not be a well-known scheme
-	if !strings.Contains(scheme, ".") {
-		return false
-	}
-
-	// Block schemes that look like well-known protocols
-	wellKnownSchemes := []string{"http", "https", "ftp", "mailto", "tel", "sms"}
-	for _, wellKnown := range wellKnownSchemes {
-		if strings.EqualFold(scheme, wellKnown) {
-			return false
-		}
-	}
-
-	return true
 }

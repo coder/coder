@@ -59,7 +59,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: check changed files
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -605,8 +605,15 @@ jobs:
         # Normalize file modification timestamps so that go test can use the
         # cache from the previous CI run. See https://github.com/golang/go/issues/58571
         # for more details.
+        #
+        # mtimehash only optimizes cache hits, so a missing binary must not
+        # fail the job before any tests run (coder/internal#1630).
         run: |
-          find . -type f ! -path ./.git/\*\* | mtimehash
+          if command -v mtimehash >/dev/null 2>&1; then
+            find . -type f ! -path ./.git/\*\* | mtimehash
+          else
+            echo "::warning::mtimehash not found; skipping file timestamp normalization (Go test cache may be cold)"
+          fi
           find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
 
       - name: Normalize Terraform Path for Caching

@@ -3064,10 +3064,10 @@ func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID
 	return chat, ReadBodyAsJSON(res, &chat)
 }
 
-// CompactChat requests a manual context compaction on an idle chat.
-// The compaction runs asynchronously through the chat worker and
-// bypasses the automatic usage threshold; the chat returns to waiting
-// once the summary is committed.
+// CompactChat requests a manual context compaction on an idle or
+// errored chat, clearing any stored error. The compaction runs
+// asynchronously through the chat worker and bypasses the automatic
+// usage threshold.
 func (c *ExperimentalClient) CompactChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/compact", chatID), nil)
 	if err != nil {

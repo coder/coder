@@ -2613,6 +2613,27 @@ func TestAcquireProvisionerJob(t *testing.T) {
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
+
+	t.Run("ProvisionerKeyLock", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitMedium)
+			org   = dbgen.Organization(t, db, database.Organization{})
+			key   = dbgen.ProvisionerKey(t, db, database.ProvisionerKey{OrganizationID: org.ID})
+		)
+
+		// While the key exists, the lock returns its ID.
+		id, err := db.LockProvisionerKeyByIDForShare(ctx, key.ID)
+		require.NoError(t, err)
+		require.Equal(t, key.ID, id)
+
+		// Once the key is deleted, the lock reports no rows.
+		err = db.DeleteProvisionerKey(ctx, key.ID)
+		require.NoError(t, err)
+		_, err = db.LockProvisionerKeyByIDForShare(ctx, key.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
 }
 
 func TestUserLastSeenFilter(t *testing.T) {
@@ -18858,5 +18879,140 @@ func TestGetActiveUsersAuthorizationRolesParity(t *testing.T) {
 		require.NoError(t, err)
 		require.ElementsMatch(t, single.Roles, row.Roles, "roles diverged for user %s", row.ID)
 		require.ElementsMatch(t, single.Groups, row.Groups, "groups diverged for user %s", row.ID)
+	}
+}
+
+func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// An unrestricted grant is recorded as an explicit sentinel rather than as
+	// an absent value, so an insert that fails to carry the negotiated scope
+	// forward is rejected instead of silently issuing full access.
+	t.Run("Code", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+
+		_, err := db.InsertOAuth2ProviderAppCode(ctx, database.InsertOAuth2ProviderAppCodeParams{
+			ID:                  uuid.New(),
+			CreatedAt:           dbtime.Now(),
+			ExpiresAt:           dbtime.Now().Add(time.Minute),
+			SecretPrefix:        []byte("prefix"),
+			HashedSecret:        []byte("hashed-secret"),
+			AppID:               app.ID,
+			UserID:              user.ID,
+			ResourceUri:         sql.NullString{},
+			CodeChallenge:       sql.NullString{},
+			CodeChallengeMethod: sql.NullString{},
+			StateHash:           sql.NullString{},
+			RedirectUri:         sql.NullString{},
+			Scope:               "",
+		})
+		require.True(t, database.IsCheckViolation(err, database.CheckOauth2ProviderAppCodesScopeNotEmpty),
+			"empty scope must be rejected, got %v", err)
+	})
+
+	t.Run("Token", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+		secret := dbgen.OAuth2ProviderAppSecret(t, db, database.OAuth2ProviderAppSecret{AppID: app.ID})
+		key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+		_, err := db.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
+			ID:          uuid.New(),
+			CreatedAt:   dbtime.Now(),
+			ExpiresAt:   dbtime.Now().Add(time.Minute),
+			HashPrefix:  []byte("prefix"),
+			RefreshHash: []byte("hashed-secret"),
+			AppID:       app.ID,
+			AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
+			APIKeyID:    key.ID,
+			UserID:      user.ID,
+			Audience:    sql.NullString{},
+			Scope:       "",
+		})
+		require.True(t, database.IsCheckViolation(err, database.CheckOauth2ProviderAppTokensScopeNotEmpty),
+			"empty scope must be rejected, got %v", err)
+	})
+}
+
+func TestGetAIModelPrices(t *testing.T) {
+	t.Parallel()
+
+	// Two anthropic models, and an openai model sharing a name with one of
+	// them, so provider and model can be told apart.
+	const seed = `[
+		{"provider":"anthropic","model":"model-a","input_price":1,"output_price":null,"cache_read_price":null,"cache_write_price":null},
+		{"provider":"anthropic","model":"model-b","input_price":2,"output_price":null,"cache_read_price":null,"cache_write_price":null},
+		{"provider":"openai","model":"model-a","input_price":3,"output_price":null,"cache_read_price":null,"cache_write_price":null}
+	]`
+
+	tests := []struct {
+		name   string
+		params database.GetAIModelPricesParams
+		want   []string
+	}{
+		{
+			name:   "NoFilterReturnsEveryPrice",
+			params: database.GetAIModelPricesParams{},
+			want:   []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
+		},
+		{
+			name:   "ByProvider",
+			params: database.GetAIModelPricesParams{Provider: "anthropic"},
+			want:   []string{"anthropic/model-a", "anthropic/model-b"},
+		},
+		{
+			name:   "ByModelSpansProviders",
+			params: database.GetAIModelPricesParams{Model: "model-a"},
+			want:   []string{"anthropic/model-a", "openai/model-a"},
+		},
+		{
+			name:   "ByProviderAndModel",
+			params: database.GetAIModelPricesParams{Provider: "anthropic", Model: "model-a"},
+			want:   []string{"anthropic/model-a"},
+		},
+		{
+			name:   "UnknownProviderMatchesNothing",
+			params: database.GetAIModelPricesParams{Provider: "unknown-provider"},
+			want:   nil,
+		},
+		{
+			name:   "MismatchedProviderAndModel",
+			params: database.GetAIModelPricesParams{Provider: "openai", Model: "model-b"},
+			want:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			db, _ := dbtestutil.NewDB(t)
+			require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(seed)))
+
+			prices, err := db.GetAIModelPrices(ctx, tt.params)
+			require.NoError(t, err)
+
+			got := make([]string, 0, len(prices))
+			for _, price := range prices {
+				got = append(got, price.Provider+"/"+price.Model)
+			}
+			if len(tt.want) == 0 {
+				require.Empty(t, got)
+				return
+			}
+			require.Equal(t, tt.want, got)
+		})
 	}
 }

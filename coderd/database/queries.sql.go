@@ -2888,6 +2888,61 @@ func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg Get
 	return i, err
 }
 
+const getAIModelPrices = `-- name: GetAIModelPrices :many
+SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+FROM ai_model_prices
+    -- Filter by provider
+WHERE CASE
+        WHEN $1::text != '' THEN
+            provider = $1
+        ELSE true
+    END
+    -- Filter by model
+    AND CASE
+        WHEN $2::text != '' THEN
+            model = $2
+        ELSE true
+    END
+ORDER BY provider, model
+`
+
+type GetAIModelPricesParams struct {
+	Provider string `db:"provider" json:"provider"`
+	Model    string `db:"model" json:"model"`
+}
+
+func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error) {
+	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Provider, arg.Model)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIModelPrice
+	for rows.Next() {
+		var i AIModelPrice
+		if err := rows.Scan(
+			&i.Provider,
+			&i.Model,
+			&i.InputPrice,
+			&i.OutputPrice,
+			&i.CacheReadPrice,
+			&i.CacheWritePrice,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGroupAIBudget = `-- name: GetGroupAIBudget :one
 SELECT group_id, spend_limit_micros, created_at, updated_at
 FROM group_ai_budgets
@@ -6991,19 +7046,6 @@ type BatchUpsertChatHeartbeatsParams struct {
 func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUpsertChatHeartbeatsParams) error {
 	_, err := q.db.ExecContext(ctx, batchUpsertChatHeartbeats, pq.Array(arg.ChatIds), pq.Array(arg.RunnerIds))
 	return err
-}
-
-const chatSearchQueryIsEmpty = `-- name: ChatSearchQueryIsEmpty :one
-SELECT numnode(websearch_to_tsquery('simple', $1::text)) = 0 AS is_empty
-`
-
-// Reports whether search text tokenizes to an empty tsquery (e.g. '!!!').
-// Used to reject input that would silently match nothing.
-func (q *sqlQuerier) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error) {
-	row := q.db.QueryRowContext(ctx, chatSearchQueryIsEmpty, search)
-	var is_empty bool
-	err := row.Scan(&is_empty)
-	return is_empty, err
 }
 
 const countChatQueuedMessages = `-- name: CountChatQueuedMessages :one
@@ -11433,9 +11475,12 @@ WITH updated_chat AS (
         last_error = $5::jsonb,
         requires_action_deadline_at = $6::timestamptz,
         compaction_requested_at = $7::timestamptz,
+        history_version = CASE WHEN $8::boolean THEN snapshot_version ELSE history_version END,
+        generation_attempt = CASE WHEN $8::boolean THEN 0 ELSE generation_attempt END,
+        retry_state = CASE WHEN $8::boolean THEN NULL ELSE retry_state END,
         pin_order = CASE WHEN $2::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
-    WHERE id = $8::uuid
+    WHERE id = $9::uuid
     RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
 ),
 chats_expanded AS (
@@ -11503,6 +11548,7 @@ type UpdateChatExecutionStateParams struct {
 	LastError                pqtype.NullRawMessage `db:"last_error" json:"last_error"`
 	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
 	CompactionRequestedAt    sql.NullTime          `db:"compaction_requested_at" json:"compaction_requested_at"`
+	GrantHistoryEpoch        bool                  `db:"grant_history_epoch" json:"grant_history_epoch"`
 	ID                       uuid.UUID             `db:"id" json:"id"`
 }
 
@@ -11511,6 +11557,10 @@ type UpdateChatExecutionStateParams struct {
 // requires-action deadline, and the manual compaction request marker.
 // Callers compose this with transition mutations inside a single
 // ChatMachine.Update transaction.
+//
+// grant_history_epoch gives a turn that inserts no history the same
+// fresh retry budget and message part episode keys a history change
+// would grant, mirroring the chat_messages trigger postcondition.
 func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatExecutionState,
 		arg.Status,
@@ -11520,6 +11570,7 @@ func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateCha
 		arg.LastError,
 		arg.RequiresActionDeadlineAt,
 		arg.CompactionRequestedAt,
+		arg.GrantHistoryEpoch,
 		arg.ID,
 	)
 	var i Chat
@@ -19004,7 +19055,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 }
 
 const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE id = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope FROM oauth2_provider_app_codes WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
@@ -19023,12 +19074,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 		&i.CodeChallengeMethod,
 		&i.StateHash,
 		&i.RedirectUri,
+		&i.Scope,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppCodeByPrefix = `-- name: GetOAuth2ProviderAppCodeByPrefix :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE secret_prefix = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope FROM oauth2_provider_app_codes WHERE secret_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error) {
@@ -19047,6 +19099,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secre
 		&i.CodeChallengeMethod,
 		&i.StateHash,
 		&i.RedirectUri,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -19125,7 +19178,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 }
 
 const getOAuth2ProviderAppTokenByAPIKeyID = `-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id FROM oauth2_provider_app_tokens WHERE api_key_id = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id, scope FROM oauth2_provider_app_tokens WHERE api_key_id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error) {
@@ -19142,12 +19195,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, ap
 		&i.Audience,
 		&i.UserID,
 		&i.AppID,
+		&i.Scope,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id, scope FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
@@ -19164,6 +19218,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 		&i.Audience,
 		&i.UserID,
 		&i.AppID,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -19455,7 +19510,8 @@ INSERT INTO oauth2_provider_app_codes (
     code_challenge,
     code_challenge_method,
     state_hash,
-    redirect_uri
+    redirect_uri,
+    scope
 ) VALUES(
     $1,
     $2,
@@ -19468,8 +19524,9 @@ INSERT INTO oauth2_provider_app_codes (
     $9,
     $10,
     $11,
-    $12
-) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri
+    $12,
+    $13
+) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope
 `
 
 type InsertOAuth2ProviderAppCodeParams struct {
@@ -19485,6 +19542,7 @@ type InsertOAuth2ProviderAppCodeParams struct {
 	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
 	StateHash           sql.NullString `db:"state_hash" json:"state_hash"`
 	RedirectUri         sql.NullString `db:"redirect_uri" json:"redirect_uri"`
+	Scope               string         `db:"scope" json:"scope"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error) {
@@ -19501,6 +19559,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		arg.CodeChallengeMethod,
 		arg.StateHash,
 		arg.RedirectUri,
+		arg.Scope,
 	)
 	var i OAuth2ProviderAppCode
 	err := row.Scan(
@@ -19516,6 +19575,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		&i.CodeChallengeMethod,
 		&i.StateHash,
 		&i.RedirectUri,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -19580,7 +19640,8 @@ INSERT INTO oauth2_provider_app_tokens (
     app_secret_id,
     api_key_id,
     user_id,
-    audience
+    audience,
+    scope
 ) VALUES(
     $1,
     $2,
@@ -19591,8 +19652,9 @@ INSERT INTO oauth2_provider_app_tokens (
     $7,
     $8,
     $9,
-    $10
-) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id
+    $10,
+    $11
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id, scope
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
@@ -19606,6 +19668,7 @@ type InsertOAuth2ProviderAppTokenParams struct {
 	APIKeyID    string         `db:"api_key_id" json:"api_key_id"`
 	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
 	Audience    sql.NullString `db:"audience" json:"audience"`
+	Scope       string         `db:"scope" json:"scope"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error) {
@@ -19620,6 +19683,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.APIKeyID,
 		arg.UserID,
 		arg.Audience,
+		arg.Scope,
 	)
 	var i OAuth2ProviderAppToken
 	err := row.Scan(
@@ -19633,6 +19697,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.Audience,
 		&i.UserID,
 		&i.AppID,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -23802,6 +23867,27 @@ func (q *sqlQuerier) ListProvisionerKeysByOrganizationExcludeReserved(ctx contex
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockProvisionerKeyByIDForShare = `-- name: LockProvisionerKeyByIDForShare :one
+SELECT
+    id
+FROM
+    provisioner_keys
+WHERE
+    id = $1
+FOR KEY SHARE
+`
+
+// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
+// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
+// is held the key cannot be deleted, and a committed deletion is observed as
+// no rows by later calls.
+func (q *sqlQuerier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, lockProvisionerKeyByIDForShare, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many

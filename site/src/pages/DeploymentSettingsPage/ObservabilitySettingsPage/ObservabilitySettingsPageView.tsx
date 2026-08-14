@@ -1,11 +1,8 @@
 import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
-import {
-	Badges,
-	EnterpriseBadge,
-	PremiumBadge,
-} from "#/components/Badges/Badges";
+import { Badges, PremiumBadge } from "#/components/Badges/Badges";
+import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -44,21 +41,29 @@ export const ObservabilitySettingsPageView: FC<
 				</SettingsHeader>
 
 				{featureAuditLogEnabled || isPremium ? (
-					<Badges>{isPremium ? <PremiumBadge /> : <EnterpriseBadge />}</Badges>
+					<Badges>{<PremiumBadge />}</Badges>
 				) : (
-					<Alert severity="info" actions={<PremiumBadge />}>
-						Audit logging lets auditors monitor user operations across your
-						deployment. It requires a Premium license.{" "}
-						<a
-							href={docs("/admin/security/audit-logs")}
-							target="_blank"
-							rel="noreferrer"
-							className="text-content-link font-medium"
-						>
-							Read the Audit Logs documentation
-						</a>
-						.
-					</Alert>
+					<>
+						<Alert severity="info">
+							Audit logging lets auditors monitor user operations across your
+							deployment. It requires a Premium license.{" "}
+							<a
+								href={docs("/admin/security/audit-logs")}
+								target="_blank"
+								rel="noreferrer"
+								className="text-content-link font-medium"
+							>
+								Read the Audit Logs documentation
+							</a>
+							.
+						</Alert>
+						<br />
+						<PaywallSmall
+							message="Audit Logs"
+							canViewPremium
+							description="A Premium license is required for access to Audit Log monitoring."
+						/>
+					</>
 				)}
 			</div>
 

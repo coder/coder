@@ -94,10 +94,15 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 5) coder/fantasy bedrock: mirror the request region when prefixing
 //    cross-region inference profiles so the model-ID prefix matches the
 //    region the request is actually signed for.
-// 6) go.mod replaces pointing anthropic-sdk-go and openai-go at the
+// 6) coder/fantasy#50, report per-request Anthropic usage at Finish so
+//    multi-iteration requests do not inflate context estimates.
+// 7) coder/fantasy#52, keep the last usage-bearing chunk when an
+//    OpenAI-compatible stream ends with a usage-less finish chunk, so
+//    trailing chunks cannot zero reported usage.
+// 8) go.mod replaces pointing anthropic-sdk-go and openai-go at the
 //    coder forks below.
-// See: https://github.com/coder/fantasy/commits/bb10946892ef
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260810175832-bb10946892ef
+// See: https://github.com/coder/fantasy/commits/833854abc543
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260812122040-833854abc543
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -509,10 +514,12 @@ require (
 	github.com/charmbracelet/x/exp/strings v0.1.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/petermattis/goid v0.0.0-20260226131333-17d1149c6ac6 // indirect
 	github.com/q-uint/parser v0.3.1 // indirect
+	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/trailofbits/go-mutexasserts v0.0.0-20250514102930-c1f3d2e37561 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/collector/featuregate v1.51.1-0.20260205185216-81bc641f26c0 // indirect
@@ -535,7 +542,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/invopop/jsonschema v0.14.0
-	github.com/mark3labs/mcp-go v0.38.0
+	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/nats-io/nats-server/v2 v2.14.2
 	github.com/nats-io/nats.go v1.52.0
 	github.com/openai/openai-go/v3 v3.50.0

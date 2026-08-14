@@ -337,21 +337,6 @@ func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
 }
 
-// ChatSearchQueryIsEmpty mocks base method.
-func (m *MockStore) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ChatSearchQueryIsEmpty", ctx, search)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ChatSearchQueryIsEmpty indicates an expected call of ChatSearchQueryIsEmpty.
-func (mr *MockStoreMockRecorder) ChatSearchQueryIsEmpty(ctx, search any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChatSearchQueryIsEmpty", reflect.TypeOf((*MockStore)(nil).ChatSearchQueryIsEmpty), ctx, search)
-}
-
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -1978,6 +1963,21 @@ func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) GetAIModelPriceByProviderModel(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPriceByProviderModel", reflect.TypeOf((*MockStore)(nil).GetAIModelPriceByProviderModel), ctx, arg)
+}
+
+// GetAIModelPrices mocks base method.
+func (m *MockStore) GetAIModelPrices(ctx context.Context, arg database.GetAIModelPricesParams) ([]database.AIModelPrice, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIModelPrices", ctx, arg)
+	ret0, _ := ret[0].([]database.AIModelPrice)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIModelPrices indicates an expected call of GetAIModelPrices.
+func (mr *MockStoreMockRecorder) GetAIModelPrices(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPrices", reflect.TypeOf((*MockStore)(nil).GetAIModelPrices), ctx, arg)
 }
 
 // GetAIProviderByID mocks base method.
@@ -9176,6 +9176,21 @@ func (m *MockStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, 
 func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
+}
+
+// LockProvisionerKeyByIDForShare mocks base method.
+func (m *MockStore) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockProvisionerKeyByIDForShare", ctx, id)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockProvisionerKeyByIDForShare indicates an expected call of LockProvisionerKeyByIDForShare.
+func (mr *MockStoreMockRecorder) LockProvisionerKeyByIDForShare(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockProvisionerKeyByIDForShare", reflect.TypeOf((*MockStore)(nil).LockProvisionerKeyByIDForShare), ctx, id)
 }
 
 // MarkAllInboxNotificationsAsRead mocks base method.
