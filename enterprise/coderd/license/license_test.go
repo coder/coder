@@ -53,8 +53,10 @@ func premiumRuntimeHoursFixture(t *testing.T) (*dbmock.MockStore, *coderdenttest
 		FeatureSet: codersdk.FeatureSetPremium,
 		IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
 		NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
-		GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
-		ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
+		// GraceAt and ExpiresAt are far enough out that the license-expiry
+		// warning cannot pollute the callers' warning assertions.
+		GraceAt:   dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
+		ExpiresAt: dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
 		// The addon marks AI Bridge as explicitly entitled, suppressing
 		// the unrelated "AI Governance add-on is required to use AI
 		// Gateway" warning that Premium would otherwise produce.
@@ -1091,7 +1093,7 @@ func TestEntitlements(t *testing.T) {
 		t.Parallel()
 
 		// Drive the real Entitlements closures with a mock database so
-		// measureUsage's failure path is exercised end to end: the cause
+		// measureAgentRuntimeMs's failure path is exercised end to end: the cause
 		// must land in the coderd log, which the stable payload texts point
 		// at, and must not land on the unauthenticated entitlements payload.
 		mDB, _ := premiumRuntimeHoursFixture(t)

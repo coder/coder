@@ -485,9 +485,9 @@ func LicensesEntitlements(
 			// Premium licenses without agent_runtime_hours_* claims are
 			// grandfathered into a zero-hour allocation: the feature is
 			// granted disabled with a zero limit, which measures and
-			// publishes usage (see the measureUsage call below) and caps
-			// concurrent agentic chats the same as an explicit zero
-			// allocation.
+			// publishes usage (see the measureAgentRuntimeMs call below)
+			// and caps concurrent agentic chats the same as an explicit
+			// zero allocation.
 			var (
 				// A fixed issue time that predates any license issued with
 				// agent_runtime_hours_* claims, so a license that actually
@@ -792,9 +792,8 @@ func LicensesEntitlements(
 	// enterprise/coderd/usage.AgentRuntime* constants.
 	runtimeHours := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
 	if entitlements.HasLicense && runtimeHours.UsagePeriod != nil {
-		runtimeMs, ok, err := measureUsage(ctx, &entitlements,
-			featureArguments.Logger, featureArguments.AgentRuntimeMsFn, *runtimeHours.UsagePeriod,
-			"agent runtime", codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
+		runtimeMs, ok, err := measureAgentRuntimeMs(ctx, &entitlements,
+			featureArguments.Logger, featureArguments.AgentRuntimeMsFn, *runtimeHours.UsagePeriod)
 		if err != nil {
 			return entitlements, err
 		}
@@ -951,21 +950,19 @@ func LicensesEntitlements(
 	return entitlements, nil
 }
 
-// measureUsage runs fn over the feature's usage period. A nil fn or a
-// failure with a dead context fails the whole call; any other failure logs
-// the cause and publishes unavailableText instead. It returns the measured
-// value and true only on success.
-func measureUsage(
+// measureAgentRuntimeMs runs fn over the feature's usage period. A nil fn
+// or a failure with a dead context fails the whole call; any other failure
+// logs the cause and publishes the stable unavailable text instead. It
+// returns the measured milliseconds and true only on success.
+func measureAgentRuntimeMs(
 	ctx context.Context,
 	entitlements *codersdk.Entitlements,
 	logger slog.Logger,
-	fn func(ctx context.Context, from time.Time, to time.Time) (int64, error),
+	fn AgentRuntimeMsFn,
 	usagePeriod codersdk.UsagePeriod,
-	what string,
-	unavailableText string,
 ) (int64, bool, error) {
 	if fn == nil {
-		return 0, false, xerrors.Errorf("developer error: no closure provided to measure %s usage", what)
+		return 0, false, xerrors.New("developer error: no closure provided to measure agent runtime usage")
 	}
 	value, err := fn(ctx, usagePeriod.Start, usagePeriod.End)
 	switch {
@@ -975,10 +972,10 @@ func measureUsage(
 		// statement_timeout kills as well as client cancels, and aborting on
 		// those would fail every entitlements refresh on a deployment whose
 		// statement_timeout is shorter than a usage query.
-		return 0, false, xerrors.Errorf("get %s: %w", what, err)
+		return 0, false, xerrors.Errorf("get agent runtime: %w", err)
 	case err != nil:
-		logger.Error(ctx, fmt.Sprintf("get %s for entitlements", what), slog.Error(err))
-		entitlements.Errors = append(entitlements.Errors, unavailableText)
+		logger.Error(ctx, "get agent runtime for entitlements", slog.Error(err))
+		entitlements.Errors = append(entitlements.Errors, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
 		return 0, false, nil
 	}
 	return value, true, nil
