@@ -431,7 +431,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
 	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
-	const mcpPopupRef = useRef<Window | null>(null);
+	// Correlates a completion message with the initiating OAuth flow.
+	// Retained after popup close: the callback page posts before closing,
+	// and the close poll can run before the queued message is dispatched.
+	const mcpAuthFlowRef = useRef<{ popup: Window; serverID: string } | null>(
+		null,
+	);
 	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
 		useState<TypesGen.MCPServerConfig | null>(null);
 	const queryClient = useQueryClient();
@@ -511,17 +516,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleMCPAuthComplete = useEffectEvent(
 		(serverID: string, source: MessageEventSource | null) => {
 			onMCPAuthComplete?.(serverID);
-			// Only the popup this input opened expresses intent to use the
-			// server; a stray same-origin message must not clear an in-flight
-			// connect or change the selection.
-			if (source === null || source !== mcpPopupRef.current) {
+			// Only a message from the initiating popup for the initiating
+			// server may change the selection.
+			const flow = mcpAuthFlowRef.current;
+			if (!flow || source !== flow.popup || serverID !== flow.serverID) {
 				return;
 			}
-			const isInitiatedServer = mcpConnectingId === serverID;
+			mcpAuthFlowRef.current = null;
 			setMcpConnectingId(null);
-			mcpPopupRef.current = null;
 			if (
-				isInitiatedServer &&
 				onMCPSelectionChange &&
 				selectedMCPServerIds &&
 				mcpServers?.some(
@@ -549,20 +552,22 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		return () => window.removeEventListener("message", handler);
 	}, []);
 
-	// Poll for popup close and clean up on unmount.
+	// Clear only the connecting indicator when the popup closes; the flow
+	// ref stays so a completion message posted before close still
+	// correlates.
 	useEffect(() => {
-		if (!mcpConnectingId || !mcpPopupRef.current) return;
+		if (!mcpConnectingId || !mcpAuthFlowRef.current) return;
 		const interval = setInterval(() => {
-			if (mcpPopupRef.current?.closed) {
+			if (mcpAuthFlowRef.current?.popup.closed) {
 				setMcpConnectingId(null);
-				mcpPopupRef.current = null;
 			}
 		}, 500);
 		return () => {
 			clearInterval(interval);
-			if (mcpPopupRef.current && !mcpPopupRef.current.closed) {
-				mcpPopupRef.current.close();
-				mcpPopupRef.current = null;
+			const popup = mcpAuthFlowRef.current?.popup;
+			if (popup && !popup.closed) {
+				popup.close();
+				mcpAuthFlowRef.current = null;
 			}
 		};
 	}, [mcpConnectingId]);
@@ -587,11 +592,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			chatOrganizationId,
 			server.id,
 		);
-		mcpPopupRef.current = window.open(
-			connectUrl,
-			"_blank",
-			"width=900,height=600",
-		);
+		const popup = window.open(connectUrl, "_blank", "width=900,height=600");
+		mcpAuthFlowRef.current = popup ? { popup, serverID: server.id } : null;
 	};
 
 	const handleMcpDisconnectConfirm = () => {

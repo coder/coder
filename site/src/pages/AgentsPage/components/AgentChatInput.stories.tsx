@@ -840,6 +840,46 @@ export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 	},
 };
 
+// The coderd callback page posts the completion message and then closes
+// the popup, so the close poll can observe the closed popup before the
+// queued message is dispatched. An iframe contentWindow stands in for
+// the popup: it is a real Window whose closed becomes true on removal.
+export const MCPAutoEnablesWhenPopupClosesBeforeMessage: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCP],
+		selectedMCPServerIds: [],
+	},
+	play: async ({ args, canvasElement }) => {
+		const doc = canvasElement.ownerDocument;
+		const iframe = doc.createElement("iframe");
+		doc.body.appendChild(iframe);
+		const popup = iframe.contentWindow;
+		if (!popup) {
+			throw new Error("iframe contentWindow unavailable");
+		}
+		spyOn(window, "open").mockReturnValue(popup);
+
+		await startMCPOAuthFlow(canvasElement);
+		iframe.remove();
+		expect(popup.closed).toBe(true);
+		// Wait for the close poll to clear the connecting state before
+		// delivering the completion message.
+		const body = within(doc.body);
+		await waitFor(
+			() => {
+				expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
+			},
+			{ timeout: 2_000 },
+		);
+		dispatchMCPOAuthComplete(githubMCP.id, popup);
+
+		await waitFor(() => {
+			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([githubMCP.id]);
+		});
+	},
+};
+
 export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
 	args: {
 		...mcpDefaults,
