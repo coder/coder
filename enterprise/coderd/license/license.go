@@ -1115,9 +1115,7 @@ func agentRuntimeMsToHours(ms int64) int64 {
 // look healthy.
 //
 // A zero allocation grants the feature disabled, but Actual is still
-// measured and published. A disabled feature forces the concurrency-limited
-// mode from CODAGT-856 (chatd pooled admission), which also covers premium
-// licenses granted the grandfathered zero-hour default in Entitlements.
+// measured and published.
 func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (feature codersdk.Feature, granted bool, ignoredClaims []string) {
 	if _, ok := features[codersdk.FeatureAgentRuntimeHours]; ok {
 		ignoredClaims = append(ignoredClaims, string(codersdk.FeatureAgentRuntimeHours))

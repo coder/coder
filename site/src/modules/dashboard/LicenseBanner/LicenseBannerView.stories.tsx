@@ -263,6 +263,9 @@ export const AIGovernanceNearLimit: Story = {
 		await expect(
 			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
 		).toHaveAttribute("href", "mailto:sales@coder.com");
+		// A lone advisory is muted but not a diagnostic, so it renders
+		// without the notices heading.
+		await expect(canvas.queryByText("License notices")).not.toBeInTheDocument();
 	},
 };
 

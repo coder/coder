@@ -1129,6 +1129,14 @@ func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, a
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIModelPrices(ctx context.Context, arg database.GetAIModelPricesParams) ([]database.AIModelPrice, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIModelPrices(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIModelPrices").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIModelPrices").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIProviderByID(ctx, id)

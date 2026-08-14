@@ -2888,6 +2888,61 @@ func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg Get
 	return i, err
 }
 
+const getAIModelPrices = `-- name: GetAIModelPrices :many
+SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+FROM ai_model_prices
+    -- Filter by provider
+WHERE CASE
+        WHEN $1::text != '' THEN
+            provider = $1
+        ELSE true
+    END
+    -- Filter by model
+    AND CASE
+        WHEN $2::text != '' THEN
+            model = $2
+        ELSE true
+    END
+ORDER BY provider, model
+`
+
+type GetAIModelPricesParams struct {
+	Provider string `db:"provider" json:"provider"`
+	Model    string `db:"model" json:"model"`
+}
+
+func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error) {
+	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Provider, arg.Model)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIModelPrice
+	for rows.Next() {
+		var i AIModelPrice
+		if err := rows.Scan(
+			&i.Provider,
+			&i.Model,
+			&i.InputPrice,
+			&i.OutputPrice,
+			&i.CacheReadPrice,
+			&i.CacheWritePrice,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGroupAIBudget = `-- name: GetGroupAIBudget :one
 SELECT group_id, spend_limit_micros, created_at, updated_at
 FROM group_ai_budgets
@@ -19000,7 +19055,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 }
 
 const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE id = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope FROM oauth2_provider_app_codes WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
@@ -19019,12 +19074,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 		&i.CodeChallengeMethod,
 		&i.StateHash,
 		&i.RedirectUri,
+		&i.Scope,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppCodeByPrefix = `-- name: GetOAuth2ProviderAppCodeByPrefix :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE secret_prefix = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope FROM oauth2_provider_app_codes WHERE secret_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error) {
@@ -19043,6 +19099,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secre
 		&i.CodeChallengeMethod,
 		&i.StateHash,
 		&i.RedirectUri,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -19121,7 +19178,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 }
 
 const getOAuth2ProviderAppTokenByAPIKeyID = `-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id FROM oauth2_provider_app_tokens WHERE api_key_id = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id, scope FROM oauth2_provider_app_tokens WHERE api_key_id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error) {
@@ -19138,12 +19195,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, ap
 		&i.Audience,
 		&i.UserID,
 		&i.AppID,
+		&i.Scope,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id, scope FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
@@ -19160,6 +19218,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 		&i.Audience,
 		&i.UserID,
 		&i.AppID,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -19451,7 +19510,8 @@ INSERT INTO oauth2_provider_app_codes (
     code_challenge,
     code_challenge_method,
     state_hash,
-    redirect_uri
+    redirect_uri,
+    scope
 ) VALUES(
     $1,
     $2,
@@ -19464,8 +19524,9 @@ INSERT INTO oauth2_provider_app_codes (
     $9,
     $10,
     $11,
-    $12
-) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri
+    $12,
+    $13
+) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope
 `
 
 type InsertOAuth2ProviderAppCodeParams struct {
@@ -19481,6 +19542,7 @@ type InsertOAuth2ProviderAppCodeParams struct {
 	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
 	StateHash           sql.NullString `db:"state_hash" json:"state_hash"`
 	RedirectUri         sql.NullString `db:"redirect_uri" json:"redirect_uri"`
+	Scope               string         `db:"scope" json:"scope"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error) {
@@ -19497,6 +19559,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		arg.CodeChallengeMethod,
 		arg.StateHash,
 		arg.RedirectUri,
+		arg.Scope,
 	)
 	var i OAuth2ProviderAppCode
 	err := row.Scan(
@@ -19512,6 +19575,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		&i.CodeChallengeMethod,
 		&i.StateHash,
 		&i.RedirectUri,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -19576,7 +19640,8 @@ INSERT INTO oauth2_provider_app_tokens (
     app_secret_id,
     api_key_id,
     user_id,
-    audience
+    audience,
+    scope
 ) VALUES(
     $1,
     $2,
@@ -19587,8 +19652,9 @@ INSERT INTO oauth2_provider_app_tokens (
     $7,
     $8,
     $9,
-    $10
-) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id
+    $10,
+    $11
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id, scope
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
@@ -19602,6 +19668,7 @@ type InsertOAuth2ProviderAppTokenParams struct {
 	APIKeyID    string         `db:"api_key_id" json:"api_key_id"`
 	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
 	Audience    sql.NullString `db:"audience" json:"audience"`
+	Scope       string         `db:"scope" json:"scope"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error) {
@@ -19616,6 +19683,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.APIKeyID,
 		arg.UserID,
 		arg.Audience,
+		arg.Scope,
 	)
 	var i OAuth2ProviderAppToken
 	err := row.Scan(
@@ -19629,6 +19697,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.Audience,
 		&i.UserID,
 		&i.AppID,
+		&i.Scope,
 	)
 	return i, err
 }

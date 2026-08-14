@@ -22,7 +22,7 @@ export const Example: Story = {
 		// The badge is passive: hovering it must not surface a paywall.
 		await userEvent.hover(canvas.getByText("Premium"));
 		await expect(
-			screen.queryByRole("link", { name: "Read the documentation" }),
+			screen.queryByRole("link", { name: "Learn more about premium" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -35,9 +35,9 @@ export const NotEntitled: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.getByRole("link", { name: "Read the documentation" }),
+			canvas.getByRole("link", { name: "Learn more about premium" }),
 		).toBeVisible();
-		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
 	},
 };
@@ -54,7 +54,7 @@ export const NotEntitledWithoutLicenseAccess: Story = {
 			canvas.getByText(/contact your deployment administrator/i),
 		).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Learn about Premium" }),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 	},
 };

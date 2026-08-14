@@ -1138,6 +1138,58 @@ title: Schemas
 | `last_heartbeat_at` | string | false    |              |             |
 | `name`              | string | false    |              |             |
 
+## codersdk.AIModelPrice
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0,
+  "provider": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `cache_read_price`  | integer | false    |              |             |
+| `cache_write_price` | integer | false    |              |             |
+| `created_at`        | string  | false    |              |             |
+| `input_price`       | integer | false    |              |             |
+| `model`             | string  | false    |              |             |
+| `output_price`      | integer | false    |              |             |
+| `provider`          | string  | false    |              |             |
+| `updated_at`        | string  | false    |              |             |
+
+## codersdk.AIModelPriceUpsert
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0,
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `cache_read_price`  | integer | false    |              |             |
+| `cache_write_price` | integer | false    |              |             |
+| `input_price`       | integer | false    |              |             |
+| `model`             | string  | false    |              |             |
+| `output_price`      | integer | false    |              |             |
+| `provider`          | string  | false    |              |             |
+
 ## codersdk.AIProvider
 
 ```json
@@ -14464,6 +14516,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `hash` | string | false    |              |             |
+
+## codersdk.UpsertAIModelPricesRequest
+
+```json
+{
+  "prices": [
+    {
+      "cache_read_price": 0,
+      "cache_write_price": 0,
+      "input_price": 0,
+      "model": "string",
+      "output_price": 0,
+      "provider": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                                | Required | Restrictions | Description |
+|----------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `prices` | array of [codersdk.AIModelPriceUpsert](#codersdkaimodelpriceupsert) | false    |              |             |
 
 ## codersdk.UpsertGroupAIBudgetRequest
 
