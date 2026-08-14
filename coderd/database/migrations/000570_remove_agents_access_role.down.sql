@@ -2,7 +2,10 @@
 -- reconstructed, so restore it conservatively: binaries that predate the
 -- role removal require the role for chat access, and without a restore
 -- every organization member would lose access to their existing chats on
--- rollback. Service accounts never held chat access and are excluded.
+-- rollback. Service accounts are excluded even when they held an explicit
+-- grant before the upgrade; that loss is accepted (an admin can re-grant)
+-- because restoring it faithfully would require a provenance table, and
+-- over-granting all service accounts is worse.
 UPDATE organization_members om
 SET roles = array_append(om.roles, 'agents-access')
 FROM users u
