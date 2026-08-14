@@ -17,6 +17,20 @@ Messages and queued messages no longer carry `api_key_id` columns; attribution i
 
 Deleting a synthetic key (password reset, explicit key deletion, dbpurge of long-expired keys) does not touch chat messages, queued messages, or their version fields. Chatd mints a replacement on the next request without mutating history. User suspension and deletion still block delegated gateway authorization.
 
+# MCP server authorization
+
+TODO(PR author): document how chatd authorizes MCP server configs
+against the chat owner's ACL. The section must cover:
+
+- owner-ACL evaluation on chat creation, message updates, and
+  generation (`forcedMCPServerConfigsForOwner`,
+  `enforceForcedMCPServerIDs`), so Force On availability cannot widen
+  access beyond what the owner can read,
+- why the owner's RBAC subject is loaded with `rbac.ScopeAll` for this
+  evaluation,
+- the immutable-snapshot rule for Explore chats and how it differs
+  from the per-turn evaluation above.
+
 # Core state machine
 
 The core state machine describes how a chat's execution state in the database can change over time. A fundamental component of the state machine is the set of valid **states** it can be in. We will consider 2 kinds of states: **execution states** and **ownership states**. These states let us describe what the runtime components of chatd can do with a chat at a given point in time.
