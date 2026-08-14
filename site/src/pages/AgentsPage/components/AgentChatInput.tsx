@@ -17,6 +17,7 @@ import type React from "react";
 import {
 	type FC,
 	useEffect,
+	useEffectEvent,
 	useImperativeHandle,
 	useRef,
 	useState,
@@ -507,6 +508,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		[],
 	);
 
+	const handleMCPAuthComplete = useEffectEvent((serverID: string) => {
+		setMcpConnectingId(null);
+		onMCPAuthComplete?.(serverID);
+		if (
+			onMCPSelectionChange &&
+			selectedMCPServerIds &&
+			mcpServers?.some((server) => server.id === serverID && server.enabled) &&
+			!selectedMCPServerIds.includes(serverID)
+		) {
+			onMCPSelectionChange([...selectedMCPServerIds, serverID]);
+		}
+		mcpPopupRef.current = null;
+	});
+
 	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
@@ -515,14 +530,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				event.data?.type === "mcp-oauth2-complete" &&
 				typeof event.data.serverID === "string"
 			) {
-				setMcpConnectingId(null);
-				onMCPAuthComplete?.(event.data.serverID);
-				mcpPopupRef.current = null;
+				handleMCPAuthComplete(event.data.serverID);
 			}
 		};
 		window.addEventListener("message", handler);
 		return () => window.removeEventListener("message", handler);
-	}, [onMCPAuthComplete]);
+	}, []);
 
 	// Poll for popup close and clean up on unmount.
 	useEffect(() => {

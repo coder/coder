@@ -756,6 +756,15 @@ const mcpDefaults = {
 	onMCPAuthComplete: fn(),
 };
 
+const dispatchMCPOAuthComplete = (serverID: string) => {
+	window.dispatchEvent(
+		new MessageEvent("message", {
+			data: { type: "mcp-oauth2-complete", serverID },
+			origin: location.origin,
+		}),
+	);
+};
+
 // ── MCP stories ────────────────────────────────────────────────
 
 /** Input with multiple MCP servers selected — shows icon stack in toolbar. */
@@ -787,6 +796,74 @@ export const WithMCPNeedingAuth: Story = {
 			"_blank",
 			"width=900,height=600",
 		);
+	},
+};
+
+export const MCPAutoEnablesAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	play: async ({ args }) => {
+		dispatchMCPOAuthComplete(githubMCP.id);
+
+		await waitFor(() => {
+			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([
+				linearMCP.id,
+				githubMCP.id,
+			]);
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+	},
+};
+
+export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCP],
+		selectedMCPServerIds: [githubMCP.id],
+	},
+	play: async ({ args }) => {
+		dispatchMCPOAuthComplete(githubMCP.id);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresDisabledServerAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [{ ...githubMCP, enabled: false }],
+		selectedMCPServerIds: [],
+	},
+	play: async ({ args }) => {
+		dispatchMCPOAuthComplete(githubMCP.id);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresUnknownServerAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	play: async ({ args }) => {
+		const unknownServerID = "mcp-unknown";
+		dispatchMCPOAuthComplete(unknownServerID);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(unknownServerID);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
 };
 
