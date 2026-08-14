@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
 import {
 	MockBuildInfo,
@@ -112,6 +112,12 @@ export const ForMember: Story = {
 		adminPermissions: {},
 		canCreateChat: true,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const agentsLink = canvas.getByRole("link", { name: "Agents" });
+		await expect(agentsLink).toHaveAttribute("href", "/agents");
+		await userEvent.click(agentsLink);
+	},
 };
 
 export const ForMemberWithoutChatPermission: Story = {
@@ -119,6 +125,12 @@ export const ForMemberWithoutChatPermission: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("link", { name: "Agents" }),
+		).not.toBeInTheDocument();
 	},
 };
 
