@@ -854,9 +854,12 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// User grants are bound to the destination and auth flow authorized by the user.
-		// Invalidate them when either changes to prevent reuse against another endpoint.
-		if serverURL != existing.Url || authType != existing.AuthType {
+		// User grants are bound to the destination, auth flow, token endpoint,
+		// and OAuth client the user authorized. Invalidate them when any of
+		// these change so stored tokens cannot be replayed against another
+		// endpoint or client (refresh posts the refresh token to token_url).
+		if serverURL != existing.Url || authType != existing.AuthType ||
+			oauth2TokenURL != existing.OAuth2TokenURL || oauth2ClientID != existing.OAuth2ClientID {
 			if err := tx.DeleteMCPServerUserTokensByConfigID(ctx, existing.ID); err != nil {
 				return xerrors.Errorf("invalidate MCP server user tokens: %w", err)
 			}

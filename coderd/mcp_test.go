@@ -632,6 +632,34 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 		require.False(t, tokenExists(ctx, t, config.ID))
 	})
 
+	t.Run("TokenURLChangeDeletesGrants", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := newConfig(ctx, t, "grant-token-url-change")
+		seedToken(ctx, t, config.ID)
+
+		movedEndpoint := "https://auth.example.com/other-endpoint"
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+			OAuth2TokenURL: &movedEndpoint,
+		})
+		require.NoError(t, err)
+		require.False(t, tokenExists(ctx, t, config.ID))
+	})
+
+	t.Run("ClientIDChangeDeletesGrants", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := newConfig(ctx, t, "grant-client-id-change")
+		seedToken(ctx, t, config.ID)
+
+		newClientID := "cid-2"
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+			OAuth2ClientID: &newClientID,
+		})
+		require.NoError(t, err)
+		require.False(t, tokenExists(ctx, t, config.ID))
+	})
+
 	t.Run("UnrelatedChangeKeepsGrants", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -639,8 +667,10 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 		seedToken(ctx, t, config.ID)
 
 		displayName := "Grant Invalidation renamed"
+		newSecret := "rotated-secret"
 		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
-			DisplayName: &displayName,
+			DisplayName:        &displayName,
+			OAuth2ClientSecret: &newSecret,
 		})
 		require.NoError(t, err)
 		require.True(t, tokenExists(ctx, t, config.ID))
