@@ -1561,6 +1561,30 @@ const docTemplate = `{
                         "name": "mcpServer",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Authorization code issued by the provider. Required together with state on success.",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque state issued by the connect endpoint. Required together with code on success.",
+                        "name": "state",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider error code. Present instead of code when authorization fails.",
+                        "name": "error",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider error description accompanying error.",
+                        "name": "error_description",
+                        "in": "query"
                     }
                 ],
                 "responses": {
