@@ -1,4 +1,4 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
@@ -271,42 +271,96 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		: undefined;
 	const initialOrg =
 		organizations.find((o) => o.is_default) ?? organizations[0];
+	// effectiveWorkspaceId nulls a stored selection outside the effective org's
+	// filtered workspace list without deleting it. Preserve the stored value
+	// because the permitted-organizations query may resolve after mount and
+	// change the effective org.
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() => {
-			const stored = localStorage.getItem(selectedWorkspaceIdStorageKey);
-			if (!stored) return null;
-
-			// The stored value is kept optimistically until workspaces
-			// load. effectiveWorkspaceId (computed after render) drops
-			// it if it doesn't match the current org's workspaces.
-			if (workspaceOptions.length === 0) return stored;
-
-			// Validate the stored workspace still exists and belongs
-			// to the initial org. Without this, a workspace from a
-			// previously selected org persists across sessions and
-			// gets submitted even though it's hidden from the picker.
-			const workspace = workspaceOptions.find((ws) => ws.id === stored);
-			if (!workspace) {
-				localStorage.removeItem(selectedWorkspaceIdStorageKey);
-				return null;
-			}
-			if (
-				showOrganizations &&
-				initialOrg &&
-				workspace.organization_id !== initialOrg.id
-			) {
-				localStorage.removeItem(selectedWorkspaceIdStorageKey);
-				return null;
-			}
-			return stored;
-		},
+		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
-		initialOrg ?? null,
+		null,
 	);
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
-	const organizationId = selectedOrg?.id ?? "";
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			// agents-access grants chat:create only at member scope. "me" is
+			// replaced with the caller ID so that permission can match.
+			object: { resource_type: "chat", owner_id: "me" },
+			action: "create",
+		}),
+		enabled: showOrganizations,
+	});
+	// Disabled queries retain cached data. When the dashboard hides organization
+	// selection, its organization list is authoritative so a removed org cannot
+	// remain selected for submission.
+	const permittedOrgs = showOrganizations
+		? (permittedOrgsQuery.data ?? organizations)
+		: organizations;
+	// Treat the dashboard org as provisional until permissions resolve so
+	// sends and persisted attachments cannot use an unpermitted org.
+	const orgSelectionSettled =
+		!showOrganizations || permittedOrgsQuery.data !== undefined;
+	// Prevent effectiveOrg's dashboard fallback from bypassing an empty
+	// permitted set.
+	const noPermittedOrgs =
+		showOrganizations && permittedOrgsQuery.data?.length === 0;
+	const selectedOrgIsPermitted =
+		selectedOrg !== null &&
+		permittedOrgs.some((org) => org.id === selectedOrg.id);
+	// Clear invalid selections during render so re-permission cannot silently
+	// restore them and switch attachment state. effectiveOrg already ignores
+	// the invalid selection in this render.
+	if (selectedOrg && orgSelectionSettled && !selectedOrgIsPermitted) {
+		setSelectedOrg(null);
+	}
+	// Same rule for a pending change awaiting confirmation: closing the
+	// dialog prevents confirming into an org that was just revoked.
+	if (
+		pendingOrgChange &&
+		orgSelectionSettled &&
+		!permittedOrgs.some((org) => org.id === pendingOrgChange.id)
+	) {
+		setPendingOrgChange(null);
+	}
+	const effectiveOrg =
+		selectedOrg && selectedOrgIsPermitted
+			? selectedOrg
+			: (permittedOrgs.find((org) => org.is_default) ??
+				permittedOrgs[0] ??
+				initialOrg ??
+				null);
+	const organizationId = effectiveOrg?.id ?? "";
+	// Adopt a permitted fallback so later refetches cannot switch the form to a
+	// re-permitted default. The permission guard also avoids a render loop.
+	if (
+		orgSelectionSettled &&
+		!selectedOrg &&
+		effectiveOrg &&
+		permittedOrgs.some((org) => org.id === effectiveOrg.id)
+	) {
+		setSelectedOrg(effectiveOrg);
+	}
+	// Clear a workspace after a settled org change, before its localStorage value
+	// is cleared post-commit. An empty permission set has no selectable org, so
+	// preserve the workspace until its org is re-permitted.
+	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
+	if (
+		orgSelectionSettled &&
+		!noPermittedOrgs &&
+		organizationId !== lastSettledOrgId
+	) {
+		setLastSettledOrgId(organizationId);
+		if (lastSettledOrgId !== null) {
+			setSelectedWorkspaceId(null);
+		}
+	}
+	useEffect(() => {
+		if (selectedWorkspaceId === null) {
+			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+		}
+	}, [selectedWorkspaceId]);
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -377,7 +431,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		saveReasoningEffortForModel(selectedModel, value);
 	};
 
-	const isForbidden = !canCreateChat;
+	const isForbidden = !canCreateChat || noPermittedOrgs;
 
 	// Filter workspaces by the selected organization. We use
 	// client-side filtering of the full "owner:me" fetch rather
@@ -388,8 +442,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// enough to warrant pagination, this should switch to a
 	// server-side organization:<name> query filter.
 	const filteredWorkspaces =
-		showOrganizations && selectedOrg
-			? workspaceOptions.filter((ws) => ws.organization_id === selectedOrg.id)
+		showOrganizations && effectiveOrg
+			? workspaceOptions.filter((ws) => ws.organization_id === effectiveOrg.id)
 			: workspaceOptions;
 
 	const effectiveWorkspaceId =
@@ -398,6 +452,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			filteredWorkspaces.some((ws) => ws.id === selectedWorkspaceId))
 			? selectedWorkspaceId
 			: null;
+	// A stored workspace cannot be validated against the effective org
+	// until the list loads; sending then would silently drop the
+	// association, so Send stays disabled instead.
+	const workspaceValidationPending =
+		selectedWorkspaceId !== null && isWorkspacesLoading;
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {
 		submitDraft();
@@ -420,6 +479,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	};
 
 	const {
+		organizationAdopted,
 		attachments,
 		textContents,
 		uploadStates,
@@ -427,10 +487,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizationId || undefined, {
-		persist: true,
-		provider: getProviderForModelOption(modelOptions, selectedModel),
-	});
+	} = useFileAttachments(
+		// Avoid restoring against effectiveOrg's fallback when no org is permitted;
+		// that would prune attachments persisted for other orgs.
+		orgSelectionSettled && !noPermittedOrgs
+			? organizationId || undefined
+			: undefined,
+		{
+			persist: true,
+			provider: getProviderForModelOption(modelOptions, selectedModel),
+		},
+	);
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -458,50 +525,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			// Attachments preserved for retry on failure.
 		}
 	};
-
-	const permittedOrgsQuery = useQuery({
-		...permittedOrganizations({
-			object: { resource_type: "chat", owner_id: "me" },
-			action: "create",
-		}),
-		enabled: showOrganizations,
-	});
-	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
-
-	// Reconcile selectedOrg when permission filtering removes it.
-	// Only pure state setters run during render; side effects
-	// (localStorage, blob URL cleanup) run in the effect below.
-	const [prevPermittedOrgs, setPrevPermittedOrgs] = useState(permittedOrgs);
-	const [orgWasAdjusted, setOrgWasAdjusted] = useState(false);
-	if (permittedOrgs !== prevPermittedOrgs) {
-		setPrevPermittedOrgs(permittedOrgs);
-		if (selectedOrg && !permittedOrgs.some((o) => o.id === selectedOrg.id)) {
-			// Fall back through: first permitted org, then the
-			// dashboard default. Never null out selectedOrg.
-			// organizationId must always be a valid UUID for the
-			// create-chat request.
-			const nextOrg = permittedOrgs[0] ?? initialOrg ?? null;
-			setSelectedOrg(nextOrg);
-			if (nextOrg?.id !== selectedOrg.id) {
-				setOrgWasAdjusted(true);
-			}
-		}
-	}
-
-	// Clean up workspace and attachment state after a programmatic
-	// org change from permission filtering. These calls have side
-	// effects (localStorage, blob URL revocation) that must not
-	// run during render.
-	const onOrgAdjusted = useEffectEvent(() => {
-		handleWorkspaceChange(null);
-		resetAttachments();
-	});
-	useEffect(() => {
-		if (orgWasAdjusted) {
-			setOrgWasAdjusted(false);
-			onOrgAdjusted();
-		}
-	}, [orgWasAdjusted]);
 
 	return (
 		<>
@@ -542,23 +565,27 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
-					{showOrganizations && permittedOrgs.length > 1 && (
-						<CompactOrgSelector
-							value={selectedOrg}
-							options={permittedOrgs}
-							onChange={(newOrg) => {
-								const orgChanged = newOrg.id !== selectedOrg?.id;
-								if (orgChanged && attachments.length > 0) {
-									setPendingOrgChange(newOrg);
-									return;
-								}
-								if (orgChanged) {
-									handleWorkspaceChange(null);
-								}
-								setSelectedOrg(newOrg);
-							}}
-						/>
-					)}
+					{/* The pre-settlement list is the unfiltered dashboard fallback;
+					    selecting from it could destroy existing workspace state. */}
+					{showOrganizations &&
+						orgSelectionSettled &&
+						permittedOrgs.length > 1 && (
+							<CompactOrgSelector
+								value={effectiveOrg}
+								options={permittedOrgs}
+								onChange={(newOrg) => {
+									const orgChanged = newOrg.id !== effectiveOrg?.id;
+									if (orgChanged && attachments.length > 0) {
+										setPendingOrgChange(newOrg);
+										return;
+									}
+									if (orgChanged) {
+										handleWorkspaceChange(null);
+									}
+									setSelectedOrg(newOrg);
+								}}
+							/>
+						)}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
 						sendShortcut={sendShortcut}
@@ -566,6 +593,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						isDisabled={
 							isCreating ||
 							isForbidden ||
+							!orgSelectionSettled ||
+							// Sending before adoption would omit persisted files not yet restored.
+							!organizationAdopted ||
+							workspaceValidationPending ||
 							isPersonalModelOverridesLoading ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
@@ -585,7 +616,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={setPlanModeEnabled}
 						attachments={attachments}
-						onAttach={handleAttach}
+						// Files attached before org adoption cannot upload and would be discarded
+						// when restoration completes.
+						onAttach={organizationAdopted ? handleAttach : undefined}
 						onRemoveAttachment={handleRemoveAttachment}
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
@@ -599,7 +632,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						onMCPAuthComplete={onMCPAuthComplete}
 						workspaceOptions={filteredWorkspaces}
 						selectedWorkspaceId={effectiveWorkspaceId}
-						onWorkspaceChange={handleWorkspaceChange}
+						// Do not persist a workspace until its organization is authorized.
+						onWorkspaceChange={
+							orgSelectionSettled && !noPermittedOrgs
+								? handleWorkspaceChange
+								: undefined
+						}
 						isWorkspaceLoading={isWorkspacesLoading}
 						canConfigureAgentSetup={canConfigureAgentSetup}
 						providerCount={providerCount}
@@ -622,10 +660,18 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				hideCancel={false}
 				confirmText="Continue"
 				onConfirm={() => {
+					if (!pendingOrgChange) {
+						return;
+					}
+					setPendingOrgChange(null);
+					// Recheck authorization because a refetch may revoke the pending org
+					// after this render created the closure.
+					if (!permittedOrgs.some((org) => org.id === pendingOrgChange.id)) {
+						return;
+					}
 					resetAttachments();
 					handleWorkspaceChange(null);
 					setSelectedOrg(pendingOrgChange);
-					setPendingOrgChange(null);
 				}}
 				onClose={() => setPendingOrgChange(null)}
 			/>
