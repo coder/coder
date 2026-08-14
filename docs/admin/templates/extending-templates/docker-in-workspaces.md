@@ -247,19 +247,14 @@ Before using Podman, please review the following documentation:
 3. For systems running SELinux (typically Fedora-, CentOS-, and Red Hat-based
    systems), you might need to disable SELinux or set it to permissive mode.
 
-4. Create a template from the built-in `kubernetes` starter, then adapt it for
-   rootless Podman:
+4. Create a template from the built-in `kubernetes` starter, then adapt it for rootless Podman:
 
    ```sh
    coder templates init --id kubernetes ./kubernetes-podman
    cd ./kubernetes-podman
    ```
 
-   The `kubernetes` starter already runs the workspace pod as a non-root user
-   (`run_as_user = 1000`, `fs_group = 1000`, `run_as_non_root = true`), which
-   rootless Podman requires. In the generated `main.tf`, apply the Podman
-   changes to the `kubernetes_deployment_v1.main` pod template (marked
-   `# Podman` below):
+   The `kubernetes` starter already runs the workspace pod as a non-root user (`run_as_user = 1000`, `fs_group = 1000`, `run_as_non_root = true`), which rootless Podman requires. In the generated `main.tf`, apply the Podman changes to the `kubernetes_deployment_v1.main` pod template (marked `# Podman` in the following snippet):
 
    ```tf
    spec {
