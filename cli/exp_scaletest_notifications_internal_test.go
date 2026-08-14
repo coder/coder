@@ -4,7 +4,9 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/notifications"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // makeScaletestUser creates and authenticates a password-login user with the
@@ -143,11 +146,71 @@ func TestRestoreUsersBestEffort(t *testing.T) {
 	badU := &reuseUser{user: badRefreshed, promoted: true, tokenID: "0123456789"}
 
 	metrics := notifications.NewMetrics(prometheus.NewRegistry())
-	err = restoreUsers(ctx, client, metrics, []reuseUser{*goodU, *badU}, 2)
+	err = restoreUsers(ctx, io.Discard, client, metrics, []reuseUser{*goodU, *badU}, 2)
 	require.Error(t, err, "a failing token revocation should surface an error")
 
 	// The good user is fully restored despite the bad one failing.
 	goodRefreshed, gerr := client.User(ctx, good.ID.String())
 	require.NoError(t, gerr)
 	require.False(t, userHasRole(goodRefreshed, codersdk.RoleTemplateAdmin))
+}
+
+// chanWriter turns each Write into a message on a channel so a test can read
+// progress output deterministically without racing the reporter goroutine.
+type chanWriter struct {
+	ch chan string
+}
+
+func (c *chanWriter) Write(p []byte) (int, error) {
+	c.ch <- string(p)
+	return len(p), nil
+}
+
+func TestProgressWatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReportsOnTick", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker("progress")
+		defer trap.Close()
+
+		cw := &chanWriter{ch: make(chan string, 4)}
+		var completed atomic.Int64
+		p := progress{w: cw, clock: mClock, verb: "Prepared"}
+		stop := p.watch(ctx, 5, &completed)
+		defer stop()
+
+		// Wait until the reporter has created its ticker, then release it so the
+		// advance below fires a tick deterministically.
+		call := trap.MustWait(ctx)
+		call.Release(ctx)
+
+		completed.Store(2)
+		_, w := mClock.AdvanceNext()
+		w.MustWait(ctx)
+
+		line := <-cw.ch
+		require.Equal(t, "  Prepared 2/5 users, 15s elapsed\n", line)
+	})
+
+	t.Run("NilWriterIsNoOp", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		var completed atomic.Int64
+		// Zero value has a nil writer: watch must not start a reporter.
+		stop := progress{}.watch(ctx, 5, &completed)
+		stop()
+	})
+
+	t.Run("ZeroTotalIsNoOp", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		cw := &chanWriter{ch: make(chan string, 1)}
+		var completed atomic.Int64
+		stop := newProgress(cw, "Prepared").watch(ctx, 0, &completed)
+		stop()
+		require.Empty(t, cw.ch)
+	})
 }

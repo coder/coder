@@ -7,12 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os/signal"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/notifications"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -46,6 +49,62 @@ func boundPool(limit int) func(*http.Transport) {
 		t.MaxIdleConnsPerHost = limit
 		t.MaxConnsPerHost = limit
 		t.IdleConnTimeout = scaletestSetupIdleConnTimeout
+	}
+}
+
+// progressInterval is how often a long setup or cleanup phase reports progress.
+const progressInterval = 15 * time.Second
+
+// progress periodically reports how far a long phase has got. Reuse setup and
+// cleanup can each run for minutes at scale, and an operator who reads silence as
+// a hang may kill the process, which is the one exit that leaves promoted users
+// and live tokens behind.
+//
+// The zero value reports nothing, which is what tests that do not care want.
+type progress struct {
+	w     io.Writer
+	clock quartz.Clock
+	verb  string
+}
+
+func newProgress(w io.Writer, verb string) progress {
+	return progress{w: w, clock: quartz.NewReal(), verb: verb}
+}
+
+// watch reports on a timer until the returned function is called, which waits for
+// the reporter to finish so its output cannot interleave with the caller's.
+//
+// The timer matters more than the count: if a phase wedges on one slow request
+// the count stops advancing, and only a ticking line separates that from slow
+// progress.
+func (p progress) watch(ctx context.Context, total int, completed *atomic.Int64) (stop func()) {
+	if p.w == nil || total == 0 {
+		return func() {}
+	}
+	clock := p.clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		started := clock.Now()
+		ticker := clock.NewTicker(progressInterval, "progress")
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_, _ = fmt.Fprintf(p.w, "  %s %d/%d users, %s elapsed\n",
+					p.verb, completed.Load(), total, clock.Since(started).Round(time.Second))
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-stopped
 	}
 }
 
@@ -232,7 +291,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 						cleanupCtx, cleanupCancel := cleanupStrategy.toContext(context.WithoutCancel(ctx))
 						defer cleanupCancel()
 						_, _ = fmt.Fprintln(inv.Stderr, "\nRestoring reused users...")
-						if rerr := restoreUsers(cleanupCtx, setupClient, metrics, reuse.users, int(setupConcurrency)); rerr != nil {
+						if rerr := restoreUsers(cleanupCtx, inv.Stderr, setupClient, metrics, reuse.users, int(setupConcurrency)); rerr != nil {
 							logger.Error(ctx, "failed to restore reused users", slog.Error(rerr))
 							retErr = errors.Join(retErr, xerrors.Errorf("restore reused users: %w", rerr))
 						}
@@ -586,6 +645,7 @@ type reuseUser struct {
 type reuseState struct {
 	client        *codersdk.Client
 	metrics       *notifications.Metrics
+	stderr        io.Writer
 	users         []reuseUser
 	tokenName     string
 	tokenLifetime time.Duration
@@ -609,6 +669,7 @@ func setupReuseUsers(ctx context.Context, inv *serpent.Invocation, client *coder
 	return &reuseState{
 		client:        client,
 		metrics:       metrics,
+		stderr:        inv.Stderr,
 		users:         users,
 		tokenName:     fmt.Sprintf("%s-notifications", loadtestutil.ScaleTestPrefix),
 		tokenLifetime: tokenLifetime,
@@ -620,6 +681,10 @@ func setupReuseUsers(ctx context.Context, inv *serpent.Invocation, client *coder
 // every user to connect as, at most concurrency at a time. The first failure
 // cancels the rest.
 func (s *reuseState) prepare(ctx context.Context) error {
+	var completed atomic.Int64
+	stopProgress := newProgress(s.stderr, "Prepared").watch(ctx, len(s.users), &completed)
+	defer stopProgress()
+
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(s.concurrency)
 	for i := range s.users {
@@ -629,6 +694,7 @@ func (s *reuseState) prepare(ctx context.Context) error {
 				s.metrics.AddError("prepare_user")
 				return xerrors.Errorf("prepare user %q: %w", u.user.ID, err)
 			}
+			completed.Add(1)
 			return nil
 		})
 	}
@@ -670,7 +736,11 @@ func prepareReuseUser(ctx context.Context, client *codersdk.Client, tokenName st
 // restoreUsers revokes minted tokens and demotes the users this run promoted,
 // best-effort: every user is attempted even when one fails, and the errors are
 // joined. Reused accounts are never deleted.
-func restoreUsers(ctx context.Context, client *codersdk.Client, metrics *notifications.Metrics, users []reuseUser, concurrency int) error {
+func restoreUsers(ctx context.Context, stderr io.Writer, client *codersdk.Client, metrics *notifications.Metrics, users []reuseUser, concurrency int) error {
+	var completed atomic.Int64
+	stopProgress := newProgress(stderr, "Restored").watch(ctx, len(users), &completed)
+	defer stopProgress()
+
 	var (
 		mu   sync.Mutex
 		errs error
@@ -686,6 +756,7 @@ func restoreUsers(ctx context.Context, client *codersdk.Client, metrics *notific
 				errs = errors.Join(errs, err)
 				mu.Unlock()
 			}
+			completed.Add(1)
 			return nil
 		})
 	}
