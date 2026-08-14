@@ -19,3 +19,11 @@ export const addMCPServerPath = (organization: Organization | undefined) =>
 	organization
 		? `/ai/settings/mcp-servers/add?${orgSearchParam}=${encodeURIComponent(organization.name)}`
 		: "/ai/settings/mcp-servers/add";
+
+export const updateMCPServerPath = (
+	serverId: string,
+	organization: Organization | undefined,
+) =>
+	organization
+		? `/ai/settings/mcp-servers/${serverId}?${orgSearchParam}=${encodeURIComponent(organization.name)}`
+		: `/ai/settings/mcp-servers/${serverId}`;

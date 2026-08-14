@@ -20,7 +20,7 @@ import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { MCPServerRow } from "./components/MCPServerRow";
 import { OrganizationPicker } from "./components/OrganizationPicker";
-import { addMCPServerPath } from "./organizationParam";
+import { addMCPServerPath, updateMCPServerPath } from "./organizationParam";
 
 interface MCPServersPageViewProps {
 	isLoading: boolean;
@@ -102,7 +102,7 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 								key={server.id}
 								server={server}
 								onClick={() =>
-									void navigate(`/ai/settings/mcp-servers/${server.id}`)
+									void navigate(updateMCPServerPath(server.id, organization))
 								}
 							/>
 						))

@@ -1,6 +1,11 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Navigate, useNavigate, useParams } from "react-router";
+import {
+	Navigate,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import {
@@ -14,7 +19,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
-import { mcpServersPath } from "../organizationParam";
+import { mcpServersPath, orgSearchParam } from "../organizationParam";
 import UpdateMCPServerPageView from "./UpdateMCPServerPageView";
 
 const UpdateMCPServerPage: FC = () => {
@@ -35,8 +40,13 @@ const UpdateMCPServerPage: FC = () => {
 	const deleteMutation = useMutation(
 		deleteMCPServerConfig(queryClient, serverOrganization),
 	);
+	const [searchParams] = useSearchParams();
+	// When the detail 404s (deleted or concealed), the navigation-carried
+	// organization keeps the redirect on the selected organization's list.
+	const orgName = searchParams.get(orgSearchParam);
 	const listPath = mcpServersPath(
-		organizations.find((org) => org.id === server?.organization_id),
+		organizations.find((org) => org.id === server?.organization_id) ??
+			organizations.find((org) => org.name === orgName),
 	);
 
 	return (

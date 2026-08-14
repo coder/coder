@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { FC } from "react";
+import { useSearchParams } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
@@ -7,6 +9,7 @@ import {
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -14,6 +17,7 @@ import {
 } from "#/testHelpers/storybook";
 import AddMCPServerPage from "./AddMCPServerPage/AddMCPServerPage";
 import MCPServersPage from "./MCPServersPage";
+import { orgSearchParam } from "./organizationParam";
 import { MockCoderMCPServer } from "./testFixtures";
 import UpdateMCPServerPage from "./UpdateMCPServerPage/UpdateMCPServerPage";
 
@@ -141,7 +145,7 @@ export const AddToSelectedOrganization: Story = {
 		reactRouter: reactRouterParameters({
 			location: {
 				path: "/ai/settings/mcp-servers/add",
-				searchParams: { org: MockOrganization2.name },
+				searchParams: { [orgSearchParam]: MockOrganization2.name },
 			},
 			routing: { path: "/ai/settings/mcp-servers/add" },
 		}),
@@ -259,5 +263,90 @@ export const UpdateLoadsServerById: Story = {
 			);
 		});
 		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("Coder");
+	},
+};
+
+const ListRedirectProbe: FC = () => {
+	const [searchParams] = useSearchParams();
+	return <div>list-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
+};
+
+const DetailRedirectProbe: FC = () => {
+	const [searchParams] = useSearchParams();
+	return <div>detail-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
+};
+
+export const RowClickCarriesSelectedOrganization: Story = {
+	parameters: {
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers" },
+			routing: [
+				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
+				{
+					path: "/ai/settings/mcp-servers/:serverId",
+					element: <DetailRedirectProbe />,
+				},
+			],
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
+			async (organization) =>
+				organization === MockOrganization2.id
+					? [MockOrganization2MCPServer]
+					: [MockCoderMCPServer],
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Coder")).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "Organization" }));
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await userEvent.click(await canvas.findByText("Org2 Search"));
+		await expect(
+			await canvas.findByText(`detail-org:${MockOrganization2.name}`),
+		).toBeVisible();
+	},
+};
+
+const notFoundError = (() => {
+	const error = mockApiError({ message: "Resource not found" });
+	return { ...error, response: { ...error.response, status: 404 } };
+})();
+
+export const UpdateNotFoundRedirectsToSelectedOrganization: Story = {
+	render: () => <UpdateMCPServerPage />,
+	parameters: {
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/ai/settings/mcp-servers/${MockOrganization2MCPServer.id}`,
+				searchParams: { [orgSearchParam]: MockOrganization2.name },
+			},
+			routing: [
+				{ path: "/ai/settings/mcp-servers/:serverId", useStoryElement: true },
+				{
+					path: "/ai/settings/mcp-servers",
+					element: <ListRedirectProbe />,
+				},
+			],
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfig").mockRejectedValue(
+			notFoundError,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByText(`list-org:${MockOrganization2.name}`),
+		).toBeVisible();
 	},
 };
