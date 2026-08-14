@@ -508,19 +508,31 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		[],
 	);
 
-	const handleMCPAuthComplete = useEffectEvent((serverID: string) => {
-		setMcpConnectingId(null);
-		onMCPAuthComplete?.(serverID);
-		if (
-			onMCPSelectionChange &&
-			selectedMCPServerIds &&
-			mcpServers?.some((server) => server.id === serverID && server.enabled) &&
-			!selectedMCPServerIds.includes(serverID)
-		) {
-			onMCPSelectionChange([...selectedMCPServerIds, serverID]);
-		}
-		mcpPopupRef.current = null;
-	});
+	const handleMCPAuthComplete = useEffectEvent(
+		(serverID: string, source: MessageEventSource | null) => {
+			onMCPAuthComplete?.(serverID);
+			// Only the popup this input opened expresses intent to use the
+			// server; a stray same-origin message must not clear an in-flight
+			// connect or change the selection.
+			if (source === null || source !== mcpPopupRef.current) {
+				return;
+			}
+			const isInitiatedServer = mcpConnectingId === serverID;
+			setMcpConnectingId(null);
+			mcpPopupRef.current = null;
+			if (
+				isInitiatedServer &&
+				onMCPSelectionChange &&
+				selectedMCPServerIds &&
+				mcpServers?.some(
+					(server) => server.id === serverID && server.enabled,
+				) &&
+				!selectedMCPServerIds.includes(serverID)
+			) {
+				onMCPSelectionChange([...selectedMCPServerIds, serverID]);
+			}
+		},
+	);
 
 	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
@@ -530,7 +542,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				event.data?.type === "mcp-oauth2-complete" &&
 				typeof event.data.serverID === "string"
 			) {
-				handleMCPAuthComplete(event.data.serverID);
+				handleMCPAuthComplete(event.data.serverID, event.source);
 			}
 		};
 		window.addEventListener("message", handler);

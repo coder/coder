@@ -756,13 +756,26 @@ const mcpDefaults = {
 	onMCPAuthComplete: fn(),
 };
 
-const dispatchMCPOAuthComplete = (serverID: string) => {
+const dispatchMCPOAuthComplete = (
+	serverID: string,
+	source: MessageEventSource | null = null,
+) => {
 	window.dispatchEvent(
 		new MessageEvent("message", {
 			data: { type: "mcp-oauth2-complete", serverID },
 			origin: location.origin,
+			source,
 		}),
 	);
+};
+
+// Requires window.open mocked to return `window` so the completion
+// message can carry the popup as its source.
+const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	await userEvent.click(await body.findByRole("button", { name: "Auth" }));
 };
 
 // ── MCP stories ────────────────────────────────────────────────
@@ -805,8 +818,17 @@ export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 		mcpServers: [linearMCP, githubMCP],
 		selectedMCPServerIds: [linearMCP.id],
 	},
-	play: async ({ args }) => {
-		dispatchMCPOAuthComplete(githubMCP.id);
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		expect(window.open).toHaveBeenCalledWith(
+			`/api/experimental/mcp/servers/${githubMCP.id}/oauth2/connect`,
+			"_blank",
+			"width=900,height=600",
+		);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
 
 		await waitFor(() => {
 			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([
@@ -824,8 +846,12 @@ export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
 		mcpServers: [githubMCP],
 		selectedMCPServerIds: [githubMCP.id],
 	},
-	play: async ({ args }) => {
-		dispatchMCPOAuthComplete(githubMCP.id);
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
 
 		await waitFor(() => {
 			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
@@ -834,34 +860,37 @@ export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
 	},
 };
 
-export const MCPIgnoresDisabledServerAfterOAuthCompletes: Story = {
+export const MCPIgnoresUnsolicitedOAuthComplete: Story = {
 	args: {
 		...mcpDefaults,
-		mcpServers: [{ ...githubMCP, enabled: false }],
-		selectedMCPServerIds: [],
-	},
-	play: async ({ args }) => {
-		dispatchMCPOAuthComplete(githubMCP.id);
-
-		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
-		});
-		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
-	},
-};
-
-export const MCPIgnoresUnknownServerAfterOAuthCompletes: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP],
+		mcpServers: [linearMCP, githubMCP],
 		selectedMCPServerIds: [linearMCP.id],
 	},
 	play: async ({ args }) => {
-		const unknownServerID = "mcp-unknown";
-		dispatchMCPOAuthComplete(unknownServerID);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
 
 		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(unknownServerID);
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		dispatchMCPOAuthComplete(linearMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(linearMCP.id);
 		});
 		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
