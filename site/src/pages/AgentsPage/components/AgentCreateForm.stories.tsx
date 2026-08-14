@@ -1471,9 +1471,11 @@ export const ForbiddenNoAgentsRole: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Permission required")).toBeInTheDocument();
-		await expect(
-			canvas.getByRole("link", { name: /View Docs/ }),
-		).toBeInTheDocument();
+		const docsLink = canvas.getByRole("link", { name: /View Docs/ });
+		await expect(docsLink).toHaveAttribute(
+			"href",
+			expect.stringMatching(/\/ai-coder\/agents\/getting-started$/),
+		);
 		await expect(
 			canvas.queryByRole("heading", { name: "Forbidden." }),
 		).not.toBeInTheDocument();
