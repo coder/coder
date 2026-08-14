@@ -94,12 +94,14 @@ working directory prior to step 1.
    ```yaml
    coder:
      tls:
-         secretName:
+       secretNames:
          - coder-tls
 
      # Alternatively, if you use an Ingress controller to terminate TLS,
      # set the following values:
      ingress:
+       enable: true
+       tls:
          enable: true
          secretName: coder-tls
          wildcardSecretName: coder-tls
