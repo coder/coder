@@ -120,7 +120,7 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Param state query string true "A random unguessable string"
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
-// @Param scope query string false "Token scopes (currently ignored)"
+// @Param scope query string false "Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted"
 // @Success 200 "Returns HTML authorization page"
 // @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
@@ -135,7 +135,7 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param state query string true "A random unguessable string"
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
-// @Param scope query string false "Token scopes (currently ignored)"
+// @Param scope query string false "Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted"
 // @Success 302 "Returns redirect with authorization code"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
