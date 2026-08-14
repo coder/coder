@@ -21,6 +21,14 @@ Before you begin, confirm the following:
 Coder Agents is available to every organization member by default; no
 additional role assignment is needed.
 
+> [!NOTE]
+> Earlier releases gated access behind the **Coder Agents User**
+> (`agents-access`) role, which has been removed. The upgrade scrubs the role
+> from existing assignments automatically, but role updates that still include
+> `agents-access` are rejected as an unsupported role. If Terraform, scripts,
+> or other automation assigns roles, remove `agents-access` from those role
+> sets when upgrading.
+
 ## Step 1: Configure an LLM provider and model
 
 > [!IMPORTANT]
