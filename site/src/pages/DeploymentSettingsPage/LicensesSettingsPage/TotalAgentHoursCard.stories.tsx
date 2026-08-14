@@ -27,10 +27,9 @@ const hoverInfoIcon = async (canvasElement: HTMLElement) => {
 	return within(canvasElement.ownerDocument.body);
 };
 
-// Radix mounts the role="tooltip" node only while the popover is open,
-// so this fails when hovering does not actually open the popover. The
-// role node is the visually hidden accessibility copy of the content,
-// which is intentionally clipped, so there is no visibility to assert.
+// Radix mounts the role="tooltip" node only while the popover is open.
+// The node is the visually hidden copy of the content, so there is no
+// visibility to assert.
 const expectTooltipText = async (
 	body: ReturnType<typeof within>,
 	text: RegExp,
@@ -44,6 +43,8 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("400.3")).toBeInTheDocument();
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+		await expect(canvas.getByText("June 1, 2026")).toBeInTheDocument();
+		await expect(canvas.getByText("May 31, 2027")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -127,9 +128,8 @@ export const OverAllocation: Story = {
 	},
 };
 
-// The whole-hour actual sits exactly at the allocation, but the extra
-// 6 minutes push the tenths-precision value past it, so the fraction
-// alone flips the reached state and the red bar.
+// The extra 6 minutes alone push the tenths value past the whole-hour
+// allocation and flip the reached state.
 export const ReachedAllocationByFraction: Story = {
 	args: {
 		feature: {
@@ -149,8 +149,7 @@ export const ReachedAllocationByFraction: Story = {
 	},
 };
 
-// 999 of 1,000 hours is 99.9% used: the tooltip shows the one-decimal
-// percentage, floored so it never reads as a false 100%.
+// 99.9% must never read as a false 100%.
 export const NearAllocation: Story = {
 	args: {
 		feature: {
@@ -185,10 +184,8 @@ export const MissingActual: Story = {
 	},
 };
 
-// A zero soft limit is valid and reached by any usage, but usage data
-// missing because the usage query failed must not count as reaching it:
-// the card keeps the neutral informational tooltip instead of warning
-// about usage it does not know.
+// Missing usage data must not count as reaching a zero soft limit, so
+// the tooltip stays informational.
 export const MissingActualZeroSoftLimit: Story = {
 	args: {
 		feature: {
@@ -209,11 +206,20 @@ export const MissingActualZeroSoftLimit: Story = {
 	},
 };
 
-// A hard cap scales the track to the hard-cap range. Every threshold
-// carries a marker line: dotted yellow for the soft limit, red for the
-// allocation (with the limit label at its interior position), and a
-// double-width primary-color line for the hard cap at the right edge.
-// Usage below the soft limit fills green only.
+export const MissingUsagePeriod: Story = {
+	args: {
+		feature: {
+			...MockAgentRuntimeHoursFeature,
+			usage_period: undefined,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("400.0")).toBeInTheDocument();
+		await expect(canvas.queryByText("June 1, 2026")).not.toBeInTheDocument();
+	},
+};
+
 export const HardCap: Story = {
 	args: {
 		feature: {
@@ -243,8 +249,6 @@ export const HardCap: Story = {
 	},
 };
 
-// Usage between the soft limit and the allocation fills green up to the
-// soft limit marker and yellow beyond it.
 export const HardCapBetweenSoftLimitAndLimit: Story = {
 	args: {
 		feature: {
@@ -268,9 +272,6 @@ export const HardCapBetweenSoftLimitAndLimit: Story = {
 	},
 };
 
-// Usage between the allocation and the hard cap adds the red segment
-// past the limit marker. The hard-cap pill only appears once the hard
-// cap itself is reached.
 export const HardCapBetweenLimitAndHardCap: Story = {
 	args: {
 		feature: {
@@ -294,9 +295,7 @@ export const HardCapBetweenLimitAndHardCap: Story = {
 	},
 };
 
-// When the allocation sits within the last 15% of the hard-cap track,
-// the limit label under its marker would collide with the hard cap
-// label at the right edge, so the hard cap text renders above the bar.
+// A marker past 85% moves the hard cap text above the bar.
 export const HardCapNearAllocation: Story = {
 	args: {
 		feature: {
@@ -314,10 +313,7 @@ export const HardCapNearAllocation: Story = {
 	},
 };
 
-// When the allocation sits within the first 15% of the hard-cap track
-// (here 100 of 10,000 hours, a 1% marker), the centered limit label
-// would spill outside the card and over the Used label, so the limit
-// text renders above the bar, left-aligned at its marker.
+// A marker below 15% moves the limit text above the bar.
 export const HardCapFarFromAllocation: Story = {
 	args: {
 		feature: {
@@ -338,10 +334,6 @@ export const HardCapFarFromAllocation: Story = {
 	},
 };
 
-// Usage at or beyond the hard cap fills every segment of the track and
-// shows the hard-cap pill above the bar. The tooltip reports the hard
-// cap while the usage percentage stays measured against the
-// allocation.
 export const ReachedHardCap: Story = {
 	args: {
 		feature: {
@@ -363,9 +355,7 @@ export const ReachedHardCap: Story = {
 	},
 };
 
-// The backend accepts a hard cap equal to the allocation. The shared
-// threshold sits at the track's right edge, so reaching it turns the
-// whole fill red while the pill and hard-cap tooltip still appear.
+// The backend accepts a hard cap equal to the allocation.
 export const ReachedCoincidentHardCap: Story = {
 	args: {
 		feature: {
@@ -403,10 +393,6 @@ export const Disabled: Story = {
 	},
 };
 
-// An enabled feature with the limit omitted means the license grants
-// unlimited runtime hours: the bar renders as green diagonal stripes
-// fading out over the right half (an unmetered allocation, not 100%
-// usage) with no threshold copy in the tooltip.
 export const Unlimited: Story = {
 	args: {
 		feature: {

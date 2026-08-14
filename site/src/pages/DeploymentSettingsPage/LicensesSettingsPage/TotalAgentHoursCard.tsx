@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import { BanIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import type { Feature } from "#/api/typesGenerated";
@@ -28,11 +29,10 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		soft_limit: softLimit,
 		hard_limit: hardLimit,
 		actual_ms: actualMs,
+		usage_period: usagePeriod,
 	} = feature;
 
-	// An enabled feature with the limit omitted is the unlimited
-	// allocation: the license grants unlimited runtime hours and carries
-	// no thresholds to warn about.
+	// An omitted limit means the license grants unlimited runtime hours.
 	const isUnlimited = limit === undefined;
 
 	if (!isUnlimited && limit < 0) {
@@ -46,16 +46,12 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	}
 
 	const meteredLimit = limit ?? 0;
-	// Usage in tenths of hours, floored via integer math from the exact
-	// milliseconds so the displayed number and the reached states below
-	// flip at the same instant as the backend's whole-hour thresholds
-	// (floor_tenths(x) >= N is equivalent to x >= N for integer N).
+	// Floored to tenths so the displayed number and the reached states
+	// below flip together at the backend's whole-hour thresholds.
 	const usedHours =
 		actualMs === undefined ? 0 : Math.floor(actualMs / 360_000) / 10;
-	// The backend only attaches a hard limit to a positive allocation and
-	// guarantees hard >= allocation, ignoring unusable hard limit claims,
-	// so anything else here comes from a decoding bug and is ignored the
-	// same way.
+	// The backend guarantees hard >= allocation > 0; anything else comes
+	// from a decoding bug and is ignored the same way.
 	const hardCap =
 		!isUnlimited &&
 		hardLimit !== undefined &&
@@ -63,25 +59,22 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		hardLimit >= meteredLimit
 			? hardLimit
 			: undefined;
-	// The backend warns with >= for both thresholds, so "reached" (not
-	// "exceeded") drives the warning copy and the used-label color. An
-	// unlimited allocation has no thresholds to reach.
+	// The backend warns with >=, so reaching a threshold (not exceeding
+	// it) drives the warning copy and colors.
 	const reachedAllocation =
 		!isUnlimited && actualMs !== undefined && usedHours >= meteredLimit;
 	const reachedHardCap =
 		hardCap !== undefined && actualMs !== undefined && usedHours >= hardCap;
-	// Missing usage data (the usage query failed) must not count as
-	// reaching the soft limit: a soft limit of zero is valid and would
-	// otherwise compare as reached against the defaulted zero usage.
+	// Missing usage data must not count as reaching a zero soft limit,
+	// which is valid and reached by any known usage.
 	const reachedSoftLimit =
 		!isUnlimited &&
 		!reachedAllocation &&
 		actualMs !== undefined &&
 		softLimit !== undefined &&
 		usedHours >= softLimit;
-	// With a hard cap the track spans the full hard-cap range: its
-	// right edge is the hard cap and the allocation falls at an interior
-	// marker.
+	// With a hard cap the track spans the hard-cap range and the
+	// allocation falls at an interior marker.
 	const barScale = hardCap ?? meteredLimit;
 	const usagePercentage = isUnlimited
 		? 100
@@ -92,41 +85,30 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		hardCap === undefined
 			? undefined
 			: Math.min((meteredLimit / hardCap) * 100, 100);
-	// When the allocation marker lands near the track's right edge, the
-	// limit label under the marker would collide with the hard cap label,
-	// so the hard cap text moves above the bar.
+	// Near the right edge the limit label would collide with the hard cap
+	// label, so the hard cap text moves above the bar.
 	const hardCapLabelAboveBar =
 		allocationMarkerPercent !== undefined && allocationMarkerPercent > 85;
 	// Near the left edge the centered limit label would spill outside the
-	// card and over the Used label, so the limit text moves above the bar
-	// instead, left-aligned at its marker.
+	// card, so it moves above the bar instead.
 	const limitLabelAboveBar =
 		allocationMarkerPercent !== undefined && allocationMarkerPercent < 15;
-	// At interior marker positions the centered limit label can still
-	// collide with the right-aligned hard cap label when the card is
-	// narrow, so below the md breakpoint it moves above the bar instead.
+	// On narrow cards an interior-marker limit label can collide with the
+	// hard cap label, so below the md breakpoint it moves above the bar.
 	const limitLabelStacksNarrow =
 		allocationMarkerPercent !== undefined &&
 		!limitLabelAboveBar &&
 		!hardCapLabelAboveBar;
 
-	// The fill is segmented by position instead of switching color as a
-	// whole: green until the soft limit, yellow from the soft limit to the
-	// allocation, and red from the allocation to the hard cap. Each
-	// threshold also carries a marker line on the track at the same
-	// position, so a marker only stands out against fill of a different
-	// color once usage passes it. The exception is an allocation at the
-	// track's right edge, where reaching it turns the whole fill red
-	// (see fullRedFill below).
+	// The fill is segmented by position: green to the soft limit, yellow
+	// to the allocation, and red beyond it.
 	const softMarkerPercent =
 		!isUnlimited && softLimit !== undefined && barScale > 0
 			? Math.min((softLimit / barScale) * 100, 100)
 			: undefined;
 	const limitBoundaryPercent = allocationMarkerPercent ?? 100;
-	// When the allocation sits at the track's right edge (no hard cap, or
-	// a hard cap that coincides with the allocation), there is no
-	// position past the limit where a red segment could appear: reaching
-	// the allocation turns the whole fill red instead.
+	// An allocation at the track's right edge leaves no room for a red
+	// segment past it, so reaching it turns the whole fill red instead.
 	const fullRedFill = reachedAllocation && limitBoundaryPercent >= 100;
 	const greenWidth = fullRedFill
 		? 0
@@ -143,10 +125,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		? usagePercentage
 		: Math.max(0, usagePercentage - limitBoundaryPercent);
 
-	// Usage always renders with exactly one decimal (e.g. 42.0, 10.3). The
-	// value is already floored to tenths, so no rounding happens here. The
-	// limit and hard cap labels stay whole because the claims are whole
-	// hours. Missing usage data falls back to N/A rather than a dash.
+	// Already floored to tenths, so rendering one decimal never rounds.
 	const usedLabel =
 		actualMs === undefined
 			? "N/A"
@@ -159,10 +138,20 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		: meteredLimit.toLocaleString("en-US");
 	const hardCapLabel = hardCap?.toLocaleString("en-US");
 
-	// Percentages are floored at one decimal place so the shown value
-	// never crosses a threshold the underlying hours have not reached: a
-	// soft limit of 999/1,000 hours renders as 99.9%, never a false 100%.
-	// Whole values render without a trailing decimal.
+	// The license period the usage covers. A missing or unparsable period
+	// omits the dates rather than replacing meaningful usage with an error.
+	const periodStart = usagePeriod ? dayjs(usagePeriod.start) : undefined;
+	const periodEnd = usagePeriod ? dayjs(usagePeriod.end) : undefined;
+	const usagePeriodLabels =
+		periodStart?.isValid() && periodEnd?.isValid()
+			? {
+					start: periodStart.format("MMMM D, YYYY"),
+					end: periodEnd.format("MMMM D, YYYY"),
+				}
+			: undefined;
+
+	// Floored at one decimal so the shown percentage never crosses a
+	// threshold the underlying hours have not (99.9%, never a false 100%).
 	const formatPercent = (value: number): string =>
 		(Math.floor(value * 10) / 10).toLocaleString("en-US");
 
@@ -171,10 +160,8 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 			? formatPercent((softLimit / meteredLimit) * 100)
 			: undefined;
 
-	// An unlimited allocation renders as green diagonal stripes whose
-	// right half fades out into the track: the hatched, trailing-off bar
-	// reads as an unmetered allocation rather than 100% usage. The mask
-	// needs the -webkit- prefix for Safari.
+	// Fading green stripes read as an unmetered allocation rather than
+	// 100% usage. The mask needs the -webkit- prefix for Safari.
 	const unlimitedBarClassName = cn(
 		"bg-[repeating-linear-gradient(-45deg,hsl(var(--highlight-green)),hsl(var(--highlight-green))_6px,transparent_6px,transparent_12px)]",
 		"[mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
@@ -183,12 +170,9 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 
 	let tooltip: string;
 	if (reachedAllocation) {
-		// The percentage is measured against the allocation even when a
-		// hard cap widens the bar, and flooring cannot understate reaching
-		// the allocation because usage is at least the limit here (1,200 of
-		// 1,000 hours shows 120%). The zero-limit fallback is unreachable
-		// for well-formed licenses: the backend reports a zero-hour
-		// allocation as a disabled feature, which hides the card entirely.
+		// Measured against the allocation even when a hard cap widens the
+		// bar. The zero-limit fallback is unreachable for well-formed
+		// licenses, which report zero-hour allocations as disabled.
 		const usedPercent =
 			meteredLimit > 0
 				? formatPercent((usedHours / meteredLimit) * 100)
@@ -227,6 +211,13 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 						</Tooltip>
 					</div>
 
+					{usagePeriodLabels && (
+						<div className="flex items-center justify-between text-sm text-content-secondary">
+							<span>{usagePeriodLabels.start}</span>
+							<span>{usagePeriodLabels.end}</span>
+						</div>
+					)}
+
 					{(reachedHardCap ||
 						hardCapLabelAboveBar ||
 						limitLabelAboveBar ||
@@ -241,11 +232,9 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 							)}
 						>
 							{(limitLabelAboveBar || limitLabelStacksNarrow) && (
-								// In-flow so the row keeps its height, offset to the
-								// marker by a percentage margin (the row and the track
-								// share a width), with the auto margin keeping the
-								// hard-cap pill on the right. The narrow-only variant
-								// left-aligns instead of following the marker.
+								// Offset to the marker by a percentage margin (the row
+								// and the track share a width); the narrow-only variant
+								// left-aligns instead.
 								<p
 									className={cn(
 										"m-0 mr-auto text-sm font-medium whitespace-nowrap text-content-secondary",
@@ -320,17 +309,14 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 						{!isUnlimited && (
 							<>
 								{softMarkerPercent !== undefined && (
-									// Dotted yellow line marking the soft limit. The default
-									// palette yellow is used because the theme has no yellow
-									// highlight token.
+									// Palette yellow: the theme has no yellow highlight token.
 									<div
 										className="absolute -inset-y-1 border-0 border-l-2 border-dotted border-yellow-400"
 										style={{ left: `${softMarkerPercent}%` }}
 									/>
 								)}
 								{hardCap === undefined ? (
-									// Without a hard cap the allocation is the track's right
-									// edge, where its red marker line sits.
+									// The allocation marker sits at the track's right edge.
 									<div className="absolute -inset-y-1 right-0 w-0.5 bg-highlight-red" />
 								) : (
 									<>
@@ -338,10 +324,8 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 											className="absolute -inset-y-1 w-0.5 bg-highlight-red"
 											style={{ left: `${allocationMarkerPercent}%` }}
 										/>
-										{/* Double-width line marking the hard cap. It uses the
-										    theme's primary content color (white in the dark
-										    theme) so it stays visible over the light theme's
-										    white card background. */}
+										{/* The primary content color stays visible over both
+										    themes' card backgrounds. */}
 										<div className="absolute -inset-y-1 right-0 w-1 bg-content-primary" />
 									</>
 								)}
@@ -367,13 +351,9 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 							</p>
 						) : (
 							<>
-								{/* The limit label follows its marker so the allocation
-								    stays readable on the hard-cap scaled track. Near the
-								    right edge it right-aligns to the marker to stay
-								    inside the card; near the left edge it renders above
-								    the bar instead, as does the centered label on cards
-								    below the md breakpoint, where it would collide with
-								    the hard cap label. */}
+								{/* The limit label follows its marker: right-aligned
+								    against it near the right edge, otherwise centered
+								    (with the narrow copy rendering above the bar). */}
 								{!limitLabelAboveBar && (
 									<p
 										className={cn(
