@@ -111,5 +111,5 @@ jobs:
       - name: Promote template version
         if: success()
         run: |
-          coder template version promote --template=$TEMPLATE_NAME --template-version=${{ steps.name.outputs.version_name }} --yes
+          coder template version promote --template=$TEMPLATE_NAME --template-version=${{ steps.name.outputs.version_name }}
 ```
