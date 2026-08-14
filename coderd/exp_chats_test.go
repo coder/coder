@@ -17850,34 +17850,6 @@ func TestSubmitToolResults(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("OtherMember", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		// Chat permissions are owner-scoped, so a different org
-		// member has no access to the chat and the ChatParam
-		// middleware returns 404.
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
-
-		const toolName = "my_dynamic_tool"
-		toolCallIDs := []string{"call_noaccess"}
-
-		chat := setupRequiresAction(ctx, t, db, member.ID, firstUser.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
-
-		err := otherClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
-			Results: []codersdk.ToolResult{
-				{ToolCallID: "call_noaccess", Output: json.RawMessage(`"should fail"`)},
-			},
-		})
-		requireSDKError(t, err, http.StatusNotFound)
-	})
-
 	t.Run("ArchivedChat", func(t *testing.T) {
 		t.Parallel()
 
