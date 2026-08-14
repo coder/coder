@@ -1392,7 +1392,7 @@ export const HookDenied: Story = {
 	},
 };
 
-export const ForbiddenErrorWithRole: Story = {
+export const ForbiddenErrorWithPermission: Story = {
 	args: {
 		...defaultArgs,
 		canCreateChat: true,
@@ -1400,14 +1400,10 @@ export const ForbiddenErrorWithRole: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The friendly "role required" alert must NOT appear because the
-		// user has the agents-access role.
 		await expect(
 			canvas.queryByText("Permission required"),
 		).not.toBeInTheDocument();
-		// The generic ErrorAlert should surface the real backend message.
 		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
-		// The textbox should remain enabled since the user has the role.
 		const textbox = canvas.getByRole("textbox");
 		await waitFor(() =>
 			expect(textbox).not.toHaveAttribute("aria-disabled", "true"),
@@ -1553,7 +1549,6 @@ export const RestrictedMultiOrganizationUser: Story = {
 			MockDefaultOrganization,
 			MockOrganization2,
 		]);
-		// Model agents-access: "me" supplies the owner for member-scoped chat:create.
 		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
 			Object.fromEntries(
 				Object.entries(checks).map(([id, check]) => [
@@ -2026,7 +2021,7 @@ export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
 
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
-		await canvas.findByText(/don't have permission/i);
+		await canvas.findByText(/You need access to an organization/i);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
@@ -2252,7 +2247,7 @@ export const OrgChangeConfirmation: Story = {
 	},
 };
 
-export const ForbiddenNoAgentsRole: Story = {
+export const ForbiddenNoOrganizationAccess: Story = {
 	args: {
 		...defaultArgs,
 		canCreateChat: false,
@@ -2261,6 +2256,9 @@ export const ForbiddenNoAgentsRole: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Permission required")).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/You need access to an organization/),
+		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", { name: /View Docs/ }),
 		).toBeInTheDocument();
@@ -2312,7 +2310,9 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		const canvas = within(canvasElement);
 		await waitFor(
 			() => {
-				expect(canvas.getByText(/don't have permission/i)).toBeInTheDocument();
+				expect(
+					canvas.getByText(/You need access to an organization/i),
+				).toBeInTheDocument();
 			},
 			{ timeout: 3000 },
 		);
@@ -2386,11 +2386,6 @@ export const PermittedOrgsResolvesToSubset: Story = {
 	},
 };
 
-/**
- * Member-scoped roles like agents-access grant chat:create only on
- * chats the user owns, so the per-org check must carry owner context
- * for the picker to render.
- */
 export const MemberScopedPermissionsShowOrgPicker: Story = {
 	parameters: {
 		showOrganizations: true,

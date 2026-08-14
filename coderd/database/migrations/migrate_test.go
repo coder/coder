@@ -1191,6 +1191,56 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
+func TestMigration000585RemoveAgentsAccessRole(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 585
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	db := database.New(sqlDB)
+	user := dbgen.User(t, db, database.User{
+		RBACRoles: []string{"auditor", "agents-access"},
+	})
+	org := dbgen.Organization(t, db, database.Organization{
+		DefaultOrgMemberRoles: []string{"organization-workspace-access", "agents-access"},
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+		Roles:          []string{"organization-auditor", "agents-access"},
+	})
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var siteRoles, orgRoles, defaultRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", user.ID).Scan(&siteRoles)
+	require.NoError(t, err)
+	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", org.ID, user.ID).Scan(&orgRoles)
+	require.NoError(t, err)
+	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", org.ID).Scan(&defaultRoles)
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"auditor"}, []string(siteRoles))
+	require.Equal(t, []string{"organization-auditor"}, []string(orgRoles))
+	require.Equal(t, []string{"organization-workspace-access"}, []string(defaultRoles))
+}
+
 func TestMigration000504AIProvidersBackfill(t *testing.T) {
 	t.Parallel()
 

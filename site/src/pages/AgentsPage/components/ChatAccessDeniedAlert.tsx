@@ -5,9 +5,7 @@ import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
 export const ChatAccessDeniedAlert: FC = () => {
-	const docsLink = docs(
-		"/ai-coder/agents/getting-started#step-3-grant-coder-agents-user",
-	);
+	const docsLink = docs("/ai-coder/agents/getting-started");
 
 	return (
 		<Alert
@@ -20,9 +18,8 @@ export const ChatAccessDeniedAlert: FC = () => {
 		>
 			<AlertTitle>Permission required</AlertTitle>
 			<AlertDescription>
-				You don't have permission to use Coder Agents. Contact your Coder
-				administrator for access. Refresh this page after access has been
-				granted.{" "}
+				You need access to an organization to use Coder Agents. Contact your
+				Coder administrator for access, then refresh this page.{" "}
 				<Link href={docsLink} target="_blank" rel="noreferrer">
 					View Docs
 				</Link>
