@@ -14,12 +14,10 @@ ALTER TABLE usage_events
     OR date_trunc('hour', (created_at AT TIME ZONE 'UTC')) = (created_at AT TIME ZONE 'UTC')
   );
 
--- Replace the non-unique partial index with a unique one of the same shape,
--- so reads are served identically. Inserts keep their (id) arbiter:
--- re-inserting a bucket under its deterministic id stays a silent no-op,
--- while a duplicate bucket row under a different id raises instead of being
--- counted twice (generateBucket in enterprise/coderd/usage/generator.go
--- handles the violation).
+-- Inserts keep their (id) arbiter: re-inserting a bucket under its
+-- deterministic id stays a silent no-op, while a duplicate bucket row under
+-- a different id raises a unique violation (generateBucket in
+-- enterprise/coderd/usage/generator.go handles it).
 DROP INDEX idx_usage_events_agent_runtime;
 CREATE UNIQUE INDEX idx_usage_events_agent_runtime
   ON usage_events (event_type, created_at)
