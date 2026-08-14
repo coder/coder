@@ -3167,6 +3167,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadResponse"
                         }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
