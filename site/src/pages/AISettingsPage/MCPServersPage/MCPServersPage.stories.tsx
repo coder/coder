@@ -29,6 +29,16 @@ const MockOrganization2MCPServer: TypesGen.MCPServerConfig = {
 	organization_id: MockOrganization2.id,
 };
 
+const ListRedirectProbe: FC = () => {
+	const [searchParams] = useSearchParams();
+	return <div>list-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
+};
+
+const DetailRedirectProbe: FC = () => {
+	const [searchParams] = useSearchParams();
+	return <div>detail-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
+};
+
 const meta = {
 	title: "pages/AISettingsPage/MCPServersPage/MCPServersPage",
 	component: MCPServersPage,
@@ -147,7 +157,13 @@ export const AddToSelectedOrganization: Story = {
 				path: "/ai/settings/mcp-servers/add",
 				searchParams: { [orgSearchParam]: MockOrganization2.name },
 			},
-			routing: { path: "/ai/settings/mcp-servers/add" },
+			routing: [
+				{ path: "/ai/settings/mcp-servers/add", useStoryElement: true },
+				{
+					path: "/ai/settings/mcp-servers/:serverId",
+					element: <DetailRedirectProbe />,
+				},
+			],
 		}),
 	},
 	beforeEach: () => {
@@ -172,6 +188,9 @@ export const AddToSelectedOrganization: Story = {
 				expect.objectContaining({ display_name: "GitHub" }),
 			);
 		});
+		await expect(
+			await canvas.findByText(`detail-org:${MockOrganization2.name}`),
+		).toBeVisible();
 	},
 };
 
@@ -264,16 +283,6 @@ export const UpdateLoadsServerById: Story = {
 		});
 		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("Coder");
 	},
-};
-
-const ListRedirectProbe: FC = () => {
-	const [searchParams] = useSearchParams();
-	return <div>list-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
-};
-
-const DetailRedirectProbe: FC = () => {
-	const [searchParams] = useSearchParams();
-	return <div>detail-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
 };
 
 export const RowClickCarriesSelectedOrganization: Story = {

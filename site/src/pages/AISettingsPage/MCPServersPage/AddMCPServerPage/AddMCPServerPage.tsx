@@ -11,6 +11,7 @@ import {
 	mcpServersPath,
 	orgSearchParam,
 	selectOrganization,
+	updateMCPServerPath,
 } from "../organizationParam";
 import AddMCPServerPageView from "./AddMCPServerPageView";
 
@@ -45,7 +46,7 @@ const AddMCPServerPage: FC = () => {
 					try {
 						const server = await createMutation.mutateAsync(req);
 						toast.success(`MCP server "${server.display_name}" added.`);
-						await navigate(`/ai/settings/mcp-servers/${server.id}`);
+						await navigate(updateMCPServerPath(server.id, organization));
 					} catch (error) {
 						toast.error(getErrorMessage(error, "Failed to add MCP server."));
 					}
