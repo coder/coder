@@ -281,6 +281,37 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	return params, nil, nil
 }
 
+// redirectAuthorizeError returns an authorization error to the client by
+// redirecting to its callback with the error in the query, which is how
+// RFC 6749 §4.1.2.1 says an authorization request fails once the client is
+// known. Delivering it on Coder instead reaches only the user's screen: the
+// client's error handling never runs, and the state it sent is dropped, so it
+// cannot correlate the failure with the request that caused it.
+//
+// Only errors raised after extractAuthorizeParams returns may use this. Before
+// that point the redirect URI is whatever the request supplied, and §4.1.2.1
+// requires informing the user rather than redirecting to it. Afterwards it has
+// been exact-matched against the app's registered callback, so the destination
+// is the app's own no matter what the request carried.
+func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, redirectURL *url.URL, state string, code codersdk.OAuth2ErrorCode, description string) {
+	// Copied because the caller's URL is also the consent page's cancel link
+	// and, on the POST side, the success redirect.
+	errorURL := *redirectURL
+	query := errorURL.Query()
+	query.Set("error", string(code))
+	query.Set("error_description", description)
+	// RFC 6749 §4.1.2.1 requires the state back exactly as it arrived,
+	// whenever the client sent one.
+	if state != "" {
+		query.Set("state", state)
+	}
+	errorURL.RawQuery = query.Encode()
+
+	// 302 rather than 307, matching the success redirect below: some external
+	// OAuth2 apps and browsers do not handle 307.
+	http.Redirect(rw, r, errorURL.String(), http.StatusFound)
+}
+
 // ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.
 func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -350,18 +381,8 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 		// to this URL.
 		grantedScope, err := validateRequestedScope(params.scope, app.Scope)
 		if err != nil {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				HideStatus:  false,
-				Title:       "Invalid Scope",
-				Description: err.Error(),
-				Actions: []site.Action{
-					{
-						URL:  accessURL.String(),
-						Text: "Back to site",
-					},
-				},
-			})
+			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
+				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}
 
@@ -446,7 +467,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 
 		grantedScope, err := validateRequestedScope(params.scope, app.Scope)
 		if err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest,
+			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}
