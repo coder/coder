@@ -1260,7 +1260,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		rootChatID = parent.RootChatID.UUID
 	}
 
-	modelConfigID := parent.LastModelConfigID
+	modelConfigID := parent.LastModelConfigID.UUID
 	if opts.modelConfigIDOverride != nil {
 		modelConfigID = *opts.modelConfigIDOverride
 	}
@@ -1382,7 +1382,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		AgentID:           parent.AgentID,
 		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
-		LastModelConfigID: modelConfigID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		Title:             title,
 		Mode:              opts.chatMode,
 		PlanMode:          childPlanMode,

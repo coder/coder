@@ -801,6 +801,16 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{}
 	}
 
+	// External runtimes have no chat model config; skip model
+	// resolution so the status label falls back to a generic one.
+	if chat.Runtime != database.ChatRuntimeCoder {
+		return runChatResult{
+			FinalAssistantText:  finalAssistantText,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+		}
+	}
+
 	// resolvedProvider/resolvedModel describe the model the fallback handle was
 	// built from; they only feed the status-label fallback candidate's labels.
 	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)

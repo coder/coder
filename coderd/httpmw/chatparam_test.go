@@ -50,7 +50,7 @@ func TestChatParam(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    organizationID,
 			OwnerID:           ownerID,
-			LastModelConfigID: modelConfig.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 			Title:             "Test chat",
 		})
 

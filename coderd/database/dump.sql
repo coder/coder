@@ -360,6 +360,13 @@ CREATE TYPE chat_reasoning_effort AS ENUM (
     'max'
 );
 
+CREATE TYPE chat_runtime AS ENUM (
+    'coder',
+    'claude_code'
+);
+
+COMMENT ON TYPE chat_runtime IS 'Generation runtime backing a chat: coder chats use the built-in LLM pipeline, claude_code chats delegate turns to a Claude Code agent running inside the bound workspace.';
+
 CREATE TYPE chat_status AS ENUM (
     'waiting',
     'running',
@@ -2040,6 +2047,23 @@ CREATE SEQUENCE chat_queued_messages_id_seq
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
 
+CREATE TABLE chat_runtime_configs (
+    organization_id uuid NOT NULL,
+    runtime chat_runtime NOT NULL,
+    template_id uuid NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    model text DEFAULT ''::text NOT NULL,
+    permission_mode text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_runtime_configs IS 'Per-organization admin configuration for external chat runtimes, e.g. which template backs Claude Code chats.';
+
+COMMENT ON COLUMN chat_runtime_configs.model IS 'Optional model identifier pinned for the runtime. Empty means the runtime default.';
+
+COMMENT ON COLUMN chat_runtime_configs.permission_mode IS 'Optional permission mode the runtime agent runs with. Empty means the runtime default.';
+
 CREATE TABLE chat_usage_limit_config (
     id bigint NOT NULL,
     singleton boolean DEFAULT true NOT NULL,
@@ -2075,7 +2099,7 @@ CREATE TABLE chats (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     parent_chat_id uuid,
     root_chat_id uuid,
-    last_model_config_id uuid NOT NULL,
+    last_model_config_id uuid,
     archived boolean DEFAULT false NOT NULL,
     last_error jsonb,
     mode chat_mode,
@@ -2108,6 +2132,8 @@ CREATE TABLE chats (
     compaction_requested_at timestamp with time zone,
     summary text,
     summary_generated_at timestamp with time zone,
+    runtime chat_runtime DEFAULT 'coder'::chat_runtime NOT NULL,
+    runtime_state jsonb,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2132,6 +2158,10 @@ COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the p
 COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
+
+COMMENT ON COLUMN chats.runtime IS 'Generation runtime for this chat. Immutable after creation.';
+
+COMMENT ON COLUMN chats.runtime_state IS 'Runtime-specific persistent state, e.g. the ACP session ID and adapter capabilities for claude_code chats.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2231,7 +2261,9 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at
+    c.compaction_requested_at,
+    c.runtime,
+    c.runtime_state
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -4337,6 +4369,9 @@ ALTER TABLE ONLY chat_model_configs
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_runtime_configs
+    ADD CONSTRAINT chat_runtime_configs_pkey PRIMARY KEY (organization_id, runtime);
+
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
 
@@ -5202,6 +5237,12 @@ ALTER TABLE ONLY chat_model_configs
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_runtime_configs
+    ADD CONSTRAINT chat_runtime_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_runtime_configs
+    ADD CONSTRAINT chat_runtime_configs_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;

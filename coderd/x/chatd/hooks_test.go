@@ -42,7 +42,7 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		})
 
 		submitted := []codersdk.ChatMessagePart{
@@ -90,7 +90,7 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		})
 
 		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -145,7 +145,7 @@ func TestHookDispatcherRequiresExperiment(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 
 	var hookRequests atomic.Int32
@@ -183,7 +183,7 @@ func TestSendMessageUserPromptSubmitPassthrough(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 	var received agenthooks.Request
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -402,7 +402,7 @@ func TestSendMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 	var received agenthooks.Request
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -444,7 +444,7 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
 	require.NoError(t, err)
@@ -554,7 +554,7 @@ func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 	var dispatched atomic.Int32
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -577,7 +577,7 @@ func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 	archived := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 	_, err = db.ArchiveChatByID(ctx, archived.ID)
 	require.NoError(t, err)
@@ -616,7 +616,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
@@ -644,7 +644,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 	busy := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Status:            database.ChatStatusRunning,
 	})
 	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
@@ -679,7 +679,7 @@ func TestSendMessageHooksDisabled(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 	server := newTestServer(t, db, ps, uuid.New())
 	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{

@@ -76,12 +76,12 @@ func newGeneratorHarness(t *testing.T) *generatorHarness {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: mc.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: mc.ID, Valid: true},
 	})
 	chat2 := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: mc.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: mc.ID, Valid: true},
 	})
 	return &generatorHarness{
 		db:          db,

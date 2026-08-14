@@ -852,6 +852,8 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.ContextDirtyResources,
 			&i.Chat.ContextError,
 			&i.Chat.CompactionRequestedAt,
+			&i.Chat.Runtime,
+			&i.Chat.RuntimeState,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}

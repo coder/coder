@@ -355,7 +355,7 @@ func applySessionStartResponse(
 		return sessionStartResult{Chat: chat}, nil
 	}
 
-	eventMessages, err := chathooks.EventMessages(result, chat.LastModelConfigID)
+	eventMessages, err := chathooks.EventMessages(result, chat.LastModelConfigID.UUID)
 	if err != nil {
 		return sessionStartResult{}, err
 	}
@@ -426,6 +426,15 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
+		if chat.Runtime != database.ChatRuntimeCoder {
+			if err := s.server.requireRuntimeExperiment(chat.Runtime); err != nil {
+				err = chaterror.WithClassification(err, chaterror.ClassifiedError{
+					Kind:    codersdk.ChatErrorKindConfig,
+					Message: "This chat uses an external runtime, but the agents-runtime-config experiment is disabled.",
+				})
+				return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+			}
+		}
 		if s.server.hooks.Enabled() {
 			result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
 			if err != nil {
@@ -438,6 +447,20 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				input.HistoryVersion = result.Chat.HistoryVersion
 				continue
 			}
+		}
+		switch chat.Runtime {
+		case database.ChatRuntimeCoder:
+		case database.ChatRuntimeClaudeCode:
+			return s.startClaudeCodeGeneration(ctx, machine, input, chat, messages)
+		default:
+			err := chaterror.WithClassification(
+				xerrors.Errorf("unsupported chat runtime %q", chat.Runtime),
+				chaterror.ClassifiedError{
+					Kind:    codersdk.ChatErrorKindConfig,
+					Message: "This chat uses an unsupported runtime.",
+				},
+			)
+			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 		}
 		prepareInput := generationPrepareInput{
 			Chat:     chat,
@@ -1364,7 +1387,7 @@ func (s *taskStarter) finishGenerationTurn(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, chathooks.GenerationDispatchError(agenthooks.EventStop, err), fence)
 	}
-	stopMessages, err := chathooks.EventMessages(response, chat.LastModelConfigID)
+	stopMessages, err := chathooks.EventMessages(response, chat.LastModelConfigID.UUID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, fence)
 	}

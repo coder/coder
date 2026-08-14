@@ -103,7 +103,7 @@ func createComputerUseParentChild(
 		OwnerID:           user.ID,
 		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
 		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             parentTitle,
 		Status:            database.ChatStatusRunning,
 	})
@@ -118,7 +118,7 @@ func createComputerUseParentChild(
 		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
 		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             childTitle,
 		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
 		Status:            database.ChatStatusRunning,
@@ -144,7 +144,7 @@ func invokeWaitAgentTool(
 	parentChat, err := db.GetChatByID(ctx, parentID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID.UUID)
 	tool := findToolByName(tools, "wait_agent")
 	require.NotNil(t, tool, "wait_agent tool must be present")
 
@@ -562,7 +562,7 @@ func TestWaitAgentTimeoutLeavesRecordingRunning(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, child.ParentChatID.UUID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID.UUID)
 	tool := findToolByName(tools, "wait_agent")
 	require.NotNil(t, tool, "wait_agent tool must be present")
 

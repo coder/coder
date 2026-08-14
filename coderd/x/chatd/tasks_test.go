@@ -969,7 +969,7 @@ func (f *taskTestFixture) createRunningChat(t *testing.T) database.Chat {
 	res, err := chatstate.CreateChat(testutil.Context(t, testutil.WaitShort), f.db, f.pubsub, chatstate.CreateChatInput{
 		OrganizationID:    f.org.ID,
 		OwnerID:           f.user.ID,
-		LastModelConfigID: f.model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.model.ID, Valid: true},
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages:   []chatstate.Message{taskUserTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID)},
@@ -991,7 +991,7 @@ func (f *taskTestFixture) createRequiresActionChat(t *testing.T) database.Chat {
 	res, err := chatstate.CreateChat(testutil.Context(t, testutil.WaitShort), f.db, f.pubsub, chatstate.CreateChatInput{
 		OrganizationID:    f.org.ID,
 		OwnerID:           f.user.ID,
-		LastModelConfigID: f.model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.model.ID, Valid: true},
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
 		DynamicTools:      pqtype.NullRawMessage{RawMessage: dynamicTools, Valid: true},

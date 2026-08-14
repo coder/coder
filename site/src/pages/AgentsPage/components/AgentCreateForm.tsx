@@ -12,10 +12,12 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
+	filterAnthropicModelOptions,
 	getModelSelectorPlaceholder,
 	getProviderForModelOption,
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
+	resolveModelOptionId,
 } from "../utils/modelOptions";
 import {
 	getReasoningEffortForModel,
@@ -54,6 +56,9 @@ export type CreateChatOptions = {
 	mcpServerIds?: string[];
 	organizationId: string;
 	planMode?: TypesGen.ChatPlanMode;
+	// Runtime chats bind their own workspace, so workspace, MCP, plan, and
+	// reasoning options do not apply. An omitted model uses the runtime default.
+	runtime?: TypesGen.ChatRuntime;
 };
 
 /**
@@ -145,6 +150,9 @@ interface AgentCreateFormProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
+	runtimeAvailabilityError?: unknown;
+	isRuntimeAvailabilityLoading?: boolean;
+	claudeCodeOrgIds?: ReadonlySet<string>;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -171,6 +179,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
+	runtimeAvailabilityError,
+	isRuntimeAvailabilityLoading = false,
+	claudeCodeOrgIds,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
 	const {
@@ -362,11 +373,28 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	}, [selectedWorkspaceId]);
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
-	const hasModelOptions = modelOptions.length > 0;
+	const [claudeCodeSelectedOrgId, setClaudeCodeSelectedOrgId] = useState<
+		string | null
+	>(null);
+	const claudeCodeAvailable = Boolean(
+		organizationId && claudeCodeOrgIds?.has(organizationId),
+	);
+	const claudeCodeEnabled =
+		claudeCodeAvailable && claudeCodeSelectedOrgId === organizationId;
+	const claudeModelOptions = filterAnthropicModelOptions(modelOptions);
+	const activeModelOptions = claudeCodeEnabled
+		? claudeModelOptions
+		: modelOptions;
+	const [claudeSelectedModel, setClaudeSelectedModel] = useState("");
+	const effectiveClaudeModel = resolveModelOptionId(
+		claudeSelectedModel,
+		claudeModelOptions,
+	);
+	const hasModelOptions = activeModelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
-		modelOptions,
+		activeModelOptions,
 		isModelCatalogLoading,
 		hasConfiguredModels,
 		modelCatalog,
@@ -460,19 +488,27 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {
 		submitDraft();
-		await onCreateChat({
-			message,
-			fileIDs,
-			workspaceId: effectiveWorkspaceId ?? undefined,
-			model: submittedModel,
-			reasoningEffort: effectiveReasoningEffort,
-			organizationId,
-			mcpServerIds:
-				effectiveMCPServerIds.length > 0
-					? [...effectiveMCPServerIds]
-					: undefined,
-			planMode: planModeEnabled ? "plan" : undefined,
-		}).catch((err) => {
+		const options: CreateChatOptions = claudeCodeEnabled
+			? {
+					message,
+					organizationId,
+					runtime: "claude_code",
+					model: effectiveClaudeModel || undefined,
+				}
+			: {
+					message,
+					fileIDs,
+					workspaceId: effectiveWorkspaceId ?? undefined,
+					model: submittedModel,
+					reasoningEffort: effectiveReasoningEffort,
+					organizationId,
+					mcpServerIds:
+						effectiveMCPServerIds.length > 0
+							? [...effectiveMCPServerIds]
+							: undefined,
+					planMode: planModeEnabled ? "plan" : undefined,
+				};
+		await onCreateChat(options).catch((err) => {
 			resetDraft();
 			throw err;
 		});
@@ -561,6 +597,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							<ErrorAlert error={createError} />
 						)
 					) : null}
+					{isRuntimeAvailabilityLoading && (
+						<Alert severity="info">
+							<AlertDescription>
+								Checking Claude Code availability...
+							</AlertDescription>
+						</Alert>
+					)}
+					{runtimeAvailabilityError != null && (
+						<ErrorAlert error={runtimeAvailabilityError} />
+					)}
 					{workspacesError != null && <ErrorAlert error={workspacesError} />}
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
@@ -598,43 +644,69 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							!organizationAdopted ||
 							workspaceValidationPending ||
 							isPersonalModelOverridesLoading ||
-							!hasModelOptions ||
-							Boolean(aiGatewayDisabled)
+							// Runtime chat creation still requires chatd and the AI gateway.
+							Boolean(aiGatewayDisabled) ||
+							(!claudeCodeEnabled && !hasModelOptions)
 						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}
 						onContentChange={handleContentChange}
-						selectedModel={selectedModel}
-						onModelChange={handleModelChange}
-						modelOptions={modelOptions}
+						selectedModel={
+							claudeCodeEnabled ? effectiveClaudeModel : selectedModel
+						}
+						onModelChange={
+							claudeCodeEnabled ? setClaudeSelectedModel : handleModelChange
+						}
+						modelOptions={activeModelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						reasoningEffort={effectiveReasoningEffort}
 						onReasoningEffortChange={handleReasoningEffortChange}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
-						planModeEnabled={planModeEnabled}
-						onPlanModeToggle={setPlanModeEnabled}
+						planModeEnabled={claudeCodeEnabled ? false : planModeEnabled}
+						onPlanModeToggle={
+							claudeCodeEnabled ? undefined : setPlanModeEnabled
+						}
+						claudeCodeEnabled={claudeCodeEnabled}
+						onClaudeCodeToggle={
+							claudeCodeAvailable
+								? (enabled) => {
+										if (enabled) {
+											// The runtime does not accept file
+											// attachments; drop any staged ones.
+											resetAttachments();
+										}
+										setClaudeCodeSelectedOrgId(enabled ? organizationId : null);
+									}
+								: undefined
+						}
 						attachments={attachments}
 						// Files attached before org adoption cannot upload and would be discarded
 						// when restoration completes.
-						onAttach={organizationAdopted ? handleAttach : undefined}
+						onAttach={
+							organizationAdopted && !claudeCodeEnabled
+								? handleAttach
+								: undefined
+						}
 						onRemoveAttachment={handleRemoveAttachment}
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
 						textContents={textContents}
-						mcpServers={mcpServers}
+						mcpServers={claudeCodeEnabled ? undefined : mcpServers}
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);
 							saveMCPSelection(ids);
 						}}
 						onMCPAuthComplete={onMCPAuthComplete}
-						workspaceOptions={filteredWorkspaces}
+						workspaceOptions={
+							claudeCodeEnabled ? undefined : filteredWorkspaces
+						}
 						selectedWorkspaceId={effectiveWorkspaceId}
 						// Do not persist a workspace until its organization is authorized.
 						onWorkspaceChange={
-							orgSelectionSettled && !noPermittedOrgs
+							orgSelectionSettled && !noPermittedOrgs && !claudeCodeEnabled
 								? handleWorkspaceChange
 								: undefined
 						}

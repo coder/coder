@@ -2199,6 +2199,13 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
 }
 
+func (q *querier) DeleteChatRuntimeConfig(ctx context.Context, arg database.DeleteChatRuntimeConfigParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.DeleteChatRuntimeConfig(ctx, arg)
+}
+
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -3522,6 +3529,10 @@ func (q *querier) GetChatRetentionDays(ctx context.Context) (int32, error) {
 		return 0, ErrNoActor
 	}
 	return q.db.GetChatRetentionDays(ctx)
+}
+
+func (q *querier) GetChatRuntimeConfig(ctx context.Context, arg database.GetChatRuntimeConfigParams) (database.ChatRuntimeConfig, error) {
+	return q.db.GetChatRuntimeConfig(ctx, arg)
 }
 
 func (q *querier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]database.GetChatStreamSyncRowsRow, error) {
@@ -6813,6 +6824,13 @@ func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID u
 	return q.db.ListChatContextResourcesByChatID(ctx, chatID)
 }
 
+func (q *querier) ListChatRuntimeConfigs(ctx context.Context) ([]database.ChatRuntimeConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.ListChatRuntimeConfigs(ctx)
+}
+
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganization)(ctx, organizationID)
 }
@@ -7449,6 +7467,17 @@ func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateC
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatRetryState(ctx, arg)
+}
+
+func (q *querier) UpdateChatRuntimeState(ctx context.Context, arg database.UpdateChatRuntimeStateParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatRuntimeState(ctx, arg)
 }
 
 func (q *querier) UpdateChatStatus(ctx context.Context, arg database.UpdateChatStatusParams) (database.Chat, error) {
@@ -8928,6 +8957,13 @@ func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int
 		return err
 	}
 	return q.db.UpsertChatRetentionDays(ctx, retentionDays)
+}
+
+func (q *querier) UpsertChatRuntimeConfig(ctx context.Context, arg database.UpsertChatRuntimeConfigParams) (database.ChatRuntimeConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.ChatRuntimeConfig{}, err
+	}
+	return q.db.UpsertChatRuntimeConfig(ctx, arg)
 }
 
 func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) error {

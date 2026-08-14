@@ -112,6 +112,7 @@ import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
+	filterAnthropicModelOptions,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
 	hasUserFixableProviders,
@@ -885,6 +886,11 @@ const AgentChatPage: FC = () => {
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
 	const isEditReasoningEffortDirtyRef = useRef(false);
+	const [clearedModelToDefault, setClearedModelToDefault] = useState(false);
+	const handleModelChange = (value: string) => {
+		setSelectedModel(value);
+		setClearedModelToDefault(value === "");
+	};
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -1143,6 +1149,7 @@ const AgentChatPage: FC = () => {
 				}
 			: undefined;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
+	const isClaudeCodeChat = chatRecord?.runtime === "claude_code";
 
 	// Destructure mutation results directly so the React Compiler
 	// tracks stable primitives/functions instead of the whole result
@@ -1232,6 +1239,7 @@ const AgentChatPage: FC = () => {
 		void trackedSync.catch(() => undefined);
 	};
 
+	// Runtime chats skip model setup, but all sends still require chatd and the AI gateway.
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const { scrollToEnd } = useMessageScroller();
 	const {
@@ -1296,10 +1304,32 @@ const AgentChatPage: FC = () => {
 	);
 	const prNumber =
 		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
+	const selectableModelOptions = isClaudeCodeChat
+		? filterAnthropicModelOptions(modelOptions)
+		: modelOptions;
 	// Compute an effective selected model by validating the user's
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
 	const effectiveSelectedModel = (() => {
+		if (isClaudeCodeChat) {
+			// Empty selects the runtime default, but an untouched picker reuses
+			// the chat's last model until the user explicitly clears it.
+			const resolvedSelectedModel = resolveModelOptionId(
+				selectedModel,
+				selectableModelOptions,
+			);
+			if (resolvedSelectedModel) {
+				return resolvedSelectedModel;
+			}
+			if (clearedModelToDefault) {
+				return "";
+			}
+			return resolveModelOptionId(
+				chatLastModelConfigID,
+				selectableModelOptions,
+			);
+		}
+
 		const resolvedSelectedModel = resolveModelOptionId(
 			selectedModel,
 			modelOptions,
@@ -1319,7 +1349,7 @@ const AgentChatPage: FC = () => {
 		return modelOptions[0]?.id ?? "";
 	})();
 
-	const effectiveModelOption = modelOptions.find(
+	const effectiveModelOption = selectableModelOptions.find(
 		(option) => option.id === effectiveSelectedModel,
 	);
 	const effectiveReasoningEffort = effectiveModelOption
@@ -1335,10 +1365,10 @@ const AgentChatPage: FC = () => {
 		userThresholdsQuery.data?.thresholds,
 		modelConfigs,
 	);
-	const hasModelOptions = modelOptions.length > 0;
+	const hasModelOptions = selectableModelOptions.length > 0;
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
-		modelOptions,
+		selectableModelOptions,
 		isModelCatalogLoading,
 		hasConfiguredModels,
 		modelCatalog,
@@ -1354,12 +1384,13 @@ const AgentChatPage: FC = () => {
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
-		!hasModelOptions ||
+		(!hasModelOptions && !isClaudeCodeChat) ||
 		isArchived ||
 		isChatSettingsPending ||
 		isViewerNotOwner ||
 		aiGatewayDisabled;
-	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
+	const canUpdateChatWorkspace =
+		!isArchived && !isViewerNotOwner && !isClaudeCodeChat;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1619,7 +1650,12 @@ const AgentChatPage: FC = () => {
 			attachments,
 			useComposerContent,
 		});
-		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
+		if (
+			!hasContent ||
+			isSubmissionPending ||
+			!agentId ||
+			(!hasModelOptions && !isClaudeCodeChat)
+		) {
 			return;
 		}
 		// Wait for chat-setting mutations to settle before sending so the
@@ -1684,7 +1720,7 @@ const AgentChatPage: FC = () => {
 			const pickerModelConfigID = effectiveSelectedModel || undefined;
 			const originalIsSelectable =
 				originalModelConfigID !== undefined &&
-				modelOptions.some((opt) => opt.id === originalModelConfigID);
+				selectableModelOptions.some((opt) => opt.id === originalModelConfigID);
 			// Only override the original model when the user has switched to
 			// a different selectable option. If the original is no longer
 			// selectable, the picker is showing a fallback we should not
@@ -1699,9 +1735,10 @@ const AgentChatPage: FC = () => {
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
-				reasoning_effort: isEditReasoningEffortDirtyRef.current
-					? effectiveReasoningEffort
-					: undefined,
+				reasoning_effort:
+					!isClaudeCodeChat && isEditReasoningEffortDirtyRef.current
+						? effectiveReasoningEffort
+						: undefined,
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -1734,7 +1771,7 @@ const AgentChatPage: FC = () => {
 				},
 			});
 			scrollToEnd({ behavior: "smooth" });
-			if (editSelectedModelConfigID) {
+			if (editSelectedModelConfigID && !isClaudeCodeChat) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,
 					editSelectedModelConfigID,
@@ -1744,21 +1781,26 @@ const AgentChatPage: FC = () => {
 		}
 
 		const selectedModelConfigID = effectiveSelectedModel || undefined;
-		const request: CreateChatMessageRequestWithClearablePlanMode = {
-			content,
-			model_config_id: selectedModelConfigID,
-			reasoning_effort: effectiveReasoningEffort,
-			mcp_server_ids:
-				effectiveMCPServerIds.length > 0
-					? [...effectiveMCPServerIds]
-					: undefined,
-			...(planModeSwitch !== undefined
-				? {
-						plan_mode:
-							planModeSwitch === "clear" ? clearChatPlanMode : planModeSwitch,
-					}
-				: {}),
-		};
+		const request: CreateChatMessageRequestWithClearablePlanMode =
+			isClaudeCodeChat
+				? { content, model_config_id: selectedModelConfigID }
+				: {
+						content,
+						model_config_id: selectedModelConfigID,
+						reasoning_effort: effectiveReasoningEffort,
+						mcp_server_ids:
+							effectiveMCPServerIds.length > 0
+								? [...effectiveMCPServerIds]
+								: undefined,
+						...(planModeSwitch !== undefined
+							? {
+									plan_mode:
+										planModeSwitch === "clear"
+											? clearChatPlanMode
+											: planModeSwitch,
+								}
+							: {}),
+					};
 		clearChatErrorReason(agentId);
 		clearStreamError();
 
@@ -1845,10 +1887,16 @@ const AgentChatPage: FC = () => {
 				}
 			}
 		}
-		if (selectedModelConfigID) {
-			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
-		} else {
-			localStorage.removeItem(lastModelConfigIDStorageKey);
+		// Claude picks stay out of the coder-runtime last-used hint.
+		if (!isClaudeCodeChat) {
+			if (selectedModelConfigID) {
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					selectedModelConfigID,
+				);
+			} else {
+				localStorage.removeItem(lastModelConfigIDStorageKey);
+			}
 		}
 		if (planModeSwitch !== undefined) {
 			setCachedChatPlanMode(
@@ -1900,8 +1948,8 @@ const AgentChatPage: FC = () => {
 				onContentChange={editing.handleLoadingDraftChange}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
-				setSelectedModel={setSelectedModel}
-				modelOptions={modelOptions}
+				setSelectedModel={handleModelChange}
+				modelOptions={selectableModelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				hasModelOptions={hasModelOptions}
 				isModelCatalogLoading={isModelCatalogLoading}
@@ -1979,8 +2027,8 @@ const AgentChatPage: FC = () => {
 			initialMessages={chatMessagesList ?? []}
 			editing={{ ...editing, handleEditUserMessage }}
 			effectiveSelectedModel={effectiveSelectedModel}
-			setSelectedModel={setSelectedModel}
-			modelOptions={modelOptions}
+			setSelectedModel={handleModelChange}
+			modelOptions={selectableModelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
 			reasoningEffort={effectiveReasoningEffort}
@@ -1997,8 +2045,9 @@ const AgentChatPage: FC = () => {
 			aiGatewayDisabled={aiGatewayDisabled}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
-			planModeEnabled={planModeEnabled}
-			onPlanModeToggle={handlePlanModeToggle}
+			isClaudeCodeChat={isClaudeCodeChat}
+			planModeEnabled={isClaudeCodeChat ? false : planModeEnabled}
+			onPlanModeToggle={isClaudeCodeChat ? undefined : handlePlanModeToggle}
 			compressionThreshold={compressionThreshold}
 			isInputDisabled={isInputDisabled}
 			isSubmissionPending={isSubmissionPending}

@@ -706,8 +706,9 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		AgentID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		ParentChatID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		RootChatID:          uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		LastModelConfigID:   uuid.New(),
+		LastModelConfigID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		LastReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
+		Runtime:             database.ChatRuntimeCoder,
 		Title:               "all-fields-test",
 		Status:              database.ChatStatusRunning,
 		ClientType:          database.ChatClientTypeUi,
@@ -811,7 +812,7 @@ func TestChat_Shared(t *testing.T) {
 			chat := database.Chat{
 				ID:                uuid.New(),
 				OwnerID:           uuid.New(),
-				LastModelConfigID: uuid.New(),
+				LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 				Title:             tc.name,
 				Status:            database.ChatStatusWaiting,
 				CreatedAt:         dbtime.Now(),
@@ -837,7 +838,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 	chat := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           ownerID,
-		LastModelConfigID: uuid.New(),
+		LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		Title:             "file metadata test",
 		Status:            database.ChatStatusWaiting,
 		CreatedAt:         now,
@@ -879,7 +880,7 @@ func TestChat_NilFilesOmitted(t *testing.T) {
 	chat := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           uuid.New(),
-		LastModelConfigID: uuid.New(),
+		LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		Title:             "no files",
 		Status:            database.ChatStatusWaiting,
 		CreatedAt:         dbtime.Now(),
@@ -959,7 +960,7 @@ func TestChat_LastErrorFallback(t *testing.T) {
 			chat := database.Chat{
 				ID:                uuid.New(),
 				OwnerID:           uuid.New(),
-				LastModelConfigID: uuid.New(),
+				LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 				Title:             "fallback payload",
 				Status:            database.ChatStatusError,
 				CreatedAt:         dbtime.Now(),
@@ -986,7 +987,7 @@ func TestChat_MultipleFiles(t *testing.T) {
 	chat := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           uuid.New(),
-		LastModelConfigID: uuid.New(),
+		LastModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		Title:             "multi file test",
 		Status:            database.ChatStatusWaiting,
 		CreatedAt:         now,

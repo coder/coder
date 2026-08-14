@@ -2244,7 +2244,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    deps.org.ID,
 			OwnerID:           deps.user.ID,
-			LastModelConfigID: deps.modelConfig.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: deps.modelConfig.ID, Valid: true},
 			Title:             "debug-retention-test-chat",
 		})
 		if archived {
@@ -2432,7 +2432,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    orgID,
 			OwnerID:           ownerID,
-			LastModelConfigID: modelConfigID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 			Title:             "test-chat",
 		})
 		if archived {
@@ -2862,7 +2862,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				childChat := dbgen.Chat(t, db, database.Chat{
 					OrganizationID:    deps.org.ID,
 					OwnerID:           deps.user.ID,
-					LastModelConfigID: deps.modelConfig.ID,
+					LastModelConfigID: uuid.NullUUID{UUID: deps.modelConfig.ID, Valid: true},
 					RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 					Title:             "child-chat",
 				})
@@ -3057,7 +3057,7 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelConfig.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 			Title:             "search-backfill-test-chat",
 		})
 		return chatSearchDeps{user: user, modelConfig: modelConfig, chat: chat}

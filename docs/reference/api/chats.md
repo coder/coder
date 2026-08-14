@@ -128,6 +128,7 @@ Experimental: this endpoint is subject to change.
     "pin_order": 0,
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "runtime": "coder",
     "shared": true,
     "status": "waiting",
     "summary": "string",
@@ -225,6 +226,7 @@ Status Code **200**
 | `» pin_order`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `» plan_mode`             | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)                           | false    |              |                                                                                                                                                                                                                                                                            |
 | `» root_chat_id`          | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» runtime`               | [codersdk.ChatRuntime](schemas.md#codersdkchatruntime)                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» shared`                | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `» status`                | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
 | `» summary`               | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
@@ -241,6 +243,7 @@ Status Code **200**
 | `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 | `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
 | `plan_mode`   | `plan`                                                                                                                                                                                                                                                            |
+| `runtime`     | `claude_code`, `coder`                                                                                                                                                                                                                                            |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -287,6 +290,7 @@ Experimental: this endpoint is subject to change.
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "plan_mode": "plan",
   "reasoning_effort": "string",
+  "runtime": "coder",
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
     {
@@ -405,6 +409,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "runtime": "coder",
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -499,6 +504,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "runtime": "coder",
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -516,6 +522,159 @@ Experimental: this endpoint is subject to change.
 | Status | Meaning                                                      | Description | Schema                                   |
 |--------|--------------------------------------------------------------|-------------|------------------------------------------|
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Chat](schemas.md#codersdkchat) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List chat runtime configs
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/runtimes \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/runtimes`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "enabled": true,
+    "model": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "permission_mode": "string",
+    "runtime": "coder",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                      |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatRuntimeConfig](schemas.md#codersdkchatruntimeconfig) |
+
+<h3 id="list-chat-runtime-configs-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                | Type                                                   | Required | Restrictions | Description                                                                                                                                                                             |
+|---------------------|--------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`      | array                                                  | false    |              |                                                                                                                                                                                         |
+| `» created_at`      | string(date-time)                                      | false    |              |                                                                                                                                                                                         |
+| `» enabled`         | boolean                                                | false    |              |                                                                                                                                                                                         |
+| `» model`           | string                                                 | false    |              | Model optionally pins the default model the runtime agent uses. A per-message model selection on the chat overrides this pin; empty falls through to the runtime agent's own default.   |
+| `» organization_id` | string(uuid)                                           | false    |              |                                                                                                                                                                                         |
+| `» permission_mode` | string                                                 | false    |              | Permission mode optionally sets the permission mode the runtime agent runs with (e.g. acceptEdits). Empty means the runtime default.                                                    |
+| `» runtime`         | [codersdk.ChatRuntime](schemas.md#codersdkchatruntime) | false    |              |                                                                                                                                                                                         |
+| `» template_id`     | string(uuid)                                           | false    |              | Template ID is the template chat workspaces are created from. The template must provide the runtime's agent executable (e.g. the claude-agent-acp adapter for the claude_code runtime). |
+| `» updated_at`      | string(date-time)                                      | false    |              |                                                                                                                                                                                         |
+
+#### Enumerated Values
+
+| Property  | Value(s)               |
+|-----------|------------------------|
+| `runtime` | `claude_code`, `coder` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upsert chat runtime config
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/runtimes \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/runtimes`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "enabled": true,
+  "model": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "permission_mode": "string",
+  "runtime": "coder",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                         | Required | Description  |
+|--------|------|----------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpsertChatRuntimeConfigRequest](schemas.md#codersdkupsertchatruntimeconfigrequest) | true     | Request body |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "enabled": true,
+  "model": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "permission_mode": "string",
+  "runtime": "coder",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatRuntimeConfig](schemas.md#codersdkchatruntimeconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete chat runtime config
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/experimental/chats/config/runtimes?organization_id=497f6eca-6276-4993-bfeb-53cbbbba6f08&runtime=string \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/experimental/chats/config/runtimes`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name              | In    | Type         | Required | Description     |
+|-------------------|-------|--------------|----------|-----------------|
+| `organization_id` | query | string(uuid) | true     | Organization ID |
+| `runtime`         | query | string       | true     | Chat runtime    |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -639,6 +798,58 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List chat runtime availability
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/runtime-availability \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/runtime-availability`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "runtime": "coder"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                  |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatRuntimeAvailability](schemas.md#codersdkchatruntimeavailability) |
+
+<h3 id="list-chat-runtime-availability-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                | Type                                                   | Required | Restrictions | Description |
+|---------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`      | array                                                  | false    |              |             |
+| `» organization_id` | string(uuid)                                           | false    |              |             |
+| `» runtime`         | [codersdk.ChatRuntime](schemas.md#codersdkchatruntime) | false    |              |             |
+
+#### Enumerated Values
+
+| Property  | Value(s)               |
+|-----------|------------------------|
+| `runtime` | `claude_code`, `coder` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Watch chat events for a user via WebSockets
 
 ### Code samples
@@ -750,6 +961,7 @@ Experimental: this endpoint is subject to change.
     "pin_order": 0,
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "runtime": "coder",
     "shared": true,
     "status": "waiting",
     "summary": "string",
@@ -898,6 +1110,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "runtime": "coder",
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -992,6 +1205,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "runtime": "coder",
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -1177,6 +1391,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "runtime": "coder",
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -1271,6 +1486,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "runtime": "coder",
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -1506,6 +1722,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "runtime": "coder",
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -1600,6 +1817,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "runtime": "coder",
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -2521,6 +2739,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "runtime": "coder",
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -2615,6 +2834,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "runtime": "coder",
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -3123,6 +3343,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "runtime": "coder",
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -3217,6 +3438,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "runtime": "coder",
   "shared": true,
   "status": "waiting",
   "summary": "string",

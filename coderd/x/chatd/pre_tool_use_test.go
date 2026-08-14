@@ -918,7 +918,7 @@ func seedPendingToolCall(
 		OwnerID:           seed.OwnerID,
 		WorkspaceID:       uuid.NullUUID{UUID: seed.WorkspaceID, Valid: seed.WorkspaceID != uuid.Nil},
 		AgentID:           uuid.NullUUID{UUID: seed.AgentID, Valid: seed.AgentID != uuid.Nil},
-		LastModelConfigID: seed.ModelConfigID,
+		LastModelConfigID: uuid.NullUUID{UUID: seed.ModelConfigID, Valid: true},
 		Title:             "pending-tool-call",
 		DynamicTools:      nullRawMessage(seed.DynamicTools),
 		ClientType:        database.ChatClientTypeApi,

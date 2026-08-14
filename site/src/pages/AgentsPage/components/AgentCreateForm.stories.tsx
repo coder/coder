@@ -27,7 +27,11 @@ import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
+import {
+	AgentCreateForm,
+	type CreateChatOptions,
+	emptyInputStorageKey,
+} from "./AgentCreateForm";
 
 const permittedOrgsKey = permittedOrganizationsKey({
 	object: { resource_type: "chat", owner_id: "me" },
@@ -170,10 +174,10 @@ const getCreateOptions = (onCreateChat: unknown): CreateChatSubmission => {
 	return options;
 };
 
-type CreateChatSubmission = {
-	model?: string;
-	reasoningEffort?: string;
-};
+type CreateChatSubmission = Pick<
+	CreateChatOptions,
+	"model" | "reasoningEffort" | "runtime" | "workspaceId"
+>;
 
 export const RootPersonalModelOverrideModelSelected: Story = {
 	args: {
@@ -1625,5 +1629,101 @@ export const MemberScopedPermissionsShowOrgPicker: Story = {
 				name: `Organization: ${MockOrganization2.display_name}`,
 			}),
 		).toBeInTheDocument();
+	},
+};
+
+export const ClaudeCodeRuntimeSubmission: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		claudeCodeOrgIds: new Set([MockDefaultOrganization.id]),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		const item = await screen.findByRole("menuitemcheckbox", {
+			name: /Run with Claude Code/,
+		});
+		await userEvent.click(item);
+
+		expect(await canvas.findByText("Claude Code")).toBeVisible();
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
+
+		await submitMessage(canvasElement, "build me a server");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = getCreateOptions(args.onCreateChat);
+		expect(options.runtime).toBe("claude_code");
+		expect(options.model).toBeUndefined();
+		expect(options.workspaceId).toBeUndefined();
+	},
+};
+
+export const ClaudeCodeRuntimeModelPick: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		claudeCodeOrgIds: new Set([MockDefaultOrganization.id]),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await screen.findByRole("menuitemcheckbox", {
+				name: /Run with Claude Code/,
+			}),
+		);
+
+		await userEvent.click(
+			await canvas.findByRole("combobox", { name: "Default" }),
+		);
+		const body = within(document.body);
+		expect(
+			body.queryByRole("option", { name: /GPT-4o/ }),
+		).not.toBeInTheDocument();
+		await userEvent.click(
+			await body.findByRole("option", { name: /Claude Sonnet 4/ }),
+		);
+
+		await submitMessage(canvasElement, "build me a server");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = getCreateOptions(args.onCreateChat);
+		expect(options.runtime).toBe("claude_code");
+		expect(options.model).toBe(claudeModelConfigID);
+	},
+};
+
+export const ClaudeCodeStillGatedWithoutGateway: Story = {
+	args: {
+		...defaultArgs,
+		aiGatewayDisabled: true,
+		claudeCodeOrgIds: new Set([MockDefaultOrganization.id]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
+export const ClaudeCodeHiddenWithoutOrgConfig: Story = {
+	args: {
+		...defaultArgs,
+		claudeCodeOrgIds: new Set<string>(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await screen.findByRole("menuitemcheckbox", { name: /Plan first/ });
+		expect(
+			screen.queryByRole("menuitemcheckbox", {
+				name: /Run with Claude Code/,
+			}),
+		).not.toBeInTheDocument();
 	},
 };

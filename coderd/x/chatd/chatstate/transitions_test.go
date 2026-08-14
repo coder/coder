@@ -54,7 +54,7 @@ func TestCreateChat_RejectsEmptyInitialMessages(t *testing.T) {
 	_, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
 		OrganizationID:    f.Org.ID,
 		OwnerID:           f.User.ID,
-		LastModelConfigID: f.Model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 		ClientType:        database.ChatClientTypeApi,
 		Title:             "t",
 		InitialMessages:   nil,
@@ -73,7 +73,7 @@ func TestCreateChat_AllowsNoUserMessages(t *testing.T) {
 	res, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
 		OrganizationID:    f.Org.ID,
 		OwnerID:           f.User.ID,
-		LastModelConfigID: f.Model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 		Title:             "t",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages:   []chatstate.Message{assistant},
@@ -89,7 +89,7 @@ func TestCreateChat_AllowsNonFinalUserMessage(t *testing.T) {
 	res, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
 		OrganizationID:    f.Org.ID,
 		OwnerID:           f.User.ID,
-		LastModelConfigID: f.Model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 		Title:             "t",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages: []chatstate.Message{

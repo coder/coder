@@ -48,7 +48,7 @@ func TestStartWorkspace(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-no-workspace",
 		})
 
@@ -89,7 +89,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-already-running",
 		})
 
@@ -167,7 +167,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-running-preferred-agent",
 		})
 
@@ -224,7 +224,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-running-no-agent",
 		})
 
@@ -284,7 +284,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-running-selection-error",
 		})
 
@@ -338,7 +338,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-stopped-workspace",
 		})
 
@@ -406,7 +406,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-stopped-workspace-auto-update",
 		})
 
@@ -466,7 +466,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-start-workspace-passes-parameters",
 		})
 
@@ -526,7 +526,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-start-workspace-manual-update-required",
 		})
 
@@ -591,7 +591,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-start-workspace-responder-error-without-validations",
 		})
 
@@ -643,7 +643,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-in-progress-build",
 		})
 
@@ -736,7 +736,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-failed-build",
 		})
 
@@ -834,7 +834,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-start-triggered-generic-build-failure",
 		})
 
@@ -925,7 +925,7 @@ func TestStartWorkspace(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-deleted-workspace",
 		})
 

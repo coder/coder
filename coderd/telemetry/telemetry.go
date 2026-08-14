@@ -2274,7 +2274,7 @@ func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
 		Status:            string(dbChat.Status),
 		HasParent:         dbChat.HasParent,
 		Archived:          dbChat.Archived,
-		LastModelConfigID: dbChat.LastModelConfigID,
+		LastModelConfigID: dbChat.LastModelConfigID.UUID,
 	}
 	if dbChat.RootChatID.Valid {
 		c.RootChatID = &dbChat.RootChatID.UUID
