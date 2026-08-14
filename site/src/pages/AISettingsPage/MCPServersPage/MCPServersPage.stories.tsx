@@ -419,3 +419,55 @@ export const UpdateCachedNotFoundRedirects: Story = {
 		).toBeVisible();
 	},
 };
+
+export const UpdateRefetchErrorKeepsCachedForm: Story = {
+	render: () => <UpdateMCPServerPage />,
+	decorators: [
+		(Story) => {
+			capturedQueryClient = useQueryClient();
+			return <Story />;
+		},
+	],
+	parameters: {
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: mockOrganization2MCPServerQueryKey,
+				data: MockOrganization2MCPServer,
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/ai/settings/mcp-servers/${MockOrganization2MCPServer.id}`,
+			},
+			routing: { path: "/ai/settings/mcp-servers/:serverId" },
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfig").mockRejectedValue(
+			mockApiError({ message: "failed to refresh MCP server" }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const displayName = canvas.getByLabelText(/display name/i);
+		await userEvent.clear(displayName);
+		await userEvent.type(displayName, "Edited name");
+		if (!capturedQueryClient) {
+			throw new Error("query client was not captured by the story decorator");
+		}
+		await capturedQueryClient.refetchQueries({
+			queryKey: mockOrganization2MCPServerQueryKey,
+			exact: true,
+		});
+		const alert = await canvas.findByRole("alert");
+		await expect(
+			within(alert).getByRole("heading", {
+				name: /failed to refresh mcp server/i,
+			}),
+		).toBeVisible();
+		await expect(canvas.getByLabelText(/display name/i)).toHaveValue(
+			"Edited name",
+		);
+	},
+};
