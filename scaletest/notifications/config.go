@@ -8,15 +8,26 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/createusers"
 )
 
 type Config struct {
-	// User is the configuration for the user to create.
+	// User is the configuration for the user to create. Ignored in reuse mode
+	// (when SessionToken is set).
 	User createusers.Config `json:"user"`
 
-	// Roles are the roles to assign to the user.
+	// Roles are the roles to assign to the user. Ignored in reuse mode, where the
+	// caller assigns roles before the runner starts.
 	Roles []string `json:"roles"`
+
+	// PreCreatedUser is an existing user to connect as instead of creating one.
+	// It is set together with SessionToken to run in reuse mode.
+	PreCreatedUser *codersdk.User `json:"-"`
+
+	// SessionToken authenticates PreCreatedUser's websocket connection. When set,
+	// the runner skips user creation and role assignment (reuse mode).
+	SessionToken string `json:"-"`
 
 	// NotificationTimeout is how long to wait for notifications after triggering.
 	NotificationTimeout time.Duration `json:"notification_timeout"`
@@ -46,13 +57,21 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
-	// The runner always needs an org; ensure we propagate it into the user config.
-	if c.User.OrganizationID == uuid.Nil {
-		return xerrors.New("user organization_id must be set")
-	}
+	if c.SessionToken != "" {
+		// Reuse mode: the caller supplies an existing user and a token to connect
+		// as, so the create-user config is not used.
+		if c.PreCreatedUser == nil {
+			return xerrors.New("pre_created_user must be set when session_token is set")
+		}
+	} else {
+		// The runner always needs an org; ensure we propagate it into the user config.
+		if c.User.OrganizationID == uuid.Nil {
+			return xerrors.New("user organization_id must be set")
+		}
 
-	if err := c.User.Validate(); err != nil {
-		return xerrors.Errorf("user config: %w", err)
+		if err := c.User.Validate(); err != nil {
+			return xerrors.Errorf("user config: %w", err)
+		}
 	}
 
 	if c.DialBarrier == nil {

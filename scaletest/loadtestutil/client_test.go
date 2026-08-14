@@ -50,3 +50,61 @@ func TestDupClientCopyingHeaders(t *testing.T) {
 	require.Equal(t, "ninjas", ht.Header.Get("X-Coder-Test5"))
 	require.NotEqual(t, http.DefaultTransport, ht.Transport)
 }
+
+func TestDupClientConfiguringTransport(t *testing.T) {
+	t.Parallel()
+	httpClient := &http.Client{
+		Transport: &codersdk.HeaderTransport{
+			Transport: http.DefaultTransport,
+			Header: map[string][]string{
+				"X-Coder-Test": {"foo"},
+			},
+		},
+	}
+	serverURL, err := url.Parse("http://coder.example.com")
+	require.NoError(t, err)
+	sdkClient := codersdk.New(serverURL,
+		codersdk.WithSessionToken("test-token"), codersdk.WithHTTPClient(httpClient))
+
+	dup, err := loadtestutil.DupClientConfiguringTransport(sdkClient, map[string][]string{
+		"X-Coder-Test2": {"bar"},
+	}, func(transport *http.Transport) {
+		transport.MaxConnsPerHost = 7
+		transport.MaxIdleConns = 7
+		transport.MaxIdleConnsPerHost = 7
+	})
+	require.NoError(t, err)
+	require.Equal(t, "test-token", dup.SessionToken())
+
+	ht, ok := dup.HTTPClient.Transport.(*codersdk.HeaderTransport)
+	require.True(t, ok)
+	require.Equal(t, "foo", ht.Header.Get("X-Coder-Test"))
+	require.Equal(t, "bar", ht.Header.Get("X-Coder-Test2"))
+
+	// The configure callback runs on the independent cloned transport, so the
+	// pool limits are applied without touching the original client's transport.
+	transport, ok := ht.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.Equal(t, 7, transport.MaxConnsPerHost)
+	require.Equal(t, 7, transport.MaxIdleConns)
+	require.Equal(t, 7, transport.MaxIdleConnsPerHost)
+
+	orig, ok := httpClient.Transport.(*codersdk.HeaderTransport).Transport.(*http.Transport)
+	if ok {
+		require.NotEqual(t, 7, orig.MaxConnsPerHost)
+	}
+}
+
+func TestDupClientConfiguringTransportNilConfigure(t *testing.T) {
+	t.Parallel()
+	serverURL, err := url.Parse("http://coder.example.com")
+	require.NoError(t, err)
+	sdkClient := codersdk.New(serverURL, codersdk.WithSessionToken("test-token"))
+
+	// A nil configure behaves like DupClientCopyingHeaders.
+	dup, err := loadtestutil.DupClientConfiguringTransport(sdkClient, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, "test-token", dup.SessionToken())
+	_, ok := dup.HTTPClient.Transport.(*codersdk.HeaderTransport)
+	require.True(t, ok)
+}

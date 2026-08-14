@@ -5,9 +5,11 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,9 +18,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/createusers"
@@ -28,6 +32,23 @@ import (
 	"github.com/coder/serpent"
 )
 
+// scaletestSetupIdleConnTimeout keeps pooled setup connections warm between
+// requests so the bounded pool is reused across many user creations rather than
+// re-dialed per request.
+const scaletestSetupIdleConnTimeout = 60 * time.Second
+
+// boundPool returns a transport configuration that caps the connection pool at
+// limit, so a phase making many concurrent requests reuses a bounded set of
+// connections instead of opening one per request.
+func boundPool(limit int) func(*http.Transport) {
+	return func(t *http.Transport) {
+		t.MaxIdleConns = limit
+		t.MaxIdleConnsPerHost = limit
+		t.MaxConnsPerHost = limit
+		t.IdleConnTimeout = scaletestSetupIdleConnTimeout
+	}
+}
+
 func (r *RootCmd) scaletestNotifications() *serpent.Command {
 	var (
 		userCount               int64
@@ -35,6 +56,8 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 		notificationTimeout     time.Duration
 		smtpRequestTimeout      time.Duration
 		dialTimeout             time.Duration
+		setupConcurrency        int64
+		reuseUsers              bool
 		noCleanup               bool
 		smtpAPIURL              string
 
@@ -49,8 +72,19 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Use:   "notifications",
-		Short: "Simulate notification delivery by creating many users listening to notifications.",
-		Handler: func(inv *serpent.Invocation) error {
+		Short: "Simulate notification delivery by connecting many users that listen for notifications.",
+		Long: "By default this creates dedicated scaletest users and deletes them afterwards.\n" +
+			"\n" +
+			"With --reuse-users it instead reuses existing scaletest users, promoting a share of\n" +
+			"them to template admin so they receive the triggered notifications, and restores them\n" +
+			"afterwards. Reuse avoids the account-lifecycle notifications that creating and deleting\n" +
+			"users generates, so it measures only the notifications under test.\n" +
+			"\n" +
+			"WARNING: --reuse-users is for dedicated or throwaway scaletest environments only. It\n" +
+			"promotes real accounts to template admin and mints API tokens on them for the duration\n" +
+			"of the run. Never use it against a live Coder deployment. Run only one instance of this\n" +
+			"command against an environment at a time.",
+		Handler: func(inv *serpent.Invocation) (retErr error) {
 			ctx := inv.Context()
 			client, err := r.InitClient(inv)
 			if err != nil {
@@ -68,6 +102,14 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 			if userCount <= 0 {
 				return xerrors.Errorf("--user-count must be greater than 0")
+			}
+
+			if setupConcurrency <= 0 {
+				return xerrors.Errorf("--setup-concurrency must be greater than 0")
+			}
+
+			if noCleanup && reuseUsers {
+				return xerrors.Errorf("--no-cleanup cannot be used with --reuse-users: it would leave real users holding the template-admin role and a live API token")
 			}
 
 			if templateAdminPercentage < 0 || templateAdminPercentage > 100 {
@@ -117,8 +159,6 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				<-time.After(prometheusFlags.Wait)
 			}()
 
-			_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
-
 			dialBarrier := &sync.WaitGroup{}
 			templateAdminWatchBarrier := &sync.WaitGroup{}
 			dialBarrier.Add(int(userCount))
@@ -142,44 +182,90 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				Transport: smtpHTTPTransport,
 			}
 
-			configs := make([]notifications.Config, 0, userCount)
-			for range templateAdminCount {
-				config := notifications.Config{
-					User: createusers.Config{
-						OrganizationID: me.OrganizationIDs[0],
-					},
-					Roles:                    []string{codersdk.RoleTemplateAdmin},
-					NotificationTimeout:      notificationTimeout,
-					DialTimeout:              dialTimeout,
-					DialBarrier:              dialBarrier,
-					ReceivingWatchBarrier:    templateAdminWatchBarrier,
-					ExpectedNotificationsIDs: expectedNotificationIDs,
-					Metrics:                  metrics,
-					SMTPApiURL:               smtpAPIURL,
-					SMTPRequestTimeout:       smtpRequestTimeout,
-					SMTPHttpClient:           smtpHTTPClient,
-				}
-				if err := config.Validate(); err != nil {
-					return xerrors.Errorf("validate config: %w", err)
-				}
-				configs = append(configs, config)
+			// One shared client for all user setup (creation, login, role assignment,
+			// reuse selection) and cleanup, with a connection pool bounded by
+			// --setup-concurrency. This replaces the previous per-runner client, so the
+			// number of setup connections stays bounded instead of scaling with
+			// --user-count. Each runner still dials its own websocket on a separate
+			// per-user client.
+			setupClient, err := loadtestutil.DupClientConfiguringTransport(client, BypassHeader, boundPool(int(setupConcurrency)))
+			if err != nil {
+				return xerrors.Errorf("create setup client: %w", err)
 			}
-			for range regularUserCount {
+
+			// buildConfig assembles a runner config that is common to both modes. The
+			// receiving users (template admins) watch for the triggered notification and
+			// get the SMTP settings; regular users only hold a connection open.
+			buildConfig := func(receiving bool) notifications.Config {
 				config := notifications.Config{
-					User: createusers.Config{
-						OrganizationID: me.OrganizationIDs[0],
-					},
-					Roles:                 []string{},
 					NotificationTimeout:   notificationTimeout,
 					DialTimeout:           dialTimeout,
 					DialBarrier:           dialBarrier,
 					ReceivingWatchBarrier: templateAdminWatchBarrier,
 					Metrics:               metrics,
 				}
-				if err := config.Validate(); err != nil {
-					return xerrors.Errorf("validate config: %w", err)
+				if receiving {
+					config.ExpectedNotificationsIDs = expectedNotificationIDs
+					config.SMTPApiURL = smtpAPIURL
+					config.SMTPRequestTimeout = smtpRequestTimeout
+					config.SMTPHttpClient = smtpHTTPClient
 				}
-				configs = append(configs, config)
+				return config
+			}
+
+			configs := make([]notifications.Config, 0, userCount)
+			if reuseUsers {
+				// Reuse mode: select existing scaletest users, promote a share to template
+				// admin, and mint a token per user to connect as. Restore them afterwards.
+				// See the command's long help for the dedicated-environment warning.
+				reuse, err := setupReuseUsers(ctx, inv, setupClient, metrics, me.ID,
+					int(userCount), int(templateAdminCount), int(setupConcurrency),
+					dialTimeout+notificationTimeout+time.Hour)
+				if err != nil {
+					return err
+				}
+				if !noCleanup {
+					// Restore even on failure: a partial setup may already have promoted
+					// users or minted tokens. Detached from ctx so an interrupt that ends
+					// the run does not also skip the restore.
+					defer func() {
+						cleanupCtx, cleanupCancel := cleanupStrategy.toContext(context.WithoutCancel(ctx))
+						defer cleanupCancel()
+						_, _ = fmt.Fprintln(inv.Stderr, "\nRestoring reused users...")
+						if rerr := restoreUsers(cleanupCtx, setupClient, metrics, reuse.users, int(setupConcurrency)); rerr != nil {
+							logger.Error(ctx, "failed to restore reused users", slog.Error(rerr))
+							retErr = errors.Join(retErr, xerrors.Errorf("restore reused users: %w", rerr))
+						}
+					}()
+				}
+				_, _ = fmt.Fprintf(inv.Stderr, "Preparing %d users with %d concurrent workers...\n", len(reuse.users), setupConcurrency)
+				if err := reuse.prepare(ctx); err != nil {
+					return xerrors.Errorf("prepare reused users: %w", err)
+				}
+				for i := range reuse.users {
+					config := buildConfig(reuse.users[i].promoted)
+					config.PreCreatedUser = &reuse.users[i].user
+					config.SessionToken = reuse.users[i].sessionToken
+					if err := config.Validate(); err != nil {
+						return xerrors.Errorf("validate config: %w", err)
+					}
+					configs = append(configs, config)
+				}
+			} else {
+				_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
+				for i := int64(0); i < userCount; i++ {
+					config := buildConfig(i < templateAdminCount)
+					config.User = createusers.Config{OrganizationID: me.OrganizationIDs[0]}
+					if i < templateAdminCount {
+						config.Roles = []string{codersdk.RoleTemplateAdmin}
+					} else {
+						config.Roles = []string{}
+					}
+					if err := config.Validate(); err != nil {
+						return xerrors.Errorf("validate config: %w", err)
+					}
+					configs = append(configs, config)
+				}
 			}
 
 			go triggerNotifications(
@@ -197,13 +283,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			for i, config := range configs {
 				id := strconv.Itoa(i)
 				name := fmt.Sprintf("notifications-%s", id)
-				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
-				// requests being unbalanced among Coder instances.
-				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
-				if err != nil {
-					return xerrors.Errorf("create runner client: %w", err)
-				}
-				var runner harness.Runnable = notifications.NewRunner(runnerClient, config)
+				var runner harness.Runnable = notifications.NewRunner(setupClient, config)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
@@ -241,7 +321,9 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				}
 			}
 
-			if !noCleanup {
+			// In reuse mode the runners create nothing, so harness cleanup is a no-op;
+			// reused users are restored by the deferred restore registered during setup.
+			if !noCleanup && !reuseUsers {
 				_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
 				cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
 				defer cleanupCancel()
@@ -295,6 +377,19 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			Default:     "10m",
 			Description: "Timeout for dialing the notification websocket endpoint.",
 			Value:       serpent.DurationOf(&dialTimeout),
+		},
+		{
+			Flag:        "setup-concurrency",
+			Env:         "CODER_SCALETEST_NOTIFICATION_SETUP_CONCURRENCY",
+			Default:     "10",
+			Description: "Maximum number of concurrent connections used to create users, log them in, and assign roles. Bounds the shared setup connection pool so it does not grow with --user-count. Raise it to speed up setup for large runs.",
+			Value:       serpent.Int64Of(&setupConcurrency),
+		},
+		{
+			Flag:        "reuse-users",
+			Env:         "CODER_SCALETEST_NOTIFICATION_REUSE_USERS",
+			Description: "Reuse existing scaletest users instead of creating new ones, promoting a share to template admin and restoring them afterwards. DEDICATED OR THROWAWAY SCALETEST ENVIRONMENTS ONLY: it promotes real accounts and mints API tokens on them. Cannot be combined with --no-cleanup.",
+			Value:       serpent.BoolOf(&reuseUsers),
 		},
 		{
 			Flag:        "no-cleanup",
@@ -474,4 +569,213 @@ func triggerNotifications(
 	// Record expected notification.
 	expectedNotifications[notificationsLib.TemplateTemplateDeleted] <- time.Now()
 	close(expectedNotifications[notificationsLib.TemplateTemplateDeleted])
+}
+
+// reuseUser is an existing scaletest user the run connects as instead of
+// creating a new one. promoted marks the users designated as template admins for
+// the run; sessionToken and tokenID are filled in by prepare.
+type reuseUser struct {
+	user         codersdk.User
+	promoted     bool
+	sessionToken string
+	tokenID      string
+}
+
+// reuseState holds the users selected for a reuse run and the parameters needed
+// to prepare and restore them.
+type reuseState struct {
+	client        *codersdk.Client
+	metrics       *notifications.Metrics
+	users         []reuseUser
+	tokenName     string
+	tokenLifetime time.Duration
+	concurrency   int
+}
+
+// setupReuseUsers selects userCount eligible existing scaletest users and marks
+// the first adminCount as template admins for the run. It only selects; the
+// caller registers cleanup and then calls prepare, so a partial preparation is
+// still restored.
+func setupReuseUsers(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, metrics *notifications.Metrics, excludeID uuid.UUID, userCount, adminCount, concurrency int, tokenLifetime time.Duration) (*reuseState, error) {
+	_, _ = fmt.Fprintf(inv.Stderr, "Selecting %d existing users (%d template admins)...\n", userCount, adminCount)
+	selected, err := selectExistingUsers(ctx, client, excludeID, userCount)
+	if err != nil {
+		return nil, err
+	}
+	users := make([]reuseUser, len(selected))
+	for i, u := range selected {
+		users[i] = reuseUser{user: u, promoted: i < adminCount}
+	}
+	return &reuseState{
+		client:        client,
+		metrics:       metrics,
+		users:         users,
+		tokenName:     fmt.Sprintf("%s-notifications", loadtestutil.ScaleTestPrefix),
+		tokenLifetime: tokenLifetime,
+		concurrency:   concurrency,
+	}, nil
+}
+
+// prepare promotes the designated users to template admin and mints a token for
+// every user to connect as, at most concurrency at a time. The first failure
+// cancels the rest.
+func (s *reuseState) prepare(ctx context.Context) error {
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.SetLimit(s.concurrency)
+	for i := range s.users {
+		u := &s.users[i]
+		eg.Go(func() error {
+			if err := prepareReuseUser(egCtx, s.client, s.tokenName, s.tokenLifetime, u); err != nil {
+				s.metrics.AddError("prepare_user")
+				return xerrors.Errorf("prepare user %q: %w", u.user.ID, err)
+			}
+			return nil
+		})
+	}
+	return eg.Wait()
+}
+
+// prepareReuseUser promotes the user to template admin when designated and mints
+// a run-named, lifetime-bounded API token to connect as.
+func prepareReuseUser(ctx context.Context, client *codersdk.Client, tokenName string, tokenLifetime time.Duration, u *reuseUser) error {
+	if u.promoted {
+		// Selection excludes users that already hold template-admin, so append it to
+		// whatever roles they have. Restore removes only this role.
+		roles := currentRoleNames(u.user)
+		if _, err := client.UpdateUserRoles(ctx, u.user.ID.String(), codersdk.UpdateRoles{
+			Roles: append(roles, codersdk.RoleTemplateAdmin),
+		}); err != nil {
+			return xerrors.Errorf("promote to template admin: %w", err)
+		}
+	}
+
+	// Name the token after the run and bound its lifetime so a token orphaned by a
+	// hard kill is identifiable and expires on its own.
+	tokenRes, err := client.CreateToken(ctx, u.user.ID.String(), codersdk.CreateTokenRequest{
+		TokenName: tokenName,
+		Lifetime:  tokenLifetime,
+	})
+	if err != nil {
+		return xerrors.Errorf("create token with lifetime %s (deployment max-token-lifetime must allow it): %w", tokenLifetime, err)
+	}
+	tokenID, _, err := httpmw.SplitAPIToken(tokenRes.Key)
+	if err != nil {
+		return xerrors.Errorf("parse minted token: %w", err)
+	}
+	u.sessionToken = tokenRes.Key
+	u.tokenID = tokenID
+	return nil
+}
+
+// restoreUsers revokes minted tokens and demotes the users this run promoted,
+// best-effort: every user is attempted even when one fails, and the errors are
+// joined. Reused accounts are never deleted.
+func restoreUsers(ctx context.Context, client *codersdk.Client, metrics *notifications.Metrics, users []reuseUser, concurrency int) error {
+	var (
+		mu   sync.Mutex
+		errs error
+	)
+	var eg errgroup.Group
+	eg.SetLimit(concurrency)
+	for i := range users {
+		u := &users[i]
+		eg.Go(func() error {
+			if err := restoreReuseUser(ctx, client, u); err != nil {
+				metrics.AddError("restore_user")
+				mu.Lock()
+				errs = errors.Join(errs, err)
+				mu.Unlock()
+			}
+			return nil
+		})
+	}
+	_ = eg.Wait()
+	return errs
+}
+
+// restoreReuseUser revokes the user's minted token and removes the template-admin
+// role if this run promoted them. It returns the joined errors so one failure
+// does not skip the other step.
+func restoreReuseUser(ctx context.Context, client *codersdk.Client, u *reuseUser) error {
+	var errs error
+	if u.tokenID != "" {
+		if err := client.DeleteAPIKey(ctx, u.user.ID.String(), u.tokenID); err != nil {
+			errs = errors.Join(errs, xerrors.Errorf("revoke token for user %q: %w", u.user.ID, err))
+		}
+	}
+	if !u.promoted {
+		return errs
+	}
+	remaining := slices.DeleteFunc(currentRoleNames(u.user), func(role string) bool {
+		return role == codersdk.RoleTemplateAdmin
+	})
+	if _, err := client.UpdateUserRoles(ctx, u.user.ID.String(), codersdk.UpdateRoles{Roles: remaining}); err != nil {
+		errs = errors.Join(errs, xerrors.Errorf("demote user %q: %w", u.user.ID, err))
+	}
+	return errs
+}
+
+// selectExistingUsers returns userCount existing scaletest users eligible for
+// reuse, failing fast when too few are present. Eligible means an active,
+// password-login user whose username has the scaletest prefix, excluding the
+// caller, service accounts, owners, and existing template admins.
+func selectExistingUsers(ctx context.Context, client *codersdk.Client, excludeID uuid.UUID, userCount int) ([]codersdk.User, error) {
+	const pageSize = 1000
+	pool := make([]codersdk.User, 0, userCount)
+	for offset := 0; len(pool) < userCount; offset += pageSize {
+		resp, err := client.Users(ctx, codersdk.UsersRequest{
+			Status:    codersdk.UserStatusActive,
+			LoginType: []codersdk.LoginType{codersdk.LoginTypePassword},
+			// Narrow server-side so a deployment with many users does not page all of
+			// them back. The exact prefix check below still decides eligibility.
+			Search: loadtestutil.ScaleTestPrefix + "-",
+			Pagination: codersdk.Pagination{
+				Limit:  pageSize,
+				Offset: offset,
+			},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("list users: %w", err)
+		}
+		for _, u := range resp.Users {
+			if u.ID == excludeID || u.IsServiceAccount {
+				continue
+			}
+			if !strings.HasPrefix(u.Username, loadtestutil.ScaleTestPrefix+"-") {
+				continue
+			}
+			if userHasRole(u, codersdk.RoleOwner) || userHasRole(u, codersdk.RoleTemplateAdmin) {
+				continue
+			}
+			pool = append(pool, u)
+			if len(pool) == userCount {
+				break
+			}
+		}
+		if len(resp.Users) < pageSize {
+			break
+		}
+	}
+
+	if len(pool) < userCount {
+		return nil, xerrors.Errorf("notifications scaletest requires %d eligible users but only %d are present: "+
+			"eligible means an active %s- user with password login that is not the caller, a service account, "+
+			"an owner, or already a template admin. Run without --reuse-users to create users instead",
+			userCount, len(pool), loadtestutil.ScaleTestPrefix)
+	}
+	return pool, nil
+}
+
+func userHasRole(user codersdk.User, role string) bool {
+	return slices.ContainsFunc(user.Roles, func(r codersdk.SlimRole) bool {
+		return r.Name == role
+	})
+}
+
+func currentRoleNames(user codersdk.User) []string {
+	names := make([]string, len(user.Roles))
+	for i, r := range user.Roles {
+		names[i] = r.Name
+	}
+	return names
 }

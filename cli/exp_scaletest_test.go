@@ -254,3 +254,27 @@ func TestScaleTestDashboard(t *testing.T) {
 		require.ErrorContains(t, err, "invalid target users \"0:0\": start and end cannot be equal")
 	})
 }
+
+func TestScaleTestNotifications_NoCleanupWithReuseRejected(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{Logger: &log})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "notifications",
+		"--user-count", "1",
+		"--reuse-users",
+		"--no-cleanup",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "--no-cleanup cannot be used with --reuse-users")
+}

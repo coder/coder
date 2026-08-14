@@ -85,34 +85,49 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
-	r.client.SetLogger(logger)
-	r.client.SetLogBodies(true)
+	// Do not set the logger or body logging on r.client: it is shared by every
+	// runner so they can share one bounded setup connection pool, and mutating it
+	// here would race across runners and dump every request body on the shared
+	// client. The per-user client below keeps its own logger for the websocket.
 
-	r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
-	newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
-	if err != nil {
-		r.cfg.Metrics.AddError("create_user")
-		return xerrors.Errorf("create user: %w", err)
-	}
-	newUser := newUserAndToken.User
-	newUserClient := codersdk.New(r.client.URL,
-		codersdk.WithSessionToken(newUserAndToken.SessionToken),
-		codersdk.WithLogger(logger),
-		codersdk.WithLogBodies())
-
-	logger.Info(ctx, "runner user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
-
-	if len(r.cfg.Roles) > 0 {
-		logger.Info(ctx, "assigning roles to user", slog.F("roles", r.cfg.Roles))
-
-		_, err := r.client.UpdateUserRoles(ctx, newUser.ID.String(), codersdk.UpdateRoles{
-			Roles: r.cfg.Roles,
-		})
+	var (
+		newUser      codersdk.User
+		sessionToken string
+	)
+	if r.cfg.SessionToken != "" {
+		// Reuse mode: connect as the pre-created user the caller already selected,
+		// promoted, and issued a token for. No creation or role assignment here.
+		newUser = *r.cfg.PreCreatedUser
+		sessionToken = r.cfg.SessionToken
+		logger.Info(ctx, "runner reusing user", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
+	} else {
+		r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
+		newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
 		if err != nil {
-			r.cfg.Metrics.AddError("assign_roles")
-			return xerrors.Errorf("assign roles: %w", err)
+			r.cfg.Metrics.AddError("create_user")
+			return xerrors.Errorf("create user: %w", err)
+		}
+		newUser = newUserAndToken.User
+		sessionToken = newUserAndToken.SessionToken
+		logger.Info(ctx, "runner user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
+
+		if len(r.cfg.Roles) > 0 {
+			logger.Info(ctx, "assigning roles to user", slog.F("roles", r.cfg.Roles))
+
+			_, err := r.client.UpdateUserRoles(ctx, newUser.ID.String(), codersdk.UpdateRoles{
+				Roles: r.cfg.Roles,
+			})
+			if err != nil {
+				r.cfg.Metrics.AddError("assign_roles")
+				return xerrors.Errorf("assign roles: %w", err)
+			}
 		}
 	}
+
+	newUserClient := codersdk.New(r.client.URL,
+		codersdk.WithSessionToken(sessionToken),
+		codersdk.WithLogger(logger),
+		codersdk.WithLogBodies())
 
 	logger.Info(ctx, "notification runner is ready")
 
