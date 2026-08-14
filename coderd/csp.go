@@ -41,6 +41,7 @@ func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) 
 	err := dec.Decode(&v)
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			httpapi.RecordRequestBodyLimit(ctx, cspReportMaxBytes)
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Request body too large.",
 				Detail:  fmt.Sprintf("Maximum CSP report size is %d bytes.", cspReportMaxBytes),

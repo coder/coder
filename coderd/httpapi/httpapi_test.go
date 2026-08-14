@@ -18,10 +18,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw/loggermock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -284,6 +288,29 @@ func TestReadLimit(t *testing.T) {
 
 		var v readBody
 		require.True(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
+	})
+
+	// The limit lands on the request's existing log line rather than a line of
+	// its own, because a caller can produce 413s at will and a dedicated line
+	// would let them drive log volume. Without the limit recorded somewhere, a
+	// rejection is indistinguishable from a client that hung up.
+	t.Run("RecordsLimitOnRequestLog", func(t *testing.T) {
+		t.Parallel()
+		const limit = 1024
+
+		ctrl := gomock.NewController(t)
+		requestLogger := loggermock.NewMockRequestLogger(ctrl)
+		requestLogger.EXPECT().
+			WithFields(slog.F("max_request_body_bytes", int64(limit))).
+			Times(1)
+
+		ctx := loggermw.WithRequestLogger(context.Background(), requestLogger)
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(limit+1))).WithContext(ctx)
+
+		var v readBody
+		require.False(t, httpapi.ReadLimit(ctx, rw, r, limit, &v))
+		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
 	})
 }
 
@@ -772,5 +799,41 @@ func TestServerSentEventSender(t *testing.T) {
 		result := <-resultC
 		require.NoError(t, result.Err)
 		require.True(t, result.Success)
+	})
+}
+
+// TestRecordRequestBodyLimit covers the pairing that every 413-for-an-oversized-
+// body site depends on. The sites answer in their own error shapes, codersdk,
+// RFC 6749, RFC 7591 and RFC 7644, so what they share is this call rather than a
+// response writer. Both halves matter: the log field is what tells an operator
+// which limit tripped, and the tracker is what stops the metric attributing a
+// 413 to body size when it was raised for another reason.
+func TestRecordRequestBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RecordsFieldAndMarksTracker", func(t *testing.T) {
+		t.Parallel()
+		const limit = int64(4096)
+
+		ctrl := gomock.NewController(t)
+		requestLogger := loggermock.NewMockRequestLogger(ctrl)
+		requestLogger.EXPECT().
+			WithFields(slog.F("max_request_body_bytes", limit)).
+			Times(1)
+
+		tracker := &httpapi.RequestBodyLimitTracker{}
+		ctx := httpapi.WithRequestBodyLimitTracker(
+			loggermw.WithRequestLogger(context.Background(), requestLogger), tracker)
+
+		require.False(t, tracker.Exceeded())
+		httpapi.RecordRequestBodyLimit(ctx, limit)
+		require.True(t, tracker.Exceeded())
+	})
+
+	// The middleware that installs the tracker is not mounted on every route, so
+	// a call without one must not panic.
+	t.Run("NoTrackerInContext", func(t *testing.T) {
+		t.Parallel()
+		httpapi.RecordRequestBodyLimit(context.Background(), 4096)
 	})
 }
