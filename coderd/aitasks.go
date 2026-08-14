@@ -1138,6 +1138,7 @@ type TaskLogSnapshotEnvelope struct {
 // @Param format query string true "Snapshot format" enums(agentapi)
 // @Param request body object true "Raw snapshot payload (structure depends on format parameter)"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceagents/me/tasks/{task}/log-snapshot [post]
 func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1206,9 +1207,6 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	// Limit payload size to avoid excessive memory or data usage.
-	r.Body = http.MaxBytesReader(rw, r.Body, taskSnapshotMaxSize)
-
 	// Create envelope to store validated payload.
 	envelope := TaskLogSnapshotEnvelope{
 		Format: format,
@@ -1216,12 +1214,12 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 
 	switch format {
 	case "agentapi":
+		// ReadLimit bounds the payload at taskSnapshotMaxSize rather than the
+		// default, and reports an oversized one as 413 with the limit on the
+		// request's log line. Validate is a no-op here: the payload type carries
+		// no validate tags.
 		var payload agentapisdk.GetMessagesResponse
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to decode request payload.",
-				Detail:  err.Error(),
-			})
+		if !httpapi.ReadLimit(ctx, rw, r, taskSnapshotMaxSize, &payload) {
 			return
 		}
 		// Verify messages field exists (can be empty array).
