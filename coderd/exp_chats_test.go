@@ -1287,7 +1287,8 @@ func TestListChats(t *testing.T) {
 			chatsByID[chat.ID] = chat
 
 			require.Equal(t, firstUser.UserID, chat.OwnerID)
-			require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
+			require.NotNil(t, chat.LastModelConfigID)
+			require.Equal(t, modelConfig.ID, *chat.LastModelConfigID)
 			// The chat may have been picked up by the chat worker
 			// before we list, so accept any status it may have
 			// reached by now.
@@ -7501,7 +7502,8 @@ func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 
 	storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, modelConfigA.ID, storedChat.LastModelConfigID)
+	require.True(t, storedChat.LastModelConfigID.Valid)
+	require.Equal(t, modelConfigA.ID, storedChat.LastModelConfigID.UUID)
 	require.False(t, storedChat.LastReasoningEffort.Valid)
 }
 

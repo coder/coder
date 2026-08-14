@@ -850,6 +850,7 @@ func TestTemplateAgentsAllowedEnforcement(t *testing.T) {
 				Title:             "blocked-create",
 				Status:            database.ChatStatusWaiting,
 				ClientType:        database.ChatClientTypeApi,
+				Runtime:           database.ChatRuntimeCoder,
 			})
 			require.NoError(t, err)
 

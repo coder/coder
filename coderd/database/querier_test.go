@@ -15831,6 +15831,7 @@ func TestUpdateChatSummary(t *testing.T) {
 		OwnerID:           owner.ID,
 		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "summary-chat",
+		Runtime:           database.ChatRuntimeCoder,
 	})
 	require.NoError(t, err)
 	require.False(t, chat.Summary.Valid)
@@ -15952,6 +15953,7 @@ func TestUpdateChatWorkspaceBindingNoOp(t *testing.T) {
 		OwnerID:           owner.ID,
 		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "binding-chat",
+		Runtime:           database.ChatRuntimeCoder,
 	})
 	require.NoError(t, err)
 
@@ -17882,6 +17884,7 @@ func TestGetChatsSearch(t *testing.T) {
 			OwnerID:           user.ID,
 			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             title,
+			Runtime:           database.ChatRuntimeCoder,
 		})
 		require.NoError(t, err)
 		return chat
@@ -17898,6 +17901,7 @@ func TestGetChatsSearch(t *testing.T) {
 			Title:             title,
 			ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+			Runtime:           database.ChatRuntimeCoder,
 		})
 		require.NoError(t, err)
 		return chat
