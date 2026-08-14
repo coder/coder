@@ -228,7 +228,7 @@ services or preview environments.
 
 You can also [share ports](./port-forwarding.md#sharing-ports) with other users,
 or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through
-the CLI with `coder port forward`. Read more in the
+the CLI with `coder port-forward`. Read more in the
 [docs on workspace ports](./port-forwarding.md).
 
 ![Open Ports window](../../images/networking/listeningports.png)
