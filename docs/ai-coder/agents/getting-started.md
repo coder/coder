@@ -19,7 +19,8 @@ Before you begin, confirm the following:
 - **Admin access** to the Coder deployment for configuring providers.
 
 Coder Agents is available to every organization member by default; no
-additional role assignment is needed.
+additional role assignment is needed. Service accounts are the exception:
+they cannot access Coder Agents.
 
 > [!NOTE]
 > Earlier releases gated access behind the **Coder Agents User**
