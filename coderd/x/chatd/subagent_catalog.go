@@ -38,6 +38,25 @@ const (
 		"external or web research, parallel research, or tasks that may need edits."
 )
 
+// unbilledSubagentToolNames lists the sub-agent orchestration tools whose
+// execution time is excluded from the local-tool runtime persisted to
+// chat_messages.runtime_ms. Every chat bills its own model and tool time,
+// including child agents, so a parent's wait_agent window would count each
+// child's already-billed runtime a second time. The remaining orchestration
+// tools are millisecond-scale bookkeeping and are excluded with it so the
+// billing rule stays one explainable category. Classification uses the tool
+// name as called, so the deprecated close_agent alias is listed alongside
+// interrupt_agent.
+var unbilledSubagentToolNames = map[string]bool{
+	spawnAgentToolName:         true,
+	"wait_agent":               true,
+	"message_agent":            true,
+	"interrupt_agent":          true,
+	"close_agent":              true,
+	"list_agents":              true,
+	listSubagentModelsToolName: true,
+}
+
 type spawnAgentArgs struct {
 	Type            string `json:"type"`
 	Prompt          string `json:"prompt"`

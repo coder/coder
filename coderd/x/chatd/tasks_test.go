@@ -477,6 +477,202 @@ func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *tes
 	require.False(t, assistant.RuntimeMs.Valid)
 }
 
+// interruptedBatch is a chat with committed unresolved local tool calls
+// and a live attempt buffer episode, ready for StartInterrupt to
+// synthesize cancellation rows.
+type interruptedBatch struct {
+	chat     database.Chat
+	starter  *taskStarter
+	clock    *quartz.Mock
+	key      messagepartbuffer.Key
+	workerID uuid.UUID
+	runnerID uuid.UUID
+}
+
+// interruptedBatchFixture commits an assistant message with the given
+// unresolved local tool calls and prepares the live attempt's buffer
+// episode, so StartInterrupt synthesizes cancellation rows for them.
+func interruptedBatchFixture(
+	t *testing.T,
+	f *taskTestFixture,
+	calls []codersdk.ChatMessagePart,
+) interruptedBatch {
+	t.Helper()
+	chat := f.createRunningChat(t)
+	raw, err := chatprompt.MarshalParts(calls)
+	require.NoError(t, err)
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
+			Role:           database.ChatMessageRoleAssistant,
+			Content:        raw,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			ModelConfigID:  uuid.NullUUID{UUID: f.model.ID, Valid: true},
+		}}})
+		return err
+	}))
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	recorder := newTaskSideEffectRecorder()
+	clock := quartz.NewMock(t)
+	starter := newTestTaskStarterWithClock(t, f, recorder, clock)
+	key := messagepartbuffer.Key{
+		ChatID:            chat.ID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt,
+	}
+	require.NoError(t, starter.opts.MessagePartBuffer.CreateEpisode(key))
+	return interruptedBatch{
+		chat:     chat,
+		starter:  starter,
+		clock:    clock,
+		key:      key,
+		workerID: workerID,
+		runnerID: runnerID,
+	}
+}
+
+func (b interruptedBatch) interrupt(t *testing.T, f *taskTestFixture) []database.ChatMessage {
+	t.Helper()
+	interrupting := f.interruptChat(t, b.chat.ID)
+	err := b.starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:            b.chat.ID,
+		WorkerID:          b.workerID,
+		RunnerID:          b.runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	})
+	require.NoError(t, err)
+	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: b.chat.ID})
+	require.NoError(t, err)
+	return messages
+}
+
+// findToolResultMessage returns the tool-role message answering the given
+// tool call ID.
+func findToolResultMessage(t *testing.T, messages []database.ChatMessage, toolCallID string) database.ChatMessage {
+	t.Helper()
+	for _, msg := range messages {
+		if msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolCallID == toolCallID {
+				return msg
+			}
+		}
+	}
+	t.Fatalf("no tool result message for call %s", toolCallID)
+	return database.ChatMessage{}
+}
+
+// An interrupt mid tool batch bills the partial window on the cancellation
+// row of the billed tool that defines it. A billed tool that buffered a
+// result before the interrupt ends the window at its completion, so a
+// still-running unbilled wait_agent does not stretch the bill to the
+// interrupt instant.
+func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	waitCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+
+	// Advances stay under the buffer's 15s cleanup tick, which shares
+	// this mock clock.
+	// Attempt setup happens before the tools start and is not billable.
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.StartToolBatch(batch.key))
+	// execute completes 3 seconds into the batch and buffers its
+	// durable result.
+	batch.clock.Advance(3 * time.Second)
+	execCompletedAt := batch.clock.Now()
+	execResult := codersdk.ChatMessageToolResult(execCallID, "execute", json.RawMessage(`{"stdout":"/tmp"}`), false, false)
+	execResult.CreatedAt = &execCompletedAt
+	require.NoError(t, buffer.AddPart(batch.key, codersdk.ChatMessageRoleTool, execResult))
+	// wait_agent is still blocked on its child when the interrupt lands
+	// 5 seconds later.
+	batch.clock.Advance(5 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.Equal(t, sql.NullInt64{Int64: 3_000, Valid: true}, execRow.RuntimeMs)
+	waitRow := findToolResultMessage(t, messages, waitCallID)
+	require.False(t, waitRow.RuntimeMs.Valid)
+}
+
+// A billed tool still running at the interrupt bills up to the interrupt
+// instant.
+func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key))
+	// The tool is still running when the interrupt lands 7 seconds in.
+	batch.clock.Advance(7 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.Equal(t, sql.NullInt64{Int64: 7_000, Valid: true}, execRow.RuntimeMs)
+}
+
+// An interrupted batch of only unbilled sub-agent orchestration tools
+// bills nothing: an interrupted lone wait_agent stays free.
+func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	waitCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	})
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key))
+	batch.clock.Advance(10 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	waitRow := findToolResultMessage(t, messages, waitCallID)
+	require.False(t, waitRow.RuntimeMs.Valid)
+}
+
+// Cancellation rows synthesized without a live tool batch (crash
+// recovery: the episode never stamped a batch start) carry no runtime,
+// consistent with generation losing in-flight runtime on a crash.
+func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+
+	// No StartToolBatch stamp: the batch never went live on this
+	// attempt.
+	batch.clock.Advance(10 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.False(t, execRow.RuntimeMs.Valid)
+}
+
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
 	t.Parallel()
 

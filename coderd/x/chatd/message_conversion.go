@@ -73,7 +73,16 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
-		messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content))
+		msg := baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content)
+		// The batch's billable window lands on the single tool row whose
+		// completion ended it; every other row in the batch stays NULL so
+		// usage reporting, which sums runtime_ms across rows, bills the
+		// batch exactly once. Zero maps to NULL, so a sub-millisecond
+		// window persists the same way an unmeasured one does.
+		if toolResult.ToolCallID != "" && toolResult.ToolCallID == input.step.BatchRuntimeToolCallID {
+			msg.RuntimeMs = nullInt64IfNonZero(input.step.BatchRuntime.Milliseconds())
+		}
+		messages = append(messages, msg)
 	}
 
 	return stepMessagesForCommit{
@@ -635,9 +644,10 @@ type partialMessageConversionState struct {
 	// from the model stream itself (text, reasoning, tool calls,
 	// sources). Tool execution also publishes assistant-role file
 	// parts for attachments; those alone must not attract the
-	// attempt's runtime, because tool batches are not billable. The
-	// buffer episode only carries a runtime when a provider stream
-	// was opened, so this is a second gate rather than the only one.
+	// attempt's model-invocation runtime, because tool batches bill
+	// their window on tool rows instead. The buffer episode only
+	// carries a model runtime when a provider stream was opened, so
+	// this is a second gate rather than the only one.
 	modelStreamedAssistant bool
 }
 

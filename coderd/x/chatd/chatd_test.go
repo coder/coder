@@ -6433,6 +6433,18 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 				require.False(t, result.ProviderExecuted)
 			}
 		}
+
+		// The parallel batch bills at most one window: whatever wall
+		// time elapsed, only the window-defining tool row may carry
+		// runtime_ms, never one per parallel call.
+		messages := chatMessages(ctx, t, db, chat.ID)
+		billedToolRows := 0
+		for _, msg := range messages {
+			if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
+				billedToolRows++
+			}
+		}
+		require.LessOrEqual(t, billedToolRows, 1)
 	})
 }
 

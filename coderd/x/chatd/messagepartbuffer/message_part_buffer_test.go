@@ -148,6 +148,43 @@ func TestBuffer_ModelInvokedAt(t *testing.T) {
 	require.Zero(t, buffer.ModelInvokedAt(implicit))
 }
 
+func TestBuffer_ToolBatchStartedAt(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+	defer buffer.Close()
+
+	key := testEpisodeKey()
+	require.Zero(t, buffer.ToolBatchStartedAt(key), "unknown episode has no batch stamp")
+	require.ErrorIs(t, buffer.StartToolBatch(key), messagepartbuffer.ErrEpisodeNotFound)
+
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.Zero(t, buffer.ToolBatchStartedAt(key), "episode without a tool batch has no batch stamp")
+	// Attempt setup happens before tools start executing and is not
+	// billable.
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.StartToolBatch(key))
+	startedAt := buffer.ToolBatchStartedAt(key)
+	require.Equal(t, clock.Now(), startedAt)
+
+	// Closing must not move the recorded stamp, and a closed episode
+	// no longer accepts a batch start.
+	clock.Advance(1500 * time.Millisecond)
+	require.NoError(t, buffer.CloseEpisode(key))
+	require.ErrorIs(t, buffer.StartToolBatch(key), messagepartbuffer.ErrEpisodeClosed)
+	require.Equal(t, startedAt, buffer.ToolBatchStartedAt(key))
+
+	// Episodes that never execute local tools, such as model
+	// invocations without tool calls, report no batch stamp.
+	modelOnly := testEpisodeKey()
+	require.NoError(t, buffer.CreateEpisode(modelOnly))
+	require.NoError(t, buffer.StartModelInvocation(modelOnly))
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.CloseEpisode(modelOnly))
+	require.Zero(t, buffer.ToolBatchStartedAt(modelOnly))
+}
+
 func TestBuffer_SubscribeExistingReplaysThenStreamsLiveParts(t *testing.T) {
 	t.Parallel()
 

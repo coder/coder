@@ -204,10 +204,16 @@ func (e HBAISeats) Fields() map[string]any {
 
 // HBAgentRuntime is the event associated with hb_agent_runtime_v1. RuntimeMs
 // is the total agent-loop runtime in milliseconds consumed by Coder Agents
-// (chats) in one UTC hour. Each measured step spans model streaming (including
-// provider-executed tools) and stream retries, and ends when the model stream
-// finishes. Time spent executing local tools between steps, including
-// sub-agents that bill their own model calls, is excluded.
+// (chats) in one UTC hour. Two kinds of windows are measured. Model steps
+// span model streaming (including provider-executed tools) and stream
+// retries, ending when the model stream finishes. Local tool batches span
+// the start of the batch until the last billed tool completes; tools in a
+// batch run in parallel, so the batch bills one window rather than a sum.
+// Sub-agent orchestration tools (spawn_agent, wait_agent, and the rest of
+// that category) are excluded because each sub-agent chat bills its own
+// runtime. Also excluded: client-executed (dynamic) tools and external
+// agents, time parked waiting for user action, idle time between turns,
+// and retry backoff between attempts.
 //
 // This measures the new Coder Agents (the `chats` tables), not the deprecated
 // Tasks counted by dc_managed_agents_v1.

@@ -76,7 +76,8 @@ type PersistedStep struct {
 	// Runtime is the wall-clock duration of the model invocation
 	// that produced this step's content, measured from just before
 	// the provider stream is opened until the stream is fully
-	// consumed.
+	// consumed. Local tool batches report their billable window
+	// through ToolExecutionOutcome.BatchRuntime instead.
 	Runtime time.Duration
 	// PendingDynamicToolCalls lists tool calls that target
 	// dynamic tools. When non-empty the chatloop exits with
@@ -259,6 +260,12 @@ type ExecuteLocalToolsOptions struct {
 	// is renamed but old chat histories still reference the old name.
 	ToolNameAliases map[string]string
 
+	// UnbilledToolNames lists tool names whose execution never extends
+	// the batch's billable runtime window. Classification uses the
+	// name as called, so deprecated aliases must be listed alongside
+	// their canonical names.
+	UnbilledToolNames map[string]bool
+
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
 	Metrics            *Metrics
@@ -268,6 +275,18 @@ type ExecuteLocalToolsOptions struct {
 // ToolExecutionOutcome is the durable tool-result content from one batch.
 type ToolExecutionOutcome struct {
 	Step PersistedStep
+	// BatchRuntime is the billable local-tool counterpart of
+	// PersistedStep.Runtime: the wall-clock window from just before the
+	// batch's tools start until the last billed tool completes. All
+	// calls in a batch start together, so this equals the union of the
+	// billed tools' execution intervals; parallel calls are never
+	// summed. Zero when no billed tool produced a result.
+	BatchRuntime time.Duration
+	// BatchRuntimeToolCallID identifies the billed tool call whose
+	// completion ends the batch window, with ties broken by call
+	// order. The persistence layer stores BatchRuntime on that call's
+	// tool message row. Empty when BatchRuntime is zero.
+	BatchRuntimeToolCallID string
 }
 
 // GenerateCompactionOptions configures one context compaction call.
@@ -589,6 +608,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	}
 
 	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
+	batchStart := clockNow(opts.Clock)
 	toolResults := executeTools(
 		ctx,
 		opts.Clock,
@@ -617,10 +637,59 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	for _, tr := range toolResults {
 		result.content = append(result.content, tr)
 	}
-	return ToolExecutionOutcome{Step: PersistedStep{
-		Content:             result.content,
-		ToolResultCreatedAt: result.toolResultCreatedAt,
-	}}, nil
+	batchRuntime, batchRuntimeToolCallID := billableBatchWindow(
+		batchStart,
+		localCalls,
+		result.toolResultCreatedAt,
+		opts.UnbilledToolNames,
+	)
+	return ToolExecutionOutcome{
+		Step: PersistedStep{
+			Content:             result.content,
+			ToolResultCreatedAt: result.toolResultCreatedAt,
+		},
+		BatchRuntime:           batchRuntime,
+		BatchRuntimeToolCallID: batchRuntimeToolCallID,
+	}, nil
+}
+
+// billableBatchWindow computes one local tool batch's billable runtime:
+// the span from batchStart to the latest completion among billed tools.
+// Because all calls in a batch start together, that span equals the
+// union of the billed tools' execution intervals, so parallel calls are
+// billed once rather than summed, and unbilled tools (for example
+// sub-agent orchestration) never extend the window even when they run
+// longest. Returns the tool call whose completion ends the window, with
+// ties broken by call order; (0, "") when no billed tool completed or
+// the window rounds to nothing.
+func billableBatchWindow(
+	batchStart time.Time,
+	toolCalls []fantasy.ToolCallContent,
+	completedAt map[string]time.Time,
+	unbilledToolNames map[string]bool,
+) (time.Duration, string) {
+	var (
+		windowEnd  time.Time
+		toolCallID string
+	)
+	for _, tc := range toolCalls {
+		if unbilledToolNames[tc.ToolName] {
+			continue
+		}
+		end, ok := completedAt[tc.ToolCallID]
+		if !ok {
+			continue
+		}
+		// Strictly-after keeps the earliest call on ties.
+		if end.After(windowEnd) {
+			windowEnd = end
+			toolCallID = tc.ToolCallID
+		}
+	}
+	if toolCallID == "" || !windowEnd.After(batchStart) {
+		return 0, ""
+	}
+	return windowEnd.Sub(batchStart), toolCallID
 }
 
 // prepareMessagesForRequest applies the prompt preparation pipeline used

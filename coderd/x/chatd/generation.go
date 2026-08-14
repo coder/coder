@@ -824,6 +824,9 @@ func (s *taskStarter) executeLocalTools(
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
+		// Stamp the batch start on the buffer episode so an interrupt
+		// can bill the partial window this step would have reported.
+		attempt.startToolBatch()
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
@@ -835,6 +838,7 @@ func (s *taskStarter) executeLocalTools(
 			ModelName:          modelName,
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
+			UnbilledToolNames:  unbilledSubagentToolNames,
 			PublishMessagePart: attempt.publish,
 			Logger:             s.opts.Logger,
 			Metrics:            s.server.metrics,
@@ -856,9 +860,12 @@ func (s *taskStarter) executeLocalTools(
 		outcome.Step.Content = append(outcome.Step.Content, result)
 	}
 	chathooks.RestoreToolCallOrder(outcome.Step.Content, decision.localToolCalls)
+	step := stepDataFromPersisted(outcome.Step)
+	step.BatchRuntime = outcome.BatchRuntime
+	step.BatchRuntimeToolCallID = outcome.BatchRuntimeToolCallID
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
-		step:               stepDataFromPersisted(outcome.Step),
+		step:               step,
 		toolNameToConfigID: prepared.ToolNameToConfigID,
 		logger:             s.opts.Logger,
 		contentVersion:     chatprompt.CurrentContentVersion,
@@ -1047,6 +1054,11 @@ type generationAttempt struct {
 	// can bill the window the step would have reported. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	startModelInvocation func()
+	// startToolBatch marks the start of the attempt's billable local
+	// tool batch window on the buffer episode, so an interrupt can
+	// bill the window the step would have reported. It is always
+	// non-nil when beginGenerationAttempt succeeds.
+	startToolBatch func()
 	// closeEpisode closes the attempt's buffer episode. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	closeEpisode func()
@@ -1092,6 +1104,9 @@ func (s *taskStarter) beginGenerationAttempt(
 		},
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
+		},
+		startToolBatch: func() {
+			_ = s.opts.MessagePartBuffer.StartToolBatch(key)
 		},
 		closeEpisode: func() {
 			_ = s.opts.MessagePartBuffer.CloseEpisode(key)

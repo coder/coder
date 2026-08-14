@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -158,4 +160,234 @@ func TestGenerateCompaction_RecordsRuntime(t *testing.T) {
 	require.Equal(t, 1500*time.Millisecond, result.Runtime)
 	require.Len(t, startedAt, 1)
 	require.Equal(t, result.Runtime, clock.Since(startedAt[0]))
+}
+
+// executeToolBatch runs ExecuteLocalTools in a goroutine. Callers trap the
+// mock clock's Now: the first trapped call is the batch start and each
+// subsequent one is a tool completion, released one tool at a time so
+// parallel tool goroutines never race the clock advances.
+func executeToolBatch(
+	t *testing.T,
+	clock *quartz.Mock,
+	opts chatloop.ExecuteLocalToolsOptions,
+) <-chan chatloop.ToolExecutionOutcome {
+	t.Helper()
+	opts.Clock = clock
+	resultCh := make(chan chatloop.ToolExecutionOutcome, 1)
+	go func() {
+		outcome, err := chatloop.ExecuteLocalTools(context.Background(), opts)
+		assert.NoError(t, err)
+		resultCh <- outcome
+	}()
+	return resultCh
+}
+
+// blockingTool returns a tool that parks until release is closed, so the
+// test controls exactly when its completion timestamp is recorded.
+func blockingTool(name string, release <-chan struct{}, response fantasy.ToolResponse) fantasy.AgentTool {
+	return fantasy.NewAgentTool(
+		name,
+		"test tool that completes when released",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			<-release
+			return response, nil
+		},
+	)
+}
+
+// Parallel billed tools bill one shared window ending at the slowest
+// tool's completion, never the sum of their durations. The slower tool
+// returns an error result: errored tools bill their wall clock too.
+func TestExecuteLocalTools_BatchWindowIsMaxNotSum(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().Now()
+	defer trap.Close()
+
+	fastGo := make(chan struct{})
+	slowGo := make(chan struct{})
+	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{
+			blockingTool("fast_tool", fastGo, fantasy.NewTextResponse("done")),
+			blockingTool("slow_tool", slowGo, fantasy.NewTextErrorResponse("blew up")),
+		},
+		ActiveTools: []string{"fast_tool", "slow_tool"},
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "call-fast", ToolName: "fast_tool", Input: "{}"},
+			{ToolCallID: "call-slow", ToolName: "slow_tool", Input: "{}"},
+		},
+	})
+
+	// Batch start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The fast tool completes 10 seconds in.
+	clock.Advance(10 * time.Second)
+	close(fastGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The slow tool errors out at 60 seconds.
+	clock.Advance(50 * time.Second)
+	close(slowGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	outcome := testutil.RequireReceive(ctx, t, resultCh)
+	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
+	require.Equal(t, "call-slow", outcome.BatchRuntimeToolCallID)
+}
+
+// Simultaneous completions tie-break to the earliest call in call order,
+// and N parallel calls of the same duration bill that duration once.
+func TestExecuteLocalTools_SimultaneousCompletionsBillOnceByCallOrder(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().Now()
+	defer trap.Close()
+
+	release := make(chan struct{})
+	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{
+			blockingTool("read_tool", release, fantasy.NewTextResponse("done")),
+		},
+		ActiveTools: []string{"read_tool"},
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "call-1", ToolName: "read_tool", Input: "{}"},
+			{ToolCallID: "call-2", ToolName: "read_tool", Input: "{}"},
+			{ToolCallID: "call-3", ToolName: "read_tool", Input: "{}"},
+		},
+	})
+
+	// Batch start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// All three calls complete together 10 seconds in.
+	clock.Advance(10 * time.Second)
+	close(release)
+	for range 3 {
+		trap.MustWait(ctx).MustRelease(ctx)
+	}
+
+	outcome := testutil.RequireReceive(ctx, t, resultCh)
+	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
+	require.Equal(t, "call-1", outcome.BatchRuntimeToolCallID)
+}
+
+// An unbilled tool never extends the window, even when it runs longest:
+// the batch bills up to the last billed tool's completion.
+func TestExecuteLocalTools_UnbilledToolNeverExtendsWindow(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().Now()
+	defer trap.Close()
+
+	executeGo := make(chan struct{})
+	waitGo := make(chan struct{})
+	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{
+			blockingTool("execute", executeGo, fantasy.NewTextResponse("done")),
+			blockingTool("wait_agent", waitGo, fantasy.NewTextResponse("child report")),
+		},
+		ActiveTools:       []string{"execute", "wait_agent"},
+		UnbilledToolNames: map[string]bool{"wait_agent": true},
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "call-execute", ToolName: "execute", Input: "{}"},
+			{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
+		},
+	})
+
+	// Batch start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// execute completes 10 seconds in.
+	clock.Advance(10 * time.Second)
+	close(executeGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+	// wait_agent keeps blocking on its child until 60 seconds.
+	clock.Advance(50 * time.Second)
+	close(waitGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	outcome := testutil.RequireReceive(ctx, t, resultCh)
+	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
+	require.Equal(t, "call-execute", outcome.BatchRuntimeToolCallID)
+}
+
+// A batch of only unbilled tools bills nothing.
+func TestExecuteLocalTools_UnbilledOnlyBatchBillsNothing(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().Now()
+	defer trap.Close()
+
+	waitGo := make(chan struct{})
+	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{
+			blockingTool("wait_agent", waitGo, fantasy.NewTextResponse("child report")),
+		},
+		ActiveTools:       []string{"wait_agent"},
+		UnbilledToolNames: map[string]bool{"wait_agent": true},
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
+		},
+	})
+
+	// Batch start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	clock.Advance(60 * time.Second)
+	close(waitGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	outcome := testutil.RequireReceive(ctx, t, resultCh)
+	require.Zero(t, outcome.BatchRuntime)
+	require.Empty(t, outcome.BatchRuntimeToolCallID)
+}
+
+// Billing classifies on the name as called: a deprecated alias listed in
+// UnbilledToolNames stays unbilled even though dispatch resolves it to
+// its canonical tool through ToolNameAliases.
+func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().Now()
+	defer trap.Close()
+
+	executeGo := make(chan struct{})
+	legacyGo := make(chan struct{})
+	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{
+			blockingTool("execute", executeGo, fantasy.NewTextResponse("done")),
+			blockingTool("interrupt_agent", legacyGo, fantasy.NewTextResponse("stopped")),
+		},
+		ActiveTools:     []string{"execute", "interrupt_agent"},
+		ToolNameAliases: map[string]string{"close_agent": "interrupt_agent"},
+		UnbilledToolNames: map[string]bool{
+			"interrupt_agent": true,
+			"close_agent":     true,
+		},
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "call-execute", ToolName: "execute", Input: "{}"},
+			{ToolCallID: "call-legacy", ToolName: "close_agent", Input: "{}"},
+		},
+	})
+
+	// Batch start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// execute completes 10 seconds in.
+	clock.Advance(10 * time.Second)
+	close(executeGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The aliased call completes at 60 seconds and must not bill.
+	clock.Advance(50 * time.Second)
+	close(legacyGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	outcome := testutil.RequireReceive(ctx, t, resultCh)
+	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
+	require.Equal(t, "call-execute", outcome.BatchRuntimeToolCallID)
 }

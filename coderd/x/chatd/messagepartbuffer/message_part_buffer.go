@@ -102,12 +102,17 @@ type episodeState struct {
 	// that never invoke a model, such as local tool execution
 	// batches.
 	modelStartedAt time.Time
-	closed         bool
-	closedAt       time.Time
-	closedHeapItem *closedEpisodeItem
-	parts          []Part
-	bytes          int64
-	subscribers    map[*episodeSubscriber]struct{}
+	// toolBatchStartedAt is stamped by StartToolBatch when the
+	// episode begins executing its local tool batch. It is zero for
+	// episodes that never execute local tools, such as model
+	// invocations that finish without tool calls.
+	toolBatchStartedAt time.Time
+	closed             bool
+	closedAt           time.Time
+	closedHeapItem     *closedEpisodeItem
+	parts              []Part
+	bytes              int64
+	subscribers        map[*episodeSubscriber]struct{}
 }
 
 type closedEpisodeItem struct {
@@ -218,6 +223,25 @@ func (b *Buffer) StartModelInvocation(key Key) error {
 	return nil
 }
 
+// StartToolBatch stamps the instant the episode begins executing its local
+// tool batch, which starts the batch's billable runtime window.
+func (b *Buffer) StartToolBatch(key Key) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return ErrMessagePartBufferClosed
+	}
+	episode, err := b.getEpisodeLocked(key)
+	if err != nil {
+		return err
+	}
+	if episode.closed {
+		return ErrEpisodeClosed
+	}
+	episode.toolBatchStartedAt = b.opts.Clock.Now("message-part-buffer", "tool-batch-start")
+	return nil
+}
+
 // AddPart appends a part to an existing episode.
 //
 // Parts receive contiguous sequence numbers so stream endpoints can detect
@@ -301,6 +325,19 @@ func (b *Buffer) ModelInvokedAt(key Key) time.Time {
 		return time.Time{}
 	}
 	return episode.modelStartedAt
+}
+
+// ToolBatchStartedAt returns the instant stamped by StartToolBatch, or the
+// zero time if there is none. Read it before CloseEpisode: closed episodes
+// are garbage collected, so reading afterwards races the cleanup loop.
+func (b *Buffer) ToolBatchStartedAt(key Key) time.Time {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	episode := b.episodes[key]
+	if episode == nil {
+		return time.Time{}
+	}
+	return episode.toolBatchStartedAt
 }
 
 // SubscribeToEpisode replays existing parts and streams new parts.
