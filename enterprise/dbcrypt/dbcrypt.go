@@ -714,6 +714,17 @@ func (db *dbCrypt) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (da
 	return cfg, nil
 }
 
+func (db *dbCrypt) GetMCPServerConfigByIDForUpdate(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	cfg, err := db.Store.GetMCPServerConfigByIDForUpdate(ctx, id)
+	if err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	if err := db.decryptMCPServerConfig(&cfg); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return cfg, nil
+}
+
 func (db *dbCrypt) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg database.GetMCPServerConfigByOrganizationAndSlugParams) (database.MCPServerConfig, error) {
 	cfg, err := db.Store.GetMCPServerConfigByOrganizationAndSlug(ctx, arg)
 	if err != nil {
