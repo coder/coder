@@ -6,8 +6,7 @@ type LinkSegment =
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional
 const URL_PATTERN = /https?:\/\/[^\s<>"'`\u0000-\u001f\u007f]+/g;
 
-// Trailing characters GFM's autolinker excludes from bare URLs:
-// sentence punctuation and Markdown emphasis delimiters.
+// GFM autolinks treat these characters as trailing punctuation.
 const TRAILING_PUNCTUATION = new Set([
 	".",
 	",",

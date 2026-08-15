@@ -541,8 +541,6 @@ export const UserPromptWithLinks: Story = {
 		);
 		expect(localhostLink).toHaveTextContent("http://localhost:3000/app");
 
-		// Activate the link for real (intercepting navigation) to prove
-		// surrounding handlers do not swallow the click.
 		let clickedHref: string | null = null;
 		const captureClick = (event: MouseEvent) => {
 			event.preventDefault();
