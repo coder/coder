@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -15,6 +16,48 @@ import (
 // per RFC 6749.
 func parseScopes(scope string) []string {
 	return strings.Fields(strings.TrimSpace(scope))
+}
+
+// The conversion from the persisted scope string to the scope list a key is
+// minted with. The rejections matter more than the happy path: every one of
+// them is a case where the alternative is minting a key with authority the
+// grant never established.
+func TestScopeStringToAPIKeyScopes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EveryNameKept", func(t *testing.T) {
+		t.Parallel()
+
+		scopes, err := scopeStringToAPIKeyScopes("workspace:ssh template:read")
+		require.NoError(t, err)
+		require.Equal(t, database.APIKeyScopes{
+			database.ApiKeyScopeWorkspaceSsh,
+			database.ApiKeyScopeTemplateRead,
+		}, scopes)
+	})
+
+	t.Run("UnknownNameRejected", func(t *testing.T) {
+		t.Parallel()
+
+		// The valid name alongside it must not be minted on its own: a
+		// partial grant is still a grant nobody negotiated.
+		_, err := scopeStringToAPIKeyScopes("workspace:ssh not_a_real_scope")
+		require.ErrorIs(t, err, errUnstorableScope)
+		require.Contains(t, err.Error(), "not_a_real_scope")
+	})
+
+	// Unreachable through the column, which is NOT NULL with CHECK (scope <>
+	// ''), and pinned anyway: an empty list is what apikey.Generate reads as
+	// unrestricted, so treating it as anything but an error here would widen
+	// the grant rather than fail it.
+	t.Run("EmptyRejected", func(t *testing.T) {
+		t.Parallel()
+
+		for _, scope := range []string{"", "   "} {
+			_, err := scopeStringToAPIKeyScopes(scope)
+			require.ErrorIs(t, err, errUnstorableScope, "scope %q", scope)
+		}
+	})
 }
 
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
