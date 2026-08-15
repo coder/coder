@@ -618,12 +618,13 @@ func TestOAuth2ProviderTokenExchangeCodeBelongsToDifferentApp(t *testing.T) {
 }
 
 // TestOAuth2ProviderPublicClientTokenExchange is the public-client counterpart
-// to the test above, covering the two checks that stand in for a client secret
-// at the token endpoint: code ownership and PKCE. A public client presents no
-// secret, so the secret-ownership check never runs and the code-ownership
-// check is the only thing binding the exchange to the app identified by
-// client_id. Two public clients sharing a redirect URI is the common case for
-// native apps, which makes this the scenario the check has to hold in.
+// to TestOAuth2ProviderTokenExchangeCodeBelongsToDifferentApp, covering the
+// two checks that stand in for a client secret at the token endpoint: code
+// ownership and PKCE. A public client presents no secret, so the
+// secret-ownership check never runs and the code-ownership check is the only
+// thing binding the exchange to the app identified by client_id. Two public
+// clients sharing a redirect URI is the common case for native apps, which
+// makes this the scenario the check has to hold in.
 func TestOAuth2ProviderPublicClientTokenExchange(t *testing.T) {
 	t.Parallel()
 
@@ -671,21 +672,13 @@ func TestOAuth2ProviderPublicClientTokenExchange(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "The authorization code is invalid or expired")
 
-	// PKCE is the only proof of possession a public client has, so exercise
-	// its failure branches here rather than only on confidential apps. The
-	// verification runs unconditionally for the authorization_code grant;
-	// scoping it behind !isPublic would leave every confidential test passing
-	// while public clients lost their only binding to the authorization
-	// request.
-	//
-	// RFC 7636 §4.1 sets a 43-character floor, and a one-character verifier
-	// hashes to a well-formed challenge, so only a length check refuses it.
-	// An under-length verifier fails that format check in extractTokenRequest
-	// before the PKCE hash comparison ever runs, so it surfaces as
-	// invalid_request rather than the hash-mismatch invalid_grant below. This
-	// lets a client that sent a malformed verifier tell that apart from one
-	// that sent a wrong-but-well-formed verifier. A malformed verifier never
-	// reaches authorizationCodeGrant, so it does not consume the code.
+	// Exercise PKCE failures on a public client, since PKCE is its only proof
+	// of possession: scoping the verification behind !app.IsPublic() would keep
+	// every confidential test green while public clients lost their only
+	// binding to the authorization request. An under-length verifier fails
+	// extractTokenRequest's format check as invalid_request before
+	// authorizationCodeGrant runs, so it does not consume the code
+	// (RFC 6749 §10.5).
 	_, err = cfgA.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", "a"))
 	require.Error(t, err)
 	require.ErrorContains(t, err, "code_verifier")
@@ -1140,16 +1133,12 @@ func TestOAuth2ProviderRevokeCrossApp(t *testing.T) {
 	}
 }
 
-// TestOAuth2PublicClientTokenLifecycle exercises refresh and revocation for a
-// public client, whose tokens are the first with a NULL app_secret_id.
-//
-// The confidential-client tests mint tokens with a real secret, so the refresh
-// path that carries dbToken.AppSecretID forward and the two ownership checks
-// in revoke.go only ever run against a non-NULL value. Those checks read
-// app_id directly, which is what keeps a secretless token revocable by its
-// issuing app; reintroducing a join through app_secret_id would break public
-// clients alone and stay silent everywhere else.
-func TestOAuth2PublicClientTokenLifecycle(t *testing.T) {
+// TestOAuth2ProviderPublicClientTokenLifecycle exercises refresh and
+// revocation for a public client, whose tokens carry a NULL app_secret_id. It
+// guards revoke.go's app_id ownership checks against a refactor that
+// reintroduces a join through app_secret_id, which would break public clients
+// alone.
+func TestOAuth2ProviderPublicClientTokenLifecycle(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1183,7 +1172,7 @@ func TestOAuth2PublicClientTokenLifecycle(t *testing.T) {
 			require.True(t, session.works(), "cross-app revoke must not end the session")
 
 			// The issuing app must be able to revoke it, with no secret to join
-			// through. This is the claim app_id was promoted for.
+			// through. This is the guarantee app_id-based ownership provides.
 			err = session.userClient.RevokeOAuth2Token(ctx, session.appID, tokenUnderTest)
 			require.NoError(t, err)
 			require.False(t, session.works(), "public client must be able to revoke its own token")
