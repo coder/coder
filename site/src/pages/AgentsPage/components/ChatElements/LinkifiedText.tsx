@@ -5,8 +5,8 @@ import { splitTextForLinks } from "./linkify";
 
 export const LinkifiedText: React.FC<{
 	text: string;
-	transform?: UrlTransform;
-}> = ({ text, transform }) => {
+	urlTransform?: UrlTransform;
+}> = ({ text, urlTransform }) => {
 	const segments = splitTextForLinks(text);
 	if (!segments.some((segment) => segment.kind === "url")) {
 		return text;
@@ -16,7 +16,7 @@ export const LinkifiedText: React.FC<{
 			return <Fragment key={index}>{segment.value}</Fragment>;
 		}
 		const href =
-			transform?.(segment.value, "href", {
+			urlTransform?.(segment.value, "href", {
 				type: "element",
 				tagName: "a",
 				properties: { href: segment.value },

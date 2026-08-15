@@ -1,4 +1,4 @@
-import { type FC, Fragment } from "react";
+import type { FC } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "#/utils/cn";
 import { Message, MessageContent } from "../ChatElements";
@@ -37,9 +37,11 @@ const renderUserInlineBlock = (
 ) => {
 	if (block.type === "response") {
 		return (
-			<Fragment key={index}>
-				<LinkifiedText text={block.text} transform={urlTransform} />
-			</Fragment>
+			<LinkifiedText
+				key={index}
+				text={block.text}
+				urlTransform={urlTransform}
+			/>
 		);
 	}
 
@@ -104,7 +106,7 @@ export const UserMessageContent: FC<{
 										: markdown && (
 												<LinkifiedText
 													text={markdown}
-													transform={urlTransform}
+													urlTransform={urlTransform}
 												/>
 											)}
 								</span>
