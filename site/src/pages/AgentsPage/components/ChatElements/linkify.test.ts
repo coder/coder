@@ -52,6 +52,23 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
+	it("excludes trailing Markdown emphasis delimiters from the URL", () => {
+		expect(splitTextForLinks("**https://coder.com/docs**")).toEqual([
+			{ kind: "text", value: "**" },
+			{ kind: "url", value: "https://coder.com/docs" },
+			{ kind: "text", value: "**" },
+		]);
+		expect(
+			splitTextForLinks("_https://coder.com/blog_ and ~https://coder.com/x~"),
+		).toEqual([
+			{ kind: "text", value: "_" },
+			{ kind: "url", value: "https://coder.com/blog" },
+			{ kind: "text", value: "_ and ~" },
+			{ kind: "url", value: "https://coder.com/x" },
+			{ kind: "text", value: "~" },
+		]);
+	});
+
 	it("excludes a closing parenthesis that is not part of the URL", () => {
 		expect(splitTextForLinks("(listening on http://localhost:3000)")).toEqual([
 			{ kind: "text", value: "(listening on " },

@@ -540,6 +540,23 @@ export const UserPromptWithLinks: Story = {
 			"https://proxy.example.com/app",
 		);
 		expect(localhostLink).toHaveTextContent("http://localhost:3000/app");
+
+		// Activate the link for real (intercepting navigation) to prove
+		// surrounding handlers do not swallow the click.
+		let clickedHref: string | null = null;
+		const captureClick = (event: MouseEvent) => {
+			event.preventDefault();
+			if (event.target instanceof HTMLAnchorElement) {
+				clickedHref = event.target.getAttribute("href");
+			}
+		};
+		canvasElement.addEventListener("click", captureClick, true);
+		try {
+			await userEvent.click(localhostLink);
+		} finally {
+			canvasElement.removeEventListener("click", captureClick, true);
+		}
+		expect(clickedHref).toBe("https://proxy.example.com/app");
 	},
 };
 
