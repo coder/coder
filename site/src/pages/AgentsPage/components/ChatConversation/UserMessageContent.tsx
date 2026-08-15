@@ -1,6 +1,8 @@
 import { type FC, Fragment } from "react";
+import type { UrlTransform } from "streamdown";
 import { cn } from "#/utils/cn";
 import { Message, MessageContent } from "../ChatElements";
+import { LinkifiedText } from "../ChatElements/LinkifiedText";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
 	hasInlineContentAfter,
@@ -31,9 +33,14 @@ const renderUserInlineBlock = (
 	inlineParts: readonly InlinePart[],
 	block: UserInlineRenderBlock,
 	index: number,
+	urlTransform?: UrlTransform,
 ) => {
 	if (block.type === "response") {
-		return <Fragment key={index}>{block.text}</Fragment>;
+		return (
+			<Fragment key={index}>
+				<LinkifiedText text={block.text} transform={urlTransform} />
+			</Fragment>
+		);
 	}
 
 	return (
@@ -50,22 +57,27 @@ const renderUserInlineBlock = (
 	);
 };
 
-const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
+const renderUserInlineContent = (
+	blocks: readonly UserInlineRenderBlock[],
+	urlTransform?: UrlTransform,
+) => {
 	const inlineParts = getInlineParts(blocks);
 	return blocks.map((block, index) =>
-		renderUserInlineBlock(inlineParts, block, index),
+		renderUserInlineBlock(inlineParts, block, index, urlTransform),
 	);
 };
 
 export const UserMessageContent: FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
+	urlTransform?: UrlTransform;
 	isEditing?: boolean;
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 }> = ({
 	displayState,
 	markdown,
+	urlTransform,
 	isEditing = false,
 	onImageClick,
 	onTextFileClick,
@@ -85,8 +97,16 @@ export const UserMessageContent: FC<{
 							{displayState.hasUserMessageBody && (
 								<span className="min-w-0 flex-1">
 									{displayState.userInlineContent.length > 0
-										? renderUserInlineContent(displayState.userInlineContent)
-										: markdown || ""}
+										? renderUserInlineContent(
+												displayState.userInlineContent,
+												urlTransform,
+											)
+										: markdown && (
+												<LinkifiedText
+													text={markdown}
+													transform={urlTransform}
+												/>
+											)}
 								</span>
 							)}
 						</div>

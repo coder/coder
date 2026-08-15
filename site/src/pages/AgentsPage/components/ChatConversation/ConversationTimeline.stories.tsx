@@ -502,6 +502,47 @@ export const SystemMessageWithoutHookNotice: Story = {
 	},
 };
 
+export const UserPromptWithLinks: Story = {
+	args: {
+		...defaultArgs,
+		urlTransform: (url) =>
+			url.replace("http://localhost:3000", "https://proxy.example.com"),
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "Please see https://coder.com/docs. Preview http://localhost:3000/app",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const docsLink = canvas.getByRole("link", {
+			name: "https://coder.com/docs",
+		});
+		expect(docsLink).toHaveAttribute("href", "https://coder.com/docs");
+		expect(docsLink).toHaveAttribute("target", "_blank");
+		expect(docsLink).toHaveAttribute(
+			"rel",
+			expect.stringContaining("noopener"),
+		);
+		const localhostLink = canvas.getByRole("link", {
+			name: "http://localhost:3000/app",
+		});
+		expect(localhostLink).toHaveAttribute(
+			"href",
+			"https://proxy.example.com/app",
+		);
+		expect(localhostLink).toHaveTextContent("http://localhost:3000/app");
+	},
+};
+
 export const LifecycleHookNoticeOnUserMessage: Story = {
 	args: {
 		...defaultArgs,
@@ -1462,7 +1503,7 @@ export const UserMessageWithInlineFileRef: Story = {
 						end_line: 42,
 						content: "export const Button = ...",
 					},
-					{ type: "text", text: " to use the new API?" },
+					{ type: "text", text: " https://coder.com/docs" },
 				],
 			},
 			{
@@ -1482,7 +1523,9 @@ export const UserMessageWithInlineFileRef: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Button\.tsx/)).toBeInTheDocument();
 		expect(canvas.getByText(/Can you refactor/)).toBeInTheDocument();
-		expect(canvas.getByText(/to use the new API/)).toBeInTheDocument();
+		expect(
+			canvas.getByRole("link", { name: "https://coder.com/docs" }),
+		).toHaveAttribute("href", "https://coder.com/docs");
 	},
 };
 
