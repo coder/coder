@@ -1192,16 +1192,30 @@ func (api *API) validateUserChatModelConfigAvailable(
 	}
 }
 
-// validateExplicitChatModelConfigAvailable validates a caller-supplied
-// model config ID. A nil ID keeps the chat's current model and is
-// validated by the daemon's fallback resolution instead.
-func (api *API) validateExplicitChatModelConfigAvailable(
+func (api *API) validateExplicitChatModelConfigID(
 	ctx context.Context,
 	userID uuid.UUID,
+	runtime database.ChatRuntime,
 	modelConfigID uuid.UUID,
 ) (int, *codersdk.Response) {
 	if modelConfigID == uuid.Nil {
 		return 0, nil
+	}
+	if runtime == database.ChatRuntimeClaudeCode {
+		err := api.chatDaemon.ValidateClaudeCodeModelConfigID(ctx, modelConfigID)
+		if err == nil {
+			return 0, nil
+		}
+		if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
+			return http.StatusBadRequest, &codersdk.Response{
+				Message: "Invalid model config ID.",
+				Detail:  "Claude Code chats accept enabled Anthropic model configs only.",
+			}
+		}
+		return http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to validate model config.",
+			Detail:  err.Error(),
+		}
 	}
 	_, status, resp := api.validateUserChatModelConfigAvailable(ctx, userID, modelConfigID)
 	return status, resp
@@ -1303,18 +1317,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if req.ModelConfigID != nil {
-			if err := api.chatDaemon.ValidateClaudeCodeModelConfigID(ctx, *req.ModelConfigID); err != nil {
-				if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
-					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-						Message: "Invalid model config ID.",
-						Detail:  "Claude Code chats accept enabled Anthropic model configs only.",
-					})
-					return
-				}
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to validate model config.",
-					Detail:  err.Error(),
-				})
+			if status, resp := api.validateExplicitChatModelConfigID(ctx, apiKey.UserID, runtime, *req.ModelConfigID); resp != nil {
+				httpapi.Write(ctx, rw, status, *resp)
 				return
 			}
 		}
@@ -2865,7 +2869,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if req.ModelConfigID != nil {
 		modelConfigID = *req.ModelConfigID
 	}
-	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, modelConfigID); resp != nil {
+	if status, resp := api.validateExplicitChatModelConfigID(ctx, apiKey.UserID, chat.Runtime, modelConfigID); resp != nil {
 		httpapi.Write(ctx, rw, status, *resp)
 		return
 	}
@@ -3050,7 +3054,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	if req.ModelConfigID != nil {
 		editModelConfigID = *req.ModelConfigID
 	}
-	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, editModelConfigID); resp != nil {
+	if status, resp := api.validateExplicitChatModelConfigID(ctx, apiKey.UserID, chat.Runtime, editModelConfigID); resp != nil {
 		httpapi.Write(ctx, rw, status, *resp)
 		return
 	}

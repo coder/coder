@@ -1153,6 +1153,125 @@ func TestChatRuntimeRequests(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Runtime chats support text content only.", sdkErr.Message)
 	})
+
+	t.Run("ClaudeCodeRejectsInvalidModelConfigsConsistently", func(t *testing.T) {
+		t.Parallel()
+
+		invalidModelConfigs := []struct {
+			name          string
+			modelConfigID func(t *testing.T) uuid.UUID
+		}{
+			{
+				name: "Unknown",
+				modelConfigID: func(t *testing.T) uuid.UUID {
+					return uuid.New()
+				},
+			},
+			{
+				name: "DisabledAnthropic",
+				modelConfigID: func(t *testing.T) uuid.UUID {
+					config := createDisabledChatModelConfig(t, client, "anthropic", "claude-disabled-"+uuid.NewString())
+					return config.ID
+				},
+			},
+			{
+				name: "DeletedAnthropic",
+				modelConfigID: func(t *testing.T) uuid.UUID {
+					config := createAdditionalChatModelConfig(t, client, "anthropic", "claude-deleted-"+uuid.NewString())
+					ctx := testutil.Context(t, testutil.WaitLong)
+					require.NoError(t, client.DeleteChatModelConfig(ctx, config.ID))
+					return config.ID
+				},
+			},
+			{
+				name: "NonAnthropic",
+				modelConfigID: func(t *testing.T) uuid.UUID {
+					config := createAdditionalChatModelConfig(t, client, "openai", "gpt-enabled-"+uuid.NewString())
+					return config.ID
+				},
+			},
+		}
+
+		for _, tc := range invalidModelConfigs {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				modelConfigID := tc.modelConfigID(t)
+				chat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID: user.OrganizationID,
+					OwnerID:        user.UserID,
+					Runtime:        database.ChatRuntimeClaudeCode,
+					Title:          "runtime model validation " + uuid.NewString(),
+				})
+				message := dbgen.ChatMessage(t, db, database.ChatMessage{
+					ChatID: chat.ID,
+					Role:   database.ChatMessageRoleUser,
+					Content: pqtype.NullRawMessage{
+						RawMessage: []byte(`[{"type":"text","text":"original"}]`),
+						Valid:      true,
+					},
+				})
+
+				requests := []struct {
+					name string
+					do   func() error
+				}{
+					{
+						name: "Create",
+						do: func() error {
+							_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+								OrganizationID: user.OrganizationID,
+								Runtime:        codersdk.ChatRuntimeClaudeCode,
+								ModelConfigID:  &modelConfigID,
+								Content: []codersdk.ChatInputPart{{
+									Type: codersdk.ChatInputPartTypeText,
+									Text: "runtime create",
+								}},
+							})
+							return err
+						},
+					},
+					{
+						name: "Send",
+						do: func() error {
+							_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+								ModelConfigID: &modelConfigID,
+								Content: []codersdk.ChatInputPart{{
+									Type: codersdk.ChatInputPartTypeText,
+									Text: "runtime send",
+								}},
+							})
+							return err
+						},
+					},
+					{
+						name: "Edit",
+						do: func() error {
+							_, err := client.EditChatMessage(ctx, chat.ID, message.ID, codersdk.EditChatMessageRequest{
+								ModelConfigID: &modelConfigID,
+								Content: []codersdk.ChatInputPart{{
+									Type: codersdk.ChatInputPartTypeText,
+									Text: "runtime edit",
+								}},
+							})
+							return err
+						},
+					},
+				}
+
+				for _, request := range requests {
+					t.Run(request.name, func(t *testing.T) {
+						t.Parallel()
+
+						sdkErr := requireSDKError(t, request.do(), http.StatusBadRequest)
+						require.Equal(t, "Invalid model config ID.", sdkErr.Message)
+						require.Equal(t, "Claude Code chats accept enabled Anthropic model configs only.", sdkErr.Detail)
+					})
+				}
+			})
+		}
+	})
 }
 
 func TestPostChats_ClientType(t *testing.T) {
