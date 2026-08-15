@@ -139,9 +139,8 @@ func revokeRefreshTokenInTx(ctx context.Context, db database.Store, token string
 		return xerrors.Errorf("invalid refresh token")
 	}
 
-	// Verify ownership. AppID is populated directly on the token row for
-	// both public and confidential clients, so this doesn't need to join
-	// through app_secret_id, which is NULL for public clients.
+	// Verify ownership via AppID. AppSecretID is NULL for public clients, so
+	// don't join through it.
 	if dbToken.AppID != appID {
 		return ErrTokenNotBelongsToClient
 	}
@@ -196,10 +195,8 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 		return xerrors.Errorf("get oauth2 provider app token by api key id: %w", err)
 	}
 
-	// Verify the token belongs to the requesting app. AppID is populated
-	// directly on the token row for both public and confidential clients,
-	// so this doesn't need to join through app_secret_id, which is NULL
-	// for public clients.
+	// Verify the token belongs to the requesting app via AppID. AppSecretID is
+	// NULL for public clients, so don't join through it.
 	if dbToken.AppID != appID {
 		return ErrTokenNotBelongsToClient
 	}
