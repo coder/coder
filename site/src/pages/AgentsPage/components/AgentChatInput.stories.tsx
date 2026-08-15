@@ -1496,9 +1496,16 @@ export const ClaudeCodeMenuItem: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		const item = await within(document.body).findByRole("menuitemcheckbox", {
-			name: /Run with Claude Code/,
+		const body = within(document.body);
+		const descriptionText =
+			"Delegate turns to Claude Code in a dedicated workspace. Anthropic models only; no attachments, plan mode, or MCP.";
+		const item = await body.findByRole("menuitemcheckbox", {
+			name: "Run with Claude Code",
 		});
+		const description = body.getByText(descriptionText);
+		await waitFor(() => expect(description).toBeVisible());
+		expect(item).toHaveAttribute("aria-describedby", description.id);
+		expect(item).toHaveAccessibleDescription(descriptionText);
 		expect(item).toHaveAttribute("aria-checked", "false");
 		await userEvent.click(item);
 		await waitFor(() => {

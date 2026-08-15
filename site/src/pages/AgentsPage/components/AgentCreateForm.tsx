@@ -676,6 +676,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 											// The runtime does not accept file
 											// attachments; drop any staged ones.
 											resetAttachments();
+											setClaudeSelectedModel(
+												resolveModelOptionId(selectedModel, claudeModelOptions),
+											);
 										}
 										setClaudeCodeSelectedOrgId(enabled ? organizationId : null);
 									}

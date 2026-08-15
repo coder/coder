@@ -18,6 +18,7 @@ import type React from "react";
 import {
 	type FC,
 	useEffect,
+	useId,
 	useImperativeHandle,
 	useRef,
 	useState,
@@ -426,6 +427,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	slashCommands,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const claudeCodeDescriptionId = useId();
 	// Claude Code chats generate through the runtime agent, so missing
 	// chat models are irrelevant; the AI gateway gate still applies.
 	const showAgentSetupNotice =
@@ -1380,14 +1382,26 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												type="button"
 												role="menuitemcheckbox"
 												aria-checked={claudeCodeEnabled}
+												aria-label="Run with Claude Code"
+												aria-describedby={claudeCodeDescriptionId}
 												onClick={handleClaudeCodeToggle}
 												disabled={isLoading}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+												className="group flex min-h-8 w-full cursor-pointer items-start gap-1.5 border-none bg-transparent px-1 py-1.5 text-left text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 											>
-												<BotIcon className="size-3.5 shrink-0" />
-												<span>Run with Claude Code</span>
+												<BotIcon className="mt-0.5 size-3.5 shrink-0" />
+												<span className="flex min-w-0 flex-col gap-0.5">
+													<span>Run with Claude Code</span>
+													<span
+														id={claudeCodeDescriptionId}
+														className="max-w-72 text-2xs font-normal leading-4 text-content-secondary"
+													>
+														Delegate turns to Claude Code in a dedicated
+														workspace. Anthropic models only; no attachments,
+														plan mode, or MCP.
+													</span>
+												</span>
 												{claudeCodeEnabled && (
-													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+													<CheckIcon className="ml-auto mt-0.5 size-icon-sm shrink-0" />
 												)}
 											</button>
 										)}
@@ -1550,6 +1564,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										disabled={isDisabled}
 										placeholder="Default"
 										unsetLabel="Default"
+										unsetHint="Uses the model your administrator configured for this runtime. If none is set, Claude Code keeps the model from your previous message until you pick one."
 										className="md:shrink"
 										dropdownSide="top"
 										dropdownAlign="start"

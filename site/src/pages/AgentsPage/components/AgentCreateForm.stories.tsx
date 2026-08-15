@@ -40,6 +40,7 @@ const permittedOrgsKey = permittedOrganizationsKey({
 
 const modelConfigID = "model-config-1";
 const claudeModelConfigID = "model-config-claude";
+const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const modelOptions = [
 	{
@@ -285,7 +286,7 @@ export const LastUsedModelFallbackWithoutRootOverride: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem("agents.last-model-config-id", claudeModelConfigID);
+		localStorage.setItem(lastModelConfigIDStorageKey, claudeModelConfigID);
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -1629,6 +1630,67 @@ export const MemberScopedPermissionsShowOrgPicker: Story = {
 				name: `Organization: ${MockOrganization2.display_name}`,
 			}),
 		).toBeInTheDocument();
+	},
+};
+
+export const ClaudeCodeCarriesCompatibleCoderModel: Story = {
+	args: {
+		...defaultArgs,
+		claudeCodeOrgIds: new Set([MockDefaultOrganization.id]),
+	},
+	beforeEach: () => {
+		localStorage.setItem(lastModelConfigIDStorageKey, claudeModelConfigID);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeVisible();
+
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await screen.findByRole("menuitemcheckbox", {
+				name: /Run with Claude Code/,
+			}),
+		);
+
+		expect(await canvas.findByText("Claude Code")).toBeVisible();
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeVisible();
+
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		const enabledItem = await screen.findByRole("menuitemcheckbox", {
+			name: /Run with Claude Code/,
+		});
+		expect(enabledItem).toHaveAttribute("aria-checked", "true");
+		await userEvent.click(enabledItem);
+
+		expect(canvas.queryByText("Claude Code")).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeVisible();
+	},
+};
+
+export const ClaudeCodeKeepsDefaultForNonAnthropicModel: Story = {
+	args: {
+		...defaultArgs,
+		claudeCodeOrgIds: new Set([MockDefaultOrganization.id]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
+
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await screen.findByRole("menuitemcheckbox", {
+				name: /Run with Claude Code/,
+			}),
+		);
+
+		expect(await canvas.findByText("Claude Code")).toBeVisible();
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
 	},
 };
 
