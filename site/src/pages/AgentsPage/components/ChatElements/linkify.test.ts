@@ -86,6 +86,16 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
+	it("matches mixed-case schemes and preserves their text", () => {
+		expect(
+			splitTextForLinks("HTTPS://coder.com/docs and Http://localhost:3000/app"),
+		).toEqual([
+			{ kind: "url", value: "HTTPS://coder.com/docs" },
+			{ kind: "text", value: " and " },
+			{ kind: "url", value: "Http://localhost:3000/app" },
+		]);
+	});
+
 	it("does not linkify non-http schemes", () => {
 		expect(splitTextForLinks("ftp://host ws://host file:///tmp/x")).toEqual([
 			{ kind: "text", value: "ftp://host ws://host file:///tmp/x" },

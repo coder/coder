@@ -3,8 +3,9 @@ type LinkSegment =
 	| { kind: "url"; value: string };
 
 // Control characters must end URLs so ANSI escapes cannot become part of them.
+// Schemes match case-insensitively, like GFM's autolinker.
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional
-const URL_PATTERN = /https?:\/\/[^\s<>"'`\u0000-\u001f\u007f]+/g;
+const URL_PATTERN = /https?:\/\/[^\s<>"'`\u0000-\u001f\u007f]+/gi;
 
 // GFM autolinks treat these characters as trailing punctuation.
 const TRAILING_PUNCTUATION = new Set([
