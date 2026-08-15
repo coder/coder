@@ -99,9 +99,6 @@ You must also set `coder-template-name` as part of this. The GHA example has thi
 ```sh
 # List all templates in your organization
 coder templates list
-
-# List templates in a specific organization
-coder templates list --org your-org-name
 ```
 
 You can also choose to modify the other [input parameters](https://github.com/coder/create-task-action?tab=readme-ov-file#inputs) to better fit your desired workflow.
@@ -229,7 +226,7 @@ Generate a new token with these permissions at `https://<your-coder-url>/deploym
 
 **Solution:**
 
-1. Verify the template name using: `coder templates list --org your-org-name`
+1. Verify the template name using: `coder templates list`
 1. Update the `coder-template-name` input in your workflow file to match exactly, or input secret or variable saved in GitHub
 1. Ensure the template exists in the organization specified by `coder-organization`
 
