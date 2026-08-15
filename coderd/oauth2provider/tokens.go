@@ -272,20 +272,19 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 }
 
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
-	isPublic := app.IsPublic()
-
-	// Validate the client secret. Public clients have none to validate; the
-	// PKCE verification below is their only proof of possession, which makes
-	// the code ownership check further down load-bearing rather than defense
-	// in depth.
-	var dbSecret database.OAuth2ProviderAppSecret
-	if !isPublic {
+	// Validate the client secret and record which secret the token is minted
+	// against. Public clients have none to validate and their tokens reference
+	// none; the PKCE verification below is their only proof of possession,
+	// which makes the code ownership check further down load-bearing rather
+	// than defense in depth.
+	var appSecretID uuid.NullUUID
+	if !app.IsPublic() {
 		secret, err := ParseFormattedSecret(req.ClientSecret)
 		if err != nil {
 			return codersdk.OAuth2TokenResponse{}, errBadSecret
 		}
 		//nolint:gocritic // OAuth2 system context, users cannot read secrets
-		dbSecret, err = db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
+		dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
 		if errors.Is(err, sql.ErrNoRows) {
 			return codersdk.OAuth2TokenResponse{}, errBadSecret
 		}
@@ -306,6 +305,8 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		if dbSecret.AppID != app.ID {
 			return codersdk.OAuth2TokenResponse{}, errBadSecret
 		}
+
+		appSecretID = uuid.NullUUID{UUID: dbSecret.ID, Valid: true}
 	}
 
 	// Validate the authorization code.
@@ -329,7 +330,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// The code must belong to the app identified by the request's
 	// client_id, for the same reason as the secret check above. For a public
 	// client this is the only binding between client_id and the code, so it
-	// must stay outside the !isPublic block above.
+	// must stay outside the confidential-client branch above.
 	if dbCode.AppID != app.ID {
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
@@ -441,11 +442,6 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			return xerrors.Errorf("insert oauth2 access token: %w", err)
 		}
 
-		// Public clients have no secret, so their tokens reference none.
-		var appSecretID uuid.NullUUID
-		if !isPublic {
-			appSecretID = uuid.NullUUID{UUID: dbSecret.ID, Valid: true}
-		}
 		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
 			ID:          uuid.New(),
 			CreatedAt:   dbtime.Now(),
