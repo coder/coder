@@ -534,11 +534,18 @@ const PromptTextarea: FC<PromptTextareaProps> = ({
 							placeholder:text-content-secondary md:text-sm ${props.readOnly || isSubmitting ? "opacity-60 cursor-not-allowed" : ""}`}
 			/>
 			{isSubmitting && (
-				<div className="absolute inset-0 pointer-events-none overflow-hidden">
+				<div className="absolute inset-0 pointer-events-none overflow-hidden [container-type:inline-size]">
+					{/*
+					  Gradient trail behind a solid caret edge. A gradient is much
+					  cheaper to composite than stacked large-blur box-shadows, and
+					  the sweep animates transform instead of `left` so it never
+					  triggers layout.
+					*/}
 					<div
-						className={`absolute top-0 w-0.5 h-full
-						bg-green-400/90 animate-caret-scan rounded-sm
-						shadow-[-15px_0_15px_rgba(0,255,0,0.9),-30px_0_30px_rgba(0,255,0,0.7),-45px_0_45px_rgba(0,255,0,0.5),-60px_0_60px_rgba(0,255,0,0.3)]`}
+						className="absolute top-0 left-0 w-16 h-full
+						animate-caret-scan motion-reduce:animate-none
+						bg-gradient-to-r from-transparent to-green-400/60
+						border-r-2 border-green-400/90 rounded-sm"
 					/>
 				</div>
 			)}

@@ -6,19 +6,22 @@ import {
 	GitPullRequestArrowIcon,
 	GitPullRequestClosedIcon,
 	GitPullRequestDraftIcon,
-	Loader2Icon,
 	PauseIcon,
 } from "lucide-react";
+import type { ComponentType } from "react";
 import type { Chat, ChatDiffStatus, ChatStatus } from "#/api/typesGenerated";
+import { RunningSpinner } from "./RunningSpinner";
+
+type ChatIcon = LucideIcon | ComponentType<{ className?: string }>;
 
 type ChatIconConfig = {
-	icon: LucideIcon;
+	icon: ChatIcon;
 	className: string;
 };
 
 const statusConfig = {
 	waiting: { icon: CheckIcon, className: "text-content-secondary" },
-	running: { icon: Loader2Icon, className: "text-content-link animate-spin" },
+	running: { icon: RunningSpinner, className: "text-content-link" },
 	interrupting: { icon: PauseIcon, className: "text-content-warning" },
 	requires_action: { icon: PauseIcon, className: "text-content-warning" },
 	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
@@ -68,7 +71,7 @@ const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
 export const getChatDisplayConfig = (
 	chat: Chat,
 ): {
-	icon: LucideIcon;
+	icon: ChatIcon;
 	className: string;
 	diffStatus: ChatDiffStatus | undefined;
 } => {
