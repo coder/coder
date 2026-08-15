@@ -46,8 +46,6 @@ var (
 // decision-making reader of ClientType, keeping the confidential/public branch
 // in one place.
 func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
-	isPublic := app.IsPublic()
-
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
 	if err != nil {
@@ -101,7 +99,7 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAu
 		}
 		// Public clients have no secret; PKCE is their proof of possession
 		// (RFC 7591 §2, OAuth 2.1 §2.1).
-		if !isPublic && req.ClientSecret == "" {
+		if !app.IsPublic() && req.ClientSecret == "" {
 			p.Errors = append(p.Errors, codersdk.ValidationError{
 				Field:  "client_secret",
 				Detail: "Parameter \"client_secret\" is required and cannot be empty",
