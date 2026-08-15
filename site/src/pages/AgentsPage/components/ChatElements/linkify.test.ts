@@ -52,23 +52,6 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
-	it("excludes trailing Markdown emphasis delimiters from the URL", () => {
-		expect(splitTextForLinks("**https://coder.com/docs**")).toEqual([
-			{ kind: "text", value: "**" },
-			{ kind: "url", value: "https://coder.com/docs" },
-			{ kind: "text", value: "**" },
-		]);
-		expect(
-			splitTextForLinks("_https://coder.com/blog_ and ~https://coder.com/x~"),
-		).toEqual([
-			{ kind: "text", value: "_" },
-			{ kind: "url", value: "https://coder.com/blog" },
-			{ kind: "text", value: "_ and ~" },
-			{ kind: "url", value: "https://coder.com/x" },
-			{ kind: "text", value: "~" },
-		]);
-	});
-
 	it("excludes a closing parenthesis that is not part of the URL", () => {
 		expect(splitTextForLinks("(listening on http://localhost:3000)")).toEqual([
 			{ kind: "text", value: "(listening on " },
@@ -102,6 +85,26 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
+	it("does not linkify bare domains or filenames with TLD-like extensions", () => {
+		expect(
+			splitTextForLinks("please edit main.ts and README.md then run deploy.sh"),
+		).toEqual([
+			{
+				kind: "text",
+				value: "please edit main.ts and README.md then run deploy.sh",
+			},
+		]);
+		expect(splitTextForLinks("see github.com and www.coder.com")).toEqual([
+			{ kind: "text", value: "see github.com and www.coder.com" },
+		]);
+	});
+
+	it("does not linkify email addresses", () => {
+		expect(splitTextForLinks("contact admin@coder.com about chat.go")).toEqual([
+			{ kind: "text", value: "contact admin@coder.com about chat.go" },
+		]);
+	});
+
 	it("trims an unmatched closing bracket wrapping the URL", () => {
 		expect(splitTextForLinks("Open [http://localhost:3000] now")).toEqual([
 			{ kind: "text", value: "Open [" },
@@ -118,28 +121,44 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
-	it("keeps IPv6 host brackets while trimming a wrapper bracket", () => {
-		expect(splitTextForLinks("[http://[::1]:8080/]")).toEqual([
-			{ kind: "text", value: "[" },
-			{ kind: "url", value: "http://[::1]:8080/" },
-			{ kind: "text", value: "]" },
+	// Accepted linkifyjs tokenizer limitations: options can reject whole
+	// tokens but cannot fix their boundaries.
+
+	it("keeps trailing Markdown emphasis delimiters in the URL", () => {
+		expect(splitTextForLinks("**https://coder.com/docs**")).toEqual([
+			{ kind: "text", value: "**" },
+			{ kind: "url", value: "https://coder.com/docs**" },
+		]);
+		expect(
+			splitTextForLinks("_https://coder.com/blog_ and ~https://coder.com/x~"),
+		).toEqual([
+			{ kind: "text", value: "_" },
+			{ kind: "url", value: "https://coder.com/blog_" },
+			{ kind: "text", value: " and ~" },
+			{ kind: "url", value: "https://coder.com/x~" },
 		]);
 	});
 
-	it("stops the URL at ANSI escape sequences", () => {
+	it("does not detect URLs with IPv6 literal hosts", () => {
+		expect(splitTextForLinks("[http://[::1]:8080/]")).toEqual([
+			{ kind: "text", value: "[http://[::1]:8080/]" },
+		]);
+	});
+
+	it("does not linkify URLs adjacent to ANSI escape sequences", () => {
 		expect(
 			splitTextForLinks("\u001b[32mhttp://localhost:3000/\u001b[39m done"),
 		).toEqual([
-			{ kind: "text", value: "\u001b[32m" },
-			{ kind: "url", value: "http://localhost:3000/" },
-			{ kind: "text", value: "\u001b[39m done" },
+			{
+				kind: "text",
+				value: "\u001b[32mhttp://localhost:3000/\u001b[39m done",
+			},
 		]);
 	});
 
-	it("stops the URL at other ASCII control characters", () => {
+	it("keeps ASCII control characters inside the URL", () => {
 		expect(splitTextForLinks("http://localhost:3000/a\u0007bell")).toEqual([
-			{ kind: "url", value: "http://localhost:3000/a" },
-			{ kind: "text", value: "\u0007bell" },
+			{ kind: "url", value: "http://localhost:3000/a\u0007bell" },
 		]);
 	});
 });
