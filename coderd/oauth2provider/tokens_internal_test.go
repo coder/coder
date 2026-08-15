@@ -125,7 +125,7 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			// This test only exercises scope parsing, but code_verifier is
 			// validated unconditionally for this grant type, so use a value
 			// that satisfies the RFC 7636 §4.1 length floor.
-			form.Set("code_verifier", strings.Repeat("a", 43))
+			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 			if tc.scopeParam != "" {
 				form.Set("scope", tc.scopeParam)
 			}
@@ -232,7 +232,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
-				form.Set("code_verifier", strings.Repeat("a", 43))
+				form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 				return form
 			},
 			expectedScopes: []string{},
@@ -246,7 +246,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
-				form.Set("code_verifier", strings.Repeat("a", 43))
+				form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 				form.Set("scope", "   ")
 				return form
 			},
@@ -262,7 +262,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				form.Set("client_id", "test-client")
 				form.Set("client_secret", "test-secret")
 				form.Set("code", "test-code")
-				form.Set("code_verifier", strings.Repeat("a", 43))
+				form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 				form.Set("scope", longScope)
 				return form
 			},
@@ -495,8 +495,9 @@ func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
 			clientID: "test-client",
 		},
 		{
-			// A public client that sends a secret anyway is accepted; the
-			// secret is simply never checked (RFC 6749 §2.3.1).
+			// A public client has no secret to check (RFC 7591 §2, OAuth 2.1
+			// §2.1), so one sent anyway is ignored rather than rejected. PKCE
+			// and the code's own app_id still bind the exchange.
 			name:         "PublicClientWithSecretIsAccepted",
 			app:          publicApp,
 			clientID:     "test-client",
@@ -522,7 +523,7 @@ func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
 			// This test only exercises client_secret requirements, but
 			// code_verifier is validated unconditionally for this grant type,
 			// so use a value that satisfies the RFC 7636 §4.1 length floor.
-			form.Set("code_verifier", strings.Repeat("a", 43))
+			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 			if tc.clientID != "" {
 				form.Set("client_id", tc.clientID)
 			}
