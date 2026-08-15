@@ -129,6 +129,9 @@ export const ForMemberWithoutChatPermission: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
+			canvas.getByRole("link", { name: "Workspaces" }),
+		).toBeInTheDocument();
+		await expect(
 			canvas.queryByRole("link", { name: "Agents" }),
 		).not.toBeInTheDocument();
 	},
