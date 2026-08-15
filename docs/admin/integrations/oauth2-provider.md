@@ -239,8 +239,8 @@ confidential clients must include PKCE parameters:
    **Public client (`token_endpoint_auth_method: none`)**
 
    Send `client_id` in the form body and omit `client_secret` entirely. The code
-   verifier is the only client authentication, so it must be 43-128 characters
-   as RFC 7636 §4.1 requires; shorter values are rejected.
+   verifier is the only proof of possession, and must satisfy RFC 7636 §4.1
+   (43-128 characters from `[A-Za-z0-9-._~]`).
 
    ```sh
    curl -X POST \

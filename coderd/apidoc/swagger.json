@@ -13224,7 +13224,7 @@
 					},
 					{
 						"type": "string",
-						"description": "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636. This is the only client authentication a public client has.",
+						"description": "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636. This is a public client's only proof of possession.",
 						"name": "code_verifier",
 						"in": "formData"
 					},

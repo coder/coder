@@ -41,9 +41,10 @@ var (
 	errConflictingClientAuth = xerrors.New("conflicting client authentication")
 )
 
-// The app is passed whole rather than as a pre-derived boolean so that
-// IsPublic remains the only reader of client_type. A bool parameter would also
-// be a revive flag-parameter violation.
+// extractTokenRequest parses the /oauth2/tokens form. The app is passed whole
+// rather than as a pre-derived boolean so IsPublic remains the sole
+// decision-making reader of ClientType, keeping the confidential/public branch
+// in one place.
 func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
 	isPublic := app.IsPublic()
 
@@ -98,8 +99,8 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAu
 				Detail: "Parameter \"client_id\" is required and cannot be empty",
 			})
 		}
-		// Public clients have no secret; PKCE is their client
-		// authentication (RFC 7591 §2, OAuth 2.1 §2.1).
+		// Public clients have no secret; PKCE is their proof of possession
+		// (RFC 7591 §2, OAuth 2.1 §2.1).
 		if !isPublic && req.ClientSecret == "" {
 			p.Errors = append(p.Errors, codersdk.ValidationError{
 				Field:  "client_secret",
@@ -276,9 +277,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	isPublic := app.IsPublic()
 
 	// Validate the client secret. Public clients have none to validate; the
-	// PKCE verification below is their only client authentication, which
-	// makes the code ownership check further down load-bearing rather than
-	// defense in depth.
+	// PKCE verification below is their only proof of possession, which makes
+	// the code ownership check further down load-bearing rather than defense
+	// in depth.
 	var dbSecret database.OAuth2ProviderAppSecret
 	if !isPublic {
 		secret, err := ParseFormattedSecret(req.ClientSecret)
@@ -328,7 +329,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 
 	// The code must belong to the app identified by the request's
-	// client_id, for the same reason as the secret check above.
+	// client_id, for the same reason as the secret check above. For a public
+	// client this is the only binding between client_id and the code, so it
+	// must stay outside the !isPublic block above.
 	if dbCode.AppID != app.ID {
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
