@@ -159,8 +159,10 @@ func TestRender(t *testing.T) {
 			[]priceRow{row("anthropic", "claude", 1, 2)},
 			[]priceRow{row("anthropic", "claude", 1, 2)},
 		))
-		require.Contains(t, out, "No price changes")
-		require.NotContains(t, out, "### Added")
+		require.Equal(t, `## Price book changes
+
+No price changes.
+`, out)
 	})
 
 	t.Run("full summary", func(t *testing.T) {
@@ -177,10 +179,24 @@ func TestRender(t *testing.T) {
 			},
 		))
 
-		require.Contains(t, out, "1 model added, 1 model removed, 1 model changed.")
-		require.Contains(t, out, "### Added\n\n- anthropic/fresh\n")
-		require.Contains(t, out, "### Removed\n\n- anthropic/gone\n")
-		require.Contains(t, out, "### Changed\n\n- openai/gpt\n")
+		// Asserted whole rather than by substring so section order, spacing,
+		// and the absence of stray content are covered too.
+		require.Equal(t, `## Price book changes
+
+1 model added, 1 model removed, 1 model changed.
+
+### Added
+
+- anthropic/fresh
+
+### Removed
+
+- anthropic/gone
+
+### Changed
+
+- openai/gpt
+`, out)
 	})
 }
 
@@ -191,7 +207,7 @@ func TestRun(t *testing.T) {
 		t.Parallel()
 
 		var out strings.Builder
-		require.Error(t, run("", "", &out))
+		require.ErrorContains(t, run("", "", &out), "-old and -new are both required")
 	})
 
 	t.Run("reads files", func(t *testing.T) {
@@ -216,7 +232,22 @@ func TestRun(t *testing.T) {
 		writeFile(t, path, "{")
 
 		var out strings.Builder
-		require.Error(t, run(path, path, &out))
+		err := run(path, path, &out)
+		// The path is part of the message so a failed refresh names the file
+		// that could not be read.
+		require.ErrorContains(t, err, path)
+		require.ErrorContains(t, err, "parse:")
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "absent.json")
+
+		var out strings.Builder
+		err := run(path, path, &out)
+		require.ErrorIs(t, err, os.ErrNotExist)
+		require.ErrorContains(t, err, path)
 	})
 }
 
