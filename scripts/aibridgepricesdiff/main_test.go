@@ -27,7 +27,9 @@ func TestCompare(t *testing.T) {
 		},
 		{
 			name: "added",
-			old:  []priceRow{row("anthropic", "claude", 1, 2)},
+			old: []priceRow{
+				row("anthropic", "claude", 1, 2),
+			},
 			new: []priceRow{
 				row("anthropic", "claude", 1, 2),
 				row("openai", "gpt", 3, 4),
@@ -40,7 +42,9 @@ func TestCompare(t *testing.T) {
 				row("anthropic", "claude", 1, 2),
 				row("openai", "gpt", 3, 4),
 			},
-			new:         []priceRow{row("anthropic", "claude", 1, 2)},
+			new: []priceRow{
+				row("anthropic", "claude", 1, 2),
+			},
 			wantRemoved: []string{"openai/gpt"},
 		},
 		{
@@ -53,27 +57,42 @@ func TestCompare(t *testing.T) {
 			// Every price field participates, not just input and output.
 			name: "cache price changed",
 			old: []priceRow{{
-				Provider: "anthropic", Model: "claude",
+				Provider:       "anthropic",
+				Model:          "claude",
 				CacheReadPrice: int64Ptr(1),
 			}},
 			new: []priceRow{{
-				Provider: "anthropic", Model: "claude",
+				Provider:       "anthropic",
+				Model:          "claude",
 				CacheReadPrice: int64Ptr(2),
 			}},
 			wantChanged: []string{"anthropic/claude"},
 		},
 		{
 			// A model whose price becomes null is a change, not a removal.
-			name:        "price unset",
-			old:         []priceRow{row("anthropic", "claude", 1, 2)},
-			new:         []priceRow{{Provider: "anthropic", Model: "claude", InputPrice: int64Ptr(1)}},
+			name: "price unset",
+			old: []priceRow{
+				row("anthropic", "claude", 1, 2),
+			},
+			new: []priceRow{{
+				Provider:   "anthropic",
+				Model:      "claude",
+				InputPrice: int64Ptr(1),
+			}},
 			wantChanged: []string{"anthropic/claude"},
 		},
 		{
 			// Zero is a real price, distinct from an absent one.
-			name:        "zero is not null",
-			old:         []priceRow{{Provider: "openai", Model: "gpt", InputPrice: int64Ptr(0)}},
-			new:         []priceRow{{Provider: "openai", Model: "gpt"}},
+			name: "zero is not null",
+			old: []priceRow{{
+				Provider:   "openai",
+				Model:      "gpt",
+				InputPrice: int64Ptr(0),
+			}},
+			new: []priceRow{{
+				Provider: "openai",
+				Model:    "gpt",
+			}},
 			wantChanged: []string{"openai/gpt"},
 		},
 		{
@@ -148,8 +167,14 @@ func TestRender(t *testing.T) {
 		t.Parallel()
 
 		out := render(compare(
-			[]priceRow{row("anthropic", "gone", 1, 2), row("openai", "gpt", 1, 2)},
-			[]priceRow{row("anthropic", "fresh", 3, 4), row("openai", "gpt", 2, 3)},
+			[]priceRow{
+				row("anthropic", "gone", 1, 2),
+				row("openai", "gpt", 1, 2),
+			},
+			[]priceRow{
+				row("anthropic", "fresh", 3, 4),
+				row("openai", "gpt", 2, 3),
+			},
 		))
 
 		require.Contains(t, out, "1 model added, 1 model removed, 1 model changed.")
