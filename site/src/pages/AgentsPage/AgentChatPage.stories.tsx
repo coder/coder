@@ -34,6 +34,7 @@ import {
 	MockOrganizationMember2,
 	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceAgent,
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
@@ -2205,6 +2206,76 @@ export const SidebarWithSingleRepo: Story = {
 		},
 	},
 };
+
+const rebuiltWorkspaceAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "rebuilt-agent-1",
+};
+const rebuiltWorkspace: TypesGen.Workspace = {
+	...mockWorkspace,
+	latest_build: {
+		...mockWorkspace.latest_build,
+		id: "rebuilt-build-1",
+		resources: [
+			{
+				...mockWorkspace.latest_build.resources[0],
+				agents: [rebuiltWorkspaceAgent],
+			},
+		],
+	},
+};
+const rebuildRecoveryChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	agent_id: "stale-agent-1",
+	title: "Rebuild recovery",
+	status: "waiting",
+};
+
+export const RecoversSidebarAfterWorkspaceRebuild: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			...rebuildRecoveryChat,
+			agent_id: rebuiltWorkspaceAgent.id,
+		});
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					rebuildRecoveryChat,
+					{ messages: [], queued_messages: [], has_more: false },
+					{ diffUrl: undefined },
+				),
+				workspaceByIdKey(mockWorkspace.id),
+			),
+			{ key: workspaceByIdKey(mockWorkspace.id), data: rebuiltWorkspace },
+		],
+		webSocket: {
+			"watch-ws": [
+				{
+					event: "message",
+					data: JSON.stringify({
+						type: "data",
+						data: rebuiltWorkspace,
+					} satisfies TypesGen.ServerSentEvent),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const terminalTab = await canvas.findByRole(
+			"tab",
+			{ name: "Terminal" },
+			{ timeout: 5000 },
+		);
+		expect(terminalTab).toBeVisible();
+	},
+};
+
 /**
  * Streaming reasoning part via WebSocket, renders inline text.
  */
