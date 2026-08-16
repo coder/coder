@@ -551,9 +551,13 @@ export const mergeWatchedChatSummary = (
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
-	const nextBuildId = isFreshEnough
-		? (watchedChat.build_id ?? cachedChat.build_id)
-		: cachedChat.build_id;
+	// Single-chat reads repair agent/build bindings response-only, so watch
+	// events can replay stale DB pairs. Adopting build_id with a mismatched
+	// agent would split the repaired pair because merge never adopts agent_id.
+	const nextBuildId =
+		isFreshEnough && watchedChat.agent_id === cachedChat.agent_id
+			? (watchedChat.build_id ?? cachedChat.build_id)
+			: cachedChat.build_id;
 	// All event types carry the current model config from the DB.
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
