@@ -549,8 +549,10 @@ func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat, s
 	}
 
 	agentsByWorkspace := make(map[uuid.UUID][]database.WorkspaceAgent)
+	latestBuildIDs := make(map[uuid.UUID]uuid.UUID)
 	for _, row := range rows {
 		agentsByWorkspace[row.WorkspaceID] = append(agentsByWorkspace[row.WorkspaceID], row.WorkspaceAgent)
+		latestBuildIDs[row.WorkspaceID] = row.BuildID
 	}
 	agentIDs := make(map[uuid.UUID]uuid.UUID, len(agentsByWorkspace))
 	for workspaceID, agents := range agentsByWorkspace {
@@ -574,6 +576,10 @@ func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat, s
 		if agentID, ok := agentIDs[*chat.WorkspaceID]; ok {
 			id := agentID
 			chat.AgentID = &id
+			// Pair the agent with its build so the response never mixes
+			// the latest build's agent with a previous build's ID.
+			buildID := latestBuildIDs[*chat.WorkspaceID]
+			chat.BuildID = &buildID
 		}
 	}
 }

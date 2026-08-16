@@ -149,9 +149,12 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 	}
 	workspaceID, otherWorkspaceID := uuid.New(), uuid.New()
 	rootAgentID, otherAgentID := uuid.New(), uuid.New()
+	latestBuildID, otherLatestBuildID := uuid.New(), uuid.New()
+	latestBuildIDs := map[uuid.UUID]uuid.UUID{workspaceID: latestBuildID, otherWorkspaceID: otherLatestBuildID}
 	row := func(workspaceID, id uuid.UUID, parentID uuid.NullUUID, name string) database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow {
 		return database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
 			WorkspaceID: workspaceID,
+			BuildID:     latestBuildIDs[workspaceID],
 			WorkspaceAgent: database.WorkspaceAgent{
 				ID:       id,
 				ParentID: parentID,
@@ -173,6 +176,9 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 		require.Equal(t, rootAgentID, *chats[0].AgentID)
 		require.Equal(t, rootAgentID, *chats[0].Children[0].AgentID)
 		require.Equal(t, otherAgentID, *chats[1].AgentID)
+		require.Equal(t, latestBuildID, *chats[0].BuildID)
+		require.Equal(t, latestBuildID, *chats[0].Children[0].BuildID)
+		require.Equal(t, otherLatestBuildID, *chats[1].BuildID)
 	})
 	t.Run("query error", func(t *testing.T) {
 		t.Parallel()
@@ -188,10 +194,13 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 		api, mDB := newAPI(t)
 		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub")}, nil)
 		bound := otherAgentID
-		chats := []codersdk.Chat{{}, {WorkspaceID: &workspaceID}, {WorkspaceID: &workspaceID, AgentID: &bound}}
+		boundBuildID := uuid.New()
+		chats := []codersdk.Chat{{}, {WorkspaceID: &workspaceID}, {WorkspaceID: &workspaceID, AgentID: &bound, BuildID: &boundBuildID}}
 		api.repairChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Nil(t, chats[1].AgentID)
+		require.Nil(t, chats[1].BuildID)
 		require.Equal(t, bound, *chats[2].AgentID)
+		require.Equal(t, boundBuildID, *chats[2].BuildID)
 	})
 	t.Run("repairs stale and keeps valid bindings", func(t *testing.T) {
 		t.Parallel()
@@ -202,13 +211,16 @@ func TestEnrichChatAgentIDs(t *testing.T) {
 			row(workspaceID, secondRootAgentID, uuid.NullUUID{}, "b"),
 		}, nil)
 		stale, valid := uuid.New(), secondRootAgentID
+		staleBuildID, validBuildID := uuid.New(), uuid.New()
 		chats := []codersdk.Chat{
-			{WorkspaceID: &workspaceID, AgentID: &stale},
-			{WorkspaceID: &workspaceID, AgentID: &valid},
+			{WorkspaceID: &workspaceID, AgentID: &stale, BuildID: &staleBuildID},
+			{WorkspaceID: &workspaceID, AgentID: &valid, BuildID: &validBuildID},
 		}
 		api.repairChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Equal(t, rootAgentID, *chats[0].AgentID)
 		require.Equal(t, secondRootAgentID, *chats[1].AgentID)
+		require.Equal(t, latestBuildID, *chats[0].BuildID)
+		require.Equal(t, validBuildID, *chats[1].BuildID)
 	})
 	t.Run("list mode skips bound chats entirely", func(t *testing.T) {
 		t.Parallel()

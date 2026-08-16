@@ -34028,6 +34028,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Co
 const getWorkspaceAgentsInLatestBuildByWorkspaceIDs = `-- name: GetWorkspaceAgentsInLatestBuildByWorkspaceIDs :many
 SELECT
 	workspace_builds.workspace_id,
+	workspace_builds.id AS build_id,
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted
 FROM
 	workspace_agents
@@ -34054,6 +34055,7 @@ WHERE
 
 type GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow struct {
 	WorkspaceID    uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	BuildID        uuid.UUID      `db:"build_id" json:"build_id"`
 	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
 }
 
@@ -34068,6 +34070,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(ctx context.C
 		var i GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow
 		if err := rows.Scan(
 			&i.WorkspaceID,
+			&i.BuildID,
 			&i.WorkspaceAgent.ID,
 			&i.WorkspaceAgent.CreatedAt,
 			&i.WorkspaceAgent.UpdatedAt,
