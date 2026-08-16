@@ -18,7 +18,7 @@ func TestCompare(t *testing.T) {
 		new         []priceRow
 		wantAdded   []string
 		wantRemoved []string
-		wantChanged []change
+		wantChanged []string
 	}{
 		{
 			name: "identical",
@@ -38,30 +38,44 @@ func TestCompare(t *testing.T) {
 			wantRemoved: []string{"openai/gpt"},
 		},
 		{
-			name: "changed",
-			old:  []priceRow{row("anthropic", "claude", 1, 2)},
-			new:  []priceRow{row("anthropic", "claude", 1, 5)},
-			wantChanged: []change{
-				{provider: "anthropic", model: "claude", field: "output", old: int64Ptr(2), new: int64Ptr(5)},
-			},
+			name:        "changed",
+			old:         []priceRow{row("anthropic", "claude", 1, 2)},
+			new:         []priceRow{row("anthropic", "claude", 1, 5)},
+			wantChanged: []string{"anthropic/claude"},
+		},
+		{
+			// Every price field participates, not just input and output.
+			name: "cache price changed",
+			old: []priceRow{{
+				Provider: "anthropic", Model: "claude",
+				CacheReadPrice: int64Ptr(1),
+			}},
+			new: []priceRow{{
+				Provider: "anthropic", Model: "claude",
+				CacheReadPrice: int64Ptr(2),
+			}},
+			wantChanged: []string{"anthropic/claude"},
 		},
 		{
 			// A model whose price becomes null is a change, not a removal.
-			name: "price unset",
-			old:  []priceRow{row("anthropic", "claude", 1, 2)},
-			new:  []priceRow{{Provider: "anthropic", Model: "claude", InputPrice: int64Ptr(1)}},
-			wantChanged: []change{
-				{provider: "anthropic", model: "claude", field: "output", old: int64Ptr(2), new: nil},
-			},
+			name:        "price unset",
+			old:         []priceRow{row("anthropic", "claude", 1, 2)},
+			new:         []priceRow{{Provider: "anthropic", Model: "claude", InputPrice: int64Ptr(1)}},
+			wantChanged: []string{"anthropic/claude"},
+		},
+		{
+			// Zero is a real price, distinct from an absent one.
+			name:        "zero is not null",
+			old:         []priceRow{{Provider: "openai", Model: "gpt", InputPrice: int64Ptr(0)}},
+			new:         []priceRow{{Provider: "openai", Model: "gpt"}},
+			wantChanged: []string{"openai/gpt"},
 		},
 		{
 			// Same model identifier under two providers must not collide.
-			name: "same model different providers",
-			old:  []priceRow{row("anthropic", "shared", 1, 2), row("openai", "shared", 1, 2)},
-			new:  []priceRow{row("anthropic", "shared", 1, 2), row("openai", "shared", 9, 2)},
-			wantChanged: []change{
-				{provider: "openai", model: "shared", field: "input", old: int64Ptr(1), new: int64Ptr(9)},
-			},
+			name:        "same model different providers",
+			old:         []priceRow{row("anthropic", "shared", 1, 2), row("openai", "shared", 1, 2)},
+			new:         []priceRow{row("anthropic", "shared", 1, 2), row("openai", "shared", 9, 2)},
+			wantChanged: []string{"openai/shared"},
 		},
 		{
 			name:        "added removed and changed together",
@@ -69,9 +83,7 @@ func TestCompare(t *testing.T) {
 			new:         []priceRow{row("anthropic", "new-model", 5, 6), row("openai", "gpt", 3, 7)},
 			wantAdded:   []string{"anthropic/new-model"},
 			wantRemoved: []string{"anthropic/old-model"},
-			wantChanged: []change{
-				{provider: "openai", model: "gpt", field: "output", old: int64Ptr(4), new: int64Ptr(7)},
-			},
+			wantChanged: []string{"openai/gpt"},
 		},
 	}
 
@@ -82,7 +94,7 @@ func TestCompare(t *testing.T) {
 			got := compare(tc.old, tc.new)
 			require.Equal(t, tc.wantAdded, names(got.added))
 			require.Equal(t, tc.wantRemoved, names(got.removed))
-			require.Equal(t, tc.wantChanged, got.changed)
+			require.Equal(t, tc.wantChanged, names(got.changed))
 		})
 	}
 }
@@ -90,14 +102,13 @@ func TestCompare(t *testing.T) {
 func TestCompareSortsDeterministically(t *testing.T) {
 	t.Parallel()
 
-	old := []priceRow{}
 	updated := []priceRow{
 		row("openai", "b", 1, 1),
 		row("anthropic", "z", 1, 1),
 		row("anthropic", "a", 1, 1),
 	}
 
-	got := compare(old, updated)
+	got := compare(nil, updated)
 	require.Equal(t, []string{"anthropic/a", "anthropic/z", "openai/b"}, names(got.added))
 }
 
@@ -119,28 +130,15 @@ func TestRender(t *testing.T) {
 		t.Parallel()
 
 		out := render(compare(
-			[]priceRow{row("anthropic", "gone", 1_000_000, 2_000_000), row("openai", "gpt", 1_000_000, 2_000_000)},
-			[]priceRow{row("anthropic", "fresh", 3_000_000, 4_000_000), row("openai", "gpt", 2_000_000, 3_000_000)},
+			[]priceRow{row("anthropic", "gone", 1, 2), row("openai", "gpt", 1, 2)},
+			[]priceRow{row("anthropic", "fresh", 3, 4), row("openai", "gpt", 2, 3)},
 		))
 
 		require.Contains(t, out, "1 model added, 1 model removed, 1 model changed.")
 		require.Contains(t, out, "### Added\n\n- anthropic/fresh\n")
 		require.Contains(t, out, "### Removed\n\n- anthropic/gone\n")
-		// A model that repriced across two fields is listed once.
 		require.Contains(t, out, "### Changed\n\n- openai/gpt\n")
-		require.NotContains(t, out, "| Provider |")
 	})
-}
-
-func TestChangedModelNames(t *testing.T) {
-	t.Parallel()
-
-	changes := []change{
-		{provider: "openai", model: "gpt", field: "input"},
-		{provider: "openai", model: "gpt", field: "output"},
-		{provider: "anthropic", model: "claude", field: "input"},
-	}
-	require.Equal(t, []string{"openai/gpt", "anthropic/claude"}, changedModelNames(changes))
 }
 
 func TestRun(t *testing.T) {
@@ -188,13 +186,13 @@ func row(provider, model string, input, output int64) priceRow {
 	}
 }
 
-func names(rows []priceRow) []string {
-	if len(rows) == 0 {
+func names(keys []modelKey) []string {
+	if len(keys) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, r.Provider+"/"+r.Model)
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, k.String())
 	}
 	return out
 }

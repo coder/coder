@@ -36,44 +36,34 @@ type priceRow struct {
 	CacheWritePrice *int64 `json:"cache_write_price"`
 }
 
-// key identifies a row across the two snapshots.
-type key struct {
+// modelKey identifies a model across the two snapshots. A model identifier is
+// only unique within its provider, so both fields are part of the key.
+type modelKey struct {
 	provider string
 	model    string
 }
 
-func (r priceRow) key() key {
-	return key{provider: r.Provider, model: r.Model}
+func (r priceRow) key() modelKey {
+	return modelKey{provider: r.Provider, model: r.Model}
 }
 
-// priceField names one comparable price on a row, paired with an accessor so
-// the comparison loop stays data-driven and column order stays stable.
-type priceField struct {
-	label string
-	get   func(priceRow) *int64
+func (k modelKey) String() string {
+	return k.provider + "/" + k.model
 }
 
-var priceFields = []priceField{
-	{"input", func(r priceRow) *int64 { return r.InputPrice }},
-	{"output", func(r priceRow) *int64 { return r.OutputPrice }},
-	{"cache read", func(r priceRow) *int64 { return r.CacheReadPrice }},
-	{"cache write", func(r priceRow) *int64 { return r.CacheWritePrice }},
+func less(a, b modelKey) bool {
+	if a.provider != b.provider {
+		return a.provider < b.provider
+	}
+	return a.model < b.model
 }
 
-// change records a single price field that differs between snapshots.
-type change struct {
-	provider string
-	model    string
-	field    string
-	old      *int64
-	new      *int64
-}
-
-// diff is the full comparison between two snapshots.
+// diff is the full comparison between two snapshots, as the models in each
+// category. Which individual price fields moved is left to the file diff.
 type diff struct {
-	added   []priceRow
-	removed []priceRow
-	changed []change
+	added   []modelKey
+	removed []modelKey
+	changed []modelKey
 }
 
 func (d diff) empty() bool {
@@ -118,61 +108,47 @@ func readRows(path string) ([]priceRow, error) {
 	return rows, nil
 }
 
-// compare classifies every row as added, removed, or changed. Results are
-// sorted by (provider, model) so the same inputs always render identically.
+// compare classifies every model as added, removed, or changed. Each category
+// holds at most one entry per model, so sorting by key is a total order and
+// the same inputs always render identically.
 func compare(oldRows, newRows []priceRow) diff {
-	oldByKey := make(map[key]priceRow, len(oldRows))
+	oldByKey := make(map[modelKey]priceRow, len(oldRows))
 	for _, r := range oldRows {
 		oldByKey[r.key()] = r
 	}
-	newByKey := make(map[key]priceRow, len(newRows))
-	for _, r := range newRows {
-		newByKey[r.key()] = r
-	}
 
 	var d diff
+	seen := make(map[modelKey]struct{}, len(newRows))
 	for _, r := range newRows {
+		seen[r.key()] = struct{}{}
 		prev, ok := oldByKey[r.key()]
-		if !ok {
-			d.added = append(d.added, r)
-			continue
-		}
-		for _, f := range priceFields {
-			before, after := f.get(prev), f.get(r)
-			if equalPrice(before, after) {
-				continue
-			}
-			d.changed = append(d.changed, change{
-				provider: r.Provider,
-				model:    r.Model,
-				field:    f.label,
-				old:      before,
-				new:      after,
-			})
+		switch {
+		case !ok:
+			d.added = append(d.added, r.key())
+		case !samePrices(prev, r):
+			d.changed = append(d.changed, r.key())
 		}
 	}
 	for _, r := range oldRows {
-		if _, ok := newByKey[r.key()]; !ok {
-			d.removed = append(d.removed, r)
+		if _, ok := seen[r.key()]; !ok {
+			d.removed = append(d.removed, r.key())
 		}
 	}
 
-	sort.Slice(d.added, func(i, j int) bool { return lessRow(d.added[i], d.added[j]) })
-	sort.Slice(d.removed, func(i, j int) bool { return lessRow(d.removed[i], d.removed[j]) })
-	sort.SliceStable(d.changed, func(i, j int) bool {
-		if d.changed[i].provider != d.changed[j].provider {
-			return d.changed[i].provider < d.changed[j].provider
-		}
-		return d.changed[i].model < d.changed[j].model
-	})
+	for _, keys := range [][]modelKey{d.added, d.removed, d.changed} {
+		sort.Slice(keys, func(i, j int) bool { return less(keys[i], keys[j]) })
+	}
 	return d
 }
 
-func lessRow(a, b priceRow) bool {
-	if a.Provider != b.Provider {
-		return a.Provider < b.Provider
-	}
-	return a.Model < b.Model
+// samePrices reports whether two rows for the same model carry identical
+// prices. A price moving to or from null counts as a change, so nil is
+// compared rather than ignored.
+func samePrices(a, b priceRow) bool {
+	return equalPrice(a.InputPrice, b.InputPrice) &&
+		equalPrice(a.OutputPrice, b.OutputPrice) &&
+		equalPrice(a.CacheReadPrice, b.CacheReadPrice) &&
+		equalPrice(a.CacheWritePrice, b.CacheWritePrice)
 }
 
 func equalPrice(a, b *int64) bool {
@@ -183,9 +159,7 @@ func equalPrice(a, b *int64) bool {
 }
 
 // render writes the Markdown summary: counts, then the models in each
-// category. Only provider and model are listed. Exact prices live in the
-// pull request diff, so repeating them here would restate what a reviewer
-// can already read.
+// category. Empty categories are omitted.
 func render(d diff) string {
 	var b strings.Builder
 	write := func(format string, args ...any) {
@@ -198,54 +172,26 @@ func render(d diff) string {
 		return b.String()
 	}
 
-	changedModels := changedModelNames(d.changed)
 	write("%s added, %s removed, %s changed.\n",
 		plural(len(d.added), "model"),
 		plural(len(d.removed), "model"),
-		plural(len(changedModels), "model"),
+		plural(len(d.changed), "model"),
 	)
 
-	renderList := func(heading string, models []string) {
-		if len(models) == 0 {
+	renderList := func(heading string, keys []modelKey) {
+		if len(keys) == 0 {
 			return
 		}
 		write("\n### %s\n\n", heading)
-		for _, m := range models {
-			write("- %s\n", m)
+		for _, k := range keys {
+			write("- %s\n", k)
 		}
 	}
-	renderList("Added", modelNames(d.added))
-	renderList("Removed", modelNames(d.removed))
-	renderList("Changed", changedModels)
+	renderList("Added", d.added)
+	renderList("Removed", d.removed)
+	renderList("Changed", d.changed)
 
 	return b.String()
-}
-
-// modelNames renders rows as "provider/model", preserving input order.
-func modelNames(rows []priceRow) []string {
-	out := make([]string, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, r.Provider+"/"+r.Model)
-	}
-	return out
-}
-
-// changedModelNames collapses per-field changes into one entry per model, so
-// a model that repriced across every field is listed once.
-func changedModelNames(changes []change) []string {
-	var (
-		seen = make(map[string]struct{}, len(changes))
-		out  []string
-	)
-	for _, c := range changes {
-		name := c.provider + "/" + c.model
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		out = append(out, name)
-	}
-	return out
 }
 
 func plural(n int, noun string) string {
