@@ -139,13 +139,13 @@ func TestCompare(t *testing.T) {
 func TestCompareSortsDeterministically(t *testing.T) {
 	t.Parallel()
 
-	updated := []priceRow{
+	newRows := []priceRow{
 		row("openai", "b", 1, 1),
 		row("anthropic", "z", 1, 1),
 		row("anthropic", "a", 1, 1),
 	}
 
-	got := compare(nil, updated)
+	got := compare(nil, newRows)
 	require.Equal(t, []string{"anthropic/a", "anthropic/z", "openai/b"}, names(got.added))
 }
 
