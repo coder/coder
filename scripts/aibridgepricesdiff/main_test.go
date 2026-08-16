@@ -26,14 +26,20 @@ func TestCompare(t *testing.T) {
 			new:  []priceRow{row("anthropic", "claude", 1, 2)},
 		},
 		{
-			name:      "added",
-			old:       []priceRow{row("anthropic", "claude", 1, 2)},
-			new:       []priceRow{row("anthropic", "claude", 1, 2), row("openai", "gpt", 3, 4)},
+			name: "added",
+			old:  []priceRow{row("anthropic", "claude", 1, 2)},
+			new: []priceRow{
+				row("anthropic", "claude", 1, 2),
+				row("openai", "gpt", 3, 4),
+			},
 			wantAdded: []string{"openai/gpt"},
 		},
 		{
-			name:        "removed",
-			old:         []priceRow{row("anthropic", "claude", 1, 2), row("openai", "gpt", 3, 4)},
+			name: "removed",
+			old: []priceRow{
+				row("anthropic", "claude", 1, 2),
+				row("openai", "gpt", 3, 4),
+			},
 			new:         []priceRow{row("anthropic", "claude", 1, 2)},
 			wantRemoved: []string{"openai/gpt"},
 		},
@@ -72,15 +78,27 @@ func TestCompare(t *testing.T) {
 		},
 		{
 			// Same model identifier under two providers must not collide.
-			name:        "same model different providers",
-			old:         []priceRow{row("anthropic", "shared", 1, 2), row("openai", "shared", 1, 2)},
-			new:         []priceRow{row("anthropic", "shared", 1, 2), row("openai", "shared", 9, 2)},
+			name: "same model different providers",
+			old: []priceRow{
+				row("anthropic", "shared", 1, 2),
+				row("openai", "shared", 1, 2),
+			},
+			new: []priceRow{
+				row("anthropic", "shared", 1, 2),
+				row("openai", "shared", 9, 2),
+			},
 			wantChanged: []string{"openai/shared"},
 		},
 		{
-			name:        "added removed and changed together",
-			old:         []priceRow{row("anthropic", "old-model", 1, 2), row("openai", "gpt", 3, 4)},
-			new:         []priceRow{row("anthropic", "new-model", 5, 6), row("openai", "gpt", 3, 7)},
+			name: "added removed and changed together",
+			old: []priceRow{
+				row("anthropic", "old-model", 1, 2),
+				row("openai", "gpt", 3, 4),
+			},
+			new: []priceRow{
+				row("anthropic", "new-model", 5, 6),
+				row("openai", "gpt", 3, 7),
+			},
 			wantAdded:   []string{"anthropic/new-model"},
 			wantRemoved: []string{"anthropic/old-model"},
 			wantChanged: []string{"openai/gpt"},
