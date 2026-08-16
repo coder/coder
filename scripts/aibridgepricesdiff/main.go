@@ -2,7 +2,7 @@
 // difference between two AI Bridge price seed files (the prices.json produced
 // by aibridgepricesgen).
 //
-// The weekly price refresh workflow uses it to fill the pull request body, so
+// The price refresh workflow uses it to fill the pull request body, so
 // a reviewer sees at a glance which models appeared, which disappeared, and
 // which repriced. Exact figures are deliberately left to the pull request
 // diff, which is the source of truth.
@@ -36,8 +36,7 @@ type priceRow struct {
 	CacheWritePrice *int64 `json:"cache_write_price"`
 }
 
-// modelKey identifies a model across the two snapshots. A model identifier is
-// only unique within its provider, so both fields are part of the key.
+// modelKey identifies a model across the two snapshots.
 type modelKey struct {
 	provider string
 	model    string
@@ -58,8 +57,7 @@ func less(a, b modelKey) bool {
 	return a.model < b.model
 }
 
-// diff is the full comparison between two snapshots, as the models in each
-// category. Which individual price fields moved is left to the file diff.
+// diff is the full comparison between two snapshots
 type diff struct {
 	added   []modelKey
 	removed []modelKey
@@ -108,9 +106,7 @@ func readRows(path string) ([]priceRow, error) {
 	return rows, nil
 }
 
-// compare classifies every model as added, removed, or changed. Each category
-// holds at most one entry per model, so sorting by key is a total order and
-// the same inputs always render identically.
+// compare classifies every model as added, removed, or changed.
 func compare(oldRows, newRows []priceRow) diff {
 	oldByKey := make(map[modelKey]priceRow, len(oldRows))
 	for _, r := range oldRows {
@@ -142,8 +138,7 @@ func compare(oldRows, newRows []priceRow) diff {
 }
 
 // samePrices reports whether two rows for the same model carry identical
-// prices. A price moving to or from null counts as a change, so nil is
-// compared rather than ignored.
+// prices. A price moving to or from null counts as a change.
 func samePrices(a, b priceRow) bool {
 	return equalPrice(a.InputPrice, b.InputPrice) &&
 		equalPrice(a.OutputPrice, b.OutputPrice) &&
@@ -168,7 +163,7 @@ func render(d diff) string {
 
 	write("## Price book changes\n\n")
 	if d.empty() {
-		write("No price changes; only non-price fields differ.\n")
+		write("No price changes.\n")
 		return b.String()
 	}
 
