@@ -505,7 +505,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming = hasStreamState || chatStatus === "running";
+	const isStreaming =
+		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
 
 	const inputElement = (
 		<AgentChatInput

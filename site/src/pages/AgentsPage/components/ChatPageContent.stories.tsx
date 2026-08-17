@@ -1,12 +1,12 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
-import { ChatPageTimeline } from "./ChatPageContent";
+import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // These stories cover transcript rendering, so history paging stays idle.
 const StoryChatPageTimeline: FC<{
@@ -34,6 +34,51 @@ type Story = StoryObj<typeof meta>;
 
 const CHAT_ID = "chat-page-content-stories";
 
+// Renders only the composer half of the chat page. chatId and
+// organizationId stay undefined so the prompt-history and draft
+// attachment queries stay disabled.
+const StoryChatPageInput: FC<{
+	store: ReturnType<typeof createChatStore>;
+}> = ({ store }) => (
+	<div className="mx-auto w-full max-w-3xl p-4">
+		<ChatPageInput
+			organizationId={undefined}
+			store={store}
+			compressionThreshold={undefined}
+			onSend={fn()}
+			sendShortcut="enter"
+			onDeleteQueuedMessage={fn()}
+			onPromoteQueuedMessage={fn()}
+			onInterrupt={fn()}
+			isInputDisabled={false}
+			isSendPending={false}
+			isInterruptPending={false}
+			hasModelOptions
+			selectedModel="model-config-1"
+			onModelChange={fn()}
+			modelOptions={[
+				{
+					id: "model-config-1",
+					provider: "openai",
+					model: "gpt-4o",
+					displayName: "GPT-4o",
+				},
+			]}
+			modelSelectorPlaceholder="Select model"
+			canConfigureAgentSetup={false}
+			isEditing={false}
+			editingQueuedMessageID={null}
+			onStartQueueEdit={fn()}
+			onCancelQueueEdit={fn()}
+			isEditingHistoryMessage={false}
+			onCancelHistoryEdit={fn()}
+			workspaceOptions={[]}
+			selectedWorkspaceId={null}
+			isWorkspaceLoading={false}
+		/>
+	</div>
+);
+
 const buildMessage = (
 	id: number,
 	role: TypesGen.ChatMessageRole,
@@ -45,6 +90,26 @@ const buildMessage = (
 	role,
 	content,
 });
+
+// Matches the backend I1 state: an interruption has been requested
+// and the stream has already been torn down, so the store holds no
+// stream state while the chat status is still "interrupting".
+const buildInterruptingStore = () => {
+	const store = createChatStore();
+	store.replaceMessages([
+		buildMessage(1, "user", [{ type: "text", text: "Refactor the module" }]),
+	]);
+	store.setQueuedMessages([
+		{
+			id: 2,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Also rename the helpers" }],
+			created_at: new Date(FIXTURE_NOW).toISOString(),
+		},
+	]);
+	store.setChatStatus("interrupting");
+	return store;
+};
 
 const buildThinkingSpacerStore = () => {
 	const store = createChatStore();
@@ -163,5 +228,43 @@ export const MergedMessagesRenderInIDOrder: Story = {
 		expect(canvas.getByTestId("conversation-timeline")).toHaveTextContent(
 			/alpha[\s\S]*bravo[\s\S]*charlie[\s\S]*delta/,
 		);
+	},
+};
+
+// A chat finalizing an interruption has no stream state but is still
+// busy, so the composer must match the running case: Stop button
+// shown, Send button hidden. Covers the I1 state (interrupting with
+// a queued message), which previously rendered as idle because the
+// composer treated only "running" as streaming.
+export const InterruptingShowsBusyComposer: Story = {
+	render: () => {
+		const store = buildInterruptingStore();
+		return <StoryChatPageInput store={store} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The queued message confirms the chat is mid-interruption
+		// (backend state I1), not idle.
+		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
+		expect(canvas.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
+	},
+};
+
+// Control for InterruptingShowsBusyComposer: a running chat with an
+// identical history and queue renders the same busy composer, so the
+// rendering above follows the active-chat statuses rather than any
+// interrupting-specific path.
+export const RunningShowsBusyComposer: Story = {
+	render: () => {
+		const store = buildInterruptingStore();
+		store.setChatStatus("running");
+		return <StoryChatPageInput store={store} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
+		expect(canvas.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
 	},
 };
