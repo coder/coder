@@ -1,8 +1,9 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -39,7 +40,8 @@ const CHAT_ID = "chat-page-content-stories";
 // attachment queries stay disabled.
 const StoryChatPageInput: FC<{
 	store: ReturnType<typeof createChatStore>;
-}> = ({ store }) => (
+	onInterrupt?: () => void;
+}> = ({ store, onInterrupt }) => (
 	<div className="mx-auto w-full max-w-3xl p-4">
 		<ChatPageInput
 			organizationId={undefined}
@@ -49,7 +51,7 @@ const StoryChatPageInput: FC<{
 			sendShortcut="enter"
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
-			onInterrupt={fn()}
+			onInterrupt={onInterrupt ?? fn()}
 			isInputDisabled={false}
 			isSendPending={false}
 			isInterruptPending={false}
@@ -101,6 +103,7 @@ const buildInterruptingStore = () => {
 	]);
 	store.setQueuedMessages([
 		{
+			...MockChatQueuedMessage,
 			id: 2,
 			chat_id: CHAT_ID,
 			content: [{ type: "text", text: "Also rename the helpers" }],
@@ -233,16 +236,23 @@ export const MergedMessagesRenderInIDOrder: Story = {
 
 // Interrupting is busy without stream state; interrupt retries are
 // rejected by the backend, so Stop stays present but disabled.
+const interruptingOnInterrupt = fn();
 export const InterruptingShowsBusyComposer: Story = {
 	render: () => {
 		const store = buildInterruptingStore();
-		return <StoryChatPageInput store={store} />;
+		return (
+			<StoryChatPageInput store={store} onInterrupt={interruptingOnInterrupt} />
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
 		expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
 		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
+
+		await userEvent.click(canvas.getByTestId("chat-message-input"));
+		await userEvent.keyboard("{Escape}");
+		expect(interruptingOnInterrupt).not.toHaveBeenCalled();
 	},
 };
 
