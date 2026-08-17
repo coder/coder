@@ -120,14 +120,6 @@ Coder supports the following OAuth2 client authentication methods at the token e
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
 - `none`: No client secret. The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1). Available only through [Dynamic Client Registration](#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
-> [!NOTE]
-> Registration accepts `none` today, but the token endpoint does not yet
-> honor it: an `authorization_code` exchange still requires
-> `client_secret`, so a public client cannot obtain a token yet. Discovery
-> omits `none` from `token_endpoint_auth_methods_supported` for the same
-> reason, so a conforming client is not told to attempt an exchange that
-> would be rejected.
-
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
