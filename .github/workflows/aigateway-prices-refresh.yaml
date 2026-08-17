@@ -157,9 +157,11 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          # Fail loudly: the refresh has already failed at this point, and a
+          # missing webhook means nobody is being told about it.
           if [ -z "${SLACK_WEBHOOK}" ]; then
-            echo "::warning::AIGATEWAY_PRICES_SLACK_WEBHOOK is not set; skipping notification."
-            exit 0
+            echo "::error::AIGATEWAY_PRICES_SLACK_WEBHOOK is not set; the failure alert could not be sent."
+            exit 1
           fi
           # printf, not a double-quoted literal: bash leaves \n as two
           # characters, and jq --arg then escapes the backslash, so Slack
