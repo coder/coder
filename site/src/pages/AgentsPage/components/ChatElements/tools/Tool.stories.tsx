@@ -944,7 +944,7 @@ export const SubagentCompletedDelegatedPending: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Spawned Sub-agent/ }),
 		).toBeInTheDocument();
-		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
+		expect(within(canvasElement).queryByTitle("Loading spinner")).toBeNull();
 	},
 };
 
@@ -961,7 +961,7 @@ export const SubagentStreamOverrideStatus: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Spawned Sub-agent/ }),
 		).toBeInTheDocument();
-		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
+		expect(within(canvasElement).queryByTitle("Loading spinner")).toBeNull();
 	},
 };
 
@@ -979,7 +979,7 @@ export const SubagentNoErrorWhenCompleted: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
+		expect(within(canvasElement).queryByTitle("Loading spinner")).toBeNull();
 		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
 		expect(
 			canvas.getByRole("button", { name: /Spawned Sub-agent/ }),
@@ -1682,7 +1682,9 @@ export const MCPToolRunning: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		// Spinner should be visible while running.
-		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+		expect(
+			within(canvasElement).getByTitle("Loading spinner"),
+		).toBeInTheDocument();
 		// Icon should be monochrome (brightness-0 filter).
 		const icon = canvasElement.querySelector(".brightness-0");
 		expect(icon).not.toBeNull();
@@ -1706,7 +1708,7 @@ export const MCPToolCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// No spinner when completed.
-		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
+		expect(within(canvasElement).queryByTitle("Loading spinner")).toBeNull();
 		// Icon should still be monochrome when completed.
 		expect(canvasElement.querySelector(".brightness-0")).not.toBeNull();
 		const toggle = canvas.getByRole("button");
@@ -1855,7 +1857,9 @@ export const MCPToolModelIntentRunning: Story = {
 			canvas.getByText("Fetching backend issues from Linear"),
 		).toBeInTheDocument();
 		// Spinner should be visible while running.
-		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+		expect(
+			within(canvasElement).getByTitle("Loading spinner"),
+		).toBeInTheDocument();
 	},
 };
 
@@ -2343,7 +2347,9 @@ export const ComputerRunning: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Taking screenshot…")).toBeInTheDocument();
-		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+		expect(
+			within(canvasElement).getByTitle("Loading spinner"),
+		).toBeInTheDocument();
 	},
 };
 

@@ -116,6 +116,15 @@ module.exports = {
 					"0%": { left: "0%" },
 					"100%": { left: "100%" },
 				},
+				// Sweeps the text highlight, then rests for the remainder of the
+				// cycle. The hold between 60% and 100% produces identical
+				// computed styles, letting the browser skip repaints while the
+				// shimmer is "parked" between sweeps.
+				shimmer: {
+					"0%": { backgroundPosition: "100% center" },
+					"60%": { backgroundPosition: "0% center" },
+					"100%": { backgroundPosition: "0% center" },
+				},
 				"zip-right": {
 					"0%": { left: "0%", width: "0%" },
 					"30%": { left: "0%", width: "40%" },
@@ -155,6 +164,11 @@ module.exports = {
 			animation: {
 				loading: "loading 2s ease-in-out infinite alternate",
 				"caret-scan": "caret-scan 3s ease-in-out infinite",
+				shimmer: "shimmer 3.5s linear infinite",
+				// Discrete 8-step rotation for the segmented Spinner. Stepping
+				// caps rendering at 10 updates/s instead of the display refresh
+				// rate, and reads as intentional on 8-leaf spinner geometry.
+				"spin-discrete": "spin 0.8s steps(8) infinite",
 				"spin-once": "spin 1s cubic-bezier(0.4, 0, 0.2, 1)",
 				"zip-right": "zip-right 1s cubic-bezier(0.4, 0, 0.2, 1)",
 				"bar-indeterminate":
