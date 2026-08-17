@@ -150,4 +150,16 @@ func TestBuildFindToolsDescription(t *testing.T) {
 	degraded := buildFindToolsDescription(many)
 	require.Contains(t, degraded, "## server (300 tools)")
 	require.NotContains(t, degraded, "server__tool_000")
+
+	manyServers := make([]FindToolCatalogEntry, 500)
+	for i := range manyServers {
+		manyServers[i] = FindToolCatalogEntry{
+			Name:   fmt.Sprintf("server_%03d_%s__tool", i, strings.Repeat("s", 40)),
+			Server: fmt.Sprintf("server_%03d_%s", i, strings.Repeat("s", 40)),
+		}
+	}
+	countsExceeded := buildFindToolsDescription(manyServers)
+	require.Contains(t, countsExceeded, "500 deferred tools across 500 servers.")
+	require.NotContains(t, countsExceeded, "## server_000")
+	require.LessOrEqual(t, estimatedFindToolsTokens(countsExceeded), float64(findToolsCatalogTokens))
 }

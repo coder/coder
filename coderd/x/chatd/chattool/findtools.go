@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -190,6 +191,11 @@ func buildFindToolsDescription(entries []FindToolCatalogEntry) string {
 	}
 	if estimatedFindToolsTokens(usage+catalog) > findToolsCatalogTokens {
 		catalog = countsOnlyFindToolsCatalog(groups)
+	}
+	// Server count and slug length are unbounded, so even the per-server
+	// counts catalog needs a final constant-size fallback.
+	if estimatedFindToolsTokens(usage+catalog) > findToolsCatalogTokens {
+		catalog = fmt.Sprintf("%d deferred tools across %d servers.\n", len(entries), len(groups))
 	}
 	return usage + catalog
 }
