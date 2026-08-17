@@ -161,7 +161,10 @@ jobs:
             echo "::warning::AIGATEWAY_PRICES_SLACK_WEBHOOK is not set; skipping notification."
             exit 0
           fi
-          text=":warning: *AI model price book refresh failed.*\nThe generator fails by design when upstream drops a model pinned in scripts/aibridgepricesgen/overrides.jq or curated in curation.json. Logs: ${RUN_URL}"
+          # printf, not a double-quoted literal: bash leaves \n as two
+          # characters, and jq --arg then escapes the backslash, so Slack
+          # would print \n as text instead of breaking the line.
+          text="$(printf ':warning: *AI model price book refresh failed.*\nThe generator fails by design when upstream drops a model pinned in scripts/aibridgepricesgen/overrides.jq or curated in curation.json. Logs: %s' "${RUN_URL}")"
           payload="$(jq -nc --arg text "${text}" '{text: $text}')"
           curl -fsSL -X POST -H 'Content-type: application/json' -d "${payload}" "${SLACK_WEBHOOK}"
           echo "Sent Slack notification"
