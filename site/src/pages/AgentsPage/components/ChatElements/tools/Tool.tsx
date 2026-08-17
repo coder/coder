@@ -1041,25 +1041,23 @@ const parseFindToolsMatches = (value: unknown): FindToolsMatch[] | null => {
 
 const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
 	const parsedArgs = parseArgs(props.args);
-	const queries = parsedArgs
-		? parsedArgs.queries === undefined
-			? []
-			: parseStringList(parsedArgs.queries)
-		: null;
-	const names = parsedArgs
-		? parsedArgs.names === undefined
-			? []
-			: parseStringList(parsedArgs.names)
-		: null;
-	const searchTerms = queries && names ? [...queries, ...names] : null;
+	if (!parsedArgs) {
+		return <GenericToolRenderer {...props} />;
+	}
+	const queries =
+		parsedArgs.queries === undefined ? [] : parseStringList(parsedArgs.queries);
+	const names =
+		parsedArgs.names === undefined ? [] : parseStringList(parsedArgs.names);
+	if (!queries || !names) {
+		return <GenericToolRenderer {...props} />;
+	}
+	const searchTerms = [...queries, ...names];
 	const parsedResult = parseArgs(props.result);
-	const matches =
-		props.status === "running" && props.result === undefined
-			? []
-			: parsedResult
-				? parseFindToolsMatches(parsedResult.matches)
-				: null;
-	if (!searchTerms || !matches) {
+	let matches: FindToolsMatch[] | null = [];
+	if (props.status !== "running" || props.result !== undefined) {
+		matches = parsedResult ? parseFindToolsMatches(parsedResult.matches) : null;
+	}
+	if (!matches) {
 		return <GenericToolRenderer {...props} />;
 	}
 

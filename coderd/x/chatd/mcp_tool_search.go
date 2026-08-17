@@ -34,17 +34,17 @@ type mcpToolSearchInput struct {
 }
 
 func decideMCPToolSearch(input mcpToolSearchInput) mcpToolSearchDecision {
-	experimentEnabled, force, contextWindow, candidates := input.experimentEnabled, input.forceDefer, input.contextWindow, input.candidates
-	decision := mcpToolSearchDecision{estimatedTokens: estimateDeferredMCPToolTokens(candidates)}
-	if !experimentEnabled || len(candidates) == 0 {
+	decision := mcpToolSearchDecision{estimatedTokens: estimateDeferredMCPToolTokens(input.candidates)}
+	if !input.experimentEnabled || len(input.candidates) == 0 {
 		return decision
 	}
-	for _, candidate := range candidates {
+	for _, candidate := range input.candidates {
 		if candidate.tool.Info().Name == chattool.FindToolsName {
 			return decision
 		}
 	}
-	decision.apply = force || (contextWindow > 0 && decision.estimatedTokens > float64(contextWindow)/mcpToolSearchThresholdDivisor)
+	decision.apply = input.forceDefer ||
+		(input.contextWindow > 0 && decision.estimatedTokens > float64(input.contextWindow)/mcpToolSearchThresholdDivisor)
 	return decision
 }
 
@@ -132,14 +132,11 @@ func flattenMCPParameterText(value any) string {
 }
 
 func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []deferredMCPTool) []string {
-	current := make(map[string]struct{}, len(candidates))
-	for _, candidate := range candidates {
-		current[candidate.tool.Info().Name] = struct{}{}
-	}
+	current := deferredMCPToolNameSet(candidates)
 	seen := make(map[string]struct{}, len(candidates))
 	activated := make([]string, 0, len(candidates))
 	appendName := func(name string) {
-		if _, ok := current[name]; !ok {
+		if !current[name] {
 			return
 		}
 		if _, ok := seen[name]; ok {

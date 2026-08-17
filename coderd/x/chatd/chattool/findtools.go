@@ -37,13 +37,11 @@ type FindToolsCall struct {
 	TotalDeferred int
 }
 
-// FindToolsOptions configures the find_tools tool.
 type FindToolsOptions struct {
 	Entries []FindToolCatalogEntry
 	OnCall  func(context.Context, FindToolsCall)
 }
 
-// FindToolsArgs are the arguments for the find_tools tool.
 type FindToolsArgs struct {
 	Queries []string `json:"queries"`
 	Names   []string `json:"names"`
@@ -86,11 +84,17 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	)
 }
 
-// SearchTools searches entries and returns the activation set.
+// SearchTools scores entries against the query tokens, keeps the top
+// matches, and always includes exact name activations.
 func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs) FindToolsResult {
 	byName := make(map[string]FindToolCatalogEntry, len(entries))
 	for _, entry := range entries {
 		byName[entry.Name] = entry
+	}
+
+	var queryTokens []string
+	for _, query := range args.Queries {
+		queryTokens = append(queryTokens, tokenizeFindTools(query)...)
 	}
 
 	type scoredEntry struct {
@@ -100,10 +104,8 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs) FindToolsRe
 	scored := make([]scoredEntry, 0, len(entries))
 	for _, entry := range entries {
 		score := 0
-		for _, query := range args.Queries {
-			for _, token := range tokenizeFindTools(query) {
-				score += scoreFindToolToken(entry, token)
-			}
+		for _, token := range queryTokens {
+			score += scoreFindToolToken(entry, token)
 		}
 		if score > 0 {
 			scored = append(scored, scoredEntry{entry: entry, score: score})
@@ -168,28 +170,47 @@ func scoreFindToolToken(entry FindToolCatalogEntry, token string) int {
 
 func buildFindToolsDescription(entries []FindToolCatalogEntry) string {
 	const usage = "Search deferred MCP tools by keyword, activate exact tool names, or scope queries with a server prefix. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools.\n\n"
-	catalog := detailedFindToolsCatalog(entries)
+	groups := groupFindToolsEntries(entries)
+	catalog := detailedFindToolsCatalog(groups)
 	if estimatedFindToolsTokens(usage+catalog) > findToolsCatalogTokens {
-		catalog = namesOnlyFindToolsCatalog(entries)
+		catalog = namesOnlyFindToolsCatalog(groups)
 	}
 	if estimatedFindToolsTokens(usage+catalog) > findToolsCatalogTokens {
-		catalog = countsOnlyFindToolsCatalog(entries)
+		catalog = countsOnlyFindToolsCatalog(groups)
 	}
 	return usage + catalog
 }
 
-func detailedFindToolsCatalog(entries []FindToolCatalogEntry) string {
-	return renderFindToolsCatalog(entries, func(entry FindToolCatalogEntry) string {
-		return "- " + entry.Name + " - " + truncateFindToolsSummary(entry.Description, 80)
-	})
+func detailedFindToolsCatalog(groups []findToolsGroup) string {
+	var b strings.Builder
+	for _, group := range groups {
+		writeFindToolsGroupHeader(&b, group)
+		for _, entry := range group.entries {
+			_, _ = b.WriteString("- ")
+			_, _ = b.WriteString(entry.Name)
+			_, _ = b.WriteString(" - ")
+			_, _ = b.WriteString(truncateFindToolsSummary(entry.Description, 80))
+			_ = b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }
 
-func namesOnlyFindToolsCatalog(entries []FindToolCatalogEntry) string {
-	return renderFindToolsCatalog(entries, func(entry FindToolCatalogEntry) string { return entry.Name })
+func namesOnlyFindToolsCatalog(groups []findToolsGroup) string {
+	var b strings.Builder
+	for _, group := range groups {
+		writeFindToolsGroupHeader(&b, group)
+		names := make([]string, 0, len(group.entries))
+		for _, entry := range group.entries {
+			names = append(names, entry.Name)
+		}
+		_, _ = b.WriteString(strings.Join(names, " "))
+		_ = b.WriteByte('\n')
+	}
+	return b.String()
 }
 
-func countsOnlyFindToolsCatalog(entries []FindToolCatalogEntry) string {
-	groups := groupFindToolsEntries(entries)
+func countsOnlyFindToolsCatalog(groups []findToolsGroup) string {
 	var b strings.Builder
 	for _, group := range groups {
 		_, _ = b.WriteString("## ")
@@ -199,6 +220,16 @@ func countsOnlyFindToolsCatalog(entries []FindToolCatalogEntry) string {
 		_, _ = b.WriteString(" tools)\n")
 	}
 	return b.String()
+}
+
+func writeFindToolsGroupHeader(b *strings.Builder, group findToolsGroup) {
+	_, _ = b.WriteString("## ")
+	_, _ = b.WriteString(group.server)
+	if summary := truncateFindToolsSummary(group.description, 60); summary != "" {
+		_, _ = b.WriteString(" - ")
+		_, _ = b.WriteString(summary)
+	}
+	_ = b.WriteByte('\n')
 }
 
 type findToolsGroup struct {
@@ -230,36 +261,10 @@ func groupFindToolsEntries(entries []FindToolCatalogEntry) []findToolsGroup {
 	return groups
 }
 
-func renderFindToolsCatalog(entries []FindToolCatalogEntry, renderEntry func(FindToolCatalogEntry) string) string {
-	groups := groupFindToolsEntries(entries)
-	var b strings.Builder
-	for _, group := range groups {
-		_, _ = b.WriteString("## ")
-		_, _ = b.WriteString(group.server)
-		if summary := truncateFindToolsSummary(group.description, 60); summary != "" {
-			_, _ = b.WriteString(" - ")
-			_, _ = b.WriteString(summary)
-		}
-		_ = b.WriteByte('\n')
-		if len(group.entries) > 0 && !strings.HasPrefix(renderEntry(group.entries[0]), "-") {
-			names := make([]string, 0, len(group.entries))
-			for _, entry := range group.entries {
-				names = append(names, renderEntry(entry))
-			}
-			_, _ = b.WriteString(strings.Join(names, " "))
-			_ = b.WriteByte('\n')
-			continue
-		}
-		for _, entry := range group.entries {
-			_, _ = b.WriteString(renderEntry(entry))
-			_ = b.WriteByte('\n')
-		}
-	}
-	return b.String()
-}
-
 func truncateFindToolsSummary(value string, maxRunes int) string {
-	value = strings.TrimSpace(strings.Split(strings.Split(value, "\n")[0], ". ")[0])
+	line, _, _ := strings.Cut(value, "\n")
+	sentence, _, _ := strings.Cut(line, ". ")
+	value = strings.TrimSpace(sentence)
 	if utf8.RuneCountInString(value) <= maxRunes {
 		return value
 	}

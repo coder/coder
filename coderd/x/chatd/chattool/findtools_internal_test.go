@@ -22,6 +22,7 @@ func TestSearchTools(t *testing.T) {
 	t.Run("weights and tie break", func(t *testing.T) {
 		t.Parallel()
 		result := SearchTools(entries, FindToolsArgs{Queries: []string{"issue"}})
+		require.Len(t, result.Matches, 2)
 		require.Equal(t, []string{"github__create_issue", "github__search_issues"}, []string{result.Matches[0].Name, result.Matches[1].Name})
 	})
 	t.Run("parameter text", func(t *testing.T) {
