@@ -320,25 +320,20 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 }
 
 // ScopesCover reports whether every permission the requested scope grants is
-// also granted by at least one of the allowed scopes. It is the semantic form
-// of "is this request within this ceiling", as opposed to comparing the names
-// themselves: `coder:workspaces.access` covers `workspace:read` because it
-// expands to include it, and `coder:all` covers everything.
+// also granted by at least one of the allowed scopes. It compares expanded
+// permissions, not names, so `coder:workspaces.access` covers `workspace:read`
+// and `coder:all` covers everything.
 //
-// Names must be canonical (see CanonicalScopeName). An unknown name on either
-// side is an error rather than a false, since a caller cannot tell those apart
-// safely.
+// Names must be canonical (see CanonicalScopeName). An unknown name is an
+// error rather than a false, since a caller cannot tell those two apart.
 //
-// The comparison is deliberately asymmetric about what it ignores. Positive
-// permissions on the allowed side that this does not model are dropped, which
-// can only make the answer stricter. Anything on the requested side that is
-// not modeled fails closed instead, because ignoring it would answer
-// "covered" about authority that was never compared.
-//
-// Negative permissions are the exception to that asymmetry and fail closed on
-// both sides. Dropping an anti-grant from the ceiling would widen it, so the
-// direction that makes the rest of the allowed side safe to ignore does not
-// hold for them.
+// Coverage models site-level grants only. Anything else returns an error
+// instead of being skipped, because skipping it could report "covered" about
+// authority that was never compared. The one exception is an unmodelled grant
+// on the allowed side, which is dropped. Dropping it only shrinks the ceiling,
+// so at worst it rejects a request that would have been allowed. A negative
+// permission or an allow list is never dropped, on either side, since
+// dropping one would widen the ceiling rather than shrink it.
 func ScopesCover(allowed []ScopeName, requested ScopeName) (bool, error) {
 	want, err := ExpandScope(requested)
 	if err != nil {
