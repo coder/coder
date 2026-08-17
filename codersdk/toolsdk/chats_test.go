@@ -1,7 +1,12 @@
 package toolsdk_test
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"fmt"
+	"io"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -32,6 +38,28 @@ func (t *failPathTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	return http.DefaultTransport.RoundTrip(req)
 }
 
+type signalPathTransport struct {
+	path    string
+	seen    chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (t *signalPathTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	res, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil || req.URL.Path != t.path {
+		return res, err
+	}
+	t.once.Do(func() { close(t.seen) })
+	select {
+	case <-t.release:
+		return res, nil
+	case <-req.Context().Done():
+		_ = res.Body.Close()
+		return nil, req.Context().Err()
+	}
+}
+
 // Chat tools need a chat-enabled coderd (provider keys, a default model
 // config, and an AI bridge daemon), so they are tested separately from
 // TestTools. Subtests run sequentially and share the deployment.
@@ -39,8 +67,9 @@ func (t *failPathTransport) RoundTrip(req *http.Request) (*http.Response, error)
 func TestChatTools(t *testing.T) {
 	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:    coderdtest.DeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues:      coderdtest.DeploymentValues(t),
+		ChatProviderAPIKeys:   &providerKeys,
+		ChatFileTokenKeyCache: jwtutils.StaticKey{ID: "1", Key: bytes.Repeat([]byte("k"), 64)},
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
@@ -162,6 +191,335 @@ func TestChatTools(t *testing.T) {
 		got, err = testTool(t, toolsdk.GetChat, tb, toolsdk.GetChatArgs{ChatID: created.ID})
 		require.NoError(t, err)
 		require.True(t, got.Archived)
+	})
+
+	t.Run("DownloadChatFile", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		data := []byte("MCP chat UAT evidence\n")
+		uploaded, err := expClient.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "evidence.txt", bytes.NewReader(data))
+		require.NoError(t, err)
+		chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "Review the evidence."},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploaded.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		assertDownload := func(t *testing.T, got toolsdk.DownloadChatFileResponse) {
+			t.Helper()
+			require.Equal(t, uploaded.ID.String(), got.FileID)
+			require.Equal(t, "evidence.txt", got.Name)
+			require.Equal(t, "text/plain", got.MimeType)
+			require.Equal(t, int64(len(data)), got.SizeBytes)
+			require.Equal(t, fmt.Sprintf("%x", sha256.Sum256(data)), got.SHA256)
+			require.NotEmpty(t, got.URL)
+			require.False(t, got.ExpiresAt.IsZero())
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, got.URL, nil)
+			require.NoError(t, err)
+			res, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			require.Equal(t, data, body)
+		}
+
+		byID, err := testTool(t, toolsdk.DownloadChatFile, tb, toolsdk.DownloadChatFileArgs{FileID: uploaded.ID.String()})
+		require.NoError(t, err)
+		assertDownload(t, byID)
+		byName, err := testTool(t, toolsdk.DownloadChatFile, tb, toolsdk.DownloadChatFileArgs{
+			ChatID:   chat.ID.String(),
+			FileName: "evidence.txt",
+		})
+		require.NoError(t, err)
+		assertDownload(t, byName)
+
+		status, err := testTool(t, toolsdk.GetChat, tb, toolsdk.GetChatArgs{ChatID: chat.ID.String()})
+		require.NoError(t, err)
+		require.Len(t, status.Files, 1)
+		require.Equal(t, int64(len(data)), status.Files[0].SizeBytes)
+		require.False(t, status.Files[0].CreatedAt.IsZero())
+
+		messages, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{ChatID: chat.ID.String()})
+		require.NoError(t, err)
+		var attachingMessage *toolsdk.ChatToolMessage
+		for i := range messages.Messages {
+			if messages.Messages[i].Text == "Review the evidence." {
+				attachingMessage = &messages.Messages[i]
+				break
+			}
+		}
+		require.NotNil(t, attachingMessage)
+		require.Equal(t, []toolsdk.ChatToolMessageFile{{
+			ID:       uploaded.ID.String(),
+			Name:     "evidence.txt",
+			MimeType: "text/plain",
+		}}, attachingMessage.Files)
+
+		duplicateA, err := expClient.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "duplicate.txt", bytes.NewReader([]byte("a")))
+		require.NoError(t, err)
+		duplicateB, err := expClient.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "duplicate.txt", bytes.NewReader([]byte("bb")))
+		require.NoError(t, err)
+		ambiguousChat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "Compare these files."},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: duplicateA.ID},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: duplicateB.ID},
+			},
+		})
+		require.NoError(t, err)
+		_, err = testTool(t, toolsdk.DownloadChatFile, tb, toolsdk.DownloadChatFileArgs{
+			ChatID:   ambiguousChat.ID.String(),
+			FileName: "duplicate.txt",
+		})
+		require.ErrorContains(t, err, "multiple chat files")
+		require.ErrorContains(t, err, duplicateA.ID.String())
+		require.ErrorContains(t, err, duplicateB.ID.String())
+		require.ErrorContains(t, err, "mime_type")
+		require.ErrorContains(t, err, "size_bytes")
+
+		_, err = testTool(t, toolsdk.DownloadChatFile, tb, toolsdk.DownloadChatFileArgs{
+			ChatID:   ambiguousChat.ID.String(),
+			FileName: "missing.txt",
+		})
+		require.ErrorContains(t, err, "no chat file")
+		require.ErrorContains(t, err, "duplicate.txt")
+
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+		coderdtest.WaitForChatSettled(ctx, t, api, ambiguousChat.ID)
+	})
+
+	t.Run("ForwardMessagePagination", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Create a pagination baseline."}},
+		})
+		require.NoError(t, err)
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+		existing, err := expClient.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var baselineID int64
+		for _, msg := range existing.Messages {
+			baselineID = max(baselineID, msg.ID)
+		}
+		require.Positive(t, baselineID)
+
+		textContent := func(text string) database.ChatMessage {
+			content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{Type: codersdk.ChatMessagePartTypeText, Text: text}})
+			require.NoError(t, err)
+			return database.ChatMessage{
+				ChatID:        chat.ID,
+				ModelConfigID: uuid.NullUUID{UUID: defaultModelConfig.ID, Valid: true},
+				Role:          database.ChatMessageRoleUser,
+				Content:       content,
+			}
+		}
+		first := dbgen.ChatMessage(t, api.Database, textContent("forward one"))
+		toolContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "forward-call",
+			ToolName:   "execute",
+		}})
+		require.NoError(t, err)
+		toolOnly := dbgen.ChatMessage(t, api.Database, database.ChatMessage{
+			ChatID:        chat.ID,
+			ModelConfigID: uuid.NullUUID{UUID: defaultModelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			Content:       toolContent,
+		})
+		last := dbgen.ChatMessage(t, api.Database, textContent("forward two"))
+
+		firstPage, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{
+			ChatID:  chat.ID.String(),
+			AfterID: baselineID,
+			Limit:   2,
+		})
+		require.NoError(t, err)
+		require.True(t, firstPage.HasMore)
+		require.Equal(t, toolOnly.ID, firstPage.NextAfterID)
+		require.Zero(t, firstPage.NextBeforeID)
+		require.Len(t, firstPage.Messages, 1)
+		require.Equal(t, first.ID, firstPage.Messages[0].ID)
+
+		secondPage, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{
+			ChatID:  chat.ID.String(),
+			AfterID: firstPage.NextAfterID,
+			Limit:   2,
+		})
+		require.NoError(t, err)
+		require.False(t, secondPage.HasMore)
+		require.Zero(t, secondPage.NextAfterID)
+		require.Len(t, secondPage.Messages, 1)
+		require.Equal(t, last.ID, secondPage.Messages[0].ID)
+		require.Greater(t, secondPage.Messages[0].ID, firstPage.Messages[0].ID)
+	})
+
+	t.Run("ListChatsByLabel", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		labelValue := uuid.NewString()
+		matching, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Matching chat."}},
+			Labels:         map[string]string{"uat-evidence": labelValue},
+		})
+		require.NoError(t, err)
+		nonmatching, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Nonmatching chat."}},
+			Labels:         map[string]string{"uat-evidence": uuid.NewString()},
+		})
+		require.NoError(t, err)
+
+		result, err := testTool(t, toolsdk.ListChats, tb, toolsdk.ListChatsArgs{
+			Labels: map[string]string{"uat-evidence": labelValue},
+			Limit:  100,
+		})
+		require.NoError(t, err)
+		require.Len(t, result.Chats, 1)
+		require.Equal(t, matching.ID.String(), result.Chats[0].ID)
+		require.Equal(t, map[string]string{"uat-evidence": labelValue}, result.Chats[0].Labels)
+
+		coderdtest.WaitForChatSettled(ctx, t, api, matching.ID)
+		coderdtest.WaitForChatSettled(ctx, t, api, nonmatching.ID)
+	})
+
+	t.Run("AwaitChat", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		settled, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Settle immediately."}},
+		})
+		require.NoError(t, err)
+		coderdtest.WaitForChatSettled(ctx, t, api, settled.ID)
+		immediate, err := testTool(t, toolsdk.AwaitChat, tb, toolsdk.AwaitChatArgs{ChatID: settled.ID.String()})
+		require.NoError(t, err)
+		require.False(t, immediate.TimedOut)
+		require.Equal(t, codersdk.ChatStatusWaiting, immediate.Chat.Status)
+
+		streamStarted := make(chan struct{})
+		providerRelease := make(chan struct{})
+		var providerStartedOnce sync.Once
+		var providerReleaseOnce sync.Once
+		releaseProvider := func() { providerReleaseOnce.Do(func() { close(providerRelease) }) }
+		t.Cleanup(releaseProvider)
+		blockingURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if req.Stream {
+				providerStartedOnce.Do(func() { close(streamStarted) })
+				select {
+				case <-providerRelease:
+				case <-req.Context().Done():
+				}
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Released.")...)
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title": "Await Test"}`)
+		})
+		blockingModel := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, blockingURL)
+		awaitFile, err := expClient.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "await.txt", bytes.NewReader([]byte("await evidence")))
+		require.NoError(t, err)
+		running, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "Wait for release."},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: awaitFile.ID},
+			},
+			ModelConfigID: &blockingModel.ID,
+		})
+		require.NoError(t, err)
+		select {
+		case <-streamStarted:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+
+		getSeen := make(chan struct{})
+		getRelease := make(chan struct{})
+		transport := &signalPathTransport{
+			path:    "/api/experimental/chats/" + running.ID.String(),
+			seen:    getSeen,
+			release: getRelease,
+		}
+		awaitClient := codersdk.New(client.URL)
+		awaitClient.SetSessionToken(client.SessionToken())
+		awaitClient.HTTPClient = &http.Client{Transport: transport}
+		t.Cleanup(awaitClient.HTTPClient.CloseIdleConnections)
+		awaitDeps, err := toolsdk.NewDeps(awaitClient)
+		require.NoError(t, err)
+		type awaitResult struct {
+			response toolsdk.AwaitChatResponse
+			err      error
+		}
+		result := make(chan awaitResult, 1)
+		go func() {
+			response, err := toolsdk.AwaitChat.Handler(ctx, awaitDeps, toolsdk.AwaitChatArgs{
+				ChatID:   running.ID.String(),
+				WaitSecs: 10,
+			})
+			result <- awaitResult{response: response, err: err}
+		}()
+		select {
+		case <-getSeen:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		close(getRelease)
+		releaseProvider()
+		select {
+		case awaited := <-result:
+			require.NoError(t, awaited.err)
+			require.False(t, awaited.response.TimedOut)
+			require.Equal(t, codersdk.ChatStatusWaiting, awaited.response.Chat.Status)
+			require.Len(t, awaited.response.Chat.Files, 1)
+			require.Equal(t, awaitFile.ID.String(), awaited.response.Chat.Files[0].ID)
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		coderdtest.WaitForChatSettled(ctx, t, api, running.ID)
+
+		timeoutStarted := make(chan struct{})
+		timeoutRelease := make(chan struct{})
+		var timeoutStartedOnce sync.Once
+		var timeoutReleaseOnce sync.Once
+		releaseTimeout := func() { timeoutReleaseOnce.Do(func() { close(timeoutRelease) }) }
+		t.Cleanup(releaseTimeout)
+		timeoutURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if req.Stream {
+				timeoutStartedOnce.Do(func() { close(timeoutStarted) })
+				select {
+				case <-timeoutRelease:
+				case <-req.Context().Done():
+				}
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Released.")...)
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title": "Await Timeout Test"}`)
+		})
+		timeoutModel := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, timeoutURL)
+		busy, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Stay busy."}},
+			ModelConfigID:  &timeoutModel.ID,
+		})
+		require.NoError(t, err)
+		select {
+		case <-timeoutStarted:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		timedOut, err := testTool(t, toolsdk.AwaitChat, tb, toolsdk.AwaitChatArgs{
+			ChatID:   busy.ID.String(),
+			WaitSecs: 1,
+		})
+		require.NoError(t, err)
+		require.True(t, timedOut.TimedOut)
+		require.Equal(t, codersdk.ChatStatusRunning, timedOut.Chat.Status)
+		releaseTimeout()
+		coderdtest.WaitForChatSettled(ctx, t, api, busy.ID)
 	})
 
 	t.Run("ListChatModelConfigsSkipsDisabledProviders", func(t *testing.T) {

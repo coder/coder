@@ -269,19 +269,20 @@ Address the file with file_id alone, or with chat_id and an exact file_name. The
 			if err != nil {
 				return DownloadChatFileResponse{}, xerrors.Errorf("get chat: %w", err)
 			}
-			var matches []codersdk.ChatFileMetadata
+			found := false
 			for _, file := range chat.Files {
-				if file.Name == args.FileName {
-					matches = append(matches, file)
+				if file.Name != args.FileName {
+					continue
 				}
+				if found {
+					return DownloadChatFileResponse{}, xerrors.Errorf("multiple chat files named %q; available files: %s", args.FileName, chatFilesDescription(chat.Files))
+				}
+				fileID = file.ID
+				found = true
 			}
-			if len(matches) == 0 {
+			if !found {
 				return DownloadChatFileResponse{}, xerrors.Errorf("no chat file named %q; available files: %s", args.FileName, chatFilesDescription(chat.Files))
 			}
-			if len(matches) > 1 {
-				return DownloadChatFileResponse{}, xerrors.Errorf("multiple chat files named %q; available files: %s", args.FileName, chatFilesDescription(chat.Files))
-			}
-			fileID = matches[0].ID
 		}
 
 		download, err := codersdk.NewExperimentalClient(deps.coderClient).ChatFileDownloadURL(ctx, fileID)
@@ -372,17 +373,21 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 				if err != nil {
 					return AwaitChatResponse{}, xerrors.Errorf("get chat after timeout: %w", err)
 				}
-				return AwaitChatResponse{TimedOut: true, Chat: chatToolStatus(deps, chat)}, nil
+				return AwaitChatResponse{TimedOut: chatStatusBusy(chat.Status), Chat: chatToolStatus(deps, chat)}, nil
 			case event, ok := <-events:
 				if !ok {
 					chat, err := expClient.GetChat(ctx, chatID)
 					if err != nil {
 						return AwaitChatResponse{}, xerrors.Errorf("get chat after watch closed: %w", err)
 					}
-					return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
+					return AwaitChatResponse{TimedOut: chatStatusBusy(chat.Status), Chat: chatToolStatus(deps, chat)}, nil
 				}
 				if event.Chat.ID == chatID && !chatStatusBusy(event.Chat.Status) {
-					return AwaitChatResponse{Chat: chatToolStatus(deps, event.Chat)}, nil
+					chat, err := expClient.GetChat(ctx, chatID)
+					if err != nil {
+						return AwaitChatResponse{}, xerrors.Errorf("get chat after status change: %w", err)
+					}
+					return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
 				}
 			}
 		}

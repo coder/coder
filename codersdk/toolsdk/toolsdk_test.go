@@ -333,6 +333,7 @@ func TestTools(t *testing.T) {
 		})
 		for i, template := range result {
 			require.Equal(t, expected[i].ID.String(), template.ID)
+			require.Equal(t, expected[i].AgentsAllowed, template.AgentsAllowed)
 		}
 	})
 
