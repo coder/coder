@@ -41,11 +41,9 @@ coderd/database/queries/aicostcontrol.sql @ibetitsmike @johnstcn
 codersdk/aiproviders.go @ibetitsmike @johnstcn
 codersdk/aiproviders_bedrock.go @ibetitsmike @johnstcn
 
-# Generated AI model price book and frontend model catalog, plus the
-# generators behind them. Both artifacts are refreshed from live models.dev
-# data by the aibridge-prices-refresh workflow and carry customer-visible
-# cost numbers, so every refresh needs a review from someone who owns them.
+# Generated price book and frontend model catalog. The
+# aibridge-prices-refresh workflow proposes updates to both from live
+# models.dev data, and they carry customer-visible cost numbers, so every
+# refresh needs a review from someone who owns them.
 coderd/aibridge/prices/data/prices.json @evgeniy-scherbina
-scripts/aibridgepricesgen/ @evgeniy-scherbina
-scripts/aibridgepricesdiff/ @evgeniy-scherbina
-site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/ @evgeniy-scherbina
+site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json @evgeniy-scherbina
