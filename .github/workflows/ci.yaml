@@ -1010,9 +1010,11 @@ jobs:
         working-directory: site
 
       # Cache the browser to avoid relying on azure.archive.ubuntu.com, which
-      # can be flakey.
-      - name: Cache Chromium
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # can be flakey. Only the default branch is trusted to write the cache,
+      # so PR runs cannot poison it.
+      - name: Restore Chromium cache
+        id: playwright-chromium-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
@@ -1020,6 +1022,13 @@ jobs:
       - run: pnpm exec playwright install chromium
         timeout-minutes: 5
         working-directory: site
+
+      - name: Save Chromium cache
+        if: github.ref == 'refs/heads/main' && steps.playwright-chromium-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-chromium-cache.outputs.cache-primary-key }}
 
       # Cache the Coder release binaries downloaded by the outdatedCLI /
       # outdatedAgent e2e tests so most runs skip the flaky GitHub release
@@ -1120,9 +1129,11 @@ jobs:
         id: playwright-version
 
       # Cache the browser to avoid relying on azure.archive.ubuntu.com, which
-      # can be flakey.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        name: Cache Chromium
+      # can be flakey. Only the default branch is trusted to write the cache,
+      # so PR runs cannot poison it.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        name: Restore Chromium cache
+        id: playwright-chromium-cache
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
@@ -1131,6 +1142,13 @@ jobs:
         working-directory: site/
         name: Install Chromium
         timeout-minutes: 5
+
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        name: Save Chromium cache
+        if: github.ref == 'refs/heads/main' && steps.playwright-chromium-cache.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-chromium-cache.outputs.cache-primary-key }}
 
       - run: pnpm pixel-storybook
         working-directory: site/
