@@ -1,10 +1,11 @@
-import { LoaderIcon, PlayIcon } from "lucide-react";
+import { PlayIcon } from "lucide-react";
 import type React from "react";
 import { skipToken, useMutation, useQuery } from "react-query";
 import { API } from "#/api/api";
 import { chatFilesKey, chatFileTextKey } from "#/api/queries/chats";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -108,7 +109,7 @@ export const ProposePlanTool: React.FC<{
 										aria-label="Implement plan"
 									>
 										{implementPlanMutation.isPending ? (
-											<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
+											<Spinner loading className="size-3.5" />
 										) : (
 											<PlayIcon />
 										)}
@@ -132,7 +133,7 @@ export const ProposePlanTool: React.FC<{
 			)}
 			{fetchLoading && (
 				<TranscriptRow className="gap-2 text-[13px] text-content-secondary">
-					<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
+					<Spinner loading className="size-3.5" />
 					Loading plan…
 				</TranscriptRow>
 			)}

@@ -45,7 +45,13 @@ export function Spinner({
 			viewBox="0 0 24 24"
 			xmlns="http://www.w3.org/2000/svg"
 			fill="currentColor"
-			className={cn(spinnerVariants({ size, className }))}
+			className={cn(
+				// A discrete stepped rotation over static leaves renders 10
+				// updates/s instead of animating each leaf at the display
+				// refresh rate, keeping long-lived spinners cheap.
+				!isPixel() && "animate-spin-discrete motion-reduce:animate-none",
+				spinnerVariants({ size, className }),
+			)}
 			{...props}
 		>
 			<title>Loading spinner</title>
@@ -57,14 +63,13 @@ export function Spinner({
 					width="2"
 					height="5.5"
 					rx="1"
-					// 0.8 = leaves * 0.1
-					className={
-						isPixel() ? "" : "animate-[loading_0.8s_ease-in-out_infinite]"
-					}
 					style={{
 						transform: `rotate(${leaf * (360 / leaves.length)}deg)`,
 						transformOrigin: "center",
-						animationDelay: `${-leaf * 0.1}s`,
+						// Static opacity gradient; the stepped rotation of the
+						// whole svg makes the bright leaf march around. Pixel
+						// tests keep uniform leaves to match existing baselines.
+						opacity: isPixel() ? undefined : (leaf + 1) / leaves.length,
 					}}
 				/>
 			))}

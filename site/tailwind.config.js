@@ -168,6 +168,10 @@ module.exports = {
 				loading: "loading 2s ease-in-out infinite alternate",
 				"caret-scan": "caret-scan 3s ease-in-out infinite",
 				shimmer: "shimmer 3.5s linear infinite",
+				// Discrete 8-step rotation for the segmented Spinner. Stepping
+				// caps rendering at 10 updates/s instead of the display refresh
+				// rate, and reads as intentional on 8-leaf spinner geometry.
+				"spin-discrete": "spin 0.8s steps(8) infinite",
 				"spin-once": "spin 1s cubic-bezier(0.4, 0, 0.2, 1)",
 				"zip-right": "zip-right 1s cubic-bezier(0.4, 0, 0.2, 1)",
 				"bar-indeterminate":

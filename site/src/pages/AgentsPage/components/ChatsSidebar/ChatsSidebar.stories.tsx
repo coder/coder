@@ -469,10 +469,10 @@ export const RunningChatPreservesSpinner: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The root chat is running and has children, so a spinning
-		// Loader2Icon should be rendered inside the icon wrapper.
+		// The root chat is running and has children, so the stepped
+		// loading spinner should be rendered inside the icon wrapper.
 		const node = canvas.getByTestId("agents-tree-node-root-running");
-		const spinner = node.querySelector(".animate-spin");
+		const spinner = within(node).getByTitle("Loading spinner");
 		await expect(spinner).toBeInTheDocument();
 
 		// The toggle button should exist (the node has children) but
