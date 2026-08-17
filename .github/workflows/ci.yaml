@@ -1004,7 +1004,21 @@ jobs:
       - run: make site/e2e/bin/coder
         name: make coder
 
-      - run: pnpm playwright:install
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        working-directory: site
+
+      # Cache the browser to avoid relying on azure.archive.ubuntu.com, which
+      # can be flakey.
+      - name: Cache Chromium
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - run: pnpm exec playwright install chromium
+        timeout-minutes: 5
         working-directory: site
 
       # Cache the Coder release binaries downloaded by the outdatedCLI /
@@ -1100,9 +1114,23 @@ jobs:
         working-directory: site/
         name: Build Storybook
 
-      - run: pnpm playwright:install
+      - run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        working-directory: site/
+        name: Get Playwright version
+        id: playwright-version
+
+      # Cache the browser to avoid relying on azure.archive.ubuntu.com, which
+      # can be flakey.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        name: Cache Chromium
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - run: pnpm exec playwright install chromium
         working-directory: site/
         name: Install Chromium
+        timeout-minutes: 5
 
       - run: pnpm pixel-storybook
         working-directory: site/
