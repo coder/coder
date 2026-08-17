@@ -93,8 +93,8 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 		searchQuery,
 	);
 
-	// The count covers only what the client has loaded, so it can claim the
-	// whole session only when every thread page and network call arrived.
+	// The count covers only loaded data, so it can claim the whole session
+	// only when every thread page and network call arrived.
 	const sessionFullyLoaded =
 		!hasNextPage &&
 		(!session?.network_calls ||

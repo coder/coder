@@ -8,11 +8,8 @@ import type { AgentFirewallLog, AIBridgeThread } from "#/api/typesGenerated";
 
 const normalizeQuery = (query: string): string => query.trim().toLowerCase();
 
-/**
- * Counts case-insensitive, non-overlapping occurrences of the query in the
- * text. An empty query has zero occurrences.
- */
-export const countOccurrences = (text: string, query: string): number => {
+// Counts non-overlapping, case-insensitive occurrences of the query.
+const countOccurrences = (text: string, query: string): number => {
 	const q = normalizeQuery(query);
 	if (q === "") {
 		return 0;
@@ -28,17 +25,14 @@ export const countOccurrences = (text: string, query: string): number => {
 };
 
 interface ThreadSearchClassification {
-	/** The query matches the thread's prompt text. */
 	promptMatch: boolean;
-	/** The query matches a tool name or tool input in the agentic loop. */
 	toolMatch: boolean;
 }
 
 /**
- * Single walk over a thread reporting which search axis matched. The
- * filter, the auto-expand signal, and the prompt windowing all derive from
- * this classification so they cannot drift apart. An empty query matches
- * the prompt axis (the thread stays visible) but reports no tool match.
+ * Reports which search axis matched, in one walk. The filter, the
+ * auto-expand signal, and the prompt window all derive from this.
+ * An empty query matches the prompt axis but reports no tool match.
  */
 export const classifyThreadSearch = (
 	thread: AIBridgeThread,
@@ -59,24 +53,6 @@ export const classifyThreadSearch = (
 		),
 	};
 };
-
-export const matchesThreadSearch = (
-	thread: AIBridgeThread,
-	query: string,
-): boolean => {
-	const { promptMatch, toolMatch } = classifyThreadSearch(thread, query);
-	return promptMatch || toolMatch;
-};
-
-/**
- * Returns true when the query matches a tool name or tool input in the
- * thread's agentic loop. Used to surface why a thread matched when the
- * match lives inside a collapsed section.
- */
-export const matchesThreadToolSearch = (
-	thread: AIBridgeThread,
-	query: string,
-): boolean => classifyThreadSearch(thread, query).toolMatch;
 
 export const matchesNetworkCallSearch = (
 	call: AgentFirewallLog,
@@ -126,10 +102,7 @@ interface MatchSegment {
 	match: boolean;
 }
 
-/**
- * Splits the text into alternating non-match and match segments so callers
- * can render matches in bold. An empty query yields one plain segment.
- */
+// Splits the text into match and non-match segments for bold rendering.
 export const splitMatchSegments = (
 	text: string,
 	query: string,
@@ -160,9 +133,8 @@ export const splitMatchSegments = (
 };
 
 /**
- * Returns the [start, end) indices of a window of `windowChars` characters
- * centered on the first match, or null when there is no match or the text
- * already fits inside the window. Callers ellipsize both ends of the window.
+ * Returns the [start, end) indices of a window centered on the first match,
+ * or null when there is no match or the text fits inside the window.
  */
 export const windowAroundFirstMatch = (
 	text: string,

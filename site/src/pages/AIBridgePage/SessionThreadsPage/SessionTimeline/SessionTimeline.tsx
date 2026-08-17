@@ -38,9 +38,8 @@ interface ExpandableTextProps {
 	text: string;
 	className?: string;
 	/**
-	 * When set, matches of this query render in bold. If the first match sits
-	 * below the collapse cutoff, the preview shows a window of the text with
-	 * the match roughly centered, ellipsized at both ends.
+	 * Matches render in bold. If the first match is below the collapse, the
+	 * preview shows a window around it instead.
 	 */
 	highlight?: string;
 }
@@ -60,14 +59,12 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 	const [isExpanded, setIsExpanded] = useState(false);
 	const windowedRef = useRef(false);
 
-	// Keep the observer informed of windowing without reading state in its
-	// closure; refs may only be written in effects, not during render.
+	// Refs can only be written in effects, not during render.
 	useEffect(() => {
 		windowedRef.current = matchWindow !== null;
 	}, [matchWindow]);
 
-	// Reset to the full text whenever the content or query changes so the
-	// paragraph below measures the unwindowed height before any windowing.
+	// Reset so the paragraph measures the full text before windowing.
 	useEffect(() => {
 		// Read the values so the reset is tied to their identity.
 		void text;
@@ -76,9 +73,8 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 		setFullScrollHeight(0);
 	}, [text, highlight]);
 
-	// Measure the visible paragraph only while it shows the full text. Once a
-	// window is applied the paragraph is shorter, so those measurements are
-	// ignored to keep fullScrollHeight stable.
+	// Measure only while the full text is shown. A windowed paragraph is
+	// shorter, so its reads are ignored.
 	useEffect(() => {
 		const el = contentRef.current;
 		if (!el) return;
@@ -96,8 +92,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 
 	const isExpandable = fullScrollHeight > maxHeight;
 
-	// Derive the window once the full height is known. Windowing only applies
-	// while collapsed and a query is active.
+	// Window only when collapsed and a query is active.
 	useEffect(() => {
 		if (!highlight || isExpanded || fullScrollHeight <= maxHeight) {
 			setMatchWindow(null);
@@ -272,8 +267,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	tokenUsageMetadata,
 	expandedByDefault = false,
 }) => {
-	// Track only explicit user toggles so a search that starts matching this
-	// tool call after mount still reveals it (FE8), mirroring ThreadItem.
+	// Only user toggles are stored, so a later search match still reveals it.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
 	const isOpen = userToggled ?? expandedByDefault;
 
@@ -354,16 +348,11 @@ interface ThreadItemProps {
 	thread: AIBridgeThread;
 	initiator: MinimalUser;
 	/**
-	 * True when the search query matched a tool name or tool input in this
-	 * thread's agentic loop. Derived from props at render time so the loop
-	 * opens whenever a search reveals a tool call, including on threads that
-	 * were already mounted.
+	 * True when the query matched a tool name or input in this thread.
 	 */
 	searchToolMatch: boolean;
 	/**
-	 * The active search query. Passed to the prompt's ExpandableText so
-	 * matches render in bold and a match below the collapse cutoff windows
-	 * the preview instead of hiding it.
+	 * The active query, passed to the prompt for bolding and windowing.
 	 */
 	highlight: string;
 }
@@ -374,9 +363,7 @@ const ThreadItem: FC<ThreadItemProps> = ({
 	searchToolMatch,
 	highlight,
 }) => {
-	// Track only explicit user toggles. Null means the user has not toggled,
-	// so the derived state follows the search. This avoids mirroring the prop
-	// into state (FE8) while keeping the loop responsive to user clicks.
+	// Only user toggles are stored, so the loop follows the search (FE8).
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
 	const agenticLoopOpen = userToggled ?? searchToolMatch;
 
@@ -556,8 +543,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 
 	const isSearching = searchQuery.trim() !== "";
 
-	// Classify each thread once so the filter, the auto-expand signal, and
-	// the prompt windowing all derive from the same walk.
+	// One walk per thread feeds the filter, auto-expand, and windowing.
 	const threadItems = threads
 		.map((thread) => ({
 			thread,

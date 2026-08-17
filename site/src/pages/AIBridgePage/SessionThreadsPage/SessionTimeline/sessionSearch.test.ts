@@ -6,50 +6,11 @@ import {
 } from "#/testHelpers/entities";
 import {
 	classifyThreadSearch,
-	countOccurrences,
 	countSessionSearchResults,
 	matchesNetworkCallSearch,
-	matchesThreadSearch,
-	matchesThreadToolSearch,
 	splitMatchSegments,
 	windowAroundFirstMatch,
 } from "./sessionSearch";
-
-describe("matchesThreadSearch", () => {
-	it("matches prompt text case-insensitively", () => {
-		expect(matchesThreadSearch(MockAIBridgeThread, "PROJECT")).toBe(true);
-		expect(matchesThreadSearch(MockAIBridgeThread, "summarize")).toBe(true);
-	});
-
-	it("matches tool names", () => {
-		expect(matchesThreadSearch(MockAIBridgeThread, "list_directory")).toBe(
-			true,
-		);
-	});
-
-	it("matches tool input JSON", () => {
-		expect(matchesThreadSearch(MockAIBridgeThread, ". ")).toBe(true);
-		expect(matchesThreadSearch(MockAIBridgeThread, "path")).toBe(true);
-	});
-
-	it("does not match model, provider, or unrelated text", () => {
-		expect(matchesThreadSearch(MockAIBridgeThread, "claude-opus")).toBe(false);
-		expect(matchesThreadSearch(MockAIBridgeThread, "anthropic")).toBe(false);
-	});
-
-	it("an empty or whitespace query matches everything", () => {
-		expect(matchesThreadSearch(MockAIBridgeThread, "")).toBe(true);
-		expect(matchesThreadSearch(MockAIBridgeThread, "   ")).toBe(true);
-	});
-
-	it("does not match a thread with no prompt when query is specific", () => {
-		const noPrompt: AIBridgeThread = {
-			...MockAIBridgeThread,
-			prompt: undefined,
-		};
-		expect(matchesThreadSearch(noPrompt, "structure")).toBe(false);
-	});
-});
 
 describe("classifyThreadSearch", () => {
 	it("reports the prompt axis only for a prompt match", () => {
@@ -67,11 +28,60 @@ describe("classifyThreadSearch", () => {
 	});
 
 	it("reports both axes when both match", () => {
-		// "st" appears in the prompt ("structure") and the tool name
-		// ("list_directory").
 		expect(classifyThreadSearch(MockAIBridgeThread, "st")).toEqual({
 			promptMatch: true,
 			toolMatch: true,
+		});
+	});
+
+	it("matches the prompt case-insensitively", () => {
+		expect(classifyThreadSearch(MockAIBridgeThread, "PROJECT")).toEqual({
+			promptMatch: true,
+			toolMatch: false,
+		});
+	});
+
+	it("matches tool names and input case-insensitively", () => {
+		const upper: AIBridgeThread = {
+			...MockAIBridgeThread,
+			agentic_actions: MockAIBridgeThread.agentic_actions.map((a) => ({
+				...a,
+				tool_calls: a.tool_calls.map((c) => ({
+					...c,
+					tool: c.tool.toUpperCase(),
+					input: c.input.toUpperCase(),
+				})),
+			})),
+		};
+		expect(classifyThreadSearch(upper, "list_directory")).toEqual({
+			promptMatch: false,
+			toolMatch: true,
+		});
+		expect(classifyThreadSearch(upper, "path")).toEqual({
+			promptMatch: false,
+			toolMatch: true,
+		});
+	});
+
+	it("does not match model, provider, or unrelated text", () => {
+		expect(classifyThreadSearch(MockAIBridgeThread, "claude-opus")).toEqual({
+			promptMatch: false,
+			toolMatch: false,
+		});
+		expect(classifyThreadSearch(MockAIBridgeThread, "anthropic")).toEqual({
+			promptMatch: false,
+			toolMatch: false,
+		});
+	});
+
+	it("does not match a thread with no prompt", () => {
+		const noPrompt: AIBridgeThread = {
+			...MockAIBridgeThread,
+			prompt: undefined,
+		};
+		expect(classifyThreadSearch(noPrompt, "structure")).toEqual({
+			promptMatch: false,
+			toolMatch: false,
 		});
 	});
 
@@ -83,76 +93,8 @@ describe("classifyThreadSearch", () => {
 	});
 });
 
-describe("matchesThreadToolSearch", () => {
-	it("matches tool names", () => {
-		expect(matchesThreadToolSearch(MockAIBridgeThread, "list_directory")).toBe(
-			true,
-		);
-	});
-
-	it("matches tool input JSON", () => {
-		expect(matchesThreadToolSearch(MockAIBridgeThread, "path")).toBe(true);
-	});
-
-	it("matches tool names case-insensitively", () => {
-		const upperTool: AIBridgeThread = {
-			...MockAIBridgeThread,
-			agentic_actions: MockAIBridgeThread.agentic_actions.map((a) => ({
-				...a,
-				tool_calls: a.tool_calls.map((c) => ({
-					...c,
-					tool: c.tool.toUpperCase(),
-				})),
-			})),
-		};
-		expect(matchesThreadToolSearch(upperTool, "list_directory")).toBe(true);
-	});
-
-	it("matches tool input case-insensitively", () => {
-		const upperInput: AIBridgeThread = {
-			...MockAIBridgeThread,
-			agentic_actions: MockAIBridgeThread.agentic_actions.map((a) => ({
-				...a,
-				tool_calls: a.tool_calls.map((c) => ({
-					...c,
-					input: c.input.toUpperCase(),
-				})),
-			})),
-		};
-		expect(matchesThreadToolSearch(upperInput, "path")).toBe(true);
-	});
-
-	it("does not match prompt text alone", () => {
-		expect(matchesThreadToolSearch(MockAIBridgeThread, "summarize")).toBe(
-			false,
-		);
-	});
-
-	it("returns false for an empty query", () => {
-		expect(matchesThreadToolSearch(MockAIBridgeThread, "")).toBe(false);
-	});
-});
-
-describe("countOccurrences", () => {
-	it("counts every non-overlapping occurrence case-insensitively", () => {
-		expect(countOccurrences("a relay, a RELAY, and a relay", "relay")).toBe(3);
-	});
-
-	it("counts occurrences inside longer words", () => {
-		expect(countOccurrences("vercel-relay and vercelrelay", "relay")).toBe(2);
-	});
-
-	it("returns zero for an empty query or no match", () => {
-		expect(countOccurrences("anything", "")).toBe(0);
-		expect(countOccurrences("anything", "nope")).toBe(0);
-	});
-});
-
 describe("countSessionSearchResults", () => {
 	it("sums occurrences across prompt, tool, input, and network detail", () => {
-		// prompt "Summarize the project structure" has no "path"; the tool
-		// input JSON.stringify({ path: "." }) has one, and the network call
-		// detail https://api.github.com/repos/coder/coder has none.
 		expect(
 			countSessionSearchResults(
 				[MockAIBridgeThread],
@@ -168,6 +110,14 @@ describe("countSessionSearchResults", () => {
 			prompt: "relay relay relay",
 		};
 		expect(countSessionSearchResults([repeated], [], "relay")).toBe(3);
+	});
+
+	it("counts occurrences inside longer words", () => {
+		const compound: AIBridgeThread = {
+			...MockAIBridgeThread,
+			prompt: "vercel-relay and vercelrelay",
+		};
+		expect(countSessionSearchResults([compound], [], "relay")).toBe(2);
 	});
 
 	it("counts network call detail occurrences", () => {
@@ -220,17 +170,20 @@ describe("windowAroundFirstMatch", () => {
 	});
 
 	it("returns null when there is no match", () => {
-		expect(windowAroundFirstMatch("a".repeat(100), "relay", 10)).toBeNull();
+		const text = "a".repeat(100);
+		expect(windowAroundFirstMatch(text, "relay", 10)).toBeNull();
 	});
 
 	it("clamps to the start for an early match", () => {
-		expect(
-			windowAroundFirstMatch("relay " + "a".repeat(100), "relay", 20),
-		).toEqual({ start: 0, end: 20 });
+		const text = `relay ${"a".repeat(100)}`;
+		expect(windowAroundFirstMatch(text, "relay", 20)).toEqual({
+			start: 0,
+			end: 20,
+		});
 	});
 
 	it("centers the window on a deep match", () => {
-		const text = "a".repeat(50) + "relay" + "b".repeat(50);
+		const text = `${"a".repeat(50)}relay${"b".repeat(50)}`;
 		const window = windowAroundFirstMatch(text, "relay", 20);
 		expect(window).not.toBeNull();
 		// The match must sit inside the window, roughly centered.
