@@ -1,5 +1,6 @@
 import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
+import { mcpServerOAuth2ConnectPath } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -21,6 +22,7 @@ import { cn } from "#/utils/cn";
 // ── Types ──────────────────────────────────────────────────────
 
 interface MCPServerPickerProps {
+	organizationId: string;
 	/** All MCP server configs from the API. Will be filtered to enabled only. */
 	servers: readonly TypesGen.MCPServerConfig[];
 	/** Currently selected server IDs. */
@@ -178,6 +180,22 @@ export const migrateLegacyMCPSelection = (
 	localStorage.removeItem(legacyMCPSelectionStorageKey);
 };
 
+/**
+ * Migrates the pre-org-scoping deployment-wide selection once onto the default
+ * organization's key, preserving upgraded users' MCP server selection.
+ */
+export const useLegacyMCPSelectionMigration = (
+	organizationId: string,
+	servers: readonly TypesGen.MCPServerConfig[] | undefined,
+	isDefaultOrganization: boolean,
+) => {
+	useEffect(() => {
+		if (isDefaultOrganization && servers) {
+			migrateLegacyMCPSelection(organizationId, servers);
+		}
+	}, [organizationId, servers, isDefaultOrganization]);
+};
+
 // ── Overlapping icon stack for the trigger ─────────────────────
 
 const ICON_STACK_MAX = 3;
@@ -215,6 +233,7 @@ const TriggerIconStack: FC<{
 // ── Component ──────────────────────────────────────────────────
 
 export const MCPServerPicker: FC<MCPServerPickerProps> = ({
+	organizationId,
 	servers,
 	selectedServerIds,
 	onSelectionChange,
@@ -285,7 +304,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 
 	const handleConnect = (server: TypesGen.MCPServerConfig) => {
 		setConnectingServerId(server.id);
-		const connectUrl = `/api/experimental/mcp-servers/${encodeURIComponent(server.id)}/oauth2/connect`;
+		const connectUrl = mcpServerOAuth2ConnectPath(organizationId, server.id);
 		popupRef.current = window.open(
 			connectUrl,
 			"_blank",

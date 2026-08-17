@@ -74,14 +74,14 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	},
 ];
 
-const defaultOrganizationMCPServer: TypesGen.MCPServerConfig = {
+const mockDefaultOrganizationMCPServer: TypesGen.MCPServerConfig = {
 	...MockMCPServerConfig,
 	id: "mcp-default-organization",
 	display_name: "Default organization MCP",
 	slug: "default-organization-mcp",
 };
 
-const secondOrganizationMCPServer: TypesGen.MCPServerConfig = {
+const mockSecondOrganizationMCPServer: TypesGen.MCPServerConfig = {
 	...MockMCPServerConfig,
 	id: "mcp-second-organization",
 	display_name: "Second organization MCP",
@@ -467,7 +467,7 @@ export const OrganizationScopedMCPServers: Story = {
 		queries: [
 			{
 				key: permittedOrganizations({
-					object: { resource_type: "chat" },
+					object: { resource_type: "chat", owner_id: "me" },
 					action: "create",
 				}).queryKey,
 				data: [MockDefaultOrganization, MockOrganization2],
@@ -478,8 +478,8 @@ export const OrganizationScopedMCPServers: Story = {
 		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
 			async (organization) =>
 				organization === MockDefaultOrganization.id
-					? [defaultOrganizationMCPServer]
-					: [secondOrganizationMCPServer],
+					? [mockDefaultOrganizationMCPServer]
+					: [mockSecondOrganizationMCPServer],
 		);
 	},
 	play: async ({ canvasElement }) => {

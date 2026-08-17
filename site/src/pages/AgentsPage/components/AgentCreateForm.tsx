@@ -35,8 +35,8 @@ import { CompactOrgSelector } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
-	migrateLegacyMCPSelection,
 	saveMCPSelection,
+	useLegacyMCPSelectionMigration,
 } from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
@@ -421,11 +421,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return getDefaultMCPSelection(mcpServers);
 	})();
-	useEffect(() => {
-		if (effectiveOrg?.is_default) {
-			migrateLegacyMCPSelection(organizationId, mcpServers);
-		}
-	}, [organizationId, mcpServers, effectiveOrg?.is_default]);
+	useLegacyMCPSelectionMigration(
+		organizationId,
+		mcpServers,
+		effectiveOrg?.is_default ?? false,
+	);
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
@@ -653,6 +653,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						previewUrls={previewUrls}
 						textContents={textContents}
 						mcpServers={mcpServers}
+						chatOrganizationId={organizationId}
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);

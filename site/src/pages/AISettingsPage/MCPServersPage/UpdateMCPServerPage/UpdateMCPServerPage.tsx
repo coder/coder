@@ -29,9 +29,14 @@ const UpdateMCPServerPage: FC = () => {
 		...mcpServerConfigs(organization),
 		enabled: Boolean(organization),
 	});
-	const updateMutation = useMutation(updateMCPServerConfig(queryClient));
-	const deleteMutation = useMutation(deleteMCPServerConfig(queryClient));
 	const server = serversQuery.data?.find((item) => item.id === serverId);
+	const serverOrganization = server?.organization_id ?? organization;
+	const updateMutation = useMutation(
+		updateMCPServerConfig(queryClient, serverOrganization),
+	);
+	const deleteMutation = useMutation(
+		deleteMCPServerConfig(queryClient, serverOrganization),
+	);
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>

@@ -118,6 +118,7 @@ const meta: Meta<typeof MCPServerPicker> = {
 	title: "pages/AgentsPage/MCPServerPicker",
 	component: MCPServerPicker,
 	args: {
+		organizationId: "org-1",
 		onSelectionChange: fn(),
 		onAuthComplete: fn(),
 	},
@@ -192,7 +193,7 @@ export const OAuthNeedsAuth: Story = {
 			body.getByRole("button", { name: "Authenticate with GitHub" }),
 		);
 		expect(window.open).toHaveBeenCalledWith(
-			"/api/experimental/mcp-servers/mcp-github/oauth2/connect",
+			"/api/experimental/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
 			"_blank",
 			"width=900,height=600",
 		);

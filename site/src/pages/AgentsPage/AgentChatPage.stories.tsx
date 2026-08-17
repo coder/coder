@@ -17,7 +17,7 @@ import {
 	chatModelConfigs,
 	chatModelsKey,
 	chatPromptsKey,
-	mcpServerConfigs,
+	mcpServerConfigsKey,
 	toChatListParams,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
@@ -307,7 +307,7 @@ const buildQueries = (
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
 		{
-			key: mcpServerConfigs(chat.organization_id).queryKey,
+			key: mcpServerConfigsKey(chat.organization_id),
 			data: opts?.mcpServers ?? [],
 		},
 		buildChatAuthorizationQuery(chat, {

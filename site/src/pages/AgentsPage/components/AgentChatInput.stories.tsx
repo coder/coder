@@ -751,6 +751,7 @@ const notionMCPConnected = buildMCPServer({
 });
 
 const mcpDefaults = {
+	chatOrganizationId: "org-1",
 	onMCPSelectionChange: fn(),
 	onMCPAuthComplete: fn(),
 };
@@ -782,7 +783,7 @@ export const WithMCPNeedingAuth: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(body.getByRole("button", { name: "Auth" }));
 		expect(window.open).toHaveBeenCalledWith(
-			"/api/experimental/mcp-servers/mcp-github/oauth2/connect",
+			"/api/experimental/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
 			"_blank",
 			"width=900,height=600",
 		);

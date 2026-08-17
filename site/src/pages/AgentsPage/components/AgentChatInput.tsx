@@ -24,6 +24,7 @@ import {
 import { useMutation, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import { mcpServerOAuth2ConnectPath } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -553,8 +554,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	};
 
 	const handleMcpConnect = (server: TypesGen.MCPServerConfig) => {
+		if (!chatOrganizationId) {
+			return;
+		}
 		setMcpConnectingId(server.id);
-		const connectUrl = `/api/experimental/mcp-servers/${encodeURIComponent(server.id)}/oauth2/connect`;
+		const connectUrl = mcpServerOAuth2ConnectPath(
+			chatOrganizationId,
+			server.id,
+		);
 		mcpPopupRef.current = window.open(
 			connectUrl,
 			"_blank",
