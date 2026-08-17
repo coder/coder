@@ -1,7 +1,10 @@
 import type { FC } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { Label } from "#/components/Label/Label";
-import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import {
+	getOrganizationLabel,
+	OrganizationAutocomplete,
+} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { cn } from "#/utils/cn";
 
 interface OrganizationPickerProps {
@@ -30,7 +33,7 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 			<Label htmlFor={id}>Organization</Label>
 			<OrganizationAutocomplete
 				id={id}
-				ariaLabel={`Organization ${organization.display_name}`}
+				ariaLabel={`Organization ${getOrganizationLabel(organization, organizations)}`}
 				value={organization}
 				onChange={(org) => {
 					if (org) {
