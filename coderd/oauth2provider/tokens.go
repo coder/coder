@@ -272,7 +272,7 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 }
 
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
-	// Validate the client secret and record which secret the token is minted
+	// Validate the client secret and record which secret the token is issued
 	// against. Public clients have none to validate and their tokens reference
 	// none; the PKCE verification below is their only proof of possession, so
 	// the code ownership check further down is what binds the code to the
@@ -300,7 +300,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		// The secret must belong to the app identified by the request's
 		// client_id, which is otherwise unauthenticated at this point (it is
 		// parsed straight from the request with no verification). Without this
-		// check, a valid secret for one app could mint a token attributed to a
+		// check, a valid secret for one app could issue a token attributed to a
 		// different app.
 		if dbSecret.AppID != app.ID {
 			return codersdk.OAuth2TokenResponse{}, errBadSecret
