@@ -20,6 +20,8 @@ ignorePatterns:
   # These real sites were blocking the linkspector action / GitHub runner IPs(?)
   - pattern: "i.imgur.com"
   - pattern: "code.visualstudio.com"
+  - pattern: "marketplace.visualstudio.com"
+  - pattern: "codeium.com"
   - pattern: "www.emacswiki.org"
   - pattern: "linux.die.net/man"
   - pattern: "www.gnu.org"
