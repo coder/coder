@@ -30,3 +30,18 @@ end
       | .name = "Claude Mythos 5"
     )
   end
+
+# Mapping of provider names on models.dev to our own names
+# Ref. table definition for ai_provider_type
+# amazon-bedrock -> bedrock
+# github-copilot -> copilot
+| if (has("amazon-bedrock") | not) then
+   error("overrides.jq: amazon-bedrock not present upstream; drop or update the rename")
+else
+  .bedrock = ."amazon-bedrock" | del(."amazon-bedrock")
+end
+| if (has("github-copilot") | not) then
+   error("overrides.jq: github-copilot not present upstream; drop or update the rename")
+else
+  .copilot = ."github-copilot" | del(."github-copilot")
+end
