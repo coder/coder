@@ -6288,14 +6288,6 @@ func (q *querier) InsertOAuth2ProviderAppToken(ctx context.Context, arg database
 }
 
 func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
-	// default_org_member_roles are implied for every member of the org at
-	// request time, so creating an org with them is equivalent to assigning
-	// them. Require the caller to be authorized to assign each role.
-	if len(arg.DefaultOrgMemberRoles) > 0 {
-		if err := q.canAssignRoles(ctx, arg.ID, scopedOrgRoleIdentifiers(arg.DefaultOrgMemberRoles, arg.ID), nil); err != nil {
-			return database.Organization{}, err
-		}
-	}
 	return insert(q.log, q.auth, rbac.ResourceOrganization, q.db.InsertOrganization)(ctx, arg)
 }
 
