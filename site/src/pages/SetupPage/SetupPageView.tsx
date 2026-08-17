@@ -210,7 +210,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					{authMethods?.github.enabled && (
 						<>
 							<Button className="w-full" asChild type="submit" size="lg">
-								<a href="/api/v2/users/oauth2/github/callback">
+								<a
+									href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
+										"/templates/new/builder",
+									)}`}
+								>
 									<ExternalImage src="/icon/github.svg?blackWithColor" />
 									GitHub
 								</a>

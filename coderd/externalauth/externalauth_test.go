@@ -1145,7 +1145,7 @@ func TestRefreshTokenWithScopes(t *testing.T) {
 	newConfig := func(t *testing.T, scopes []string) *externalauth.Config {
 		t.Helper()
 		instrument := promoauth.NewFactory(prometheus.NewRegistry())
-		configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			ID:           "test",
 			Type:         codersdk.EnhancedExternalAuthProviderAzureDevopsEntra.String(),
 			ClientID:     "id",
@@ -1272,7 +1272,7 @@ func TestValidateToken(t *testing.T) {
 		logs := &bytes.Buffer{}
 		logger := slog.Make(slogjson.Sink(logs)).Leveled(slog.LevelDebug)
 		// ConvertConfig wires the named logger as production does.
-		configs, err := externalauth.ConvertConfig(logger, f, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), logger, f, []codersdk.ExternalAuthConfig{{
 			ID:           providerName,
 			Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			ClientID:     "id",
@@ -1677,7 +1677,7 @@ func TestExchangeWithClientSecret(t *testing.T) {
 	instrument := promoauth.NewFactory(prometheus.NewRegistry())
 	// This ensures a provider that requires the custom
 	// client secret exchange works.
-	configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+	configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 		// JFrog just happens to require this custom type.
 
 		Type:         codersdk.EnhancedExternalAuthProviderJFrog.String(),
@@ -1809,7 +1809,7 @@ func TestConvertYAML(t *testing.T) {
 	}} {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			output, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, tc.Input, &url.URL{}, nil)
+			output, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, tc.Input, &url.URL{}, nil)
 			if tc.Error != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.Error)
@@ -1822,22 +1822,23 @@ func TestConvertYAML(t *testing.T) {
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
 		client := new(http.Client)
-		config, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+		config, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
 			AuthURL:      "https://auth.com",
 			TokenURL:     "https://token.com",
+			RedirectURL:  "https://redirect.com",
 			Scopes:       []string{"read"},
-		}}, &url.URL{}, client)
+		}}, &url.URL{Scheme: "https", Host: "default.com"}, client)
 		require.NoError(t, err)
-		require.Equal(t, "https://auth.com?client_id=id&redirect_uri=%2Fexternal-auth%2Fgitlab%2Fcallback&response_type=code&scope=read", config[0].AuthCodeURL(""))
+		require.Equal(t, "https://auth.com?client_id=id&redirect_uri=https%3A%2F%2Fredirect.com%2Fexternal-auth%2Fgitlab%2Fcallback&response_type=code&scope=read", config[0].AuthCodeURL(""))
 		assert.Same(t, client, config[0].HTTPClient, "ConvertConfig must wire the provided client onto every Config")
 	})
 
 	t.Run("RevokeTimeoutSet", func(t *testing.T) {
 		t.Parallel()
-		configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
@@ -1848,7 +1849,7 @@ func TestConvertYAML(t *testing.T) {
 
 	t.Run("SelfHostedGitLabAPIBaseURL", func(t *testing.T) {
 		t.Parallel()
-		configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
@@ -2027,6 +2028,7 @@ func TestApplyDefaultsToConfig_CaseInsensitive(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			configs, err := externalauth.ConvertConfig(
+				context.Background(),
 				testutil.Logger(t),
 				instrument,
 				[]codersdk.ExternalAuthConfig{{
