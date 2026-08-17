@@ -93,13 +93,6 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 		searchQuery,
 	);
 
-	// The count covers only loaded data, so it can claim the whole session
-	// only when every thread page and network call arrived.
-	const sessionFullyLoaded =
-		!hasNextPage &&
-		(!session?.network_calls ||
-			networkCalls.length >= session.network_calls.total);
-
 	return (
 		<>
 			<nav className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
@@ -129,8 +122,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 								role="status"
 							>
 								<strong>{searchResults.toLocaleString("en-US")}</strong>{" "}
-								{searchResults === 1 ? "result" : "results"} in{" "}
-								{sessionFullyLoaded ? "this session" : "the loaded events"}
+								{searchResults === 1 ? "result" : "results"}
 							</p>
 						)}
 					</div>

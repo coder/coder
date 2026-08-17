@@ -13,32 +13,16 @@ import {
 } from "./sessionSearch";
 
 describe("classifyThreadSearch", () => {
-	it("reports the prompt axis only for a prompt match", () => {
-		expect(classifyThreadSearch(MockAIBridgeThread, "summarize")).toEqual({
-			promptMatch: true,
-			toolMatch: false,
-		});
-	});
-
-	it("reports the tool axis only for a tool match", () => {
-		expect(classifyThreadSearch(MockAIBridgeThread, "list_directory")).toEqual({
-			promptMatch: false,
-			toolMatch: true,
-		});
-	});
-
-	it("reports both axes when both match", () => {
-		expect(classifyThreadSearch(MockAIBridgeThread, "st")).toEqual({
-			promptMatch: true,
-			toolMatch: true,
-		});
-	});
-
-	it("matches the prompt case-insensitively", () => {
-		expect(classifyThreadSearch(MockAIBridgeThread, "PROJECT")).toEqual({
-			promptMatch: true,
-			toolMatch: false,
-		});
+	it.each([
+		["summarize", { promptMatch: true, toolMatch: false }],
+		["PROJECT", { promptMatch: true, toolMatch: false }],
+		["list_directory", { promptMatch: false, toolMatch: true }],
+		["path", { promptMatch: false, toolMatch: true }],
+		["st", { promptMatch: true, toolMatch: true }],
+		["claude-opus", { promptMatch: false, toolMatch: false }],
+		["anthropic", { promptMatch: false, toolMatch: false }],
+	])("classifies %s", (query, expected) => {
+		expect(classifyThreadSearch(MockAIBridgeThread, query)).toEqual(expected);
 	});
 
 	it("matches tool names and input case-insensitively", () => {
@@ -60,17 +44,6 @@ describe("classifyThreadSearch", () => {
 		expect(classifyThreadSearch(upper, "path")).toEqual({
 			promptMatch: false,
 			toolMatch: true,
-		});
-	});
-
-	it("does not match model, provider, or unrelated text", () => {
-		expect(classifyThreadSearch(MockAIBridgeThread, "claude-opus")).toEqual({
-			promptMatch: false,
-			toolMatch: false,
-		});
-		expect(classifyThreadSearch(MockAIBridgeThread, "anthropic")).toEqual({
-			promptMatch: false,
-			toolMatch: false,
 		});
 	});
 
@@ -193,10 +166,16 @@ describe("windowAroundFirstMatch", () => {
 });
 
 describe("matchesNetworkCallSearch", () => {
-	it("matches the destination detail case-insensitively", () => {
-		const call = MockAIBridgeSessionNetworkCalls[0];
-		expect(matchesNetworkCallSearch(call, "api.github.com")).toBe(true);
-		expect(matchesNetworkCallSearch(call, "API.GITHUB.COM")).toBe(true);
+	const call = MockAIBridgeSessionNetworkCalls[0];
+
+	it.each([
+		["api.github.com", true],
+		["API.GITHUB.COM", true],
+		["", true],
+		["POST", false],
+		["allow api.github.com", false],
+	])("matches %s => %s", (query, expected) => {
+		expect(matchesNetworkCallSearch(call, query)).toBe(expected);
 	});
 
 	it("matches an uppercase detail with a lowercase query", () => {
@@ -205,16 +184,5 @@ describe("matchesNetworkCallSearch", () => {
 			detail: MockAIBridgeSessionNetworkCalls[0].detail.toUpperCase(),
 		};
 		expect(matchesNetworkCallSearch(upperDetail, "api.github.com")).toBe(true);
-	});
-
-	it("does not match method, proto, or matched rule", () => {
-		const call = MockAIBridgeSessionNetworkCalls[0];
-		expect(matchesNetworkCallSearch(call, "POST")).toBe(false);
-		expect(matchesNetworkCallSearch(call, "allow api.github.com")).toBe(false);
-	});
-
-	it("an empty query matches everything", () => {
-		const call = MockAIBridgeSessionNetworkCalls[0];
-		expect(matchesNetworkCallSearch(call, "")).toBe(true);
 	});
 });

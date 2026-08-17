@@ -5561,13 +5561,6 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
 
-/**
- * A reusable AIBridgeThread: one model turn with a single tool call. It is
- * the shared input for session-search unit tests and story fixtures, which
- * override only the fields they exercise. The tool input stays a live
- * JSON.stringify call so no one editor can re-serialize it into the literal
- * the search assertions query.
- */
 export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 	id: "thread-1",
 	prompt: "Summarize the project structure",

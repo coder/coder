@@ -131,7 +131,7 @@ export const SearchResultsCount: Story = {
 		await userEvent.type(input, "list_directory");
 		await expect(
 			canvas.getByText((_content, element) => {
-				return element?.textContent === "1 result in this session";
+				return element?.textContent === "1 result";
 			}),
 		).toBeInTheDocument();
 	},
