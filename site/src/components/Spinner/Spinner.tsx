@@ -28,10 +28,8 @@ type SpinnerProps = React.SVGProps<SVGSVGElement> &
 		children?: ReactNode;
 		loading?: boolean;
 		/**
-		 * When set, exposes the spinner as an accessible live region
-		 * (role="status") labelled with this text. Leave undefined for decorative
-		 * spinners, e.g. inside a component that already provides its own status
-		 * region (such as Loader).
+		 * Exposes the spinner as an accessible live region labelled with this text. Leave undefined for 
+		 * decorative spinners, e.g. inside a component that already provides its own status region.
 		 */
 		label?: string;
 	};
