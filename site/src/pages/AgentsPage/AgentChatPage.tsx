@@ -1700,12 +1700,10 @@ const AgentChatPage: FC = () => {
 		}
 
 		// Sends and /compact are an explicit ask to be at the live edge,
-		// even one that appends no visible prompt. History edits scroll
-		// only after the mutation succeeds, so a rejected edit cannot
-		// pull a reader of older history to the live edge.
-		if (editedMessageID === undefined) {
-			scrollToEnd({ behavior: "smooth" });
-		}
+		// even one that appends no visible prompt. That edge is the new user
+		// row: each one doubles as the scroll anchor for its turn, so the
+		// scroller lands on the new prompt as soon as the durable message
+		// renders without the page scrolling it explicitly.
 
 		if (isExactCompactSubmission && compactCommandResolution === "available") {
 			// Optimistically show the running state before awaiting so
@@ -1784,6 +1782,9 @@ const AgentChatPage: FC = () => {
 					void invalidateChatEntity(queryClient, agentId);
 				},
 			});
+			// History edits scroll to the live edge only after the mutation
+			// succeeds, so a rejected edit cannot pull a reader of older
+			// history away from what they were reading.
 			scrollToEnd({ behavior: "smooth" });
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(

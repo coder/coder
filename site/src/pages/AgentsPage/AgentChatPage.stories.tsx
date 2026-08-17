@@ -3127,6 +3127,124 @@ const switchedChatMessage: TypesGen.ChatMessage = {
 	content: [{ type: "text", text: "Current chat message" }],
 };
 
+const buildLongConversationForPage = (
+	count: number,
+): TypesGen.ChatMessage[] => {
+	const messages: TypesGen.ChatMessage[] = [];
+	for (let i = 1; i <= count; i++) {
+		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
+		messages.push({
+			id: i,
+			chat_id: CHAT_ID,
+			created_at: new Date(Date.now() - (count - i) * 60_000).toISOString(),
+			role,
+			content: [
+				{
+					type: "text",
+					text:
+						role === "user"
+							? `Question ${Math.ceil(i / 2)}?`
+							: `Answer ${Math.floor(i / 2)}. `.repeat(12),
+				},
+			],
+		});
+	}
+	return messages;
+};
+
+export const SendingFromHistoryDoesNotSnapToBottom: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Long chat",
+				status: "waiting",
+			},
+			{
+				messages: buildLongConversationForPage(40),
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		let releaseSend: (() => void) | undefined;
+		const sendGate = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockImplementation(async () => {
+			await sendGate;
+			return {
+				queued: false,
+				message: {
+					...MockChatMessage,
+					id: 41,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [{ type: "text", text: "Follow-up question." }],
+				},
+			};
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Follow-up question.");
+		const viewport = canvas.getByRole("region", { name: "Messages" });
+		// Scroll the reader into history before sending, the repro starting point.
+		viewport.scrollTop = 0;
+		const scrollBeforeSend = viewport.scrollTop;
+
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+
+		// While the send POST is still pending, the viewport must stay put.
+		for (let i = 0; i < 6; i++) {
+			expect(viewport.scrollTop).toBe(scrollBeforeSend);
+			await new Promise<void>((resolve) =>
+				requestAnimationFrame(() => resolve()),
+			);
+		}
+
+		// Resolve the send and let the turn settle. The viewport lands anchored
+		// to the new prompt in a single jump.
+		releaseSend?.();
+		const newPrompt = await canvas.findByTestId("chat-message-message:41");
+		await waitFor(() => {
+			const promptTop =
+				newPrompt.getBoundingClientRect().top -
+				viewport.getBoundingClientRect().top;
+			// The new prompt is anchored near the top of the viewport.
+			expect(promptTop).toBeGreaterThanOrEqual(0);
+			expect(promptTop).toBeLessThan(viewport.clientHeight);
+			// The transcript still extends well past the fold below the prompt.
+			expect(newPrompt.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+				viewport.getBoundingClientRect().bottom,
+			);
+		});
+	},
+};
+
 export const SendResponseAfterChatSwitch: Story = {
 	render: () => <AgentChatSwitchHarness />,
 	parameters: {
