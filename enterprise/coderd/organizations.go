@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -21,27 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-// validateDefaultOrgMemberRoles reports whether every name is a built-in role
-// for orgID. Custom (DB-stored) roles are rejected: a name that does not
-// resolve would break role expansion for every member of the org. On failure
-// it writes a 400 response and returns false.
-func validateDefaultOrgMemberRoles(ctx context.Context, rw http.ResponseWriter, orgID uuid.UUID, names []string) bool {
-	for _, name := range names {
-		if _, err := rbac.RoleByName(rbac.RoleIdentifier{Name: name, OrganizationID: orgID}); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid default_org_member_roles entry.",
-				Detail:  fmt.Sprintf("%q is not a built-in role; default_org_member_roles currently accepts built-in role names only.", name),
-				Validations: []codersdk.ValidationError{{
-					Field:  "default_org_member_roles",
-					Detail: fmt.Sprintf("%q is not a built-in role.", name),
-				}},
-			})
-			return false
-		}
-	}
-	return true
-}
 
 // @Summary Update organization
 // @ID update-organization
@@ -84,9 +62,23 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// default_org_member_roles currently accepts built-in role names only.
+	// Custom (DB-stored) roles are intentionally rejected here so the
+	// caller cannot land a malformed name that would break role expansion
+	// for every member of the org. A future change can extend this to
+	// custom org roles by routing through canAssignRoles in dbauthz.
 	if req.DefaultOrgMemberRoles != nil {
-		if !validateDefaultOrgMemberRoles(ctx, rw, organization.ID, *req.DefaultOrgMemberRoles) {
-			return
+		for _, name := range *req.DefaultOrgMemberRoles {
+			if _, err := rbac.RoleByName(rbac.RoleIdentifier{Name: name, OrganizationID: organization.ID}); err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid default_org_member_roles entry.",
+					Detail:  fmt.Sprintf("%q is not a built-in role; default_org_member_roles currently accepts built-in role names only.", name),
+					Validations: []codersdk.ValidationError{{
+						Field:  "default_org_member_roles",
+						Detail: fmt.Sprintf("%q is not a built-in role.", name),
+					}},
+				})
+				return
+			}
 		}
 	}
 
@@ -281,14 +273,6 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defaultOrgMemberRoles := rbac.DefaultOrgMemberRoles()
-	if req.DefaultOrgMemberRoles != nil {
-		if !validateDefaultOrgMemberRoles(ctx, rw, organizationID, *req.DefaultOrgMemberRoles) {
-			return
-		}
-		defaultOrgMemberRoles = *req.DefaultOrgMemberRoles
-	}
-
 	_, err := api.Database.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
 		Name:    req.Name,
 		Deleted: false,
@@ -329,7 +313,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			Icon:                  req.Icon,
 			CreatedAt:             dbtime.Now(),
 			UpdatedAt:             dbtime.Now(),
-			DefaultOrgMemberRoles: defaultOrgMemberRoles,
+			DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)

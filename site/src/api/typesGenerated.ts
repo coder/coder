@@ -4025,11 +4025,6 @@ export interface CreateOrganizationRequest {
 	readonly display_name?: string;
 	readonly description?: string;
 	readonly icon?: string;
-	/**
-	 * DefaultOrgMemberRoles, when non-nil, sets the org's default member
-	 * roles instead of the deployment-wide default.
-	 */
-	readonly default_org_member_roles?: string[];
 }
 
 // From codersdk/provisionerdaemons.go

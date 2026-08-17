@@ -19529,13 +19529,6 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
-                "default_org_member_roles": {
-                    "description": "DefaultOrgMemberRoles, when non-nil, sets the org's default member\nroles instead of the deployment-wide default.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "description": {
                     "type": "string"
                 },

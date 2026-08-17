@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -13,7 +12,6 @@ import (
 )
 
 func (r *RootCmd) createOrganization() *serpent.Command {
-	var defaultOrgMemberRoles []string
 	cmd := &serpent.Command{
 		Use:   "create <organization name>",
 		Short: "Create a new organization.",
@@ -21,12 +19,6 @@ func (r *RootCmd) createOrganization() *serpent.Command {
 			serpent.RequireNArgs(1),
 		),
 		Options: serpent.OptionSet{
-			{
-				Name:        "default-org-member-roles",
-				Flag:        "default-org-member-roles",
-				Description: "Roles granted to every member of the organization. Accepts a comma-separated list and may be repeated. Defaults to organization-workspace-access. Pass an empty value (--default-org-member-roles=\"\") to grant no roles.",
-				Value:       serpent.StringArrayOf(&defaultOrgMemberRoles),
-			},
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
@@ -50,26 +42,9 @@ func (r *RootCmd) createOrganization() *serpent.Command {
 				return xerrors.Errorf("organization %q already exists", orgName)
 			}
 
-			req := codersdk.CreateOrganizationRequest{
+			organization, err := client.CreateOrganization(inv.Context(), codersdk.CreateOrganizationRequest{
 				Name: orgName,
-			}
-			if inv.ParsedFlags().Changed("default-org-member-roles") {
-				// An empty flag value parses to a nil slice, which means
-				// "grant no roles". Send an allocated empty slice so the
-				// request carries [] rather than null, which the server
-				// reads as "unspecified".
-				roles := make([]string, 0, len(defaultOrgMemberRoles))
-				for _, role := range defaultOrgMemberRoles {
-					role = strings.TrimSpace(role)
-					if role == "" {
-						return xerrors.New(`--default-org-member-roles contains an empty role name; pass --default-org-member-roles="" on its own to grant no roles`)
-					}
-					roles = append(roles, role)
-				}
-				req.DefaultOrgMemberRoles = &roles
-			}
-
-			organization, err := client.CreateOrganization(inv.Context(), req)
+			})
 			if err != nil {
 				return xerrors.Errorf("failed to create organization: %w", err)
 			}

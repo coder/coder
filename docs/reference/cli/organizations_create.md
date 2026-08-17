@@ -16,14 +16,6 @@ coder organizations create [flags] <organization name>
 
 ## Options
 
-### --default-org-member-roles
-
-|      |                           |
-|------|---------------------------|
-| Type | <code>string-array</code> |
-
-Roles granted to every member of the organization. Accepts a comma-separated list and may be repeated. Defaults to organization-workspace-access. Pass an empty value (--default-org-member-roles="") to grant no roles.
-
 ### -y, --yes
 
 |      |                   |

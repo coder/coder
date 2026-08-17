@@ -83,9 +83,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 ```json
 {
-  "default_org_member_roles": [
-    "string"
-  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",

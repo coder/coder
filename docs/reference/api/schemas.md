@@ -5181,9 +5181,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "default_org_member_roles": [
-    "string"
-  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -5193,13 +5190,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                       | Type            | Required | Restrictions | Description                                                                                                        |
-|----------------------------|-----------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------|
-| `default_org_member_roles` | array of string | false    |              | Default org member roles when non-nil, sets the org's default member roles instead of the deployment-wide default. |
-| `description`              | string          | false    |              |                                                                                                                    |
-| `display_name`             | string          | false    |              | Display name will default to the same value as `Name` if not provided.                                             |
-| `icon`                     | string          | false    |              |                                                                                                                    |
-| `name`                     | string          | true     |              |                                                                                                                    |
+| Name           | Type   | Required | Restrictions | Description                                                            |
+|----------------|--------|----------|--------------|------------------------------------------------------------------------|
+| `description`  | string | false    |              |                                                                        |
+| `display_name` | string | false    |              | Display name will default to the same value as `Name` if not provided. |
+| `icon`         | string | false    |              |                                                                        |
+| `name`         | string | true     |              |                                                                        |
 
 ## codersdk.CreateProvisionerKeyResponse
 
