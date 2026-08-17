@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import type {
 	CodeViewHandle,
 	CodeViewItem,
@@ -22,6 +21,7 @@ import {
 } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { useTheme } from "#/theme/context";
 import { cn } from "#/utils/cn";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";

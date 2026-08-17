@@ -2486,6 +2486,48 @@ describe("mergeWatchedChatSummary", () => {
 		).toBe(context);
 	});
 
+	it("keeps the repaired build_id when the event snapshot carries a stale binding", () => {
+		const cachedChat = makeChat("chat-1", {
+			workspace_id: "workspace-1",
+			agent_id: "agent-new",
+			build_id: "build-new",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			workspace_id: "workspace-1",
+			agent_id: "agent-old",
+			build_id: "build-old",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+		});
+		expect(merged.build_id).toBe("build-new");
+		expect(merged.agent_id).toBe("agent-new");
+	});
+
+	it("adopts a fresh build_id when the event snapshot agrees on the agent", () => {
+		const cachedChat = makeChat("chat-1", {
+			workspace_id: "workspace-1",
+			agent_id: "agent-1",
+			build_id: "build-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			workspace_id: "workspace-1",
+			agent_id: "agent-1",
+			build_id: "build-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).build_id,
+		).toBe("build-new");
+	});
+
 	it("merges fresh status updates without clobbering a newer title snapshot", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "waiting",

@@ -49,6 +49,77 @@
 				}
 			}
 		},
+		"/api/experimental/ai/model-prices": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "List AI model prices",
+				"operationId": "list-ai-model-prices",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Only return prices for this provider",
+						"name": "provider",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Only return prices for this model",
+						"name": "model",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AIModelPrice"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			},
+			"post": {
+				"consumes": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Upsert AI model prices",
+				"operationId": "upsert-ai-model-prices",
+				"parameters": [
+					{
+						"description": "Prices to set",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpsertAIModelPricesRequest"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/experimental/chats": {
 			"get": {
 				"description": "Experimental: this endpoint is subject to change.",
@@ -14232,6 +14303,60 @@
 				}
 			}
 		},
+		"codersdk.AIModelPrice": {
+			"type": "object",
+			"properties": {
+				"cache_read_price": {
+					"type": "integer"
+				},
+				"cache_write_price": {
+					"type": "integer"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"input_price": {
+					"type": "integer"
+				},
+				"model": {
+					"type": "string"
+				},
+				"output_price": {
+					"type": "integer"
+				},
+				"provider": {
+					"type": "string"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"codersdk.AIModelPriceUpsert": {
+			"type": "object",
+			"properties": {
+				"cache_read_price": {
+					"type": "integer"
+				},
+				"cache_write_price": {
+					"type": "integer"
+				},
+				"input_price": {
+					"type": "integer"
+				},
+				"model": {
+					"type": "string"
+				},
+				"output_price": {
+					"type": "integer"
+				},
+				"provider": {
+					"type": "string"
+				}
+			}
+		},
 		"codersdk.AIProvider": {
 			"type": "object",
 			"properties": {
@@ -24354,6 +24479,17 @@
 				"hash": {
 					"type": "string",
 					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.UpsertAIModelPricesRequest": {
+			"type": "object",
+			"properties": {
+				"prices": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIModelPriceUpsert"
+					}
 				}
 			}
 		},

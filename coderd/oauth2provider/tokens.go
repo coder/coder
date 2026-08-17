@@ -453,6 +453,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			APIKeyID:    newKey.ID,
 			UserID:      dbCode.UserID,
 			Audience:    dbCode.ResourceUri,
+			Scope:       dbCode.Scope,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
@@ -577,6 +578,10 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,
 			Audience:    dbToken.Audience,
+			// RFC 6749 §6: a refresh with no scope parameter is granted the
+			// originally granted scope. Later phases narrow this against
+			// req.Scope; they never widen it.
+			Scope: dbToken.Scope,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
