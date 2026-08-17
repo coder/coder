@@ -1,0 +1,15 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations edit [flags]
+
+  Edit an organization.
+
+OPTIONS:
+      --default-org-member-roles string-array
+          Roles granted to every member of the organization. Accepts a
+          comma-separated list and may be repeated. Pass an empty value
+          (--default-org-member-roles="") to grant no roles.
+
+———
+Run `coder --help` for a list of global options.

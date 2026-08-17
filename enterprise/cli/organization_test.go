@@ -289,3 +289,133 @@ func TestUpdateOrganizationRoles(t *testing.T) {
 		require.ErrorContains(t, err, "The role test-role does not exist.")
 	})
 }
+
+func TestEditOrganization(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T) (*codersdk.Client, codersdk.CreateFirstUserResponse) {
+		t.Helper()
+		return coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+	}
+
+	t.Run("SetRoles", func(t *testing.T) {
+		t.Parallel()
+
+		client, first := setup(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organizations", "edit",
+			"--default-org-member-roles", codersdk.RoleOrganizationTemplateAdmin+", "+codersdk.RoleOrganizationAuditor,
+			"--default-org-member-roles", codersdk.RoleOrganizationWorkspaceAccess)
+		//nolint:gocritic // only owners can update orgs
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = new(bytes.Buffer)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		//nolint:gocritic // only owners can read all orgs
+		org, err := client.Organization(ctx, first.OrganizationID)
+		require.NoError(t, err)
+		require.Equal(t, []string{
+			codersdk.RoleOrganizationTemplateAdmin,
+			codersdk.RoleOrganizationAuditor,
+			codersdk.RoleOrganizationWorkspaceAccess,
+		}, org.DefaultOrgMemberRoles)
+	})
+
+	t.Run("ClearRoles", func(t *testing.T) {
+		t.Parallel()
+
+		client, first := setup(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organizations", "edit", "--default-org-member-roles", "")
+		//nolint:gocritic // only owners can update orgs
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = new(bytes.Buffer)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		//nolint:gocritic // only owners can read all orgs
+		org, err := client.Organization(ctx, first.OrganizationID)
+		require.NoError(t, err)
+		require.Empty(t, org.DefaultOrgMemberRoles)
+	})
+
+	t.Run("LeavesOtherFields", func(t *testing.T) {
+		t.Parallel()
+
+		client, first := setup(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		//nolint:gocritic // only owners can read all orgs
+		before, err := client.Organization(ctx, first.OrganizationID)
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "organizations", "edit",
+			"--default-org-member-roles", codersdk.RoleOrganizationAuditor)
+		//nolint:gocritic // only owners can update orgs
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = new(bytes.Buffer)
+
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		//nolint:gocritic // only owners can read all orgs
+		after, err := client.Organization(ctx, first.OrganizationID)
+		require.NoError(t, err)
+		require.Equal(t, before.Name, after.Name)
+		require.Equal(t, before.DisplayName, after.DisplayName)
+		require.Equal(t, before.Description, after.Description)
+		require.Equal(t, before.Icon, after.Icon)
+	})
+
+	t.Run("NoFlags", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := setup(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organizations", "edit")
+		//nolint:gocritic // only owners can update orgs
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = new(bytes.Buffer)
+
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "no changes requested")
+	})
+
+	t.Run("EmptyRoleNameRejected", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := setup(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organizations", "edit",
+			"--default-org-member-roles", codersdk.RoleOrganizationAuditor+",")
+		//nolint:gocritic // only owners can update orgs
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = new(bytes.Buffer)
+
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "empty role name")
+	})
+
+	t.Run("NonBuiltInRoleRejected", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := setup(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organizations", "edit",
+			"--default-org-member-roles", "not-a-built-in-role")
+		//nolint:gocritic // only owners can update orgs
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = new(bytes.Buffer)
+
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "Invalid default_org_member_roles entry")
+	})
+}

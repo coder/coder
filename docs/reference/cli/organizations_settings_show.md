@@ -24,10 +24,9 @@ coder organizations settings show
 
 ## Subcommands
 
-| Name                                                                                               | Purpose                                                                  |
-|----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
-| [<code>group-sync</code>](./organizations_settings_show_group-sync.md)                             | Group sync settings to sync groups from an IdP.                          |
-| [<code>role-sync</code>](./organizations_settings_show_role-sync.md)                               | Role sync settings to sync organization roles from an IdP.               |
-| [<code>organization-sync</code>](./organizations_settings_show_organization-sync.md)               | Organization sync settings to sync organization memberships from an IdP. |
-| [<code>default-org-member-roles</code>](./organizations_settings_show_default-org-member-roles.md) | Roles granted to every member of the organization.                       |
-| [<code>workspace-sharing</code>](./organizations_settings_show_workspace-sharing.md)               | Workspace sharing settings for the organization.                         |
+| Name                                                                                 | Purpose                                                                  |
+|--------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| [<code>group-sync</code>](./organizations_settings_show_group-sync.md)               | Group sync settings to sync groups from an IdP.                          |
+| [<code>role-sync</code>](./organizations_settings_show_role-sync.md)                 | Role sync settings to sync organization roles from an IdP.               |
+| [<code>organization-sync</code>](./organizations_settings_show_organization-sync.md) | Organization sync settings to sync organization memberships from an IdP. |
+| [<code>workspace-sharing</code>](./organizations_settings_show_workspace-sharing.md) | Workspace sharing settings for the organization.                         |
