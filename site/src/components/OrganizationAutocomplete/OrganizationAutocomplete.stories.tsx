@@ -41,7 +41,6 @@ export const CollidingDisplayNames: Story = {
 			{ ...MockOrganization, name: "org-a", display_name: "Dev" },
 			{ ...MockOrganization2, name: "org-b", display_name: "Dev" },
 			{ ...MockOrganization, id: "org-c", name: "org-c", display_name: "Ops" },
-			{ ...MockOrganization, id: "org-d", name: "Dev", display_name: "" },
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -54,7 +53,28 @@ export const CollidingDisplayNames: Story = {
 			expect(
 				screen.getByRole("option", { name: "Dev (org-b)" }),
 			).toBeInTheDocument();
-			expect(screen.getByRole("option", { name: /^Dev$/ })).toBeInTheDocument();
+			expect(screen.getByRole("option", { name: "Ops" })).toBeInTheDocument();
+		});
+	},
+};
+
+export const FallbackNameCollision: Story = {
+	args: {
+		value: null,
+		options: [
+			{ ...MockOrganization, name: "dev", display_name: "" },
+			{ ...MockOrganization2, name: "org-b", display_name: "dev" },
+			{ ...MockOrganization, id: "org-c", name: "org-c", display_name: "Ops" },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		await waitFor(() => {
+			expect(screen.getByRole("option", { name: /^dev$/ })).toBeInTheDocument();
+			expect(
+				screen.getByRole("option", { name: "dev (org-b)" }),
+			).toBeInTheDocument();
 			expect(screen.getByRole("option", { name: "Ops" })).toBeInTheDocument();
 		});
 	},
