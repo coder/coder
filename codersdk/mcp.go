@@ -239,8 +239,8 @@ func (c *Client) MCPServerConfigByID(ctx context.Context, organizationID, id uui
 }
 
 // MCPServerConfigACL returns the resolved ACL of an MCP server config.
-func (c *Client) MCPServerConfigACL(ctx context.Context, id uuid.UUID) (MCPServerConfigACL, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/mcp-servers/%s/acl", id), nil)
+func (c *Client) MCPServerConfigACL(ctx context.Context, organizationID, id uuid.UUID) (MCPServerConfigACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s/acl", organizationID, id), nil)
 	if err != nil {
 		return MCPServerConfigACL{}, err
 	}
@@ -254,8 +254,8 @@ func (c *Client) MCPServerConfigACL(ctx context.Context, id uuid.UUID) (MCPServe
 
 // UpdateMCPServerConfigACL applies a sparse ACL update to an MCP server
 // config.
-func (c *Client) UpdateMCPServerConfigACL(ctx context.Context, id uuid.UUID, req UpdateMCPServerConfigACLRequest) error {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/mcp-servers/%s/acl", id), req)
+func (c *Client) UpdateMCPServerConfigACL(ctx context.Context, organizationID, id uuid.UUID, req UpdateMCPServerConfigACLRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s/acl", organizationID, id), req)
 	if err != nil {
 		return err
 	}

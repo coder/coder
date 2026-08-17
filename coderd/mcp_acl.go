@@ -28,9 +28,10 @@ import (
 // @Security CoderSessionToken
 // @Tags MCP
 // @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerConfigACL
-// @Router /api/experimental/mcp-servers/{mcpserverconfig}/acl [get]
+// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [get]
 // @x-apidocgen {"skip": true}
 func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -64,10 +65,11 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags MCP
 // @Accept json
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Param request body codersdk.UpdateMCPServerConfigACLRequest true "Update MCP server config ACL request"
 // @Success 204
-// @Router /api/experimental/mcp-servers/{mcpserverconfig}/acl [patch]
+// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
