@@ -249,14 +249,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(filter.IncludeAgentMetadata) > 0 {
-		err = attachAgentMetadata(wss, workspaceRows)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error converting agent metadata.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+		attachAgentMetadata(ctx, api.Logger, wss, workspaceRows)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
@@ -2771,8 +2764,11 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 
 // attachAgentMetadata maps the agent metadata the workspaces query
 // aggregated per workspace onto the agents in the converted response.
-// Each aggregated datum carries its workspace_agent_id.
-func attachAgentMetadata(workspaces []codersdk.Workspace, rows []database.GetWorkspacesRow) error {
+// Each aggregated datum carries its workspace_agent_id. An unparsable
+// aggregate degrades to missing metadata for that workspace rather
+// than failing the page: the expansion is best-effort decoration on
+// top of the list.
+func attachAgentMetadata(ctx context.Context, logger slog.Logger, workspaces []codersdk.Workspace, rows []database.GetWorkspacesRow) {
 	byAgent := map[uuid.UUID][]database.WorkspaceAgentMetadatum{}
 	for _, row := range rows {
 		if len(row.AgentMetadata) == 0 {
@@ -2781,7 +2777,11 @@ func attachAgentMetadata(workspaces []codersdk.Workspace, rows []database.GetWor
 		var metadata database.AgentMetadataAggregate
 		err := metadata.Scan(row.AgentMetadata)
 		if err != nil {
-			return xerrors.Errorf("scan agent metadata for workspace %q: %w", row.ID, err)
+			logger.Warn(ctx, "scan agent metadata, omitting it for the workspace",
+				slog.F("workspace_id", row.ID),
+				slog.Error(err),
+			)
+			continue
 		}
 		for _, datum := range metadata {
 			byAgent[datum.WorkspaceAgentID] = append(byAgent[datum.WorkspaceAgentID], datum)
@@ -2798,7 +2798,6 @@ func attachAgentMetadata(workspaces []codersdk.Workspace, rows []database.GetWor
 			}
 		}
 	}
-	return nil
 }
 
 func convertWorkspaces(

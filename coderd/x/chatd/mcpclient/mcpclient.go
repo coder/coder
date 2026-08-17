@@ -3,7 +3,6 @@ package mcpclient
 import (
 	"cmp"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,9 +17,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/client/transport"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/oauth2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -98,20 +95,20 @@ func ConnectAll(
 	}
 
 	var (
-		mu      sync.Mutex
-		clients []*client.Client
-		tools   []fantasy.AgentTool
+		mu       sync.Mutex
+		sessions []*mcp.ClientSession
+		tools    []fantasy.AgentTool
 	)
 
-	// Build cleanup eagerly so it always closes any clients
+	// Build cleanup eagerly so it always closes any sessions
 	// that connected, even if a later connection fails.
 	cleanup := func() {
 		mu.Lock()
 		defer mu.Unlock()
-		for _, c := range clients {
-			_ = c.Close()
+		for _, s := range sessions {
+			_ = s.Close()
 		}
-		clients = nil
+		sessions = nil
 	}
 
 	var eg errgroup.Group
@@ -121,7 +118,7 @@ func ConnectAll(
 		}
 
 		eg.Go(func() error {
-			serverTools, mcpClient, connectErr := connectOne(
+			serverTools, session, connectErr := connectOne(
 				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
 			)
 			if connectErr != nil {
@@ -137,8 +134,8 @@ func ConnectAll(
 			}
 
 			mu.Lock()
-			if mcpClient != nil {
-				clients = append(clients, mcpClient)
+			if session != nil {
+				sessions = append(sessions, session)
 			}
 			tools = append(tools, serverTools...)
 			mu.Unlock()
@@ -214,7 +211,7 @@ func connectOne(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
-) ([]fantasy.AgentTool, *client.Client, error) {
+) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
 	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
 
 	// When opted-in, merge Coder identity headers BEFORE the
@@ -245,45 +242,27 @@ func connectOne(
 		)
 	}
 
-	mcpClient := client.NewClient(tr)
+	mcpClient := mcp.NewClient(&mcp.Implementation{
+		Name:    "coder",
+		Version: buildinfo.Version(),
+	}, nil)
 
-	// The timeout covers the entire connect+init+list sequence,
-	// not each phase individually.
+	// The timeout covers the entire connect+list sequence, not
+	// each phase individually. The SDK negotiates the protocol
+	// version during Connect; the session outlives connectCtx.
 	connectCtx, cancel := context.WithTimeout(
 		ctx, connectTimeout,
 	)
 	defer cancel()
 
-	if err := mcpClient.Start(connectCtx); err != nil {
-		_ = mcpClient.Close()
-		return nil, nil, xerrors.Errorf(
-			"start transport: %w", err,
-		)
+	session, err := mcpClient.Connect(connectCtx, tr, nil)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("connect: %w", err)
 	}
 
-	_, err = mcpClient.Initialize(
-		connectCtx,
-		mcp.InitializeRequest{
-			Params: mcp.InitializeParams{
-				ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-				ClientInfo: mcp.Implementation{
-					Name:    "coder",
-					Version: buildinfo.Version(),
-				},
-			},
-		},
-	)
+	toolsResult, err := session.ListTools(connectCtx, nil)
 	if err != nil {
-		// Best-effort close so we don't leak the transport.
-		_ = mcpClient.Close()
-		return nil, nil, xerrors.Errorf("initialize: %w", err)
-	}
-
-	toolsResult, err := mcpClient.ListTools(
-		connectCtx, mcp.ListToolsRequest{},
-	)
-	if err != nil {
-		_ = mcpClient.Close()
+		_ = session.Close()
 		return nil, nil, xerrors.Errorf("list tools: %w", err)
 	}
 
@@ -302,44 +281,36 @@ func connectOne(
 		}
 
 		tools = append(
-			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, mcpClient, cfg.ModelIntent),
+			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent),
 		)
 	}
 
-	// If no tools passed filtering, close the client early
-	// to avoid holding an idle connection.
 	if len(tools) == 0 {
-		_ = mcpClient.Close()
+		_ = session.Close()
 		return nil, nil, nil
 	}
 
-	return tools, mcpClient, nil
+	return tools, session, nil
 }
 
-// createTransport builds the appropriate mcp-go transport based
-// on the server's configured transport type.
 func createTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
-) (transport.Interface, error) {
-	httpClient := mcpHTTPClient()
+) (mcp.Transport, error) {
+	httpClient := httpClientWithHeaders(headers)
 
 	switch cfg.Transport {
 	case "sse":
-		var opts []transport.ClientOption
-		opts = append(opts, transport.WithHeaders(headers))
-		if httpClient != nil {
-			opts = append(opts, transport.WithHTTPClient(httpClient))
-		}
-		return transport.NewSSE(cfg.Url, opts...)
+		return &mcp.SSEClientTransport{
+			Endpoint:   cfg.Url,
+			HTTPClient: httpClient,
+		}, nil
 	case "", "streamable_http":
 		// Default to streamable HTTP, the newer transport.
-		var opts []transport.StreamableHTTPCOption
-		opts = append(opts, transport.WithHTTPHeaders(headers))
-		if httpClient != nil {
-			opts = append(opts, transport.WithHTTPBasicClient(httpClient))
-		}
-		return transport.NewStreamableHTTP(cfg.Url, opts...)
+		return &mcp.StreamableClientTransport{
+			Endpoint:   cfg.Url,
+			HTTPClient: httpClient,
+		}, nil
 	default:
 		return nil, xerrors.Errorf(
 			"unsupported transport %q", cfg.Transport,
@@ -357,9 +328,6 @@ func buildAuthHeaders(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 ) map[string]string {
-	// Using map[string]string rather than http.Header because
-	// the mcp-go transport options accept map[string]string.
-	// MCP servers typically don't require multi-valued headers.
 	headers := make(map[string]string)
 
 	switch cfg.AuthType {
@@ -546,7 +514,7 @@ type mcpToolWrapper struct {
 	parameters      map[string]any
 	required        []string
 	modelIntent     bool
-	client          *client.Client
+	session         *mcp.ClientSession
 	providerOptions fantasy.ProviderOptions
 }
 
@@ -561,20 +529,38 @@ func (t *mcpToolWrapper) MCPServerConfigID() uuid.UUID {
 func newMCPTool(
 	configID uuid.UUID,
 	serverSlug string,
-	tool mcp.Tool,
-	mcpClient *client.Client,
+	tool *mcp.Tool,
+	session *mcp.ClientSession,
 	modelIntent bool,
 ) *mcpToolWrapper {
+	properties, required := splitInputSchema(tool.InputSchema)
 	return &mcpToolWrapper{
 		configID:     configID,
 		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
 		originalName: tool.Name,
 		description:  tool.Description,
-		parameters:   tool.InputSchema.Properties,
-		required:     tool.InputSchema.Required,
+		parameters:   properties,
+		required:     required,
 		modelIntent:  modelIntent,
-		client:       mcpClient,
+		session:      session,
 	}
+}
+
+func splitInputSchema(schema any) (map[string]any, []string) {
+	m, ok := schema.(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	properties, _ := m["properties"].(map[string]any)
+	var required []string
+	if rawRequired, ok := m["required"].([]any); ok {
+		for _, r := range rawRequired {
+			if str, ok := r.(string); ok {
+				required = append(required, str)
+			}
+		}
+	}
+	return properties, required
 }
 
 func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
@@ -646,13 +632,11 @@ func (t *mcpToolWrapper) Run(
 	callCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
 	defer cancel()
 
-	result, err := t.client.CallTool(
+	result, err := t.session.CallTool(
 		callCtx,
-		mcp.CallToolRequest{
-			Params: mcp.CallToolParams{
-				Name:      t.originalName,
-				Arguments: args,
-			},
+		&mcp.CallToolParams{
+			Name:      t.originalName,
+			Arguments: args,
 		},
 	)
 	if err != nil {
@@ -721,86 +705,57 @@ func convertCallResult(
 	)
 	for _, item := range result.Content {
 		switch c := item.(type) {
-		case mcp.TextContent:
+		case *mcp.TextContent:
 			textParts = append(textParts, strings.ToValidUTF8(c.Text, "\uFFFD"))
-		case mcp.ImageContent:
-			data, err := base64.StdEncoding.DecodeString(
-				c.Data,
-			)
-			if err != nil {
-				textParts = append(textParts,
-					"[image decode error: "+err.Error()+"]",
-				)
-				continue
-			}
+		case *mcp.ImageContent:
+			// The SDK decodes base64 payloads during unmarshal, so
+			// Data is raw bytes.
 			if binaryResult == nil {
 				r := fantasy.ToolResponse{
 					Type:      "image",
-					Data:      data,
+					Data:      c.Data,
 					MediaType: c.MIMEType,
 					IsError:   result.IsError,
 				}
 				binaryResult = &r
 			}
-		case mcp.AudioContent:
-			data, err := base64.StdEncoding.DecodeString(
-				c.Data,
-			)
-			if err != nil {
-				textParts = append(textParts,
-					"[audio decode error: "+err.Error()+"]",
-				)
-				continue
-			}
+		case *mcp.AudioContent:
 			if binaryResult == nil {
 				r := fantasy.ToolResponse{
 					Type:      "media",
-					Data:      data,
+					Data:      c.Data,
 					MediaType: c.MIMEType,
 					IsError:   result.IsError,
 				}
 				binaryResult = &r
 			}
-		case mcp.EmbeddedResource:
-			// Embedded resources wrap either text or blob
-			// content from an MCP resource. We handle each
-			// variant so the LLM receives the content
-			// regardless of form.
-			switch r := c.Resource.(type) {
-			case mcp.TextResourceContents:
-				textParts = append(textParts, strings.ToValidUTF8(r.Text, "\uFFFD"))
-			case mcp.BlobResourceContents:
-				data, err := base64.StdEncoding.DecodeString(
-					r.Blob,
+		case *mcp.EmbeddedResource:
+			// Embedded resources wrap either text or blob content
+			// from an MCP resource. Exactly one of Text or Blob is
+			// set per the spec; a nil Blob means text content.
+			switch {
+			case c.Resource == nil:
+				textParts = append(textParts,
+					"[embedded resource with no contents]",
 				)
-				if err != nil {
-					textParts = append(textParts,
-						"[blob decode error: "+err.Error()+"]",
-					)
-					continue
-				}
+			case c.Resource.Blob != nil:
 				if binaryResult == nil {
 					blobType := "media"
-					if strings.HasPrefix(r.MIMEType, "image/") {
+					if strings.HasPrefix(c.Resource.MIMEType, "image/") {
 						blobType = "image"
 					}
 					res := fantasy.ToolResponse{
 						Type:      blobType,
-						Data:      data,
-						MediaType: r.MIMEType,
+						Data:      c.Resource.Blob,
+						MediaType: c.Resource.MIMEType,
 						IsError:   result.IsError,
 					}
 					binaryResult = &res
 				}
 			default:
-				textParts = append(textParts,
-					fmt.Sprintf(
-						"[unsupported embedded resource type: %T]",
-						c.Resource,
-					),
-				)
+				textParts = append(textParts, strings.ToValidUTF8(c.Resource.Text, "\uFFFD"))
 			}
-		case mcp.ResourceLink:
+		case *mcp.ResourceLink:
 			// Resource links point to content the LLM can
 			// reference by URI. Surface the URI so the model
 			// can use it in follow-ups.

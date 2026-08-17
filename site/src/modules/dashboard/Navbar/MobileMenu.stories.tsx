@@ -11,6 +11,22 @@ import {
 } from "#/testHelpers/entities";
 import { MobileMenu } from "./MobileMenu";
 
+const defaultProxyContextValue = {
+	latenciesLoaded: true,
+	proxy: {
+		preferredPathAppURL: "",
+		preferredWildcardHostname: "",
+		proxy: MockPrimaryWorkspaceProxy,
+	},
+	isLoading: false,
+	isFetched: true,
+	setProxy: fn(),
+	clearProxy: fn(),
+	refetchProxyLatencies: fn(),
+	proxyLatencies: MockProxyLatencies,
+	proxies: MockWorkspaceProxies,
+};
+
 const meta: Meta<typeof MobileMenu> = {
 	title: "modules/dashboard/MobileMenu",
 	parameters: {
@@ -21,21 +37,7 @@ const meta: Meta<typeof MobileMenu> = {
 	},
 	component: MobileMenu,
 	args: {
-		proxyContextValue: {
-			latenciesLoaded: true,
-			proxy: {
-				preferredPathAppURL: "",
-				preferredWildcardHostname: "",
-				proxy: MockPrimaryWorkspaceProxy,
-			},
-			isLoading: false,
-			isFetched: true,
-			setProxy: fn(),
-			clearProxy: fn(),
-			refetchProxyLatencies: fn(),
-			proxyLatencies: MockProxyLatencies,
-			proxies: MockWorkspaceProxies,
-		},
+		proxyContextValue: defaultProxyContextValue,
 		user: MockUserOwner,
 		supportLinks: MockSupportLinks,
 		onSignOut: fn(),
@@ -102,6 +104,53 @@ export const ProxySettings: Story = {
 			name: /workspace proxy settings/i,
 		});
 		await user.click(menuItem);
+	},
+};
+
+export const ProxyWarningLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockPrimaryWorkspaceProxy.id]: {
+					accurate: true,
+					latencyMS: 224,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ProxyCriticalLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockPrimaryWorkspaceProxy.id]: {
+					accurate: true,
+					latencyMS: 471,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ProxyNoLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: Object.fromEntries(
+				Object.entries(MockProxyLatencies).filter(
+					([id]) => id !== MockPrimaryWorkspaceProxy.id,
+				),
+			),
+		},
 	},
 };
 

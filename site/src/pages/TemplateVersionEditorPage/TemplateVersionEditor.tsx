@@ -223,7 +223,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<TopbarIconButton asChild>
-									<RouterLink to={templateLink}>
+									<RouterLink
+										to={templateLink}
+										aria-label="Back to the template"
+									>
 										<ChevronLeftIcon />
 									</RouterLink>
 								</TopbarIconButton>
@@ -324,7 +327,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
 					<Sidebar>
 						<div className="h-[42px] py-0 pr-2 pl-4 flex items-center">
-							<span className="text-content-primary text-[13px]">Files</span>
+							<span className="text-content-primary text-sm">Files</span>
 
 							<div className="ml-auto [&_svg]:fill-content-primary">
 								<Tooltip>

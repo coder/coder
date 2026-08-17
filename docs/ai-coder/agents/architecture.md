@@ -93,8 +93,9 @@ from the model's context window. This happens transparently and keeps
 long-running sessions productive.
 
 You can also trigger a compaction on demand by sending `/compact` while the
-agent is idle. Manual compaction runs the same summarization regardless of
-current token usage and is labeled as manual in the conversation.
+agent is idle or in an error state, which clears the error. Manual compaction
+runs the same summarization regardless of current token usage and is labeled
+as manual in the conversation.
 
 ### Message queuing
 

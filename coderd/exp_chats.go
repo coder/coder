@@ -357,7 +357,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; quote multi-word values; cannot be combined with title, pr_title, or pr). Bare terms are not supported; use `title:<value>` or `search:<value>`."
+// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]
@@ -379,28 +379,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 			Validations: errs,
 		})
 		return
-	}
-
-	// Reject text that tokenizes to nothing; it would silently match no rows.
-	if searchParams.Search != "" {
-		isEmpty, err := api.Database.ChatSearchQueryIsEmpty(ctx, searchParams.Search)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate search query.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if isEmpty {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid chat search query.",
-				Validations: []codersdk.ValidationError{{
-					Field:  "search",
-					Detail: "Search query contains no searchable words.",
-				}},
-			})
-			return
-		}
 	}
 
 	var labelFilter pqtype.NullRawMessage
@@ -520,27 +498,45 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	sdkChats := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
-	api.enrichChatWithWorkspaceAgentIDs(ctx, sdkChats)
+	api.enrichChatsWithMissingAgentIDs(ctx, sdkChats)
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
 }
 
-// enrichChatWithWorkspaceAgentIDs fills missing AgentIDs for chats with a bound
-// workspace, since chatd persists the binding lazily. Best-effort and
-// response-only; on error the field stays null.
-func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []codersdk.Chat) {
-	missingChats := make([]*codersdk.Chat, 0, len(chats))
+// enrichChatsWithMissingAgentIDs skips existing bindings on list reads to avoid
+// one authorization check per bound workspace.
+func (api *API) enrichChatsWithMissingAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	api.enrichChatAgentIDs(ctx, chats, func(chat *codersdk.Chat) bool {
+		return chat.AgentID == nil
+	})
+}
+
+// repairChatAgentIDs handles stale bindings left by workspace rebuilds. List
+// reads skip this work to avoid authorization checks for bound workspaces.
+func (api *API) repairChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	api.enrichChatAgentIDs(ctx, chats, func(*codersdk.Chat) bool {
+		return true
+	})
+}
+
+// enrichChatAgentIDs performs best-effort response-only updates.
+func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat, shouldEnrich func(*codersdk.Chat) bool) {
+	candidateChats := make([]*codersdk.Chat, 0, len(chats))
 	var workspaceIDs []uuid.UUID
-	addMissing := func(chat *codersdk.Chat) {
-		if chat.AgentID == nil && chat.WorkspaceID != nil {
-			missingChats = append(missingChats, chat)
-			workspaceIDs = append(workspaceIDs, *chat.WorkspaceID)
+	addCandidate := func(chat *codersdk.Chat) {
+		if chat.WorkspaceID == nil || !shouldEnrich(chat) {
+			return
 		}
+		candidateChats = append(candidateChats, chat)
+		workspaceIDs = append(workspaceIDs, *chat.WorkspaceID)
 	}
 	for i := range chats {
-		addMissing(&chats[i])
+		addCandidate(&chats[i])
 		for j := range chats[i].Children {
-			addMissing(&chats[i].Children[j])
+			addCandidate(&chats[i].Children[j])
 		}
+	}
+	if len(candidateChats) == 0 {
+		return
 	}
 
 	slices.SortFunc(workspaceIDs, func(a, b uuid.UUID) int {
@@ -553,8 +549,10 @@ func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []cod
 	}
 
 	agentsByWorkspace := make(map[uuid.UUID][]database.WorkspaceAgent)
+	latestBuildIDs := make(map[uuid.UUID]uuid.UUID)
 	for _, row := range rows {
 		agentsByWorkspace[row.WorkspaceID] = append(agentsByWorkspace[row.WorkspaceID], row.WorkspaceAgent)
+		latestBuildIDs[row.WorkspaceID] = row.BuildID
 	}
 	agentIDs := make(map[uuid.UUID]uuid.UUID, len(agentsByWorkspace))
 	for workspaceID, agents := range agentsByWorkspace {
@@ -566,10 +564,22 @@ func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []cod
 		agentIDs[workspaceID] = agent.ID
 	}
 
-	for _, chat := range missingChats {
+	for _, chat := range candidateChats {
+		// Preserve bindings that still resolve in the latest build instead
+		// of replacing them with the selected agent.
+		if chat.AgentID != nil && slices.ContainsFunc(
+			agentsByWorkspace[*chat.WorkspaceID],
+			func(agent database.WorkspaceAgent) bool { return agent.ID == *chat.AgentID },
+		) {
+			continue
+		}
 		if agentID, ok := agentIDs[*chat.WorkspaceID]; ok {
 			id := agentID
 			chat.AgentID = &id
+			// Pair the agent with its build so the response never mixes
+			// the latest build's agent with a previous build's ID.
+			buildID := latestBuildIDs[*chat.WorkspaceID]
+			chat.BuildID = &buildID
 		}
 	}
 }
@@ -1304,7 +1314,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	contentBlocks, titleSource, fileIDs, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
 		return
@@ -1465,6 +1475,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
 			return
 		}
+		if writeChatFileError(ctx, rw, err) {
+			return
+		}
 		if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid model config ID.",
@@ -1504,25 +1517,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	linkFileIDs := fileIDs
-	if len(fileIDs) > 0 {
-		initialUser, err := api.Database.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
-			ChatID: chat.ID,
-			Role:   database.ChatMessageRoleUser,
-		})
-		if err != nil {
-			api.Logger.Warn(ctx, "load initial message for file linking",
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			)
-		} else {
-			linkFileIDs = api.linkedFileIDsFromContent(ctx, initialUser, fileIDs)
-		}
-	}
-	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, linkFileIDs)
-
-	// Re-read the chat so the response reflects the authoritative
-	// database state (file links are deduped in the join table).
 	chat, err = api.Database.GetChatByID(ctx, chat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1541,13 +1535,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
-	if len(unlinked) > 0 {
-		if capExceeded {
-			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
-		} else {
-			response.Warnings = append(response.Warnings, fileLinkErrorWarning(len(unlinked)))
-		}
-	}
 	httpapi.Write(ctx, rw, http.StatusCreated, response)
 }
 
@@ -1684,7 +1671,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	enriched := []codersdk.Chat{sdkChat}
-	api.enrichChatWithWorkspaceAgentIDs(ctx, enriched)
+	api.repairChatAgentIDs(ctx, enriched)
 	sdkChat = enriched[0]
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
@@ -2731,7 +2718,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, fileIDs, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -2831,6 +2818,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		if writeChatHookErr(ctx, rw, sendErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
+		if writeChatFileError(ctx, rw, sendErr) {
+			return
+		}
 		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot send messages to an archived chat.",
@@ -2882,19 +2872,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	linkFileIDs := fileIDs
-	if sendResult.Queued {
-		if sendResult.QueuedMessage != nil {
-			linkFileIDs = api.linkedFileIDsFromContent(ctx, database.ChatMessage{
-				Role:           database.ChatMessageRoleUser,
-				ContentVersion: chatprompt.CurrentContentVersion,
-				Content:        pqtype.NullRawMessage{RawMessage: sendResult.QueuedMessage.Content, Valid: true},
-			}, fileIDs)
-		}
-	} else {
-		linkFileIDs = api.linkedFileIDsFromContent(ctx, sendResult.Message, fileIDs)
-	}
-	unlinked, capExceeded := api.linkFilesToChat(ctx, chatID, linkFileIDs)
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
@@ -2911,13 +2888,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		response.Messages = append(response.Messages, convertChatMessage(inserted))
-	}
-	if len(unlinked) > 0 {
-		if capExceeded {
-			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
-		} else {
-			response.Warnings = append(response.Warnings, fileLinkErrorWarning(len(unlinked)))
-		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -2982,7 +2952,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, fileIDs, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -3016,6 +2986,9 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	})
 	if editErr != nil {
 		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
+			return
+		}
+		if writeChatFileError(ctx, rw, editErr) {
 			return
 		}
 
@@ -3059,7 +3032,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, api.linkedFileIDsFromContent(ctx, editResult.Message, fileIDs))
 	response := codersdk.EditChatMessageResponse{Message: convertChatMessage(editResult.Message)}
 	// Synthetic cancellations precede the replacement with lower IDs;
 	// clients that seed their transcript cache from this response need
@@ -3072,13 +3044,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		response.Messages = append(response.Messages, convertChatMessage(inserted))
 	}
 	response.DeletedMessageIDs = editResult.DeletedMessageIDs
-	if len(unlinked) > 0 {
-		if capExceeded {
-			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
-		} else {
-			response.Warnings = append(response.Warnings, fileLinkErrorWarning(len(unlinked)))
-		}
-	}
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
@@ -3455,9 +3420,10 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/experimental/chats/{chat}/compact [post]
 // @x-apidocgen {"skip": true}
 // @Description Experimental: this endpoint is subject to change.
-// @Description Requests a manual context compaction on an idle chat. The
-// @Description compaction runs asynchronously through the chat worker and
-// @Description bypasses the automatic usage threshold.
+// @Description Requests a manual context compaction on an idle or errored
+// @Description chat, clearing any stored error. The compaction runs
+// @Description asynchronously through the chat worker and bypasses the
+// @Description automatic usage threshold.
 func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -3498,12 +3464,9 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 				Detail:  "The chat has no conversation to summarize after the latest compaction.",
 			})
 		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
-			// Covers every non-waiting state: running, interrupting,
-			// requires-action, and error. "Busy" would misdescribe an
-			// errored chat, so keep the message state-neutral.
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Cannot compact the chat in its current state.",
-				Detail:  "Compaction is only available while the chat is idle.",
+				Detail:  "Compaction is not available while the chat is generating.",
 			})
 		default:
 			logger.Error(ctx, "failed to compact chat", slog.Error(err))
@@ -6026,12 +5989,11 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (
 	[]codersdk.ChatMessagePart,
 	string,
-	[]uuid.UUID,
 	*codersdk.Response,
 ) {
-	content, pasteData, fileIDs, inputError := createChatInputFromParts(ctx, db, req.Content, "content")
+	content, pasteData, inputError := createChatInputFromParts(ctx, db, req.Content, "content")
 	if inputError != nil {
-		return nil, "", nil, inputError
+		return nil, "", inputError
 	}
 	// Derive titleSource through the same chatprompt.TitleText used at
 	// generation time; auto-titling gates on that equality. Paste blobs
@@ -6044,7 +6006,7 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 		}
 		titleSource = chatprompt.TitleText(content, pasteText)
 	}
-	return content, titleSource, fileIDs, nil
+	return content, titleSource, nil
 }
 
 // createChatInputFromParts validates input parts and converts them to
@@ -6056,15 +6018,14 @@ func createChatInputFromParts(
 	db database.Store,
 	parts []codersdk.ChatInputPart,
 	fieldName string,
-) ([]codersdk.ChatMessagePart, map[uuid.UUID][]byte, []uuid.UUID, *codersdk.Response) {
+) ([]codersdk.ChatMessagePart, map[uuid.UUID][]byte, *codersdk.Response) {
 	if len(parts) == 0 {
-		return nil, nil, nil, &codersdk.Response{
+		return nil, nil, &codersdk.Response{
 			Message: "Content is required.",
 			Detail:  "Content cannot be empty.",
 		}
 	}
 
-	var fileIDs []uuid.UUID
 	content := make([]codersdk.ChatMessagePart, 0, len(parts))
 	var pasteData map[uuid.UUID][]byte
 	for i, part := range parts {
@@ -6072,7 +6033,7 @@ func createChatInputFromParts(
 		case string(codersdk.ChatInputPartTypeText):
 			text := strings.TrimSpace(part.Text)
 			if text == "" {
-				return nil, nil, nil, &codersdk.Response{
+				return nil, nil, &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].text cannot be empty.", fieldName, i),
 				}
@@ -6080,7 +6041,7 @@ func createChatInputFromParts(
 			content = append(content, codersdk.ChatMessageText(text))
 		case string(codersdk.ChatInputPartTypeFile):
 			if part.FileID == uuid.Nil {
-				return nil, nil, nil, &codersdk.Response{
+				return nil, nil, &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
 				}
@@ -6092,24 +6053,23 @@ func createChatInputFromParts(
 			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
 			if err != nil {
 				if httpapi.Is404Error(err) {
-					return nil, nil, nil, &codersdk.Response{
+					return nil, nil, &codersdk.Response{
 						Message: "Invalid input part.",
 						Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, i),
 					}
 				}
-				return nil, nil, nil, &codersdk.Response{
+				return nil, nil, &codersdk.Response{
 					Message: "Internal error.",
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
 				}
 			}
 			if !chatfiles.IsAllowedPromptInputMediaType(chatFile.Mimetype) {
-				return nil, nil, nil, &codersdk.Response{
+				return nil, nil, &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].file_id references a file type that cannot be used as prompt input. Allowed types: %s.", fieldName, i, chatfiles.AllowedPromptInputMediaTypesString()),
 				}
 			}
 			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
-			fileIDs = append(fileIDs, part.FileID)
 			// Retain blob references for create-time title derivation;
 			// send and edit paths discard the map.
 			if chatprompt.IsSyntheticPaste(chatFile.Name, chatFile.Mimetype) {
@@ -6122,14 +6082,14 @@ func createChatInputFromParts(
 		// files. They have no FileID and are excluded from file tracking.
 		case string(codersdk.ChatInputPartTypeFileReference):
 			if part.FileName == "" {
-				return nil, nil, nil, &codersdk.Response{
+				return nil, nil, &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].file_name cannot be empty for file-reference.", fieldName, i),
 				}
 			}
 			content = append(content, codersdk.ChatMessageFileReference(part.FileName, part.StartLine, part.EndLine, part.Content))
 		default:
-			return nil, nil, nil, &codersdk.Response{
+			return nil, nil, &codersdk.Response{
 				Message: "Invalid input part.",
 				Detail: fmt.Sprintf(
 					"%s[%d].type %q is not supported.",
@@ -6142,84 +6102,30 @@ func createChatInputFromParts(
 	}
 
 	if len(content) == 0 {
-		return nil, nil, nil, &codersdk.Response{
+		return nil, nil, &codersdk.Response{
 			Message: "Content is required.",
 			Detail:  fmt.Sprintf("%s must include at least one text or file part.", fieldName),
 		}
 	}
-	return content, pasteData, fileIDs, nil
+	return content, pasteData, nil
 }
 
-// A prompt override may remove file parts, so derive links from persisted
-// content. Fall back to request IDs if parsing fails.
-func (api *API) linkedFileIDsFromContent(ctx context.Context, msg database.ChatMessage, requestFileIDs []uuid.UUID) []uuid.UUID {
-	if len(requestFileIDs) == 0 {
-		return nil
+func writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	switch {
+	case errors.Is(err, chatstate.ErrChatFileCapExceeded):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat attachment limit reached.",
+			Detail:  fmt.Sprintf("A chat can reference at most %d attachments. Remove some attachments or start a new chat.", codersdk.MaxChatFileIDs),
+		})
+	case errors.Is(err, chatstate.ErrChatFileUnavailable):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat attachment unavailable.",
+			Detail:  "An attachment is no longer available. Upload it again and retry.",
+		})
+	default:
+		return false
 	}
-	parts, err := chatprompt.ParseContent(msg)
-	if err != nil {
-		api.Logger.Warn(ctx, "parse persisted message for file linking",
-			slog.F("message_id", msg.ID),
-			slog.Error(err),
-		)
-		return requestFileIDs
-	}
-	var ids []uuid.UUID
-	for _, part := range parts {
-		if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid {
-			ids = append(ids, part.FileID.UUID)
-		}
-	}
-	return ids
-}
-
-// linkFilesToChat inserts file-link rows into the chat_file_links
-// join table. Cap enforcement and dedup are handled atomically in
-// SQL. On success returns (nil, false). On failure returns the full
-// input fileIDs slice — linking is all-or-nothing because the
-// SQL operates on the batch atomically. capExceeded indicates
-// whether the failure was due to the cap being exceeded (true)
-// or a database error (false).
-// Failures are logged but never block the caller.
-func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) (unlinked []uuid.UUID, capExceeded bool) {
-	if len(fileIDs) == 0 {
-		return nil, false
-	}
-	rejected, err := api.Database.LinkChatFiles(ctx, database.LinkChatFilesParams{
-		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-		FileIds:      fileIDs,
-	})
-	if err != nil {
-		api.Logger.Error(ctx, "failed to link files to chat",
-			slog.F("chat_id", chatID),
-			slog.F("file_ids", fileIDs),
-			slog.Error(err),
-		)
-		return fileIDs, false
-	}
-	if rejected > 0 {
-		api.Logger.Warn(ctx, "file cap reached, files not linked",
-			slog.F("chat_id", chatID),
-			slog.F("file_ids", fileIDs),
-			slog.F("max_file_links", codersdk.MaxChatFileIDs),
-		)
-		return fileIDs, true
-	}
-	return nil, false
-}
-
-// fileLinkCapWarning builds a user-facing warning when a batch
-// of file IDs was atomically rejected because the resulting
-// array would exceed the per-chat file cap.
-func fileLinkCapWarning(count int) string {
-	return fmt.Sprintf("file linking skipped: batch of %d file(s) would exceed limit of %d", count, codersdk.MaxChatFileIDs)
-}
-
-// fileLinkErrorWarning builds a user-facing warning when a
-// database error prevented linking files to a chat.
-func fileLinkErrorWarning(count int) string {
-	return fmt.Sprintf("%d file(s) could not be linked due to a server error", count)
+	return true
 }
 
 // fetchChatFileMetadata returns metadata for all files linked to
@@ -6567,7 +6473,7 @@ func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model 
 		return &chatModelConfigProviderModelError{
 			Response: codersdk.Response{
 				Message: "OpenRouter-like provider configured as type openai does not support slash-namespaced models.",
-				Detail:  "Change the AI provider type to openrouter or openai-compat. The openai type strips the vendor prefix from slash-namespaced model IDs, routing to the wrong upstream provider.",
+				Detail:  "Change the AI provider type to openrouter or openai-compat. Slash-namespaced model IDs on OpenRouter-like gateways require one of those provider types.",
 			},
 		}
 	}
