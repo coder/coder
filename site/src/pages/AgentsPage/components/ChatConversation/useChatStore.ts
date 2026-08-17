@@ -423,14 +423,10 @@ export const useChatStore = (
 		let historyResetPending = false;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
-		// Latch set when the stream delivers an authoritative "waiting"
-		// status, cleared on any other stream status. A part arriving
-		// while the latch is set belongs to an episode the server already
-		// closed (closed episodes drain for up to 15s server-side) and is
-		// dropped; a REST-hydrated "waiting" never sets the latch, so
-		// parts still flow when the REST status lags a live turn. An
-		// optimistic status write carries no liveness signal; only a
-		// stream status event clears the latch.
+		// Set when the stream reports "waiting", cleared by any other
+		// stream status. While set, parts are dropped: they are late
+		// leftovers from the finished turn. REST and optimistic
+		// statuses never set it, because they can lag a live turn.
 		let streamReportedWaiting = false;
 
 		const shouldKeepMessagePart = (): boolean => !streamReportedWaiting;
