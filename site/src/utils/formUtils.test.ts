@@ -1,11 +1,6 @@
 import type { FormikContextType } from "formik/dist/types";
 import { mockApiError } from "#/testHelpers/entities";
-import {
-	getFormHelpers,
-	isHttpUrl,
-	nameValidator,
-	onChangeTrimmed,
-} from "./formUtils";
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "./formUtils";
 
 interface TestType {
 	untouchedGoodField: string;
@@ -163,33 +158,6 @@ describe("form util functions", () => {
 			expect(mockHandleChange).toHaveBeenCalledWith({
 				target: { value: "hello" },
 			});
-		});
-	});
-
-	describe("isHttpUrl", () => {
-		it.each([
-			"http://localai:8080/v1",
-			"https://api.example.com",
-			"http://localhost:3000",
-			"https://example.com/path?query=1",
-		])("accepts %s", (value) => {
-			expect(isHttpUrl(value)).toBe(true);
-		});
-
-		it.each([
-			"ftp://x",
-			"javascript:alert(1)",
-			"not-a-url",
-			"",
-			undefined,
-			// Scheme-shorthand forms WHATWG normalizes but Go net/url rejects.
-			"http:localai:8080/v1",
-			"http:foo",
-			"http:8080",
-			"http:/foo",
-			"http:///v1",
-		])("rejects %s", (value) => {
-			expect(isHttpUrl(value)).toBe(false);
 		});
 	});
 

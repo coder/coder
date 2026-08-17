@@ -26,7 +26,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { docs } from "#/utils/docs";
-import { getFormHelpers, isHttpUrl } from "#/utils/formUtils";
+import { getFormHelpers } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
 
 export type ProviderFormValues = {
@@ -165,14 +165,8 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
 		icon: Yup.string(),
-		baseUrl: Yup.string()
-			.trim()
-			.required("Endpoint is required")
-			.test(
-				"http-url",
-				"Endpoint must be an http or https URL (e.g. https://api.example.com/).",
-				isHttpUrl,
-			),
+		// URL shape is validated by the backend; the form only checks presence.
+		baseUrl: Yup.string().required("Endpoint is required"),
 		apiKey: editing
 			? Yup.string()
 			: Yup.string().required("API key is required"),
@@ -259,14 +253,8 @@ const makeCopilotSchema = (editing: boolean) =>
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
 		icon: Yup.string(),
-		baseUrl: Yup.string()
-			.trim()
-			.required("Endpoint is required")
-			.test(
-				"http-url",
-				"Endpoint must be an http or https URL (e.g. https://api.example.com/).",
-				isHttpUrl,
-			),
+		// URL shape is validated by the backend; the form only checks presence.
+		baseUrl: Yup.string().required("Endpoint is required"),
 		enabled: Yup.boolean(),
 	});
 
