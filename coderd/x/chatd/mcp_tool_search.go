@@ -6,10 +6,12 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -19,6 +21,47 @@ type deferredMCPTool struct {
 	tool              fantasy.AgentTool
 	server            string
 	serverDescription string
+}
+
+type deferredMCPCandidateInput struct {
+	mcpTools              []fantasy.AgentTool
+	workspaceMCPTools     []fantasy.AgentTool
+	mcpConfigByID         map[uuid.UUID]database.MCPServerConfig
+	planMode              database.NullChatPlanMode
+	parentChatID          uuid.NullUUID
+	approvedMCPConfigIDs  map[uuid.UUID]struct{}
+	includeWorkspaceTools bool
+}
+
+// collectDeferredMCPCandidates applies the same turn policy that
+// filterToolsForTurn later applies to the executable tool set, so the
+// find_tools catalog never advertises tools the turn cannot run.
+func collectDeferredMCPCandidates(input deferredMCPCandidateInput) []deferredMCPTool {
+	candidates := make([]deferredMCPTool, 0, len(input.mcpTools)+len(input.workspaceMCPTools))
+	for _, tool := range input.mcpTools {
+		if !toolAllowedForTurn(tool, input.planMode, input.parentChatID, input.approvedMCPConfigIDs) {
+			continue
+		}
+		candidate := deferredMCPTool{tool: tool}
+		if identified, ok := tool.(mcpclient.MCPToolIdentifier); ok {
+			if config, exists := input.mcpConfigByID[identified.MCPServerConfigID()]; exists {
+				candidate.server = config.Slug
+				candidate.serverDescription = config.Description
+			}
+		}
+		candidates = append(candidates, candidate)
+	}
+	if !input.includeWorkspaceTools {
+		return candidates
+	}
+	for _, tool := range input.workspaceMCPTools {
+		if !toolAllowedForTurn(tool, input.planMode, input.parentChatID, input.approvedMCPConfigIDs) {
+			continue
+		}
+		serverName, _, _ := strings.Cut(tool.Info().Name, "__")
+		candidates = append(candidates, deferredMCPTool{tool: tool, server: serverName})
+	}
+	return candidates
 }
 
 type mcpToolSearchDecision struct {

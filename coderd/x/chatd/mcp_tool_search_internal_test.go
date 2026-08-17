@@ -116,6 +116,50 @@ type deferredExternalTestTool struct {
 
 func (t deferredExternalTestTool) MCPServerConfigID() uuid.UUID { return t.configID }
 
+func TestCollectDeferredMCPCandidates(t *testing.T) {
+	t.Parallel()
+	approvedID := uuid.New()
+	unapprovedID := uuid.New()
+	external := deferredExternalTestTool{
+		deferredTestAgentTool: deferredTestAgentTool{info: fantasy.ToolInfo{Name: "github__create_issue"}},
+		configID:              approvedID,
+	}
+	unapproved := deferredExternalTestTool{
+		deferredTestAgentTool: deferredTestAgentTool{info: fantasy.ToolInfo{Name: "linear__create_issue"}},
+		configID:              unapprovedID,
+	}
+	workspace := deferredTestAgentTool{info: fantasy.ToolInfo{Name: "everything__echo"}}
+	input := deferredMCPCandidateInput{
+		mcpTools:              []fantasy.AgentTool{external, unapproved},
+		workspaceMCPTools:     []fantasy.AgentTool{workspace},
+		mcpConfigByID:         map[uuid.UUID]database.MCPServerConfig{approvedID: {Slug: "github", Description: "GitHub"}},
+		approvedMCPConfigIDs:  map[uuid.UUID]struct{}{approvedID: {}},
+		includeWorkspaceTools: true,
+	}
+
+	names := func(candidates []deferredMCPTool) []string {
+		out := make([]string, 0, len(candidates))
+		for _, candidate := range candidates {
+			out = append(out, candidate.tool.Info().Name)
+		}
+		return out
+	}
+
+	all := collectDeferredMCPCandidates(input)
+	require.Equal(t, []string{"github__create_issue", "linear__create_issue", "everything__echo"}, names(all))
+	require.Equal(t, "github", all[0].server)
+	require.Equal(t, "everything", all[2].server)
+
+	planInput := input
+	planInput.planMode = database.NullChatPlanMode{Valid: true, ChatPlanMode: database.ChatPlanModePlan}
+	require.Equal(t, []string{"github__create_issue"}, names(collectDeferredMCPCandidates(planInput)),
+		"plan mode keeps only approved external tools, matching filterToolsForTurn")
+
+	noWorkspace := input
+	noWorkspace.includeWorkspaceTools = false
+	require.Equal(t, []string{"github__create_issue", "linear__create_issue"}, names(collectDeferredMCPCandidates(noWorkspace)))
+}
+
 func TestConfigureDeferredMCPToolSearchGenerationFlows(t *testing.T) {
 	t.Parallel()
 

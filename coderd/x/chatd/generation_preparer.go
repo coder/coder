@@ -534,26 +534,17 @@ func (server *Server) prepareGeneration(
 	for _, config := range mcpConnectConfigs {
 		mcpConfigByID[config.ID] = config
 	}
-	deferredCandidates := make([]deferredMCPTool, 0, len(mcpTools)+len(workspaceMCPTools))
-	for _, tool := range mcpTools {
-		if !toolAllowedForTurn(tool, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs) {
-			continue
-		}
-		candidate := deferredMCPTool{tool: tool}
-		if identified, ok := tool.(mcpclient.MCPToolIdentifier); ok {
-			if config, exists := mcpConfigByID[identified.MCPServerConfigID()]; exists {
-				candidate.server = config.Slug
-				candidate.serverDescription = config.Description
-			}
-		}
-		deferredCandidates = append(deferredCandidates, candidate)
-	}
+	deferredCandidates := collectDeferredMCPCandidates(deferredMCPCandidateInput{
+		mcpTools:              mcpTools,
+		workspaceMCPTools:     workspaceMCPTools,
+		mcpConfigByID:         mcpConfigByID,
+		planMode:              currentPlanMode,
+		parentChatID:          chat.ParentChatID,
+		approvedMCPConfigIDs:  approvedPlanMCPConfigIDs,
+		includeWorkspaceTools: !isExploreSubagent,
+	})
 	tools = append(tools, mcpTools...)
 	if !isExploreSubagent {
-		for _, tool := range workspaceMCPTools {
-			serverName, _, _ := strings.Cut(tool.Info().Name, "__")
-			deferredCandidates = append(deferredCandidates, deferredMCPTool{tool: tool, server: serverName})
-		}
 		tools = append(tools, workspaceMCPTools...)
 	}
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
