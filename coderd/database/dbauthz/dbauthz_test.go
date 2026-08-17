@@ -2352,9 +2352,14 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(arg).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
 	}))
 	s.Run("InsertOrganization", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertOrganizationParams{ID: uuid.New(), Name: "new-org"}
+		// DefaultOrgMemberRoles applies to every member of the org, so
+		// canAssignRoles fires alongside the ActionCreate check.
+		arg := database.InsertOrganizationParams{ID: uuid.New(), Name: "new-org", DefaultOrgMemberRoles: []string{codersdk.RoleOrganizationAdmin}}
 		dbm.EXPECT().InsertOrganization(gomock.Any(), arg).Return(database.Organization{ID: arg.ID, Name: arg.Name}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceOrganization, policy.ActionCreate)
+		check.Args(arg).Asserts(
+			rbac.ResourceAssignOrgRole.InOrg(arg.ID), policy.ActionAssign,
+			rbac.ResourceOrganization, policy.ActionCreate,
+		)
 	}))
 	s.Run("UpdateOrganizationWorkspaceSharingSettings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})

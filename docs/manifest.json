@@ -1947,6 +1947,11 @@
 							"path": "reference/cli/organizations_settings_set.md"
 						},
 						{
+							"title": "organizations settings set default-org-member-roles",
+							"description": "Roles granted to every member of the organization.",
+							"path": "reference/cli/organizations_settings_set_default-org-member-roles.md"
+						},
+						{
 							"title": "organizations settings set group-sync",
 							"description": "Group sync settings to sync groups from an IdP.",
 							"path": "reference/cli/organizations_settings_set_group-sync.md"
@@ -1970,6 +1975,11 @@
 							"title": "organizations settings show",
 							"description": "Outputs specified organization setting.",
 							"path": "reference/cli/organizations_settings_show.md"
+						},
+						{
+							"title": "organizations settings show default-org-member-roles",
+							"description": "Roles granted to every member of the organization.",
+							"path": "reference/cli/organizations_settings_show_default-org-member-roles.md"
 						},
 						{
 							"title": "organizations settings show group-sync",

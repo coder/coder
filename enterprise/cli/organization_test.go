@@ -372,4 +372,58 @@ func TestCreateOrganizationDefaultMemberRoles(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, rbac.DefaultOrgMemberRoles(), org.DefaultOrgMemberRoles)
 	})
+
+	t.Run("CommaSeparatedAndRepeated", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organizations", "create", "new-org", "-y",
+			"--default-org-member-roles", codersdk.RoleOrganizationTemplateAdmin+", "+codersdk.RoleOrganizationAuditor,
+			"--default-org-member-roles", codersdk.RoleOrganizationWorkspaceAccess)
+		//nolint:gocritic // only owners can create orgs
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = new(bytes.Buffer)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		//nolint:gocritic // only owners can read all orgs
+		org, err := client.OrganizationByName(ctx, "new-org")
+		require.NoError(t, err)
+		require.Equal(t, []string{
+			codersdk.RoleOrganizationTemplateAdmin,
+			codersdk.RoleOrganizationAuditor,
+			codersdk.RoleOrganizationWorkspaceAccess,
+		}, org.DefaultOrgMemberRoles)
+	})
+
+	t.Run("EmptyRoleNameRejected", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organizations", "create", "new-org", "-y",
+			"--default-org-member-roles", codersdk.RoleOrganizationTemplateAdmin+",")
+		//nolint:gocritic // only owners can create orgs
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = new(bytes.Buffer)
+
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "empty role name")
+	})
 }

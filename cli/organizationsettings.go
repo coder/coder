@@ -67,18 +67,31 @@ func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent
 		},
 		{
 			Name:    "default-org-member-roles",
-			Aliases: []string{"defaultorgmemberroles", "default-member-roles"},
+			Aliases: []string{"defaultorgmemberroles"},
 			Short:   "Roles granted to every member of the organization.",
 			Patch: func(ctx context.Context, cli *codersdk.Client, org uuid.UUID, input json.RawMessage) (any, error) {
-				var req codersdk.UpdateOrganizationRequest
+				var req defaultOrgMemberRolesSettings
 				err := json.Unmarshal(input, &req)
 				if err != nil {
 					return nil, xerrors.Errorf("unmarshalling default organization member roles: %w", err)
 				}
-				return cli.UpdateOrganization(ctx, org.String(), req)
+				if req.DefaultOrgMemberRoles == nil {
+					return nil, xerrors.New(`missing "default_org_member_roles"; pass an array of role names, or [] to grant no roles`)
+				}
+				updated, err := cli.UpdateOrganization(ctx, org.String(), codersdk.UpdateOrganizationRequest{
+					DefaultOrgMemberRoles: req.DefaultOrgMemberRoles,
+				})
+				if err != nil {
+					return nil, err
+				}
+				return defaultOrgMemberRolesSettings{DefaultOrgMemberRoles: &updated.DefaultOrgMemberRoles}, nil
 			},
 			Fetch: func(ctx context.Context, cli *codersdk.Client, org uuid.UUID) (any, error) {
-				return cli.Organization(ctx, org)
+				organization, err := cli.Organization(ctx, org)
+				if err != nil {
+					return nil, err
+				}
+				return defaultOrgMemberRolesSettings{DefaultOrgMemberRoles: &organization.DefaultOrgMemberRoles}, nil
 			},
 		},
 		{
@@ -111,6 +124,13 @@ func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent
 		},
 	}
 	return cmd
+}
+
+// defaultOrgMemberRolesSettings is the payload of the
+// default-org-member-roles setting. The pointer distinguishes an absent
+// field from an empty list, which grants no roles.
+type defaultOrgMemberRolesSettings struct {
+	DefaultOrgMemberRoles *[]string `json:"default_org_member_roles"`
 }
 
 type organizationSetting struct {

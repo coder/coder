@@ -11,7 +11,6 @@ Roles granted to every member of the organization.
 Aliases:
 
 * defaultorgmemberroles
-* default-member-roles
 
 ## Usage
 

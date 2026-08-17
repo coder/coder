@@ -22,7 +22,7 @@ coder organizations create [flags] <organization name>
 |------|---------------------------|
 | Type | <code>string-array</code> |
 
-Roles granted to every member of the organization. Pass an empty string to grant no roles.
+Roles granted to every member of the organization. Accepts a comma-separated list and may be repeated. Defaults to organization-workspace-access. Pass an empty value (--default-org-member-roles="") to grant no roles.
 
 ### -y, --yes
 
