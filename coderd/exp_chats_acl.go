@@ -91,6 +91,7 @@ func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.UpdateChatACL true "Update chat ACL request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/experimental/chats/{chat}/acl [patch]
 // @x-apidocgen {"skip": true}
 // @Description Experimental: this endpoint is subject to change.

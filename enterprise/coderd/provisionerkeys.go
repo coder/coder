@@ -25,6 +25,7 @@ import (
 // @Tags Enterprise
 // @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.CreateProvisionerKeyResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization}/provisionerkeys [post]
 func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

@@ -30,6 +30,7 @@ import (
 // @Param organization path string true "Organization ID or name"
 // @Param request body codersdk.UpdateOrganizationRequest true "Patch organization request"
 // @Success 200 {object} codersdk.Organization
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization} [patch]
 func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -242,6 +243,7 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Tags Organizations
 // @Param request body codersdk.CreateOrganizationRequest true "Create organization request"
 // @Success 201 {object} codersdk.Organization
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations [post]
 func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	var (

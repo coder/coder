@@ -61,6 +61,7 @@ func (api *API) notificationsSettings(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.NotificationsSettings true "Notifications settings request"
 // @Success 200 {object} codersdk.NotificationsSettings
 // @Success 304
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/notifications/settings [put]
 func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -276,6 +277,7 @@ func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Requ
 // @Param request body codersdk.UpdateUserNotificationPreferences true "Preferences"
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {array} codersdk.NotificationPreference
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/notifications/preferences [put]
 func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -352,6 +354,7 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 // @Success 204 "No Content"
 // @Failure 400 {object} codersdk.Response "Invalid request body"
 // @Failure 403 {object} codersdk.Response "System users cannot send custom notifications"
+// @Failure 413 {object} codersdk.Response
 // @Failure 500 {object} codersdk.Response "Failed to send custom notification"
 // @Router /api/v2/notifications/custom [post]
 func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) {

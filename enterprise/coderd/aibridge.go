@@ -675,6 +675,7 @@ func validAISpendLimit(ctx context.Context, rw http.ResponseWriter, spendLimitMi
 // @Param group path string true "Group ID" format(uuid)
 // @Param request body codersdk.UpsertGroupAIBudgetRequest true "Upsert group AI budget request"
 // @Success 200 {object} codersdk.GroupAIBudget
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/groups/{group}/ai/budget [put]
 func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -799,6 +800,7 @@ func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.UpsertUserAIBudgetOverrideRequest true "Upsert user AI budget override request"
 // @Success 200 {object} codersdk.UserAIBudgetOverride
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/ai/budget/override [put]
 func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

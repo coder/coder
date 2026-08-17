@@ -90,9 +90,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                   |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -138,9 +139,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                   |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -185,9 +187,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                   |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -243,9 +246,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/app-status \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                           |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.Response](schemas.md#codersdkresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -417,9 +421,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                         |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentLogSource](schemas.md#codersdkworkspaceagentlogsource) |
+| Status | Meaning                                                                 | Description              | Schema                                                                         |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.WorkspaceAgentLogSource](schemas.md#codersdkworkspaceagentlogsource) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                               |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -477,9 +482,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                           |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.Response](schemas.md#codersdkresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

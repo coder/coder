@@ -55,6 +55,7 @@ func (api *API) prebuildsSettings(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.PrebuildsSettings true "Prebuilds settings request"
 // @Success 200 {object} codersdk.PrebuildsSettings
 // @Success 304
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/prebuilds/settings [put]
 func (api *API) putPrebuildsSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

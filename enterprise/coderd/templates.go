@@ -213,6 +213,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 // @Param template path string true "Template ID" format(uuid)
 // @Param request body codersdk.UpdateTemplateACL true "Update template ACL request"
 // @Success 200 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/templates/{template}/acl [patch]
 func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	var (

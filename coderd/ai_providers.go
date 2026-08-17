@@ -142,6 +142,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 // @Tags AI Providers
 // @Param request body codersdk.CreateAIProviderRequest true "Create AI provider request"
 // @Success 201 {object} codersdk.AIProvider
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/ai/providers [post]
 func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -264,6 +265,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 // @Param idOrName path string true "Provider ID or name"
 // @Param request body codersdk.UpdateAIProviderRequest true "Update AI provider request"
 // @Success 200 {object} codersdk.AIProvider
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/ai/providers/{idOrName} [patch]
 func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	// keyOpsAudit attaches per-key add/remove/keep counts to the audit

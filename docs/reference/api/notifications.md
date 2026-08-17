@@ -60,6 +60,7 @@ curl -X POST http://coder-server:8080/api/v2/notifications/custom \
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)            | No Content                                    |                                                  |
 | 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | Invalid request body                          | [codersdk.Response](schemas.md#codersdkresponse) |
 | 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3)             | System users cannot send custom notifications | [codersdk.Response](schemas.md#codersdkresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11)    | Request Entity Too Large                      | [codersdk.Response](schemas.md#codersdkresponse) |
 | 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Failed to send custom notification            | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -294,9 +295,10 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/{id}/read-status
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                           |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.Response](schemas.md#codersdkresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -371,10 +373,11 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 ### Responses
 
-| Status | Meaning                                                         | Description  | Schema                                                                     |
-|--------|-----------------------------------------------------------------|--------------|----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK           | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) |
-| 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1) | Not Modified |                                                                            |
+| Status | Meaning                                                                 | Description              | Schema                                                                     |
+|--------|-------------------------------------------------------------------------|--------------------------|----------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) |
+| 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1)         | Not Modified             |                                                                            |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -616,9 +619,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                |
-|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.NotificationPreference](schemas.md#codersdknotificationpreference) |
+| Status | Meaning                                                                 | Description              | Schema                                                                                |
+|--------|-------------------------------------------------------------------------|--------------------------|---------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | array of [codersdk.NotificationPreference](schemas.md#codersdknotificationpreference) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                                      |
 
 <h3 id="update-user-notification-preferences-responseschema">Response Schema</h3>
 

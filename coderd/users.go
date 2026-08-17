@@ -173,6 +173,7 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param request body codersdk.CreateFirstUserRequest true "First user request"
 // @Success 201 {object} codersdk.CreateFirstUserResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// The first user can also be created via oidc, so if making changes to the flow,
@@ -432,6 +433,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 // @Tags Users
 // @Param request body codersdk.CreateUserRequestWithOrgs true "Create user request"
 // @Success 201 {object} codersdk.User
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users [post]
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -873,6 +875,7 @@ func (*API) userLoginType(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserProfileRequest true "Updated profile"
 // @Success 200 {object} codersdk.User
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/profile [put]
 func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1186,6 +1189,7 @@ func writeUserSettingsReadError(ctx context.Context, rw http.ResponseWriter, err
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings"
 // @Success 200 {object} codersdk.UserAppearanceSettings
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/appearance [put]
 func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1369,6 +1373,7 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserPreferenceSettingsRequest true "New preference settings"
 // @Success 200 {object} codersdk.UserPreferenceSettings
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/preferences [put]
 func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1599,6 +1604,7 @@ func isValidFontName(font codersdk.TerminalFontName) bool {
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserPasswordRequest true "Update password request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/password [put]
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1800,6 +1806,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateRoles true "Update roles request"
 // @Success 200 {object} codersdk.User
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/roles [put]
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	var (

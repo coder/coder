@@ -307,9 +307,10 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                            |
-|--------|---------------------------------------------------------|-------------|---------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Role](schemas.md#codersdkrole) |
+| Status | Meaning                                                                 | Description              | Schema                                            |
+|--------|-------------------------------------------------------------------------|--------------------------|---------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | array of [codersdk.Role](schemas.md#codersdkrole) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)  |
 
 <h3 id="update-a-custom-organization-role-responseschema">Response Schema</h3>
 
@@ -440,9 +441,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                            |
-|--------|---------------------------------------------------------|-------------|---------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Role](schemas.md#codersdkrole) |
+| Status | Meaning                                                                 | Description              | Schema                                            |
+|--------|-------------------------------------------------------------------------|--------------------------|---------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | array of [codersdk.Role](schemas.md#codersdkrole) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)  |
 
 <h3 id="insert-a-custom-organization-role-responseschema">Response Schema</h3>
 
@@ -761,9 +763,10 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                               |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
+| Status | Meaning                                                                 | Description              | Schema                                                               |
+|--------|-------------------------------------------------------------------------|--------------------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

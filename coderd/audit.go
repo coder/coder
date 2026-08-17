@@ -115,6 +115,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 // @Tags Audit
 // @Param request body codersdk.CreateTestAuditLogRequest true "Audit log request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/audit/testgenerate [post]
 // @x-apidocgen {"skip": true}
 func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {

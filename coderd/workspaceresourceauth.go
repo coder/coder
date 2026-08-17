@@ -28,6 +28,7 @@ import (
 // @Tags Agents
 // @Param request body agentsdk.AzureInstanceIdentityToken true "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID."
 // @Success 200 {object} agentsdk.AuthenticateResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceagents/azure-instance-identity [post]
 func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -66,6 +67,7 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 // @Tags Agents
 // @Param request body agentsdk.AWSInstanceIdentityToken true "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID."
 // @Success 200 {object} agentsdk.AuthenticateResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceagents/aws-instance-identity [post]
 func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -96,6 +98,7 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 // @Tags Agents
 // @Param request body agentsdk.GoogleInstanceIdentityToken true "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID."
 // @Success 200 {object} agentsdk.AuthenticateResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceagents/google-instance-identity [post]
 func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

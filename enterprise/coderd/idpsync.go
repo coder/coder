@@ -56,6 +56,7 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.GroupSyncSettings true "New settings"
 // @Success 200 {object} codersdk.GroupSyncSettings
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups [patch]
 func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -138,6 +139,7 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.GroupSyncSettings
+// @Failure 413 {object} codersdk.Response
 // @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchGroupIDPSyncConfigRequest true "New config values"
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups/config [patch]
@@ -211,6 +213,7 @@ func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request)
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.GroupSyncSettings
+// @Failure 413 {object} codersdk.Response
 // @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchGroupIDPSyncMappingRequest true "Description of the mappings to add and remove"
 // @Router /api/v2/organizations/{organization}/settings/idpsync/groups/mapping [patch]
@@ -315,6 +318,7 @@ func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.RoleSyncSettings true "New settings"
 // @Success 200 {object} codersdk.RoleSyncSettings
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles [patch]
 func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -378,6 +382,7 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.RoleSyncSettings
+// @Failure 413 {object} codersdk.Response
 // @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchRoleIDPSyncConfigRequest true "New config values"
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles/config [patch]
@@ -445,6 +450,7 @@ func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) 
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.RoleSyncSettings
+// @Failure 413 {object} codersdk.Response
 // @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchRoleIDPSyncMappingRequest true "Description of the mappings to add and remove"
 // @Router /api/v2/organizations/{organization}/settings/idpsync/roles/mapping [patch]
@@ -543,6 +549,7 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
+// @Failure 413 {object} codersdk.Response
 // @Param request body codersdk.OrganizationSyncSettings true "New settings"
 // @Router /api/v2/settings/idpsync/organization [patch]
 func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
@@ -607,6 +614,7 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
+// @Failure 413 {object} codersdk.Response
 // @Param request body codersdk.PatchOrganizationIDPSyncConfigRequest true "New config values"
 // @Router /api/v2/settings/idpsync/organization/config [patch]
 func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
@@ -673,6 +681,7 @@ func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.R
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
+// @Failure 413 {object} codersdk.Response
 // @Param request body codersdk.PatchOrganizationIDPSyncMappingRequest true "Description of the mappings to add and remove"
 // @Router /api/v2/settings/idpsync/organization/mapping [patch]
 func (api *API) patchOrganizationIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {

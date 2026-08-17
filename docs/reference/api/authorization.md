@@ -97,9 +97,10 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                     |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AuthorizationResponse](schemas.md#codersdkauthorizationresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                     |
+|--------|-------------------------------------------------------------------------|--------------------------|----------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.AuthorizationResponse](schemas.md#codersdkauthorizationresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -143,9 +144,10 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                                             |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.LoginWithPasswordResponse](schemas.md#codersdkloginwithpasswordresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                             |
+|--------|-------------------------------------------------------------------------|--------------------------|------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.LoginWithPasswordResponse](schemas.md#codersdkloginwithpasswordresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                                   |
 
 ## Change password with a one-time passcode
 
@@ -154,7 +156,8 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 ```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/otp/change-password \
-  -H 'Content-Type: application/json'
+  -H 'Content-Type: application/json' \
+  -H 'Accept: */*'
 ```
 
 `POST /api/v2/users/otp/change-password`
@@ -175,11 +178,16 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/change-password \
 |--------|------|------------------------------------------------------------------------------------------------------------------|----------|-------------------------|
 | `body` | body | [codersdk.ChangePasswordWithOneTimePasscodeRequest](schemas.md#codersdkchangepasswordwithonetimepasscoderequest) | true     | Change password request |
 
+### Example responses
+
+> 413 Response
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 ## Request one-time passcode
 
@@ -188,7 +196,8 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/change-password \
 ```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/otp/request \
-  -H 'Content-Type: application/json'
+  -H 'Content-Type: application/json' \
+  -H 'Accept: */*'
 ```
 
 `POST /api/v2/users/otp/request`
@@ -207,11 +216,16 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/request \
 |--------|------|--------------------------------------------------------------------------------------------|----------|---------------------------|
 | `body` | body | [codersdk.RequestOneTimePasscodeRequest](schemas.md#codersdkrequestonetimepasscoderequest) | true     | One-time passcode request |
 
+### Example responses
+
+> 413 Response
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 ## Validate user password
 
@@ -254,9 +268,10 @@ curl -X POST http://coder-server:8080/api/v2/users/validate-password \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                   |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ValidateUserPasswordResponse](schemas.md#codersdkvalidateuserpasswordresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                                   |
+|--------|-------------------------------------------------------------------------|--------------------------|------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.ValidateUserPasswordResponse](schemas.md#codersdkvalidateuserpasswordresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -305,8 +320,9 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                                         |
-|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.OAuthConversionResponse](schemas.md#codersdkoauthconversionresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                         |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.OAuthConversionResponse](schemas.md#codersdkoauthconversionresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                               |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

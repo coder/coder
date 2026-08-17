@@ -65,6 +65,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
   -H 'Content-Type: application/json' \
+  -H 'Accept: application/x-tar' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -97,11 +98,16 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
 |--------|------|--------------------------------------------------------------------------------------------|----------|-----------------|
 | `body` | body | [codersdk.TemplateBuilderComposeRequest](schemas.md#codersdktemplatebuildercomposerequest) | true     | Compose request |
 
+### Example responses
+
+> 413 Response
+
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-|--------|---------------------------------------------------------|-------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -223,13 +229,14 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
 
 ### Responses
 
-| Status | Meaning                                                               | Description     | Schema                                                                                                     |
-|--------|-----------------------------------------------------------------------|-----------------|------------------------------------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)          | Created         | [codersdk.TemplateBuilderCreateTemplateResponse](schemas.md#codersdktemplatebuildercreatetemplateresponse) |
-| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)      | Bad Request     | [codersdk.Response](schemas.md#codersdkresponse)                                                           |
-| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)        | Not Found       | [codersdk.Response](schemas.md#codersdkresponse)                                                           |
-| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)         | Conflict        | [codersdk.Response](schemas.md#codersdkresponse)                                                           |
-| 504    | [Gateway Time-out](https://tools.ietf.org/html/rfc7231#section-6.6.5) | Gateway Timeout | [codersdk.Response](schemas.md#codersdkresponse)                                                           |
+| Status | Meaning                                                                 | Description              | Schema                                                                                                     |
+|--------|-------------------------------------------------------------------------|--------------------------|------------------------------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.TemplateBuilderCreateTemplateResponse](schemas.md#codersdktemplatebuildercreatetemplateresponse) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | Bad Request              | [codersdk.Response](schemas.md#codersdkresponse)                                                           |
+| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)          | Not Found                | [codersdk.Response](schemas.md#codersdkresponse)                                                           |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)           | Conflict                 | [codersdk.Response](schemas.md#codersdkresponse)                                                           |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                                                           |
+| 504    | [Gateway Time-out](https://tools.ietf.org/html/rfc7231#section-6.6.5)   | Gateway Timeout          | [codersdk.Response](schemas.md#codersdkresponse)                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -305,6 +312,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templatebuilder/sessions \
   -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -331,10 +339,15 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/sessions \
 |--------|------|--------------------------------------------------------------------------------------------|----------|---------------|
 | `body` | body | [codersdk.TemplateBuilderSessionRequest](schemas.md#codersdktemplatebuildersessionrequest) | true     | Session event |
 
+### Example responses
+
+> 413 Response
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

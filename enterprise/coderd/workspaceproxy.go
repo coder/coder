@@ -94,6 +94,7 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[code
 // @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
 // @Param request body codersdk.PatchWorkspaceProxy true "Update workspace proxy request"
 // @Success 200 {object} codersdk.WorkspaceProxy
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceproxies/{workspaceproxy} [patch]
 func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -313,6 +314,7 @@ func (api *API) workspaceProxy(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param request body codersdk.CreateWorkspaceProxyRequest true "Create workspace proxy request"
 // @Success 201 {object} codersdk.WorkspaceProxy
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceproxies [post]
 func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -461,6 +463,7 @@ func (api *API) fetchWorkspaceProxies(ctx context.Context) (codersdk.RegionsResp
 // @Tags Enterprise
 // @Param request body workspaceapps.IssueTokenRequest true "Issue signed app token request"
 // @Success 201 {object} wsproxysdk.IssueSignedAppTokenResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceproxies/me/issue-signed-app-token [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
@@ -513,6 +516,7 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 // @Tags Enterprise
 // @Param request body wsproxysdk.ReportAppStatsRequest true "Report app stats request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceproxies/me/app-stats [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Request) {
@@ -553,6 +557,7 @@ func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Req
 // @Tags Enterprise
 // @Param request body wsproxysdk.RegisterWorkspaceProxyRequest true "Register workspace proxy request"
 // @Success 201 {object} wsproxysdk.RegisterWorkspaceProxyResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceproxies/me/register [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) {
@@ -793,6 +798,7 @@ func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request
 // @Tags Enterprise
 // @Param request body wsproxysdk.DeregisterWorkspaceProxyRequest true "Deregister workspace proxy request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceproxies/me/deregister [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request) {
@@ -872,6 +878,7 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 // @Produce json
 // @Param request body codersdk.IssueReconnectingPTYSignedTokenRequest true "Issue reconnecting PTY signed token request"
 // @Success 200 {object} codersdk.IssueReconnectingPTYSignedTokenResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/applications/reconnecting-pty-signed-token [post]
 // @x-apidocgen {"skip": true}
 func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Request) {

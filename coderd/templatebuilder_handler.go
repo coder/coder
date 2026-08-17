@@ -173,6 +173,7 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 // @Tags TemplateBuilder
 // @Param request body codersdk.TemplateBuilderComposeRequest true "Compose request"
 // @Success 200
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/templatebuilder/compose [post]
 func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -244,6 +245,7 @@ const templateBuilderCreateTemplateTimeout = 2 * time.Minute
 // @Failure 400 {object} codersdk.Response
 // @Failure 404 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
 // @Failure 504 {object} codersdk.Response
 // @Router /api/v2/templatebuilder/compose/template [post]
 func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Request) {
@@ -661,6 +663,7 @@ func (api *API) waitForProvisionerJob(
 // @Tags TemplateBuilder
 // @Param request body codersdk.TemplateBuilderSessionRequest true "Session event"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/templatebuilder/sessions [post]
 func (api *API) templateBuilderSession(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

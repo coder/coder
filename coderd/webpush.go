@@ -30,6 +30,7 @@ import (
 // @Param user path string true "User ID, name, or me"
 // @Router /api/v2/users/{user}/webpush/subscription [post]
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @x-apidocgen {"skip": true}
 func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -119,6 +120,7 @@ func validateWebpushEndpoint(rawEndpoint string) error {
 // @Param user path string true "User ID, name, or me"
 // @Router /api/v2/users/{user}/webpush/subscription [delete]
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @x-apidocgen {"skip": true}
 func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

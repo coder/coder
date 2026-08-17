@@ -513,9 +513,10 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                   |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Chat](schemas.md#codersdkchat) |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.Chat](schemas.md#codersdkchat)         |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -552,9 +553,10 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                                       |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                       |
+|--------|-------------------------------------------------------------------------|--------------------------|------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1020,6 +1022,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/experimental/chats/{chat} \
   -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1050,11 +1053,16 @@ Experimental: this endpoint is subject to change.
 | `chat` | path | string(uuid)                                                       | true     | Chat ID             |
 | `body` | body | [codersdk.UpdateChatRequest](schemas.md#codersdkupdatechatrequest) | true     | Update chat request |
 
+### Example responses
+
+> 413 Response
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2114,9 +2122,10 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                             |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.CreateChatMessageResponse](schemas.md#codersdkcreatechatmessageresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                             |
+|--------|-------------------------------------------------------------------------|--------------------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.CreateChatMessageResponse](schemas.md#codersdkcreatechatmessageresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2345,9 +2354,10 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                         |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.EditChatMessageResponse](schemas.md#codersdkeditchatmessageresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                         |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.EditChatMessageResponse](schemas.md#codersdkeditchatmessageresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                               |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -369,6 +369,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
 // @Success 201 {object} codersdk.Workspace
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization}/members/{user}/workspaces [post]
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -430,6 +431,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
 // @Success 201 {object} codersdk.Workspace
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/workspaces [post]
 func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1128,6 +1130,7 @@ func (api *API) notifyWorkspaceCreated(
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceRequest true "Metadata update request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaces/{workspace} [patch]
 func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1223,6 +1226,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceAutostartRequest true "Schedule update request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaces/{workspace}/autostart [put]
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1326,6 +1330,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceTTLRequest true "Workspace TTL update request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaces/{workspace}/ttl [put]
 func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1455,6 +1460,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceDormancy true "Make a workspace dormant or active"
 // @Success 200 {object} codersdk.Workspace
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaces/{workspace}/dormant [put]
 func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1622,6 +1628,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.PutExtendWorkspaceRequest true "Extend deadline update request"
 // @Success 200 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaces/{workspace}/extend [put]
 func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1730,6 +1737,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.PostWorkspaceUsageRequest false "Post workspace usage request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaces/{workspace}/usage [post]
 func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
@@ -1940,6 +1948,7 @@ func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request)
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceAutomaticUpdatesRequest true "Automatic updates request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaces/{workspace}/autoupdates [put]
 func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -2498,6 +2507,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceACL true "Update workspace ACL request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaces/{workspace}/acl [patch]
 func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	var (

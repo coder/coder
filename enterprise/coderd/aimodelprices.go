@@ -60,6 +60,7 @@ func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param request body codersdk.UpsertAIModelPricesRequest true "Prices to set"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/experimental/ai/model-prices [post]
 // @x-apidocgen {"skip": true}
 func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {

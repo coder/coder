@@ -189,6 +189,7 @@ func (c authorizeCheck) RBACObject() rbac.Object { return c.object }
 // @Tags Authorization
 // @Param request body codersdk.AuthorizationRequest true "Authorization request"
 // @Success 200 {object} codersdk.AuthorizationResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/authcheck [post]
 func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

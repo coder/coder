@@ -374,6 +374,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 // @Tags Notifications
 // @Param id path string true "id of the notification"
 // @Success 200 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/notifications/inbox/{id}/read-status [put]
 func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *http.Request) {
 	var (

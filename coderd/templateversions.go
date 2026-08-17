@@ -115,6 +115,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Param request body codersdk.PatchTemplateVersionRequest true "Patch template version request"
 // @Success 200 {object} codersdk.TemplateVersion
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/templateversions/{templateversion} [patch]
 func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -501,6 +502,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Param request body codersdk.CreateTemplateVersionDryRunRequest true "Dry-run request"
 // @Success 201 {object} codersdk.ProvisionerJob
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/templateversions/{templateversion}/dry-run [post]
 func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1216,6 +1218,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 // @Param template path string true "Template ID" format(uuid)
 // @Param request body codersdk.ArchiveTemplateVersionsRequest true "Archive request"
 // @Success 200 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/templates/{template}/versions/archive [post]
 func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1383,6 +1386,7 @@ func (api *API) setArchiveTemplateVersion(archive bool) func(rw http.ResponseWri
 // @Param request body codersdk.UpdateActiveTemplateVersion true "Modified template version"
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/templates/{template}/versions [patch]
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1486,6 +1490,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.CreateTemplateVersionRequest true "Create template version request"
 // @Success 201 {object} codersdk.TemplateVersion
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization}/templateversions [post]
 func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (

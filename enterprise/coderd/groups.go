@@ -30,6 +30,7 @@ import (
 // @Param request body codersdk.CreateGroupRequest true "Create group request"
 // @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.Group
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization}/groups [post]
 func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -99,6 +100,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 // @Param group path string true "Group name"
 // @Param request body codersdk.PatchGroupRequest true "Patch group request"
 // @Success 200 {object} codersdk.Group
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/groups/{group} [patch]
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	var (

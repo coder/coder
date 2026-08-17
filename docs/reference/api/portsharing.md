@@ -98,9 +98,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                         |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentPortShare](schemas.md#codersdkworkspaceagentportshare) |
+| Status | Meaning                                                                 | Description              | Schema                                                                         |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.WorkspaceAgentPortShare](schemas.md#codersdkworkspaceagentportshare) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                               |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -112,6 +113,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
   -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -133,10 +135,15 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/port-share
 | `workspace` | path | string(uuid)                                                                                             | true     | Workspace ID                      |
 | `body`      | body | [codersdk.DeleteWorkspaceAgentPortShareRequest](schemas.md#codersdkdeleteworkspaceagentportsharerequest) | true     | Delete port sharing level request |
 
+### Example responses
+
+> 413 Response
+
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-|--------|---------------------------------------------------------|-------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

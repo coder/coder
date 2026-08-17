@@ -87,6 +87,7 @@ func (o *OAuthConvertStateClaims) Validate(e jwt.Expected) error {
 // @Param request body codersdk.ConvertLoginRequest true "Convert request"
 // @Param user path string true "User ID, name, or me"
 // @Success 201 {object} codersdk.OAuthConversionResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -226,6 +227,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 // @Tags Authorization
 // @Param request body codersdk.RequestOneTimePasscodeRequest true "One-time passcode request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/otp/request [post]
 func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -332,6 +334,7 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 // @Tags Authorization
 // @Param request body codersdk.ChangePasswordWithOneTimePasscodeRequest true "Change password request"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/otp/change-password [post]
 func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -467,6 +470,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 // @Tags Authorization
 // @Param request body codersdk.ValidateUserPasswordRequest true "Validate user password request"
 // @Success 200 {object} codersdk.ValidateUserPasswordResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/validate-password [post]
 func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -501,6 +505,7 @@ func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 // @Tags Authorization
 // @Param request body codersdk.LoginWithPasswordRequest true "Login request"
 // @Success 201 {object} codersdk.LoginWithPasswordResponse
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/login [post]
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	var (

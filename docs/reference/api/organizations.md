@@ -118,9 +118,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                   |
-|--------|--------------------------------------------------------------|-------------|----------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Organization](schemas.md#codersdkorganization) |
+| Status | Meaning                                                                 | Description              | Schema                                                   |
+|--------|-------------------------------------------------------------------------|--------------------------|----------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.Organization](schemas.md#codersdkorganization) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -272,9 +273,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                   |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
+| Status | Meaning                                                                 | Description              | Schema                                                   |
+|--------|-------------------------------------------------------------------------|--------------------------|----------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.Organization](schemas.md#codersdkorganization) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

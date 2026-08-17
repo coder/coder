@@ -146,9 +146,10 @@ curl -X POST http://coder-server:8080/api/v2/users \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                   |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.User](schemas.md#codersdkuser) |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.User](schemas.md#codersdkuser)         |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -291,9 +292,10 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                                         |
-|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateFirstUserResponse](schemas.md#codersdkcreatefirstuserresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                         |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.CreateFirstUserResponse](schemas.md#codersdkcreatefirstuserresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                               |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -616,9 +618,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                       |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserAppearanceSettings](schemas.md#codersdkuserappearancesettings) |
+| Status | Meaning                                                                 | Description              | Schema                                                                       |
+|--------|-------------------------------------------------------------------------|--------------------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.UserAppearanceSettings](schemas.md#codersdkuserappearancesettings) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -930,9 +933,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                                       |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.GenerateAPIKeyResponse](schemas.md#codersdkgenerateapikeyresponse) |
+| Status | Meaning                                                                 | Description              | Schema                                                                       |
+|--------|-------------------------------------------------------------------------|--------------------------|------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.GenerateAPIKeyResponse](schemas.md#codersdkgenerateapikeyresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1268,6 +1272,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/users/{user}/password \
   -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1289,11 +1294,16 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/password \
 | `user` | path | string                                                                             | true     | User ID, name, or me    |
 | `body` | body | [codersdk.UpdateUserPasswordRequest](schemas.md#codersdkupdateuserpasswordrequest) | true     | Update password request |
 
+### Example responses
+
+> 413 Response
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1387,9 +1397,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                       |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserPreferenceSettings](schemas.md#codersdkuserpreferencesettings) |
+| Status | Meaning                                                                 | Description              | Schema                                                                       |
+|--------|-------------------------------------------------------------------------|--------------------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.UserPreferenceSettings](schemas.md#codersdkuserpreferencesettings) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1458,9 +1469,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                   |
-|--------|---------------------------------------------------------|-------------|------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.User](schemas.md#codersdkuser)         |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1588,9 +1600,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                   |
-|--------|---------------------------------------------------------|-------------|------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.User](schemas.md#codersdkuser)         |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

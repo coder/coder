@@ -137,6 +137,7 @@ const AgentAPIVersionREST = "1.0"
 // @Tags Agents
 // @Param request body agentsdk.PatchLogs true "logs"
 // @Success 200 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceagents/me/logs [patch]
 func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -294,6 +295,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 // @Tags Agents
 // @Param request body agentsdk.PatchAppStatus true "app status"
 // @Success 200 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceagents/me/app-status [patch]
 // @Deprecated Use UpdateAppStatus on the Agent API instead.
 func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Request) {
@@ -1516,6 +1518,7 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 // @Tags Agents
 // @Param request body agentsdk.PostLogSourceRequest true "Log source request"
 // @Success 200 {object} codersdk.WorkspaceAgentLogSource
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaceagents/me/log-source [post]
 func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

@@ -324,6 +324,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
 // @Success 201 {object} codersdk.WorkspaceBuild
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1024,6 +1025,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 // @Param workspacebuild path string true "Workspace build ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceBuildStateRequest true "Request body"
 // @Success 204
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/workspacebuilds/{workspacebuild}/state [put]
 func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

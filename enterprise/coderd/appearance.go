@@ -141,6 +141,7 @@ func validateHexColor(color string) error {
 // @Tags Enterprise
 // @Param request body codersdk.UpdateAppearanceConfig true "Update appearance request"
 // @Success 200 {object} codersdk.UpdateAppearanceConfig
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/appearance [put]
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

@@ -403,6 +403,7 @@ func getAISeatSetByUserIDs(ctx context.Context, db database.Store, userIDs []uui
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateRoles true "Update roles request"
 // @Success 200 {object} codersdk.OrganizationMember
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization}/members/{user}/roles [put]
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	var (

@@ -1296,6 +1296,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/state \
   -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1318,11 +1319,16 @@ curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 | `workspacebuild` | path | string(uuid)                                                                                     | true     | Workspace build ID |
 | `body`           | body | [codersdk.UpdateWorkspaceBuildStateRequest](schemas.md#codersdkupdateworkspacebuildstaterequest) | true     | Request body       |
 
+### Example responses
+
+> 413 Response
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2151,8 +2157,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                       |
-|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
+| Status | Meaning                                                                 | Description              | Schema                                                       |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
