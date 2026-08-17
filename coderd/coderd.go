@@ -932,6 +932,7 @@ func New(options *Options) *API {
 				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 				Experiments:                    experiments,
 				AgentConn:                      api.agentProvider.AgentConn,
+				AuthorizeWorkspaceConn:         chatWorkspaceConnAuthorizer(options.Database, options.Authorizer),
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,

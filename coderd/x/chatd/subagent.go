@@ -880,7 +880,17 @@ func (p *Server) subagentTools(
 					targetChatInfo.Mode.Valid &&
 					targetChatInfo.Mode.ChatMode == database.ChatModeComputerUse &&
 					targetChatInfo.AgentID.Valid
-				canRecord := isComputerUseChat && p.agentConnFn != nil
+				canRecord := isComputerUseChat && p.agentConnFn != nil &&
+					p.authorizeWorkspaceConnFn != nil && targetChatInfo.WorkspaceID.Valid
+				if canRecord {
+					if authErr := p.authorizeWorkspaceConnFn(ctx, targetChatInfo.OwnerID, targetChatInfo.WorkspaceID.UUID); authErr != nil {
+						p.logger.Warn(ctx, "skipping desktop recording; chat owner is not authorized to use the workspace",
+							slog.F("chat_id", targetChatID),
+							slog.Error(authErr),
+						)
+						canRecord = false
+					}
+				}
 
 				if canRecord {
 					conn, closeFn, connErr := p.agentConnFn(ctx, targetChatInfo.AgentID.UUID)

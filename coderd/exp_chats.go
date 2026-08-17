@@ -1968,6 +1968,32 @@ func (api *API) authorizeChatWorkspaceExec(
 	return workspace, true
 }
 
+// chatWorkspaceConnAuthorizer returns the chatd callback that guards
+// internal workspace agent dials. It is the internal-dial counterpart
+// of authorizeChatWorkspaceExec: the chat owner's workspace permissions
+// may have been revoked after the chat was bound, so chatd re-checks
+// exec-level access (ApplicationConnect or SSH) on every conn use.
+func chatWorkspaceConnAuthorizer(db database.Store, authorizer rbac.Authorizer) chatd.AuthorizeWorkspaceConnFunc {
+	return func(ctx context.Context, ownerID, workspaceID uuid.UUID) error {
+		//nolint:gocritic // chatd runs under its own actor; the workspace row is fetched with system scope, then checked against the owner's own subject.
+		workspace, err := db.GetWorkspaceByID(dbauthz.AsSystemRestricted(ctx), workspaceID)
+		if err != nil {
+			return xerrors.Errorf("fetch chat workspace: %w", err)
+		}
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, ownerID, rbac.ScopeAll)
+		if err != nil {
+			return xerrors.Errorf("load chat owner authorization: %w", err)
+		}
+		if authorizer.Authorize(ctx, subject, policy.ActionApplicationConnect, workspace.RBACObject()) == nil {
+			return nil
+		}
+		if authorizer.Authorize(ctx, subject, policy.ActionSSH, workspace.RBACObject()) == nil {
+			return nil
+		}
+		return xerrors.New("chat owner does not have exec access to the workspace")
+	}
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Watch chat workspace git state via WebSockets

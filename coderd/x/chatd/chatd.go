@@ -169,6 +169,7 @@ type Server struct {
 	streamPartsDialer StreamPartsDialer
 
 	agentConnFn                    AgentConnFunc
+	authorizeWorkspaceConnFn       AuthorizeWorkspaceConnFunc
 	agentInactiveDisconnectTimeout time.Duration
 	dialTimeout                    time.Duration
 	instructionLookupTimeout       time.Duration
@@ -892,6 +893,24 @@ func (c *turnWorkspaceContext) externalAgentPreflightError(
 	return newChatExternalAgentUnavailableError(agent)
 }
 
+// authorizeWorkspaceConn re-checks the chat owner's workspace access on
+// every conn use. The chat row only authorizes the chat owner; the
+// owner's workspace permissions may have been revoked after the chat
+// was bound (the internal-dial counterpart of CODAGT-184). Fails closed
+// when no authorizer is configured.
+func (c *turnWorkspaceContext) authorizeWorkspaceConn(ctx context.Context, chat database.Chat) error {
+	if c.server.authorizeWorkspaceConnFn == nil {
+		return xerrors.New("workspace connection authorizer is not configured")
+	}
+	if !chat.WorkspaceID.Valid {
+		return xerrors.New("chat has no bound workspace")
+	}
+	if err := c.server.authorizeWorkspaceConnFn(ctx, chat.OwnerID, chat.WorkspaceID.UUID); err != nil {
+		return xerrors.Errorf("chat owner is not authorized to use workspace %s: %w", chat.WorkspaceID.UUID, err)
+	}
+	return nil
+}
+
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
 	if c.server.agentConnFn == nil {
 		return nil, xerrors.New("workspace agent connector is not configured")
@@ -929,6 +948,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 					continue
 				}
 			}
+			if err := c.authorizeWorkspaceConn(ctx, chatSnapshot); err != nil {
+				return nil, err
+			}
 			c.trackWorkspaceUsage(ctx, chatSnapshot)
 			return currentConn, nil
 		}
@@ -938,6 +960,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 		chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
 		if err != nil {
+			return nil, err
+		}
+		if err := c.authorizeWorkspaceConn(ctx, chatSnapshot); err != nil {
 			return nil, err
 		}
 		if err := c.externalAgentPreflightError(ctx, chatSnapshot, agent); err != nil {
@@ -1078,6 +1103,12 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
+
+// AuthorizeWorkspaceConnFunc checks that a chat owner currently holds
+// exec-level access to the bound workspace. chatd calls it before every
+// internal agent conn use so revoking the owner's workspace permissions
+// takes effect on the next tool call, not just at bind time.
+type AuthorizeWorkspaceConnFunc func(ctx context.Context, ownerID, workspaceID uuid.UUID) error
 
 var (
 	// ErrInvalidModelConfigID indicates the requested model config does not
@@ -3032,6 +3063,7 @@ type Config struct {
 	InFlightChatStaleAfter         time.Duration
 	ChatHeartbeatInterval          time.Duration
 	AgentConn                      AgentConnFunc
+	AuthorizeWorkspaceConn         AuthorizeWorkspaceConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	InstructionLookupTimeout       time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
@@ -3124,6 +3156,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		workerID:                       workerID,
 		logger:                         cfg.Logger.Named("processor"),
 		agentConnFn:                    cfg.AgentConn,
+		authorizeWorkspaceConnFn:       cfg.AuthorizeWorkspaceConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
 		dialTimeout:                    defaultDialTimeout,
 		instructionLookupTimeout:       instructionLookupTimeout,
