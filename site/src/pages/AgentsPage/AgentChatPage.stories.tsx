@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { useRef } from "react";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -35,6 +34,7 @@ import {
 	MockOrganizationMember2,
 	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceAgent,
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
@@ -50,7 +50,6 @@ import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 // Layout wrapper: provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentChatPageLayout: FC = () => {
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	return (
 		<div className="flex h-full">
 			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -74,7 +73,6 @@ const AgentChatPageLayout: FC = () => {
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
 							onChatReady: () => {},
-							scrollContainerRef,
 						} satisfies AgentsPageOutletContext
 					}
 				/>
@@ -312,6 +310,11 @@ const buildQueries = (
 		}),
 	];
 };
+
+const withoutQuery = (
+	queries: ReturnType<typeof buildQueries>,
+	queryKey: readonly unknown[],
+) => queries.filter(({ key }) => hashKey(key) !== hashKey(queryKey));
 
 // ---------------------------------------------------------------------------
 // Every-tool showcase: a single completed assistant turn that exercises
@@ -2203,6 +2206,76 @@ export const SidebarWithSingleRepo: Story = {
 		},
 	},
 };
+
+const rebuiltWorkspaceAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "rebuilt-agent-1",
+};
+const rebuiltWorkspace: TypesGen.Workspace = {
+	...mockWorkspace,
+	latest_build: {
+		...mockWorkspace.latest_build,
+		id: "rebuilt-build-1",
+		resources: [
+			{
+				...mockWorkspace.latest_build.resources[0],
+				agents: [rebuiltWorkspaceAgent],
+			},
+		],
+	},
+};
+const rebuildRecoveryChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	agent_id: "stale-agent-1",
+	title: "Rebuild recovery",
+	status: "waiting",
+};
+
+export const RecoversSidebarAfterWorkspaceRebuild: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			...rebuildRecoveryChat,
+			agent_id: rebuiltWorkspaceAgent.id,
+		});
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					rebuildRecoveryChat,
+					{ messages: [], queued_messages: [], has_more: false },
+					{ diffUrl: undefined },
+				),
+				workspaceByIdKey(mockWorkspace.id),
+			),
+			{ key: workspaceByIdKey(mockWorkspace.id), data: rebuiltWorkspace },
+		],
+		webSocket: {
+			"watch-ws": [
+				{
+					event: "message",
+					data: JSON.stringify({
+						type: "data",
+						data: rebuiltWorkspace,
+					} satisfies TypesGen.ServerSentEvent),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const terminalTab = await canvas.findByRole(
+			"tab",
+			{ name: "Terminal" },
+			{ timeout: 5000 },
+		);
+		expect(terminalTab).toBeVisible();
+	},
+};
+
 /**
  * Streaming reasoning part via WebSocket, renders inline text.
  */
@@ -2246,6 +2319,84 @@ export const StreamedReasoning: Story = {
 // setTimeout(0) which resolves before the chat store subscribes.
 // This made the stories render empty chats and fail interaction
 // tests in both local and CI environments.
+
+const mockNewestMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 30,
+	role: "assistant",
+	content: [{ type: "text", text: "Newest message" }],
+};
+
+const mockOlderRevision: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 20,
+	role: "assistant",
+	content: [{ type: "text", text: "Old revision" }],
+};
+
+const mockFreshRevision: TypesGen.ChatMessage = {
+	...mockOlderRevision,
+	content: [{ type: "text", text: "Fresh revision" }],
+};
+
+export const DurableUpdateFansOutToOlderPage: Story = {
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					{
+						id: CHAT_ID,
+						...baseChatFields,
+						title: "Fan-out chat",
+						status: "waiting",
+					},
+					{ messages: [], queued_messages: [], has_more: false },
+				),
+				chatMessagesKey(CHAT_ID),
+			),
+			{
+				key: chatMessagesKey(CHAT_ID),
+				data: {
+					pages: [
+						{
+							messages: [mockNewestMessage],
+							queued_messages: [],
+							has_more: true,
+						},
+						{
+							messages: [mockOlderRevision],
+							queued_messages: [],
+							has_more: false,
+						},
+					],
+					pageParams: [undefined, 30],
+				},
+			},
+		],
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						{
+							type: "message",
+							chat_id: CHAT_ID,
+							message: mockFreshRevision,
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Fresh revision")).toBeVisible();
+		await waitFor(() => {
+			expect(canvas.getAllByText("Fresh revision")).toHaveLength(1);
+		});
+		expect(canvas.queryByText("Old revision")).not.toBeInTheDocument();
+	},
+};
 
 /**
  * Live agent turn with streaming reasoning and a back-to-back flurry of
@@ -3066,6 +3217,72 @@ export const SendResponseAfterChatSwitch: Story = {
 	},
 };
 
+/**
+ * The send flow renders the durable user row once the server accepts the
+ * prompt, before the assistant turn produces any output.
+ */
+export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Durable send",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		let releaseSend: (() => void) | undefined;
+		const sendGate = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockImplementation(async () => {
+			await sendGate;
+			return {
+				queued: false,
+				message: {
+					...MockChatMessage,
+					id: 60,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [{ type: "text", text: "Durable prompt" }],
+				},
+			};
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Durable prompt");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
+		expect(
+			timeline.queryByTestId("chat-message-message:60"),
+		).not.toBeInTheDocument();
+
+		releaseSend?.();
+		expect(
+			await timeline.findByTestId("chat-message-message:60"),
+		).toHaveTextContent("Durable prompt");
+		// The turn is still waiting on its first chunk, so the durable row is in
+		// place before any assistant output exists.
+		expect(canvas.getByTestId("live-activity-slot")).toBeVisible();
+	},
+};
+
 const mockErrorChat: TypesGen.Chat = {
 	...MockChat,
 	id: CHAT_ID,
@@ -3077,11 +3294,6 @@ const mockServerError = {
 	...mockApiError({ message: "Internal server error." }),
 	status: 500,
 };
-
-const withoutQuery = (
-	queries: ReturnType<typeof buildQueries>,
-	queryKey: readonly unknown[],
-) => queries.filter(({ key }) => hashKey(key) !== hashKey(queryKey));
 
 export const DetailQueryError: Story = {
 	parameters: {

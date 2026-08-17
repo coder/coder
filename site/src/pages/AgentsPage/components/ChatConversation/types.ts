@@ -67,6 +67,9 @@ export type ParsedMessageContent = {
 export type ParsedMessageEntry = {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
+	// IDs of the messages folded into this entry when consecutive read_file
+	// runs are merged into one row. Absent for ordinary messages.
+	mergedFrom?: readonly number[];
 };
 
 export type ReconnectState = ReconnectSchedule;

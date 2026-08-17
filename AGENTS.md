@@ -88,9 +88,12 @@ instructions focused on guardrails that agents should see immediately.
   use RFC-compliant errors such as `writeOAuth2Error(...)`, and public
   endpoints that need system access should use `dbauthz.AsSystemRestricted`.
 - **Chatd**: consult [Chatd Architecture](coderd/x/chatd/ARCHITECTURE.md) to
-  understand the architecture of the chatd subsystem. If you update the
-  chatd subsystem in ways that affect the architecture, you must update the
-  architecture document.
+  understand the architecture of the chatd subsystem. If the chatd subsystem
+  is changed in ways that affect the architecture, the architecture document
+  must be updated. You must not do it yourself though: leave TODO items in
+  sections that need to be added or updated, but the actual changes must be
+  made by a human - the PR author. That ensures the architecture document
+  remains clear and readable to other humans.
 - **API design**: Follow the API guardrails in
   [Development Workflows and Guidelines](.claude/docs/WORKFLOWS.md),
   including swagger annotations for new public HTTP endpoints.

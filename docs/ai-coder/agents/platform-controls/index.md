@@ -63,10 +63,10 @@ plan sections, approval checkpoints, or review workflows.
 
 This setting is available under **AI Settings** > **Coder Agents** > **Instructions**. Developers do not edit it directly.
 
-The same value is exposed over the experimental chat configuration API:
+The same value is exposed over the chat configuration API:
 
-- `GET /api/experimental/chats/config/plan-mode-instructions`
-- `PUT /api/experimental/chats/config/plan-mode-instructions`
+- `GET /api/v2/chats/config/plan-mode-instructions`
+- `PUT /api/v2/chats/config/plan-mode-instructions`
 
 ### Template routing
 

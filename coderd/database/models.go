@@ -5525,7 +5525,7 @@ type OAuth2ProviderApp struct {
 	// List of valid redirect URIs for the application
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
 	// OAuth2 client type: confidential or public
-	ClientType sql.NullString `db:"client_type" json:"client_type"`
+	ClientType string `db:"client_type" json:"client_type"`
 	// Whether this app was created via dynamic client registration
 	DynamicallyRegistered sql.NullBool `db:"dynamically_registered" json:"dynamically_registered"`
 	// RFC 7591: Timestamp when client_id was issued
@@ -5583,6 +5583,8 @@ type OAuth2ProviderAppCode struct {
 	StateHash sql.NullString `db:"state_hash" json:"state_hash"`
 	// The redirect_uri provided during authorization, to be verified during token exchange (RFC 6749 §4.1.3).
 	RedirectUri sql.NullString `db:"redirect_uri" json:"redirect_uri"`
+	// Space-separated scope negotiated at authorization time, drawn from the api_key_scope vocabulary. Always set; coder:all records an unrestricted grant.
+	Scope string `db:"scope" json:"scope"`
 }
 
 type OAuth2ProviderAppSecret struct {
@@ -5611,6 +5613,8 @@ type OAuth2ProviderAppToken struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 	// Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.
 	AppID uuid.UUID `db:"app_id" json:"app_id"`
+	// Space-separated scope granted to this token, drawn from the api_key_scope vocabulary. Always set; coder:all records an unrestricted grant. Later phases will narrow this on refresh and never widen it.
+	Scope string `db:"scope" json:"scope"`
 }
 
 type Organization struct {

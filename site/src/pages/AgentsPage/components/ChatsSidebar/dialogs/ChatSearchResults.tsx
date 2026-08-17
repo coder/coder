@@ -15,6 +15,7 @@ type ChatSearchResultsProps = {
 	readonly recentChats: readonly Chat[];
 	readonly error: unknown;
 	readonly hasQuery: boolean;
+	readonly hasSearchText: boolean;
 	readonly location: Location;
 	readonly listboxId: string;
 	readonly selectedChatIndex: number | undefined;
@@ -39,6 +40,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	recentChats,
 	error,
 	hasQuery,
+	hasSearchText,
 	location,
 	listboxId,
 	selectedChatIndex,
@@ -101,6 +103,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 				<ScrollArea {...SCROLL_AREA_PROPS}>
 					<ChatSearchResultsList
 						chats={chats}
+						hasSearchText={hasSearchText}
 						location={location}
 						listboxId={listboxId}
 						selectedChatIndex={selectedChatIndex}
@@ -174,6 +177,7 @@ const DefaultView: FC<DefaultViewProps> = ({
 
 type ChatSearchResultsListProps = {
 	readonly chats: readonly Chat[] | undefined;
+	readonly hasSearchText: boolean;
 	readonly location: Location;
 	readonly listboxId: string;
 	readonly selectedChatIndex: number | undefined;
@@ -183,6 +187,7 @@ type ChatSearchResultsListProps = {
 
 const ChatSearchResultsList: FC<ChatSearchResultsListProps> = ({
 	chats,
+	hasSearchText,
 	location,
 	listboxId,
 	selectedChatIndex,
@@ -195,8 +200,17 @@ const ChatSearchResultsList: FC<ChatSearchResultsListProps> = ({
 
 	if ((chats?.length ?? 0) === 0) {
 		return (
-			<div className="flex h-[300px] items-center justify-center">
-				<p className="text-sm text-content-secondary">No matching chats</p>
+			<div className="flex h-[300px] items-center justify-center px-6 text-center">
+				<p className="text-sm text-content-secondary">
+					No matching chats.
+					{hasSearchText && (
+						<>
+							{" "}
+							Message content is indexed periodically, so very recent messages
+							may not be searchable yet.
+						</>
+					)}
+				</p>
 			</div>
 		);
 	}
@@ -297,7 +311,7 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 						aria-hidden="true"
 					/>
 				)}
-				{/* Pin the ignored mask width so Chromatic does not diff bounding rect changes. */}
+				{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
 				<span data-pixel="ignore" className="inline-block w-7 text-right">
 					{shortRelativeTime(chat.updated_at)}
 				</span>

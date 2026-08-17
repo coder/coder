@@ -220,7 +220,8 @@ This section includes some of the quicker ways to install Coder. For more detail
 Templates define what's in your development environment. The template builder
 guides you through creating one without writing any Terraform.
 
-1. Select **Templates** > **New Template**. The template builder opens.
+1. Coder opens the template builder after initial setup.
+   To open it again later, select **Templates** > **New Template**.
 
 1. Select the **Docker** base template from the list.
 

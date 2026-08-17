@@ -87,6 +87,16 @@ The remote MCP server is an HTTP endpoint exposed by your Coder deployment at
 `/api/experimental/mcp/http`. This enables MCP clients to connect to Coder
 without running the CLI locally.
 
+The endpoint implements the
+[Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
+in stateless mode: it supports MCP specification versions from `2024-11-05`
+through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers
+`GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone
+server-event stream or explicit session termination, both permitted by the
+specification). The server exposes tools only; MCP resources, prompts,
+structured tool output, elicitation, and the MCP Tasks extension (which is
+unrelated to Coder's task tools) are not implemented.
+
 ### Prerequisites
 
 The remote MCP HTTP endpoint requires both the `oauth2` and `mcp-server-http`
@@ -189,12 +199,25 @@ The MCP server exposes tools across several areas:
 - **File operations**: read, write, and edit files in a workspace
 - **Workspace interaction**: run commands, forward ports, list apps, and read logs
 - **Task management**: create, list, inspect, and control tasks
+- **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models
 - **User and system**: authenticated user details, tar uploads, and task reporting
 
 The full, authoritative set of tools, including their names, descriptions, and
 arguments, is defined in Coder's
 [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go). Refer to it for the
 current list, since the available tools can change between releases.
+
+## Available Prompts
+
+The MCP server also exposes
+[prompts](https://modelcontextprotocol.io/specification/2026-07-28/server/prompts)
+for common Coder Agents chat workflows. Clients that support prompts surface
+them for you to invoke, for example as slash commands:
+
+- `coder_agents_delegate`: delegate a coding task to a Coder Agents chat and
+  monitor it to completion
+- `coder_agents_check`: check the status and recent activity of an existing
+  Coder Agents chat
 
 ## Troubleshooting
 

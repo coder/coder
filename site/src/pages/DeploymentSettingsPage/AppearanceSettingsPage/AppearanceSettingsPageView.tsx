@@ -17,7 +17,6 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
@@ -59,7 +58,6 @@ export const AppearanceSettingsPageView: FC<
 				<PaywallPremium
 					message="Appearance"
 					description="With a Premium license, you can customize branding and announcement banners for your deployment."
-					documentationLink={docs("/admin/setup/appearance")}
 					canViewPremium={canViewPremium}
 				/>
 			) : (
