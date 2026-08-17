@@ -77,9 +77,8 @@ type Story = StoryObj<typeof TemplateCustomizationsStep>;
 
 export const MultipleOrganizations: Story = {};
 
-// Submitting without choosing an organization surfaces an aggregated error at
-// the top of the step instead of an inline field error, and does not call
-// onCreate.
+// Submitting without choosing an organization surfaces an inline error under
+// the organization field and does not call onCreate.
 export const MissingOrganizationError: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -120,8 +119,8 @@ export const SingleOrganizationSubmits: Story = {
 	},
 };
 
-// A missing template ID surfaces the name validation message at the top of the
-// step and blocks submission.
+// A missing template ID surfaces the name validation message inline under the
+// ID field and blocks submission.
 export const MissingNameError: Story = {
 	args: {
 		state: { ...baseState, name: "" },

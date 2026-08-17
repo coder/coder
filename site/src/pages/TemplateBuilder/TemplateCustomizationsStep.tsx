@@ -9,8 +9,8 @@ import {
 import type { Organization } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
@@ -19,9 +19,11 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
+	getFormHelpers,
 	iconValidator,
 	nameValidator,
 } from "#/utils/formUtils";
@@ -77,6 +79,10 @@ export const TemplateCustomizationsStep: FC<
 		validationSchema,
 		onSubmit: (values) => onCreate(values),
 	});
+	const getFieldHelpers = getFormHelpers(form);
+	const descriptionField = getFieldHelpers("description");
+	const iconField = getFieldHelpers("icon");
+	const organizationField = getFieldHelpers("organization_id");
 
 	// Display object for the autocomplete; the Formik field only stores the id.
 	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
@@ -108,13 +114,6 @@ export const TemplateCustomizationsStep: FC<
 		void form.setFieldValue("organization_id", org?.id ?? "");
 	};
 
-	// Aggregate validation messages and show them at the top of the step so the
-	// horizontal two-column layout is not disturbed by inline field errors.
-	const errorMessages = Object.values(form.errors).filter(
-		(message): message is string => Boolean(message),
-	);
-	const showErrorSummary = form.submitCount > 0 && errorMessages.length > 0;
-
 	return (
 		<form
 			id={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
@@ -127,20 +126,6 @@ export const TemplateCustomizationsStep: FC<
 				Add additional configurations.
 			</TemplateBuilderSubtitle>
 
-			{showErrorSummary && (
-				<Alert severity="error" className="my-4">
-					{errorMessages.length === 1 ? (
-						errorMessages[0]
-					) : (
-						<ul className="m-0 pl-4 list-disc">
-							{errorMessages.map((message) => (
-								<li key={message}>{message}</li>
-							))}
-						</ul>
-					)}
-				</Alert>
-			)}
-
 			{showProvisionerWarning && <ProvisionerWarning />}
 
 			<div className="flex gap-8">
@@ -150,15 +135,12 @@ export const TemplateCustomizationsStep: FC<
 				{/* Two-column form grid */}
 				<div className="grid grid-cols-2 gap-x-6 gap-y-6 content-start">
 					{/* Left column */}
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-display-name">Display name</Label>
-						<Input
-							{...form.getFieldProps("display_name")}
-							id="template-display-name"
-							placeholder="My Template"
-							aria-invalid={Boolean(form.errors.display_name)}
-						/>
-					</div>
+					<FormField
+						field={getFieldHelpers("display_name")}
+						label="Display name"
+						id="template-display-name"
+						placeholder="My Template"
+					/>
 
 					{/* Right column */}
 					{orgOptions.length > 0 && (
@@ -176,6 +158,11 @@ export const TemplateCustomizationsStep: FC<
 								onChange={handleOrgChange}
 								options={orgOptions}
 							/>
+							{organizationField.error && (
+								<span className="text-xs text-content-destructive">
+									{organizationField.helperText}
+								</span>
+							)}
 						</div>
 					)}
 
@@ -187,14 +174,24 @@ export const TemplateCustomizationsStep: FC<
 							id="template-description"
 							placeholder="Describe what this template is for"
 							rows={3}
-							aria-invalid={Boolean(form.errors.description)}
+							aria-invalid={descriptionField.error}
+							className={cn(
+								descriptionField.error && "border-border-destructive",
+							)}
 						/>
+						{descriptionField.error && (
+							<span className="text-xs text-content-destructive">
+								{descriptionField.helperText}
+							</span>
+						)}
 						<p className="text-xs text-content-secondary">
 							Used by both humans and Agents to identify templates.
 						</p>
 
 						<IconField
 							value={form.values.icon}
+							error={iconField.error}
+							helperText={iconField.helperText}
 							onChange={(e) => {
 								const target = e.target as HTMLInputElement;
 								void form.setFieldValue("icon", target.value);
@@ -206,24 +203,15 @@ export const TemplateCustomizationsStep: FC<
 					</div>
 
 					{/* Right column */}
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-name">
-							ID
-							<span className="text-xs font-bold text-content-destructive ml-1">
-								*
-							</span>
-						</Label>
-						<Input
-							{...form.getFieldProps("name")}
-							id="template-name"
-							placeholder="my-template"
-							aria-required
-							aria-invalid={Boolean(form.errors.name)}
-						/>
-						<p className="text-xs text-content-secondary">
-							Used to identify the template in URLs and the API.
-						</p>
-					</div>
+					<FormField
+						field={getFieldHelpers("name", {
+							helperText: "Used to identify the template in URLs and the API.",
+						})}
+						label="ID"
+						required
+						id="template-name"
+						placeholder="my-template"
+					/>
 				</div>
 			</div>
 		</form>
