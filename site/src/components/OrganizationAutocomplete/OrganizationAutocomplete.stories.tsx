@@ -34,17 +34,22 @@ export const ManyOrgs: Story = {
 	},
 };
 
+const collidingDisplayNameOrganizations = [
+	{ ...MockOrganization, name: "org-a", display_name: "Dev" },
+	{ ...MockOrganization2, name: "org-b", display_name: "Dev" },
+	{ ...MockOrganization, id: "org-c", name: "org-c", display_name: "Ops" },
+];
+
 export const CollidingDisplayNames: Story = {
 	args: {
-		value: null,
-		options: [
-			{ ...MockOrganization, name: "org-a", display_name: "Dev" },
-			{ ...MockOrganization2, name: "org-b", display_name: "Dev" },
-			{ ...MockOrganization, id: "org-c", name: "org-c", display_name: "Ops" },
-		],
+		value: collidingDisplayNameOrganizations[0],
+		options: collidingDisplayNameOrganizations,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Dev \(org-a\)/ }),
+		).toBeInTheDocument();
 		await userEvent.click(canvas.getByRole("button"));
 		await waitFor(() => {
 			expect(

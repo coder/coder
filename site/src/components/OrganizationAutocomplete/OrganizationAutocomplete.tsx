@@ -76,7 +76,9 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 								src={value.icon}
 								fallback={value.display_name}
 							/>
-							<span className="truncate">{value.display_name}</span>
+							<span className="truncate">
+								{getOrganizationLabel(value, options)}
+							</span>
 						</>
 					) : (
 						<span className="text-content-secondary">
