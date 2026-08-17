@@ -27,6 +27,8 @@ const meta: Meta<typeof MCPServersPageView> = {
 		],
 		organizations: [MockDefaultOrganization],
 		organization: MockDefaultOrganization,
+		canCreate: true,
+		canUpdate: true,
 		onSelectOrganization: fn(),
 	},
 	parameters: {

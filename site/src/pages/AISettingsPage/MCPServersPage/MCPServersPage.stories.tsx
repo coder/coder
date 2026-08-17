@@ -131,7 +131,9 @@ export const OrgAdminCanViewMCPServers: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(await canvas.findByText("Coder")).toBeVisible();
+		await expect(
+			await canvas.findByRole("cell", { name: "Coder" }),
+		).toBeVisible();
 	},
 };
 

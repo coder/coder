@@ -12,7 +12,7 @@ interface UpdateMCPServerPageViewProps {
 		serverId: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
 	) => Promise<unknown>;
-	onDeleteServer: (serverId: string) => Promise<void>;
+	onDeleteServer?: (serverId: string) => Promise<void>;
 	onToggleEnabled: (enabled: boolean) => void;
 	onCancel: () => void;
 }
