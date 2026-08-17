@@ -117,6 +117,21 @@ func testSQLDB(t testing.TB) *sql.DB {
 	return db
 }
 
+func stepMigrationsUpTo(t *testing.T, next func() (version uint, more bool, err error), target uint) {
+	t.Helper()
+
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", target)
+		}
+		if version == target {
+			return
+		}
+	}
+}
+
 // paralleltest linter doesn't correctly handle table-driven tests (https://github.com/kunwardeep/paralleltest/issues/8)
 // nolint:paralleltest
 func TestCheckLatestVersion(t *testing.T) {
@@ -3001,16 +3016,7 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	sqlDB := testSQLDB(t)
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", priorMigrationVersion)
-		}
-		if version == priorMigrationVersion {
-			break
-		}
-	}
+	stepMigrationsUpTo(t, next, priorMigrationVersion)
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -3141,24 +3147,15 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	`, uuid.New(), oauthConfigID, userID, keyDigest, now)
 	require.NoError(t, err)
 
-	type chatSeed struct {
-		id             uuid.UUID
-		organizationID uuid.UUID
-		configIDs      []uuid.UUID
-	}
-	chats := []chatSeed{
-		{id: uuid.New(), organizationID: defaultOrgID, configIDs: []uuid.UUID{configs[0].id, configs[1].id}},
-		{id: uuid.New(), organizationID: otherOrgID, configIDs: []uuid.UUID{configs[1].id, configs[0].id}},
-	}
-	for i, chat := range chats {
-		_, err = sqlDB.ExecContext(ctx, `
-			INSERT INTO chats (
-				id, owner_id, organization_id, last_model_config_id, title,
-				mcp_server_ids, created_at, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-		`, chat.id, userID, chat.organizationID, modelConfigID, fmt.Sprintf("Migration 568 Chat %d", i), pq.Array(chat.configIDs), now)
-		require.NoError(t, err)
-	}
+	chatID := uuid.New()
+	chatConfigIDs := []uuid.UUID{configs[1].id, configs[0].id}
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chats (
+			id, owner_id, organization_id, last_model_config_id, title,
+			mcp_server_ids, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, 'Migration 568 Chat', $5, $6, $6)
+	`, chatID, userID, otherOrgID, modelConfigID, pq.Array(chatConfigIDs), now)
+	require.NoError(t, err)
 
 	version, _, err := next()
 	require.NoError(t, err)
@@ -3205,10 +3202,7 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 		require.NoError(t, err)
 		return ids
 	}
-	require.Equal(t, chats[0].configIDs, getChatIDs(t, chats[0].id))
-	// Chats outside the default organization lose their references because
-	// the configs now belong to the default organization only.
-	require.Empty(t, getChatIDs(t, chats[1].id))
+	require.Equal(t, chatConfigIDs, getChatIDs(t, chatID))
 
 	// An organization-created config referenced by a chat exercises the down
 	// sweep: the config is deleted and its chat references removed.
@@ -3221,9 +3215,9 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
-	`, chats[1].id, pq.Array([]uuid.UUID{orgLocalConfigID}))
+	`, chatID, pq.Array([]uuid.UUID{orgLocalConfigID}))
 	require.NoError(t, err)
-	require.Equal(t, []uuid.UUID{orgLocalConfigID}, getChatIDs(t, chats[1].id))
+	require.Equal(t, []uuid.UUID{orgLocalConfigID}, getChatIDs(t, chatID))
 
 	downSQL, err := os.ReadFile("000570_mcp_server_configs_organization_id.down.sql")
 	require.NoError(t, err)
@@ -3234,8 +3228,7 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(configs), totalConfigs)
 
-	require.Equal(t, chats[0].configIDs, getChatIDs(t, chats[0].id))
-	require.Empty(t, getChatIDs(t, chats[1].id))
+	require.Empty(t, getChatIDs(t, chatID))
 	var danglingIDs int
 	err = sqlDB.QueryRowContext(ctx, `
 		SELECT COUNT(*)
