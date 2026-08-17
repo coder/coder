@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
 import {
 	MockBuildInfo,
@@ -88,6 +88,24 @@ export const ForOrgAdmin: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Admin settings" }),
 		);
+	},
+};
+
+export const ForMCPOrgAdmin: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
+	args: {
+		user: MockUserMember,
+		adminPermissions: {
+			canViewAISettings: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(body.getByRole("menuitem", { name: "AI" })).toBeVisible();
 	},
 };
 

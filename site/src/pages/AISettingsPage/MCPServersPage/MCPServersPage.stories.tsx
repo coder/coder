@@ -36,6 +36,41 @@ const mockOrganization2MCPServerQueryKey = mcpServerConfigKey(
 	MockOrganization2MCPServer.id,
 );
 
+type MCPOrganizationStoryPermissions = Readonly<{
+	view?: boolean;
+	create?: boolean;
+	update?: boolean;
+	delete?: boolean;
+}>;
+
+const mockOrganizationPermissions = (
+	permissionsByOrganizationId: Readonly<
+		Record<string, MCPOrganizationStoryPermissions>
+	>,
+) => {
+	spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+		Object.fromEntries(
+			Object.keys(checks).map((key) => {
+				const separator = key.indexOf(".");
+				const organizationId = key.slice(0, separator);
+				const permission = key.slice(separator + 1);
+				const permissions = permissionsByOrganizationId[organizationId];
+				const allowed =
+					permission === "viewMCPServerConfigs"
+						? permissions?.view
+						: permission === "createMCPServerConfig"
+							? permissions?.create
+							: permission === "updateMCPServerConfig"
+								? permissions?.update
+								: permission === "deleteMCPServerConfig"
+									? permissions?.delete
+									: false;
+				return [key, Boolean(allowed)];
+			}),
+		),
+	);
+};
+
 const RefetchServerDetailProbe: FC = () => {
 	const queryClient = useQueryClient();
 	return (
@@ -125,6 +160,9 @@ export const OrgAdminCanViewMCPServers: Story = {
 		}),
 	},
 	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: { view: true },
+		});
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([
 			MockCoderMCPServer,
 		]);
@@ -134,6 +172,86 @@ export const OrgAdminCanViewMCPServers: Story = {
 		await expect(
 			await canvas.findByRole("cell", { name: "Coder" }),
 		).toBeVisible();
+	},
+};
+
+export const ReadOnlyOrgAdminCannotModifyMCPServers: Story = {
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: true,
+			createAnyMCPServerConfig: false,
+			updateAnyMCPServerConfig: false,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers" },
+			routing: { path: "/ai/settings/mcp-servers" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: { view: true },
+		});
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([
+			MockCoderMCPServer,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByRole("cell", { name: "Coder" }),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Add server" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: /Coder/ }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const OrgBOnlyAdminUsesAuthorizedOrganization: Story = {
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: true,
+			createAnyMCPServerConfig: true,
+			updateAnyMCPServerConfig: true,
+		},
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/mcp-servers",
+				searchParams: { [orgSearchParam]: MockDefaultOrganization.name },
+			},
+			routing: { path: "/ai/settings/mcp-servers" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockOrganization2.id]: { view: true, create: true, update: true },
+		});
+		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
+			async (organization) =>
+				organization === MockOrganization2.id
+					? [MockOrganization2MCPServer]
+					: [MockCoderMCPServer],
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByRole("cell", { name: "Org2 Search" }),
+		).toBeVisible();
+		expect(canvas.queryByText("Coder")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		).not.toBeInTheDocument();
+		expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+			MockOrganization2.id,
+		);
 	},
 };
 
@@ -206,6 +324,33 @@ export const ListDisambiguatesCollidingOrganizationNames: Story = {
 			canvas.getByRole("button", {
 				name: /Organization Dev \(org-a\)/,
 			}),
+		).toBeVisible();
+	},
+};
+
+export const OrgAdminCanAddMCPServer: Story = {
+	render: () => <AddMCPServerPage />,
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: true,
+			createAnyMCPServerConfig: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers/add" },
+			routing: { path: "/ai/settings/mcp-servers/add" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: { view: true, create: true },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByLabelText(/display name/i)).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: "Add server" }),
 		).toBeVisible();
 	},
 };
@@ -392,6 +537,38 @@ export const UpdateShowsDetailLoadError: Story = {
 			await canvas.findByText("Failed to load MCP server."),
 		).toBeVisible();
 		expect(canvas.queryByLabelText(/display name/i)).not.toBeInTheDocument();
+	},
+};
+
+export const OrgAdminCanUpdateMCPServer: Story = {
+	render: () => <UpdateMCPServerPage />,
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: true,
+			updateAnyMCPServerConfig: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers/mcp-coder" },
+			routing: { path: "/ai/settings/mcp-servers/:serverId" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: { view: true, update: true },
+		});
+		spyOn(API.experimental, "getMCPServerConfig").mockResolvedValue(
+			MockCoderMCPServer,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByLabelText(/display name/i)).toHaveValue(
+			"Coder",
+		);
+		expect(
+			canvas.queryByRole("button", { name: /delete server/i }),
+		).not.toBeInTheDocument();
 	},
 };
 

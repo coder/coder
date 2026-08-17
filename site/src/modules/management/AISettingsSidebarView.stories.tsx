@@ -97,6 +97,37 @@ export const NoUpdateTemplates: Story = {
 	},
 };
 
+export const MCPServersForOrgAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			viewAnyMCPServerConfigs: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toBeVisible();
+	},
+};
+
+export const MCPServersHiddenWithoutPermission: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("link", { name: "MCP servers" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const NoPermissions: Story = {
 	args: {
 		permissions: MockNoPermissions,

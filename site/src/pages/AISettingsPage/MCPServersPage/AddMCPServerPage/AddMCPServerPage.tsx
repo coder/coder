@@ -27,16 +27,20 @@ const AddMCPServerPage: FC = () => {
 			organizations.map((organization) => organization.id),
 		),
 	);
+	const viewableOrganizations = permissions.editDeploymentConfig
+		? organizations
+		: organizations.filter(
+				(organization) =>
+					organizationPermissionsQuery.data?.[organization.id]
+						.viewMCPServerConfigs,
+			);
 	const authorizedOrganizations = permissions.editDeploymentConfig
 		? organizations
-		: organizations.filter((organization) => {
-				const organizationPermissions =
-					organizationPermissionsQuery.data?.[organization.id];
-				return (
-					organizationPermissions?.viewMCPServerConfigs &&
-					organizationPermissions.createMCPServerConfig
-				);
-			});
+		: viewableOrganizations.filter(
+				(organization) =>
+					organizationPermissionsQuery.data?.[organization.id]
+						.createMCPServerConfig,
+			);
 	const organization =
 		authorizedOrganizations.length > 0
 			? selectOrganization(
@@ -77,7 +81,7 @@ const AddMCPServerPage: FC = () => {
 					{organization && (
 						<AddMCPServerPageView
 							isSaving={createMutation.isPending}
-							organizations={authorizedOrganizations}
+							organizations={viewableOrganizations}
 							organization={organization}
 							onSelectOrganization={(org) => {
 								setSearchParams((params) => {

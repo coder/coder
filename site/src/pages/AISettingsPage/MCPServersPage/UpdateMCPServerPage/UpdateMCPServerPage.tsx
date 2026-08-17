@@ -37,16 +37,20 @@ const UpdateMCPServerPage: FC = () => {
 			organizations.map((organization) => organization.id),
 		),
 	);
+	const viewableOrganizations = permissions.editDeploymentConfig
+		? organizations
+		: organizations.filter(
+				(organization) =>
+					organizationPermissionsQuery.data?.[organization.id]
+						.viewMCPServerConfigs,
+			);
 	const authorizedOrganizations = permissions.editDeploymentConfig
 		? organizations
-		: organizations.filter((organization) => {
-				const organizationPermissions =
-					organizationPermissionsQuery.data?.[organization.id];
-				return (
-					organizationPermissions?.viewMCPServerConfigs &&
-					organizationPermissions.updateMCPServerConfig
-				);
-			});
+		: viewableOrganizations.filter(
+				(organization) =>
+					organizationPermissionsQuery.data?.[organization.id]
+						.updateMCPServerConfig,
+			);
 	const organization =
 		authorizedOrganizations.length > 0
 			? selectOrganization(
