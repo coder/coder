@@ -346,13 +346,16 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 		waitSecs = min(max(waitSecs, 1), 120)
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+		// A failed watch dial (e.g. a proxy rejecting websocket upgrades)
+		// must not break awaiting; the REST poll ticker covers it.
 		events, closer, err := expClient.WatchChats(ctx)
 		if err != nil {
-			return AwaitChatResponse{}, xerrors.Errorf("watch chats: %w", err)
+			events = nil
+		} else {
+			defer func() {
+				_ = closer.Close()
+			}()
 		}
-		defer func() {
-			_ = closer.Close()
-		}()
 
 		chat, err := expClient.GetChat(ctx, chatID)
 		if err != nil {
