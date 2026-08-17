@@ -237,7 +237,7 @@ func TestPostTrialLicense(t *testing.T) {
 		Email:       "coder@coder.com",
 		FirstName:   "Coder",
 		LastName:    "McCoder",
-		PhoneNumber: "+1 555 0100",
+		PhoneNumber: "+14155550100",
 		JobTitle:    "Platform Engineer",
 		CompanyName: "Coder",
 		Country:     "United States",

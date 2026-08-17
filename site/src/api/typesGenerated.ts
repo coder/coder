@@ -4193,7 +4193,7 @@ export interface CreateTokenRequest {
 
 // From codersdk/licenses.go
 /**
- * CreateTrialLicenseRequest defines the input payload for requesting a trial license.
+ * Defines the input payload for requesting a trial license.
  */
 export interface CreateTrialLicenseRequest {
 	readonly email: string;

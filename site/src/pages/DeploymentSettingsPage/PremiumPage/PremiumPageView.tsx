@@ -32,16 +32,21 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 	isSubmitting,
 	error,
 }) => {
-	let panel: React.ReactNode;
-	if (hasLicense && !isTrial) {
-		panel = <LicenseActivePanel />;
-	} else if (hasLicense) {
-		panel = (
-			<TrialActivePanel
-				daysRemaining={trialDaysRemaining}
-				isLoading={isLoadingLicenses}
-			/>
+	if (hasLicense && isTrial) {
+		return (
+			<div className="relative isolate overflow-hidden rounded-lg border border-solid border-border-default bg-surface-secondary min-h-[640px] flex items-center justify-center p-8 lg:p-12">
+				<Supergraphic className="bg-[position:20%_20%]" />
+				<TrialActivePanel
+					daysRemaining={trialDaysRemaining}
+					isLoading={isLoadingLicenses}
+				/>
+			</div>
 		);
+	}
+
+	let panel: React.ReactNode;
+	if (hasLicense) {
+		panel = <LicenseActivePanel />;
 	} else if (canRequestTrial) {
 		panel = (
 			<TrialRequestForm
@@ -64,10 +69,8 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 	return (
 		<div className="rounded-lg border border-solid border-border-default bg-surface-primary overflow-hidden">
 			<div className="grid grid-cols-1 lg:grid-cols-2 min-h-[640px]">
-				{/* Supergraphic is absolutely positioned at -z-10, so this parent must
-				    establish a stacking context or it renders behind the page. */}
-				<div className="relative isolate overflow-hidden hidden lg:block bg-surface-secondary">
-					<Supergraphic className="bg-[length:auto_180%] bg-[position:20%_50%]" />
+				<div className="relative isolate overflow-hidden lg:block bg-surface-secondary">
+					<Supergraphic className="bg-[position:20%_20%] bg-[length:110%_125%] -scale-x-100" />
 				</div>
 				<div className="flex flex-col justify-center p-8 lg:p-12">{panel}</div>
 			</div>

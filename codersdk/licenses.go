@@ -23,7 +23,7 @@ type AddLicenseRequest struct {
 	License string `json:"license" validate:"required"`
 }
 
-// CreateTrialLicenseRequest defines the input payload for requesting a trial license.
+// Defines the input payload for requesting a trial license.
 type CreateTrialLicenseRequest struct {
 	Email       string `json:"email"        validate:"required,email,max=254"      example:"jane.doe@example.com"  format:"email" maxLength:"254"`
 	FirstName   string `json:"first_name"   validate:"required,min=1,max=60"       example:"Jane"                   minLength:"1" maxLength:"60"`

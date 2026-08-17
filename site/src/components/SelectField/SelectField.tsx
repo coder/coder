@@ -33,7 +33,7 @@ const Field: FC<{
 	</div>
 );
 
-export type SelectFieldProps = FormHelpers & {
+type SelectFieldProps = FormHelpers & {
 	label: string;
 	className?: string;
 	onValueChange: (value: string) => void;

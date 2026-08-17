@@ -67,11 +67,38 @@ export const TrialActive: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
+		await expect(
+			canvas.getByRole("heading", {
+				name: "Your Premium trial is active",
+				level: 1,
+			}),
+		).toBeVisible();
 		await expect(canvas.getByText("23 days remaining")).toBeVisible();
 		await expect(
-			canvas.getByRole("link", { name: "View licenses" }),
-		).toHaveAttribute("href", "/deployment/licenses");
+			canvas.getByRole("link", { name: /talk to sales/i }),
+		).toHaveAttribute("href", "https://coder.com/contact/sales");
 		await expect(canvas.queryByLabelText("Email")).not.toBeInTheDocument();
+		// The upsell drops the secondary CTA and the feature checklist so it no
+		// longer mirrors the trial request form.
+		await expect(
+			canvas.queryByRole("link", { name: "View licenses" }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("24x7 global support with SLA"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const TrialActiveSingleDay: Story = {
+	args: {
+		hasLicense: true,
+		isTrial: true,
+		trialDaysRemaining: 1,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByText("1 day remaining")).toBeVisible();
 	},
 };
 
@@ -101,9 +128,35 @@ export const TrialExpiryUnavailable: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.getByText("Your Premium trial is active."),
+			canvas.getByRole("heading", {
+				name: "Your Premium trial is active",
+				level: 1,
+			}),
 		).toBeVisible();
-		await expect(canvas.queryByText(/NaN/)).not.toBeInTheDocument();
+		// Without a readable expiry there is no count, so no subline is rendered.
+		await expect(canvas.queryByText(/remaining/)).not.toBeInTheDocument();
+		await expect(canvas.queryByText(/NaN|undefined/)).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: /talk to sales/i }),
+		).toBeVisible();
+	},
+};
+
+export const TrialExpired: Story = {
+	args: {
+		hasLicense: true,
+		isTrial: true,
+		trialDaysRemaining: -3,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// An elapsed trial must never render a negative count.
+		await expect(canvas.queryByText(/remaining/)).not.toBeInTheDocument();
+		await expect(canvas.queryByText(/-3/)).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: /talk to sales/i }),
+		).toBeVisible();
 	},
 };
 
@@ -117,7 +170,10 @@ export const LicenseActive: Story = {
 
 		// Copy stays license-neutral: this state also covers Enterprise licenses.
 		await expect(
-			canvas.getByRole("heading", { name: "A license is installed", level: 1 }),
+			canvas.getByRole("heading", {
+				name: "A license is already installed",
+				level: 1,
+			}),
 		).toBeVisible();
 		await expect(
 			canvas.getByRole("link", { name: "View licenses" }),

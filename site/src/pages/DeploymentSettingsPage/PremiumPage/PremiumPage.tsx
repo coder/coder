@@ -5,11 +5,17 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { createTrialLicense, licenses } from "#/api/queries/licenses";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { DATABASE_DOCS_LINK } from "#/modules/licenses/trialLicense";
 import { pageTitle } from "#/utils/page";
 import { PremiumPageView } from "./PremiumPageView";
-import { LICENSES_PAGE_PATH } from "./TrialActivePanel";
 
 const PremiumPage: FC = () => {
 	const { entitlements } = useDashboard();
@@ -20,8 +26,7 @@ const PremiumPage: FC = () => {
 	const hasLicense = entitlements.has_license;
 	const isTrial = entitlements.trial;
 
-	// Only the trial panel needs license claims; every other state renders from
-	// entitlements alone.
+	// Only the trial panel needs license claims; other states render entitlements
 	const licensesQuery = useQuery({
 		...licenses(),
 		enabled: hasLicense && isTrial,
@@ -38,6 +43,20 @@ const PremiumPage: FC = () => {
 		<>
 			<title>{pageTitle("Premium")}</title>
 
+			<SettingsHeader
+				actions={
+					<SettingsHeaderDocsLink
+						href={DATABASE_DOCS_LINK}
+					></SettingsHeaderDocsLink>
+				}
+			>
+				<SettingsHeaderTitle>Premium Trial</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					For enterprises ready to achieve world-class security, scalability,
+					and developer experience.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+
 			<PremiumPageView
 				hasLicense={hasLicense}
 				isTrial={isTrial}
@@ -49,7 +68,7 @@ const PremiumPage: FC = () => {
 				onSubmit={(request) => {
 					trialMutation.mutate(request, {
 						onSuccess: () => {
-							navigate(`${LICENSES_PAGE_PATH}?success=true`);
+							navigate("/deployment/licenses?success=true");
 						},
 						onError: (error) => {
 							toast.error(

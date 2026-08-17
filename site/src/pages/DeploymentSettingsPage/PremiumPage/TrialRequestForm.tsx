@@ -9,13 +9,11 @@ import { FormField } from "#/components/FormField/FormField";
 import { SelectItem } from "#/components/Select/Select";
 import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { numberOfDevelopersOptions } from "#/modules/licenses/trialLicense";
-import { docs } from "#/utils/docs";
+import {
+	DATABASE_DOCS_LINK,
+	numberOfDevelopersOptions,
+} from "#/modules/licenses/trialLicense";
 import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
-
-const DATABASE_DOCS_LINK = docs(
-	"/admin/infrastructure/architecture#postgresql-recommended",
-);
 
 type TrialFormValues = TypesGen.CreateTrialLicenseRequest & {
 	// client-side gate only

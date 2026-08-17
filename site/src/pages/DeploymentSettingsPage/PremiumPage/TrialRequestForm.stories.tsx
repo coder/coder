@@ -114,7 +114,7 @@ export const InvalidPhoneNumber: Story = {
 		await waitFor(() =>
 			expect(
 				canvas.getByText(
-					"Please enter a valid phone number in international format (e.g. +14155552671).",
+					"Phone number should be in international format (e.g. +14155552671).",
 				),
 			).toBeInTheDocument(),
 		);
@@ -132,9 +132,7 @@ export const TooShortJobTitle: Story = {
 
 		await waitFor(() =>
 			expect(
-				canvas.getByText(
-					"Please enter a job title that is at least 2 characters.",
-				),
+				canvas.getByText("Job title should be at least 2 characters."),
 			).toBeInTheDocument(),
 		);
 		await expect(args.onSubmit).not.toHaveBeenCalled();
