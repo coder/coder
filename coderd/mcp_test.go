@@ -578,18 +578,19 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 	newConfig := func(ctx context.Context, t *testing.T, slug string) codersdk.MCPServerConfig {
 		t.Helper()
 		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
-			DisplayName:    "Grant Invalidation " + slug,
-			Slug:           slug,
-			Transport:      "streamable_http",
-			URL:            "https://mcp.example.com/" + slug,
-			AuthType:       "oauth2",
-			OAuth2ClientID: "cid",
-			OAuth2AuthURL:  "https://auth.example.com/authorize",
-			OAuth2TokenURL: "https://auth.example.com/token",
-			Availability:   "default_on",
-			Enabled:        true,
-			ToolAllowList:  []string{},
-			ToolDenyList:   []string{},
+			DisplayName:         "Grant Invalidation " + slug,
+			Slug:                slug,
+			Transport:           "streamable_http",
+			URL:                 "https://mcp.example.com/" + slug,
+			AuthType:            "oauth2",
+			OAuth2ClientID:      "cid",
+			OAuth2AuthURL:       "https://auth.example.com/authorize",
+			OAuth2TokenURL:      "https://auth.example.com/token",
+			OAuth2RevocationURL: "https://auth.example.com/revoke",
+			Availability:        "default_on",
+			Enabled:             true,
+			ToolAllowList:       []string{},
+			ToolDenyList:        []string{},
 		})
 		require.NoError(t, err)
 		return created
@@ -665,6 +666,20 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 		require.False(t, tokenExists(ctx, t, config.ID))
 	})
 
+	t.Run("RevocationURLChangeDeletesGrants", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := newConfig(ctx, t, "grant-revocation-url-change")
+		seedToken(ctx, t, config.ID)
+
+		movedEndpoint := "https://auth.example.com/other-revocation-endpoint"
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
+			OAuth2RevocationURL: &movedEndpoint,
+		})
+		require.NoError(t, err)
+		require.False(t, tokenExists(ctx, t, config.ID))
+	})
+
 	t.Run("ClientIDChangeDeletesGrants", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -699,6 +714,28 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 func TestMCPServerConfigsOAuth2CallbackRejectsSupersededConfig(t *testing.T) {
 	t.Parallel()
 
+	movedURL := "https://attacker.example.com/superseded"
+	runMCPServerConfigsOAuth2CallbackSupersessionTest(t, "superseded-callback", codersdk.UpdateMCPServerConfigRequest{
+		URL: &movedURL,
+	})
+}
+
+func TestMCPServerConfigsOAuth2CallbackRejectsSupersededRevocationURL(t *testing.T) {
+	t.Parallel()
+
+	movedRevocationURL := "https://attacker.example.com/revoke"
+	runMCPServerConfigsOAuth2CallbackSupersessionTest(t, "superseded-revocation-callback", codersdk.UpdateMCPServerConfigRequest{
+		OAuth2RevocationURL: &movedRevocationURL,
+	})
+}
+
+func runMCPServerConfigsOAuth2CallbackSupersessionTest(
+	t *testing.T,
+	slug string,
+	updateRequest codersdk.UpdateMCPServerConfigRequest,
+) {
+	t.Helper()
+
 	ctx := testutil.Context(t, testutil.WaitLong)
 	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -711,10 +748,7 @@ func TestMCPServerConfigsOAuth2CallbackRejectsSupersededConfig(t *testing.T) {
 	var configID atomic.Pointer[uuid.UUID]
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if id := configID.Load(); id != nil {
-			movedURL := "https://attacker.example.com/superseded"
-			_, err := adminClient.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, *id, codersdk.UpdateMCPServerConfigRequest{
-				URL: &movedURL,
-			})
+			_, err := adminClient.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, *id, updateRequest)
 			assert.NoError(t, err)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -723,18 +757,19 @@ func TestMCPServerConfigsOAuth2CallbackRejectsSupersededConfig(t *testing.T) {
 	t.Cleanup(tokenServer.Close)
 
 	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
-		DisplayName:    "Superseded Callback",
-		Slug:           "superseded-callback",
-		Transport:      "streamable_http",
-		URL:            "https://mcp.example.com/superseded-callback",
-		AuthType:       "oauth2",
-		OAuth2ClientID: "cid",
-		OAuth2AuthURL:  "https://auth.example.com/authorize",
-		OAuth2TokenURL: tokenServer.URL + "/token",
-		Availability:   "default_on",
-		Enabled:        true,
-		ToolAllowList:  []string{},
-		ToolDenyList:   []string{},
+		DisplayName:         "Superseded Callback " + slug,
+		Slug:                slug,
+		Transport:           "streamable_http",
+		URL:                 "https://mcp.example.com/" + slug,
+		AuthType:            "oauth2",
+		OAuth2ClientID:      "cid",
+		OAuth2AuthURL:       "https://auth.example.com/authorize",
+		OAuth2TokenURL:      tokenServer.URL + "/token",
+		OAuth2RevocationURL: "https://auth.example.com/revoke",
+		Availability:        "default_on",
+		Enabled:             true,
+		ToolAllowList:       []string{},
+		ToolDenyList:        []string{},
 	})
 	require.NoError(t, err)
 	configID.Store(&created.ID)

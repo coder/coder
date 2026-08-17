@@ -857,12 +857,12 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// User grants are bound to the destination, auth flow, token endpoint,
-		// and OAuth client the user authorized. Invalidate them when any of
-		// these change so stored tokens cannot be replayed against another
-		// endpoint or client (refresh posts the refresh token to token_url).
+		// User grants are bound to the destination, auth flow, token and revocation
+		// endpoints, and OAuth client. Invalidate them when any of these change so
+		// stored tokens cannot be sent to another endpoint or client.
 		if serverURL != existing.Url || authType != existing.AuthType ||
-			oauth2TokenURL != existing.OAuth2TokenURL || oauth2ClientID != existing.OAuth2ClientID {
+			oauth2TokenURL != existing.OAuth2TokenURL || oauth2RevocationURL != existing.OAuth2RevocationURL ||
+			oauth2ClientID != existing.OAuth2ClientID {
 			if err := tx.DeleteMCPServerUserTokensByConfigID(ctx, existing.ID); err != nil {
 				return xerrors.Errorf("invalidate MCP server user tokens: %w", err)
 			}
@@ -1186,7 +1186,8 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 			return xerrors.Errorf("re-read MCP server config: %w", err)
 		}
 		if current.Url != config.Url || current.AuthType != config.AuthType ||
-			current.OAuth2TokenURL != config.OAuth2TokenURL || current.OAuth2ClientID != config.OAuth2ClientID {
+			current.OAuth2TokenURL != config.OAuth2TokenURL || current.OAuth2RevocationURL != config.OAuth2RevocationURL ||
+			current.OAuth2ClientID != config.OAuth2ClientID {
 			return errMCPConfigSupersededDuringAuth
 		}
 		//nolint:gocritic // Users store their own tokens.
