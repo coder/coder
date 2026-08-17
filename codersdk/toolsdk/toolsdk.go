@@ -60,6 +60,9 @@ const (
 	ToolNameGetTaskLogs                 = "coder_get_task_logs"
 	ToolNameCreateChat                  = "coder_create_chat"
 	ToolNameGetChat                     = "coder_get_chat"
+	ToolNameDownloadChatFile            = "coder_download_chat_file"
+	ToolNameAwaitChat                   = "coder_await_chat"
+	ToolNameListChats                   = "coder_list_chats"
 	ToolNameGetChatMessages             = "coder_get_chat_messages"
 	ToolNameSendChatMessage             = "coder_send_chat_message"
 	ToolNameInterruptChat               = "coder_interrupt_chat"
@@ -347,6 +350,9 @@ var All = []GenericTool{
 	GetTaskLogs.Generic(),
 	CreateChat.Generic(),
 	GetChat.Generic(),
+	DownloadChatFile.Generic(),
+	AwaitChat.Generic(),
+	ListChats.Generic(),
 	GetChatMessages.Generic(),
 	SendChatMessage.Generic(),
 	InterruptChat.Generic(),
@@ -635,7 +641,7 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameListTemplates,
-		Description: "Lists templates for the authenticated user.",
+		Description: "Lists templates for the authenticated user. agents_allowed indicates whether Coder Agents (chats) may create workspaces from the template.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{},
 			Required:   []string{},
@@ -656,6 +662,7 @@ var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 				Description:     template.Description,
 				ActiveVersionID: template.ActiveVersionID,
 				ActiveUserCount: template.ActiveUserCount,
+				AgentsAllowed:   template.AgentsAllowed,
 			}
 		}
 		return minimalTemplates, nil
@@ -1735,6 +1742,7 @@ type MinimalTemplate struct {
 	Description     string    `json:"description"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
+	AgentsAllowed   bool      `json:"agents_allowed"`
 }
 
 type WorkspaceLSArgs struct {

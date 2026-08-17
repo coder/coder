@@ -299,6 +299,23 @@ func TestChatTools(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "busy_behavior")
 
+		_, err = testTool(t, toolsdk.DownloadChatFile, tb, toolsdk.DownloadChatFileArgs{})
+		require.ErrorContains(t, err, "exactly one addressing mode")
+
+		_, err = testTool(t, toolsdk.AwaitChat, tb, toolsdk.AwaitChatArgs{ChatID: "not-a-uuid"})
+		require.ErrorContains(t, err, "chat_id must be a valid UUID")
+
+		listed, err := testTool(t, toolsdk.ListChats, tb, toolsdk.ListChatsArgs{Limit: 1})
+		require.NoError(t, err)
+		require.LessOrEqual(t, len(listed.Chats), 1)
+
+		_, err = testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{
+			ChatID:   uuid.NewString(),
+			BeforeID: 1,
+			AfterID:  2,
+		})
+		require.ErrorContains(t, err, "before_id and after_id cannot be used together")
+
 		for _, limit := range []int{-1, 201} {
 			_, err = testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{
 				ChatID: uuid.NewString(),
