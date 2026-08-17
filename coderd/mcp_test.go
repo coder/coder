@@ -30,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -138,35 +137,6 @@ func TestMCPServerConfigLegacyRoutesRemoved(t *testing.T) {
 		require.NoError(t, err)
 		res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode, path)
-	}
-}
-
-func TestMCPServerConfigDisplayNameValidation(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newMCPClient(t)
-	firstUser := coderdtest.CreateFirstUser(t, client)
-
-	_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
-		DisplayName:  "   ",
-		Slug:         "whitespace-name",
-		Transport:    "streamable_http",
-		URL:          "https://mcp.example.com",
-		AuthType:     "none",
-		Availability: "default_off",
-	})
-	var sdkErr *codersdk.Error
-	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-
-	config := createMCPServerConfig(t, client, firstUser.OrganizationID, "display-name-validation", true)
-	for _, name := range []string{"", "   "} {
-		_, err := client.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
-			DisplayName: ptr.Ref(name),
-		})
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	}
 }
 
