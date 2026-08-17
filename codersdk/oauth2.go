@@ -273,8 +273,8 @@ const (
 // registration accepts. Valid() derives from it, so what registration
 // accepts cannot drift from what this function reports.
 //
-// Discovery does not advertise this list verbatim; see
-// AdvertisedOAuth2TokenEndpointAuthMethods for why.
+// See AdvertisedOAuth2TokenEndpointAuthMethods for the set discovery
+// publishes, which is bounded by what the token endpoint honors.
 func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 	return []OAuth2TokenEndpointAuthMethod{
 		OAuth2TokenEndpointAuthMethodClientSecretBasic,
@@ -284,18 +284,18 @@ func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 }
 
 // AdvertisedOAuth2TokenEndpointAuthMethods returns the token endpoint auth
-// methods safe to advertise in discovery metadata (RFC 8414
-// token_endpoint_auth_methods_supported). It excludes "none": registration
-// accepts "none" (see AllOAuth2TokenEndpointAuthMethods), but the token
-// endpoint still requires a client secret for every authorization_code
-// exchange, so advertising "none" would tell a conforming client the server
-// accepts an exchange it will reject. Once the token endpoint honors "none",
-// this should return the same set as AllOAuth2TokenEndpointAuthMethods.
+// methods published in discovery metadata (RFC 8414
+// token_endpoint_auth_methods_supported). It returns everything registration
+// accepts, because the token endpoint honors all of it.
+//
+// The two remain separate functions because they answer different questions.
+// AllOAuth2TokenEndpointAuthMethods is what Valid() enforces on a registration
+// request; this is what the token endpoint will accept at exchange time.
+// Advertising a method the token endpoint rejects would tell a conforming
+// client the server accepts an exchange it does not, so a method withheld
+// there must be withheld here too.
 func AdvertisedOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
-	return []OAuth2TokenEndpointAuthMethod{
-		OAuth2TokenEndpointAuthMethodClientSecretBasic,
-		OAuth2TokenEndpointAuthMethodClientSecretPost,
-	}
+	return AllOAuth2TokenEndpointAuthMethods()
 }
 
 func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
