@@ -248,6 +248,9 @@ export const InterruptingShowsBusyComposer: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
 		expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
+		expect(canvas.getByRole("status")).toHaveTextContent(
+			"Interrupting. Waiting for the agent to stop.",
+		);
 		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
 
 		await userEvent.click(
