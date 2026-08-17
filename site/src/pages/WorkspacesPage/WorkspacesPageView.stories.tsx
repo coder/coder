@@ -479,6 +479,58 @@ export const ParentAgentApps: Story = {
 	},
 };
 
+// An external app with an unparsable URL must not crash the table. Its icon
+// renders as a non-navigating button with an explanatory label instead of a
+// broken link.
+export const InvalidAppUrl: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "invalid-app-url",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								{
+									...MockWorkspaceAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "invalid-app",
+											slug: "invalid-app",
+											display_name: "Broken App",
+											health: "healthy",
+											external: true,
+											// A bare string with no scheme is unparsable
+											// by the URL constructor.
+											url: "my-repo",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The invalid app renders a non-navigating button, not a link.
+		await canvas.findByRole("button", {
+			name: /Broken App has an invalid URL/i,
+		});
+		expect(
+			canvas.queryByRole("link", { name: /Broken App/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const ShowOrganizations: Story = {
 	args: {
 		workspaces: [

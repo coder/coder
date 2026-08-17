@@ -28,6 +28,8 @@ import (
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1074,7 +1076,7 @@ func TestRefreshTokenWithScopes(t *testing.T) {
 	newConfig := func(t *testing.T, scopes []string) *externalauth.Config {
 		t.Helper()
 		instrument := promoauth.NewFactory(prometheus.NewRegistry())
-		configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			ID:           "test",
 			Type:         codersdk.EnhancedExternalAuthProviderAzureDevopsEntra.String(),
 			ClientID:     "id",
@@ -1192,16 +1194,67 @@ func TestValidateToken(t *testing.T) {
 	// (X-RateLimit-Remaining, Retry-After) that the FakeIDP's
 	// WithDynamicUserInfo hook does not expose.
 
-	newValidateConfig := func(t *testing.T, validateURL string) *externalauth.Config {
+	const providerName = "test-validate"
+
+	// newLoggedConfig returns a config plus the buffer capturing its logs.
+	newLoggedConfig := func(t *testing.T, validateURL string) (*externalauth.Config, *bytes.Buffer) {
 		t.Helper()
 		f := promoauth.NewFactory(prometheus.NewRegistry())
-		return &externalauth.Config{
-			InstrumentedOAuth2Config: f.New("test-validate", &oauth2.Config{}),
-			ID:                       "test-validate",
-			Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
-			ValidateURL:              validateURL,
-			RefreshGroup:             new(singleflight.Group),
+		logs := &bytes.Buffer{}
+		logger := slog.Make(slogjson.Sink(logs)).Leveled(slog.LevelDebug)
+		// ConvertConfig wires the named logger as production does.
+		configs, err := externalauth.ConvertConfig(context.Background(), logger, f, []codersdk.ExternalAuthConfig{{
+			ID:           providerName,
+			Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			ClientID:     "id",
+			ClientSecret: "secret",
+			ValidateURL:  validateURL,
+		}}, &url.URL{})
+		require.NoError(t, err)
+		return configs[0], logs
+	}
+
+	type logEntry struct {
+		Level  string `json:"level"`
+		Msg    string `json:"msg"`
+		Fields struct {
+			ProviderType string `json:"provider_type"`
+			StatusCode   int    `json:"status_code"`
+			Reason       string `json:"reason"`
+			Suppressed   int64  `json:"suppressed"`
+		} `json:"fields"`
+	}
+
+	// rateLimitWarnings returns only the rate-limited-validation warnings.
+	rateLimitWarnings := func(t *testing.T, logs string) []logEntry {
+		t.Helper()
+		var out []logEntry
+		for _, line := range strings.Split(strings.TrimSpace(logs), "\n") {
+			if line == "" {
+				continue
+			}
+			var entry logEntry
+			require.NoError(t, json.Unmarshal([]byte(line), &entry))
+			if strings.Contains(entry.Msg, "validation endpoint rate-limited") {
+				out = append(out, entry)
+			}
 		}
+		return out
+	}
+
+	// requireRateLimitLog asserts exactly one WARN line with the given
+	// status code and reason.
+	requireRateLimitLog := func(t *testing.T, logs string, wantStatus int, wantReason string) {
+		t.Helper()
+		warnings := rateLimitWarnings(t, logs)
+		require.Len(t, warnings, 1, "expected exactly one rate-limit warning, got: %q", logs)
+		entry := warnings[0]
+		assert.Equal(t, "WARN", entry.Level)
+		assert.Equal(t, codersdk.EnhancedExternalAuthProviderGitHub.String(), entry.Fields.ProviderType)
+		assert.Equal(t, wantStatus, entry.Fields.StatusCode)
+		assert.Equal(t, wantReason, entry.Fields.Reason)
+		assert.EqualValues(t, 0, entry.Fields.Suppressed,
+			"a lone warning should report no suppressed occurrences")
 	}
 
 	newToken := func() *oauth2.Token {
@@ -1234,12 +1287,13 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, logs := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.True(t, valid, "rate-limited 403 should be treated as optimistically valid")
 		assert.Nil(t, user)
+		requireRateLimitLog(t, logs.String(), http.StatusForbidden, "rate_limit_headers")
 	})
 
 	// RetryAfter: 403 with Retry-After header (secondary rate limit)
@@ -1253,12 +1307,13 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, logs := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.True(t, valid, "rate-limited 403 with Retry-After should be optimistically valid")
 		assert.Nil(t, user)
+		requireRateLimitLog(t, logs.String(), http.StatusForbidden, "rate_limit_headers")
 	})
 
 	// Forbidden_WithNonZeroRateLimit: a 403 with non-zero
@@ -1275,12 +1330,13 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, logs := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.False(t, valid, "403 with non-zero rate limit remaining means token is invalid")
 		assert.Nil(t, user)
+		assert.Empty(t, rateLimitWarnings(t, logs.String()), "a genuine revocation should not log a rate-limit warning")
 	})
 
 	// Forbidden_NoRateLimitHeaders: a plain 403 without rate-limit
@@ -1293,12 +1349,13 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, logs := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.False(t, valid, "plain 403 without rate-limit headers means token is invalid")
 		assert.Nil(t, user)
+		assert.Empty(t, rateLimitWarnings(t, logs.String()), "a plain 403 should not log a rate-limit warning")
 	})
 
 	// Unauthorized: 401 is always a token revocation regardless of
@@ -1311,7 +1368,7 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, _ := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
@@ -1332,7 +1389,7 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, _ := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
@@ -1351,12 +1408,50 @@ func TestValidateToken(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		config := newValidateConfig(t, srv.URL)
+		config, logs := newLoggedConfig(t, srv.URL)
 		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.True(t, valid, "429 should be treated as optimistically valid")
 		assert.Nil(t, user)
+		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "status_code")
+	})
+
+	// Throttled: repeated rate-limited validations within the throttle
+	// interval emit a single warning.
+	t.Run("Throttled", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		}))
+		t.Cleanup(srv.Close)
+
+		config, logs := newLoggedConfig(t, srv.URL)
+		ctx := newValidateCtx(t)
+		for range 3 {
+			valid, _, err := config.ValidateToken(ctx, newToken())
+			require.NoError(t, err)
+			assert.True(t, valid)
+		}
+		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "status_code")
+	})
+
+	t.Run("Confirmed", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{}`))
+		}))
+		t.Cleanup(srv.Close)
+
+		config, logs := newLoggedConfig(t, srv.URL)
+		valid, _, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "200 means the provider confirmed the token")
+		assert.Empty(t, rateLimitWarnings(t, logs.String()), "a confirmed validation should not log a rate-limit warning")
 	})
 }
 
@@ -1513,7 +1608,7 @@ func TestExchangeWithClientSecret(t *testing.T) {
 	instrument := promoauth.NewFactory(prometheus.NewRegistry())
 	// This ensures a provider that requires the custom
 	// client secret exchange works.
-	configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+	configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 		// JFrog just happens to require this custom type.
 
 		Type:         codersdk.EnhancedExternalAuthProviderJFrog.String(),
@@ -1645,7 +1740,7 @@ func TestConvertYAML(t *testing.T) {
 	}} {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			output, err := externalauth.ConvertConfig(instrument, tc.Input, &url.URL{})
+			output, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, tc.Input, &url.URL{})
 			if tc.Error != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.Error)
@@ -1657,21 +1752,22 @@ func TestConvertYAML(t *testing.T) {
 
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
-		config, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+		config, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
 			AuthURL:      "https://auth.com",
 			TokenURL:     "https://token.com",
+			RedirectURL:  "https://redirect.com",
 			Scopes:       []string{"read"},
-		}}, &url.URL{})
+		}}, &url.URL{Scheme: "https", Host: "default.com"})
 		require.NoError(t, err)
-		require.Equal(t, "https://auth.com?client_id=id&redirect_uri=%2Fexternal-auth%2Fgitlab%2Fcallback&response_type=code&scope=read", config[0].AuthCodeURL(""))
+		require.Equal(t, "https://auth.com?client_id=id&redirect_uri=https%3A%2F%2Fredirect.com%2Fexternal-auth%2Fgitlab%2Fcallback&response_type=code&scope=read", config[0].AuthCodeURL(""))
 	})
 
 	t.Run("RevokeTimeoutSet", func(t *testing.T) {
 		t.Parallel()
-		configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
@@ -1682,7 +1778,7 @@ func TestConvertYAML(t *testing.T) {
 
 	t.Run("SelfHostedGitLabAPIBaseURL", func(t *testing.T) {
 		t.Parallel()
-		configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
@@ -1861,6 +1957,8 @@ func TestApplyDefaultsToConfig_CaseInsensitive(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			configs, err := externalauth.ConvertConfig(
+				context.Background(),
+				testutil.Logger(t),
 				instrument,
 				[]codersdk.ExternalAuthConfig{{
 					Type:         tc.Type,

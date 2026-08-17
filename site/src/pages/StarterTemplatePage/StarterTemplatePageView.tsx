@@ -52,7 +52,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 							<Link
 								to={
 									templateBuilderEnabled
-										? "/templates/new/builder"
+										? `/templates/new/builder?base=${starterTemplate.id}`
 										: `/templates/new?exampleId=${starterTemplate.id}`
 								}
 							>

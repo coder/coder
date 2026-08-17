@@ -2,7 +2,6 @@ package chatdebug
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
 	"mime"
@@ -177,6 +176,7 @@ func captureRequestBody(req *http.Request) ([]byte, error) {
 			if len(limited) > maxRecordedRequestBodyBytes {
 				return []byte("[TRUNCATED]"), nil
 			}
+			// Request bodies have no completeness pre-check to reuse; always decode fresh.
 			return RedactJSONSecrets(limited), nil
 		}
 	}
@@ -316,12 +316,12 @@ func (r *recordingBody) Close() error {
 			// The SSE EOF path already appended a completed attempt.
 			// inner.Close() surfaced a transport error, so upgrade
 			// that entry to failed instead of losing the close error.
-			upgraded := r.buildAttemptLocked(closeErr)
+			upgraded := r.buildAttemptLocked(closeErr, nil)
 			r.sink.replaceByNumber(upgraded.Number, upgraded)
 			r.recordedProvisional = false
 		} else {
 			r.recordOnce.Do(func() {
-				r.sink.record(r.buildAttemptLocked(closeErr))
+				r.sink.record(r.buildAttemptLocked(closeErr, nil))
 			})
 		}
 		r.mu.Unlock()
@@ -344,20 +344,35 @@ func (r *recordingBody) Close() error {
 	responseBody = append([]byte(nil), r.buf.Bytes()...)
 	r.mu.Unlock()
 
+	// decodedJSON is nil unless the completeness check below decoded
+	// these bytes; non-nil even for a stored nil value (JSON "null").
+	// A truncated buffer is an incomplete prefix, so skip the check.
+	var decodedJSON *any
+	if contentLength < 0 && !truncated {
+		if value, ok := decodeUnknownLengthJSONBody(contentType, responseBody); ok {
+			decodedJSON = &value
+		}
+	}
+
+	recordReusingDecodedJSON := func(err error) {
+		if decodedJSON != nil {
+			r.recordJSON(err, *decodedJSON)
+			return
+		}
+		r.record(err)
+	}
+
 	switch {
-	// Only check JSON completeness when the recording buffer is
-	// not truncated. A truncated buffer is an incomplete prefix
-	// of the body, so the completeness check would false-positive.
-	case sawEOF && !truncated && contentLength < 0 && isJSONLikeContentType(contentType) && !isCompleteUnknownLengthJSONBody(contentType, responseBody):
+	case sawEOF && !truncated && contentLength < 0 && isJSONLikeContentType(contentType) && decodedJSON == nil:
 		r.record(io.ErrUnexpectedEOF)
 	case sawEOF:
-		r.record(io.EOF)
+		recordReusingDecodedJSON(io.EOF)
 	case responseHasNoBody(r.base.Method, r.base.ResponseStatus):
 		r.record(nil)
 	case contentLength >= 0 && bytesRead >= contentLength:
 		r.record(nil)
-	case contentLength < 0 && !truncated && isCompleteUnknownLengthJSONBody(contentType, responseBody):
-		r.record(nil)
+	case contentLength < 0 && !truncated && decodedJSON != nil:
+		recordReusingDecodedJSON(nil)
 	// Truncated unknown-length bodies: the caller consumed the
 	// response successfully but the recording buffer exceeded
 	// maxRecordedResponseBodyBytes. This is not a transport
@@ -437,30 +452,39 @@ func (r *recordingBody) drainToEOF() error {
 }
 
 func isCompleteUnknownLengthJSONBody(contentType string, body []byte) bool {
+	_, ok := decodeUnknownLengthJSONBody(contentType, body)
+	return ok
+}
+
+// decodeUnknownLengthJSONBody reports whether body is a single,
+// complete JSON document for the given content type. It returns the
+// decoded value too, to avoid re-decoding during redaction.
+func decodeUnknownLengthJSONBody(contentType string, body []byte) (any, bool) {
 	if !isJSONLikeContentType(contentType) {
-		return false
+		return nil, false
 	}
 
 	trimmed := bytes.TrimSpace(body)
 	if len(trimmed) == 0 {
-		return false
+		return nil, false
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(trimmed))
-	var value any
-	if err := decoder.Decode(&value); err != nil {
-		return false
+	value, err := decodeCompleteJSON(trimmed)
+	if err != nil {
+		return nil, false
 	}
-	var extra any
-	return errors.Is(decoder.Decode(&extra), io.EOF)
+	return value, true
 }
 
 // buildAttemptLocked materializes the final Attempt from the current
-// buffered response data plus err. Callers use this from both the
-// record-once append path and the provisional-upgrade replace path so
-// both sites apply the same redaction and status rules. The caller
-// must hold r.mu for the duration of the call.
-func (r *recordingBody) buildAttemptLocked(err error) Attempt {
+// buffered response data plus err. The caller must hold r.mu for the
+// duration of the call.
+//
+// decodedJSON is nil when nothing was decoded ahead of time. A
+// non-nil decodedJSON - even one pointing at a stored nil interface,
+// e.g. a JSON "null" body - is redacted directly instead of decoding
+// the raw bytes again.
+func (r *recordingBody) buildAttemptLocked(err error, decodedJSON *any) Attempt {
 	finishedAt := time.Now()
 
 	truncated := r.truncated
@@ -472,6 +496,12 @@ func (r *recordingBody) buildAttemptLocked(err error) Attempt {
 	switch {
 	case truncated:
 		base.ResponseBody = []byte("[TRUNCATED]")
+	case decodedJSON != nil:
+		if encoded, changed := redactDecodedJSON(*decodedJSON); changed {
+			base.ResponseBody = encoded
+		} else {
+			base.ResponseBody = responseBody
+		}
 	case isNDJSONContentType(contentType):
 		base.ResponseBody = RedactNDJSONSecrets(responseBody)
 	case contentType == "" || isJSONLikeContentType(contentType):
@@ -508,7 +538,17 @@ func (r *recordingBody) record(err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.recordOnce.Do(func() {
-		r.sink.record(r.buildAttemptLocked(err))
+		r.sink.record(r.buildAttemptLocked(err, nil))
+	})
+}
+
+// recordJSON behaves like record but reuses an already-decoded JSON
+// value, avoiding a second full decode of the same bytes.
+func (r *recordingBody) recordJSON(err error, value any) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.recordOnce.Do(func() {
+		r.sink.record(r.buildAttemptLocked(err, &value))
 	})
 }
 
@@ -523,7 +563,7 @@ func (r *recordingBody) recordProvisional(err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.recordOnce.Do(func() {
-		r.sink.record(r.buildAttemptLocked(err))
+		r.sink.record(r.buildAttemptLocked(err, nil))
 		r.recordedProvisional = true
 	})
 }

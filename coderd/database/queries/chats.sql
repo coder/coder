@@ -64,10 +64,6 @@ FROM chats_expanded
 ORDER BY (chats_expanded.id = @id::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC;
 
 -- name: UnarchiveChatByID :many
--- Unarchives a chat (and its children). Stale file references are
--- handled automatically by FK cascades on chat_file_links: when
--- dbpurge deletes a chat_files row, the corresponding
--- chat_file_links rows are cascade-deleted by PostgreSQL.
 WITH updated_chats AS (
     UPDATE chats SET
         archived = false,
@@ -338,11 +334,6 @@ SET search_tsv = COALESCE(
     to_tsvector('simple', chat_message_search_text(cm.content)),
     ''::tsvector)
 FROM batch WHERE cm.id = batch.id;
-
--- name: ChatSearchQueryIsEmpty :one
--- Reports whether search text tokenizes to an empty tsquery (e.g. '!!!').
--- Used to reject input that would silently match nothing.
-SELECT numnode(websearch_to_tsquery('simple', @search::text)) = 0 AS is_empty;
 
 -- name: GetChatByID :one
 SELECT *
@@ -941,7 +932,6 @@ inserted AS (
         cache_read_tokens,
         context_limit,
         compressed,
-        total_cost_micros,
         runtime_ms
     )
     SELECT
@@ -962,7 +952,6 @@ inserted AS (
         NULLIF((@cache_read_tokens::bigint[])[allocated.ord], 0),
         NULLIF((@context_limit::bigint[])[allocated.ord], 0),
         (@compressed::boolean[])[allocated.ord],
-        NULLIF((@total_cost_micros::bigint[])[allocated.ord], 0),
         NULLIF((@runtime_ms::bigint[])[allocated.ord], 0)
     FROM allocated
     RETURNING *
@@ -1665,22 +1654,16 @@ SELECT * FROM chat_context_resources
 WHERE chat_id = @chat_id::uuid
 ORDER BY source ASC;
 
--- name: LinkChatFiles :one
--- LinkChatFiles inserts file associations into the chat_file_links
--- join table with deduplication (ON CONFLICT DO NOTHING). The INSERT
--- is conditional: it only proceeds when the total number of links
--- (existing + genuinely new) does not exceed max_file_links. Returns
--- the number of genuinely new file IDs that were NOT inserted due to
--- the cap. A return value of 0 means all files were linked (or were
--- already linked). A positive value means the cap blocked that many
--- new links.
+-- name: LinkChatFilesAfterLock :one
+-- LinkChatFilesAfterLock requires the chat row lock.
+-- The lock serializes cap checks. The result counts rejected new links.
 WITH current AS (
     SELECT COUNT(*) AS cnt
     FROM chat_file_links
     WHERE chat_id = @chat_id::uuid
 ),
 new_links AS (
-    SELECT @chat_id::uuid AS chat_id, unnest(@file_ids::uuid[]) AS file_id
+    SELECT DISTINCT @chat_id::uuid AS chat_id, unnest(@file_ids::uuid[]) AS file_id
 ),
 genuinely_new AS (
     SELECT nl.chat_id, nl.file_id
@@ -1991,6 +1974,12 @@ ORDER BY
 LIMIT
     1;
 
+-- name: LockChatByID :one
+SELECT id
+FROM chats
+WHERE id = @id::uuid
+FOR UPDATE;
+
 -- name: GetChatByIDForUpdate :one
 WITH locked_chat AS (
     SELECT *
@@ -2211,336 +2200,14 @@ SELECT
     COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
 FROM deduped;
 
--- name: GetChatCostSummary :one
--- Aggregate cost summary for a single user within a date range.
--- Only counts assistant-role messages.
-SELECT
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-    COUNT(*) FILTER (
-        WHERE cm.total_cost_micros IS NOT NULL
-    )::bigint AS priced_message_count,
-    COUNT(*) FILTER (
-        WHERE cm.total_cost_micros IS NULL
-            AND (
-                cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
-            )
-    )::bigint AS unpriced_messages_having_usage_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-FROM
-    chat_messages cm
-JOIN
-    chats c ON c.id = cm.chat_id
-WHERE
-    c.owner_id = @owner_id::uuid
-    AND cm.role = 'assistant'
-    AND cm.created_at >= @start_date::timestamptz
-    AND cm.created_at < @end_date::timestamptz;
-
--- name: GetChatCostPerModel :many
--- Per-model cost breakdown for a single user within a date range.
--- Only counts assistant-role messages that have a model_config_id.
-SELECT
-    cmc.id AS model_config_id,
-    cmc.display_name,
-    COALESCE(ap.type::text, '')::text AS provider,
-    cmc.model,
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-    COUNT(*) FILTER (
-        WHERE cm.input_tokens IS NOT NULL
-            OR cm.output_tokens IS NOT NULL
-            OR cm.reasoning_tokens IS NOT NULL
-            OR cm.cache_creation_tokens IS NOT NULL
-            OR cm.cache_read_tokens IS NOT NULL
-    )::bigint AS message_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-FROM
-    chat_messages cm
-JOIN
-    chats c ON c.id = cm.chat_id
-JOIN
-    chat_model_configs cmc ON cmc.id = cm.model_config_id
-LEFT JOIN
-    ai_providers ap ON ap.id = cmc.ai_provider_id
-WHERE
-    c.owner_id = @owner_id::uuid
-    AND cm.role = 'assistant'
-    AND cm.created_at >= @start_date::timestamptz
-    AND cm.created_at < @end_date::timestamptz
-GROUP BY
-    cmc.id, cmc.display_name, ap.type, cmc.model
-ORDER BY
-    total_cost_micros DESC;
-
--- name: GetChatCostPerChat :many
--- Per-root-chat cost breakdown for a single user within a date range.
--- Groups by root_chat_id so forked chats roll up under their root.
--- Only counts assistant-role messages.
-WITH chat_costs AS (
-    SELECT
-        COALESCE(c.root_chat_id, c.id) AS root_chat_id,
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*) FILTER (
-            WHERE cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
-        )::bigint AS message_count,
-        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-    FROM chat_messages cm
-    JOIN chats c ON c.id = cm.chat_id
-    WHERE c.owner_id = @owner_id::uuid
-      AND cm.role = 'assistant'
-      AND cm.created_at >= @start_date::timestamptz
-      AND cm.created_at < @end_date::timestamptz
-    GROUP BY COALESCE(c.root_chat_id, c.id)
-)
-SELECT
-    cc.root_chat_id,
-    COALESCE(rc.title, '') AS chat_title,
-    cc.total_cost_micros,
-    cc.message_count,
-    cc.total_input_tokens,
-    cc.total_output_tokens,
-    cc.total_cache_read_tokens,
-    cc.total_cache_creation_tokens,
-    cc.total_runtime_ms
-FROM chat_costs cc
-LEFT JOIN chats rc ON rc.id = cc.root_chat_id
-ORDER BY cc.total_cost_micros DESC;
-
--- name: GetChatModelUsageCostByChatID :one
--- Assistant-message cost rolled up over the requested chat's subtree: the
--- chat itself plus every descendant reachable through parent_chat_id. A
--- root chat therefore reports its whole tree, while a subagent chat
--- reports only its own spend plus any nested subagents it spawned.
-WITH RECURSIVE target AS (
-    SELECT @chat_id::uuid AS chat_id
-), subtree AS (
-    SELECT chat_id AS id FROM target
-    UNION ALL
-    SELECT c.id
-    FROM chats c
-    JOIN subtree s ON c.parent_chat_id = s.id
-), costs AS (
-    SELECT
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*) FILTER (
-            WHERE cm.total_cost_micros IS NOT NULL
-        )::bigint AS priced_message_count,
-        COUNT(*) FILTER (
-            WHERE cm.total_cost_micros IS NULL
-                AND (
-                    cm.input_tokens IS NOT NULL
-                    OR cm.output_tokens IS NOT NULL
-                    OR cm.reasoning_tokens IS NOT NULL
-                    OR cm.cache_creation_tokens IS NOT NULL
-                    OR cm.cache_read_tokens IS NOT NULL
-                )
-        )::bigint AS unpriced_messages_having_usage_count
-    FROM chat_messages cm
-    JOIN subtree s ON s.id = cm.chat_id
-    WHERE cm.role = 'assistant'
-)
-SELECT
-    t.chat_id,
-    costs.total_cost_micros,
-    costs.priced_message_count,
-    costs.unpriced_messages_having_usage_count
-FROM target t
-CROSS JOIN costs;
-
--- name: GetChatCostPerUser :many
--- Deployment-wide per-user cost rollup within a date range.
--- Only counts assistant-role messages.
-WITH chat_cost_users AS (
-    SELECT
-        c.owner_id AS user_id,
-        u.username,
-        u.name,
-        u.avatar_url,
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*) FILTER (
-            WHERE cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
-        )::bigint AS message_count,
-        COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
-        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-    FROM
-        chat_messages cm
-    JOIN
-        chats c ON c.id = cm.chat_id
-    JOIN
-        users u ON u.id = c.owner_id
-    WHERE
-        cm.role = 'assistant'
-        AND cm.created_at >= @start_date::timestamptz
-        AND cm.created_at < @end_date::timestamptz
-        AND (
-            @username::text = ''
-            OR u.username ILIKE '%' || @username::text || '%'
-            OR u.name ILIKE '%' || @username::text || '%'
-        )
-    GROUP BY
-        c.owner_id,
-        u.username,
-        u.name,
-        u.avatar_url
-)
-SELECT
-    user_id,
-    username,
-    name,
-    avatar_url,
-    total_cost_micros,
-    message_count,
-    chat_count,
-    total_input_tokens,
-    total_output_tokens,
-    total_cache_read_tokens,
-    total_cache_creation_tokens,
-    total_runtime_ms,
-    COUNT(*) OVER()::bigint AS total_count
-FROM
-    chat_cost_users
-ORDER BY
-    total_cost_micros DESC,
-    username ASC
-LIMIT
-    sqlc.arg('page_limit')::int
-OFFSET
-    sqlc.arg('page_offset')::int;
-
--- name: GetChatUsageLimitConfig :one
-SELECT * FROM chat_usage_limit_config WHERE singleton = TRUE LIMIT 1;
-
--- name: UpsertChatUsageLimitConfig :one
-INSERT INTO chat_usage_limit_config (singleton, enabled, default_limit_micros, period, updated_at)
-VALUES (TRUE, @enabled::boolean, @default_limit_micros::bigint, @period::text, NOW())
-ON CONFLICT (singleton) DO UPDATE SET
-    enabled = EXCLUDED.enabled,
-    default_limit_micros = EXCLUDED.default_limit_micros,
-    period = EXCLUDED.period,
-    updated_at = NOW()
-RETURNING *;
-
--- name: ListChatUsageLimitOverrides :many
-SELECT u.id AS user_id, u.username, u.name, u.avatar_url,
-       u.chat_spend_limit_micros AS spend_limit_micros
-FROM users u
-WHERE u.chat_spend_limit_micros IS NOT NULL
-ORDER BY u.username ASC;
-
--- name: UpsertChatUsageLimitUserOverride :one
-UPDATE users
-SET chat_spend_limit_micros = @spend_limit_micros::bigint
-WHERE id = @user_id::uuid
-RETURNING id AS user_id, username, name, avatar_url, chat_spend_limit_micros AS spend_limit_micros;
-
--- name: DeleteChatUsageLimitUserOverride :exec
-UPDATE users SET chat_spend_limit_micros = NULL WHERE id = @user_id::uuid;
-
--- name: GetChatUsageLimitUserOverride :one
-SELECT id AS user_id, chat_spend_limit_micros AS spend_limit_micros
-FROM users
-WHERE id = @user_id::uuid AND chat_spend_limit_micros IS NOT NULL;
-
--- name: GetUserChatSpendInPeriod :one
--- Returns the total spend for a user in the given period.
--- When organization_id is NULL, spend across all organizations is
--- returned (global behavior). Otherwise only spend within the
--- specified organization is included.
-SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
+-- name: GetTotalChatMessageRuntimeMsInRange :one
+-- Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
+-- soft-deleted messages and messages from all chats.
+SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
 FROM chat_messages cm
-JOIN chats c ON c.id = cm.chat_id
-WHERE c.owner_id = @user_id::uuid
-  AND (sqlc.narg('organization_id')::uuid IS NULL
-       OR c.organization_id = sqlc.narg('organization_id')::uuid)
-  AND cm.created_at >= @start_time::timestamptz
+WHERE cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
-  AND cm.total_cost_micros IS NOT NULL;
-
--- name: CountEnabledModelsWithoutPricing :one
--- Counts enabled, non-deleted model configs that lack both input and
--- output pricing in their JSONB options.cost configuration.
-SELECT COUNT(*)::bigint AS count
-FROM chat_model_configs
-WHERE enabled = TRUE
-  AND deleted = FALSE
-  AND (
-    options->'cost' IS NULL
-    OR options->'cost' = 'null'::jsonb
-    OR (
-      (options->'cost'->>'input_price_per_million_tokens' IS NULL)
-      AND (options->'cost'->>'output_price_per_million_tokens' IS NULL)
-    )
-  );
-
--- name: ListChatUsageLimitGroupOverrides :many
-SELECT
-    g.id AS group_id,
-    g.name AS group_name,
-    g.display_name AS group_display_name,
-    g.avatar_url AS group_avatar_url,
-    g.chat_spend_limit_micros AS spend_limit_micros,
-    (SELECT COUNT(*)
-        FROM group_members_expanded gme
-        WHERE gme.group_id = g.id
-          AND gme.user_is_system = FALSE) AS member_count
-FROM groups g
-WHERE g.chat_spend_limit_micros IS NOT NULL
-ORDER BY g.name ASC;
-
--- name: UpsertChatUsageLimitGroupOverride :one
-UPDATE groups
-SET chat_spend_limit_micros = @spend_limit_micros::bigint
-WHERE id = @group_id::uuid
-RETURNING id AS group_id, name, display_name, avatar_url, chat_spend_limit_micros AS spend_limit_micros;
-
--- name: DeleteChatUsageLimitGroupOverride :exec
-UPDATE groups SET chat_spend_limit_micros = NULL WHERE id = @group_id::uuid;
-
--- name: GetChatUsageLimitGroupOverride :one
-SELECT id AS group_id, chat_spend_limit_micros AS spend_limit_micros
-FROM groups
-WHERE id = @group_id::uuid AND chat_spend_limit_micros IS NOT NULL;
-
--- name: GetUserGroupSpendLimit :one
--- Returns the minimum (most restrictive) group limit for a user.
--- Returns -1 if no group limits match the specified scope.
--- When organization_id is NULL, groups across all organizations are
--- considered (global behavior). Otherwise only groups within the
--- specified organization are considered.
-SELECT COALESCE(MIN(g.chat_spend_limit_micros), -1)::bigint AS limit_micros
-FROM groups g
-JOIN group_members_expanded gme ON gme.group_id = g.id
-WHERE gme.user_id = @user_id::uuid
-  AND (sqlc.narg('organization_id')::uuid IS NULL
-       OR g.organization_id = sqlc.narg('organization_id')::uuid)
-  AND g.chat_spend_limit_micros IS NOT NULL;
+  AND cm.runtime_ms IS NOT NULL;
 
 -- name: GetChatsByWorkspaceIDs :many
 SELECT *
@@ -2548,44 +2215,6 @@ FROM chats_expanded
 WHERE archived = false
   AND workspace_id = ANY(@ids::uuid[])
 ORDER BY workspace_id, updated_at DESC;
-
--- name: ResolveUserChatSpendLimit :one
--- Resolves the effective spend limit for a user using the hierarchy:
--- 1. Individual user override (highest priority, applies globally across
---    all organizations since it lives on the users table)
--- 2. Minimum group limit across the user's groups
--- 3. Global default from config
--- Returns -1 if limits are not enabled.
--- When organization_id is NULL, groups across all organizations are
--- considered (global behavior). Otherwise only groups within the
--- specified organization are considered.
--- limit_source indicates which tier won: 'user', 'group', 'default',
--- or 'disabled'.
-SELECT CASE
-    WHEN NOT cfg.enabled THEN -1
-    WHEN u.chat_spend_limit_micros IS NOT NULL THEN u.chat_spend_limit_micros
-    WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
-    ELSE cfg.default_limit_micros
-END::bigint AS effective_limit_micros,
-CASE
-    WHEN NOT cfg.enabled THEN 'disabled'
-    WHEN u.chat_spend_limit_micros IS NOT NULL THEN 'user'
-    WHEN gl.limit_micros IS NOT NULL THEN 'group'
-    ELSE 'default'
-END AS limit_source
-FROM chat_usage_limit_config cfg
-CROSS JOIN users u
-LEFT JOIN LATERAL (
-    SELECT MIN(g.chat_spend_limit_micros) AS limit_micros
-    FROM groups g
-    JOIN group_members_expanded gme ON gme.group_id = g.id
-    WHERE gme.user_id = @user_id::uuid
-      AND (sqlc.narg('organization_id')::uuid IS NULL
-           OR g.organization_id = sqlc.narg('organization_id')::uuid)
-      AND g.chat_spend_limit_micros IS NOT NULL
-) gl ON TRUE
-WHERE u.id = @user_id::uuid
-LIMIT 1;
 
 -- name: UpdateChatLastReadMessageID :exec
 -- Updates the last read message ID for a chat. This is used to track
@@ -2642,7 +2271,6 @@ SELECT
     COALESCE(SUM(cm.reasoning_tokens), 0)::bigint AS total_reasoning_tokens,
     COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
     COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms,
     COUNT(DISTINCT cm.model_config_id)::bigint AS distinct_model_count,
     COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count
@@ -2842,6 +2470,10 @@ FROM chats_expanded;
 -- requires-action deadline, and the manual compaction request marker.
 -- Callers compose this with transition mutations inside a single
 -- ChatMachine.Update transaction.
+--
+-- grant_history_epoch gives a turn that inserts no history the same
+-- fresh retry budget and message part episode keys a history change
+-- would grant, mirroring the chat_messages trigger postcondition.
 WITH updated_chat AS (
     UPDATE chats
     SET
@@ -2852,6 +2484,9 @@ WITH updated_chat AS (
         last_error = sqlc.narg('last_error')::jsonb,
         requires_action_deadline_at = sqlc.narg('requires_action_deadline_at')::timestamptz,
         compaction_requested_at = sqlc.narg('compaction_requested_at')::timestamptz,
+        history_version = CASE WHEN @grant_history_epoch::boolean THEN snapshot_version ELSE history_version END,
+        generation_attempt = CASE WHEN @grant_history_epoch::boolean THEN 0 ELSE generation_attempt END,
+        retry_state = CASE WHEN @grant_history_epoch::boolean THEN NULL ELSE retry_state END,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = @id::uuid

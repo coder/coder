@@ -57,8 +57,8 @@ func (l *License) ExpiresAt() (time.Time, error) {
 }
 
 func (l *License) Trial() bool {
-	if trail, ok := l.Claims["trail"].(bool); ok {
-		return trail
+	if trial, ok := l.Claims["trial"].(bool); ok {
+		return trial
 	}
 	return false
 }
@@ -106,9 +106,7 @@ func (c *Client) AddLicense(ctx context.Context, r AddLicenseRequest) (License, 
 		return License{}, ReadBodyAsError(res)
 	}
 	var l License
-	d := json.NewDecoder(res.Body)
-	d.UseNumber()
-	return l, d.Decode(&l)
+	return l, ReadBodyAsJSONUseNumber(res, &l)
 }
 
 func (c *Client) Licenses(ctx context.Context) ([]License, error) {
@@ -121,9 +119,7 @@ func (c *Client) Licenses(ctx context.Context) ([]License, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var licenses []License
-	d := json.NewDecoder(res.Body)
-	d.UseNumber()
-	return licenses, d.Decode(&licenses)
+	return licenses, ReadBodyAsJSONUseNumber(res, &licenses)
 }
 
 func (c *Client) DeleteLicense(ctx context.Context, id int32) error {

@@ -40,6 +40,8 @@ These notifications are sent to users with **owner** and **user admin** roles:
 - User account deleted
 - User account suspended
 
+These account notifications cover both user and service accounts.
+
 These notifications are sent to users themselves:
 
 - User account suspended

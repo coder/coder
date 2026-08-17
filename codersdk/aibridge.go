@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -141,7 +140,7 @@ type AIBridgeSession struct {
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
-	// NetworkCalls summarizes the Agent Firewall network calls made during the
+	// NetworkCalls summarizes the Agent Firewall network requests made during the
 	// session. A nil value means the session did not pass through Agent
 	// Firewall, so network call monitoring was not active, which the UI
 	// surfaces as "Disabled".
@@ -165,6 +164,13 @@ type AIBridgeSessionNetworkCallSummary struct {
 	Blocked int64 `json:"blocked"`
 }
 
+// AIBridgeSessionNetworkDomain is one destination host contacted during a
+// session, with the number of network calls made to it.
+type AIBridgeSessionNetworkDomain struct {
+	Domain string `json:"domain"`
+	Count  int64  `json:"count"`
+}
+
 type AIBridgeListSessionsResponse struct {
 	Count    int64             `json:"count"`
 	Sessions []AIBridgeSession `json:"sessions"`
@@ -185,7 +191,23 @@ type AIBridgeSessionThreadsResponse struct {
 	StartedAt         time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsageSummary AIBridgeSessionThreadsTokenUsage `json:"token_usage_summary"`
-	Threads           []AIBridgeThread                 `json:"threads"`
+	// NetworkCalls summarizes the Agent Firewall network calls made during the
+	// session. A nil value means the session did not pass through Agent
+	// Firewall, so network call monitoring was not active, which the UI
+	// surfaces as "Disabled".
+	NetworkCalls *AIBridgeSessionNetworkCallSummary `json:"network_calls,omitempty"`
+	// NetworkTopDomains lists the most contacted destination hosts, ordered by
+	// call count descending. NetworkDomainCount is the total number of distinct
+	// domains, used to render a "+N more" overflow beyond the listed domains.
+	NetworkTopDomains  []AIBridgeSessionNetworkDomain `json:"network_top_domains,omitempty"`
+	NetworkDomainCount int64                          `json:"network_domain_count,omitempty"`
+	// NetworkCallLogs is the chronological list of individual network calls made
+	// during the session, holding the earliest calls up to a server-side cap.
+	// NetworkCalls remains authoritative for whole-session totals, so a shorter
+	// list than NetworkCalls.Total means the list was truncated. Empty when the
+	// session did not pass through Agent Firewall.
+	NetworkCallLogs []AgentFirewallLog `json:"network_call_logs,omitempty"`
+	Threads         []AIBridgeThread   `json:"threads"`
 }
 
 // AIBridgeSessionThreadsTokenUsage represents aggregated token usage
@@ -338,7 +360,7 @@ func (c *Client) AIBridgeListSessions(ctx context.Context, filter AIBridgeListSe
 		return AIBridgeListSessionsResponse{}, ReadBodyAsError(res)
 	}
 	var resp AIBridgeListSessionsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // AIBridgeGetSessionThreads returns a single session with expanded
@@ -365,7 +387,7 @@ func (c *Client) AIBridgeGetSessionThreads(ctx context.Context, sessionID string
 		return AIBridgeSessionThreadsResponse{}, ReadBodyAsError(res)
 	}
 	var resp AIBridgeSessionThreadsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // AIBridgeListClients returns the distinct AI clients visible to the caller.
@@ -379,7 +401,7 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var clients []string
-	return clients, json.NewDecoder(res.Body).Decode(&clients)
+	return clients, ReadBodyAsJSON(res, &clients)
 }
 
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
@@ -439,7 +461,7 @@ func (c *Client) GroupAIBudget(ctx context.Context, group uuid.UUID) (GroupAIBud
 		return GroupAIBudget{}, ReadBodyAsError(res)
 	}
 	var resp GroupAIBudget
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpsertGroupAIBudget creates or updates the AI spend budget for the given group.
@@ -457,7 +479,7 @@ func (c *Client) UpsertGroupAIBudget(ctx context.Context, group uuid.UUID, req U
 		return GroupAIBudget{}, ReadBodyAsError(res)
 	}
 	var resp GroupAIBudget
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteGroupAIBudget removes the AI spend budget for the given group.
@@ -508,7 +530,7 @@ func (c *Client) UserAIBudgetOverride(ctx context.Context, user uuid.UUID) (User
 		return UserAIBudgetOverride{}, ReadBodyAsError(res)
 	}
 	var resp UserAIBudgetOverride
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // UpsertUserAIBudgetOverride creates or updates the AI spend budget override for the given user.
@@ -526,7 +548,7 @@ func (c *Client) UpsertUserAIBudgetOverride(ctx context.Context, user uuid.UUID,
 		return UserAIBudgetOverride{}, ReadBodyAsError(res)
 	}
 	var resp UserAIBudgetOverride
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteUserAIBudgetOverride removes the AI spend budget override for the given user.
@@ -562,7 +584,7 @@ func (c *Client) UserAISpendStatus(ctx context.Context, user uuid.UUID) (UserAIS
 		return UserAISpendStatus{}, ReadBodyAsError(res)
 	}
 	var resp UserAISpendStatus
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // OrganizationGroupsAISpend returns AI spend for the given groups within the
@@ -589,7 +611,7 @@ func (c *Client) OrganizationGroupsAISpend(ctx context.Context, organization uui
 		return OrganizationGroupsAISpend{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationGroupsAISpend
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GroupAISpend returns AI spend for the given group within the active budget
@@ -608,7 +630,7 @@ func (c *Client) GroupAISpend(ctx context.Context, group uuid.UUID) (GroupAISpen
 		return GroupAISpend{}, ReadBodyAsError(res)
 	}
 	var resp GroupAISpend
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GroupMembersAISpend returns AI spend attributed to the given group for the
@@ -635,5 +657,5 @@ func (c *Client) GroupMembersAISpend(ctx context.Context, group uuid.UUID, userI
 		return GroupMembersAISpend{}, ReadBodyAsError(res)
 	}
 	var resp GroupMembersAISpend
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }

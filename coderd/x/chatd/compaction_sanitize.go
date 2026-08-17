@@ -27,7 +27,7 @@ func sanitizeCompactionPrompt(
 	ctx context.Context,
 	logger slog.Logger,
 	prompt []fantasy.Message,
-	compactionModel fantasy.LanguageModel,
+	compactionModel chatprovider.Model,
 	chatConfig database.ChatModelConfig,
 	overrideConfig database.ChatModelConfig,
 ) []fantasy.Message {
@@ -35,13 +35,7 @@ func sanitizeCompactionPrompt(
 	if !sameCompactionProviderIdentity(chatConfig, overrideConfig) {
 		messages = flattenProviderExecutedToolParts(ctx, logger, messages)
 	}
-	messages = replaceUnsupportedFileParts(ctx, logger, messages, func(mediaType string) bool {
-		return chatprovider.AcceptsFilePartMediaType(
-			compactionModel.Provider(),
-			compactionModel.Model(),
-			mediaType,
-		)
-	})
+	messages = replaceUnsupportedFileParts(ctx, logger, messages, compactionModel.AcceptsFilePartMediaType)
 	sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolHistory(
 		compactionModel.Provider(),
 		messages,
@@ -51,7 +45,7 @@ func sanitizeCompactionPrompt(
 		logger,
 		"compaction_prompt",
 		compactionModel.Provider(),
-		compactionModel.Model(),
+		compactionModel.ModelID(),
 		stats,
 	)
 	return sanitized

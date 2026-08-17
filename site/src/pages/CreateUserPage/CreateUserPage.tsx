@@ -46,13 +46,17 @@ const CreateUserPage: FC = () => {
 							},
 						},
 					);
+					const requestedAccount = user.service_account
+						? "service account"
+						: "user";
 					toast.promise(mutation, {
-						loading: `Creating user "${user.username}"...`,
-						success: `User "${user.username}" created successfully.`,
+						loading: `Creating ${requestedAccount} "${user.username}"...`,
+						success: (created) =>
+							`${created.is_service_account ? "Service account" : "User"} "${created.username}" created successfully.`,
 						error: (e) => ({
 							message: getErrorMessage(
 								e,
-								`Failed to create user "${user.username}".`,
+								`Failed to create ${requestedAccount} "${user.username}".`,
 							),
 							description: getErrorDetail(e),
 						}),

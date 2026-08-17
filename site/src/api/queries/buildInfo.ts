@@ -3,7 +3,7 @@ import type { BuildInfoResponse } from "#/api/typesGenerated";
 import type { MetadataState } from "#/hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";
 
-const buildInfoKey = ["buildInfo"] as const;
+export const buildInfoKey = ["buildInfo"];
 
 export const buildInfo = (metadata: MetadataState<BuildInfoResponse>) => {
 	// The version of the app can't change without reloading the page.

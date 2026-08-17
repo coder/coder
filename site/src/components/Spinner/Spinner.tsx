@@ -4,7 +4,7 @@
  * https://v0.dev/ help.
  */
 
-import isChromatic from "chromatic/isChromatic";
+import { isPixel } from "@coder/pixel-storybook/storyapi";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cn } from "#/utils/cn";
@@ -27,6 +27,11 @@ type SpinnerProps = React.SVGProps<SVGSVGElement> &
 	VariantProps<typeof spinnerVariants> & {
 		children?: ReactNode;
 		loading?: boolean;
+		/**
+		 * Exposes the spinner as an accessible live region labelled with this text. Leave undefined for
+		 * decorative spinners, e.g. inside a component that already provides its own status region.
+		 */
+		label?: string;
 	};
 
 export function Spinner({
@@ -34,6 +39,7 @@ export function Spinner({
 	size,
 	loading,
 	children,
+	label,
 	...props
 }: SpinnerProps) {
 	if (!loading) {
@@ -45,6 +51,8 @@ export function Spinner({
 			viewBox="0 0 24 24"
 			xmlns="http://www.w3.org/2000/svg"
 			fill="currentColor"
+			role={label ? "status" : undefined}
+			aria-label={label}
 			className={cn(spinnerVariants({ size, className }))}
 			{...props}
 		>
@@ -59,7 +67,7 @@ export function Spinner({
 					rx="1"
 					// 0.8 = leaves * 0.1
 					className={
-						isChromatic() ? "" : "animate-[loading_0.8s_ease-in-out_infinite]"
+						isPixel() ? "" : "animate-[loading_0.8s_ease-in-out_infinite]"
 					}
 					style={{
 						transform: `rotate(${leaf * (360 / leaves.length)}deg)`,

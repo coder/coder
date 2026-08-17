@@ -20,6 +20,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { relativeTime } from "#/utils/time";
 
@@ -28,6 +29,7 @@ interface GatewayKeysPageViewProps {
 	isLoading: boolean;
 	error: unknown;
 	showPaywall: boolean;
+	permissions: Permissions;
 	onCreateKey: () => void;
 	onDeleteKey: (key: AIGatewayKey) => void;
 }
@@ -37,6 +39,7 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 	isLoading,
 	error,
 	showPaywall,
+	permissions,
 	onCreateKey,
 	onDeleteKey,
 }) => {
@@ -64,7 +67,7 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 				<PaywallPremium
 					message="AI Gateway"
 					description="Authenticate standalone AI Gateway replicas to your deployment. You need a Premium license with AI Gateway enabled to use this feature."
-					documentationLink={docs("/ai-coder/ai-gateway")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
 

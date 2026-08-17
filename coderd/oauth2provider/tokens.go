@@ -13,12 +13,14 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -97,6 +99,17 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2
 				Detail: "Parameter \"client_secret\" is required and cannot be empty",
 			})
 		}
+		// A code_verifier outside RFC 7636 §4.1's bounds is a syntax error
+		// (RFC 6749 §5.2), distinct from a well-formed verifier that fails the
+		// PKCE hash comparison in authorizationCodeGrant, which RFC 7636 §4.6
+		// maps to invalid_grant instead. Checking it here, alongside the other
+		// syntax validation, keeps the two failure modes distinguishable.
+		if !ValidPKCEFormat(req.CodeVerifier) {
+			p.Errors = append(p.Errors, codersdk.ValidationError{
+				Field:  "code_verifier",
+				Detail: "must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 §4.1)",
+			})
+		}
 	}
 
 	// Validate redirect URI - errors are added to p.Errors.
@@ -158,6 +171,18 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 					return
 				}
 			}
+
+			// A malformed code_verifier gets its own message so a client that
+			// sent a well-formed but wrong verifier (rejected later, as
+			// invalid_grant, by the PKCE hash comparison) can tell the two
+			// failures apart instead of retrying the same bad verifier forever.
+			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
+				return validationError.Field == "code_verifier"
+			}) {
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 §4.1)")
+				return
+			}
+
 			// Generic invalid request for other validation errors
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The request is missing required parameters or is otherwise malformed")
 			return
@@ -211,6 +236,35 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 	}
 }
 
+// revokeOAuth2CodeOnPKCEFailure deletes a code that failed PKCE verification
+// so it cannot be replayed with further code_verifier guesses (RFC 6749
+// §10.5). Deletion failure does not change the response returned to the
+// caller: surfacing it as a different error would let a caller distinguish
+// "delete succeeded" from "delete failed," defeating the point of revoking
+// the code in the first place. It is instead noted on the request's log line
+// so operators can see it happened.
+//
+// A code that is already gone satisfies the goal, so sql.ErrNoRows is not a
+// failure worth logging. It surfaces because the authorization check reads
+// the code before deleting it, and that read reports a missing row when a
+// concurrent attempt already revoked the code or it was reaped after expiry.
+//
+// The delete runs on a context detached from the request. The request context
+// is canceled when the client disconnects, so a caller that fails PKCE and
+// then drops the connection would otherwise leave its own code redeemable for
+// the rest of its lifetime, which is the replay this function prevents.
+func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeID uuid.UUID) {
+	revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+
+	//nolint:gocritic // OAuth2 system context, no authenticated user during token exchange
+	if err := db.DeleteOAuth2ProviderAppCodeByID(dbauthz.AsSystemOAuth2(revokeCtx), codeID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
+			rlogger.WithFields(slog.F("oauth2_pkce_failure_code_revoke_error", err.Error()))
+		}
+	}
+}
+
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
 	// Validate the client secret.
 	secret, err := ParseFormattedSecret(req.ClientSecret)
@@ -228,6 +282,15 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 
 	equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret)
 	if !equalSecret {
+		return codersdk.OAuth2TokenResponse{}, errBadSecret
+	}
+
+	// The secret must belong to the app identified by the request's
+	// client_id, which is otherwise unauthenticated at this point (it is
+	// parsed straight from the request with no verification). Without this
+	// check, a valid secret for one app could mint a token attributed to a
+	// different app.
+	if dbSecret.AppID != app.ID {
 		return codersdk.OAuth2TokenResponse{}, errBadSecret
 	}
 
@@ -249,6 +312,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
 
+	// The code must belong to the app identified by the request's
+	// client_id, for the same reason as the secret check above.
+	if dbCode.AppID != app.ID {
+		return codersdk.OAuth2TokenResponse{}, errBadCode
+	}
+
 	// Ensure the code has not expired.
 	if dbCode.ExpiresAt.Before(dbtime.Now()) {
 		return codersdk.OAuth2TokenResponse{}, errBadCode
@@ -262,18 +331,25 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		}
 	}
 
-	// PKCE is mandatory for all authorization code flows
-	// (OAuth 2.1). Verify the code verifier against the stored
-	// challenge.
-	if req.CodeVerifier == "" {
-		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
-	}
+	// PKCE is mandatory for all authorization code flows (OAuth 2.1). Verify
+	// the code verifier against the stored challenge. extractTokenRequest
+	// already rejected a malformed verifier as invalid_request, so
+	// req.CodeVerifier is guaranteed to meet RFC 7636 §4.1's bounds here; a
+	// mismatch below is a wrong-but-well-formed verifier, RFC 7636 §4.6's
+	// invalid_grant case.
+	//
+	// RFC 6749 §10.5 requires codes to be single-use. A code that survives a
+	// failed PKCE check would otherwise let a leaked code (the exact threat
+	// PKCE defends against) be replayed with different code_verifier guesses
+	// for the rest of its lifetime, unthrottled.
 	if !dbCode.CodeChallenge.Valid || dbCode.CodeChallenge.String == "" {
-		// Code was issued without a challenge — should not happen
+		// Code was issued without a challenge, which should not happen
 		// with authorize endpoint enforcement, but defend in depth.
+		revokeOAuth2CodeOnPKCEFailure(ctx, db, dbCode.ID)
 		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
 	}
 	if !VerifyPKCE(dbCode.CodeChallenge.String, req.CodeVerifier) {
+		revokeOAuth2CodeOnPKCEFailure(ctx, db, dbCode.ID)
 		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
 	}
 
@@ -355,10 +431,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
 			RefreshHash: refreshToken.Hashed,
-			AppSecretID: dbSecret.ID,
+			AppID:       dbCode.AppID,
+			AppSecretID: uuid.NullUUID{UUID: dbSecret.ID, Valid: true},
 			APIKeyID:    newKey.ID,
 			UserID:      dbCode.UserID,
 			Audience:    dbCode.ResourceUri,
+			Scope:       dbCode.Scope,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
@@ -394,6 +472,16 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	}
 	equal := apikey.ValidateHash(dbToken.RefreshHash, token.Secret)
 	if !equal {
+		return codersdk.OAuth2TokenResponse{}, errBadToken
+	}
+
+	// The token must belong to the app identified by the request's
+	// client_id, which is otherwise unauthenticated at this point (it is
+	// parsed straight from the request with no verification). Without this
+	// check, a stolen refresh token could be refreshed under a different
+	// app's client_id, re-parenting the token's app_id and breaking the
+	// issuing app's ability to revoke it.
+	if dbToken.AppID != app.ID {
 		return codersdk.OAuth2TokenResponse{}, errBadToken
 	}
 
@@ -468,10 +556,15 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
 			RefreshHash: refreshToken.Hashed,
+			AppID:       dbToken.AppID,
 			AppSecretID: dbToken.AppSecretID,
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,
 			Audience:    dbToken.Audience,
+			// RFC 6749 §6: a refresh with no scope parameter is granted the
+			// originally granted scope. Later phases narrow this against
+			// req.Scope; they never widen it.
+			Scope: dbToken.Scope,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
