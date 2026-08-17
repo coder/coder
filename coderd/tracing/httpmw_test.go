@@ -178,7 +178,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 		require.False(t, ok, "client_session_id should be absent when no baggage is sent")
 	})
 
-	t.Run("MalformedBaggage", func(t *testing.T) {
+	t.Run("MalformedSessionID", func(t *testing.T) {
 		t.Parallel()
 
 		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
@@ -187,7 +187,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 		_, ok := fieldValue(fields, "client_session_id")
 		require.False(t, ok, "malformed client_session_id should be ignored")
 		require.False(t, hasAttrKey(tp.span.attributes(), "client_session_id"),
-			"no client_session_id attribute should be set for malformed baggage")
+			"no client_session_id attribute should be set for a malformed session ID")
 	})
 
 	t.Run("NonMatchingRoute", func(t *testing.T) {
