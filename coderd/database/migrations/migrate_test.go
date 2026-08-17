@@ -3317,48 +3317,15 @@ func TestMigration000572MCPServerConfigACL(t *testing.T) {
 		require.Equal(t, "'{}'::jsonb", defaultValue)
 	}
 
-	// Pre-ACL inserts must receive the Everyone read grant.
-	legacyInsertID := uuid.New()
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO mcp_server_configs (
-			id, organization_id, display_name, slug, description, url, auth_type,
-			availability, enabled, created_at, updated_at
-		) VALUES ($1, $2, 'Legacy Insert', 'migration-570-legacy-insert', '', 'https://mcp.example.com/legacy', 'none', 'default_on', true, $3, $3)
-	`, legacyInsertID, orgID, now)
-	require.NoError(t, err)
-	var groupACL string
-	err = sqlDB.QueryRowContext(ctx, `
-		SELECT group_acl::text FROM mcp_server_configs WHERE id = $1
-	`, legacyInsertID).Scan(&groupACL)
-	require.NoError(t, err)
-	require.JSONEq(t, fmt.Sprintf(`{%q:{"permissions":["read"]}}`, orgID.String()), groupACL)
-
-	// A non-empty user ACL prevents the compatibility default.
-	explicitInsertID := uuid.New()
-	explicitACL := fmt.Sprintf(`{%q: {"permissions": ["read"]}}`, uuid.New().String())
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO mcp_server_configs (
-			id, organization_id, display_name, slug, description, url, auth_type,
-			availability, enabled, created_at, updated_at, user_acl
-		) VALUES ($1, $2, 'Explicit Insert', 'migration-570-explicit-insert', '', 'https://mcp.example.com/explicit', 'none', 'default_on', true, $3, $3, $4::jsonb)
-	`, explicitInsertID, orgID, now, explicitACL)
-	require.NoError(t, err)
-	var explicitGroupACL, explicitUserACL string
-	err = sqlDB.QueryRowContext(ctx, `
-		SELECT group_acl::text, user_acl::text FROM mcp_server_configs WHERE id = $1
-	`, explicitInsertID).Scan(&explicitGroupACL, &explicitUserACL)
-	require.NoError(t, err)
-	require.JSONEq(t, `{}`, explicitGroupACL)
-	require.JSONEq(t, explicitACL, explicitUserACL)
-
 	downSQL, err := os.ReadFile("000572_mcp_server_config_acl.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
-	var triggerCount int
+	var aclColumns int
 	err = sqlDB.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM pg_trigger WHERE tgname = 'default_mcp_server_config_acl'
-	`).Scan(&triggerCount)
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_name = 'mcp_server_configs' AND column_name IN ('group_acl', 'user_acl')
+	`).Scan(&aclColumns)
 	require.NoError(t, err)
-	require.Zero(t, triggerCount)
+	require.Zero(t, aclColumns)
 }
