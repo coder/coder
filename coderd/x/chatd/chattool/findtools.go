@@ -84,8 +84,11 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	)
 }
 
-// SearchTools scores entries against the query tokens, keeps the top
-// matches, and always includes exact name activations.
+// SearchTools includes exact name activations first, then fills the
+// remaining match slots with the top-scored keyword matches. The shared
+// cap and summary-length descriptions keep the persisted result small
+// enough that generic tool-result truncation can never corrupt the
+// activation JSON that later steps re-derive activations from.
 func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs) FindToolsResult {
 	byName := make(map[string]FindToolCatalogEntry, len(entries))
 	for _, entry := range entries {
@@ -117,25 +120,28 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs) FindToolsRe
 		}
 		return strings.Compare(a.entry.Name, b.entry.Name)
 	})
-	if len(scored) > findToolsMaxMatches {
-		scored = scored[:findToolsMaxMatches]
-	}
-
-	matches := make([]FindToolsMatch, 0, len(scored)+len(args.Names))
-	activatedSet := make(map[string]struct{}, len(scored)+len(args.Names))
-	for _, item := range scored {
-		matches = append(matches, FindToolsMatch{Name: item.entry.Name, Description: item.entry.Description})
-		activatedSet[item.entry.Name] = struct{}{}
+	matches := make([]FindToolsMatch, 0, findToolsMaxMatches)
+	activatedSet := make(map[string]struct{}, findToolsMaxMatches)
+	appendMatch := func(entry FindToolCatalogEntry) {
+		if _, exists := activatedSet[entry.Name]; exists {
+			return
+		}
+		if len(matches) >= findToolsMaxMatches {
+			return
+		}
+		matches = append(matches, FindToolsMatch{
+			Name:        entry.Name,
+			Description: truncateFindToolsSummary(entry.Description, 80),
+		})
+		activatedSet[entry.Name] = struct{}{}
 	}
 	for _, name := range args.Names {
-		entry, ok := byName[name]
-		if !ok {
-			continue
+		if entry, ok := byName[name]; ok {
+			appendMatch(entry)
 		}
-		if _, exists := activatedSet[name]; !exists {
-			matches = append(matches, FindToolsMatch{Name: entry.Name, Description: entry.Description})
-			activatedSet[name] = struct{}{}
-		}
+	}
+	for _, item := range scored {
+		appendMatch(item.entry)
 	}
 	activated := make([]string, 0, len(activatedSet))
 	for name := range activatedSet {
@@ -169,7 +175,7 @@ func scoreFindToolToken(entry FindToolCatalogEntry, token string) int {
 }
 
 func buildFindToolsDescription(entries []FindToolCatalogEntry) string {
-	const usage = "Search deferred MCP tools by keyword, activate exact tool names, or scope queries with a server prefix. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools.\n\n"
+	const usage = "Search deferred MCP tools by keyword, activate exact tool names, or scope queries with a server prefix. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools. At most 20 tools are returned and activated per call; call again for more.\n\n"
 	groups := groupFindToolsEntries(entries)
 	catalog := detailedFindToolsCatalog(groups)
 	if estimatedFindToolsTokens(usage+catalog) > findToolsCatalogTokens {

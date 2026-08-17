@@ -52,6 +52,32 @@ func TestSearchTools(t *testing.T) {
 		require.Len(t, result.Matches, findToolsMaxMatches)
 		require.Equal(t, "server__tool_00", result.Matches[0].Name)
 	})
+	t.Run("names capped and prioritized over queries", func(t *testing.T) {
+		t.Parallel()
+		many := make([]FindToolCatalogEntry, 25)
+		names := make([]string, 0, len(many))
+		for i := range many {
+			many[i] = FindToolCatalogEntry{Name: fmt.Sprintf("server__tool_%02d", i), Description: "common"}
+			names = append(names, many[i].Name)
+		}
+		result := SearchTools(many, FindToolsArgs{Queries: []string{"common"}, Names: []string{"server__tool_24"}})
+		require.Len(t, result.Matches, findToolsMaxMatches)
+		require.Equal(t, "server__tool_24", result.Matches[0].Name)
+		require.Contains(t, result.Activated, "server__tool_24")
+
+		capped := SearchTools(many, FindToolsArgs{Names: names})
+		require.Len(t, capped.Matches, findToolsMaxMatches)
+		require.Len(t, capped.Activated, findToolsMaxMatches)
+	})
+	t.Run("result descriptions are summarized", func(t *testing.T) {
+		t.Parallel()
+		long := []FindToolCatalogEntry{{
+			Name:        "server__verbose",
+			Description: strings.Repeat("word ", 100),
+		}}
+		result := SearchTools(long, FindToolsArgs{Names: []string{"server__verbose"}})
+		require.LessOrEqual(t, len([]rune(result.Matches[0].Description)), 80)
+	})
 }
 
 func TestFindTools(t *testing.T) {
