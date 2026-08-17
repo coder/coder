@@ -246,9 +246,6 @@ export const InterruptingShowsBusyComposer: Story = {
 	},
 };
 
-// Control for InterruptingShowsBusyComposer: a running chat with an
-// identical history and queue renders the same busy composer, but
-// with Stop enabled since an interrupt is still legal.
 export const RunningShowsBusyComposer: Story = {
 	render: () => {
 		const store = buildInterruptingStore();
