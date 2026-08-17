@@ -432,8 +432,12 @@
 		font-weight: bold;
 	}
 
-	p {
+	h3, p {
 		margin-block: 1em;
+	}
+
+	h4 {
+		margin-block: 1.33em;
 	}
 }
 
