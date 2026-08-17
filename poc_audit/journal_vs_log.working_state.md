@@ -39,7 +39,10 @@ Each item carries one of four states:
 ### 2. Vocabulary to fix before anything else
 
 1. **done.** Journal in the accounting sense: a chronological record of events.
-2. **done.** Not a journal in the systems sense, meaning a write ahead log.
+2. **done.** Not a journal in the systems sense, meaning a write ahead log. The
+   note in the document stops at the misreading it prevents. The reasoning
+   behind it is recorded under "Coupling, and where this belongs" below, and is
+   owed to `audit_approach.md` rather than to this document.
 3. **done.** A journal is not a ledger.
 4. **open.** Entry versus record.
 5. **part.** Log defined. The historical sense landed. The modern computing
@@ -195,6 +198,44 @@ already being sent to the approach document.
 has confused the two is owed an account of why the confusion is reasonable
 before being told it is wrong. Item 5.15.
 
+## Coupling, and where this belongs
+
+An earlier draft said a write ahead log was "nearly the opposite" of the journal
+described here. That is wrong, and wrong in a way worth keeping, because
+correcting it produced something more general than the sentence it replaced.
+
+A write ahead log is the same pattern, not the opposite one. It records events in
+the order they occur, and the datastore it feeds stands exactly where a ledger
+stands: the derived view, built by posting the entries.
+
+Discarding is incidental rather than essential. A write ahead log is not
+discarded immediately, because there is a lag between the entry and the update
+of the datastore. It becomes discardable afterwards only because nothing
+ordinarily consults anything but the datastore. A temporal database effectively
+never discards it, since answering what the data was at a past instant means the
+entries are still doing work.
+
+**What actually differs is coupling.** A datastore and its journal have no
+daylight between them, by design and by construction, so they cannot disagree.
+There is therefore no analogue of reconciliation, and nothing for one to
+perform. A journal in the audit sense accounts for a world it does not
+construct, so the two can disagree, and detecting that is the point.
+
+**This generalizes, and the general statement is owed to
+`poc_audit/audit_approach.md`, beside reconciliation.** Coupling determines
+whether reconciliation is needed at all, with a write ahead log at one end of
+the scale and an audit journal at the other. Our own design sits at both ends
+depending on where the effect is. The `ai_agents` row and the entry accounting
+for it are written in one transaction in one database, which is the tightly
+coupled end: nothing to reconcile, which is why `CreateAIAgent` says that where
+entry and effect are both rows in one transaction the ordering problem does not
+arise. Reconciliation becomes necessary as effects move outside the database,
+which is where sandboxes and AI agent processes will put them.
+
+It is deliberately not in `journal_vs_log.md`. The document needs only to stop a
+reader importing write ahead log assumptions. The argument above is a digression
+at the top of a document whose subject is something else.
+
 ## Language settled, and language rejected
 
 **Rejected: treating dead reckoning as an argument for reconciliation.** The
@@ -207,6 +248,9 @@ a series of measurements never established position.
 **Kept: "book of original entry".** It is the bookkeeping term of art, and it
 says exactly what the design does, that current state is derived by folding the
 journal rather than stored alongside it.
+
+**Rejected: "nearly the opposite of the sense used here", of a write ahead log.**
+It is the same pattern rather than the opposite one. See the section above.
 
 **Avoided: "immutable" and "append only" in the framing.** Both are mechanism
 words and both invite the write ahead log reading the document is trying to

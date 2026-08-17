@@ -122,12 +122,12 @@ organized by account. What we are building records events in the order they
 happened, so it is a journal. Anyone reaching for "ledger" is reaching for the
 derived view, which we do not have.
 
-**A journal here is not a write ahead log.** In databases and filesystems,
-"journal" names a durability mechanism: writes are recorded so they can be
-replayed after a crash, and the journal is discarded once its contents are
-safely applied. That is nearly the opposite of the sense used here. A write ahead
-log is temporary by design and exists to protect the state. Our journal is
-permanent by design and exists to explain the state.
+**A journal here is not a write ahead log.** The resemblance is real rather than
+false: a write ahead log is also a chronological record of events, and the
+datastore it feeds stands where a ledger stands. What differs is that a
+datastore is built from its journal by construction, so the two cannot disagree.
+The journal described here and the world it accounts for can disagree, and
+noticing when they do is the reason it exists.
 
 ### Sources for the etymology
 
