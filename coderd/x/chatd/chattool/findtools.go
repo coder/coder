@@ -43,8 +43,8 @@ type FindToolsOptions struct {
 }
 
 type FindToolsArgs struct {
-	Queries []string `json:"queries"`
-	Names   []string `json:"names"`
+	Queries []string `json:"queries,omitempty"`
+	Names   []string `json:"names,omitempty"`
 }
 
 type FindToolsMatch struct {
