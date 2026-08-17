@@ -190,15 +190,58 @@ func Test_Middleware_SessionID(t *testing.T) {
 			"no client_session_id attribute should be set for a malformed session ID")
 	})
 
+	t.Run("QueryParameter", func(t *testing.T) {
+		t.Parallel()
+
+		// Browser WebSocket clients (such as the web terminal PTY) cannot set
+		// baggage headers, so the middleware falls back to the
+		// client_session_id query parameter.
+		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
+		fields := requestFields(t, tp, "/api/v2/workspaces?"+tracing.SessionIDBaggageKey+"="+testSessionID, "")
+
+		val, ok := fieldValue(fields, "client_session_id")
+		require.True(t, ok, "client_session_id from the query parameter should be on the log context")
+		require.Equal(t, testSessionID, val)
+		require.Contains(t, tp.span.attributes(), attribute.String("client_session_id", testSessionID))
+	})
+
+	t.Run("BaggageTakesPrecedence", func(t *testing.T) {
+		t.Parallel()
+
+		// When both baggage and the query parameter are present, baggage wins.
+		const querySessionID = "fedcba9876543210fedcba9876543210"
+		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
+		fields := requestFields(t, tp,
+			"/api/v2/workspaces?"+tracing.SessionIDBaggageKey+"="+querySessionID,
+			tracing.SessionIDBaggageKey+"="+testSessionID)
+
+		val, ok := fieldValue(fields, "client_session_id")
+		require.True(t, ok, "client_session_id should be on the log context")
+		require.Equal(t, testSessionID, val, "baggage should take precedence over the query parameter")
+		require.Contains(t, tp.span.attributes(), attribute.String("client_session_id", testSessionID))
+	})
+
+	t.Run("MalformedQuerySessionID", func(t *testing.T) {
+		t.Parallel()
+
+		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
+		fields := requestFields(t, tp, "/api/v2/workspaces?"+tracing.SessionIDBaggageKey+"=not-a-valid-session-id", "")
+
+		_, ok := fieldValue(fields, "client_session_id")
+		require.False(t, ok, "malformed client_session_id query parameter should be ignored")
+		require.False(t, hasAttrKey(tp.span.attributes(), "client_session_id"),
+			"no client_session_id attribute should be set for a malformed query session ID")
+	})
+
 	t.Run("NonMatchingRoute", func(t *testing.T) {
 		t.Parallel()
 
 		// The middleware only runs on matched API/app routes. Static and
 		// asset routes must not extract client_session_id, even from well-formed
-		// baggage, so client-controlled baggage is never logged for every
-		// request.
+		// baggage or a well-formed query parameter, so client-controlled
+		// values are never logged for every request.
 		tp := &fakeTracer{span: &recordingSpan{Span: tracing.NoopSpan}}
-		fields := requestFields(t, tp, "/index.html", tracing.SessionIDBaggageKey+"="+testSessionID)
+		fields := requestFields(t, tp, "/index.html?"+tracing.SessionIDBaggageKey+"="+testSessionID, tracing.SessionIDBaggageKey+"="+testSessionID)
 
 		_, ok := fieldValue(fields, "client_session_id")
 		require.False(t, ok, "client_session_id must not be logged on a non-matching route")
