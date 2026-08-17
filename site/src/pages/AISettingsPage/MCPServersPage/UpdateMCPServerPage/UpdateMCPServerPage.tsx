@@ -42,12 +42,11 @@ const UpdateMCPServerPage: FC = () => {
 		enabled: Boolean(serverId),
 	});
 	const server = serverQuery.data;
-	const serverOrganization = server?.organization_id ?? "";
 	const updateMutation = useMutation(
-		updateMCPServerConfig(queryClient, serverOrganization),
+		updateMCPServerConfig(queryClient, organization.id),
 	);
 	const deleteMutation = useMutation(
-		deleteMCPServerConfig(queryClient, serverOrganization),
+		deleteMCPServerConfig(queryClient, organization.id),
 	);
 	// A 404 must win over cached data: a refetch failure keeps stale data,
 	// which would otherwise render a form for a deleted or concealed server.
@@ -55,10 +54,7 @@ const UpdateMCPServerPage: FC = () => {
 		serverQuery.isError &&
 		isApiError(serverQuery.error) &&
 		serverQuery.error.response.status === 404;
-	const listPath = mcpServersPath(
-		organizations.find((org) => org.id === server?.organization_id) ??
-			organization,
-	);
+	const listPath = mcpServersPath(organization);
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
