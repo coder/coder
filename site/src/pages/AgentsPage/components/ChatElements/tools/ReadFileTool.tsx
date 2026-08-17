@@ -1,7 +1,7 @@
-import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
 import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { useTheme } from "#/theme/context";
 import { getPathBasename } from "../../../utils/path";
 import { asRecord, asString } from "../runtimeTypeUtils";
 import { ToolCall } from "./ToolCall";
