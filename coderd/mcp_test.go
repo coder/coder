@@ -2274,14 +2274,17 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 			"token exchange must send the PKCE code_verifier")
 
 		// Verify the verifier cookie is cleared in the response.
+		var clearedVerifier *http.Cookie
 		for _, c := range res.Cookies() {
 			if c.Name == "mcp_oauth2_verifier_"+created.ID.String() {
-				require.Equal(t, -1, c.MaxAge,
-					"verifier cookie must be cleared after callback")
-				require.Equal(t, callbackURL.Path, c.Path,
-					"cleared verifier cookie must be scoped to the frozen callback path")
+				clearedVerifier = c
 			}
 		}
+		require.NotNil(t, clearedVerifier, "callback must clear the verifier cookie")
+		require.Equal(t, -1, clearedVerifier.MaxAge,
+			"verifier cookie must be cleared after callback")
+		require.Equal(t, callbackURL.Path, clearedVerifier.Path,
+			"cleared verifier cookie must be scoped to the frozen callback path")
 	})
 
 	t.Run("CallbackWithoutVerifierStillWorks", func(t *testing.T) {
