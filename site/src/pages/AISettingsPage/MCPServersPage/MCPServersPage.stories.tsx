@@ -113,6 +113,28 @@ export const ListUsesDefaultOrganization: Story = {
 	},
 };
 
+export const OrgAdminCanViewMCPServers: Story = {
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers" },
+			routing: { path: "/ai/settings/mcp-servers" },
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([
+			MockCoderMCPServer,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Coder")).toBeVisible();
+	},
+};
+
 export const ListSwitchesOrganization: Story = {
 	parameters: {
 		organizations: [MockDefaultOrganization, MockOrganization2],
