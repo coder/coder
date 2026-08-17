@@ -1,38 +1,75 @@
 import { describe, expect, it } from "vitest";
 import {
 	defaultTimeRange,
-	fromLocalInputValue,
+	formatTimeExpression,
+	formatTriggerLabel,
+	parseTimeExpression,
 	parseTimeRange,
 	setTimeRangeInQuery,
 	type TimeRange,
-	toLocalInputValue,
 	toRFC3339,
 	withDefaultTimeRange,
 } from "./timeRange";
 
-describe("toLocalInputValue", () => {
-	it("formats a date as local YYYY-MM-DDTHH:mm", () => {
-		expect(toLocalInputValue(new Date(2026, 7, 13, 9, 5))).toBe(
-			"2026-08-13T09:05",
+const now = new Date(2026, 7, 13, 15, 0, 0);
+
+describe("parseTimeExpression", () => {
+	it("parses now case-insensitively", () => {
+		expect(parseTimeExpression("now", now)).toEqual(now);
+		expect(parseTimeExpression("Now", now)).toEqual(now);
+		expect(parseTimeExpression(" NOW ", now)).toEqual(now);
+	});
+
+	it("parses clock times against the current day", () => {
+		expect(parseTimeExpression("15:43", now)).toEqual(
+			new Date(2026, 7, 13, 15, 43, 0),
 		);
+		expect(parseTimeExpression("9:05:09", now)).toEqual(
+			new Date(2026, 7, 13, 9, 5, 9),
+		);
+	});
+
+	it("defaults a bare date to midnight", () => {
+		expect(parseTimeExpression("2026-08-13", now)).toEqual(
+			new Date(2026, 7, 13),
+		);
+	});
+
+	it("parses date and time together", () => {
+		expect(parseTimeExpression("2026-08-13 11:43", now)).toEqual(
+			new Date(2026, 7, 13, 11, 43, 0),
+		);
+		expect(parseTimeExpression("2026-08-13 11:43:21", now)).toEqual(
+			new Date(2026, 7, 13, 11, 43, 21),
+		);
+	});
+
+	it("rejects out-of-range clocks and dates", () => {
+		expect(parseTimeExpression("23:59:99", now)).toBeNull();
+		expect(parseTimeExpression("24:00", now)).toBeNull();
+		expect(parseTimeExpression("2026-02-30", now)).toBeNull();
+		expect(parseTimeExpression("2026-13-01", now)).toBeNull();
+		expect(parseTimeExpression("2026-08-13 23:59:99", now)).toBeNull();
+	});
+
+	it("rejects unknown shapes", () => {
+		expect(parseTimeExpression("", now)).toBeNull();
+		expect(parseTimeExpression("30d", now)).toBeNull();
+		expect(parseTimeExpression("13/08/2026", now)).toBeNull();
+		expect(parseTimeExpression("2026-08-13T11:43", now)).toBeNull();
 	});
 });
 
-describe("fromLocalInputValue", () => {
-	it("parses a datetime-local string as local time", () => {
-		expect(fromLocalInputValue("2026-08-13T09:05")).toEqual(
-			new Date(2026, 7, 13, 9, 5),
+describe("formatTimeExpression", () => {
+	it("round-trips through parseTimeExpression", () => {
+		const date = new Date(2026, 7, 13, 7, 23, 0);
+		expect(parseTimeExpression(formatTimeExpression(date), now)).toEqual(date);
+	});
+
+	it("pads single-digit fields", () => {
+		expect(formatTimeExpression(new Date(2026, 0, 2, 3, 4, 5))).toBe(
+			"2026-01-02 03:04:05",
 		);
-	});
-
-	it("returns null for empty or malformed input", () => {
-		expect(fromLocalInputValue("")).toBeNull();
-		expect(fromLocalInputValue("not-a-date")).toBeNull();
-	});
-
-	it("round-trips with toLocalInputValue", () => {
-		const date = new Date(2026, 0, 2, 23, 59);
-		expect(fromLocalInputValue(toLocalInputValue(date))).toEqual(date);
 	});
 });
 
@@ -46,12 +83,61 @@ describe("toRFC3339", () => {
 
 describe("defaultTimeRange", () => {
 	it("spans the 24 hours ending at now", () => {
-		const now = new Date(Date.UTC(2026, 7, 13, 15, 0, 0));
 		const range = defaultTimeRange(now);
 		expect(range.startedBefore).toEqual(now);
 		expect(range.startedAfter).toEqual(
 			new Date(now.getTime() - 24 * 60 * 60 * 1000),
 		);
+	});
+});
+
+describe("formatTriggerLabel", () => {
+	it("collapses a single day", () => {
+		expect(
+			formatTriggerLabel(
+				{
+					startedAfter: new Date(2026, 3, 10, 7, 23, 0),
+					startedBefore: new Date(2026, 3, 10, 9, 30, 0),
+				},
+				now,
+			),
+		).toBe("April 10");
+	});
+
+	it("labels a range ending today against now", () => {
+		expect(
+			formatTriggerLabel(
+				{
+					startedAfter: new Date(2026, 7, 11, 23, 59, 59),
+					startedBefore: new Date(2026, 7, 13, 10, 0, 0),
+				},
+				now,
+			),
+		).toBe("August 11 - Today");
+	});
+
+	it("shortens ranges within one month", () => {
+		expect(
+			formatTriggerLabel(
+				{
+					startedAfter: new Date(2026, 3, 17),
+					startedBefore: new Date(2026, 3, 19),
+				},
+				now,
+			),
+		).toBe("April 17 - 19");
+	});
+
+	it("falls back to a full range across months", () => {
+		expect(
+			formatTriggerLabel(
+				{
+					startedAfter: new Date(2026, 2, 30),
+					startedBefore: new Date(2026, 3, 2),
+				},
+				now,
+			),
+		).toBe("March 30 - April 2");
 	});
 });
 

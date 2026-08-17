@@ -59,7 +59,6 @@ const AISessionListPage: FC = () => {
 
 	const explicitTimeRange = parseTimeRange(filter.values);
 	const timeRange = explicitTimeRange ?? defaultRange;
-
 	const userMenu = useUserFilterMenu({
 		value: filter.values.initiator,
 		onChange: (option) =>
@@ -120,7 +119,7 @@ const AISessionListPage: FC = () => {
 						model: modelMenu,
 					},
 					timeRange,
-					isDefaultTimeRange: explicitTimeRange === null,
+					defaultTimeRange: defaultRange,
 					onTimeRangeChange: (range) =>
 						filter.update(setTimeRangeInQuery(filter.values, range)),
 				}}

@@ -7,22 +7,19 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
-import { formatDateTime } from "#/utils/time";
 import { DateTimeRangeFilter } from "./DateTimeRangeFilter";
-import { type TimeRange, toLocalInputValue } from "./timeRange";
+import { formatTimeExpression, type TimeRange } from "./timeRange";
 
-const fixedNow = new Date("2026-08-13T15:00:00Z");
+const fixedNow = new Date(2026, 7, 13, 15, 0, 0);
 
 const defaultValue: TimeRange = {
-	startedAfter: new Date("2026-08-12T15:00:00Z"),
+	startedAfter: new Date(2026, 7, 12, 15, 0, 0),
 	startedBefore: fixedNow,
 };
 
-// Local (zone-less) timestamps so the trigger label matches whatever
-// timezone the test runner uses.
-const explicitValue: TimeRange = {
-	startedAfter: new Date("2026-08-01T09:30:00"),
-	startedBefore: new Date("2026-08-02T17:45:00"),
+const singleDayValue: TimeRange = {
+	startedAfter: new Date(2026, 3, 10, 7, 23, 0),
+	startedBefore: new Date(2026, 3, 10, 9, 30, 0),
 };
 
 const meta: Meta<typeof DateTimeRangeFilter> = {
@@ -31,7 +28,7 @@ const meta: Meta<typeof DateTimeRangeFilter> = {
 	args: {
 		now: fixedNow,
 		value: defaultValue,
-		isDefault: true,
+		defaultValue,
 		onChange: fn(),
 	},
 };
@@ -40,9 +37,6 @@ export default meta;
 type Story = StoryObj<typeof DateTimeRangeFilter>;
 
 export const DefaultLabel: Story = {
-	args: {
-		onChange: fn(),
-	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const trigger = canvas.getByRole("button", {
@@ -53,26 +47,52 @@ export const DefaultLabel: Story = {
 	},
 };
 
-export const ExplicitRangeLabel: Story = {
+export const SingleDayLabel: Story = {
 	args: {
-		isDefault: false,
-		value: explicitValue,
+		value: singleDayValue,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByRole("button", {
-			name: "Filter by time range",
-		});
-		expect(trigger.textContent).toContain(
-			formatDateTime(explicitValue.startedAfter, "MMM D, HH:mm"),
-		);
-		expect(trigger.textContent).toContain(
-			formatDateTime(explicitValue.startedBefore, "MMM D, HH:mm"),
-		);
+		expect(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		).toHaveTextContent("April 10");
 	},
 };
 
-export const OpenShowsInputs: Story = {
+export const RangeEndingTodayLabel: Story = {
+	args: {
+		value: {
+			startedAfter: new Date(2026, 7, 11, 23, 59, 59),
+			startedBefore: new Date(2026, 7, 13, 10, 0, 0),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		).toHaveTextContent("August 11 - Today");
+	},
+};
+
+export const SameMonthLabel: Story = {
+	args: {
+		value: {
+			startedAfter: new Date(2026, 3, 17),
+			startedBefore: new Date(2026, 3, 19),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		).toHaveTextContent("April 17 - 19");
+	},
+};
+
+export const OpenPrefillsExpressions: Story = {
+	args: {
+		value: singleDayValue,
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -80,17 +100,39 @@ export const OpenShowsInputs: Story = {
 			canvas.getByRole("button", { name: "Filter by time range" }),
 		);
 
-		// Inputs render in a portal and are populated with the committed
-		// value in browser-local time.
-		const startInput = await body.findByLabelText("Start of time range");
-		const endInput = body.getByLabelText("End of time range");
-		expect(startInput).toHaveValue(
-			toLocalInputValue(defaultValue.startedAfter),
-		);
-		expect(endInput).toHaveValue(toLocalInputValue(defaultValue.startedBefore));
+		// Committed bounds are shown as absolute local expressions.
+		const fromInput = await body.findByLabelText("Start of time range");
+		const toInput = body.getByLabelText("End of time range");
+		expect(fromInput).toHaveValue("2026-04-10 07:23:00");
+		expect(toInput).toHaveValue("2026-04-10 09:30:00");
+
+		// The examples footer explains the accepted grammar.
+		expect(body.getByText("Examples:")).toBeInTheDocument();
+		expect(
+			body.getByText("Defaults to midnight if no time is provided."),
+		).toBeInTheDocument();
 
 		// Apply stays disabled until the selection changes.
 		expect(body.getByRole("button", { name: "Apply" })).toBeDisabled();
+	},
+};
+
+export const OpenPrefillsNowForCurrentBoundary: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		);
+
+		// The default end boundary is the current moment, so it reads as
+		// "now"; the start boundary is a frozen timestamp.
+		const fromInput = await body.findByLabelText("Start of time range");
+		const toInput = body.getByLabelText("End of time range");
+		expect(fromInput).toHaveValue(
+			formatTimeExpression(defaultValue.startedAfter),
+		);
+		expect(toInput).toHaveValue("now");
 	},
 };
 
@@ -105,29 +147,26 @@ export const ApplyCommitsSelection: Story = {
 			canvas.getByRole("button", { name: "Filter by time range" }),
 		);
 
-		const startInput = await body.findByLabelText("Start of time range");
-		await fireEvent.change(startInput, {
-			target: { value: "2026-08-13T08:00" },
+		const fromInput = await body.findByLabelText("Start of time range");
+		await fireEvent.change(fromInput, {
+			target: { value: "2026-08-13 08:00" },
 		});
 
 		const applyButton = body.getByRole("button", { name: "Apply" });
 		expect(applyButton).toBeEnabled();
 		await userEvent.click(applyButton);
 
-		// The popover closes and onChange receives the committed range. The
-		// input string is parsed as browser-local time, matching how the
-		// component interprets it.
 		await waitFor(() => {
 			expect(body.queryByRole("button", { name: "Apply" })).toBeNull();
 		});
 		expect(args.onChange).toHaveBeenCalledWith({
-			startedAfter: new Date("2026-08-13T08:00"),
-			startedBefore: defaultValue.startedBefore,
+			startedAfter: new Date(2026, 7, 13, 8, 0, 0),
+			startedBefore: fixedNow,
 		});
 	},
 };
 
-export const InvalidRangeDisablesApply: Story = {
+export const InvalidExpressionDisablesApply: Story = {
 	args: {
 		onChange: fn(),
 	},
@@ -138,24 +177,17 @@ export const InvalidRangeDisablesApply: Story = {
 			canvas.getByRole("button", { name: "Filter by time range" }),
 		);
 
-		// A start at or after the end is not a valid range.
-		const startInput = await body.findByLabelText("Start of time range");
-		await fireEvent.change(startInput, {
-			target: { value: toLocalInputValue(defaultValue.startedBefore) },
-		});
+		const fromInput = await body.findByLabelText("Start of time range");
+		await fireEvent.change(fromInput, { target: { value: "30d" } });
+		expect(fromInput).toHaveAttribute("aria-invalid", "true");
 		expect(body.getByRole("button", { name: "Apply" })).toBeDisabled();
 
-		// Empty values are ignored, so the committed value remains and Apply
-		// stays disabled for an unchanged selection.
-		await fireEvent.change(startInput, { target: { value: "" } });
-		expect(body.getByRole("button", { name: "Apply" })).toBeDisabled();
-
-		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		await userEvent.keyboard("{Escape}");
 		expect(args.onChange).not.toHaveBeenCalled();
 	},
 };
 
-export const CancelClosesWithoutApplying: Story = {
+export const ReversedRangeDisablesApply: Story = {
 	args: {
 		onChange: fn(),
 	},
@@ -166,11 +198,36 @@ export const CancelClosesWithoutApplying: Story = {
 			canvas.getByRole("button", { name: "Filter by time range" }),
 		);
 
-		const startInput = await body.findByLabelText("Start of time range");
-		await fireEvent.change(startInput, {
-			target: { value: "2026-08-13T08:00" },
+		// From after To is not a valid range.
+		const fromInput = await body.findByLabelText("Start of time range");
+		const toInput = body.getByLabelText("End of time range");
+		await fireEvent.change(fromInput, {
+			target: { value: "2026-08-13 16:00" },
 		});
-		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		await fireEvent.change(toInput, { target: { value: "2026-08-13 08:00" } });
+		expect(body.getByRole("button", { name: "Apply" })).toBeDisabled();
+
+		await userEvent.keyboard("{Escape}");
+		expect(args.onChange).not.toHaveBeenCalled();
+	},
+};
+
+export const EscapeClosesWithoutApplying: Story = {
+	args: {
+		onChange: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		);
+
+		const fromInput = await body.findByLabelText("Start of time range");
+		await fireEvent.change(fromInput, {
+			target: { value: "2026-08-13 08:00" },
+		});
+		await userEvent.keyboard("{Escape}");
 
 		await waitFor(() => {
 			expect(body.queryByRole("button", { name: "Apply" })).toBeNull();

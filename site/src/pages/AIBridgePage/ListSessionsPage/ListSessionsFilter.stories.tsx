@@ -19,10 +19,10 @@ const timeRange: TimeRange = {
 
 const timeRangeProps: Pick<
 	FilterProps,
-	"timeRange" | "isDefaultTimeRange" | "onTimeRangeChange"
+	"timeRange" | "defaultTimeRange" | "onTimeRangeChange"
 > = {
 	timeRange,
-	isDefaultTimeRange: true,
+	defaultTimeRange: timeRange,
 	onTimeRangeChange: fn(),
 };
 
@@ -80,7 +80,6 @@ export const WithQuery: Story = {
 export const ExplicitTimeRange: Story = {
 	args: {
 		...defaultFilterProps,
-		isDefaultTimeRange: false,
 		timeRange: {
 			startedAfter: new Date("2026-08-01T09:30:00"),
 			startedBefore: new Date("2026-08-02T17:45:00"),

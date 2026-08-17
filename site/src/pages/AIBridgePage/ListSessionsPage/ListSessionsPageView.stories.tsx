@@ -35,7 +35,7 @@ const defaultFilterProps: FilterProps = {
 		},
 	}),
 	timeRange,
-	isDefaultTimeRange: true,
+	defaultTimeRange: timeRange,
 	onTimeRangeChange: fn(),
 };
 

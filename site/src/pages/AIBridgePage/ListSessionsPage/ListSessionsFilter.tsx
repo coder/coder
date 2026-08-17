@@ -24,7 +24,7 @@ interface ListSessionsFilterProps {
 		model: ModelFilterMenu;
 	};
 	timeRange: TimeRange;
-	isDefaultTimeRange: boolean;
+	defaultTimeRange: TimeRange;
 	onTimeRangeChange: (range: TimeRange) => void;
 }
 
@@ -33,7 +33,7 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 	error,
 	menus,
 	timeRange,
-	isDefaultTimeRange,
+	defaultTimeRange,
 	onTimeRangeChange,
 }) => {
 	return (
@@ -56,8 +56,8 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 				<>
 					<DateTimeRangeFilter
 						value={timeRange}
+						defaultValue={defaultTimeRange}
 						onChange={onTimeRangeChange}
-						isDefault={isDefaultTimeRange}
 					/>
 					<UserMenu menu={menus.user} placeholder="All users" />
 					<ProviderFilter menu={menus.provider} />
