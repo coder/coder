@@ -5317,6 +5317,34 @@ This is required on creation to enable a user-flow of validating a template work
 | `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
 | `token_name` | string                                                              | false    |              |                                 |
 
+## codersdk.CreateTrialLicenseRequest
+
+```json
+{
+  "company_name": "Acme Corp",
+  "country": "United States",
+  "developers": "string",
+  "email": "jane.doe@example.com",
+  "first_name": "Jane",
+  "job_title": "Engineering Manager",
+  "last_name": "Doe",
+  "phone_number": "+14155552671"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `company_name` | string | true     |              |             |
+| `country`      | string | true     |              |             |
+| `developers`   | string | true     |              |             |
+| `email`        | string | true     |              |             |
+| `first_name`   | string | true     |              |             |
+| `job_title`    | string | true     |              |             |
+| `last_name`    | string | true     |              |             |
+| `phone_number` | string | true     |              |             |
+
 ## codersdk.CreateUserRequestWithOrgs
 
 ```json

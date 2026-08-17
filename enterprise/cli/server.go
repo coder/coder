@@ -94,6 +94,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			ProxyHealthInterval:       options.DeploymentValues.ProxyHealthStatusInterval.Value(),
 			DefaultQuietHoursSchedule: options.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 			ProvisionerDaemonPSK:      options.DeploymentValues.Provisioner.DaemonPSK.Value(),
+			TrialLicenseRequester:     trialer.NewLicenseRequester(trialer.LicenseRequestURL),
 
 			CheckInactiveUsersCancelFunc: dormancy.CheckInactiveUsers(ctx, options.Logger, quartz.NewReal(), options.Database, options.Auditor),
 		}

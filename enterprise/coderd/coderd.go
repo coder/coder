@@ -377,6 +377,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/refresh-entitlements", api.postRefreshEntitlements)
 			r.Post("/", api.postLicense)
+			r.Post("/trial", api.postTrialLicense)
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
 		})
@@ -876,6 +877,9 @@ type Options struct {
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
 	LicenseKeys                map[string]ed25519.PublicKey
+
+	// requests a trial from the Coder licensor and returns the signed JWT.
+	TrialLicenseRequester func(ctx context.Context, deploymentID string, req codersdk.CreateTrialLicenseRequest) (string, error)
 
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string

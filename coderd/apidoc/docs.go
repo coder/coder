@@ -3983,6 +3983,45 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/licenses/trial": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Request a trial license",
+                "operationId": "request-trial-license",
+                "parameters": [
+                    {
+                        "description": "Trial license request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTrialLicenseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.License"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/licenses/{id}": {
             "delete": {
                 "produces": [
@@ -19535,6 +19574,62 @@ const docTemplate = `{
                 },
                 "token_name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateTrialLicenseRequest": {
+            "type": "object",
+            "required": [
+                "company_name",
+                "country",
+                "developers",
+                "email",
+                "first_name",
+                "job_title",
+                "last_name",
+                "phone_number"
+            ],
+            "properties": {
+                "company_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Acme Corp"
+                },
+                "country": {
+                    "type": "string",
+                    "example": "United States"
+                },
+                "developers": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254,
+                    "example": "jane.doe@example.com"
+                },
+                "first_name": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "minLength": 1,
+                    "example": "Jane"
+                },
+                "job_title": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Engineering Manager"
+                },
+                "last_name": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "minLength": 1,
+                    "example": "Doe"
+                },
+                "phone_number": {
+                    "type": "string",
+                    "example": "+14155552671"
                 }
             }
         },

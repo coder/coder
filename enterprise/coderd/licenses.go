@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/trialer"
 )
 
 const (
@@ -138,6 +140,134 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = dl
 
+	err = api.updateEntitlements(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update entitlements",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Postgres pubsub; see PubsubEventLicenses.
+	err = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("add"))
+	if err != nil {
+		api.Logger.Error(context.Background(), "failed to publish license add", slog.Error(err))
+		// don't fail the HTTP request, since we did write it successfully to the database
+	}
+
+	c, err := decodeClaims(dl)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to decode database response",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, convertLicense(dl, c))
+}
+
+// Requests and applies a trial license from the Coder licensor for this deployment.
+// The trial issued is written directly to the database, skips auditing and entitlement refresh;
+// this path installs the license itself so that a trial behaves like any other uploaded license.
+//
+// @Summary Request a trial license
+// @ID request-trial-license
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param request body codersdk.CreateTrialLicenseRequest true "Trial license request"
+// @Success 201 {object} codersdk.License
+// @Router /api/v2/licenses/trial [post]
+func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.License](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
+
+	if !api.AGPL.Authorize(r, policy.ActionCreate, rbac.ResourceLicense) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	if api.TrialLicenseRequester == nil {
+		httpapi.Write(ctx, rw, http.StatusNotImplemented, codersdk.Response{
+			Message: "Trial licenses are not available on this deployment.",
+		})
+		return
+	}
+
+	var req codersdk.CreateTrialLicenseRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Prevent overwriting existing license
+	if api.Entitlements.HasLicense() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "This deployment already has a license.",
+			Detail:  "Remove the existing license before requesting a trial.",
+		})
+		return
+	}
+
+	rawLicense, err := api.TrialLicenseRequester(ctx, api.AGPL.DeploymentID, req)
+	if err != nil {
+		if licensorErr, ok := errors.AsType[*trialer.LicensorError](err); ok {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unable to issue a trial license.",
+				Detail:  licensorErr.Message,
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to reach the Coder license server.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// The deployment ID was supplied by us, so unlike postLicense there is no
+	// need to check the license against claims.DeploymentIDs.
+	claims, err := license.ParseClaimsIgnoreNbf(rawLicense, api.LicenseKeys)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "The Coder license server returned an invalid license.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	id, err := uuid.Parse(claims.ID)
+	if err != nil {
+		// See postLicense: licenses are not guaranteed to carry a uuid.
+		id = uuid.New()
+	}
+
+	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
+		UploadedAt: dbtime.Now(),
+		JWT:        rawLicense,
+		Exp:        claims.ExpiresAt.Time,
+		UUID:       id,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Unable to add license to database",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.New = dl
+
+	// Refresh directly rather than through postRefreshEntitlements, which is
+	// rate limited and would reject a refresh immediately after a trial lands.
 	err = api.updateEntitlements(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

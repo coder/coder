@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -88,4 +89,104 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 		}
 		return nil
 	}
+}
+
+// LicenseRequestURL is the Coder licensor endpoint that issues trial licenses.
+const LicenseRequestURL = "https://v2-licensor.coder.com/trial"
+
+const (
+	// licenseRequestSource tells the licensor where a trial request originated.
+	licenseRequestSource = "premium_page"
+	// licenseRequestTimeout bounds a single request to the licensor.
+	licenseRequestTimeout = 30 * time.Second
+)
+
+// LicensorError is a rejection from the licensor for a business reason, such as
+// a deployment that has already used its trial. Its message comes from the
+// licensor and is intended to be shown to the requesting user. Transport and
+// protocol failures are returned as ordinary errors instead.
+type LicensorError struct {
+	Message string
+}
+
+func (e *LicensorError) Error() string {
+	return e.Message
+}
+
+// licenseRequest is the licensor's wire format for a trial request. It is kept
+// separate from codersdk.LicensorTrialRequest, which postFirstUser marshals to
+// the licensor during setup, so that fields can be added here without altering
+// that payload.
+type licenseRequest struct {
+	DeploymentID string `json:"deployment_id"`
+	Email        string `json:"email"`
+	Source       string `json:"source"`
+
+	// Personal details.
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
+}
+
+// NewLicenseRequester creates a handler that requests a trial license and
+// returns the raw signed JWT. Unlike New, it does not touch the database, so
+// the caller installs the license and therefore keeps auditing and entitlement
+// refresh on the same path as a manually uploaded license.
+func NewLicenseRequester(url string) func(ctx context.Context, deploymentID string, req codersdk.CreateTrialLicenseRequest) (string, error) {
+	client := &http.Client{Timeout: licenseRequestTimeout}
+	return func(ctx context.Context, deploymentID string, req codersdk.CreateTrialLicenseRequest) (string, error) {
+		data, err := json.Marshal(licenseRequest{
+			DeploymentID: deploymentID,
+			Email:        req.Email,
+			Source:       licenseRequestSource,
+			FirstName:    req.FirstName,
+			LastName:     req.LastName,
+			PhoneNumber:  req.PhoneNumber,
+			JobTitle:     req.JobTitle,
+			CompanyName:  req.CompanyName,
+			Country:      req.Country,
+			Developers:   req.Developers,
+		})
+		if err != nil {
+			return "", xerrors.Errorf("marshal: %w", err)
+		}
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+		if err != nil {
+			return "", xerrors.Errorf("create license request: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		res, err := client.Do(httpReq)
+		if err != nil {
+			return "", xerrors.Errorf("perform license request: %w", err)
+		}
+		defer res.Body.Close()
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return "", xerrors.Errorf("read license response: %w", err)
+		}
+		if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+			return "", &LicensorError{Message: licenseRequestErrorMessage(body, res.Status)}
+		}
+		raw := strings.TrimSpace(string(body))
+		if raw == "" {
+			return "", xerrors.New("licensor returned an empty license")
+		}
+		return raw, nil
+	}
+}
+
+// licenseRequestErrorMessage reads the licensor's error message, falling back to
+// the HTTP status when the body is not in the expected shape.
+func licenseRequestErrorMessage(body []byte, status string) string {
+	var msg struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &msg); err == nil && msg.Error != "" {
+		return msg.Error
+	}
+	return status
 }
