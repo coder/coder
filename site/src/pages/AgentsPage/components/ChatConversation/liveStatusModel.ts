@@ -41,6 +41,15 @@ export type LiveStatusModel =
 			statusCode?: number;
 	  } & LiveStatusBase);
 
+export const shouldRenderLiveAssistant = (
+	liveStatus: LiveStatusModel,
+): boolean =>
+	liveStatus.phase === "streaming" ||
+	liveStatus.phase === "starting" ||
+	liveStatus.phase === "retrying" ||
+	liveStatus.phase === "reconnecting" ||
+	liveStatus.hasAccumulatedOutput;
+
 export type DeriveLiveStatusParams = {
 	streamState: StreamState | null;
 	retryState: RetryState | null;

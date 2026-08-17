@@ -342,7 +342,7 @@ Use the version bump script to update versions:
 
    ```sh
    git add .
-   git commit -m "feat(git-clone):add git-clone module"
+   git commit -m "feat(git-clone): add git-clone module"
    ```
 
 4. **Open a pull request**:
