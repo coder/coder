@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect } from "react";
 import { useQuery } from "react-query";
 import {
 	permittedOrganizations,
@@ -7,11 +7,13 @@ import {
 import type { Organization } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	TemplateBuilderSubtitle,
@@ -60,8 +62,10 @@ export const TemplateCustomizationsStep: FC<
 		}),
 	);
 	const orgOptions = permittedOrgsQuery.data ?? [];
-
-	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
+	const selectedOrg =
+		orgOptions.find((org) => org.id === state.organizationId) ?? null;
+	const autoSelectedSingleOrg =
+		permittedOrgsQuery.isSuccess && orgOptions.length === 1;
 
 	const { data: provisioners } = useQuery({
 		...provisionerDaemons(selectedOrg?.id ?? ""),
@@ -76,16 +80,29 @@ export const TemplateCustomizationsStep: FC<
 		onProvisionerStatusChange(hasProvisioners);
 	}, [hasProvisioners, onProvisionerStatusChange]);
 
-	// Auto-select when exactly one org is available.
+	// Keep the wizard's organization in sync with the fetched permitted orgs:
+	// auto-select the sole option, and drop a selection that a later refetch no
+	// longer permits so a stale organization can't be submitted.
 	useEffect(() => {
-		if (orgOptions.length === 1 && !selectedOrg) {
-			setSelectedOrg(orgOptions[0]);
-			onChangeField("organizationId", orgOptions[0].id);
+		const orgs = permittedOrgsQuery.data;
+		if (!orgs) {
+			return;
 		}
-	}, [orgOptions, selectedOrg, onChangeField]);
+		if (orgs.length === 1) {
+			if (state.organizationId !== orgs[0].id) {
+				onChangeField("organizationId", orgs[0].id);
+			}
+			return;
+		}
+		if (
+			state.organizationId &&
+			!orgs.some((org) => org.id === state.organizationId)
+		) {
+			onChangeField("organizationId", "");
+		}
+	}, [permittedOrgsQuery.data, state.organizationId, onChangeField]);
 
 	const handleOrgChange = (org: Organization | null) => {
-		setSelectedOrg(org);
 		onChangeField("organizationId", org?.id ?? "");
 	};
 
@@ -107,7 +124,7 @@ export const TemplateCustomizationsStep: FC<
 					<div
 						className={cn(
 							"flex flex-col gap-2",
-							orgOptions.length <= 1 && "col-span-2",
+							autoSelectedSingleOrg && "col-span-2",
 						)}
 					>
 						<Label htmlFor="template-display-name">Display name</Label>
@@ -119,8 +136,7 @@ export const TemplateCustomizationsStep: FC<
 						/>
 					</div>
 
-					{/* Only ask when the user has a real choice. */}
-					{orgOptions.length > 1 && (
+					{!autoSelectedSingleOrg && (
 						<div className="flex flex-col gap-2">
 							<Label htmlFor="organization">
 								Organization
@@ -128,13 +144,41 @@ export const TemplateCustomizationsStep: FC<
 									*
 								</span>
 							</Label>
-							<OrganizationAutocomplete
-								id="organization"
-								required
-								value={selectedOrg}
-								onChange={handleOrgChange}
-								options={orgOptions}
-							/>
+							{permittedOrgsQuery.isLoading ? (
+								<div className="flex h-10 items-center">
+									<Spinner
+										loading
+										size="sm"
+										aria-label="Loading organizations"
+									/>
+								</div>
+							) : permittedOrgsQuery.isError ? (
+								<div className="flex flex-col items-start gap-2">
+									<p className="text-xs text-content-destructive">
+										Failed to load organizations.
+									</p>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => permittedOrgsQuery.refetch()}
+									>
+										Retry
+									</Button>
+								</div>
+							) : orgOptions.length === 0 ? (
+								<p className="text-xs text-content-secondary">
+									You do not have permission to create templates in any
+									organization.
+								</p>
+							) : (
+								<OrganizationAutocomplete
+									id="organization"
+									required
+									value={selectedOrg}
+									onChange={handleOrgChange}
+									options={orgOptions}
+								/>
+							)}
 						</div>
 					)}
 

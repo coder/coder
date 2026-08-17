@@ -1,6 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import { getProvisionerDaemonsKey } from "#/api/queries/organizations";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
+import { API } from "#/api/api";
+import {
+	getProvisionerDaemonsKey,
+	permittedOrganizationsKey,
+} from "#/api/queries/organizations";
+import type { AuthorizationCheck } from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -8,11 +21,11 @@ import {
 import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import { initialWizardState } from "./wizardState";
 
-const permittedOrgsKey = [
-	"organizations",
-	"permitted",
-	{ object: { resource_type: "template" }, action: "create" },
-];
+const permittedOrgsCheck: AuthorizationCheck = {
+	object: { resource_type: "template" },
+	action: "create",
+};
+const permittedOrgsKey = permittedOrganizationsKey(permittedOrgsCheck);
 
 const meta: Meta<typeof TemplateCustomizationsStep> = {
 	title: "pages/TemplateBuilder/TemplateCustomizationsStep",
@@ -53,12 +66,11 @@ export const RequiresOrganizationSelection: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const organizationPicker = canvas.getByTestId("organization-autocomplete");
+		const organizationPicker = canvas.getByRole("button", {
+			name: /organization/i,
+		});
 
 		await expect(organizationPicker).toHaveAttribute("aria-required", "true");
-		await expect(organizationPicker).toHaveTextContent(
-			"Select an organization",
-		);
 
 		await userEvent.click(organizationPicker);
 		// Popover content portals outside the canvas root.
@@ -91,7 +103,7 @@ export const HidesPickerForSingleOrganization: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.queryByTestId("organization-autocomplete"),
+			canvas.queryByRole("button", { name: /organization/i }),
 		).not.toBeInTheDocument();
 
 		await waitFor(() =>
@@ -100,5 +112,48 @@ export const HidesPickerForSingleOrganization: Story = {
 				MockDefaultOrganization.id,
 			),
 		);
+	},
+};
+
+export const NoPermittedOrganizations: Story = {
+	parameters: {
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.queryByRole("button", { name: /organization/i }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.getByText(/do not have permission to create templates/i),
+		).toBeVisible();
+		await expect(args.onChangeField).not.toHaveBeenCalledWith(
+			"organizationId",
+			expect.anything(),
+		);
+	},
+};
+
+export const FailsToLoadOrganizations: Story = {
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockRejectedValue(
+			new Error("failed to load organizations"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			await canvas.findByText("Failed to load organizations."),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: /retry/i }),
+		).toBeInTheDocument();
 	},
 };
