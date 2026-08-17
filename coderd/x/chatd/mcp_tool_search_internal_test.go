@@ -41,12 +41,13 @@ func TestDecideMCPToolSearch(t *testing.T) {
 	large := []deferredMCPTool{testDeferredTool("server__large", strings.Repeat("large ", 2000), map[string]any{"value": map[string]any{"type": "string"}})}
 
 	tests := []struct {
-		name       string
-		experiment bool
-		force      bool
-		window     int64
-		candidates []deferredMCPTool
-		want       bool
+		name         string
+		experiment   bool
+		force        bool
+		window       int64
+		candidates   []deferredMCPTool
+		dynamicNames map[string]bool
+		want         bool
 	}{
 		{name: "below", experiment: true, window: 100_000, candidates: small},
 		{name: "above", experiment: true, window: 10_000, candidates: large, want: true},
@@ -54,6 +55,8 @@ func TestDecideMCPToolSearch(t *testing.T) {
 		{name: "experiment off", force: true, window: 10, candidates: large},
 		{name: "empty", experiment: true, force: true},
 		{name: "collision", experiment: true, force: true, candidates: []deferredMCPTool{testDeferredTool(chattool.FindToolsName, "collision", nil)}},
+		{name: "dynamic collision", experiment: true, force: true, candidates: small, dynamicNames: map[string]bool{chattool.FindToolsName: true}},
+		{name: "dynamic no collision", experiment: true, force: true, candidates: small, dynamicNames: map[string]bool{"other": true}, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -63,6 +66,7 @@ func TestDecideMCPToolSearch(t *testing.T) {
 				forceDefer:        tt.force,
 				contextWindow:     tt.window,
 				candidates:        tt.candidates,
+				dynamicToolNames:  tt.dynamicNames,
 			}).apply)
 		})
 	}

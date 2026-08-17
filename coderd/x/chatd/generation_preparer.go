@@ -619,6 +619,7 @@ func (server *Server) prepareGeneration(
 		forceDefer:        server.forceMCPToolSearch,
 		contextWindow:     modelConfig.ContextLimit,
 		candidates:        deferredCandidates,
+		dynamicToolNames:  dynamicToolNames,
 	})
 	server.metrics.DeferredMCPToolTokens.WithLabelValues(
 		model.Provider(), model.ModelID(), strconv.FormatBool(toolSearch.apply),

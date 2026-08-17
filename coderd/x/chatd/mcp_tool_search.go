@@ -31,11 +31,18 @@ type mcpToolSearchInput struct {
 	forceDefer        bool
 	contextWindow     int64
 	candidates        []deferredMCPTool
+	dynamicToolNames  map[string]bool
 }
 
 func decideMCPToolSearch(input mcpToolSearchInput) mcpToolSearchDecision {
 	decision := mcpToolSearchDecision{estimatedTokens: estimateDeferredMCPToolTokens(input.candidates)}
 	if !input.experimentEnabled || len(input.candidates) == 0 {
+		return decision
+	}
+	// A client-executed dynamic tool named find_tools would otherwise be
+	// advertised alongside the built-in and capture its calls as
+	// requires_action, so a collision on either surface fails open.
+	if input.dynamicToolNames[chattool.FindToolsName] {
 		return decision
 	}
 	for _, candidate := range input.candidates {
