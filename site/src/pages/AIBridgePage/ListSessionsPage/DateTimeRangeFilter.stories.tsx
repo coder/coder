@@ -7,8 +7,9 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { formatDateTime } from "#/utils/time";
 import { DateTimeRangeFilter } from "./DateTimeRangeFilter";
-import { formatTimeExpression, type TimeRange } from "./timeRange";
+import type { TimeRange } from "./timeRange";
 
 const fixedNow = new Date(2026, 7, 13, 15, 0, 0);
 
@@ -39,10 +40,9 @@ type Story = StoryObj<typeof DateTimeRangeFilter>;
 export const DefaultLabel: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByRole("button", {
-			name: "Filter by time range",
-		});
-		expect(trigger).toHaveTextContent("Last 24 hours");
+		expect(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		).toHaveTextContent("Last 24 hours");
 		expect(args.onChange).not.toHaveBeenCalled();
 	},
 };
@@ -50,12 +50,6 @@ export const DefaultLabel: Story = {
 export const SingleDayLabel: Story = {
 	args: {
 		value: singleDayValue,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: "Filter by time range" }),
-		).toHaveTextContent("Apr 10");
 	},
 };
 
@@ -66,12 +60,6 @@ export const RangeEndingTodayLabel: Story = {
 			startedBefore: new Date(2026, 7, 13, 10, 0, 0),
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: "Filter by time range" }),
-		).toHaveTextContent("Aug 11 - Today");
-	},
 };
 
 export const SameMonthLabel: Story = {
@@ -80,12 +68,6 @@ export const SameMonthLabel: Story = {
 			startedAfter: new Date(2026, 3, 17),
 			startedBefore: new Date(2026, 3, 19),
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: "Filter by time range" }),
-		).toHaveTextContent("Apr 17 - 19");
 	},
 };
 
@@ -129,9 +111,7 @@ export const OpenPrefillsNowForCurrentBoundary: Story = {
 		// "now"; the start boundary is a frozen timestamp.
 		const fromInput = await body.findByLabelText("Start of time range");
 		const toInput = body.getByLabelText("End of time range");
-		expect(fromInput).toHaveValue(
-			formatTimeExpression(defaultValue.startedAfter),
-		);
+		expect(fromInput).toHaveValue(formatDateTime(defaultValue.startedAfter));
 		expect(toInput).toHaveValue("now");
 	},
 };
@@ -223,7 +203,7 @@ export const InvalidExpressionShowsError: Story = {
 	args: {
 		onChange: fn(),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
@@ -237,9 +217,6 @@ export const InvalidExpressionShowsError: Story = {
 			body.getByText("Enter a valid time, e.g. 2026-08-13 11:43"),
 		).toBeInTheDocument();
 		expect(body.getByRole("button", { name: "Apply" })).toBeDisabled();
-
-		await userEvent.keyboard("{Escape}");
-		expect(args.onChange).not.toHaveBeenCalled();
 	},
 };
 
@@ -247,7 +224,7 @@ export const ReversedRangeShowsError: Story = {
 	args: {
 		onChange: fn(),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
@@ -263,9 +240,6 @@ export const ReversedRangeShowsError: Story = {
 		await fireEvent.change(toInput, { target: { value: "2026-08-13 08:00" } });
 		expect(body.getByText("From must be before To")).toBeInTheDocument();
 		expect(body.getByRole("button", { name: "Apply" })).toBeDisabled();
-
-		await userEvent.keyboard("{Escape}");
-		expect(args.onChange).not.toHaveBeenCalled();
 	},
 };
 

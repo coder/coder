@@ -9,8 +9,8 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
+import { formatDateTime } from "#/utils/time";
 import {
-	formatTimeExpression,
 	formatTriggerLabel,
 	parseTimeExpression,
 	type TimeRange,
@@ -36,14 +36,9 @@ interface FieldState {
 
 const EXAMPLES = ["Now", "15:43", "2026-08-13 11:43"];
 
-const NOW_TOLERANCE_MS = 60 * 1000;
+const INVALID_TIME_MESSAGE = "Enter a valid time, e.g. 2026-08-13 11:43";
 
-// Boundaries at (or very near) the current moment read better as "now"
-// than as a frozen timestamp when the popover reopens.
-const toFieldText = (date: Date, now: Date): string =>
-	Math.abs(date.getTime() - now.getTime()) < NOW_TOLERANCE_MS
-		? "now"
-		: formatTimeExpression(date);
+const NOW_TOLERANCE_MS = 60 * 1000;
 
 const isNowExpression = (text: string): boolean =>
 	text.trim().toLowerCase() === "now";
@@ -75,12 +70,18 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 
 	const handleOpenChange = useEffectEvent((next: boolean) => {
 		if (next) {
+			// Boundaries at (or very near) the current moment read better
+			// as "now" than as a frozen timestamp when the popover reopens.
+			const toFieldText = (date: Date): string =>
+				Math.abs(date.getTime() - currentTime.getTime()) < NOW_TOLERANCE_MS
+					? "now"
+					: formatDateTime(date);
 			setFromField({
-				text: toFieldText(value.startedAfter, currentTime),
+				text: toFieldText(value.startedAfter),
 				touched: false,
 			});
 			setToField({
-				text: toFieldText(value.startedBefore, currentTime),
+				text: toFieldText(value.startedBefore),
 				touched: false,
 			});
 		}
@@ -93,50 +94,35 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	// Underspecified expressions resolve to absolute local timestamps when
 	// the input loses focus, so the user sees exactly what will be applied.
 	// "now" is left as-is because it is already unambiguous. Out-of-range
-	// values are clamped against the other boundary so the committed range
-	// is always valid.
-	const normalizeFrom = useEffectEvent(() => {
-		setFromField((field) => {
-			if (isNowExpression(field.text)) {
-				return field;
-			}
-			const parsed = parseTimeExpression(field.text, currentTime);
-			if (!parsed) {
-				return field;
-			}
-			const clamped =
-				parsedTo !== null && parsed.getTime() >= parsedTo.getTime()
-					? new Date(parsedTo.getTime() - 1000)
-					: parsed;
-			return { ...field, text: formatTimeExpression(clamped) };
-		});
-	});
-
-	const normalizeTo = useEffectEvent(() => {
-		setToField((field) => {
-			if (isNowExpression(field.text)) {
-				return field;
-			}
-			const parsed = parseTimeExpression(field.text, currentTime);
-			if (!parsed) {
-				return field;
-			}
-			const clamped =
-				parsedFrom !== null && parsed.getTime() <= parsedFrom.getTime()
-					? new Date(parsedFrom.getTime() + 1000)
-					: parsed;
-			return { ...field, text: formatTimeExpression(clamped) };
-		});
-	});
+	// values clamp against the other boundary so the committed range is
+	// always valid.
+	const normalize = useEffectEvent(
+		(
+			setField: (updater: (field: FieldState) => FieldState) => void,
+			parsed: Date | null,
+			sibling: Date | null,
+			clampBelowSibling: boolean,
+		) => {
+			setField((current) => {
+				if (isNowExpression(current.text) || parsed === null) {
+					return current;
+				}
+				const clamped =
+					sibling !== null &&
+					(clampBelowSibling
+						? parsed.getTime() >= sibling.getTime()
+						: parsed.getTime() <= sibling.getTime())
+						? new Date(sibling.getTime() + (clampBelowSibling ? -1000 : 1000))
+						: parsed;
+				return { ...current, text: formatDateTime(clamped) };
+			});
+		},
+	);
 
 	const fromError =
-		fromField.text !== "" && parsedFrom === null
-			? "Enter a valid time, e.g. 2026-08-13 11:43"
-			: null;
+		fromField.text !== "" && parsedFrom === null ? INVALID_TIME_MESSAGE : null;
 	const toError =
-		toField.text !== "" && parsedTo === null
-			? "Enter a valid time, e.g. 2026-08-13 11:43"
-			: null;
+		toField.text !== "" && parsedTo === null ? INVALID_TIME_MESSAGE : null;
 	const rangeError =
 		fromError === null &&
 		toError === null &&
@@ -148,9 +134,11 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 
 	// Apply is only useful when something actually changed; untouched
 	// fields resolve back to the committed range.
-	const modified = fromField.touched || toField.touched;
 	const applyDisabled =
-		!modified || fromError !== null || toError !== null || rangeError !== null;
+		!(fromField.touched || toField.touched) ||
+		fromError !== null ||
+		toError !== null ||
+		rangeError !== null;
 
 	const triggerLabel = isDefault
 		? "Last 24 hours"
@@ -183,10 +171,9 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 							className={cn(fromError !== null && "border-border-destructive")}
 							value={fromField.text}
 							onChange={(event) => {
-								const text = event.target.value;
-								setFromField({ text, touched: true });
+								setFromField({ text: event.target.value, touched: true });
 							}}
-							onBlur={normalizeFrom}
+							onBlur={() => normalize(setFromField, parsedFrom, parsedTo, true)}
 						/>
 						{fromError !== null && (
 							<span className="text-sm text-content-destructive">
@@ -206,10 +193,9 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 							className={cn(toError !== null && "border-border-destructive")}
 							value={toField.text}
 							onChange={(event) => {
-								const text = event.target.value;
-								setToField({ text, touched: true });
+								setToField({ text: event.target.value, touched: true });
 							}}
-							onBlur={normalizeTo}
+							onBlur={() => normalize(setToField, parsedTo, parsedFrom, false)}
 						/>
 						{toError !== null && (
 							<span className="text-sm text-content-destructive">

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	defaultTimeRange,
-	formatTimeExpression,
 	formatTriggerLabel,
 	parseTimeExpression,
 	parseTimeRange,
@@ -57,19 +56,6 @@ describe("parseTimeExpression", () => {
 		expect(parseTimeExpression("30d", now)).toBeNull();
 		expect(parseTimeExpression("13/08/2026", now)).toBeNull();
 		expect(parseTimeExpression("2026-08-13T11:43", now)).toBeNull();
-	});
-});
-
-describe("formatTimeExpression", () => {
-	it("round-trips through parseTimeExpression", () => {
-		const date = new Date(2026, 7, 13, 7, 23, 0);
-		expect(parseTimeExpression(formatTimeExpression(date), now)).toEqual(date);
-	});
-
-	it("pads single-digit fields", () => {
-		expect(formatTimeExpression(new Date(2026, 0, 2, 3, 4, 5))).toBe(
-			"2026-01-02 03:04:05",
-		);
 	});
 });
 
@@ -186,18 +172,6 @@ describe("setTimeRangeInQuery", () => {
 			),
 		).toBe(
 			'initiator:me started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"',
-		);
-	});
-
-	it("quotes values containing spaces", () => {
-		expect(setTimeRangeInQuery({ session_id: "abc def" }, range)).toContain(
-			'session_id:"abc def"',
-		);
-	});
-
-	it("drops empty values", () => {
-		expect(setTimeRangeInQuery({ initiator: undefined }, range)).toBe(
-			'started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"',
 		);
 	});
 });

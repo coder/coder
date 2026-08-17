@@ -1,37 +1,23 @@
 import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
 import { stringifyFilter } from "#/components/Filter/filterQuery";
+
+dayjs.extend(customParseFormat);
 
 export type TimeRange = {
 	startedAfter: Date;
 	startedBefore: Date;
 };
 
-const pad = (value: number): string => String(value).padStart(2, "0");
-
-const NOW_PATTERN = /^now$/i;
-const TIME_PATTERN = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
-const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-const DATE_TIME_PATTERN =
-	/^(\d{4})-(\d{2})-(\d{2}) (\d{1,2}):(\d{2})(?::(\d{2}))?$/;
-
-const isValidClock = (
-	hours: number,
-	minutes: number,
-	seconds: number,
-): boolean => hours <= 23 && minutes <= 59 && seconds <= 59;
-
-const isValidCalendarDate = (
-	year: number,
-	monthIndex: number,
-	day: number,
-): boolean => {
-	const date = new Date(year, monthIndex, day);
-	return (
-		date.getFullYear() === year &&
-		date.getMonth() === monthIndex &&
-		date.getDate() === day
-	);
-};
+// dayjs strict tokens are width-exact, so both digit widths are listed.
+const DATE_FORMATS = [
+	"YYYY-MM-DD",
+	"YYYY-MM-DD HH:mm",
+	"YYYY-MM-DD HH:mm:ss",
+	"YYYY-MM-DD H:mm",
+	"YYYY-MM-DD H:mm:ss",
+];
+const TIME_FORMATS = ["HH:mm", "HH:mm:ss", "H:mm", "H:mm:ss"];
 
 /**
  * Parses a human-friendly time expression in browser-local time:
@@ -46,65 +32,29 @@ export const parseTimeExpression = (
 	if (trimmed === "") {
 		return null;
 	}
-
-	if (NOW_PATTERN.test(trimmed)) {
+	if (/^now$/i.test(trimmed)) {
 		return new Date(now.getTime());
 	}
 
-	let match = TIME_PATTERN.exec(trimmed);
-	if (match) {
-		const hours = Number(match[1]);
-		const minutes = Number(match[2]);
-		const seconds = Number(match[3] ?? 0);
-		if (!isValidClock(hours, minutes, seconds)) {
-			return null;
-		}
+	const dated = dayjs(trimmed, DATE_FORMATS, true);
+	if (dated.isValid()) {
+		return dated.toDate();
+	}
+
+	// Clock-only expressions resolve against the current day.
+	const clock = dayjs(trimmed, TIME_FORMATS, true);
+	if (clock.isValid()) {
 		return new Date(
 			now.getFullYear(),
 			now.getMonth(),
 			now.getDate(),
-			hours,
-			minutes,
-			seconds,
+			clock.hour(),
+			clock.minute(),
+			clock.second(),
 		);
 	}
 
-	match = DATE_PATTERN.exec(trimmed);
-	if (match) {
-		const year = Number(match[1]);
-		const monthIndex = Number(match[2]) - 1;
-		const day = Number(match[3]);
-		if (!isValidCalendarDate(year, monthIndex, day)) {
-			return null;
-		}
-		return new Date(year, monthIndex, day);
-	}
-
-	match = DATE_TIME_PATTERN.exec(trimmed);
-	if (match) {
-		const year = Number(match[1]);
-		const monthIndex = Number(match[2]) - 1;
-		const day = Number(match[3]);
-		const hours = Number(match[4]);
-		const minutes = Number(match[5]);
-		const seconds = Number(match[6] ?? 0);
-		if (
-			!isValidCalendarDate(year, monthIndex, day) ||
-			!isValidClock(hours, minutes, seconds)
-		) {
-			return null;
-		}
-		return new Date(year, monthIndex, day, hours, minutes, seconds);
-	}
-
 	return null;
-};
-
-/** Formats a Date as a local "YYYY-MM-DD HH:mm:ss" expression. */
-export const formatTimeExpression = (date: Date): string => {
-	const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-	const timePart = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-	return `${datePart} ${timePart}`;
 };
 
 /** Serializes a Date as RFC 3339 in UTC with second precision. */
@@ -123,10 +73,6 @@ const sameDay = (a: Date, b: Date): boolean =>
 	a.getMonth() === b.getMonth() &&
 	a.getDate() === b.getDate();
 
-const sameMonth = (a: Date, b: Date): boolean =>
-	sameDay(a, b) ||
-	(a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth());
-
 const MONTH_DAY = "MMM D";
 
 /**
@@ -137,18 +83,19 @@ const MONTH_DAY = "MMM D";
  */
 export const formatTriggerLabel = (range: TimeRange, now: Date): string => {
 	const from = dayjs(range.startedAfter);
-	const to = dayjs(range.startedBefore);
-
 	if (sameDay(range.startedAfter, range.startedBefore)) {
 		return from.format(MONTH_DAY);
 	}
 	if (sameDay(range.startedBefore, now)) {
 		return `${from.format(MONTH_DAY)} - Today`;
 	}
-	if (sameMonth(range.startedAfter, range.startedBefore)) {
+	if (
+		range.startedAfter.getFullYear() === range.startedBefore.getFullYear() &&
+		range.startedAfter.getMonth() === range.startedBefore.getMonth()
+	) {
 		return `${from.format(MONTH_DAY)} - ${range.startedBefore.getDate()}`;
 	}
-	return `${from.format(MONTH_DAY)} - ${to.format(MONTH_DAY)}`;
+	return `${from.format(MONTH_DAY)} - ${dayjs(range.startedBefore).format(MONTH_DAY)}`;
 };
 
 const TIME_RANGE_KEY_PATTERN = /started_(after|before):/;
@@ -166,10 +113,10 @@ export const withDefaultTimeRange = (
 	if (TIME_RANGE_KEY_PATTERN.test(query)) {
 		return query;
 	}
-	const suffix = [
-		`started_after:"${toRFC3339(range.startedAfter)}"`,
-		`started_before:"${toRFC3339(range.startedBefore)}"`,
-	].join(" ");
+	const suffix = stringifyFilter({
+		started_after: toRFC3339(range.startedAfter),
+		started_before: toRFC3339(range.startedBefore),
+	});
 	return query === "" ? suffix : `${query} ${suffix}`;
 };
 
