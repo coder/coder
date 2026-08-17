@@ -48,7 +48,7 @@ func (r *RootCmd) showOrganization(orgContext *OrganizationContext) *serpent.Com
 				}
 				return stringFormat(typed)
 			}),
-			cliui.TableFormat([]codersdk.Organization{}, []string{"id", "name", "default", "default org member roles"}),
+			cliui.TableFormat([]codersdk.Organization{}, []string{"id", "name", "default"}),
 			cliui.JSONFormat(),
 		)
 		onlyID = false
