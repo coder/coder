@@ -44,17 +44,10 @@ const UpdateMCPServerPage: FC = () => {
 					organizationPermissionsQuery.data?.[organization.id]
 						.viewMCPServerConfigs,
 			);
-	const authorizedOrganizations = permissions.editDeploymentConfig
-		? organizations
-		: viewableOrganizations.filter(
-				(organization) =>
-					organizationPermissionsQuery.data?.[organization.id]
-						.updateMCPServerConfig,
-			);
 	const organization =
-		authorizedOrganizations.length > 0
+		viewableOrganizations.length > 0
 			? selectOrganization(
-					authorizedOrganizations,
+					viewableOrganizations,
 					searchParams.get(orgSearchParam),
 				)
 			: undefined;
