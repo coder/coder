@@ -44,7 +44,6 @@ import {
 	usePortsData,
 } from "#/modules/resources/usePortsData";
 import { cn } from "#/utils/cn";
-import type { DisplayWorkspaceStatusType } from "#/utils/workspace";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
@@ -229,16 +228,16 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							<DropdownMenuSeparator className="my-1" />
 						)}
 
-						<WorkspaceStatusItem
-							effectiveType={effectiveType}
-							statusLabel={statusLabel}
-						/>
-
 						{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
 						<DropdownMenuItem asChild>
 							<Link to={route} target="_blank" rel="noreferrer">
 								<MonitorIcon className="size-3.5" />
-								View Workspace
+								<span className="flex min-w-0 flex-col">
+									<span className="truncate">View Workspace</span>
+									<span className="truncate text-[0.7rem] font-normal text-content-secondary">
+										{statusLabel}
+									</span>
+								</span>
 							</Link>
 						</DropdownMenuItem>
 						{onRemoveWorkspace && (
@@ -257,34 +256,6 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
-	);
-};
-
-const statusColorMap: Record<DisplayWorkspaceStatusType, string> = {
-	success: "text-content-success",
-	active: "text-content-link",
-	inactive: "text-content-secondary",
-	error: "text-content-destructive",
-	danger: "text-content-destructive",
-	warning: "text-content-warning",
-};
-
-// Non-interactive row that surfaces the workspace status inside the dropdown.
-// This replaces the hover tooltip that previously wrapped the pill trigger.
-const WorkspaceStatusItem: FC<{
-	effectiveType: DisplayWorkspaceStatusType;
-	statusLabel: string;
-}> = ({ effectiveType, statusLabel }) => {
-	return (
-		<div
-			className={cn(
-				"flex items-center gap-2 px-2 py-1 text-xs font-medium",
-				statusColorMap[effectiveType],
-			)}
-		>
-			<StatusIcon type={effectiveType} className="size-3.5 shrink-0" />
-			<span className="min-w-0 truncate">{statusLabel}</span>
-		</div>
 	);
 };
 

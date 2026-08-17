@@ -149,8 +149,8 @@ export const WithAllApps: Story = {
 			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
 			expect(body.getByText("Cursor")).toBeInTheDocument();
 			expect(body.getByText("Terminal")).toBeInTheDocument();
-			// The workspace status now lives inside the dropdown instead of a
-			// hover tooltip.
+			// The workspace status now renders as a subtitle under View
+			// Workspace instead of a hover tooltip.
 			expect(body.getByText("Workspace running")).toBeInTheDocument();
 			expect(body.getByText("Copy SSH Command")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
@@ -315,7 +315,7 @@ export const WithStoppedWorkspace: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 
-			// Status row reflects the stopped workspace inside the dropdown.
+			// Status subtitle under View Workspace reflects the stopped state.
 			expect(body.getByText("Workspace stopped")).toBeInTheDocument();
 
 			// VS Code items should be present but disabled.
