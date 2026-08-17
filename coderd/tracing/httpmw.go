@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
 	"go.opentelemetry.io/otel/semconv/v1.14.0/netconv"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpmw/patternmatcher"
@@ -38,10 +39,10 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 		"/external-auth/*/callback",
 	}.MustCompile()
 
-	var tracer trace.Tracer
-	if tracerProvider != nil {
-		tracer = tracerProvider.Tracer(TracerName)
+	if tracerProvider == nil {
+		tracerProvider = noop.NewTracerProvider()
 	}
+	tracer := tracerProvider.Tracer(TracerName)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -56,11 +57,6 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 			sessionID := sessionIDFromHeaders(r.Header)
 			if sessionID != "" {
 				r = r.WithContext(slog.With(r.Context(), slog.F("client_session_id", sessionID)))
-			}
-
-			if tracer == nil {
-				next.ServeHTTP(rw, r)
-				return
 			}
 
 			// Start span with default span name. Span name will be updated to
