@@ -18,6 +18,7 @@ import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 import { SessionTimelineSkeleton } from "./SessionTimeline/SessionTimelineSkeleton";
+import { countSessionSearchResults } from "./SessionTimeline/sessionSearch";
 
 const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
@@ -82,9 +83,26 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	// distinct domain count that drives the "+N more" overflow.
 	const topDomain = session?.network_top_domains?.[0];
 
+	const networkCalls = session?.network_call_logs ?? [];
+
+	const isSearching = searchQuery.trim() !== "";
+
+	const searchResults = countSessionSearchResults(
+		threads,
+		networkCalls,
+		searchQuery,
+	);
+
+	// The count covers only what the client has loaded, so it can claim the
+	// whole session only when every thread page and network call arrived.
+	const sessionFullyLoaded =
+		!hasNextPage &&
+		(!session?.network_calls ||
+			networkCalls.length >= session.network_calls.total);
+
 	return (
 		<>
-			<nav className="mb-6">
+			<nav className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
 				<Button
 					asChild
 					variant="outline"
@@ -97,6 +115,26 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 						Back
 					</span>
 				</Button>
+				{session && (
+					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-96">
+						<SearchField
+							value={searchQuery}
+							onChange={setSearchQuery}
+							placeholder="Search prompt text, tool names, tool inputs, and network destinations"
+							aria-label="Search session events"
+						/>
+						{isSearching && (
+							<p
+								className="m-0 text-sm font-normal text-content-secondary text-right"
+								role="status"
+							>
+								<strong>{searchResults.toLocaleString("en-US")}</strong>{" "}
+								{searchResults === 1 ? "result" : "results"} in{" "}
+								{sessionFullyLoaded ? "this session" : "the loaded events"}
+							</p>
+						)}
+					</div>
+				)}
 			</nav>
 			<div className="flex flex-col md:flex-row md:items-start gap-6">
 				<aside className="md:w-80 md:shrink-0 px-3 py-2.5 border border-solid rounded-md flex flex-col gap-1">
@@ -134,25 +172,16 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 				</aside>
 				<main className="flex-1 min-w-0">
 					{session ? (
-						<>
-							<SearchField
-								value={searchQuery}
-								onChange={setSearchQuery}
-								placeholder="Search prompt text, tool names, tool inputs, and network destinations"
-								aria-label="Search session events"
-								className="mb-4"
-							/>
-							<SessionTimeline
-								initiator={session.initiator}
-								threads={threads}
-								networkCallSummary={session.network_calls}
-								networkCalls={session.network_call_logs ?? []}
-								searchQuery={searchQuery}
-								hasNextPage={hasNextPage}
-								isFetchingNextPage={isFetchingNextPage}
-								onFetchNextPage={onFetchNextPage}
-							/>
-						</>
+						<SessionTimeline
+							initiator={session.initiator}
+							threads={threads}
+							networkCallSummary={session.network_calls}
+							networkCalls={networkCalls}
+							searchQuery={searchQuery}
+							hasNextPage={hasNextPage}
+							isFetchingNextPage={isFetchingNextPage}
+							onFetchNextPage={onFetchNextPage}
+						/>
 					) : (
 						loading && <SessionTimelineSkeleton />
 					)}

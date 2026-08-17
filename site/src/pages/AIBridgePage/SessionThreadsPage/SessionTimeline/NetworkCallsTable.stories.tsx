@@ -131,8 +131,6 @@ export const Truncated: Story = {
 	},
 };
 
-// While searching, the header reports the match count and the note surfaces
-// that the search only covered the loaded (truncated) prefix.
 export const SearchTruncated: Story = {
 	args: {
 		summary: { total: 150, blocked: 2 },
@@ -147,8 +145,7 @@ export const SearchTruncated: Story = {
 	},
 };
 
-// Zero matches over a truncated session still renders the panel so the
-// truncation caveat is disclosed even when the search found nothing.
+// The panel must render on zero matches so the truncation caveat is not lost.
 export const SearchTruncatedNoMatches: Story = {
 	args: {
 		summary: { total: 150, blocked: 2 },
@@ -161,6 +158,23 @@ export const SearchTruncatedNoMatches: Story = {
 		).toBeInTheDocument();
 		await expect(
 			canvas.getByText(/0 matches within the first 4 of 150 network calls\./),
+		).toBeInTheDocument();
+	},
+};
+
+// A blocked row among the matches reports the match-scoped blocked count.
+export const SearchBlockedMatches: Story = {
+	args: {
+		summary: { total: 4, blocked: 2 },
+		calls: [MockAIBridgeSessionNetworkCalls[1]],
+		search: { loaded: 4 },
+	},
+	play: async ({ canvas }) => {
+		await canvas.findByText("1 match");
+		await expect(
+			canvas.getByText((_content, element) => {
+				return element?.textContent === "Blocked matches: 1";
+			}),
 		).toBeInTheDocument();
 	},
 };

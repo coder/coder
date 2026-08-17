@@ -30,6 +30,11 @@ const mockSession: AIBridgeSessionThreadsResponse = {
 
 const noop = () => {};
 
+// Highlighted prompts split into <strong>/<span> children, so match the
+// paragraph by its combined text rather than a single text node.
+const promptByText = (root: HTMLElement, text: string) =>
+	Array.from(root.querySelectorAll("p")).find((el) => el.textContent === text);
+
 const meta: Meta<typeof SessionThreadsPageView> = {
 	title: "pages/AIBridgePage/SessionThreadsPageView",
 	component: SessionThreadsPageView,
@@ -63,25 +68,25 @@ export const SearchFiltersEvents: Story = {
 			},
 		],
 	},
-	play: async ({ canvas }) => {
+	play: async ({ canvas, canvasElement }) => {
 		const input = canvas.getByRole("textbox", {
 			name: /search session events/i,
 		});
 
 		await expect(
-			canvas.getByText("Summarize the project structure"),
-		).toBeVisible();
+			promptByText(canvasElement, "Summarize the project structure"),
+		).toBeTruthy();
 		await expect(
-			canvas.getByText("Deploy the service to production"),
-		).toBeVisible();
+			promptByText(canvasElement, "Deploy the service to production"),
+		).toBeTruthy();
 
 		await userEvent.type(input, "deploy");
 		await expect(
-			canvas.getByText("Deploy the service to production"),
-		).toBeVisible();
+			promptByText(canvasElement, "Deploy the service to production"),
+		).toBeTruthy();
 		await expect(
-			canvas.queryByText("Summarize the project structure"),
-		).not.toBeInTheDocument();
+			promptByText(canvasElement, "Summarize the project structure"),
+		).toBeUndefined();
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "npmjs.org");
@@ -99,8 +104,8 @@ export const SearchFiltersEvents: Story = {
 			canvas.getByText("https://registry.npmjs.org/lodash"),
 		).toBeVisible();
 		await expect(
-			canvas.getByText("Summarize the project structure"),
-		).toBeVisible();
+			promptByText(canvasElement, "Summarize the project structure"),
+		).toBeTruthy();
 	},
 };
 
@@ -112,6 +117,22 @@ export const SearchNoMatches: Story = {
 		await userEvent.type(input, "no-such-event");
 		await expect(
 			canvas.getByText("No events match your search in the loaded events."),
+		).toBeInTheDocument();
+	},
+};
+
+// The header count reports occurrences across the loaded session and names
+// the scope honestly.
+export const SearchResultsCount: Story = {
+	play: async ({ canvas }) => {
+		const input = canvas.getByRole("textbox", {
+			name: /search session events/i,
+		});
+		await userEvent.type(input, "list_directory");
+		await expect(
+			canvas.getByText((_content, element) => {
+				return element?.textContent === "1 result in this session";
+			}),
 		).toBeInTheDocument();
 	},
 };

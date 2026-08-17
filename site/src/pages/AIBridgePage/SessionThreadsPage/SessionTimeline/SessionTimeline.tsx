@@ -26,9 +26,10 @@ import { AgenticLoopTable } from "./AgenticLoopTable";
 import { NetworkCallsTable } from "./NetworkCallsTable";
 import { PromptTable } from "./PromptTable";
 import {
+	classifyThreadSearch,
 	matchesNetworkCallSearch,
-	matchesThreadSearch,
-	matchesThreadToolSearch,
+	splitMatchSegments,
+	windowAroundFirstMatch,
 } from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
 
@@ -36,33 +37,87 @@ interface ExpandableTextProps {
 	maxHeight: number;
 	text: string;
 	className?: string;
+	/**
+	 * When set, matches of this query render in bold. If the first match sits
+	 * below the collapse cutoff, the preview shows a window of the text with
+	 * the match roughly centered, ellipsized at both ends.
+	 */
+	highlight?: string;
 }
 
 const ExpandableText: FC<ExpandableTextProps> = ({
 	maxHeight,
 	text,
 	className,
+	highlight,
 }) => {
 	const contentRef = useRef<HTMLParagraphElement>(null);
-	const [isExpandable, setIsExpandable] = useState(false);
+	const [fullScrollHeight, setFullScrollHeight] = useState(0);
+	const [matchWindow, setMatchWindow] = useState<{
+		start: number;
+		end: number;
+	} | null>(null);
 	const [isExpanded, setIsExpanded] = useState(false);
+	const windowedRef = useRef(false);
 
+	// Keep the observer informed of windowing without reading state in its
+	// closure; refs may only be written in effects, not during render.
+	useEffect(() => {
+		windowedRef.current = matchWindow !== null;
+	}, [matchWindow]);
+
+	// Reset to the full text whenever the content or query changes so the
+	// paragraph below measures the unwindowed height before any windowing.
+	useEffect(() => {
+		// Read the values so the reset is tied to their identity.
+		void text;
+		void highlight;
+		setMatchWindow(null);
+		setFullScrollHeight(0);
+	}, [text, highlight]);
+
+	// Measure the visible paragraph only while it shows the full text. Once a
+	// window is applied the paragraph is shorter, so those measurements are
+	// ignored to keep fullScrollHeight stable.
 	useEffect(() => {
 		const el = contentRef.current;
 		if (!el) return;
 
-		const checkIsExpandable = () => {
-			setIsExpandable(el.scrollHeight > maxHeight);
-		};
-
-		checkIsExpandable();
-
-		const observer = new ResizeObserver(checkIsExpandable);
+		const observer = new ResizeObserver(() => {
+			if (!windowedRef.current) {
+				setFullScrollHeight(el.scrollHeight);
+			}
+		});
 
 		observer.observe(el);
 
 		return () => observer.disconnect();
-	}, [maxHeight]);
+	}, []);
+
+	const isExpandable = fullScrollHeight > maxHeight;
+
+	// Derive the window once the full height is known. Windowing only applies
+	// while collapsed and a query is active.
+	useEffect(() => {
+		if (!highlight || isExpanded || fullScrollHeight <= maxHeight) {
+			setMatchWindow(null);
+			return;
+		}
+		setMatchWindow(
+			windowAroundFirstMatch(
+				text,
+				highlight,
+				Math.max(1, Math.floor((maxHeight * text.length) / fullScrollHeight)),
+			),
+		);
+	}, [text, highlight, isExpanded, fullScrollHeight, maxHeight]);
+	const visibleText = matchWindow
+		? text.slice(matchWindow.start, matchWindow.end)
+		: text;
+	const segments = splitMatchSegments(visibleText, highlight ?? "");
+	// Render plain text (no spans) when nothing is highlighted or windowed so
+	// the paragraph keeps a single text node for consumers that read it.
+	const plain = !matchWindow && segments.length === 1 && !segments[0].match;
 
 	return (
 		<div className="relative">
@@ -77,7 +132,17 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 				}
 				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
 			>
-				{text}
+				{matchWindow && matchWindow.start > 0 ? "… " : null}
+				{plain
+					? visibleText
+					: segments.map((segment, i) =>
+							segment.match ? (
+								<strong key={i}>{segment.text}</strong>
+							) : (
+								<span key={i}>{segment.text}</span>
+							),
+						)}
+				{matchWindow && matchWindow.end < text.length ? " …" : null}
 			</p>
 			{isExpandable && (
 				<div
@@ -207,12 +272,18 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	tokenUsageMetadata,
 	expandedByDefault = false,
 }) => {
-	const [isOpen, setIsOpen] = useState(expandedByDefault);
+	// Track only explicit user toggles so a search that starts matching this
+	// tool call after mount still reveals it (FE8), mirroring ThreadItem.
+	const [userToggled, setUserToggled] = useState<boolean | null>(null);
+	const isOpen = userToggled ?? expandedByDefault;
 
 	return (
 		<BracketConnector contentClassName="mt-2 mr-4 border border-solid rounded-md overflow-x-auto">
 			<div className="flex items-center">
-				<CollapseButton isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
+				<CollapseButton
+					isOpen={isOpen}
+					onClick={() => setUserToggled((prev) => !(prev ?? expandedByDefault))}
+				>
 					<span className="text-sm font-normal">Tool call</span>
 					<Badge size="xs" className="font-mono ml-1">
 						{tool}
@@ -289,12 +360,19 @@ interface ThreadItemProps {
 	 * were already mounted.
 	 */
 	searchToolMatch: boolean;
+	/**
+	 * The active search query. Passed to the prompt's ExpandableText so
+	 * matches render in bold and a match below the collapse cutoff windows
+	 * the preview instead of hiding it.
+	 */
+	highlight: string;
 }
 
 const ThreadItem: FC<ThreadItemProps> = ({
 	thread,
 	initiator,
 	searchToolMatch,
+	highlight,
 }) => {
 	// Track only explicit user toggles. Null means the user has not toggled,
 	// so the derived state follows the search. This avoids mirroring the prop
@@ -368,6 +446,7 @@ const ThreadItem: FC<ThreadItemProps> = ({
 							<ExpandableText
 								maxHeight={200}
 								text={thread.prompt}
+								highlight={highlight}
 								className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 m-0 text-pretty"
 							/>
 						</>
@@ -477,16 +556,24 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 
 	const isSearching = searchQuery.trim() !== "";
 
-	const filteredThreads = threads.filter((thread) =>
-		matchesThreadSearch(thread, searchQuery),
-	);
+	// Classify each thread once so the filter, the auto-expand signal, and
+	// the prompt windowing all derive from the same walk.
+	const threadItems = threads
+		.map((thread) => ({
+			thread,
+			classification: classifyThreadSearch(thread, searchQuery),
+		}))
+		.filter(
+			({ classification }) =>
+				classification.promptMatch || classification.toolMatch,
+		);
 
 	const filteredNetworkCalls = networkCalls.filter((call) =>
 		matchesNetworkCallSearch(call, searchQuery),
 	);
 
 	const hasAnyMatches =
-		filteredThreads.length > 0 || filteredNetworkCalls.length > 0;
+		threadItems.length > 0 || filteredNetworkCalls.length > 0;
 
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
@@ -606,31 +693,36 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					)}
 					{/* threads */}
 					<div className="[&>.thread-gap:last-child]:hidden">
-						{filteredThreads.map((thread) => (
+						{threadItems.map(({ thread, classification }) => (
 							<ThreadItem
 								key={thread.id}
 								thread={thread}
 								initiator={initiator}
-								searchToolMatch={matchesThreadToolSearch(thread, searchQuery)}
+								searchToolMatch={classification.toolMatch}
+								highlight={searchQuery}
 							/>
 						))}
 					</div>
-					{isSearching && hasNextPage && (
-						<p
-							className="m-0 py-2 text-xs font-normal text-content-secondary"
-							role="status"
-						>
-							Search covers only the loaded threads. More matches may exist;
-							clear the search to load more.
-						</p>
-					)}
-					{isSearching && !hasAnyMatches && (
+					{isSearching && !hasAnyMatches ? (
 						<p
 							className="m-0 py-4 text-sm font-normal text-content-secondary"
 							role="status"
 						>
 							No events match your search in the loaded events.
+							{hasNextPage &&
+								" More matches may exist; clear the search to load more."}
 						</p>
+					) : (
+						isSearching &&
+						hasNextPage && (
+							<p
+								className="m-0 py-2 text-xs font-normal text-content-secondary"
+								role="status"
+							>
+								Search covers only the loaded threads. More matches may exist;
+								clear the search to load more.
+							</p>
+						)
 					)}
 					{/* infinite scroll sentinel. Sits 200px below the last thread. */}
 					<div ref={sentinelRef} />

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn } from "storybook/test";
+import { expect, fn, waitFor } from "storybook/test";
 import type { AIBridgeThread } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
@@ -125,8 +125,43 @@ export const WithNetworkCalls: Story = {
 	},
 };
 
+// A thread whose prompt is long enough to collapse past 200px, with the only
+// match near the end so the preview must window around it.
+const windowedFiller =
+	"Review the deployment pipeline, inspect staging, confirm feature flags, validate the rollout plan, check dashboards, and review escalation paths. ";
+const mockThreadWindowed: AIBridgeThread = {
+	...MockAIBridgeThread,
+	id: "thread-3",
+	prompt:
+		windowedFiller.repeat(16) +
+		"Finally, coordinate the cutover using zebra-relay.",
+	agentic_actions: [],
+};
+
 export const MultipleThreads: Story = {
 	args: { threads: [mockThread, mockThreadLong] },
+};
+
+// A match past the 200px prompt cutoff windows the preview around the match,
+// ellipsizing both ends, instead of hiding it behind the collapse.
+export const SearchWindowsPromptOnMatch: Story = {
+	args: {
+		threads: [mockThreadWindowed],
+		searchQuery: "zebra-relay",
+	},
+	play: async ({ canvas, canvasElement }) => {
+		// The bolded match is revealed even though it sits past the cutoff.
+		await expect(canvas.getByText("zebra-relay")).toBeInTheDocument();
+		// Once the full height is measured, the preview windows around the
+		// match: the paragraph leads with an ellipsis and no longer starts at
+		// the prompt head.
+		await waitFor(() => {
+			const para = Array.from(canvasElement.querySelectorAll("p")).find((el) =>
+				el.textContent?.includes("zebra-relay"),
+			);
+			expect(para?.textContent?.trimStart().startsWith("…")).toBe(true);
+		});
+	},
 };
 
 // Filtering to a tool name keeps only the thread whose agentic loop contains
@@ -152,7 +187,6 @@ export const SearchFiltersThreads: Story = {
 };
 
 // While searching, the network panel header and rows reflect matches only.
-// "npmjs.org" appears in one of the mock calls, so the header shows one match.
 export const SearchFiltersNetworkCalls: Story = {
 	args: {
 		networkCallSummary: { total: 4, blocked: 2 },
@@ -201,7 +235,7 @@ export const SearchNoMatchesWithNextPage: Story = {
 	},
 	play: async ({ args, canvas }) => {
 		await expect(
-			canvas.getByText("No events match your search in the loaded events."),
+			canvas.getByText(/No events match your search in the loaded events/),
 		).toBeInTheDocument();
 		await expect(args.onFetchNextPage).not.toHaveBeenCalled();
 	},
