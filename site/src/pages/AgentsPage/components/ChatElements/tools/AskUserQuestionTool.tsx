@@ -1,10 +1,13 @@
-import { MessageCircleQuestionIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	LoaderIcon,
+	MessageCircleQuestionIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
@@ -663,7 +666,9 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 							variant="outline"
 							disabled={!canSubmitAllAnswers || isSubmitting}
 						>
-							{isSubmitting && <Spinner loading className="size-3.5" />}
+							{isSubmitting && (
+								<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
+							)}
 							{isSubmitting ? "Submitting..." : "Submit"}
 						</Button>
 					)}

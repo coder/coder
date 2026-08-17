@@ -32,13 +32,13 @@ const LinearProgress: FC<LinearProgressProps> = ({
 				<>
 					<div
 						className={cn(
-							"absolute inset-y-0 left-0 w-full origin-left rounded-full bg-highlight-sky",
+							"absolute inset-y-0 w-auto origin-left rounded-full bg-highlight-sky",
 							"animate-bar-indeterminate",
 						)}
 					/>
 					<div
 						className={cn(
-							"absolute inset-y-0 left-0 w-full origin-left rounded-full bg-highlight-sky",
+							"absolute inset-y-0 w-auto origin-left rounded-full bg-highlight-sky",
 							"animate-bar-indeterminate-2",
 						)}
 					/>

@@ -1,11 +1,10 @@
-import { TriangleAlertIcon } from "lucide-react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceById } from "#/api/queries/workspaces";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
@@ -109,7 +108,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		if (isRunning && workspaceId) {
 			return (
 				<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-					<Spinner loading className="size-3" />
+					<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
 					<span>Loading build logs…</span>
 				</div>
 			);
@@ -151,7 +150,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	if (!logs || logs.length === 0) {
 		return (
 			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<Spinner loading className="size-3" />
+				<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
 				<span>Loading build logs…</span>
 			</div>
 		);

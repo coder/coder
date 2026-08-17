@@ -115,12 +115,9 @@ module.exports = {
 					"75%": { opacity: 0.3 },
 					"100%": { opacity: 0.2 },
 				},
-				// Animates transform (compositor-friendly) instead of `left`,
-				// which would trigger layout on every frame. 100cqw resolves
-				// against the nearest inline-size container.
 				"caret-scan": {
-					"0%": { transform: "translateX(-100%)" },
-					"100%": { transform: "translateX(100cqw)" },
+					"0%": { left: "0%" },
+					"100%": { left: "100%" },
 				},
 				// Sweeps the text highlight, then rests for the remainder of the
 				// cycle. The hold between 60% and 100% produces identical
@@ -136,32 +133,41 @@ module.exports = {
 					"30%": { left: "0%", width: "40%" },
 					"100%": { left: "100%", width: "0%" },
 				},
-				// Matches MUI LinearProgress bar1/bar2 indeterminate motion; two
-				// staggered bars are required so one is visible while the other
-				// resets. Ported from MUI's left/right offsets to transform so
-				// the animation runs on the compositor instead of triggering
-				// layout on every frame. Bars are full-width with origin-left:
-				// translateX positions the left edge, scaleX sets the visible
-				// width fraction.
+				// Matches MUI LinearProgress bar1/bar2 indeterminate keyframes; two
+				// staggered bars are required so one is visible while the other resets.
 				"bar-indeterminate": {
-					"0%": { transform: "translateX(-35%) scaleX(0.35)" },
-					"60%": { transform: "translateX(100%) scaleX(0.9)" },
-					"100%": { transform: "translateX(100%) scaleX(0.9)" },
+					"0%": {
+						left: "-35%",
+						right: "100%",
+					},
+					"60%": {
+						left: "100%",
+						right: "-90%",
+					},
+					"100%": {
+						left: "100%",
+						right: "-90%",
+					},
 				},
 				"bar-indeterminate-2": {
-					"0%": { transform: "translateX(-200%) scaleX(2)" },
-					"60%": { transform: "translateX(107%) scaleX(0.01)" },
-					"100%": { transform: "translateX(107%) scaleX(0.01)" },
+					"0%": {
+						left: "-200%",
+						right: "100%",
+					},
+					"60%": {
+						left: "107%",
+						right: "-8%",
+					},
+					"100%": {
+						left: "107%",
+						right: "-8%",
+					},
 				},
 			},
 			animation: {
 				loading: "loading 2s ease-in-out infinite alternate",
 				"caret-scan": "caret-scan 3s ease-in-out infinite",
 				shimmer: "shimmer 3.5s linear infinite",
-				// Discrete 8-step rotation for the segmented Spinner. Stepping
-				// caps rendering at 10 updates/s instead of the display refresh
-				// rate, and reads as intentional on 8-leaf spinner geometry.
-				"spin-discrete": "spin 0.8s steps(8) infinite",
 				"spin-once": "spin 1s cubic-bezier(0.4, 0, 0.2, 1)",
 				"zip-right": "zip-right 1s cubic-bezier(0.4, 0, 0.2, 1)",
 				"bar-indeterminate":

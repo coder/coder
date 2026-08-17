@@ -1,4 +1,9 @@
-import { ChevronDownIcon, ShieldIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	LoaderIcon,
+	ShieldIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
 	createContext,
@@ -8,7 +13,6 @@ import {
 	useId,
 	useState,
 } from "react";
-import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -308,11 +312,13 @@ const Status: FC<ToolCallStatusProps> = ({ className }) => {
 	return (
 		<>
 			{active && (
-				<Spinner
-					loading
+				<LoaderIcon
 					aria-label="Tool call running"
 					role="img"
-					className={cn("size-3.5 shrink-0 text-current", className)}
+					className={cn(
+						"size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current",
+						className,
+					)}
 				/>
 			)}
 			{failed && (

@@ -3,6 +3,7 @@ import {
 	CircleXIcon,
 	ClockIcon,
 	ExternalLinkIcon,
+	LoaderIcon,
 	MonitorIcon,
 } from "lucide-react";
 import type React from "react";
@@ -11,7 +12,6 @@ import { useQuery } from "react-query";
 import { Link, useLocation } from "react-router";
 import { chatModelConfigs } from "#/api/queries/chats";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { safeBuildAgentChatPath } from "../../../utils/navigation";
 import { Response } from "../Response";
 import { useDesktopPanel } from "./DesktopPanelContext";
@@ -144,7 +144,9 @@ const SubagentStatusIcon: React.FC<{
 				<MonitorIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
 			);
 		}
-		return <Spinner loading className="size-4 shrink-0 text-content-link" />;
+		return (
+			<LoaderIcon className="size-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
+		);
 	}
 	return <DefaultIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 };
