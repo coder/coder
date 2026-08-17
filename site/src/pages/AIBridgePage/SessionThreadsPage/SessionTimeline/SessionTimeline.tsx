@@ -51,27 +51,15 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 	highlight,
 }) => {
 	const contentRef = useRef<HTMLParagraphElement>(null);
-	const [fullScrollHeight, setFullScrollHeight] = useState(0);
-	const [matchWindow, setMatchWindow] = useState<{
-		start: number;
-		end: number;
+	// The observer writes the measured height tagged with the text and query
+	// it measured, so render can ignore a stale reading after either changes.
+	const [measurement, setMeasurement] = useState<{
+		height: number;
+		text: string;
+		highlight: string;
 	} | null>(null);
 	const [isExpanded, setIsExpanded] = useState(false);
 	const windowedRef = useRef(false);
-
-	// Refs can only be written in effects, not during render.
-	useEffect(() => {
-		windowedRef.current = matchWindow !== null;
-	}, [matchWindow]);
-
-	// Reset so the paragraph measures the full text before windowing.
-	useEffect(() => {
-		// Read the values so the reset is tied to their identity.
-		void text;
-		void highlight;
-		setMatchWindow(null);
-		setFullScrollHeight(0);
-	}, [text, highlight]);
 
 	// Measure only while the full text is shown. A windowed paragraph is
 	// shorter, so its reads are ignored.
@@ -81,31 +69,43 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 
 		const observer = new ResizeObserver(() => {
 			if (!windowedRef.current) {
-				setFullScrollHeight(el.scrollHeight);
+				setMeasurement({
+					height: el.scrollHeight,
+					text,
+					highlight: highlight ?? "",
+				});
 			}
 		});
 
 		observer.observe(el);
 
 		return () => observer.disconnect();
-	}, []);
+	}, [text, highlight]);
+
+	// Use the reading only if it was taken for the current text and query.
+	const fullScrollHeight =
+		measurement &&
+		measurement.text === text &&
+		measurement.highlight === (highlight ?? "")
+			? measurement.height
+			: 0;
 
 	const isExpandable = fullScrollHeight > maxHeight;
 
-	// Window only when collapsed and a query is active.
+	// Derive the window in render; it is a pure function of the fresh height.
+	const matchWindow =
+		highlight && isExpandable && !isExpanded
+			? windowAroundFirstMatch(
+					text,
+					highlight,
+					Math.max(1, Math.floor((maxHeight * text.length) / fullScrollHeight)),
+				)
+			: null;
+
+	// Refs can only be written in effects, not during render.
 	useEffect(() => {
-		if (!highlight || isExpanded || fullScrollHeight <= maxHeight) {
-			setMatchWindow(null);
-			return;
-		}
-		setMatchWindow(
-			windowAroundFirstMatch(
-				text,
-				highlight,
-				Math.max(1, Math.floor((maxHeight * text.length) / fullScrollHeight)),
-			),
-		);
-	}, [text, highlight, isExpanded, fullScrollHeight, maxHeight]);
+		windowedRef.current = matchWindow !== null;
+	}, [matchWindow]);
 	const visibleText = matchWindow
 		? text.slice(matchWindow.start, matchWindow.end)
 		: text;
