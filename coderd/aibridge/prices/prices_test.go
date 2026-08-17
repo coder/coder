@@ -75,6 +75,96 @@ func TestSeedFromBytes(t *testing.T) {
 		require.Zero(t, gpt.CacheWritePrice.Int64)
 	})
 
+	t.Run("SeededPricesAreDefault", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+
+		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.AIModelPriceSourceDefault, got.Source)
+		require.Equal(t, int64(2_500_000), got.InputPrice.Int64)
+		require.Equal(t, int64(10_000_000), got.OutputPrice.Int64)
+		require.Equal(t, int64(1_250_000), got.CacheReadPrice.Int64)
+		require.False(t, got.CacheWritePrice.Valid)
+	})
+
+	t.Run("OverwrittenPricesAreCustom", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+		seeded, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.AIModelPriceSourceDefault, seeded.Source)
+
+		// Update all prices.
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed: []byte(`[{
+				"provider": "openai",
+				"model": "gpt-4o",
+				"input_price": 5000000,
+				"output_price": 20000000,
+				"cache_read_price": 2000000,
+				"cache_write_price": 1000000
+			}]`),
+			Source: database.AIModelPriceSourceCustom,
+		}))
+
+		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.AIModelPriceSourceCustom, got.Source)
+		require.Equal(t, int64(5_000_000), got.InputPrice.Int64)
+		require.Equal(t, int64(20_000_000), got.OutputPrice.Int64)
+		require.Equal(t, int64(2_000_000), got.CacheReadPrice.Int64)
+		require.Equal(t, int64(1_000_000), got.CacheWritePrice.Int64)
+	})
+
+	t.Run("UnchangedPricesAreCustom", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+		seeded, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.AIModelPriceSourceDefault, seeded.Source)
+
+		// Declaring the prices the row already holds still marks it custom.
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed: []byte(`[{
+				"provider": "openai",
+				"model": "gpt-4o",
+				"input_price": 2500000,
+				"output_price": 10000000,
+				"cache_read_price": 1250000,
+				"cache_write_price": null
+			}]`),
+			Source: database.AIModelPriceSourceCustom,
+		}))
+
+		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.AIModelPriceSourceCustom, got.Source)
+		require.Equal(t, int64(2_500_000), got.InputPrice.Int64)
+		require.Equal(t, int64(10_000_000), got.OutputPrice.Int64)
+		require.Equal(t, int64(1_250_000), got.CacheReadPrice.Int64)
+		require.False(t, got.CacheWritePrice.Valid)
+	})
+
 	t.Run("Idempotent", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -108,14 +198,17 @@ func TestSeedFromBytes(t *testing.T) {
 		// cache_write_price is set to a non-NULL value here even though the
 		// embedded seed leaves it NULL for OpenAI; Seed must replace it with
 		// NULL to keep the table in sync with the seed.
-		require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(`[{
-			"provider": "openai",
-			"model": "gpt-4o",
-			"input_price": 1,
-			"output_price": 2,
-			"cache_read_price": 3,
-			"cache_write_price": 4
-		}]`)))
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed: []byte(`[{
+				"provider": "openai",
+				"model": "gpt-4o",
+				"input_price": 1,
+				"output_price": 2,
+				"cache_read_price": 3,
+				"cache_write_price": 4
+			}]`),
+			Source: database.AIModelPriceSourceDefault,
+		}))
 		before, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
@@ -143,14 +236,17 @@ func TestSeedFromBytes(t *testing.T) {
 
 		// Insert a row for a (provider, model) the seed doesn't cover. After
 		// Seed it should still be there with its values intact.
-		require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(`[{
-			"provider": "test-provider",
-			"model": "test-model-not-in-seed",
-			"input_price": 12345,
-			"output_price": 67890,
-			"cache_read_price": null,
-			"cache_write_price": null
-		}]`)))
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed: []byte(`[{
+				"provider": "test-provider",
+				"model": "test-model-not-in-seed",
+				"input_price": 12345,
+				"output_price": 67890,
+				"cache_read_price": null,
+				"cache_write_price": null
+			}]`),
+			Source: database.AIModelPriceSourceDefault,
+		}))
 
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
@@ -160,6 +256,44 @@ func TestSeedFromBytes(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(12345), got.InputPrice.Int64)
 		require.Equal(t, int64(67890), got.OutputPrice.Int64)
+	})
+
+	t.Run("LeavesCustomPricesUntouched", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Price a model the seed also covers.
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed: []byte(`[{
+				"provider": "openai",
+				"model": "gpt-4o",
+				"input_price": 1,
+				"output_price": 2,
+				"cache_read_price": 3,
+				"cache_write_price": 4
+			}]`),
+			Source: database.AIModelPriceSourceCustom,
+		}))
+		before, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.AIModelPriceSourceCustom, before.Source)
+
+		// Re-applying the price book skips custom rows.
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+
+		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), got.InputPrice.Int64)
+		require.Equal(t, int64(2), got.OutputPrice.Int64)
+		require.Equal(t, int64(3), got.CacheReadPrice.Int64)
+		require.Equal(t, int64(4), got.CacheWritePrice.Int64)
+		require.Equal(t, database.AIModelPriceSourceCustom, got.Source)
+		require.Equal(t, before.UpdatedAt, got.UpdatedAt)
 	})
 
 	// Verifies the chain: AsAIBridged context -> dbauthz wrapper auth check

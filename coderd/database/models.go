@@ -89,6 +89,64 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 	}
 }
 
+type AIModelPriceSource string
+
+const (
+	AIModelPriceSourceDefault AIModelPriceSource = "default"
+	AIModelPriceSourceCustom  AIModelPriceSource = "custom"
+)
+
+func (e *AIModelPriceSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIModelPriceSource(s)
+	case string:
+		*e = AIModelPriceSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIModelPriceSource: %T", src)
+	}
+	return nil
+}
+
+type NullAIModelPriceSource struct {
+	AIModelPriceSource AIModelPriceSource `json:"ai_model_price_source"`
+	Valid              bool               `json:"valid"` // Valid is true if AIModelPriceSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIModelPriceSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIModelPriceSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIModelPriceSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIModelPriceSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIModelPriceSource), nil
+}
+
+func (e AIModelPriceSource) Valid() bool {
+	switch e {
+	case AIModelPriceSourceDefault,
+		AIModelPriceSourceCustom:
+		return true
+	}
+	return false
+}
+
+func AllAIModelPriceSourceValues() []AIModelPriceSource {
+	return []AIModelPriceSource{
+		AIModelPriceSourceDefault,
+		AIModelPriceSourceCustom,
+	}
+}
+
 type AIProviderType string
 
 const (
@@ -4827,6 +4885,8 @@ type AIModelPrice struct {
 	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	// Where the price came from: default for the embedded price book, custom for a price an operator set. The startup seeder never overwrites a custom row.
+	Source AIModelPriceSource `db:"source" json:"source"`
 }
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.

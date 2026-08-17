@@ -6,7 +6,6 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -1616,13 +1615,14 @@ type sqlcQuerier interface {
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]WorkspaceTable, error)
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
-	// Upsert a batch of (provider, model) rows from a JSON array. Each element
-	// must have provider, model, and the four price fields; null prices are
-	// written as SQL NULL.
-	// A conflicting row is only rewritten when a price differs, so updated_at
-	// records when a price last changed. Prices are nullable and a NULL on
-	// either side counts as a difference.
-	UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error
+	// Upsert a batch of (provider, model) rows from a JSON array, recording them
+	// under source. Each element must have provider, model, and the four price
+	// fields, and null prices are written as SQL NULL.
+	// A default write skips rows a custom price owns. Otherwise a conflicting row
+	// is only rewritten when a price or the source differs, so updated_at records
+	// when the row last changed. Prices are nullable and a NULL on either side
+	// counts as a difference.
+	UpsertAIModelPrices(ctx context.Context, arg UpsertAIModelPricesParams) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)
 	UpsertAnnouncementBanners(ctx context.Context, value string) error

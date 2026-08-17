@@ -19112,7 +19112,7 @@ func TestGetAIModelPrices(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 			db, _ := dbtestutil.NewDB(t)
-			require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(seed)))
+			require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(seed), Source: database.AIModelPriceSourceDefault}))
 
 			prices, err := db.GetAIModelPrices(ctx, tt.params)
 			require.NoError(t, err)

@@ -1,12 +1,13 @@
 -- name: UpsertAIModelPrices :exec
--- Upsert a batch of (provider, model) rows from a JSON array. Each element
--- must have provider, model, and the four price fields; null prices are
--- written as SQL NULL.
--- A conflicting row is only rewritten when a price differs, so updated_at
--- records when a price last changed. Prices are nullable and a NULL on
--- either side counts as a difference.
+-- Upsert a batch of (provider, model) rows from a JSON array, recording them
+-- under source. Each element must have provider, model, and the four price
+-- fields, and null prices are written as SQL NULL.
+-- A default write skips rows a custom price owns. Otherwise a conflicting row
+-- is only rewritten when a price or the source differs, so updated_at records
+-- when the row last changed. Prices are nullable and a NULL on either side
+-- counts as a difference.
 INSERT INTO ai_model_prices (
-	provider, model, input_price, output_price, cache_read_price, cache_write_price
+	provider, model, input_price, output_price, cache_read_price, cache_write_price, source
 )
 SELECT
 	elem->>'provider',
@@ -14,25 +15,35 @@ SELECT
 	(elem->>'input_price')::bigint,
 	(elem->>'output_price')::bigint,
 	(elem->>'cache_read_price')::bigint,
-	(elem->>'cache_write_price')::bigint
+	(elem->>'cache_write_price')::bigint,
+	@source::ai_model_price_source
 FROM jsonb_array_elements(@seed::jsonb) AS elem
 ON CONFLICT (provider, model) DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
 	cache_write_price = EXCLUDED.cache_write_price,
+	source            = EXCLUDED.source,
 	updated_at        = NOW()
-WHERE (
-	ai_model_prices.input_price,
-	ai_model_prices.output_price,
-	ai_model_prices.cache_read_price,
-	ai_model_prices.cache_write_price
-) IS DISTINCT FROM (
-	EXCLUDED.input_price,
-	EXCLUDED.output_price,
-	EXCLUDED.cache_read_price,
-	EXCLUDED.cache_write_price
-);
+WHERE CASE
+		-- A custom price claims any row, including one the price book wrote.
+		WHEN @source::ai_model_price_source = 'custom' THEN true
+		-- The price book leaves custom rows alone.
+		ELSE ai_model_prices.source <> 'custom'
+	END
+	AND (
+		ai_model_prices.input_price,
+		ai_model_prices.output_price,
+		ai_model_prices.cache_read_price,
+		ai_model_prices.cache_write_price,
+		ai_model_prices.source
+	) IS DISTINCT FROM (
+		EXCLUDED.input_price,
+		EXCLUDED.output_price,
+		EXCLUDED.cache_read_price,
+		EXCLUDED.cache_write_price,
+		EXCLUDED.source
+	);
 
 -- name: GetAIModelPriceByProviderModel :one
 SELECT *

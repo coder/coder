@@ -2506,7 +2506,7 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 		"cache_write_price": 4_000_000,
 	}})
 	require.NoError(t, err)
-	require.NoError(t, rawDB.UpsertAIModelPrices(ctx, priceSeed), "seed model prices")
+	require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceDefault}), "seed model prices")
 
 	// The interception's provider name resolves to this provider, whose type keys
 	// the price lookup.
@@ -2601,7 +2601,7 @@ func TestRecordTokenUsageProviderResolution(t *testing.T) {
 		{"provider": string(database.AIProviderTypeAzure), "model": gptModel, "input_price": azureInputPrice},
 	})
 	require.NoError(t, err)
-	require.NoError(t, rawDB.UpsertAIModelPrices(setupCtx, priceSeed), "seed model prices")
+	require.NoError(t, rawDB.UpsertAIModelPrices(setupCtx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceDefault}), "seed model prices")
 
 	srv, err := aibridgedserver.NewServer(setupCtx, aibridgedserver.Options{
 		Store:         authzDB,
