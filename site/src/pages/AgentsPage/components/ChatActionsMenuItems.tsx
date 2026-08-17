@@ -1,6 +1,7 @@
 import {
 	ArchiveIcon,
 	ArchiveRestoreIcon,
+	GitForkIcon,
 	PinIcon,
 	PinOffIcon,
 	SquarePenIcon,
@@ -41,6 +42,17 @@ interface ChatActionsMenuItemsProps {
 	readonly isChildChat: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
+	/**
+	 * Subagent toggle: when a chat has subagent children, the menu offers a
+	 * "Show subagents (N)" / "Hide subagents" action that expands or collapses
+	 * the child rows in the sidebar tree. The action is only rendered when
+	 * `onToggleSubagents` is provided and `subagentCount` is greater than zero,
+	 * so call sites that render outside the tree (e.g. the chat top bar) omit
+	 * these props and the item stays hidden.
+	 */
+	readonly subagentCount?: number;
+	readonly isSubagentsExpanded?: boolean;
+	readonly onToggleSubagents?: () => void;
 	readonly onPinAgent?: () => void;
 	readonly onUnpinAgent?: () => void;
 	readonly onArchiveAgent: () => void;
@@ -58,6 +70,9 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	isChildChat,
 	hasWorkspace,
 	isArchiving = false,
+	subagentCount = 0,
+	isSubagentsExpanded = false,
+	onToggleSubagents,
 	onPinAgent,
 	onUnpinAgent,
 	onArchiveAgent,
@@ -67,9 +82,22 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	Item,
 	Separator,
 }) => {
+	const showSubagentsToggle = Boolean(onToggleSubagents) && subagentCount > 0;
 	const showPinAction =
 		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
 	const showArchiveActions = !isArchived && !isChildChat;
+
+	// Grouped with pin/rename rather than shown as its own section: the toggle
+	// sits directly under "Rename chat" (or under "Unarchive agent" for an
+	// archived parent). Only rendered when the chat actually has subagents.
+	const subagentToggle = showSubagentsToggle ? (
+		<Item onSelect={onToggleSubagents}>
+			<GitForkIcon className="size-3.5 rotate-180" />
+			{isSubagentsExpanded
+				? "Hide subagents"
+				: `Show subagents (${subagentCount})`}
+		</Item>
+	) : null;
 
 	return (
 		<>
@@ -90,10 +118,13 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 			)}
 			{isArchived ? (
 				!isChildChat && (
-					<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
-						<ArchiveRestoreIcon className="size-3.5" />
-						Unarchive agent
-					</Item>
+					<>
+						<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
+							<ArchiveRestoreIcon className="size-3.5" />
+							Unarchive agent
+						</Item>
+						{subagentToggle}
+					</>
 				)
 			) : (
 				<>
@@ -103,9 +134,12 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 							Rename chat
 						</Item>
 					)}
+					{subagentToggle}
 					{showArchiveActions && (
 						<>
-							{(onOpenRenameDialog || showPinAction) && <Separator />}
+							{(onOpenRenameDialog || showPinAction || showSubagentsToggle) && (
+								<Separator />
+							)}
 							<Item
 								className="text-content-destructive focus:text-content-destructive"
 								disabled={isArchiving}
