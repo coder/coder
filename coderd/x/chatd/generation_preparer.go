@@ -618,8 +618,9 @@ func (server *Server) prepareGeneration(
 	if toolSearch.apply {
 		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchThresholdDivisor
 		findTools := chattool.FindTools(chattool.FindToolsOptions{
-			Entries:           deferredMCPToolEntries(deferredCandidates),
-			SchemaTokenBudget: activationTokenBudget,
+			Entries:            deferredMCPToolEntries(deferredCandidates),
+			SchemaTokenBudget:  activationTokenBudget,
+			CatalogTokenBudget: activationTokenBudget,
 			OnCall: func(callCtx context.Context, call chattool.FindToolsCall) {
 				server.metrics.FindToolsCallsTotal.Inc()
 				server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))

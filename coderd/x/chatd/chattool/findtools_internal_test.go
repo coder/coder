@@ -158,6 +158,32 @@ func TestFindTools(t *testing.T) {
 	require.True(t, resp.IsError)
 }
 
+func TestFindToolsSharedSchemaBudget(t *testing.T) {
+	t.Parallel()
+	tool := FindTools(FindToolsOptions{
+		Entries: []FindToolCatalogEntry{
+			{Name: "server__a", SchemaTokens: 60},
+			{Name: "server__b", SchemaTokens: 60},
+			{Name: "server__c", SchemaTokens: 60},
+			{Name: "server__d", SchemaTokens: 60},
+		},
+		SchemaTokenBudget: 200,
+	})
+	activated := func(input string) []string {
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: input})
+		require.NoError(t, err)
+		var result FindToolsResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		return result.Activated
+	}
+
+	require.Equal(t, []string{"server__a", "server__b"}, activated(`{"names":["server__a","server__b"]}`))
+	require.Equal(t, []string{"server__c"}, activated(`{"names":["server__c","server__d"]}`),
+		"the second call spends the remaining shared budget, not a fresh one")
+	require.Equal(t, []string{"server__d"}, activated(`{"names":["server__d"]}`),
+		"an exhausted budget still keeps the first match")
+}
+
 func TestBuildFindToolsDescription(t *testing.T) {
 	t.Parallel()
 	entries := []FindToolCatalogEntry{
@@ -165,7 +191,7 @@ func TestBuildFindToolsDescription(t *testing.T) {
 		{Name: "alpha__second", Description: strings.Repeat("x", 100), Server: "alpha", ServerDescription: "Alpha server"},
 		{Name: "alpha__first", Description: "First tool\nmore detail", Server: "alpha", ServerDescription: "Alpha server"},
 	}
-	description := buildFindToolsDescription(entries)
+	description := buildFindToolsDescription(entries, 0)
 	require.Less(t, strings.Index(description, "## alpha"), strings.Index(description, "## zeta"))
 	require.Less(t, strings.Index(description, "alpha__first"), strings.Index(description, "alpha__second"))
 	require.Contains(t, description, "First tool")
@@ -180,7 +206,7 @@ func TestBuildFindToolsDescription(t *testing.T) {
 			Server:      "server",
 		}
 	}
-	degraded := buildFindToolsDescription(many)
+	degraded := buildFindToolsDescription(many, 0)
 	require.Contains(t, degraded, "## server (300 tools)")
 	require.NotContains(t, degraded, "server__tool_000")
 
@@ -191,8 +217,12 @@ func TestBuildFindToolsDescription(t *testing.T) {
 			Server: fmt.Sprintf("server_%03d_%s", i, strings.Repeat("s", 40)),
 		}
 	}
-	countsExceeded := buildFindToolsDescription(manyServers)
+	countsExceeded := buildFindToolsDescription(manyServers, 0)
 	require.Contains(t, countsExceeded, "500 deferred tools across 500 servers.")
 	require.NotContains(t, countsExceeded, "## server_000")
 	require.LessOrEqual(t, estimatedFindToolsTokens(countsExceeded), float64(findToolsCatalogTokens))
+
+	smallWindow := buildFindToolsDescription(entries, 150)
+	require.NotContains(t, smallWindow, "First tool",
+		"a small context window budget forces catalog degradation below the 4000-token default")
 }

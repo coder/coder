@@ -3,10 +3,12 @@ package chattool
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"charm.land/fantasy"
@@ -43,11 +45,17 @@ type FindToolsCall struct {
 
 type FindToolsOptions struct {
 	Entries []FindToolCatalogEntry
-	// SchemaTokenBudget caps the aggregate SchemaTokens one search may
-	// activate, so a result never reports activations that the
-	// activation budget would immediately shed. <= 0 means unbounded.
+	// SchemaTokenBudget caps the aggregate SchemaTokens all searches on
+	// this tool instance may activate, so results never report
+	// activations that the activation budget would immediately shed.
+	// The budget is shared across calls because one step can execute
+	// several searches concurrently. <= 0 means unbounded.
 	SchemaTokenBudget float64
-	OnCall            func(context.Context, FindToolsCall)
+	// CatalogTokenBudget lowers the default catalog size cap so small
+	// context windows are not consumed by the catalog itself. <= 0 or
+	// values above the default keep the default.
+	CatalogTokenBudget float64
+	OnCall             func(context.Context, FindToolsCall)
 }
 
 type FindToolsArgs struct {
@@ -70,14 +78,33 @@ type FindToolsResult struct {
 // FindTools returns the built-in used to discover deferred MCP tool schemas.
 func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	entries := slices.Clone(options.Entries)
+	schemaTokensByName := make(map[string]float64, len(entries))
+	for _, entry := range entries {
+		schemaTokensByName[entry.Name] = entry.SchemaTokens
+	}
+	var budgetMu sync.Mutex
+	remainingBudget := options.SchemaTokenBudget
 	return fantasy.NewAgentTool(
 		FindToolsName,
-		buildFindToolsDescription(entries),
+		buildFindToolsDescription(entries, options.CatalogTokenBudget),
 		func(ctx context.Context, args FindToolsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if len(args.Queries) == 0 && len(args.Names) == 0 {
 				return fantasy.NewTextErrorResponse("at least one query or name is required"), nil
 			}
-			result := SearchTools(entries, args, options.SchemaTokenBudget)
+			budgetMu.Lock()
+			effectiveBudget := remainingBudget
+			if options.SchemaTokenBudget > 0 && effectiveBudget <= 0 {
+				// Keep SearchTools's first-match guarantee without
+				// flipping an exhausted budget into "unbounded".
+				effectiveBudget = math.SmallestNonzeroFloat64
+			}
+			result := SearchTools(entries, args, effectiveBudget)
+			if options.SchemaTokenBudget > 0 {
+				for _, name := range result.Activated {
+					remainingBudget -= schemaTokensByName[name]
+				}
+			}
+			budgetMu.Unlock()
 			if options.OnCall != nil {
 				options.OnCall(ctx, FindToolsCall{
 					Queries:       args.Queries,
@@ -231,19 +258,23 @@ func scoreFindToolToken(entry FindToolCatalogEntry, token string) int {
 	return score
 }
 
-func buildFindToolsDescription(entries []FindToolCatalogEntry) string {
+func buildFindToolsDescription(entries []FindToolCatalogEntry, catalogTokenBudget float64) string {
 	const usage = "Search deferred MCP tools by keyword, activate exact tool names, or scope a query to one server with a \"server: terms\" prefix. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools. At most 20 tools are returned and activated per call; call again for more.\n\n"
+	budget := float64(findToolsCatalogTokens)
+	if catalogTokenBudget > 0 && catalogTokenBudget < budget {
+		budget = catalogTokenBudget
+	}
 	groups := groupFindToolsEntries(entries)
 	catalog := detailedFindToolsCatalog(groups)
-	if estimatedFindToolsTokens(usage+catalog) > findToolsCatalogTokens {
+	if estimatedFindToolsTokens(usage+catalog) > budget {
 		catalog = namesOnlyFindToolsCatalog(groups)
 	}
-	if estimatedFindToolsTokens(usage+catalog) > findToolsCatalogTokens {
+	if estimatedFindToolsTokens(usage+catalog) > budget {
 		catalog = countsOnlyFindToolsCatalog(groups)
 	}
 	// Server count and slug length are unbounded, so even the per-server
 	// counts catalog needs a final constant-size fallback.
-	if estimatedFindToolsTokens(usage+catalog) > findToolsCatalogTokens {
+	if estimatedFindToolsTokens(usage+catalog) > budget {
 		catalog = fmt.Sprintf("%d deferred tools across %d servers.\n", len(entries), len(groups))
 	}
 	return usage + catalog
