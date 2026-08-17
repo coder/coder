@@ -138,16 +138,23 @@ jobs:
           # snapshot each week, so the previous contents are always stale.
           git push --force origin "refs/heads/${REFRESH_BRANCH}"
 
-          pr_number="$(gh pr list --head "${REFRESH_BRANCH}" --base main --state open --json number --jq '.[0].number // empty')"
+          # REST, not `gh pr`: those go through GraphQL, which needs a read:org
+          # scope that cdrci's token lacks.
+          owner="${GITHUB_REPOSITORY%%/*}"
+          pr_number="$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&base=main&head=${owner}:${REFRESH_BRANCH}" --jq '.[0].number // empty')"
           if [ -n "${pr_number}" ]; then
-            gh pr edit "${pr_number}" --title "${PR_TITLE}" --body-file "${RUNNER_TEMP}/body.md"
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}" \
+              -f title="${PR_TITLE}" \
+              -f body="$(cat "${RUNNER_TEMP}/body.md")" \
+              --silent
             echo "Updated existing PR #${pr_number}."
           else
-            gh pr create \
-              --base main \
-              --head "${REFRESH_BRANCH}" \
-              --title "${PR_TITLE}" \
-              --body-file "${RUNNER_TEMP}/body.md"
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/pulls" \
+              -f title="${PR_TITLE}" \
+              -f head="${REFRESH_BRANCH}" \
+              -f base=main \
+              -f body="$(cat "${RUNNER_TEMP}/body.md")" \
+              --jq '.html_url'
           fi
 
       - name: Send Slack notification on failure
