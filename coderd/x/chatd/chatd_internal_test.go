@@ -3984,3 +3984,61 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 }
+
+func TestGuardedAgentConnFuncAuthorizesLifecycleDials(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	agentID := uuid.New()
+	wsID := uuid.New()
+
+	newServer := func(t *testing.T, authorize AuthorizeWorkspaceConnFunc) (*Server, *bool) {
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).
+			Return(database.Workspace{ID: wsID}, nil).AnyTimes()
+		dialed := false
+		return &Server{
+			db: db,
+			agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				dialed = true
+				return nil, func() {}, nil
+			},
+			authorizeWorkspaceConnFn: authorize,
+		}, &dialed
+	}
+
+	t.Run("Allowed", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		p, dialed := newServer(t, func(_ context.Context, gotOwner, gotWS uuid.UUID) error {
+			require.Equal(t, ownerID, gotOwner)
+			require.Equal(t, wsID, gotWS)
+			return nil
+		})
+		_, closeFn, err := p.guardedAgentConnFunc(ownerID)(ctx, agentID)
+		require.NoError(t, err)
+		closeFn()
+		require.True(t, *dialed)
+	})
+
+	t.Run("Denied", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		p, dialed := newServer(t, func(context.Context, uuid.UUID, uuid.UUID) error {
+			return xerrors.New("revoked")
+		})
+		_, _, err := p.guardedAgentConnFunc(ownerID)(ctx, agentID)
+		require.ErrorContains(t, err, "not authorized")
+		require.False(t, *dialed)
+	})
+
+	t.Run("NoAuthorizerFailsClosed", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		p, dialed := newServer(t, nil)
+		_, _, err := p.guardedAgentConnFunc(ownerID)(ctx, agentID)
+		require.ErrorContains(t, err, "authorizer is not configured")
+		require.False(t, *dialed)
+	})
+}

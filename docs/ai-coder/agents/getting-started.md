@@ -18,9 +18,8 @@ Before you begin, confirm the following:
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for configuring providers.
 
-Coder Agents is available to every organization member by default; no
-additional role assignment is needed. Service accounts do not receive Coder
-Agents access by default.
+Coder Agents is available to every organization member by default. Service
+accounts do not receive Coder Agents access by default.
 
 > [!NOTE]
 > Earlier releases gated access behind the **Coder Agents User**

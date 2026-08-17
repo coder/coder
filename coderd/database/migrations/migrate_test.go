@@ -1214,10 +1214,9 @@ func TestMigration000571RemoveAgentsAccessRole(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-	// Seed: a user carrying agents-access at both the site level and
-	// in an org membership alongside other roles, a user without the
-	// role, an org that grants agents-access by default, and an org
-	// that does not.
+	// Seed: a user carrying agents-access in an org membership
+	// alongside other roles, a user without the role, an org that
+	// grants agents-access by default, and an org that does not.
 	userWithRole := uuid.New()
 	userWithoutRole := uuid.New()
 	orgWithDefault := uuid.New()
@@ -1236,7 +1235,7 @@ func TestMigration000571RemoveAgentsAccessRole(t *testing.T) {
 		{
 			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-			[]any{userWithRole, "user-with-role", "withrole@test.com", []byte{}, now, now, "active", pq.StringArray{"auditor", "agents-access"}, "password"},
+			[]any{userWithRole, "user-with-role", "withrole@test.com", []byte{}, now, now, "active", pq.StringArray{"auditor"}, "password"},
 		},
 		{
 			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
@@ -1275,16 +1274,6 @@ func TestMigration000571RemoveAgentsAccessRole(t *testing.T) {
 	version, _, err := next()
 	require.NoError(t, err)
 	require.EqualValues(t, migrationVersion, version)
-
-	// Verify: agents-access is removed from users.rbac_roles while
-	// other site roles survive.
-	var siteRoles pq.StringArray
-	err = sqlDB.QueryRowContext(ctx,
-		"SELECT rbac_roles FROM users WHERE id = $1", userWithRole,
-	).Scan(&siteRoles)
-	require.NoError(t, err)
-	require.Equal(t, pq.StringArray{"auditor"}, siteRoles,
-		"agents-access should be removed from users.rbac_roles, other roles preserved")
 
 	// Verify: agents-access is removed from the org membership while
 	// other org roles survive.

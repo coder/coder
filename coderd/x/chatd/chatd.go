@@ -1111,6 +1111,30 @@ type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.Ag
 // takes effect on the next tool call, not just at bind time.
 type AuthorizeWorkspaceConnFunc func(ctx context.Context, ownerID, workspaceID uuid.UUID) error
 
+// guardedAgentConnFunc wraps agentConnFn so every dial re-checks the
+// chat owner's workspace access, the same contract getWorkspaceConn
+// enforces. The workspace is resolved from the agent because lifecycle
+// tools dial workspaces the chat may not be bound to yet. Fails closed
+// when no authorizer is configured.
+func (p *Server) guardedAgentConnFunc(ownerID uuid.UUID) AgentConnFunc {
+	return func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		if p.agentConnFn == nil {
+			return nil, nil, xerrors.New("workspace agent connector is not configured")
+		}
+		if p.authorizeWorkspaceConnFn == nil {
+			return nil, nil, xerrors.New("workspace connection authorizer is not configured")
+		}
+		ws, err := p.db.GetWorkspaceByAgentID(ctx, agentID)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("resolve workspace for agent %s: %w", agentID, err)
+		}
+		if err := p.authorizeWorkspaceConnFn(ctx, ownerID, ws.ID); err != nil {
+			return nil, nil, xerrors.Errorf("chat owner is not authorized to use workspace %s: %w", ws.ID, err)
+		}
+		return p.agentConnFn(ctx, agentID)
+	}
+}
+
 var (
 	// ErrInvalidModelConfigID indicates the requested model config does not
 	// exist, is disabled, or its provider is disabled.
@@ -3971,7 +3995,7 @@ func (p *Server) appendRootChatTools(
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
 			CreateFn:                       p.createWorkspaceFn,
-			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+			AgentConnFn:                    chattool.AgentConnFunc(p.guardedAgentConnFunc(opts.chat.OwnerID)),
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 			WorkspaceMu:                    opts.workspaceMu,
 			OnChatUpdated:                  onChatUpdated,
@@ -3980,7 +4004,7 @@ func (p *Server) appendRootChatTools(
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
 			StartFn:       p.startWorkspaceFn,
-			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+			AgentConnFn:   chattool.AgentConnFunc(p.guardedAgentConnFunc(opts.chat.OwnerID)),
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
 			Logger:        p.logger,
