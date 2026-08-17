@@ -30,6 +30,12 @@ Do not treat Derived or Open content as decided.
 
 ## The documents
 
+- [Journals and Logs](journal_vs_log.md). Why a journal and a log are different
+  kinds of record, and therefore why the audit approach cannot be served by the
+  mechanism named `audit_logs`. Read this first if that question occurs to you,
+  because it is the one this directory is most often going to be asked. **Still
+  a draft**, tracked in `journal_vs_log.working_state.md`, which is scaffolding
+  rather than design and is to be deleted when the document is finished.
 - [Audit Approach](audit_approach.md). What makes an event auditable, audit as
   an integrity property, reconciliation in the accounting sense, and the
   relationship to the existing mechanism. Defines "entry" and "record".
