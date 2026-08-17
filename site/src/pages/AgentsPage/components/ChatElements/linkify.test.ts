@@ -52,6 +52,23 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
+	it("excludes trailing Markdown emphasis delimiters from the URL", () => {
+		expect(splitTextForLinks("**https://coder.com/docs**")).toEqual([
+			{ kind: "text", value: "**" },
+			{ kind: "url", value: "https://coder.com/docs" },
+			{ kind: "text", value: "**" },
+		]);
+		expect(
+			splitTextForLinks("_https://coder.com/blog_ and ~https://coder.com/x~"),
+		).toEqual([
+			{ kind: "text", value: "_" },
+			{ kind: "url", value: "https://coder.com/blog" },
+			{ kind: "text", value: "_ and ~" },
+			{ kind: "url", value: "https://coder.com/x" },
+			{ kind: "text", value: "~" },
+		]);
+	});
+
 	it("excludes a closing parenthesis that is not part of the URL", () => {
 		expect(splitTextForLinks("(listening on http://localhost:3000)")).toEqual([
 			{ kind: "text", value: "(listening on " },
@@ -105,37 +122,36 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
-	it("trims an unmatched closing bracket wrapping the URL", () => {
-		expect(splitTextForLinks("Open [http://localhost:3000] now")).toEqual([
-			{ kind: "text", value: "Open [" },
-			{ kind: "url", value: "http://localhost:3000" },
-			{ kind: "text", value: "] now" },
-		]);
-	});
-
-	it("trims an unmatched closing bracket after a path", () => {
-		expect(splitTextForLinks("[http://localhost:3000/app]")).toEqual([
-			{ kind: "text", value: "[" },
-			{ kind: "url", value: "http://localhost:3000/app" },
-			{ kind: "text", value: "]" },
-		]);
-	});
-
-	// Accepted linkifyjs tokenizer limitations: options can reject whole
-	// tokens but cannot fix their boundaries.
-
-	it("keeps trailing Markdown emphasis delimiters in the URL", () => {
-		expect(splitTextForLinks("**https://coder.com/docs**")).toEqual([
-			{ kind: "text", value: "**" },
-			{ kind: "url", value: "https://coder.com/docs**" },
-		]);
+	it("keeps markdown link syntax as literal text", () => {
 		expect(
-			splitTextForLinks("_https://coder.com/blog_ and ~https://coder.com/x~"),
+			splitTextForLinks("read [policy](http://localhost:3000/policy) first"),
 		).toEqual([
-			{ kind: "text", value: "_" },
-			{ kind: "url", value: "https://coder.com/blog_" },
-			{ kind: "text", value: " and ~" },
-			{ kind: "url", value: "https://coder.com/x~" },
+			{
+				kind: "text",
+				value: "read [policy](http://localhost:3000/policy) first",
+			},
+		]);
+	});
+
+	it("does not apply markdown block formatting to the surrounding text", () => {
+		expect(splitTextForLinks("# fix this http://localhost:3000/x")).toEqual([
+			{ kind: "text", value: "# fix this " },
+			{ kind: "url", value: "http://localhost:3000/x" },
+		]);
+	});
+
+	// These cases intentionally follow GFM autolink behavior without
+	// custom recovery.
+
+	it("does not linkify a bracket-wrapped URL", () => {
+		expect(splitTextForLinks("Open [http://localhost:3000] now")).toEqual([
+			{ kind: "text", value: "Open [http://localhost:3000] now" },
+		]);
+	});
+
+	it("does not linkify inside a four-space-indented line", () => {
+		expect(splitTextForLinks("    http://localhost:3000/pasted")).toEqual([
+			{ kind: "text", value: "    http://localhost:3000/pasted" },
 		]);
 	});
 
