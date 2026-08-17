@@ -452,23 +452,29 @@ type chatModelConfigHookStore struct {
 
 	inTx bool
 
-	failNextUpdate      *atomic.Pointer[uuid.UUID]
-	vanishAtLockedRead  *atomic.Pointer[uuid.UUID]
-	mutateAtLockedRead  *atomic.Pointer[uuid.UUID]
-	mutateAtLockedModel string
+	failNextUpdate            *atomic.Pointer[uuid.UUID]
+	failProviderReferenceLock *atomic.Pointer[uuid.UUID]
+	vanishAtLockedRead        *atomic.Pointer[uuid.UUID]
+	mutateAtLockedRead        *atomic.Pointer[uuid.UUID]
+	mutateAtLockedModel       string
 }
 
 func newChatModelConfigHookStore(store database.Store) *chatModelConfigHookStore {
 	return &chatModelConfigHookStore{
-		Store:              store,
-		failNextUpdate:     &atomic.Pointer[uuid.UUID]{},
-		vanishAtLockedRead: &atomic.Pointer[uuid.UUID]{},
-		mutateAtLockedRead: &atomic.Pointer[uuid.UUID]{},
+		Store:                     store,
+		failNextUpdate:            &atomic.Pointer[uuid.UUID]{},
+		failProviderReferenceLock: &atomic.Pointer[uuid.UUID]{},
+		vanishAtLockedRead:        &atomic.Pointer[uuid.UUID]{},
+		mutateAtLockedRead:        &atomic.Pointer[uuid.UUID]{},
 	}
 }
 
 func (s *chatModelConfigHookStore) armFailNextUpdate(id uuid.UUID) {
 	s.failNextUpdate.Store(&id)
+}
+
+func (s *chatModelConfigHookStore) armFailProviderReferenceLock(id uuid.UUID) {
+	s.failProviderReferenceLock.Store(&id)
 }
 
 func (s *chatModelConfigHookStore) armVanishAtLockedRead(id uuid.UUID) {
@@ -483,12 +489,13 @@ func (s *chatModelConfigHookStore) armMutateAtLockedRead(id uuid.UUID, model str
 func (s *chatModelConfigHookStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
 		return function(&chatModelConfigHookStore{
-			Store:               tx,
-			inTx:                true,
-			failNextUpdate:      s.failNextUpdate,
-			vanishAtLockedRead:  s.vanishAtLockedRead,
-			mutateAtLockedRead:  s.mutateAtLockedRead,
-			mutateAtLockedModel: s.mutateAtLockedModel,
+			Store:                     tx,
+			inTx:                      true,
+			failNextUpdate:            s.failNextUpdate,
+			failProviderReferenceLock: s.failProviderReferenceLock,
+			vanishAtLockedRead:        s.vanishAtLockedRead,
+			mutateAtLockedRead:        s.mutateAtLockedRead,
+			mutateAtLockedModel:       s.mutateAtLockedModel,
 		})
 	}, txOpts)
 }
@@ -499,6 +506,16 @@ func consumeChatModelConfigHook(hook *atomic.Pointer[uuid.UUID], id uuid.UUID) b
 		return false
 	}
 	return hook.CompareAndSwap(target, nil)
+}
+
+func (s *chatModelConfigHookStore) GetAIProviderByIDForReferenceLock(
+	ctx context.Context,
+	id uuid.UUID,
+) (database.AIProvider, error) {
+	if consumeChatModelConfigHook(s.failProviderReferenceLock, id) {
+		return database.AIProvider{}, stderrors.New("forced provider reference lock failure")
+	}
+	return s.Store.GetAIProviderByIDForReferenceLock(ctx, id)
 }
 
 func (s *chatModelConfigHookStore) UpdateChatModelConfig(
@@ -4493,6 +4510,36 @@ func TestCreateChatModelConfig(t *testing.T) {
 		configs, err := client.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
+	})
+
+	t.Run("ProviderReferenceLockFailureUsesCreateErrorText", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newChatModelConfigHookStore(rawDB)
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		store.armFailProviderReferenceLock(aiProvider.ID)
+
+		contextLimit := int64(4096)
+		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
+		require.Equal(t, "Failed to create chat model config.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "get AI provider for create")
+		require.NotContains(t, sdkErr.Detail, "get AI provider for update")
 	})
 
 	t.Run("ConcurrentCreatesElectSingleDefault", func(t *testing.T) {

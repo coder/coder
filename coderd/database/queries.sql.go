@@ -6171,23 +6171,6 @@ func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID
 	return i, err
 }
 
-const deleteChatModelConfigsByAIProviderID = `-- name: DeleteChatModelConfigsByAIProviderID :exec
-UPDATE
-    chat_model_configs
-SET
-    deleted = TRUE,
-    deleted_at = NOW(),
-    updated_at = NOW()
-WHERE
-    ai_provider_id = $1::uuid
-    AND deleted = FALSE
-`
-
-func (q *sqlQuerier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatModelConfigsByAIProviderID, aiProviderID)
-	return err
-}
-
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
     id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
