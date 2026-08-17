@@ -17,8 +17,7 @@ name: aibridge-prices-refresh
 
 on:
   schedule:
-    # 09:00 UTC every Monday, so the PR is waiting when EU and US start the
-    # week and there is room to review well before the release freeze.
+    # 09:00 UTC every Monday, so the PR is waiting when EU and US start the week.
     - cron: "0 9 * * 1"
   workflow_dispatch: # allows manual runs for testing
 
@@ -53,9 +52,7 @@ jobs:
         with:
           install-args: "go node pnpm"
 
-      # Catalog generation formats its output through scripts/biome_format.sh,
-      # which runs `pnpm exec biome` from site/. Without the install, that
-      # script logs a warning and exits 0, committing an unformatted file.
+      # Needed by catalog generation, which formats its output with biome.
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
@@ -70,9 +67,11 @@ jobs:
         run: |
           set -euo pipefail
           if git diff --quiet -- "${PRICES_FILE}" "${CATALOG_FILE}"; then
+            # exit 0  => NO differences => nothing to propose
             echo "Price book already matches upstream; nothing to propose."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
+            # exit 1  => differences found
             git diff --stat -- "${PRICES_FILE}" "${CATALOG_FILE}"
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
@@ -111,10 +110,9 @@ jobs:
       - name: Open or update the refresh pull request
         if: steps.detect.outputs.changed == 'true'
         env:
-          # The default GITHUB_TOKEN cannot trigger workflow runs, which would
-          # leave the PR without CI signal on a file that feeds cost
-          # calculation. cdrci is the machine user already used for
-          # bot-authored PRs in release.yaml.
+          # Use cdrci's token instead of the default GITHUB_TOKEN: PRs opened
+          # with GITHUB_TOKEN do not trigger workflow runs, so the refresh
+          # would arrive without CI signal.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           PR_TITLE: "chore: refresh AI model price book"
         run: |
