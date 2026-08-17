@@ -11,22 +11,33 @@ import {
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsPageView } from "./ListSessionsPageView";
+import type { TimeRange } from "./timeRange";
 
 type FilterProps = ComponentProps<typeof ListSessionsPageView>["filterProps"];
 
-const defaultFilterProps = getDefaultFilterProps<FilterProps>({
-	query: "owner:me",
-	values: {
-		username: undefined,
-		provider: undefined,
-	},
-	menus: {
-		user: MockMenu,
-		provider: MockMenu,
-		client: MockMenu,
-		model: MockMenu,
-	},
-});
+const timeRange: TimeRange = {
+	startedAfter: new Date("2026-08-12T15:00:00Z"),
+	startedBefore: new Date("2026-08-13T15:00:00Z"),
+};
+
+const defaultFilterProps: FilterProps = {
+	...getDefaultFilterProps<FilterProps>({
+		query: "owner:me",
+		values: {
+			username: undefined,
+			provider: undefined,
+		},
+		menus: {
+			user: MockMenu,
+			provider: MockMenu,
+			client: MockMenu,
+			model: MockMenu,
+		},
+	}),
+	timeRange,
+	isDefaultTimeRange: true,
+	onTimeRangeChange: fn(),
+};
 
 const meta: Meta<typeof ListSessionsPageView> = {
 	title: "pages/AIBridgePage/ListSessionsPageView",

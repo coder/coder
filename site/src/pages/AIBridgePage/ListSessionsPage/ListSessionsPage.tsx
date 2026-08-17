@@ -1,7 +1,8 @@
 import type { FC } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { paginatedSessions } from "#/api/queries/aiBridge";
-import { useFilter } from "#/components/Filter/Filter";
+import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
@@ -13,6 +14,12 @@ import { useModelFilterMenu } from "../filters/ModelFilter";
 import { useProviderFilterMenu } from "../filters/ProviderFilter";
 import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { ListSessionsPageView } from "./ListSessionsPageView";
+import {
+	defaultTimeRange,
+	parseTimeRange,
+	setTimeRangeInQuery,
+	withDefaultTimeRange,
+} from "./timeRange";
 
 const AISessionListPage: FC = () => {
 	const { permissions } = useAuthenticated();
@@ -26,9 +33,21 @@ const AISessionListPage: FC = () => {
 
 	const canViewSessions = isEntitled && hasPermission;
 
+	// The default time range lives in memory, not the URL, so a shared link
+	// resolves relative to the viewer's current time. It is fixed per mount
+	// so query cache keys stay stable.
+	const [defaultRange] = useState(() => defaultTimeRange(new Date()));
+
 	const [searchParams, setSearchParams] = useSearchParams();
 	const sessionsQuery = usePaginatedQuery({
 		...paginatedSessions(searchParams),
+		// Merge the default range into every fetch (including prefetches) so
+		// the unfiltered sessions query never scans the entire table.
+		queryPayload: () =>
+			withDefaultTimeRange(
+				searchParams.get(useFilterParamsKey) ?? "",
+				defaultRange,
+			),
 		enabled: canViewSessions,
 	});
 
@@ -37,6 +56,9 @@ const AISessionListPage: FC = () => {
 		onSearchParamsChange: setSearchParams,
 		onUpdate: sessionsQuery.goToFirstPage,
 	});
+
+	const explicitTimeRange = parseTimeRange(filter.values);
+	const timeRange = explicitTimeRange ?? defaultRange;
 
 	const userMenu = useUserFilterMenu({
 		value: filter.values.initiator,
@@ -97,6 +119,10 @@ const AISessionListPage: FC = () => {
 						client: clientMenu,
 						model: modelMenu,
 					},
+					timeRange,
+					isDefaultTimeRange: explicitTimeRange === null,
+					onTimeRangeChange: (range) =>
+						filter.update(setTimeRangeInQuery(filter.values, range)),
 				}}
 			/>
 		</RequirePermission>

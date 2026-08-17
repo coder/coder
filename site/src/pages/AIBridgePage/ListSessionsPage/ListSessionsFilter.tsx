@@ -11,6 +11,8 @@ import {
 	ProviderFilter,
 	type ProviderFilterMenu,
 } from "../filters/ProviderFilter";
+import { DateTimeRangeFilter } from "./DateTimeRangeFilter";
+import type { TimeRange } from "./timeRange";
 
 interface ListSessionsFilterProps {
 	filter: ReturnType<typeof useFilter>;
@@ -21,12 +23,18 @@ interface ListSessionsFilterProps {
 		client: ClientFilterMenu;
 		model: ModelFilterMenu;
 	};
+	timeRange: TimeRange;
+	isDefaultTimeRange: boolean;
+	onTimeRangeChange: (range: TimeRange) => void;
 }
 
 export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 	filter,
 	error,
 	menus,
+	timeRange,
+	isDefaultTimeRange,
+	onTimeRangeChange,
 }) => {
 	return (
 		<Filter
@@ -46,6 +54,11 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 			error={error}
 			options={
 				<>
+					<DateTimeRangeFilter
+						value={timeRange}
+						onChange={onTimeRangeChange}
+						isDefault={isDefaultTimeRange}
+					/>
 					<UserMenu menu={menus.user} placeholder="All users" />
 					<ProviderFilter menu={menus.provider} />
 					<ClientFilter menu={menus.client} />
