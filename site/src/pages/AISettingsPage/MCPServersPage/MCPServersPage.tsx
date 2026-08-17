@@ -23,7 +23,11 @@ const MCPServersPage: FC = () => {
 	);
 
 	return (
-		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+		<RequirePermission
+			isFeatureVisible={
+				permissions.editDeploymentConfig || permissions.viewAnyMCPServerConfigs
+			}
+		>
 			<title>{pageTitle("MCP servers", "AI Settings")}</title>
 			<MCPServersPageView
 				isLoading={serversQuery.isLoading}

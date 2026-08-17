@@ -57,7 +57,11 @@ const UpdateMCPServerPage: FC = () => {
 	const listPath = mcpServersPath(organization);
 
 	return (
-		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+		<RequirePermission
+			isFeatureVisible={
+				permissions.editDeploymentConfig || permissions.updateAnyMCPServerConfig
+			}
+		>
 			{!serverId ? (
 				<Navigate to={listPath} replace />
 			) : serverQuery.isLoading ? (

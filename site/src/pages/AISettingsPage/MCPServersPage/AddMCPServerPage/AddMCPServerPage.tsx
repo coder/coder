@@ -30,7 +30,11 @@ const AddMCPServerPage: FC = () => {
 	);
 
 	return (
-		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+		<RequirePermission
+			isFeatureVisible={
+				permissions.editDeploymentConfig || permissions.createAnyMCPServerConfig
+			}
+		>
 			<AddMCPServerPageView
 				isSaving={createMutation.isPending}
 				organizations={organizations}
