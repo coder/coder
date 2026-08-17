@@ -127,7 +127,7 @@ const sameMonth = (a: Date, b: Date): boolean =>
 	sameDay(a, b) ||
 	(a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth());
 
-const MONTH_DAY = "MMMM D";
+const MONTH_DAY = "MMM D";
 
 /**
  * Summarizes a resolved range the way the filter trigger displays it:

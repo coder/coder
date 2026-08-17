@@ -55,7 +55,7 @@ export const SingleDayLabel: Story = {
 		const canvas = within(canvasElement);
 		expect(
 			canvas.getByRole("button", { name: "Filter by time range" }),
-		).toHaveTextContent("April 10");
+		).toHaveTextContent("Apr 10");
 	},
 };
 
@@ -70,7 +70,7 @@ export const RangeEndingTodayLabel: Story = {
 		const canvas = within(canvasElement);
 		expect(
 			canvas.getByRole("button", { name: "Filter by time range" }),
-		).toHaveTextContent("August 11 - Today");
+		).toHaveTextContent("Aug 11 - Today");
 	},
 };
 
@@ -85,7 +85,7 @@ export const SameMonthLabel: Story = {
 		const canvas = within(canvasElement);
 		expect(
 			canvas.getByRole("button", { name: "Filter by time range" }),
-		).toHaveTextContent("April 17 - 19");
+		).toHaveTextContent("Apr 17 - 19");
 	},
 };
 

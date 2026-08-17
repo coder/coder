@@ -101,7 +101,7 @@ describe("formatTriggerLabel", () => {
 				},
 				now,
 			),
-		).toBe("April 10");
+		).toBe("Apr 10");
 	});
 
 	it("labels a range ending today against now", () => {
@@ -113,7 +113,7 @@ describe("formatTriggerLabel", () => {
 				},
 				now,
 			),
-		).toBe("August 11 - Today");
+		).toBe("Aug 11 - Today");
 	});
 
 	it("shortens ranges within one month", () => {
@@ -125,7 +125,7 @@ describe("formatTriggerLabel", () => {
 				},
 				now,
 			),
-		).toBe("April 17 - 19");
+		).toBe("Apr 17 - 19");
 	});
 
 	it("falls back to a full range across months", () => {
@@ -137,7 +137,7 @@ describe("formatTriggerLabel", () => {
 				},
 				now,
 			),
-		).toBe("March 30 - April 2");
+		).toBe("Mar 30 - Apr 2");
 	});
 });
 
