@@ -46,7 +46,7 @@ export const CoderWorkspacesProductCard: FC<
 						</TooltipContent>
 					</Tooltip>
 				</div>
-				<div className="mt-0.5 font-normal text-content-primary">
+				<div className="mt-0.5 text-sm font-medium text-content-primary">
 					{actualLabel} / {limitLabel}
 				</div>
 			</div>

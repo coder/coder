@@ -3,7 +3,6 @@ import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
-import { Separator } from "#/components/Separator/Separator";
 import {
 	Tooltip,
 	TooltipContent,
@@ -106,20 +105,24 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 	if (!grantsAgentHours) {
 		return (
 			<CardContainer className="border-dashed border-highlight-purple">
-				<div className="mt-3 text-xs">
-					<MetricLabel
-						label="Max concurrent chats"
-						tooltip={concurrentChatsTooltip}
-					/>
-					<div className="mt-0.5 font-normal text-content-primary">
-						{maxConcurrentChatsOverHardLimit}
+				<div className="mt-3 flex flex-wrap gap-x-12 gap-y-3 text-xs">
+					<div>
+						<MetricLabel
+							label="Max concurrent chats"
+							tooltip={concurrentChatsTooltip}
+						/>
+						<div className="mt-0.5 text-sm font-medium text-content-primary">
+							{maxConcurrentChatsOverHardLimit}
+						</div>
 					</div>
 					{actual !== undefined && (
-						<div className="mt-3 font-medium text-content-secondary">
-							Agent hours used:{" "}
-							<span className="font-normal text-content-primary">
+						<div>
+							<div className="flex items-center gap-1 font-medium text-content-secondary">
+								<span>Agent hours used</span>
+							</div>
+							<div className="mt-0.5 text-sm font-medium text-content-primary">
 								{formatHoursUsed(actual)}
-							</span>
+							</div>
 						</div>
 					)}
 				</div>
@@ -146,7 +149,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 						label="Total Agent hours"
 						tooltip={totalAgentHoursTooltip}
 					/>
-					<div className="mt-0.5 font-normal text-content-primary">
+					<div className="mt-0.5 text-sm font-medium text-content-primary">
 						{isUnlimited ? (
 							"Unlimited"
 						) : (
@@ -164,19 +167,21 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 						label="Concurrent chats"
 						tooltip={concurrentChatsTooltip}
 					/>
-					<div className="mt-0.5 font-normal text-content-primary">
+					<div className="mt-0.5 text-sm font-medium text-content-primary">
 						{isHardLimitExceeded
 							? maxConcurrentChatsOverHardLimit
 							: "Unlimited"}
 					</div>
 				</div>
 			</div>
-			<div className="mt-4 flex items-center gap-2 text-xs">
-				<Link asChild size="sm" showExternalIcon={false}>
+			<div className="mt-4 flex items-center gap-2 text-sm">
+				<Link asChild size="lg" showExternalIcon={false}>
 					<RouterLink to="/deployment/groups">Manage usage</RouterLink>
 				</Link>
-				<Separator orientation="vertical" className="h-3" />
-				<Link asChild size="sm" showExternalIcon={false}>
+				<span className="text-content-secondary" aria-hidden>
+					|
+				</span>
+				<Link asChild size="lg" showExternalIcon={false}>
 					<RouterLink to="/ai/settings/coder-agents">Agent settings</RouterLink>
 				</Link>
 			</div>

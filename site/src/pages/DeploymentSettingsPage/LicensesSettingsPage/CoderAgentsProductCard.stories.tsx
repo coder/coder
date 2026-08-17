@@ -157,8 +157,8 @@ export const NoAllocationWithUsage: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/Agent hours used/)).toHaveTextContent(
-			"Agent hours used: 1,234.5",
+		await expect(getMetricValue(canvas, "Agent hours used")).toHaveTextContent(
+			"1,234.5",
 		);
 		await expect(
 			canvas.getByRole("link", { name: "Upgrade" }),

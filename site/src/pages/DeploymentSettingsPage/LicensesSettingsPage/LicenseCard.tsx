@@ -211,16 +211,44 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 					: isNotYetValid
 						? "Not started"
 						: "Active";
+	const includesAgents =
+		Boolean(license.claims.trial) || licenseGrantsAgentHours;
+	const includedProducts = isPremium
+		? [
+				"Workspaces",
+				...(hasExplicitAiGovernanceAddOn ? ["AI Governance"] : []),
+				...(includesAgents ? ["Agents"] : []),
+			]
+		: [];
+	const includedProductsLabel = includedProducts.join(" + ");
 	const headerContent = (
 		<>
-			<div className="flex items-center gap-1.5">
-				<ChevronDownIcon className="license-chevron size-4 text-content-secondary transition-colors transition-transform group-hover:text-content-primary" />
+			<div className="flex items-start gap-1.5">
+				<ChevronDownIcon className="license-chevron mt-1 size-4 shrink-0 text-content-secondary transition-colors transition-transform group-hover:text-content-primary" />
 				<span className="text-base font-medium text-content-secondary">
 					#{license.id}
 				</span>
-				<span className="account-type text-base font-medium text-content-primary capitalize">
-					{licenseType}
-				</span>
+				<div className="flex min-w-0 flex-col">
+					<span className="account-type text-base font-medium text-content-primary capitalize">
+						{licenseType}
+					</span>
+					{includedProducts.length > 0 && (
+						<div
+							role="group"
+							aria-label={includedProductsLabel}
+							className="text-xs font-medium text-content-secondary"
+						>
+							{includedProducts.map((product, index) => (
+								<span key={product}>
+									{index > 0 && (
+										<span className="text-highlight-purple"> + </span>
+									)}
+									{product}
+								</span>
+							))}
+						</div>
+					)}
+				</div>
 			</div>
 
 			<div className="ml-auto flex items-center gap-12 text-xs font-medium">

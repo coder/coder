@@ -26,6 +26,14 @@ type Story = StoryObj<typeof LicenseCard>;
 const getMetricValue = (canvas: ReturnType<typeof within>, label: string) =>
 	canvas.getByText(label).parentElement?.nextElementSibling;
 
+const getIncludedProducts = (
+	canvas: ReturnType<typeof within>,
+	label: string,
+) =>
+	canvas.queryByRole("group", {
+		name: (accessibleName: string) => accessibleName === label,
+	});
+
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -36,6 +44,12 @@ export const Default: Story = {
 		await expect(canvas.getByText("Products")).toBeInTheDocument();
 		await expect(canvas.getByText("Coder Workspaces")).toBeInTheDocument();
 		await expect(canvas.queryByText("Coder Agents")).not.toBeInTheDocument();
+		await expect(
+			getIncludedProducts(canvas, "Workspaces"),
+		).not.toBeInTheDocument();
+		await expect(
+			getIncludedProducts(canvas, "Workspaces + Agents"),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -67,6 +81,9 @@ export const Trial: Story = {
 		await expect(canvas.getByText("Premium")).toBeInTheDocument();
 		const typeLabel = canvas.getByText("Type");
 		await expect(typeLabel.nextElementSibling).toHaveTextContent("Trial");
+		await expect(
+			getIncludedProducts(canvas, "Workspaces + Agents"),
+		).toBeInTheDocument();
 	},
 };
 
@@ -103,7 +120,24 @@ export const UsesLicenseUserLimit: Story = {
 
 export const Premium: Story = {
 	args: {
-		license: MockLicenseResponse[1],
+		license: {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				// A seat-limit claim without addons is not enough to show
+				// the AI Governance add-on; that requires addons: ["ai_governance"].
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
+			},
+		},
+		aiGovernanceUserFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			actual: 100,
+			limit: 1000,
+		},
 		// The backend grandfathers premium licenses without agent hour
 		// claims into a zero-hour allocation, so the merged entitlement is
 		// always present: disabled, zero limit, usage measured.
@@ -119,14 +153,20 @@ export const Premium: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
+		await expect(getIncludedProducts(canvas, "Workspaces")).toBeInTheDocument();
+		await expect(
+			getIncludedProducts(canvas, "Workspaces + Agents"),
+		).not.toBeInTheDocument();
 		await expect(
 			getMetricValue(canvas, "Max concurrent chats"),
 		).toHaveTextContent("5");
-		await expect(canvas.getByText(/Agent hours used/)).toHaveTextContent(
-			"Agent hours used: 137.3",
+		await expect(getMetricValue(canvas, "Agent hours used")).toHaveTextContent(
+			"137.3",
 		);
 		const upgrade = canvas.getByRole("link", { name: "Upgrade" });
 		await expect(upgrade).toHaveAttribute("href", "mailto:sales@coder.com");
+		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("AI Governance")).not.toBeInTheDocument();
 	},
 };
 
@@ -182,6 +222,9 @@ export const PremiumWithAgentHours: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Active")).toBeInTheDocument();
+		await expect(
+			getIncludedProducts(canvas, "Workspaces + Agents"),
+		).toBeInTheDocument();
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"16,264.3 / 20,000",
 		);
@@ -289,6 +332,9 @@ export const PremiumWithUnlimitedAgentHours: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Active")).toBeInTheDocument();
+		await expect(
+			getIncludedProducts(canvas, "Workspaces + Agents"),
+		).toBeInTheDocument();
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -432,6 +478,12 @@ export const EnterpriseWithAgentHours: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Enterprise")).toBeInTheDocument();
 		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
+		await expect(
+			getIncludedProducts(canvas, "Workspaces"),
+		).not.toBeInTheDocument();
+		await expect(
+			getIncludedProducts(canvas, "Workspaces + Agents"),
+		).not.toBeInTheDocument();
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"16,264.3 / 20,000",
 		);
@@ -462,35 +514,12 @@ export const PremiumWithAIGovernance: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/add-ons/i)).toBeInTheDocument();
 		await expect(canvas.getByText(/ai governance/i)).toBeInTheDocument();
+		await expect(
+			getIncludedProducts(canvas, "Workspaces + AI Governance"),
+		).toBeInTheDocument();
 		const seatsLabel = canvas.getByText("Seats");
 		const seatsValue = seatsLabel.nextElementSibling;
 		await expect(seatsValue).toHaveTextContent("750 / 1,000");
-	},
-};
-
-export const PremiumWithoutAIGovernanceAddOn: Story = {
-	args: {
-		license: {
-			...MockLicenseResponse[1],
-			claims: {
-				...MockLicenseResponse[1].claims,
-				features: {
-					...MockLicenseResponse[1].claims.features,
-					ai_governance_user_limit: 1000,
-				},
-			},
-		},
-		aiGovernanceUserFeature: {
-			enabled: true,
-			entitlement: "entitled",
-			actual: 100,
-			limit: 1000,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
-		await expect(canvas.queryByText("AI Governance")).not.toBeInTheDocument();
 	},
 };
 
