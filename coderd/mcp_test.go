@@ -419,14 +419,14 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.Empty(t, mAudit.AuditLogs())
 	})
 
-	t.Run("CreateAuditedWhenDiscoveryUpdateFails", func(t *testing.T) {
+	t.Run("CreateNotAuditedWhenInsertFails", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		mAudit := audit.NewMock()
 		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		db, ps := dbtestutil.NewDB(t)
-		store := &failingMCPServerConfigUpdateStore{Store: db}
+		store := &failingMCPServerConfigInsertStore{Store: db}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:    mcpDeploymentValues(t),
 			ChatProviderAPIKeys: &providerKeys,
@@ -474,7 +474,6 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		}))
 		t.Cleanup(mcpServer.Close)
 
-		// The inserted row must still be audited when the post-discovery update fails.
 		store.fail.Store(true)
 		mAudit.ResetLogs()
 		_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
@@ -492,12 +491,8 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 
 		configs, err := client.MCPServerConfigs(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, configs, 1)
-
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.Equal(t, database.AuditActionCreate, logs[0].Action)
-		require.Equal(t, configs[0].ID, logs[0].ResourceID)
+		require.Empty(t, configs)
+		require.Empty(t, mAudit.AuditLogs())
 	})
 
 	t.Run("DeletedResourceMarked", func(t *testing.T) {
@@ -592,19 +587,18 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 	})
 }
 
-// failingMCPServerConfigUpdateStore fails config updates once armed,
-// outdating the discovery flow's post-insert credential update.
-type failingMCPServerConfigUpdateStore struct {
+// failingMCPServerConfigInsertStore fails config inserts once armed.
+type failingMCPServerConfigInsertStore struct {
 	database.Store
 
 	fail atomic.Bool
 }
 
-func (s *failingMCPServerConfigUpdateStore) UpdateMCPServerConfig(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.MCPServerConfig, error) {
+func (s *failingMCPServerConfigInsertStore) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
 	if s.fail.Load() {
-		return database.MCPServerConfig{}, xerrors.New("injected update failure")
+		return database.MCPServerConfig{}, xerrors.New("injected insert failure")
 	}
-	return s.Store.UpdateMCPServerConfig(ctx, arg)
+	return s.Store.InsertMCPServerConfig(ctx, arg)
 }
 
 // staleMCPServerConfigReadStore corrupts plain config reads once armed,
