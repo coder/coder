@@ -33,13 +33,11 @@ export const getOrganizationLabel = (
 	organizations: readonly Organization[],
 ) => {
 	const displayName = organization.display_name || organization.name;
-	const hasCollidingDisplayName =
-		organization.display_name !== "" &&
-		organizations.some(
-			(other) =>
-				other.id !== organization.id &&
-				other.display_name === organization.display_name,
-		);
+	const hasCollidingDisplayName = organizations.some(
+		(other) =>
+			other.id !== organization.id &&
+			(other.display_name || other.name) === displayName,
+	);
 
 	if (hasCollidingDisplayName && organization.name !== displayName) {
 		return `${displayName} (${organization.name})`;

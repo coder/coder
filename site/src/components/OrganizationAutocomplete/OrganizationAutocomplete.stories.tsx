@@ -41,6 +41,7 @@ export const CollidingDisplayNames: Story = {
 			{ ...MockOrganization, name: "org-a", display_name: "Dev" },
 			{ ...MockOrganization2, name: "org-b", display_name: "Dev" },
 			{ ...MockOrganization, id: "org-c", name: "org-c", display_name: "Ops" },
+			{ ...MockOrganization, id: "org-d", name: "Dev", display_name: "" },
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -53,6 +54,7 @@ export const CollidingDisplayNames: Story = {
 			expect(
 				screen.getByRole("option", { name: "Dev (org-b)" }),
 			).toBeInTheDocument();
+			expect(screen.getByRole("option", { name: /^Dev$/ })).toBeInTheDocument();
 			expect(screen.getByRole("option", { name: "Ops" })).toBeInTheDocument();
 		});
 	},
