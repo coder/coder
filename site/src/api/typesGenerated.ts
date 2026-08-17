@@ -5751,11 +5751,11 @@ export interface License {
 
 // From codersdk/licenses.go
 export const LicenseAIGovernance90PercentWarningText =
-	"You have used %d%% of your AI Governance add-on seats.";
+	"You have used %d%% of your AI Governance seats.";
 
 // From codersdk/licenses.go
 export const LicenseAIGovernanceOverLimitWarningText =
-	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
+	"Your organization is using %d of %d AI Governance seats (%d over the limit).";
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
