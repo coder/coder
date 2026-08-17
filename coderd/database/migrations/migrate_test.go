@@ -3164,8 +3164,6 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 570, version)
 
-	// The existing rows become the default organization's servers; no copies
-	// are created for other organizations.
 	var totalConfigs int
 	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs`).Scan(&totalConfigs)
 	require.NoError(t, err)
@@ -3212,7 +3210,7 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	// the configs now belong to the default organization only.
 	require.Empty(t, getChatIDs(t, chats[1].id))
 
-	remapTriggerExists := func(t *testing.T) bool {
+	dropTriggerExists := func(t *testing.T) bool {
 		t.Helper()
 		var exists bool
 		err := sqlDB.QueryRowContext(ctx, `
@@ -3221,7 +3219,7 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 		require.NoError(t, err)
 		return exists
 	}
-	require.True(t, remapTriggerExists(t))
+	require.True(t, dropTriggerExists(t))
 
 	// The compatibility trigger drops cross-organization config IDs, keeps
 	// same-organization IDs, and passes unknown IDs through as written.
@@ -3243,22 +3241,17 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{orgLocalConfigID, danglingID}, getChatIDs(t, staleWriteChatID))
 
-	_, err = sqlDB.ExecContext(ctx, `
-		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
-	`, chats[0].id, pq.Array(chats[0].configIDs))
-	require.NoError(t, err)
-	require.Equal(t, chats[0].configIDs, getChatIDs(t, chats[0].id))
-
 	// Remove the unknown-ID simulation row so the down-migration assertions
 	// below can prove no dangling references remain.
 	_, err = sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, staleWriteChatID)
 	require.NoError(t, err)
 
-	// An organization-created config referenced by a chat exercises the down
-	// sweep: the config is deleted and its chat references removed.
+	// The trigger drops the cross-organization ID on update too, leaving the
+	// organization-created config to exercise the down sweep: the config is
+	// deleted and its chat references removed.
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
-	`, chats[1].id, pq.Array([]uuid.UUID{orgLocalConfigID}))
+	`, chats[1].id, pq.Array([]uuid.UUID{configs[1].id, orgLocalConfigID}))
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{orgLocalConfigID}, getChatIDs(t, chats[1].id))
 
@@ -3283,5 +3276,5 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, danglingIDs)
 
-	require.False(t, remapTriggerExists(t))
+	require.False(t, dropTriggerExists(t))
 }

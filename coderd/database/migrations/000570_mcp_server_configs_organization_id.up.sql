@@ -48,15 +48,14 @@ BEGIN
         RETURN NEW;
     END IF;
     SELECT COALESCE(
-        array_agg(item.config_id ORDER BY item.position) FILTER (
-            WHERE config.id IS NULL
-                OR config.organization_id = NEW.organization_id
-        ),
+        array_agg(item.config_id ORDER BY item.position),
         '{}'::uuid[]
     )
     INTO NEW.mcp_server_ids
     FROM unnest(NEW.mcp_server_ids) WITH ORDINALITY AS item(config_id, position)
-    LEFT JOIN mcp_server_configs AS config ON config.id = item.config_id;
+    LEFT JOIN mcp_server_configs AS config ON config.id = item.config_id
+    WHERE config.id IS NULL
+        OR config.organization_id = NEW.organization_id;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
