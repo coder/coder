@@ -253,7 +253,6 @@ const makeCopilotSchema = (editing: boolean) =>
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
 		icon: Yup.string(),
-		// URL shape is validated by the backend; the form only checks presence.
 		baseUrl: Yup.string().required("Endpoint is required"),
 		enabled: Yup.boolean(),
 	});
