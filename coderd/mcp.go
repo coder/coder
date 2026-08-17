@@ -256,6 +256,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	configID := uuid.New()
+
 	// Validate auth-type-dependent fields.
 	switch req.AuthType {
 	case "oauth2":
@@ -266,8 +268,6 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		// Metadata (RFC 9728) and Authorization Server Metadata
 		// (RFC 8414), then register a client dynamically.
 		if req.OAuth2ClientID == "" && req.OAuth2AuthURL == "" && req.OAuth2TokenURL == "" {
-			// Automatic discovery registration deliberately requires full
-			// MCP server config management permissions.
 			if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) ||
 				!api.Authorize(r, policy.ActionDelete, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) {
 				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
@@ -276,16 +276,6 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			customHeadersJSON, err := marshalCustomHeaders(req.CustomHeaders)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Invalid custom headers.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			configID := uuid.New()
 			callbackURL := api.AccessURL.String() + mcpServerOAuth2CallbackPath(configID)
 			// Discovery targets are attacker-influenced (the MCP
 			// server URL and any endpoints or redirects it
@@ -329,63 +319,12 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-				ID:                      configID,
-				OrganizationID:          organization.ID,
-				DisplayName:             strings.TrimSpace(req.DisplayName),
-				Slug:                    strings.TrimSpace(req.Slug),
-				Description:             strings.TrimSpace(req.Description),
-				IconURL:                 strings.TrimSpace(req.IconURL),
-				Transport:               strings.TrimSpace(req.Transport),
-				Url:                     strings.TrimSpace(req.URL),
-				AuthType:                strings.TrimSpace(req.AuthType),
-				OAuth2ClientID:          result.clientID,
-				OAuth2ClientSecret:      result.clientSecret,
-				OAuth2ClientSecretKeyID: sql.NullString{},
-				OAuth2AuthURL:           result.authURL,
-				OAuth2TokenURL:          result.tokenURL,
-				OAuth2RevocationURL:     oauth2RevocationURL,
-				OAuth2Scopes:            oauth2Scopes,
-				APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
-				APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
-				APIKeyValueKeyID:        sql.NullString{},
-				CustomHeaders:           customHeadersJSON,
-				CustomHeadersKeyID:      sql.NullString{},
-				ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
-				ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
-				Availability:            strings.TrimSpace(req.Availability),
-				Enabled:                 req.Enabled,
-				ModelIntent:             req.ModelIntent,
-				AllowInPlanMode:         req.AllowInPlanMode,
-				ForwardCoderHeaders:     req.ForwardCoderHeaders,
-				CreatedBy:               apiKey.UserID,
-				UpdatedBy:               apiKey.UserID,
-			})
-			if err != nil {
-				switch {
-				case database.IsUniqueViolation(err):
-					httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-						Message: "MCP server config already exists.",
-						Detail:  err.Error(),
-					})
-					return
-				case database.IsCheckViolation(err):
-					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-						Message: "Invalid MCP server config.",
-						Detail:  err.Error(),
-					})
-					return
-				default:
-					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-						Message: "Failed to create MCP server config.",
-						Detail:  err.Error(),
-					})
-					return
-				}
-			}
-
-			httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(inserted))
-			return
+			req.OAuth2ClientID = result.clientID
+			req.OAuth2ClientSecret = result.clientSecret
+			req.OAuth2AuthURL = result.authURL
+			req.OAuth2TokenURL = result.tokenURL
+			req.OAuth2RevocationURL = oauth2RevocationURL
+			req.OAuth2Scopes = oauth2Scopes
 		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
 			// Partial manual config: all three fields are required together.
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -419,7 +358,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		ID:                      uuid.New(),
+		ID:                      configID,
 		OrganizationID:          organization.ID,
 		DisplayName:             strings.TrimSpace(req.DisplayName),
 		Slug:                    strings.TrimSpace(req.Slug),

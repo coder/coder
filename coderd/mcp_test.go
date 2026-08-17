@@ -1289,7 +1289,6 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 				close(completeRegistration)
 			})
 		}
-		t.Cleanup(releaseRegistration)
 
 		// Stand up a mock auth server that serves RFC 8414 metadata and
 		// a RFC 7591 dynamic client registration endpoint.
@@ -1358,7 +1357,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 			err    error
 		}
 		createdCh := make(chan createResult, 1)
-		go func() {
+		testutil.Go(t, func() {
 			created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 				DisplayName:   "Auto-Discovery Server",
 				Slug:          "auto-discovery",
@@ -1371,14 +1370,10 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 				ToolDenyList:  []string{},
 			})
 			createdCh <- createResult{config: created, err: err}
-		}()
+		})
+		t.Cleanup(releaseRegistration)
 
-		select {
-		case <-registrationStarted:
-		case <-time.After(testutil.WaitShort):
-			releaseRegistration()
-			t.Fatal("timed out waiting for dynamic client registration")
-		}
+		testutil.TryReceive(ctx, t, registrationStarted)
 		//nolint:gocritic // Verifying persisted state requires system access.
 		_, err := db.GetMCPServerConfigByOrganizationAndSlug(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerConfigByOrganizationAndSlugParams{
 			OrganizationID: firstUser.OrganizationID,
@@ -1387,7 +1382,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		releaseRegistration()
 		require.ErrorIs(t, err, sql.ErrNoRows)
 
-		create := <-createdCh
+		create := testutil.RequireReceive(ctx, t, createdCh)
 		require.NoError(t, create.err)
 		created := create.config
 		require.Equal(t, "auto-discovered-client-id", created.OAuth2ClientID)
@@ -1429,11 +1424,8 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		// Discovery inserts, then updates and possibly deletes the
-		// row. A create-only caller must be rejected before the
-		// insert instead of leaving an orphaned row behind. MCP
-		// config scopes are not user-mintable, so seed the scoped
-		// key directly.
+		// MCP config scopes are not user-mintable, so seed a create-only key
+		// to verify automatic discovery requires full management access.
 		_, token := dbgen.APIKey(t, db, database.APIKey{
 			UserID: firstUser.UserID,
 			Scopes: database.APIKeyScopes{
