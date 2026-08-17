@@ -250,7 +250,9 @@ export const InterruptingShowsBusyComposer: Story = {
 		expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
 		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
 
-		await userEvent.click(canvas.getByTestId("chat-message-input"));
+		await userEvent.click(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+		);
 		await userEvent.keyboard("{Escape}");
 		expect(interruptingOnInterrupt).not.toHaveBeenCalled();
 	},
