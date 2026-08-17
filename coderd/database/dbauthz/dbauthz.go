@@ -1889,13 +1889,6 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
 }
 
-func (q *querier) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return false, err
-	}
-	return q.db.ChatSearchQueryIsEmpty(ctx, search)
-}
-
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -2846,6 +2839,13 @@ func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg databa
 		return database.AIModelPrice{}, err
 	}
 	return q.db.GetAIModelPriceByProviderModel(ctx, arg)
+}
+
+func (q *querier) GetAIModelPrices(ctx context.Context, arg database.GetAIModelPricesParams) ([]database.AIModelPrice, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIModelPrices(ctx, arg)
 }
 
 func (q *querier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {

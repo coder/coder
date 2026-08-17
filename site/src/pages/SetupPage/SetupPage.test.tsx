@@ -71,7 +71,7 @@ describe("Setup Page", () => {
 		await waitFor(() => screen.findByText("Password is too short"));
 	});
 
-	it("redirects to the app when setup is successful", async () => {
+	it("redirects to the template builder when setup is successful", async () => {
 		let userHasBeenCreated = false;
 
 		server.use(
@@ -110,8 +110,8 @@ describe("Setup Page", () => {
 						element: <SetupPage />,
 					},
 					{
-						path: "/templates",
-						element: <h1>Templates</h1>,
+						path: "/templates/new/builder",
+						element: <h1>Template Builder</h1>,
 					},
 				],
 				{ initialEntries: ["/setup"] },
@@ -119,7 +119,7 @@ describe("Setup Page", () => {
 		);
 		await waitForLoaderToBeRemoved();
 		await fillForm();
-		await waitFor(() => screen.findByText("Templates"));
+		await waitFor(() => screen.findByText("Template Builder"));
 	});
 
 	it("calls sendBeacon with telemetry", async () => {

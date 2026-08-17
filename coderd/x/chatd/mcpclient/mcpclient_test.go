@@ -3,8 +3,8 @@ package mcpclient_test
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -14,8 +14,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"github.com/mark3labs/mcp-go/mcp"
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,54 +23,92 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 )
 
-// newTestMCPServer creates a streamable HTTP MCP server with the
-// given tools.  The caller must close the returned *httptest.Server.
-func newTestMCPServer(t *testing.T, tools ...mcpserver.ServerTool) *httptest.Server {
+type testTool struct {
+	tool    *mcp.Tool
+	handler mcp.ToolHandler
+}
+
+func newTestMCPServer(t *testing.T, tools ...testTool) *httptest.Server {
 	t.Helper()
-	srv := mcpserver.NewMCPServer("test-server", "1.0.0")
-	srv.AddTools(tools...)
-	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
+	for _, tool := range tools {
+		srv.AddTool(tool.tool, tool.handler)
+	}
+	httpSrv := mcp.NewStreamableHTTPHandler(
+		func(*http.Request) *mcp.Server { return srv },
+		&mcp.StreamableHTTPOptions{Stateless: true},
+	)
 	ts := httptest.NewServer(httpSrv)
 	t.Cleanup(ts.Close)
 	return ts
 }
 
-// echoTool returns a ServerTool that echoes its "input" argument
-// prefixed with "echo: ".
-func echoTool() mcpserver.ServerTool {
-	return mcpserver.ServerTool{
-		Tool: mcp.NewTool("echo",
-			mcp.WithDescription("Echoes the input"),
-			mcp.WithString("input", mcp.Description("The input"), mcp.Required()),
-		),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcp.NewToolResultText("echo: " + input), nil
+func textToolResult(text string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}
+}
+
+func echoTool() testTool {
+	return testTool{
+		tool: &mcp.Tool{
+			Name:        "echo",
+			Description: "Echoes the input",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"input": map[string]any{
+						"type":        "string",
+						"description": "The input",
+					},
+				},
+				"required": []string{"input"},
+			},
+		},
+		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			var args map[string]any
+			if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+				return nil, err
+			}
+			input, _ := args["input"].(string)
+			return textToolResult("echo: " + input), nil
 		},
 	}
 }
 
-// greetTool returns a ServerTool that greets by name.
-func greetTool() mcpserver.ServerTool {
-	return mcpserver.ServerTool{
-		Tool: mcp.NewTool("greet",
-			mcp.WithDescription("Greets the user"),
-			mcp.WithString("name", mcp.Description("Name to greet"), mcp.Required()),
-		),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			name, _ := req.GetArguments()["name"].(string)
-			return mcp.NewToolResultText("hello " + name), nil
+func greetTool() testTool {
+	return testTool{
+		tool: &mcp.Tool{
+			Name:        "greet",
+			Description: "Greets the user",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name": map[string]any{
+						"type":        "string",
+						"description": "Name to greet",
+					},
+				},
+				"required": []string{"name"},
+			},
+		},
+		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			var args map[string]any
+			if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+				return nil, err
+			}
+			name, _ := args["name"].(string)
+			return textToolResult("hello " + name), nil
 		},
 	}
 }
 
-// makeTool returns a ServerTool with the given name and a
-// no-op handler that always returns "ok".
-func makeTool(name string) mcpserver.ServerTool {
-	return mcpserver.ServerTool{
-		Tool: mcp.NewTool(name),
-		Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return mcp.NewToolResultText("ok"), nil
+func makeTool(name string) testTool {
+	return testTool{
+		tool: &mcp.Tool{
+			Name:        name,
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
 		},
 	}
 }
@@ -411,23 +448,20 @@ func TestConnectAll_AuthHeaders(t *testing.T) {
 		seenHeaders []string
 	)
 
-	srv := mcpserver.NewMCPServer("auth-server", "1.0.0")
-	srv.AddTools(mcpserver.ServerTool{
-		Tool: mcp.NewTool("whoami",
-			mcp.WithDescription("Returns the auth header"),
-		),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			auth := req.Header.Get("Authorization")
+	ts := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "whoami",
+			Description: "Returns the auth header",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			auth := req.Extra.Header.Get("Authorization")
 			mu.Lock()
 			seenHeaders = append(seenHeaders, auth)
 			mu.Unlock()
-			return mcp.NewToolResultText("auth:" + auth), nil
+			return textToolResult("auth:" + auth), nil
 		},
 	})
-
-	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-	ts := httptest.NewServer(httpSrv)
-	t.Cleanup(ts.Close)
 
 	configID := uuid.New()
 	cfg := database.MCPServerConfig{
@@ -575,13 +609,22 @@ func TestConnectAll_NilRequiredBecomesEmptySlice(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	// noRequiredTool defines a tool with no required parameters.
-	noRequiredTool := mcpserver.ServerTool{
-		Tool: mcp.NewTool("optional_only",
-			mcp.WithDescription("A tool with no required fields"),
-			mcp.WithString("note", mcp.Description("An optional note")),
-		),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return mcp.NewToolResultText("ok"), nil
+	noRequiredTool := testTool{
+		tool: &mcp.Tool{
+			Name:        "optional_only",
+			Description: "A tool with no required fields",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"note": map[string]any{
+						"type":        "string",
+						"description": "An optional note",
+					},
+				},
+			},
+		},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
 		},
 	}
 
@@ -614,23 +657,20 @@ func TestConnectAll_APIKeyAuth(t *testing.T) {
 		seenHeaders []string
 	)
 
-	srv := mcpserver.NewMCPServer("apikey-server", "1.0.0")
-	srv.AddTools(mcpserver.ServerTool{
-		Tool: mcp.NewTool("check",
-			mcp.WithDescription("Returns the API key header"),
-		),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			val := req.Header.Get("X-API-Key")
+	ts := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "check",
+			Description: "Returns the API key header",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			val := req.Extra.Header.Get("X-API-Key")
 			mu.Lock()
 			seenHeaders = append(seenHeaders, val)
 			mu.Unlock()
-			return mcp.NewToolResultText("key:" + val), nil
+			return textToolResult("key:" + val), nil
 		},
 	})
-
-	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-	ts := httptest.NewServer(httpSrv)
-	t.Cleanup(ts.Close)
 
 	cfg := makeConfig("apikey", ts.URL)
 	cfg.AuthType = "api_key"
@@ -673,23 +713,20 @@ func TestConnectAll_CustomHeadersAuth(t *testing.T) {
 		seenHeaders []string
 	)
 
-	srv := mcpserver.NewMCPServer("custom-server", "1.0.0")
-	srv.AddTools(mcpserver.ServerTool{
-		Tool: mcp.NewTool("check",
-			mcp.WithDescription("Returns the custom auth header"),
-		),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			val := req.Header.Get("X-Custom-Auth")
+	ts := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "check",
+			Description: "Returns the custom auth header",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			val := req.Extra.Header.Get("X-Custom-Auth")
 			mu.Lock()
 			seenHeaders = append(seenHeaders, val)
 			mu.Unlock()
-			return mcp.NewToolResultText("custom:" + val), nil
+			return textToolResult("custom:" + val), nil
 		},
 	})
-
-	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-	ts := httptest.NewServer(httpSrv)
-	t.Cleanup(ts.Close)
 
 	cfg := makeConfig("custom", ts.URL)
 	cfg.AuthType = "custom_headers"
@@ -770,23 +807,20 @@ func TestConnectAll_UserOIDCAuth(t *testing.T) {
 		seenHeaders []string
 	)
 
-	srv := mcpserver.NewMCPServer("oidc-server", "1.0.0")
-	srv.AddTools(mcpserver.ServerTool{
-		Tool: mcp.NewTool("whoami",
-			mcp.WithDescription("Returns the auth header"),
-		),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			auth := req.Header.Get("Authorization")
+	ts := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "whoami",
+			Description: "Returns the auth header",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			auth := req.Extra.Header.Get("Authorization")
 			mu.Lock()
 			seenHeaders = append(seenHeaders, auth)
 			mu.Unlock()
-			return mcp.NewToolResultText("auth:" + auth), nil
+			return textToolResult("auth:" + auth), nil
 		},
 	})
-
-	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-	ts := httptest.NewServer(httpSrv)
-	t.Cleanup(ts.Close)
 
 	cfg := makeConfig("oidc-srv", ts.URL)
 	cfg.AuthType = "user_oidc"
@@ -830,23 +864,20 @@ func TestConnectAll_UserOIDCAuth_NoLink(t *testing.T) {
 		seenHeaders []string
 	)
 
-	srv := mcpserver.NewMCPServer("oidc-server-nolink", "1.0.0")
-	srv.AddTools(mcpserver.ServerTool{
-		Tool: mcp.NewTool("whoami",
-			mcp.WithDescription("Returns the auth header"),
-		),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			auth := req.Header.Get("Authorization")
+	ts := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "whoami",
+			Description: "Returns the auth header",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			auth := req.Extra.Header.Get("Authorization")
 			mu.Lock()
 			seenHeaders = append(seenHeaders, auth)
 			mu.Unlock()
-			return mcp.NewToolResultText("auth:" + auth), nil
+			return textToolResult("auth:" + auth), nil
 		},
 	})
-
-	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-	ts := httptest.NewServer(httpSrv)
-	t.Cleanup(ts.Close)
 
 	cfg := makeConfig("oidc-nolink", ts.URL)
 	cfg.AuthType = "user_oidc"
@@ -1117,21 +1148,18 @@ func TestConnectAll_EmbeddedResourceText(t *testing.T) {
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-	srv := mcpserver.NewMCPServer("embedded-text-server", "1.0.0")
-	srv.AddTools(mcpserver.ServerTool{
-		Tool: mcp.NewTool("fetch_doc",
-			mcp.WithDescription("Returns an embedded text resource"),
-		),
-		Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	ts := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "fetch_doc",
+			Description: "Returns an embedded text resource",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{
-						Type: "text",
-						Text: "successfully downloaded text file",
-					},
-					mcp.EmbeddedResource{
-						Type: "resource",
-						Resource: mcp.TextResourceContents{
+					&mcp.TextContent{Text: "successfully downloaded text file"},
+					&mcp.EmbeddedResource{
+						Resource: &mcp.ResourceContents{
 							URI:      "file:///example.txt",
 							MIMEType: "text/plain",
 							Text:     "Hello from embedded resource",
@@ -1141,10 +1169,6 @@ func TestConnectAll_EmbeddedResourceText(t *testing.T) {
 			}, nil
 		},
 	})
-
-	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-	ts := httptest.NewServer(httpSrv)
-	t.Cleanup(ts.Close)
 
 	cfg := makeConfig("embed-txt", ts.URL)
 	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
@@ -1185,20 +1209,20 @@ func TestConnectAll_EmbeddedResourceBlob(t *testing.T) {
 			ctx := context.Background()
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-			blobData := base64.StdEncoding.EncodeToString([]byte("binary-content"))
+			blobData := []byte("binary-content")
 			mime := tt.mimeType
 
-			srv := mcpserver.NewMCPServer("embedded-blob-server", "1.0.0")
-			srv.AddTools(mcpserver.ServerTool{
-				Tool: mcp.NewTool("fetch_blob",
-					mcp.WithDescription("Returns an embedded blob resource"),
-				),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			ts := newTestMCPServer(t, testTool{
+				tool: &mcp.Tool{
+					Name:        "fetch_blob",
+					Description: "Returns an embedded blob resource",
+					InputSchema: map[string]any{"type": "object"},
+				},
+				handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 					return &mcp.CallToolResult{
 						Content: []mcp.Content{
-							mcp.EmbeddedResource{
-								Type: "resource",
-								Resource: mcp.BlobResourceContents{
+							&mcp.EmbeddedResource{
+								Resource: &mcp.ResourceContents{
 									URI:      "file:///blob",
 									MIMEType: mime,
 									Blob:     blobData,
@@ -1208,10 +1232,6 @@ func TestConnectAll_EmbeddedResourceBlob(t *testing.T) {
 					}, nil
 				},
 			})
-
-			httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-			ts := httptest.NewServer(httpSrv)
-			t.Cleanup(ts.Close)
 
 			cfg := makeConfig("embed-blob", ts.URL)
 			tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
@@ -1244,14 +1264,13 @@ func TestConnectAll_ResourceLink(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		link        mcp.ResourceLink
+		link        *mcp.ResourceLink
 		contains    []string
 		notContains []string
 	}{
 		{
 			name: "with_name",
-			link: mcp.ResourceLink{
-				Type: "resource_link",
+			link: &mcp.ResourceLink{
 				Name: "Example Resource",
 				URI:  "https://example.com/resource",
 			},
@@ -1260,8 +1279,7 @@ func TestConnectAll_ResourceLink(t *testing.T) {
 		},
 		{
 			name: "with_description",
-			link: mcp.ResourceLink{
-				Type:        "resource_link",
+			link: &mcp.ResourceLink{
 				Name:        "Deploy Log",
 				URI:         "file:///var/log/deploy.log",
 				Description: "Latest deployment log",
@@ -1277,21 +1295,18 @@ func TestConnectAll_ResourceLink(t *testing.T) {
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 			link := tt.link
-			srv := mcpserver.NewMCPServer("resource-link-server", "1.0.0")
-			srv.AddTools(mcpserver.ServerTool{
-				Tool: mcp.NewTool("get_link",
-					mcp.WithDescription("Returns a resource link"),
-				),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			ts := newTestMCPServer(t, testTool{
+				tool: &mcp.Tool{
+					Name:        "get_link",
+					Description: "Returns a resource link",
+					InputSchema: map[string]any{"type": "object"},
+				},
+				handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 					return &mcp.CallToolResult{
 						Content: []mcp.Content{link},
 					}, nil
 				},
 			})
-
-			httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-			ts := httptest.NewServer(httpSrv)
-			t.Cleanup(ts.Close)
 
 			cfg := makeConfig("res-link", ts.URL)
 			tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
@@ -1321,21 +1336,19 @@ func TestConnectAll_CallToolError(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	// Server with a tool that always returns an error result.
-	srv := mcpserver.NewMCPServer("error-server", "1.0.0")
-	srv.AddTools(mcpserver.ServerTool{
-		Tool: mcp.NewTool("fail_tool",
-			mcp.WithDescription("Always fails"),
-		),
-		Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	ts := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "fail_tool",
+			Description: "Always fails",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.NewTextContent("something broke")},
+				Content: []mcp.Content{&mcp.TextContent{Text: "something broke"}},
 				IsError: true,
 			}, nil
 		},
 	})
-	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-	ts := httptest.NewServer(httpSrv)
-	t.Cleanup(ts.Close)
 
 	cfg := makeConfig("err-srv", ts.URL)
 	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
@@ -1523,7 +1536,7 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 			name: "InvalidUTF8InTextContent",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{
+					&mcp.TextContent{
 						Text: "Hello" + string([]byte{0xFF, 0xFE, 0x80}) + "World",
 					},
 				},
@@ -1534,8 +1547,8 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 			name: "InvalidUTF8InEmbeddedResourceText",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.EmbeddedResource{
-						Resource: mcp.TextResourceContents{
+					&mcp.EmbeddedResource{
+						Resource: &mcp.ResourceContents{
 							Text: "Content" + string([]byte{0x80, 0x81, 0x82}),
 						},
 					},
@@ -1547,7 +1560,7 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 			name: "ValidUTF8PassesThrough",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{
+					&mcp.TextContent{
 						Text: "Hello, 世界! 🌍",
 					},
 				},
@@ -1558,10 +1571,10 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 			name: "MultipleTextPartsAllSanitized",
 			result: &mcp.CallToolResult{
 				Content: []mcp.Content{
-					mcp.TextContent{
+					&mcp.TextContent{
 						Text: "Part1" + string([]byte{0xFF}),
 					},
-					mcp.TextContent{
+					&mcp.TextContent{
 						Text: "Part2" + string([]byte{0xFE}),
 					},
 				},
