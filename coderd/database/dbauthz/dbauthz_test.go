@@ -928,6 +928,7 @@ func (s *MethodTestSuite) TestChats() {
 			ID:             file.ID,
 			Name:           file.Name,
 			Mimetype:       file.Mimetype,
+			SizeBytes:      int64(len(file.Data)),
 			CreatedAt:      file.CreatedAt,
 			OwnerID:        file.OwnerID,
 			OrganizationID: file.OrganizationID,
