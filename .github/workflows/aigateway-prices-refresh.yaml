@@ -13,7 +13,7 @@
 #   - Fails loudly when the generator refuses to run, which it does by design
 #     when upstream drops a model pinned in overrides.jq or curated in
 #     curation.json. Failures are announced in Slack.
-name: aibridge-prices-refresh
+name: aigateway-prices-refresh
 
 on:
   schedule:
@@ -24,10 +24,10 @@ on:
 permissions: {}
 
 concurrency:
-  group: aibridge-prices-refresh
+  group: aigateway-prices-refresh
 
 env:
-  REFRESH_BRANCH: bot/aibridge-prices-refresh
+  REFRESH_BRANCH: bot/aigateway-prices-refresh
   PRICES_FILE: coderd/aibridge/prices/data/prices.json
   CATALOG_FILE: site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
 
@@ -100,7 +100,7 @@ jobs:
             echo "PR is never merged automatically. The summary above lists what moved; check"
             echo "the diff for exact figures before approving."
             echo
-            echo "Opened automatically by the [aibridge-prices-refresh workflow](${RUN_URL})."
+            echo "Opened automatically by the [aigateway-prices-refresh workflow](${RUN_URL})."
           } > "${RUNNER_TEMP}/body.md"
 
           cat "${RUNNER_TEMP}/body.md"

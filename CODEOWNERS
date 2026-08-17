@@ -42,7 +42,7 @@ codersdk/aiproviders.go @ibetitsmike @johnstcn
 codersdk/aiproviders_bedrock.go @ibetitsmike @johnstcn
 
 # Generated price book and frontend model catalog. The
-# aibridge-prices-refresh workflow proposes updates to both from live
+# aigateway-prices-refresh workflow proposes updates to both from live
 # models.dev data, and they carry customer-visible cost numbers, so every
 # refresh needs a review from someone who owns them.
 coderd/aibridge/prices/data/prices.json @evgeniy-scherbina
