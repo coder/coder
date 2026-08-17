@@ -49,25 +49,11 @@ WHERE
 	AND (refresh_lease_expires_at = $3 OR $3 IS NULL)
 RETURNING *;
 
--- name: AcquireExternalAuthLinkRefreshLease :one
--- Only set the lease if there is not already a non-expired one.
+-- name: SetExternalAuthLinkRefreshLease :exec
 UPDATE
 	external_auth_links
 SET
 	refresh_lease_expires_at = @refresh_lease_expires_at
 WHERE
 	provider_id = @provider_id
-	AND user_id = @user_id
-	AND (refresh_lease_expires_at IS NULL OR refresh_lease_expires_at < NOW())
-RETURNING *;
-
--- name: ReleaseExternalAuthLinkRefreshLease :exec
--- Only unset the lease if it matches the one passed in.
-UPDATE
-	external_auth_links
-SET
-	refresh_lease_expires_at = NULL
-WHERE
-	provider_id = @provider_id
-	AND user_id = @user_id
-	AND refresh_lease_expires_at = @refresh_lease_expires_at;
+	AND user_id = @user_id;

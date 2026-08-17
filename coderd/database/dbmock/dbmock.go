@@ -45,21 +45,6 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
-// AcquireExternalAuthLinkRefreshLease mocks base method.
-func (m *MockStore) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AcquireExternalAuthLinkRefreshLease", ctx, arg)
-	ret0, _ := ret[0].(database.ExternalAuthLink)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AcquireExternalAuthLinkRefreshLease indicates an expected call of AcquireExternalAuthLinkRefreshLease.
-func (mr *MockStoreMockRecorder) AcquireExternalAuthLinkRefreshLease(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).AcquireExternalAuthLinkRefreshLease), ctx, arg)
-}
-
 // AcquireLock mocks base method.
 func (m *MockStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	m.ctrl.T.Helper()
@@ -9400,20 +9385,6 @@ func (mr *MockStoreMockRecorder) RegisterWorkspaceProxy(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterWorkspaceProxy", reflect.TypeOf((*MockStore)(nil).RegisterWorkspaceProxy), ctx, arg)
 }
 
-// ReleaseExternalAuthLinkRefreshLease mocks base method.
-func (m *MockStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg database.ReleaseExternalAuthLinkRefreshLeaseParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReleaseExternalAuthLinkRefreshLease", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ReleaseExternalAuthLinkRefreshLease indicates an expected call of ReleaseExternalAuthLinkRefreshLease.
-func (mr *MockStoreMockRecorder) ReleaseExternalAuthLinkRefreshLease(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseExternalAuthLinkRefreshLease), ctx, arg)
-}
-
 // RemoveUserFromGroups mocks base method.
 func (m *MockStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -9500,6 +9471,20 @@ func (m *MockStore) SetChatContextSnapshot(ctx context.Context, arg database.Set
 func (mr *MockStoreMockRecorder) SetChatContextSnapshot(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatContextSnapshot", reflect.TypeOf((*MockStore)(nil).SetChatContextSnapshot), ctx, arg)
+}
+
+// SetExternalAuthLinkRefreshLease mocks base method.
+func (m *MockStore) SetExternalAuthLinkRefreshLease(ctx context.Context, arg database.SetExternalAuthLinkRefreshLeaseParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetExternalAuthLinkRefreshLease", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetExternalAuthLinkRefreshLease indicates an expected call of SetExternalAuthLinkRefreshLease.
+func (mr *MockStoreMockRecorder) SetExternalAuthLinkRefreshLease(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).SetExternalAuthLinkRefreshLease), ctx, arg)
 }
 
 // SoftDeleteChatMessageByID mocks base method.

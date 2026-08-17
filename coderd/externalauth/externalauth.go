@@ -295,46 +295,81 @@ func (c *Config) refreshAndValidateWithLease(ctx context.Context, db database.St
 		maximum = c.RefreshLeaseMaxBackoff
 	}
 	r := retry.New(initial, maximum)
+	lockID := database.GenLockID(fmt.Sprintf("external-auth-refresh:%s-%s", c.ID, externalAuthLink.UserID.String()))
+	gotLease := false
 	for {
-		var err error
-		dblink, err = db.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
-			ProviderID:            externalAuthLink.ProviderID,
-			UserID:                externalAuthLink.UserID,
-			RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
-		})
+		// A refresh can take an arbitrary amount of time, so to avoid holding a
+		// connection to the database during that time, we only lock temporarily to
+		// mark the row as being refreshed if not already being refreshed.
+		err := db.InTx(func(tx database.Store) error {
+			ok, err := tx.TryAcquireLock(ctx, lockID)
+			if err != nil {
+				return xerrors.Errorf("try acquire external auth lock: %w", err)
+			}
+			// Link is being refreshed by something else.
+			if !ok {
+				return nil
+			}
+			// Fetch the latest link so we have up-to-date lease information.
+			dblink, err = tx.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+				ProviderID: externalAuthLink.ProviderID,
+				UserID:     externalAuthLink.UserID,
+			})
+			if err != nil {
+				return err
+			}
+			// Link is being refreshed by something else.
+			if dblink.RefreshLeaseExpiresAt.Valid &&
+				dblink.RefreshLeaseExpiresAt.Time.After(dbtime.Now()) {
+				return nil
+			}
+			// Link was refreshed while we waited.
+			if dblink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
+				return nil
+			}
+			// Acquire the lease.
+			err = tx.SetExternalAuthLinkRefreshLease(ctx, database.SetExternalAuthLinkRefreshLeaseParams{
+				ProviderID:            externalAuthLink.ProviderID,
+				UserID:                externalAuthLink.UserID,
+				RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+			gotLease = true
+			return nil
+		}, nil)
 		switch {
-		case errors.Is(err, sql.ErrNoRows):
+		case gotLease:
+			// We now hold the lock.
+			goto refresh
+		case err != nil:
+			// Some kind of DB error.
+			return externalAuthLink, err
+		// If we got a different token, it means something else refreshed either
+		// while we were waiting or before we got a hold of the lease but after we
+		// initially fetched the link.
+		case dblink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken:
+			if dblink.OauthRefreshFailureReason != "" {
+				return externalAuthLink, refreshError(dblink, dblink.OauthRefreshFailureReason)
+			}
+			return dblink, nil
+		default:
 			// Something still holds the lock; keep waiting.
 			if !r.Wait(ctx) {
 				return externalAuthLink, ctx.Err()
 			}
-		case err != nil:
-			// Some kind of DB error.
-			return externalAuthLink, err
-		default:
-			// We now hold the lock.
-			goto refresh
 		}
 	}
 
 refresh:
 	defer func() {
-		refreshErr = errors.Join(refreshErr, db.ReleaseExternalAuthLinkRefreshLease(ctx, database.ReleaseExternalAuthLinkRefreshLeaseParams{
+		refreshErr = errors.Join(refreshErr, db.SetExternalAuthLinkRefreshLease(ctx, database.SetExternalAuthLinkRefreshLeaseParams{
 			ProviderID:            externalAuthLink.ProviderID,
 			UserID:                externalAuthLink.UserID,
-			RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
+			RefreshLeaseExpiresAt: sql.NullTime{},
 		}))
 	}()
-
-	// If we got a different token, it means something else refreshed either
-	// while we were waiting or before we got a hold of the lease but after we
-	// initially fetched the link.
-	if dblink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
-		if dblink.OauthRefreshFailureReason != "" {
-			return externalAuthLink, refreshError(dblink, dblink.OauthRefreshFailureReason)
-		}
-		return dblink, nil
-	}
 
 	// Otherwise the token has still not been updated; refresh it now.
 	newLink, refreshErr = c.refreshAndValidateToken(ctx, db, dblink, lease)
