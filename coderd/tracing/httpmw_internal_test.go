@@ -28,7 +28,7 @@ func TestValidSessionID(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, c.valid, ValidSessionID(c.id))
+			require.Equal(t, c.valid, validSessionID(c.id))
 		})
 	}
 }

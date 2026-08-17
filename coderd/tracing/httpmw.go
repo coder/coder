@@ -51,10 +51,10 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 				return
 			}
 
-			// Read the client_session_id from baggage and add it to the log context.
-			// This is done even when tracing is disabled so that logs can
+			// Read the client_session_id from the request and add it to the log
+			// context. This is done even when tracing is disabled so that logs can
 			// always be correlated by client_session_id.
-			sessionID := sessionIDFromHeaders(r.Header)
+			sessionID := sessionIDFromRequest(r)
 			if sessionID != "" {
 				r = r.WithContext(slog.With(r.Context(), slog.F("client_session_id", sessionID)))
 			}
@@ -81,6 +81,23 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 	}
 }
 
+// sessionIDFromRequest extracts and validates the client_session_id from the
+// request. It prefers the W3C baggage member and falls back to the
+// client_session_id query parameter. The query parameter fallback exists
+// because browser WebSocket clients (such as the web terminal PTY) cannot set
+// arbitrary baggage headers. It returns an empty string when neither source
+// provides a valid value.
+func sessionIDFromRequest(r *http.Request) string {
+	if id := sessionIDFromHeaders(r.Header); id != "" {
+		return id
+	}
+	id := r.URL.Query().Get(SessionIDBaggageKey)
+	if !validSessionID(id) {
+		return ""
+	}
+	return id
+}
+
 // sessionIDFromHeaders extracts and validates the client_session_id baggage member
 // from the request headers. It returns an empty string when the member is
 // absent or malformed. Extraction uses an explicit baggage propagator so it
@@ -88,18 +105,18 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 func sessionIDFromHeaders(h http.Header) string {
 	ctx := propagation.Baggage{}.Extract(context.Background(), propagation.HeaderCarrier(h))
 	id := baggage.FromContext(ctx).Member(SessionIDBaggageKey).Value()
-	if !ValidSessionID(id) {
+	if !validSessionID(id) {
 		return ""
 	}
 	return id
 }
 
-// ValidSessionID reports whether s is a 32-character lowercase hexadecimal
+// validSessionID reports whether s is a 32-character lowercase hexadecimal
 // string (a 16-byte value), the encoding the RFC mandates for the session ID.
 // Only lowercase is accepted so that case-sensitive searches correlate
 // reliably. Validating also guards against logging arbitrary client-controlled
 // baggage values.
-func ValidSessionID(s string) bool {
+func validSessionID(s string) bool {
 	b, err := hex.DecodeString(s)
 	if err != nil || len(b) != 16 {
 		return false
