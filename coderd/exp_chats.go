@@ -6914,7 +6914,7 @@ func (api *API) inChatModelConfigWriteTx(ctx context.Context, fn func(tx databas
 			return xerrors.Errorf("acquire chat model config write lock: %w", err)
 		}
 		return fn(tx)
-	}, nil)
+	}, &database.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -7026,7 +7026,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return errChatProviderMissing
 			}
-			return xerrors.Errorf("get AI provider for update: %w", err)
+			return xerrors.Errorf("get AI provider for create: %w", err)
 		}
 		if !lockedAIProvider.Enabled {
 			return errChatProviderDisabled

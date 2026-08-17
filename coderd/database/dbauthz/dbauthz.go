@@ -2224,13 +2224,6 @@ func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 	return q.db.DeleteChatModelConfigByID(ctx, id)
 }
 
-func (q *querier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIProvider); err != nil {
-		return err
-	}
-	return q.db.DeleteChatModelConfigsByAIProviderID(ctx, aiProviderID)
-}
-
 func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
