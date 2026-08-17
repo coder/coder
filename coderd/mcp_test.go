@@ -1280,6 +1280,17 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		registrationStarted := make(chan struct{})
+		completeRegistration := make(chan struct{})
+		var blockRegistration sync.Once
+		var completeRegistrationOnce sync.Once
+		releaseRegistration := func() {
+			completeRegistrationOnce.Do(func() {
+				close(completeRegistration)
+			})
+		}
+		t.Cleanup(releaseRegistration)
+
 		// Stand up a mock auth server that serves RFC 8414 metadata and
 		// a RFC 7591 dynamic client registration endpoint.
 		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1300,6 +1311,10 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 					return
 				}
+				blockRegistration.Do(func() {
+					close(registrationStarted)
+					<-completeRegistration
+				})
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusCreated)
 				_, _ = w.Write([]byte(`{
@@ -1331,23 +1346,50 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		}))
 		t.Cleanup(mcpServer.Close)
 
-		client := newMCPClient(t)
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		// Create config with auth_type=oauth2 but no OAuth2 fields —
-		// the server should auto-discover them.
-		created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
-			DisplayName:   "Auto-Discovery Server",
-			Slug:          "auto-discovery",
-			Transport:     "streamable_http",
-			URL:           mcpServer.URL + "/v1/mcp",
-			AuthType:      "oauth2",
-			Availability:  "default_on",
-			Enabled:       true,
-			ToolAllowList: []string{},
-			ToolDenyList:  []string{},
+		type createResult struct {
+			config codersdk.MCPServerConfig
+			err    error
+		}
+		createdCh := make(chan createResult, 1)
+		go func() {
+			created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+				DisplayName:   "Auto-Discovery Server",
+				Slug:          "auto-discovery",
+				Transport:     "streamable_http",
+				URL:           mcpServer.URL + "/v1/mcp",
+				AuthType:      "oauth2",
+				Availability:  "default_on",
+				Enabled:       true,
+				ToolAllowList: []string{},
+				ToolDenyList:  []string{},
+			})
+			createdCh <- createResult{config: created, err: err}
+		}()
+
+		select {
+		case <-registrationStarted:
+		case <-time.After(testutil.WaitShort):
+			releaseRegistration()
+			t.Fatal("timed out waiting for dynamic client registration")
+		}
+		//nolint:gocritic // Verifying persisted state requires system access.
+		_, err := db.GetMCPServerConfigByOrganizationAndSlug(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: firstUser.OrganizationID,
+			Slug:           "auto-discovery",
 		})
-		require.NoError(t, err)
+		releaseRegistration()
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		create := <-createdCh
+		require.NoError(t, create.err)
+		created := create.config
 		require.Equal(t, "auto-discovered-client-id", created.OAuth2ClientID)
 		require.True(t, created.HasOAuth2Secret)
 		require.Equal(t, authServer.URL+"/authorize", created.OAuth2AuthURL)
@@ -1865,7 +1907,11 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		}))
 		t.Cleanup(mcpServer.Close)
 
-		client := newMCPClient(t)
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
@@ -1884,6 +1930,12 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "auto-discovery failed")
+		//nolint:gocritic // Verifying persisted state requires system access.
+		_, err = db.GetMCPServerConfigByOrganizationAndSlug(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: firstUser.OrganizationID,
+			Slug:           "discovery-fail",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 
 	t.Run("ManualConfigStillWorks", func(t *testing.T) {

@@ -348,6 +348,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	}
 
 	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
+		ID:                      takeFirst(seed.ID, uuid.New()),
 		OrganizationID:          organizationID,
 		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
 		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),

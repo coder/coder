@@ -266,13 +266,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		// Metadata (RFC 9728) and Authorization Server Metadata
 		// (RFC 8414), then register a client dynamically.
 		if req.OAuth2ClientID == "" && req.OAuth2AuthURL == "" && req.OAuth2TokenURL == "" {
-			// Auto-discovery flow: we need the config ID first to
-			// build the correct callback URL.  Insert the record
-			// with empty OAuth2 fields, perform discovery, then
-			// update. The flow also updates the row with discovered
-			// credentials and deletes it when discovery fails, so
-			// require those actions up front rather than inserting a
-			// row a create-only caller can neither finish nor remove.
+			// Automatic discovery registration deliberately requires full
+			// MCP server config management permissions.
 			if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) ||
 				!api.Authorize(r, policy.ActionDelete, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) {
 				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
@@ -290,7 +285,52 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			configID := uuid.New()
+			callbackURL := api.AccessURL.String() + mcpServerOAuth2CallbackPath(configID)
+			// Discovery targets are attacker-influenced (the MCP
+			// server URL and any endpoints or redirects it
+			// advertises), so all discovery traffic goes through an
+			// SSRF-guarded client that refuses private/internal
+			// destinations (CDM-02-002).
+			httpClient := newMCPDiscoveryHTTPClient(api.HTTPClient, api.MCPOAuth2DiscoveryAllowedIPRanges)
+			result, err := discoverAndRegisterMCPOAuth2(ctx, httpClient, strings.TrimSpace(req.URL), callbackURL)
+			if err != nil {
+				api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",
+					slog.F("url", req.URL),
+					slog.Error(err),
+				)
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "OAuth2 auto-discovery failed. Provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url manually, or ensure the MCP server supports RFC 9728 (Protected Resource Metadata) and RFC 7591 (Dynamic Client Registration).",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
+			// Determine scopes: use the request value if provided,
+			// otherwise fall back to the discovered value.
+			oauth2Scopes := strings.TrimSpace(req.OAuth2Scopes)
+			if oauth2Scopes == "" {
+				oauth2Scopes = result.scopes
+			}
+
+			// A discovered endpoint that fails the HTTPS policy is
+			// dropped instead of failing creation.
+			oauth2RevocationURL := strings.TrimSpace(req.OAuth2RevocationURL)
+			if oauth2RevocationURL == "" {
+				oauth2RevocationURL = result.revocationURL
+				if oauth2RevocationURL != "" {
+					if err := mcpclient.ValidateRevocationEndpoint(oauth2RevocationURL); err != nil {
+						api.Logger.Warn(ctx, "ignoring discovered MCP oauth2 revocation endpoint",
+							slog.F("url", req.URL),
+							slog.Error(err),
+						)
+						oauth2RevocationURL = ""
+					}
+				}
+			}
+
 			inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+				ID:                      configID,
 				OrganizationID:          organization.ID,
 				DisplayName:             strings.TrimSpace(req.DisplayName),
 				Slug:                    strings.TrimSpace(req.Slug),
@@ -299,13 +339,13 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				Transport:               strings.TrimSpace(req.Transport),
 				Url:                     strings.TrimSpace(req.URL),
 				AuthType:                strings.TrimSpace(req.AuthType),
-				OAuth2ClientID:          "",
-				OAuth2ClientSecret:      "",
+				OAuth2ClientID:          result.clientID,
+				OAuth2ClientSecret:      result.clientSecret,
 				OAuth2ClientSecretKeyID: sql.NullString{},
-				OAuth2AuthURL:           "",
-				OAuth2TokenURL:          "",
-				OAuth2RevocationURL:     "",
-				OAuth2Scopes:            "",
+				OAuth2AuthURL:           result.authURL,
+				OAuth2TokenURL:          result.tokenURL,
+				OAuth2RevocationURL:     oauth2RevocationURL,
+				OAuth2Scopes:            oauth2Scopes,
 				APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
 				APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
 				APIKeyValueKeyID:        sql.NullString{},
@@ -344,99 +384,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			// Now build the callback URL with the actual ID.
-			callbackURL := api.AccessURL.String() + mcpServerOAuth2CallbackPath(inserted.ID)
-			// Discovery targets are attacker-influenced (the MCP
-			// server URL and any endpoints or redirects it
-			// advertises), so all discovery traffic goes through an
-			// SSRF-guarded client that refuses private/internal
-			// destinations (CDM-02-002).
-			httpClient := newMCPDiscoveryHTTPClient(api.HTTPClient, api.MCPOAuth2DiscoveryAllowedIPRanges)
-			result, err := discoverAndRegisterMCPOAuth2(ctx, httpClient, strings.TrimSpace(req.URL), callbackURL)
-			if err != nil {
-				// Clean up: delete the partially created config.
-				deleteErr := api.Database.DeleteMCPServerConfigByID(ctx, inserted.ID)
-				if deleteErr != nil {
-					api.Logger.Warn(ctx, "failed to clean up MCP server config after OAuth2 discovery failure",
-						slog.F("config_id", inserted.ID),
-						slog.Error(deleteErr),
-					)
-				}
-
-				api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",
-					slog.F("url", req.URL),
-					slog.Error(err),
-				)
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "OAuth2 auto-discovery failed. Provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url manually, or ensure the MCP server supports RFC 9728 (Protected Resource Metadata) and RFC 7591 (Dynamic Client Registration).",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			// Determine scopes: use the request value if provided,
-			// otherwise fall back to the discovered value.
-			oauth2Scopes := strings.TrimSpace(req.OAuth2Scopes)
-			if oauth2Scopes == "" {
-				oauth2Scopes = result.scopes
-			}
-
-			// A discovered endpoint that fails the HTTPS policy is
-			// dropped instead of failing creation.
-			oauth2RevocationURL := strings.TrimSpace(req.OAuth2RevocationURL)
-			if oauth2RevocationURL == "" {
-				oauth2RevocationURL = result.revocationURL
-				if oauth2RevocationURL != "" {
-					if err := mcpclient.ValidateRevocationEndpoint(oauth2RevocationURL); err != nil {
-						api.Logger.Warn(ctx, "ignoring discovered MCP oauth2 revocation endpoint",
-							slog.F("url", req.URL),
-							slog.Error(err),
-						)
-						oauth2RevocationURL = ""
-					}
-				}
-			}
-
-			// Update the record with discovered OAuth2 credentials.
-			updated, err := api.Database.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
-				ID:                      inserted.ID,
-				DisplayName:             inserted.DisplayName,
-				Slug:                    inserted.Slug,
-				Description:             inserted.Description,
-				IconURL:                 inserted.IconURL,
-				Transport:               inserted.Transport,
-				Url:                     inserted.Url,
-				AuthType:                inserted.AuthType,
-				OAuth2ClientID:          result.clientID,
-				OAuth2ClientSecret:      result.clientSecret,
-				OAuth2ClientSecretKeyID: sql.NullString{},
-				OAuth2AuthURL:           result.authURL,
-				OAuth2TokenURL:          result.tokenURL,
-				OAuth2RevocationURL:     oauth2RevocationURL,
-				OAuth2Scopes:            oauth2Scopes,
-				APIKeyHeader:            inserted.APIKeyHeader,
-				APIKeyValue:             inserted.APIKeyValue,
-				APIKeyValueKeyID:        inserted.APIKeyValueKeyID,
-				CustomHeaders:           inserted.CustomHeaders,
-				CustomHeadersKeyID:      inserted.CustomHeadersKeyID,
-				ToolAllowList:           inserted.ToolAllowList,
-				ToolDenyList:            inserted.ToolDenyList,
-				Availability:            inserted.Availability,
-				Enabled:                 inserted.Enabled,
-				ModelIntent:             inserted.ModelIntent,
-				AllowInPlanMode:         inserted.AllowInPlanMode,
-				ForwardCoderHeaders:     inserted.ForwardCoderHeaders,
-				UpdatedBy:               apiKey.UserID,
-			})
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to update MCP server config with OAuth2 credentials.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(updated))
+			httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(inserted))
 			return
 		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
 			// Partial manual config: all three fields are required together.
@@ -471,6 +419,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		ID:                      uuid.New(),
 		OrganizationID:          organization.ID,
 		DisplayName:             strings.TrimSpace(req.DisplayName),
 		Slug:                    strings.TrimSpace(req.Slug),

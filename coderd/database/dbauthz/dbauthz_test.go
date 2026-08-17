@@ -1726,6 +1726,7 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("InsertMCPServerConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertMCPServerConfigParams{
+			ID:             uuid.New(),
 			OrganizationID: uuid.New(),
 			DisplayName:    "Test MCP Server",
 			Slug:           "test-mcp-server",

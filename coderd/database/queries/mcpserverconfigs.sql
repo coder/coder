@@ -73,6 +73,7 @@ ORDER BY
 
 -- name: InsertMCPServerConfig :one
 INSERT INTO mcp_server_configs (
+    id,
     organization_id,
     display_name,
     slug,
@@ -103,6 +104,7 @@ INSERT INTO mcp_server_configs (
     created_by,
     updated_by
 ) VALUES (
+    @id::uuid,
     @organization_id::uuid,
     @display_name::text,
     @slug::text,

@@ -681,6 +681,7 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		chatOrg := dbgen.Organization(t, db, database.Organization{})
 		user := dbgen.User(t, db, database.User{})
 		disabledCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+			ID:             uuid.New(),
 			OrganizationID: chatOrg.ID,
 			DisplayName:    "Disabled MCP Server",
 			Slug:           testutil.GetRandomName(t),
