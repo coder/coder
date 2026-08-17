@@ -27,7 +27,6 @@ import (
 // @Produce json
 // @Param request body codersdk.DynamicParametersRequest true "Initial parameter values"
 // @Success 200 {object} codersdk.DynamicParametersResponse
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate [post]
 func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

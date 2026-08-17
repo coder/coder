@@ -43,7 +43,6 @@ import (
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param request body codersdk.CreateTaskRequest true "Create task request"
 // @Success 201 {object} codersdk.Task
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/tasks/{user} [post]
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -687,7 +686,6 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 // @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.UpdateTaskInputRequest true "Update task input request"
 // @Success 204
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/tasks/{user}/{task}/input [patch]
 func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -768,7 +766,6 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 // @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.TaskSendRequest true "Task input request"
 // @Success 204
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/tasks/{user}/{task}/send [post]
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

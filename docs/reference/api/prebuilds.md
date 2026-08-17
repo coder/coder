@@ -76,10 +76,9 @@ curl -X PUT http://coder-server:8080/api/v2/prebuilds/settings \
 
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                                             |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.PrebuildsSettings](schemas.md#codersdkprebuildssettings) |
-| 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1)         | Not Modified             |                                                                    |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)                   |
+| Status | Meaning                                                         | Description  | Schema                                                             |
+|--------|-----------------------------------------------------------------|--------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK           | [codersdk.PrebuildsSettings](schemas.md#codersdkprebuildssettings) |
+| 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1) | Not Modified |                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

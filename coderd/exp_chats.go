@@ -1216,7 +1216,6 @@ func (api *API) validateExplicitChatModelConfigAvailable(
 // @Produce json
 // @Param request body codersdk.CreateChatRequest true "Create chat request"
 // @Success 201 {object} codersdk.Chat
-// @Failure 413 {object} codersdk.Response
 // @Router /api/experimental/chats [post]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
@@ -2312,7 +2311,6 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.UpdateChatRequest true "Update chat request"
 // @Success 204
-// @Failure 413 {object} codersdk.Response
 // @Router /api/experimental/chats/{chat} [patch]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
@@ -2642,7 +2640,6 @@ func writeCommonChatMutationError(ctx context.Context, rw http.ResponseWriter, e
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.CreateChatMessageRequest true "Create chat message request"
 // @Success 200 {object} codersdk.CreateChatMessageResponse
-// @Failure 413 {object} codersdk.Response
 // @Router /api/experimental/chats/{chat}/messages [post]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
@@ -2874,7 +2871,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Param message path int true "Message ID"
 // @Param request body codersdk.EditChatMessageRequest true "Edit chat message request"
 // @Success 200 {object} codersdk.EditChatMessageResponse
-// @Failure 413 {object} codersdk.Response
 // @Router /api/experimental/chats/{chat}/messages/{message} [patch]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
@@ -5391,7 +5387,6 @@ const retentionDaysMaximum = 3650 // ~10 years
 // @Accept json
 // @Param request body codersdk.UpdateChatRetentionDaysRequest true "Request body"
 // @Success 204
-// @Failure 413 {object} codersdk.Response
 // @Router /api/experimental/chats/config/retention-days [put]
 // @x-apidocgen {"skip": true}
 func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
@@ -5766,7 +5761,6 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
 // @Success 201 {object} codersdk.UploadChatFileResponse
-// @Failure 413 {object} codersdk.Response
 // @Router /api/experimental/chats/files [post]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {

@@ -44,7 +44,6 @@ var errUserSecretInjectionTargetRequired = xerrors.New("enabled user secret must
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.CreateUserSecretRequest true "Create secret request"
 // @Success 201 {object} codersdk.UserSecret
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/secrets [post]
 func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -331,7 +330,6 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolin
 // @Param name path string true "Secret name"
 // @Param request body codersdk.UpdateUserSecretRequest true "Update secret request"
 // @Success 200 {object} codersdk.UserSecret
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/secrets/{name} [patch]
 func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (

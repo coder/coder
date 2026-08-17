@@ -131,12 +131,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -221,12 +215,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -286,12 +274,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -341,12 +323,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadChatFileResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -517,12 +493,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -602,12 +572,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -894,12 +858,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.CreateChatMessageResponse"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -954,12 +912,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.EditChatMessageResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -1303,12 +1255,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSkill"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -1442,12 +1388,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSkill"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -1678,12 +1618,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.CreateAIGatewayKeyResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -1932,12 +1866,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.AIProvider"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -2042,12 +1970,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.AIProvider"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -2109,12 +2031,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -2208,12 +2124,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenResponse"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -2296,12 +2206,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -2363,12 +2267,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.AuthorizationResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -2651,12 +2549,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/healthsdk.UpdateHealthSettings"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -3223,12 +3115,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -3483,12 +3369,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Group"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -3568,12 +3448,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.GroupAIBudget"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -4081,12 +3955,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.License"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -4189,12 +4057,6 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "System users cannot send custom notifications",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -4392,12 +4254,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -4463,12 +4319,6 @@ const docTemplate = `{
                     },
                     "304": {
                         "description": "Not Modified"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -4571,12 +4421,6 @@ const docTemplate = `{
                     },
                     "304": {
                         "description": "Not modified"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -4669,12 +4513,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -4752,12 +4590,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -4954,12 +4786,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ProviderSettings"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -5024,12 +4850,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Organization"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -5141,12 +4961,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Organization"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -5276,12 +5090,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Group"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -5609,12 +5417,6 @@ const docTemplate = `{
                                 "$ref": "#/definitions/codersdk.Role"
                             }
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -5662,12 +5464,6 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.Role"
                             }
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -5880,12 +5676,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OrganizationMember"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -5983,12 +5773,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Workspace"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -6487,12 +6271,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.CreateProvisionerKeyResponse"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -6729,12 +6507,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.GroupSyncSettings"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -6782,12 +6554,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.GroupSyncSettings"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -6834,12 +6600,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.GroupSyncSettings"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -6921,12 +6681,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.RoleSyncSettings"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -6974,12 +6728,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.RoleSyncSettings"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -7026,12 +6774,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.RoleSyncSettings"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -7112,12 +6854,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -7201,12 +6937,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Template"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -7437,12 +7167,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -7508,12 +7232,6 @@ const docTemplate = `{
                     },
                     "304": {
                         "description": "Not Modified"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -7747,12 +7465,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -7792,12 +7504,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -7836,12 +7542,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -7940,12 +7640,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Task"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -8068,12 +7762,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -8246,12 +7934,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -8313,12 +7995,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -8373,12 +8049,6 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -8454,12 +8124,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -8630,12 +8294,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Template"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -8713,12 +8371,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -8938,12 +8590,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -8988,12 +8634,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -9122,12 +8762,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -9244,12 +8878,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ProvisionerJob"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -9575,12 +9203,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.DynamicParametersResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -10047,12 +9669,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -10140,12 +9756,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.CreateFirstUserResponse"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -10184,12 +9794,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.LoginWithPasswordResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -10332,12 +9936,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 }
             }
@@ -10366,12 +9964,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 }
             }
@@ -10433,12 +10025,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ValidateUserPasswordResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -10578,12 +10164,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserAIBudgetOverride"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -10722,12 +10302,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserAppearanceSettings"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -10817,12 +10391,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuthConversionResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -11010,12 +10578,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.GenerateAPIKeyResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -11335,12 +10897,6 @@ const docTemplate = `{
                                 "$ref": "#/definitions/codersdk.NotificationPreference"
                             }
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -11459,12 +11015,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -11543,12 +11093,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserPreferenceSettings"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -11594,12 +11138,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -11687,12 +11225,6 @@ const docTemplate = `{
                                 "$ref": "#/definitions/codersdk.UserQuietHoursScheduleResponse"
                             }
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -11770,12 +11302,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -11857,12 +11383,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -12056,12 +11576,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -12170,12 +11684,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -12217,12 +11725,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -12400,12 +11902,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -12480,12 +11976,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -12524,12 +12014,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -12598,12 +12082,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -12641,12 +12119,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -12808,12 +12280,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -12850,12 +12316,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -13792,12 +13252,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -13898,12 +13352,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -13937,12 +13385,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -14038,12 +13480,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -14086,12 +13522,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/wsproxysdk.IssueSignedAppTokenResponse"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -14133,12 +13563,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyResponse"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -14255,12 +13679,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceProxy"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -14387,12 +13805,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -14497,12 +13909,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -14579,12 +13985,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -14626,12 +14026,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -14741,12 +14135,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -14794,12 +14182,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -14844,12 +14226,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -15031,12 +14407,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentPortShare"
                         }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -15076,12 +14446,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -15193,12 +14557,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [
@@ -15239,12 +14597,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 },
                 "security": [

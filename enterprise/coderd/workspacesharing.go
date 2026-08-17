@@ -59,7 +59,6 @@ func (api *API) workspaceSharingSettings(rw http.ResponseWriter, r *http.Request
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceSharingSettingsRequest true "Workspace sharing settings"
 // @Success 200 {object} codersdk.WorkspaceSharingSettings
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization}/settings/workspace-sharing [patch]
 func (api *API) patchWorkspaceSharingSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

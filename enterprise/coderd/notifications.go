@@ -22,7 +22,6 @@ import (
 // @Tags Enterprise
 // @Success 200 "Success"
 // @Success 304 "Not modified"
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/notifications/templates/{notification_template}/method [put]
 func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http.Request) {
 	var (

@@ -72,7 +72,6 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Tags Enterprise
 // @Param request body codersdk.AddLicenseRequest true "Add license request"
 // @Success 201 {object} codersdk.License
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	var (

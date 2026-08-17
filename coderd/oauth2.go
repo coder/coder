@@ -46,7 +46,6 @@ func (api *API) oAuth2ProviderApp() http.HandlerFunc {
 // @Tags Enterprise
 // @Param request body codersdk.PostOAuth2ProviderAppRequest true "The OAuth2 application to create."
 // @Success 200 {object} codersdk.OAuth2ProviderApp
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/oauth2-provider/apps [post]
 func (api *API) postOAuth2ProviderApp() http.HandlerFunc {
 	return oauth2provider.CreateApp(api.Database, api.AccessURL, api.Auditor.Load(), api.Logger)
@@ -61,7 +60,6 @@ func (api *API) postOAuth2ProviderApp() http.HandlerFunc {
 // @Param app path string true "App ID"
 // @Param request body codersdk.PutOAuth2ProviderAppRequest true "Update an OAuth2 application."
 // @Success 200 {object} codersdk.OAuth2ProviderApp
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/oauth2-provider/apps/{app} [put]
 func (api *API) putOAuth2ProviderApp() http.HandlerFunc {
 	return oauth2provider.UpdateApp(api.Database, api.AccessURL, api.Auditor.Load(), api.Logger)
@@ -246,7 +244,6 @@ func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) 
 // @Tags Enterprise
 // @Param request body codersdk.OAuth2ProviderSettings true "OAuth2 provider settings request"
 // @Success 200 {object} codersdk.OAuth2ProviderSettings
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/oauth2-provider/settings [put]
 func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

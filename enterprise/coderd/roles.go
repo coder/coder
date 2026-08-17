@@ -30,7 +30,6 @@ import (
 // @Param request body codersdk.CustomRoleRequest true "Insert role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization}/members/roles [post]
 func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -98,7 +97,6 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.CustomRoleRequest true "Update role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/organizations/{organization}/members/roles [put]
 func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	var (

@@ -350,10 +350,9 @@ of the template will be used.
 
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                             |
-|--------|-------------------------------------------------------------------------|--------------------------|----------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.Workspace](schemas.md#codersdkworkspace) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)   |
+| Status | Meaning                                                      | Description | Schema                                             |
+|--------|--------------------------------------------------------------|-------------|----------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Workspace](schemas.md#codersdkworkspace) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1084,10 +1083,9 @@ of the template will be used.
 
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                             |
-|--------|-------------------------------------------------------------------------|--------------------------|----------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.Workspace](schemas.md#codersdkworkspace) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)   |
+| Status | Meaning                                                      | Description | Schema                                             |
+|--------|--------------------------------------------------------------|-------------|----------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Workspace](schemas.md#codersdkworkspace) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1725,7 +1723,6 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
   -H 'Content-Type: application/json' \
-  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1746,16 +1743,11 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
 | `workspace` | path | string(uuid)                                                                 | true     | Workspace ID            |
 | `body`      | body | [codersdk.UpdateWorkspaceRequest](schemas.md#codersdkupdateworkspacerequest) | true     | Metadata update request |
 
-### Example responses
-
-> 413 Response
-
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                           |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1869,7 +1861,6 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1897,29 +1888,11 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 | `workspace` | path | string(uuid)                                                         | true     | Workspace ID                 |
 | `body`      | body | [codersdk.UpdateWorkspaceACL](schemas.md#codersdkupdateworkspaceacl) | true     | Update workspace ACL request |
 
-### Example responses
-
-> 413 Response
-
-```json
-{
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
-}
-```
-
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                           |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1981,7 +1954,6 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
   -H 'Content-Type: application/json' \
-  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -2002,16 +1974,11 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 | `workspace` | path | string(uuid)                                                                                   | true     | Workspace ID            |
 | `body`      | body | [codersdk.UpdateWorkspaceAutostartRequest](schemas.md#codersdkupdateworkspaceautostartrequest) | true     | Schedule update request |
 
-### Example responses
-
-> 413 Response
-
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                           |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2023,7 +1990,6 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autoupdates \
   -H 'Content-Type: application/json' \
-  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -2044,16 +2010,11 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autoupdates \
 | `workspace` | path | string(uuid)                                                                                                 | true     | Workspace ID              |
 | `body`      | body | [codersdk.UpdateWorkspaceAutomaticUpdatesRequest](schemas.md#codersdkupdateworkspaceautomaticupdatesrequest) | true     | Automatic updates request |
 
-### Example responses
-
-> 413 Response
-
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                           |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2384,10 +2345,9 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                             |
-|--------|-------------------------------------------------------------------------|--------------------------|----------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.Workspace](schemas.md#codersdkworkspace) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)   |
+| Status | Meaning                                                 | Description | Schema                                             |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2439,10 +2399,9 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                           |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.Response](schemas.md#codersdkresponse) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2611,7 +2570,6 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
   -H 'Content-Type: application/json' \
-  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -2632,16 +2590,11 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 | `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
 | `body`      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Workspace TTL update request |
 
-### Example responses
-
-> 413 Response
-
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                           |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2653,7 +2606,6 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
   -H 'Content-Type: application/json' \
-  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -2675,16 +2627,11 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
 | `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
 | `body`      | body | [codersdk.PostWorkspaceUsageRequest](schemas.md#codersdkpostworkspaceusagerequest) | false    | Post workspace usage request |
 
-### Example responses
-
-> 413 Response
-
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                           |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)         | No Content               |                                                  |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

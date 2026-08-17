@@ -141,7 +141,6 @@ func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 // @Tags Git
 // @Param externalauth path string true "External Provider ID" format(string)
 // @Success 204
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/external-auth/{externalauth}/device [post]
 func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

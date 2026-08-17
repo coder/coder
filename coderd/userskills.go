@@ -44,7 +44,6 @@ const (
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.CreateUserSkillRequest true "Create user skill request"
 // @Success 201 {object} codersdk.UserSkill
-// @Failure 413 {object} codersdk.Response
 // @Router /api/experimental/users/{user}/skills [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
@@ -179,7 +178,6 @@ func (api *API) getUserSkill(rw http.ResponseWriter, r *http.Request) { //nolint
 // @Param skillName path string true "Skill name"
 // @Param request body codersdk.UpdateUserSkillRequest true "Update user skill request"
 // @Success 200 {object} codersdk.UserSkill
-// @Failure 413 {object} codersdk.Response
 // @Router /api/experimental/users/{user}/skills/{skillName} [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {

@@ -204,7 +204,6 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 // @Tags Debug
 // @Param request body healthsdk.UpdateHealthSettings true "Update health settings"
 // @Success 200 {object} healthsdk.UpdateHealthSettings
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/debug/health/settings [put]
 func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

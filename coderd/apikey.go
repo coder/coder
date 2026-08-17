@@ -36,7 +36,6 @@ import (
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.CreateTokenRequest true "Create token request"
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/keys/tokens [post]
 func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	var (

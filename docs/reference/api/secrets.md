@@ -120,10 +120,9 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
 
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                               |
-|--------|-------------------------------------------------------------------------|--------------------------|------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | [codersdk.UserSecret](schemas.md#codersdkusersecret) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)     |
+| Status | Meaning                                                      | Description | Schema                                               |
+|--------|--------------------------------------------------------------|-------------|------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.UserSecret](schemas.md#codersdkusersecret) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -328,9 +327,8 @@ curl -X PATCH http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
 
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                               |
-|--------|-------------------------------------------------------------------------|--------------------------|------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [codersdk.UserSecret](schemas.md#codersdkusersecret) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)     |
+| Status | Meaning                                                 | Description | Schema                                               |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserSecret](schemas.md#codersdkusersecret) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

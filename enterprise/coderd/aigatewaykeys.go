@@ -28,7 +28,6 @@ const nameFormatDetail = "Must be 64 characters or fewer, lowercase letters, num
 // @Tags Enterprise
 // @Param request body codersdk.CreateAIGatewayKeyRequest true "Create AI Gateway key request"
 // @Success 201 {object} codersdk.CreateAIGatewayKeyResponse
-// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/ai-gateway/keys [post]
 func (api *API) postAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 	var (
