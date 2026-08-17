@@ -229,9 +229,9 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						)}
 
 						{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
-						<DropdownMenuItem asChild>
+						<DropdownMenuItem asChild className="items-start">
 							<Link to={route} target="_blank" rel="noreferrer">
-								<MonitorIcon className="size-3.5" />
+								<MonitorIcon className="mt-px size-3.5 shrink-0" />
 								<span className="flex min-w-0 flex-col">
 									<span className="truncate">View Workspace</span>
 									<span className="truncate text-[0.7rem] font-normal text-content-secondary">
