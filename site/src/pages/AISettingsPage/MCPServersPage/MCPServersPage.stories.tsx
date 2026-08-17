@@ -106,7 +106,9 @@ export const ListUsesDefaultOrganization: Story = {
 		});
 		await expect(canvas.getByText("Coder")).toBeVisible();
 		expect(
-			canvas.queryByRole("button", { name: "Organization" }),
+			canvas.queryByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
 		).not.toBeInTheDocument();
 	},
 };
@@ -130,7 +132,11 @@ export const ListSwitchesOrganization: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("Coder")).toBeVisible();
-		await userEvent.click(canvas.getByRole("button", { name: "Organization" }));
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await body.findByRole("option", {
@@ -205,7 +211,9 @@ export const AddToSelectedOrganization: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("button", { name: "Organization" }),
+			canvas.getByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
 		).toHaveTextContent(MockOrganization2.display_name);
 		await userEvent.type(canvas.getByLabelText(/display name/i), "GitHub");
 		await userEvent.type(
@@ -249,7 +257,9 @@ export const AddDisablesOrganizationWhileSaving: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
 		await waitFor(() => {
 			expect(
-				canvas.getByRole("button", { name: "Organization" }),
+				canvas.getByRole("button", {
+					name: `Organization ${MockDefaultOrganization.display_name}`,
+				}),
 			).toBeDisabled();
 		});
 	},
@@ -276,7 +286,11 @@ export const AddSwitchesOrganization: Story = {
 			canvas.getByLabelText(/server url/i),
 			"https://api.githubcopilot.com/mcp/",
 		);
-		await userEvent.click(canvas.getByRole("button", { name: "Organization" }));
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await body.findByRole("option", {
@@ -372,7 +386,11 @@ export const RowClickCarriesSelectedOrganization: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("Coder")).toBeVisible();
-		await userEvent.click(canvas.getByRole("button", { name: "Organization" }));
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await body.findByRole("option", {

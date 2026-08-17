@@ -23,6 +23,7 @@ type OrganizationAutocompleteProps = {
 	onChange: (organization: Organization | null) => void;
 	options: readonly Organization[];
 	id?: string;
+	ariaLabel?: string;
 	required?: boolean;
 	disabled?: boolean;
 };
@@ -32,6 +33,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	onChange,
 	options,
 	id,
+	ariaLabel,
 	required,
 	disabled,
 }) => {
@@ -42,6 +44,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			<PopoverTrigger asChild>
 				<Button
 					id={id}
+					aria-label={ariaLabel}
 					variant="outline"
 					disabled={disabled}
 					aria-expanded={open}

@@ -30,6 +30,7 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 			<Label htmlFor={id}>Organization</Label>
 			<OrganizationAutocomplete
 				id={id}
+				ariaLabel={`Organization ${organization.display_name}`}
 				value={organization}
 				onChange={(org) => {
 					if (org) {

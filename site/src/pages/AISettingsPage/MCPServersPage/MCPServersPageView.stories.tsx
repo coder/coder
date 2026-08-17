@@ -86,7 +86,9 @@ export const MultipleOrganizations: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const picker = canvas.getByRole("button", { name: "Organization" });
+		const picker = canvas.getByRole("button", {
+			name: `Organization ${MockDefaultOrganization.display_name}`,
+		});
 		await expect(picker).toBeVisible();
 		await expect(picker).toHaveTextContent(
 			MockDefaultOrganization.display_name,
