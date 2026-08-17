@@ -962,6 +962,27 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION drop_cross_org_chat_mcp_server_ids() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.mcp_server_ids IS NULL OR cardinality(NEW.mcp_server_ids) = 0 THEN
+        RETURN NEW;
+    END IF;
+    SELECT COALESCE(
+        array_agg(item.config_id ORDER BY item.position) FILTER (
+            WHERE config.id IS NULL
+                OR config.organization_id = NEW.organization_id
+        ),
+        '{}'::uuid[]
+    )
+    INTO NEW.mcp_server_ids
+    FROM unnest(NEW.mcp_server_ids) WITH ORDINALITY AS item(config_id, position)
+    LEFT JOIN mcp_server_configs AS config ON config.id = item.config_id;
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION enforce_user_ai_budget_override_membership() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1353,37 +1374,6 @@ BEGIN
         );
     END IF;
 
-    RETURN NEW;
-END;
-$$;
-
-CREATE FUNCTION remap_chat_mcp_server_ids_to_chat_org() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    IF NEW.mcp_server_ids IS NULL OR cardinality(NEW.mcp_server_ids) = 0 THEN
-        RETURN NEW;
-    END IF;
-    -- same_org_config.id is non-NULL only for the foreign, remappable case,
-    -- so COALESCE keeps missing and same-org IDs as written.
-    SELECT COALESCE(
-        array_agg(
-            COALESCE(same_org_config.id, item.config_id)
-            ORDER BY item.position
-        ) FILTER (
-            WHERE config.id IS NULL
-                OR config.organization_id = NEW.organization_id
-                OR same_org_config.id IS NOT NULL
-        ),
-        '{}'::uuid[]
-    )
-    INTO NEW.mcp_server_ids
-    FROM unnest(NEW.mcp_server_ids) WITH ORDINALITY AS item(config_id, position)
-    LEFT JOIN mcp_server_configs AS config ON config.id = item.config_id
-    LEFT JOIN mcp_server_configs AS same_org_config
-        ON config.organization_id != NEW.organization_id
-        AND same_org_config.organization_id = NEW.organization_id
-        AND same_org_config.slug = config.slug;
     RETURN NEW;
 END;
 $$;
@@ -5105,13 +5095,13 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
   GROUP BY pj.id, wb.workspace_id;
 
+CREATE TRIGGER drop_cross_org_chat_mcp_server_ids BEFORE INSERT OR UPDATE OF mcp_server_ids ON chats FOR EACH ROW EXECUTE FUNCTION drop_cross_org_chat_mcp_server_ids();
+
+COMMENT ON TRIGGER drop_cross_org_chat_mcp_server_ids ON chats IS 'Rolling-upgrade compatibility: drops config IDs written by pre-organization-scoping replicas that resolve to another organization''s config.';
+
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
 CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
-
-CREATE TRIGGER remap_chat_mcp_server_ids BEFORE INSERT OR UPDATE OF mcp_server_ids ON chats FOR EACH ROW EXECUTE FUNCTION remap_chat_mcp_server_ids_to_chat_org();
-
-COMMENT ON TRIGGER remap_chat_mcp_server_ids ON chats IS 'Rolling-upgrade compatibility: remaps config IDs written by pre-organization-scoping replicas to the chat organization''s same-slug config.';
 
 CREATE TRIGGER remove_chat_mcp_server_config_id BEFORE DELETE ON mcp_server_configs FOR EACH ROW EXECUTE FUNCTION remove_mcp_server_config_id_from_chats();
 

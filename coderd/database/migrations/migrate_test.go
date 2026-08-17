@@ -3019,18 +3019,14 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	err = sqlDB.QueryRowContext(ctx, `SELECT id FROM organizations WHERE is_default = true`).Scan(&defaultOrgID)
 	require.NoError(t, err)
 
-	liveOrgIDs := []uuid.UUID{uuid.New(), uuid.New()}
-	deletedOrgID := uuid.New()
-	organizationIDs := []uuid.UUID{liveOrgIDs[0], liveOrgIDs[1], deletedOrgID}
-	for i, orgID := range organizationIDs {
-		_, err = sqlDB.ExecContext(ctx, `
-			INSERT INTO organizations (
-				id, name, display_name, description, icon, created_at, updated_at,
-				is_default, deleted, default_org_member_roles
-			) VALUES ($1, $2, $3, '', '', $4, $4, false, $5, '{}')
-		`, orgID, fmt.Sprintf("migration-568-org-%d", i), fmt.Sprintf("Migration 568 Org %d", i), now, orgID == deletedOrgID)
-		require.NoError(t, err)
-	}
+	otherOrgID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO organizations (
+			id, name, display_name, description, icon, created_at, updated_at,
+			is_default, deleted, default_org_member_roles
+		) VALUES ($1, 'migration-568-org', 'Migration 568 Org', '', '', $2, $2, false, false, '{}')
+	`, otherOrgID, now)
+	require.NoError(t, err)
 
 	userID := uuid.New()
 	_, err = sqlDB.ExecContext(ctx, `
@@ -3084,10 +3080,8 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	keyID := sql.NullString{String: keyDigest, Valid: true}
 	configs := []configSeed{
 		{id: uuid.New(), slug: "migration-568-none", authType: "none", apiKeyHeader: "Authorization", customHeaders: "{}"},
-		// Leftover OAuth fields on a non-oauth2 config: the API stores
-		// them for any auth type, so copies must clear them too.
-		{id: uuid.New(), slug: "migration-568-api-key", authType: "api_key", apiKeyHeader: "X-API-Key", apiKeyValue: "api-key-ciphertext", apiKeyValueKeyID: keyID, customHeaders: "{}", oauth2ClientID: "leftover-client-id", oauth2ClientSecret: "leftover-secret-ciphertext", oauth2ClientSecretKeyID: keyID, oauth2TokenURL: "https://oauth.example.com/leftover-token"},
-		{id: uuid.New(), slug: "migration-568-custom-headers", authType: "custom_headers", apiKeyHeader: "Authorization", customHeaders: "custom-headers-ciphertext", customHeadersKeyID: keyID},
+		// Every credential column carries ciphertext to prove the backfill
+		// leaves rows byte-identical apart from organization_id.
 		{
 			id:                      uuid.New(),
 			slug:                    "migration-568-oauth2",
@@ -3099,12 +3093,12 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 			oauth2TokenURL:          "https://oauth.example.com/token",
 			oauth2RevocationURL:     "https://oauth.example.com/revoke",
 			oauth2Scopes:            "openid profile",
-			apiKeyHeader:            "Authorization",
-			customHeaders:           "{}",
+			apiKeyHeader:            "X-API-Key",
+			apiKeyValue:             "api-key-ciphertext",
+			apiKeyValueKeyID:        keyID,
+			customHeaders:           "custom-headers-ciphertext",
+			customHeadersKeyID:      keyID,
 		},
-		// Under dbcrypt an empty header map is stored as ciphertext, so
-		// the copy decision must not read it as real credentials.
-		{id: uuid.New(), slug: "migration-568-none-dbcrypt", authType: "none", apiKeyHeader: "Authorization", customHeaders: "empty-map-ciphertext", customHeadersKeyID: keyID},
 	}
 
 	originalJSON := make(map[uuid.UUID]string, len(configs))
@@ -3138,7 +3132,7 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 		originalJSON[config.id] = rowJSON
 	}
 
-	oauthConfigID := configs[3].id
+	oauthConfigID := configs[1].id
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO mcp_server_user_tokens (
 			id, mcp_server_config_id, user_id, access_token, access_token_key_id,
@@ -3153,9 +3147,8 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 		configIDs      []uuid.UUID
 	}
 	chats := []chatSeed{
-		{id: uuid.New(), organizationID: defaultOrgID, configIDs: []uuid.UUID{configs[0].id, configs[3].id, configs[1].id, configs[2].id}},
-		{id: uuid.New(), organizationID: liveOrgIDs[0], configIDs: []uuid.UUID{configs[2].id, configs[0].id, configs[3].id, configs[1].id}},
-		{id: uuid.New(), organizationID: liveOrgIDs[1], configIDs: []uuid.UUID{configs[1].id, configs[3].id, configs[0].id}},
+		{id: uuid.New(), organizationID: defaultOrgID, configIDs: []uuid.UUID{configs[0].id, configs[1].id}},
+		{id: uuid.New(), organizationID: otherOrgID, configIDs: []uuid.UUID{configs[1].id, configs[0].id}},
 	}
 	for i, chat := range chats {
 		_, err = sqlDB.ExecContext(ctx, `
@@ -3171,21 +3164,12 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 570, version)
 
+	// The existing rows become the default organization's servers; no copies
+	// are created for other organizations.
 	var totalConfigs int
 	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs`).Scan(&totalConfigs)
 	require.NoError(t, err)
-	require.Equal(t, len(configs)*(len(liveOrgIDs)+1), totalConfigs)
-
-	for _, orgID := range append([]uuid.UUID{defaultOrgID}, liveOrgIDs...) {
-		var count int
-		err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs WHERE organization_id = $1`, orgID).Scan(&count)
-		require.NoError(t, err)
-		require.Equal(t, len(configs), count)
-	}
-	var deletedOrgConfigs int
-	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs WHERE organization_id = $1`, deletedOrgID).Scan(&deletedOrgConfigs)
-	require.NoError(t, err)
-	require.Zero(t, deletedOrgConfigs)
+	require.Equal(t, len(configs), totalConfigs)
 
 	for _, config := range configs {
 		var gotJSON string
@@ -3198,64 +3182,6 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 		require.NoError(t, err)
 		require.JSONEq(t, originalJSON[config.id], gotJSON)
 		require.Equal(t, defaultOrgID, organizationID)
-
-		var slugCount int
-		err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs WHERE slug = $1`, config.slug).Scan(&slugCount)
-		require.NoError(t, err)
-		require.Equal(t, len(liveOrgIDs)+1, slugCount)
-	}
-
-	copiedIDs := make(map[uuid.UUID]map[uuid.UUID]uuid.UUID, len(liveOrgIDs))
-	for _, orgID := range liveOrgIDs {
-		copiedIDs[orgID] = make(map[uuid.UUID]uuid.UUID, len(configs))
-		for _, config := range configs {
-			var copiedID uuid.UUID
-			var authType, oauth2ClientID, oauth2ClientSecret string
-			var oauth2ClientSecretKeyID sql.NullString
-			var oauth2AuthURL, oauth2TokenURL, oauth2RevocationURL, oauth2Scopes string
-			var apiKeyValue string
-			var apiKeyValueKeyID sql.NullString
-			var customHeaders string
-			var customHeadersKeyID sql.NullString
-			var enabled bool
-			err = sqlDB.QueryRowContext(ctx, `
-				SELECT
-					id, auth_type, oauth2_client_id, oauth2_client_secret,
-					oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url,
-					oauth2_revocation_url, oauth2_scopes, api_key_value,
-					api_key_value_key_id, custom_headers, custom_headers_key_id, enabled
-				FROM mcp_server_configs
-				WHERE organization_id = $1 AND slug = $2
-			`, orgID, config.slug).Scan(
-				&copiedID, &authType, &oauth2ClientID, &oauth2ClientSecret,
-				&oauth2ClientSecretKeyID, &oauth2AuthURL, &oauth2TokenURL,
-				&oauth2RevocationURL, &oauth2Scopes, &apiKeyValue,
-				&apiKeyValueKeyID, &customHeaders, &customHeadersKeyID, &enabled,
-			)
-			require.NoError(t, err)
-			require.NotEqual(t, config.id, copiedID)
-			require.Equal(t, config.authType, authType)
-			copiedIDs[orgID][config.id] = copiedID
-
-			// Each organization's admin must re-enter credentials deliberately.
-			require.Empty(t, apiKeyValue)
-			require.False(t, apiKeyValueKeyID.Valid)
-			require.Equal(t, "{}", customHeaders)
-			require.False(t, customHeadersKeyID.Valid)
-			require.Empty(t, oauth2ClientID)
-			require.Empty(t, oauth2ClientSecret)
-			require.False(t, oauth2ClientSecretKeyID.Valid)
-			require.Equal(t, config.oauth2AuthURL, oauth2AuthURL)
-			require.Equal(t, config.oauth2TokenURL, oauth2TokenURL)
-			require.Equal(t, config.oauth2RevocationURL, oauth2RevocationURL)
-			require.Equal(t, config.oauth2Scopes, oauth2Scopes)
-			switch config.authType {
-			case "none":
-				require.True(t, enabled)
-			default:
-				require.False(t, enabled)
-			}
-		}
 	}
 
 	var tokenCount int
@@ -3281,59 +3207,41 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 		require.NoError(t, err)
 		return ids
 	}
-	remap := func(orgID uuid.UUID, ids []uuid.UUID) []uuid.UUID {
-		if orgID == defaultOrgID {
-			return ids
-		}
-		remapped := make([]uuid.UUID, len(ids))
-		for i, id := range ids {
-			remapped[i] = copiedIDs[orgID][id]
-		}
-		return remapped
-	}
-	for _, chat := range chats {
-		require.Equal(t, remap(chat.organizationID, chat.configIDs), getChatIDs(t, chat.id))
-	}
+	require.Equal(t, chats[0].configIDs, getChatIDs(t, chats[0].id))
+	// Chats outside the default organization lose their references because
+	// the configs now belong to the default organization only.
+	require.Empty(t, getChatIDs(t, chats[1].id))
 
 	remapTriggerExists := func(t *testing.T) bool {
 		t.Helper()
 		var exists bool
 		err := sqlDB.QueryRowContext(ctx, `
-			SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'remap_chat_mcp_server_ids')
+			SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'drop_cross_org_chat_mcp_server_ids')
 		`).Scan(&exists)
 		require.NoError(t, err)
 		return exists
 	}
 	require.True(t, remapTriggerExists(t))
 
-	// Verify the compatibility trigger remaps stale cross-organization
-	// writes to same-slug configs in the chat's organization.
+	// The compatibility trigger drops cross-organization config IDs, keeps
+	// same-organization IDs, and passes unknown IDs through as written.
+	orgLocalConfigID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO mcp_server_configs (
+			id, organization_id, display_name, slug, url, auth_type
+		) VALUES ($1, $2, 'Org-local config', 'migration-568-org-local', 'https://mcp.example.com/org-local', 'none')
+	`, orgLocalConfigID, otherOrgID)
+	require.NoError(t, err)
+	danglingID := uuid.New()
 	staleWriteChatID := uuid.New()
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO chats (
 			id, owner_id, organization_id, last_model_config_id, title,
 			mcp_server_ids, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, 'Migration 568 stale write', $5, $6, $6)
-	`, staleWriteChatID, userID, liveOrgIDs[0], modelConfigID, pq.Array([]uuid.UUID{configs[1].id, configs[0].id}), now)
+	`, staleWriteChatID, userID, otherOrgID, modelConfigID, pq.Array([]uuid.UUID{configs[1].id, orgLocalConfigID, danglingID}), now)
 	require.NoError(t, err)
-	require.Equal(t,
-		[]uuid.UUID{copiedIDs[liveOrgIDs[0]][configs[1].id], copiedIDs[liveOrgIDs[0]][configs[0].id]},
-		getChatIDs(t, staleWriteChatID))
-
-	// A config with no same-slug counterpart in the chat's organization is
-	// dropped instead of remapped.
-	defaultOnlyConfigID := uuid.New()
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO mcp_server_configs (
-			id, organization_id, display_name, slug, url, auth_type
-		) VALUES ($1, $2, 'Default-only config', 'migration-568-default-only', 'https://mcp.example.com/default-only', 'none')
-	`, defaultOnlyConfigID, defaultOrgID)
-	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `
-		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
-	`, staleWriteChatID, pq.Array([]uuid.UUID{configs[2].id, defaultOnlyConfigID}))
-	require.NoError(t, err)
-	require.Equal(t, []uuid.UUID{copiedIDs[liveOrgIDs[0]][configs[2].id]}, getChatIDs(t, staleWriteChatID))
+	require.Equal(t, []uuid.UUID{orgLocalConfigID, danglingID}, getChatIDs(t, staleWriteChatID))
 
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
@@ -3341,33 +3249,30 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, chats[0].configIDs, getChatIDs(t, chats[0].id))
 
-	// Remove the simulation rows so the down-migration assertions below see
-	// the original state.
+	// Remove the unknown-ID simulation row so the down-migration assertions
+	// below can prove no dangling references remain.
 	_, err = sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, staleWriteChatID)
 	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `DELETE FROM mcp_server_configs WHERE id = $1`, defaultOnlyConfigID)
-	require.NoError(t, err)
 
-	orgOnlyConfigID := uuid.New()
+	// An organization-created config referenced by a chat exercises the down
+	// sweep: the config is deleted and its chat references removed.
 	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO mcp_server_configs (
-			id, organization_id, display_name, slug, url, auth_type
-		) VALUES ($1, $2, 'Org-only config', 'migration-568-org-only', 'https://mcp.example.com/org-only', 'none')
-	`, orgOnlyConfigID, liveOrgIDs[0])
+		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
+	`, chats[1].id, pq.Array([]uuid.UUID{orgLocalConfigID}))
 	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `
-		UPDATE chats SET mcp_server_ids = array_append(mcp_server_ids, $2) WHERE id = $1
-	`, chats[1].id, orgOnlyConfigID)
-	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{orgLocalConfigID}, getChatIDs(t, chats[1].id))
 
 	downSQL, err := os.ReadFile("000570_mcp_server_configs_organization_id.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
 
-	for _, chat := range chats {
-		require.Equal(t, chat.configIDs, getChatIDs(t, chat.id))
-	}
+	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs`).Scan(&totalConfigs)
+	require.NoError(t, err)
+	require.Equal(t, len(configs), totalConfigs)
+
+	require.Equal(t, chats[0].configIDs, getChatIDs(t, chats[0].id))
+	require.Empty(t, getChatIDs(t, chats[1].id))
 	var danglingIDs int
 	err = sqlDB.QueryRowContext(ctx, `
 		SELECT COUNT(*)
