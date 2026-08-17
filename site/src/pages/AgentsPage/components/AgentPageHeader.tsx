@@ -128,7 +128,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 				</Button>
 			) : (
 				<div className="inline-flex shrink-0 items-center gap-2 sm:hidden">
-					<NavLink to="/workspaces" className="inline-flex">
+					<NavLink to="/" className="inline-flex">
 						<ProductLogo className="size-6" />
 					</NavLink>
 				</div>
