@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -15,8 +14,12 @@ import (
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
@@ -107,8 +110,8 @@ func (s *providerStore) refresh(context.Context) (aibridgeproxyd.ProviderReload,
 	return reload, nil
 }
 
-// classifyRaw mirrors the production classifier in enterprise/cli so
-// the reload tests exercise the same validation rules end-to-end.
+// classifyRaw mirrors the production classifier so reload tests
+// exercise the same validation rules end-to-end.
 func classifyRaw(p rawProvider, seenHost map[string]string) aibridgeproxyd.ReloadedProvider {
 	out := aibridgeproxyd.ReloadedProvider{
 		ProviderOutcome: aibridged.ProviderOutcome{Name: p.name, Type: "openai"},
@@ -118,21 +121,15 @@ func classifyRaw(p rawProvider, seenHost map[string]string) aibridgeproxyd.Reloa
 		out.Err = xerrors.New("base url is empty")
 		return out
 	}
-	u, err := url.Parse(p.baseURL)
-	if err != nil {
-		out.Status = aibridged.ProviderStatusError
-		out.Err = xerrors.Errorf("invalid base url %q: %w", p.baseURL, err)
-		return out
-	}
-	host := strings.ToLower(u.Hostname())
+	host := aibridged.BaseURLHostname(p.baseURL)
 	if host == "" {
 		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("base url %q has no hostname", p.baseURL)
 		return out
 	}
 	if claimedBy, taken := seenHost[host]; taken {
-		out.Status = aibridged.ProviderStatusError
-		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q", host, claimedBy)
+		out.Status = aibridged.ProviderStatusProxyExcluded
+		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q; use direct routing instead", host, claimedBy)
 		return out
 	}
 	seenHost[host] = p.name
@@ -263,7 +260,7 @@ func (h *reloadTestHarness) expectProviderStatus(t *testing.T, name, status stri
 // clears stale entries.
 func (h *reloadTestHarness) expectProviderAbsent(t *testing.T, name string) {
 	t.Helper()
-	for _, status := range []string{"enabled", "disabled", "error"} {
+	for _, status := range []string{"enabled", "disabled", "error", "proxy_excluded"} {
 		assert.Equal(t, 0.0, promtest.ToFloat64(h.metrics.ProviderInfo.WithLabelValues(name, "openai", status)),
 			"expected no provider_info series for %q, found status %q", name, status)
 	}
@@ -530,7 +527,7 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 
 		h := newReloadTestHarness(t)
 		// Two providers with the same BaseURL host: the second is
-		// classified as error and excluded; the first routes.
+		// classified as proxy-excluded; the first routes.
 		h.store.set([]rawProvider{
 			{name: "first", baseURL: "https://shared.invalid/v1"},
 			{name: "second", baseURL: "https://shared.invalid/v2"},
@@ -539,7 +536,52 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 
 		h.expectRoutedTo(t, "https://shared.invalid/v1/messages", "/first/v1/messages")
 		h.expectProviderStatus(t, "first", "enabled")
-		h.expectProviderStatus(t, "second", "error")
+		h.expectProviderStatus(t, "second", "proxy_excluded")
+	})
+
+	// DuplicateHostDirectPathRoutesBoth proves the core invariant of
+	// AIGOV-596: two providers sharing a hostname are both routable via
+	// the direct path even though the proxy can only route one.
+	t.Run("DuplicateHostDirectPathRoutesBoth", func(t *testing.T) {
+		t.Parallel()
+
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		}))
+		backend.Config.SetKeepAlivesEnabled(false)
+		t.Cleanup(backend.Close)
+
+		// Two providers sharing the same upstream hostname;
+		// the bridge routes by name, so both are reachable.
+		logger := slogtest.Make(t, nil)
+		providers := []aibridge.Provider{
+			aibridge.NewOpenAIProvider(config.OpenAI{Name: "first", BaseURL: backend.URL}),
+			aibridge.NewOpenAIProvider(config.OpenAI{Name: "second", BaseURL: backend.URL}),
+		}
+		bridge, err := aibridge.NewRequestBridge(t.Context(), providers, nil, nil, logger, nil, otel.Tracer("test"))
+		require.NoError(t, err)
+
+		// Both providers are routable by name.
+		for _, name := range []string{"first", "second"} {
+			req := httptest.NewRequest(http.MethodPost, "/"+name+"/v1/models", strings.NewReader(`{}`))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			bridge.ServeHTTP(rec, req)
+			assert.Equal(t, http.StatusOK, rec.Code, "direct path must route provider %q", name)
+		}
+
+		// The proxy can only route the first (nameByHost is 1:1).
+		h := newReloadTestHarness(t)
+		h.store.set([]rawProvider{
+			{name: "first", baseURL: "https://shared.invalid/v1"},
+			{name: "second", baseURL: "https://shared.invalid/v2"},
+		})
+		require.NoError(t, h.srv.Reload(t.Context()))
+
+		// The proxy MITM's the hostname and routes to the first
+		// provider regardless of path.
+		h.expectRoutedTo(t, "https://shared.invalid/v2/messages", "/first/v2/messages")
 	})
 
 	t.Run("AllInvalidYieldsEmptyRouter", func(t *testing.T) {

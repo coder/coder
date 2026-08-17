@@ -372,6 +372,10 @@ export interface AIProvider {
 	readonly settings: AIProviderSettings;
 	readonly created_at: string;
 	readonly updated_at: string;
+	/**
+	 * Status carries runtime routing status; nil when empty.
+	 */
+	readonly status?: AIProviderStatus;
 }
 
 // From codersdk/aiproviders_bedrock.go
@@ -525,6 +529,15 @@ export interface AIProviderSettings {}
  * AIProviderBedrockSettings.
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
+
+// From codersdk/aiproviders.go
+/**
+ * AIProviderStatus carries non-fatal routing warnings. Direct
+ * routing remains available for the provider.
+ */
+export interface AIProviderStatus {
+	readonly warnings?: readonly string[];
+}
 
 // From codersdk/chats.go
 /**

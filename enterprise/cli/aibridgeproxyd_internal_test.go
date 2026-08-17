@@ -119,7 +119,7 @@ func TestClassifyProviderRow(t *testing.T) {
 		seen := map[string]string{}
 		got := classifyProviderRow(enabledRow("bad", "://not-a-url"), seen)
 		assert.Equal(t, aibridged.ProviderStatusError, got.Status)
-		assert.ErrorContains(t, got.Err, "invalid base url")
+		assert.ErrorContains(t, got.Err, "no hostname")
 	})
 
 	t.Run("BaseURLWithoutHostname", func(t *testing.T) {
@@ -139,7 +139,7 @@ func TestClassifyProviderRow(t *testing.T) {
 		assert.Equal(t, aibridged.ProviderStatusEnabled, first.Status)
 
 		second := classifyProviderRow(enabledRow("second", "https://shared.example.com/v2"), seen)
-		assert.Equal(t, aibridged.ProviderStatusError, second.Status)
+		assert.Equal(t, aibridged.ProviderStatusProxyExcluded, second.Status)
 		assert.ErrorContains(t, second.Err, "already claimed by provider \"first\"")
 		assert.Equal(t, "first", seen["shared.example.com"], "first wins must not be overwritten")
 	})

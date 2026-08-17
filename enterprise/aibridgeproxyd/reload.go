@@ -55,6 +55,12 @@ func (s *Server) Reload(ctx context.Context) error {
 				slog.Error(p.Err),
 			)
 		}
+		if p.Status == aibridged.ProviderStatusProxyExcluded {
+			s.logger.Warn(s.ctx, "provider excluded from proxy routing",
+				slog.F("provider", p.Name),
+				slog.Error(p.Err),
+			)
+		}
 	}
 	s.recordReloadSuccess(reload)
 	s.logger.Debug(s.ctx, "aibridgeproxyd router reloaded",
@@ -112,12 +118,10 @@ func (s *Server) mitmHostsCondition() goproxy.ReqConditionFunc {
 }
 
 // buildProviderRouter constructs a router snapshot from a classified
-// provider reload. Only providers with Status ==
-// aibridged.ProviderStatusEnabled are included in the active routing
-// tables; the refresh function is responsible for classifying disabled
-// and errored rows. First entry wins on duplicate hostnames as a
-// defense-in-depth measure even though the refresh function should
-// mark duplicates as errors.
+// provider reload. Only enabled providers are included in the active
+// routing tables. First entry wins on duplicate hostnames as
+// defense-in-depth even though the refresh function should mark
+// duplicates as proxy-excluded.
 func buildProviderRouter(reload ProviderReload, allowedPorts []string) (*providerRouter, error) {
 	nameByHost := make(map[string]string, len(reload.Providers))
 	domains := make([]string, 0, len(reload.Providers))

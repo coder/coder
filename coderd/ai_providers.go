@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -90,6 +91,10 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		warnings := aiProviderHostnameWarnings(ctx, api.Database, row)
+		if len(warnings) > 0 {
+			sdk.Status = &codersdk.AIProviderStatus{Warnings: warnings}
+		}
 		out = append(out, sdk)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
@@ -130,6 +135,10 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+	warnings := aiProviderHostnameWarnings(ctx, api.Database, row)
+	if len(warnings) > 0 {
+		sdk.Status = &codersdk.AIProviderStatus{Warnings: warnings}
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
@@ -251,6 +260,10 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+	warnings := aiProviderHostnameWarnings(ctx, api.Database, row)
+	if len(warnings) > 0 {
+		sdk.Status = &codersdk.AIProviderStatus{Warnings: warnings}
 	}
 	httpapi.Write(ctx, rw, http.StatusCreated, sdk)
 }
@@ -445,6 +458,10 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	warnings := aiProviderHostnameWarnings(ctx, api.Database, updated)
+	if len(warnings) > 0 {
+		sdk.Status = &codersdk.AIProviderStatus{Warnings: warnings}
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -554,6 +571,34 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 		return database.AIProvider{}, errAIProviderInvalidName
 	}
 	return store.GetAIProviderByName(ctx, idOrName)
+}
+
+// aiProviderHostnameWarnings returns a warning for each other
+// enabled provider sharing the same base URL hostname.
+func aiProviderHostnameWarnings(ctx context.Context, store database.Store, provider database.AIProvider) []string {
+	if !provider.Enabled {
+		return nil
+	}
+	host := aibridged.BaseURLHostname(provider.BaseUrl)
+	if host == "" {
+		return nil
+	}
+	others, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{
+		IncludeDisabled: true,
+	})
+	if err != nil {
+		return nil
+	}
+	var warnings []string
+	for _, other := range others {
+		if other.ID == provider.ID || !other.Enabled {
+			continue
+		}
+		if aibridged.BaseURLHostname(other.BaseUrl) == host {
+			warnings = append(warnings, fmt.Sprintf("hostname %q is also used by provider %q; not reachable via the AI Bridge Proxy, use direct routing (/api/v2/aibridge/%s/...) instead", host, other.Name, provider.Name))
+		}
+	}
+	return warnings
 }
 
 // writeAIProviderError translates an error from the AI provider
