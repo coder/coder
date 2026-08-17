@@ -6065,6 +6065,9 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Never let private caches replay a signed URL past its expiry;
+	// revocation is re-checked only when the request reaches coderd.
+	rw.Header().Set("Cache-Control", "no-store")
 	api.serveChatFile(ctx, rw, chatFile)
 }
 
@@ -6104,9 +6107,13 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	api.serveChatFile(r.Context(), rw, chatFile)
 }
 
+// serveChatFile writes the file body and content headers; callers set
+// Cache-Control because signed and session-authenticated downloads have
+// different caching requirements.
 func (api *API) serveChatFile(ctx context.Context, rw http.ResponseWriter, chatFile database.ChatFile) {
 	rw.Header().Set("Content-Type", chatFile.Mimetype)
 	disposition := "attachment"
@@ -6118,7 +6125,6 @@ func (api *API) serveChatFile(ctx context.Context, rw http.ResponseWriter, chatF
 	} else {
 		rw.Header().Set("Content-Disposition", disposition)
 	}
-	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
 	rw.WriteHeader(http.StatusOK)
 	if _, err := rw.Write(chatFile.Data); err != nil {

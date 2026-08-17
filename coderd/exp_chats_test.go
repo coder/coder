@@ -11323,6 +11323,7 @@ func TestChatFileDownloadURL(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.Equal(t, "image/png", res.Header.Get("Content-Type"))
+		require.Equal(t, "no-store", res.Header.Get("Cache-Control"))
 		got, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
 		require.Equal(t, data, got)
