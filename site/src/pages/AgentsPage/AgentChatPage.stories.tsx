@@ -3231,17 +3231,16 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 			expect(scrollToMock).not.toHaveBeenCalled();
 
 			// Resolve the send and let the turn settle. The scroller re-anchors
-			// to the new prompt in a single jump.
+			// to the new prompt with a single non-smooth scroll.
 			releaseSend?.();
 			await canvas.findByTestId("chat-message-message:41");
 			await waitFor(() => {
-				const newPrompt = canvas.getByTestId("chat-message-message:41");
-				const promptTop =
-					newPrompt.getBoundingClientRect().top -
-					viewport.getBoundingClientRect().top;
-				// The new prompt is anchored near the top of the viewport.
-				expect(promptTop).toBeGreaterThanOrEqual(0);
-				expect(promptTop).toBeLessThan(viewport.clientHeight);
+				expect(scrollToMock).toHaveBeenCalledTimes(1);
+				// The anchor re-position is a non-smooth scroll; a smooth call here
+				// would be the eager scrollToEnd regression resurfacing.
+				expect(scrollToMock.mock.calls[0]?.[0]).toMatchObject({
+					behavior: "auto",
+				});
 			});
 		} finally {
 			scrollToMock.mockRestore();
