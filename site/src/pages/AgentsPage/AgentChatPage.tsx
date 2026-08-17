@@ -1854,6 +1854,7 @@ const AgentChatPage: FC = () => {
 		// the highest cached ID, which a reconnect would skip.
 		const insertedMessages =
 			response.messages ?? (response.message ? [response.message] : []);
+		let didSetRunning = false;
 		if (insertedMessages.length > 0) {
 			upsertCacheMessages(insertedMessages);
 			if (isActiveChat) {
@@ -1884,6 +1885,7 @@ const AgentChatPage: FC = () => {
 					) {
 						store.clearStreamState();
 						store.setChatStatus("running");
+						didSetRunning = true;
 					}
 					if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
 						void settlePromotedQueueHead(
@@ -1900,10 +1902,12 @@ const AgentChatPage: FC = () => {
 				}
 			}
 		}
-		if (response.queued && insertedMessages.length === 0) {
+		if (response.queued && (insertedMessages.length === 0 || !didSetRunning)) {
 			// A queued send that promotes no durable head appends no prompt row,
 			// so the scroller has no anchor to follow; move the reader to the
-			// live edge explicitly.
+			// live edge explicitly. The same holds when a promoted head lands in a
+			// terminal waiting/error state before the POST resolves: the row
+			// renders, but its turn is not active, so nothing anchors to it.
 			scrollToEnd({ behavior: "smooth" });
 		}
 		if (selectedModelConfigID) {
