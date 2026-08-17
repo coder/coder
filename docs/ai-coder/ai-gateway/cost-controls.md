@@ -208,10 +208,11 @@ Replace `<VERSION>` with your Coder minor version, for example `2.36`.
 >   effectively unlimited.
 
 Monitor `coder_ai_gateway_cost_control_unpriced_token_usage_records_total`,
-labeled by `provider` and `model`, to detect unpriced usage. Any non-zero value
-means spend is under-counted. Because the price book ships with the release, a
-newly launched model is unpriced until you upgrade Coder or set a price for it
-yourself.
+labeled by `provider`, `provider_type`, and `model`, to detect unpriced usage.
+Use the `(provider_type, model)` tuple to find the price to set. Any non-zero
+value means spend is under-counted. Because the price book ships with the
+release, a newly launched model is unpriced until you upgrade Coder or set a
+price for it yourself.
 
 ### Set model prices
 

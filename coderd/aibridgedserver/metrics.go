@@ -54,8 +54,9 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		UnpricedTokenUsageRecords: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "cost_control",
 			Name:      "unpriced_token_usage_records_total",
-			Help:      "The number of recorded AI token-usage records for which no (provider, model) price was found.",
-		}, []string{"provider", "model"}),
+			Help: "The number of recorded AI token-usage records for which no (provider_type, model) price was found. " +
+				"provider is the provider instance name, and provider_type is its configured type.",
+		}, []string{"provider", "provider_type", "model"}),
 		// Pessimistic cardinality: 3 outcomes, 8 buckets + 3 extra series
 		// (count, sum, +Inf) = up to 33.
 		EnforcementDuration: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
