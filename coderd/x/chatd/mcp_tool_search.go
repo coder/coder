@@ -181,22 +181,37 @@ func flattenMCPParameterText(value any) string {
 	return strings.Join(values, " ")
 }
 
-func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []deferredMCPTool) []string {
-	current := deferredMCPToolNameSet(candidates)
+// deriveDeferredMCPActivations walks the surviving history newest first
+// so that when the aggregate schema weight of activations exceeds
+// tokenBudget, the least recently activated schemas are shed. Shed tools
+// stay in the catalog and remain directly callable, which reactivates
+// them as most recent. A tokenBudget <= 0 means unbounded.
+func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []deferredMCPTool, tokenBudget float64) []string {
+	candidateByName := make(map[string]deferredMCPTool, len(candidates))
+	for _, candidate := range candidates {
+		candidateByName[candidate.tool.Info().Name] = candidate
+	}
 	seen := make(map[string]struct{}, len(candidates))
 	activated := make([]string, 0, len(candidates))
+	usedTokens := 0.0
 	appendName := func(name string) {
-		if !current[name] {
+		candidate, ok := candidateByName[name]
+		if !ok {
 			return
 		}
-		if _, ok := seen[name]; ok {
+		if _, dup := seen[name]; dup {
 			return
 		}
 		seen[name] = struct{}{}
+		weight := estimateDeferredMCPToolTokens([]deferredMCPTool{candidate})
+		if tokenBudget > 0 && usedTokens+weight > tokenBudget {
+			return
+		}
+		usedTokens += weight
 		activated = append(activated, name)
 	}
-	for _, row := range rows {
-		parts, err := chatprompt.ParseContent(row)
+	for i := len(rows) - 1; i >= 0; i-- {
+		parts, err := chatprompt.ParseContent(rows[i])
 		if err != nil {
 			continue
 		}

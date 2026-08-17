@@ -639,7 +639,8 @@ func (server *Server) prepareGeneration(
 			activeToolNames,
 			deferredCandidates,
 			findTools,
-			deriveDeferredMCPActivations(promptRows, deferredCandidates),
+			deriveDeferredMCPActivations(promptRows, deferredCandidates,
+				float64(modelConfig.ContextLimit)/mcpToolSearchThresholdDivisor),
 		)
 		builtinToolNames[chattool.FindToolsName] = true
 	}

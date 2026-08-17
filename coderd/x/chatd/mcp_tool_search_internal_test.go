@@ -95,9 +95,14 @@ func TestDeriveDeferredMCPActivations(t *testing.T) {
 		{Role: database.ChatMessageRoleAssistant, Content: directCall, ContentVersion: chatprompt.CurrentContentVersion},
 		{Role: database.ChatMessageRoleTool, Content: malformed, ContentVersion: chatprompt.CurrentContentVersion},
 	}
-	require.Equal(t, []string{"server__second", "server__first"}, deriveDeferredMCPActivations(rows, candidates))
-	require.Equal(t, []string{"server__first"}, deriveDeferredMCPActivations(rows[1:], candidates),
+	require.Equal(t, []string{"server__first", "server__second"}, deriveDeferredMCPActivations(rows, candidates, 0),
+		"newest activations first")
+	require.Equal(t, []string{"server__first"}, deriveDeferredMCPActivations(rows[1:], candidates, 0),
 		"activations before a compaction summary are absent from the surviving prompt window")
+
+	firstWeight := estimateDeferredMCPToolTokens(candidates[:1])
+	require.Equal(t, []string{"server__first"}, deriveDeferredMCPActivations(rows, candidates, firstWeight),
+		"a token budget sheds the least recent activations")
 }
 
 func TestFlattenMCPParameterText(t *testing.T) {
@@ -188,7 +193,7 @@ func TestConfigureDeferredMCPToolSearchGenerationFlows(t *testing.T) {
 	history := []database.ChatMessage{{
 		Role: database.ChatMessageRoleTool, Content: resultContent, ContentVersion: chatprompt.CurrentContentVersion,
 	}}
-	activations := deriveDeferredMCPActivations(history, candidates)
+	activations := deriveDeferredMCPActivations(history, candidates, 0)
 	require.Equal(t, []string{second.tool.Info().Name}, activations)
 
 	ordered, active, _ = configureDeferredMCPToolSearch(allTools, allActive, candidates, findTools, activations)
@@ -198,7 +203,7 @@ func TestConfigureDeferredMCPToolSearchGenerationFlows(t *testing.T) {
 	)
 	// Re-preparing the following turn from the same surviving history produces
 	// the same activation set without separate persisted state.
-	require.Equal(t, activations, deriveDeferredMCPActivations(history, candidates))
+	require.Equal(t, activations, deriveDeferredMCPActivations(history, candidates, 0))
 }
 
 func TestConfigureDeferredMCPToolSearchDirectCallAndCompaction(t *testing.T) {
@@ -213,7 +218,7 @@ func TestConfigureDeferredMCPToolSearchDirectCallAndCompaction(t *testing.T) {
 	preSummary := []database.ChatMessage{{
 		Role: database.ChatMessageRoleAssistant, Content: directCall, ContentVersion: chatprompt.CurrentContentVersion,
 	}}
-	activation := deriveDeferredMCPActivations(preSummary, candidates)
+	activation := deriveDeferredMCPActivations(preSummary, candidates, 0)
 	require.Equal(t, []string{candidate.tool.Info().Name}, activation)
 
 	findTools := chattool.FindTools(chattool.FindToolsOptions{Entries: deferredMCPToolEntries(candidates)})
@@ -231,7 +236,7 @@ func TestConfigureDeferredMCPToolSearchDirectCallAndCompaction(t *testing.T) {
 
 	// Prompt preparation passes only the post-summary history window, so an
 	// activation before chat_summarized naturally lapses after compaction.
-	require.Empty(t, deriveDeferredMCPActivations(nil, candidates))
+	require.Empty(t, deriveDeferredMCPActivations(nil, candidates, 0))
 }
 
 func TestMCPToolSearchBelowThresholdPreservesWireTools(t *testing.T) {
