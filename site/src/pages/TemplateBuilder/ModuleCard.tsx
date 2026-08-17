@@ -67,7 +67,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 					{official && (
 						<>
 							{" "}
-							<BadgeCheckIcon className="size-4 text-highlight-sky align-middle" />
+							<BadgeCheckIcon className="size-4 text-highlight-sky align-middle inline-block" />
 						</>
 					)}
 				</h3>

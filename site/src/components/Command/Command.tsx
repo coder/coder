@@ -40,10 +40,7 @@ export const CommandList: React.FC<
 > = ({ className, ...props }) => {
 	return (
 		<CommandPrimitive.List
-			className={cn(
-				"max-h-96 overflow-y-auto overflow-x-hidden border-0 border-t border-solid border-border",
-				className,
-			)}
+			className={cn("max-h-96 overflow-y-auto overflow-x-hidden", className)}
 			{...props}
 		/>
 	);
