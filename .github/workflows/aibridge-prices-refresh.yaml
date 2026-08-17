@@ -1,4 +1,4 @@
-# Refreshes the AI Bridge price book from live upstream data (models.dev)
+# Refreshes the AI Gateway price book from live upstream data (models.dev)
 # once a week and opens a pull request when the generated artifacts change.
 #
 # The price book seeds customer-visible cost numbers, so the refresh is never

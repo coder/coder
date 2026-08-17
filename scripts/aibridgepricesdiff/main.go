@@ -1,5 +1,5 @@
 // aibridgepricesdiff renders a human-readable Markdown summary of the
-// difference between two AI Bridge price seed files (the prices.json produced
+// difference between two AI Gateway price seed files (the prices.json produced
 // by aibridgepricesgen).
 //
 // The price refresh workflow uses it to fill the pull request body, so
