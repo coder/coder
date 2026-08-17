@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strings"
 	"time"
 
@@ -628,7 +629,11 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		if err := api.HTTPAuth.Authorizer.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 			return ""
 		}
-		return fmt.Sprintf("/ai/settings/mcp-servers/%s", alog.AuditLog.ResourceID)
+		organization, err := api.Database.GetOrganizationByID(ctx, alog.AuditLog.OrganizationID)
+		if err != nil {
+			return ""
+		}
+		return fmt.Sprintf("/ai/settings/mcp-servers/%s?org=%s", alog.AuditLog.ResourceID, url.QueryEscape(organization.Name))
 	case database.ResourceTypeUserSecret:
 		// TODO(PLAT-102): point at the user secrets management page once
 		// it ships. Until then, the audit row links nowhere.
