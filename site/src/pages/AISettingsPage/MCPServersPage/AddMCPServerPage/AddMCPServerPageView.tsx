@@ -8,7 +8,7 @@ import { mcpServersPath } from "../organizationParam";
 interface AddMCPServerPageViewProps {
 	isSaving: boolean;
 	organizations: readonly TypesGen.Organization[];
-	organization: TypesGen.Organization | undefined;
+	organization: TypesGen.Organization;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,

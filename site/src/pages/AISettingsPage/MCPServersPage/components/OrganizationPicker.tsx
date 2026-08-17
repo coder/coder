@@ -7,7 +7,7 @@ import { cn } from "#/utils/cn";
 interface OrganizationPickerProps {
 	id: string;
 	organizations: readonly Organization[];
-	organization: Organization | undefined;
+	organization: Organization;
 	onChange: (organization: Organization) => void;
 	className?: string;
 	disabled?: boolean;
@@ -30,7 +30,7 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 			<Label htmlFor={id}>Organization</Label>
 			<OrganizationAutocomplete
 				id={id}
-				value={organization ?? null}
+				value={organization}
 				onChange={(org) => {
 					if (org) {
 						onChange(org);

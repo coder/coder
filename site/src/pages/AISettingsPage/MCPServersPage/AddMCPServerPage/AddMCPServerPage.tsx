@@ -26,7 +26,7 @@ const AddMCPServerPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const createMutation = useMutation(
-		createMCPServerConfig(queryClient, organization?.id ?? ""),
+		createMCPServerConfig(queryClient, organization.id),
 	);
 
 	return (
@@ -37,8 +37,9 @@ const AddMCPServerPage: FC = () => {
 				organization={organization}
 				onSelectOrganization={(org) => {
 					setSearchParams((params) => {
-						params.set(orgSearchParam, org.name);
-						return params;
+						const next = new URLSearchParams(params);
+						next.set(orgSearchParam, org.name);
+						return next;
 					});
 				}}
 				onCancel={() => void navigate(mcpServersPath(organization))}

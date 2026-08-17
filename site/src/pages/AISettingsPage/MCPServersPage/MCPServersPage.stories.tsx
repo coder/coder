@@ -1,11 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { type QueryClient, useQueryClient } from "react-query";
+import { useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { mcpServerConfig } from "#/api/queries/chats";
+import { mcpServerConfigKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
@@ -23,8 +23,6 @@ import { orgSearchParam } from "./organizationParam";
 import { MockCoderMCPServer } from "./testFixtures";
 import UpdateMCPServerPage from "./UpdateMCPServerPage/UpdateMCPServerPage";
 
-let capturedQueryClient: QueryClient | undefined;
-
 const MockOrganization2MCPServer: TypesGen.MCPServerConfig = {
 	...MockCoderMCPServer,
 	id: "mcp-org2",
@@ -33,9 +31,34 @@ const MockOrganization2MCPServer: TypesGen.MCPServerConfig = {
 	organization_id: MockOrganization2.id,
 };
 
-const mockOrganization2MCPServerQueryKey = mcpServerConfig(
+const mockOrganization2MCPServerQueryKey = mcpServerConfigKey(
+	MockOrganization2.id,
 	MockOrganization2MCPServer.id,
-).queryKey;
+);
+
+const RefetchServerDetailProbe: FC = () => {
+	const queryClient = useQueryClient();
+	return (
+		<button
+			type="button"
+			onClick={() =>
+				void queryClient.refetchQueries({
+					queryKey: mockOrganization2MCPServerQueryKey,
+					exact: true,
+				})
+			}
+		>
+			Refetch server detail
+		</button>
+	);
+};
+
+const withRefetchServerDetailProbe: Decorator = (Story) => (
+	<>
+		<RefetchServerDetailProbe />
+		<Story />
+	</>
+);
 
 const ListRedirectProbe: FC = () => {
 	const [searchParams] = useSearchParams();
@@ -316,6 +339,7 @@ export const UpdateLoadsServerById: Story = {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
 			expect(API.experimental.getMCPServerConfig).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
 				MockCoderMCPServer.id,
 			);
 		});
@@ -362,15 +386,57 @@ export const RowClickCarriesSelectedOrganization: Story = {
 	},
 };
 
-const notFoundError = (() => {
+const mockNotFoundError = (() => {
 	const error = mockApiError({ message: "Resource not found" });
 	return { ...error, response: { ...error.response, status: 404 } };
 })();
 
-export const UpdateNotFoundRedirectsToSelectedOrganization: Story = {
+export const UpdateWrongOrganizationRedirectsToSelectedList: Story = {
 	render: () => <UpdateMCPServerPage />,
 	parameters: {
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/ai/settings/mcp-servers/${MockOrganization2MCPServer.id}`,
+				searchParams: { [orgSearchParam]: MockDefaultOrganization.name },
+			},
+			routing: [
+				{ path: "/ai/settings/mcp-servers/:serverId", useStoryElement: true },
+				{
+					path: "/ai/settings/mcp-servers",
+					element: <ListRedirectProbe />,
+				},
+			],
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfig").mockRejectedValue(
+			mockNotFoundError,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByText(`list-org:${MockDefaultOrganization.name}`),
+		).toBeVisible();
+		expect(API.experimental.getMCPServerConfig).toHaveBeenCalledWith(
+			MockDefaultOrganization.id,
+			MockOrganization2MCPServer.id,
+		);
+	},
+};
+
+export const UpdateCachedNotFoundRedirects: Story = {
+	render: () => <UpdateMCPServerPage />,
+	decorators: [withRefetchServerDetailProbe],
+	parameters: {
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: mockOrganization2MCPServerQueryKey,
+				data: MockOrganization2MCPServer,
+			},
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/ai/settings/mcp-servers/${MockOrganization2MCPServer.id}`,
@@ -387,49 +453,7 @@ export const UpdateNotFoundRedirectsToSelectedOrganization: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getMCPServerConfig").mockRejectedValue(
-			notFoundError,
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			await canvas.findByText(`list-org:${MockOrganization2.name}`),
-		).toBeVisible();
-	},
-};
-
-export const UpdateCachedNotFoundRedirects: Story = {
-	render: () => <UpdateMCPServerPage />,
-	decorators: [
-		(Story) => {
-			capturedQueryClient = useQueryClient();
-			return <Story />;
-		},
-	],
-	parameters: {
-		organizations: [MockDefaultOrganization, MockOrganization2],
-		queries: [
-			{
-				key: mockOrganization2MCPServerQueryKey,
-				data: MockOrganization2MCPServer,
-			},
-		],
-		reactRouter: reactRouterParameters({
-			location: {
-				path: `/ai/settings/mcp-servers/${MockOrganization2MCPServer.id}`,
-			},
-			routing: [
-				{ path: "/ai/settings/mcp-servers/:serverId", useStoryElement: true },
-				{
-					path: "/ai/settings/mcp-servers",
-					element: <ListRedirectProbe />,
-				},
-			],
-		}),
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getMCPServerConfig").mockRejectedValue(
-			notFoundError,
+			mockNotFoundError,
 		);
 	},
 	play: async ({ canvasElement }) => {
@@ -437,13 +461,9 @@ export const UpdateCachedNotFoundRedirects: Story = {
 		await expect(canvas.getByLabelText(/display name/i)).toHaveValue(
 			MockOrganization2MCPServer.display_name,
 		);
-		if (!capturedQueryClient) {
-			throw new Error("query client was not captured by the story decorator");
-		}
-		await capturedQueryClient.refetchQueries({
-			queryKey: mockOrganization2MCPServerQueryKey,
-			exact: true,
-		});
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Refetch server detail" }),
+		);
 		await expect(
 			await canvas.findByText(`list-org:${MockOrganization2.name}`),
 		).toBeVisible();
@@ -452,12 +472,7 @@ export const UpdateCachedNotFoundRedirects: Story = {
 
 export const UpdateRefetchErrorKeepsCachedForm: Story = {
 	render: () => <UpdateMCPServerPage />,
-	decorators: [
-		(Story) => {
-			capturedQueryClient = useQueryClient();
-			return <Story />;
-		},
-	],
+	decorators: [withRefetchServerDetailProbe],
 	parameters: {
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
@@ -469,6 +484,7 @@ export const UpdateRefetchErrorKeepsCachedForm: Story = {
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/ai/settings/mcp-servers/${MockOrganization2MCPServer.id}`,
+				searchParams: { [orgSearchParam]: MockOrganization2.name },
 			},
 			routing: { path: "/ai/settings/mcp-servers/:serverId" },
 		}),
@@ -483,13 +499,9 @@ export const UpdateRefetchErrorKeepsCachedForm: Story = {
 		const displayName = canvas.getByLabelText(/display name/i);
 		await userEvent.clear(displayName);
 		await userEvent.type(displayName, "Edited name");
-		if (!capturedQueryClient) {
-			throw new Error("query client was not captured by the story decorator");
-		}
-		await capturedQueryClient.refetchQueries({
-			queryKey: mockOrganization2MCPServerQueryKey,
-			exact: true,
-		});
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Refetch server detail" }),
+		);
 		const alert = await canvas.findByRole("alert");
 		await expect(
 			within(alert).getByRole("heading", {

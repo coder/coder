@@ -17,10 +17,7 @@ const MCPServersPage: FC = () => {
 		organizations,
 		searchParams.get(orgSearchParam),
 	);
-	const serversQuery = useQuery({
-		...mcpServerConfigs(organization?.id ?? ""),
-		enabled: Boolean(organization),
-	});
+	const serversQuery = useQuery(mcpServerConfigs(organization.id));
 	const servers = (serversQuery.data ?? []).toSorted((a, b) =>
 		a.display_name.localeCompare(b.display_name),
 	);
@@ -36,8 +33,9 @@ const MCPServersPage: FC = () => {
 				organization={organization}
 				onSelectOrganization={(org) => {
 					setSearchParams((params) => {
-						params.set(orgSearchParam, org.name);
-						return params;
+						const next = new URLSearchParams(params);
+						next.set(orgSearchParam, org.name);
+						return next;
 					});
 				}}
 			/>

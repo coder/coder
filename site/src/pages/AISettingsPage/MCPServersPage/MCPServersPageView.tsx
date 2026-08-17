@@ -27,7 +27,7 @@ interface MCPServersPageViewProps {
 	error: unknown;
 	servers: readonly TypesGen.MCPServerConfig[];
 	organizations: readonly TypesGen.Organization[];
-	organization: TypesGen.Organization | undefined;
+	organization: TypesGen.Organization;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
 }
 
