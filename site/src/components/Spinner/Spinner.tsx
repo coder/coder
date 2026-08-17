@@ -27,6 +27,13 @@ type SpinnerProps = React.SVGProps<SVGSVGElement> &
 	VariantProps<typeof spinnerVariants> & {
 		children?: ReactNode;
 		loading?: boolean;
+		/**
+		 * When set, exposes the spinner as an accessible live region
+		 * (role="status") labelled with this text. Leave undefined for decorative
+		 * spinners, e.g. inside a component that already provides its own status
+		 * region (such as Loader).
+		 */
+		label?: string;
 	};
 
 export function Spinner({
@@ -34,6 +41,7 @@ export function Spinner({
 	size,
 	loading,
 	children,
+	label,
 	...props
 }: SpinnerProps) {
 	if (!loading) {
@@ -45,6 +53,8 @@ export function Spinner({
 			viewBox="0 0 24 24"
 			xmlns="http://www.w3.org/2000/svg"
 			fill="currentColor"
+			role={label ? "status" : undefined}
+			aria-label={label}
 			className={cn(spinnerVariants({ size, className }))}
 			{...props}
 		>
