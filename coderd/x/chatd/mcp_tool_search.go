@@ -183,7 +183,9 @@ func flattenMCPParameterText(value any) string {
 
 // deriveDeferredMCPActivations walks the surviving history newest first
 // so that when the aggregate schema weight of activations exceeds
-// tokenBudget, the least recently activated schemas are shed. Shed tools
+// tokenBudget, the least recently activated schemas are shed. The newest
+// activation is always kept even when its schema alone exceeds the
+// budget, so the tool the model just requested stays usable. Shed tools
 // stay in the catalog and remain directly callable, which reactivates
 // them as most recent. A tokenBudget <= 0 means unbounded.
 func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []deferredMCPTool, tokenBudget float64) []string {
@@ -204,7 +206,7 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 		}
 		seen[name] = struct{}{}
 		weight := estimateDeferredMCPToolTokens([]deferredMCPTool{candidate})
-		if tokenBudget > 0 && usedTokens+weight > tokenBudget {
+		if len(activated) > 0 && tokenBudget > 0 && usedTokens+weight > tokenBudget {
 			return
 		}
 		usedTokens += weight

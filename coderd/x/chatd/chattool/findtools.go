@@ -96,10 +96,7 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs) FindToolsRe
 		byName[entry.Name] = entry
 	}
 
-	var queryTokens []string
-	for _, query := range args.Queries {
-		queryTokens = append(queryTokens, tokenizeFindTools(query)...)
-	}
+	queries := parseFindToolsQueries(entries, args.Queries)
 
 	type scoredEntry struct {
 		entry FindToolCatalogEntry
@@ -108,8 +105,17 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs) FindToolsRe
 	scored := make([]scoredEntry, 0, len(entries))
 	for _, entry := range entries {
 		score := 0
-		for _, token := range queryTokens {
-			score += scoreFindToolToken(entry, token)
+		for _, query := range queries {
+			if query.server != "" && !strings.EqualFold(entry.Server, query.server) {
+				continue
+			}
+			if query.server != "" && len(query.tokens) == 0 {
+				score++
+				continue
+			}
+			for _, token := range query.tokens {
+				score += scoreFindToolToken(entry, token)
+			}
 		}
 		if score > 0 {
 			scored = append(scored, scoredEntry{entry: entry, score: score})
@@ -152,6 +158,35 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs) FindToolsRe
 	return FindToolsResult{Matches: matches, Activated: activated, TotalDeferred: len(entries)}
 }
 
+type scopedFindToolsQuery struct {
+	server string
+	tokens []string
+}
+
+// parseFindToolsQueries treats "server: terms" as a scope only when the
+// prefix names a cataloged server, so queries like "error: timeout"
+// still search normally.
+func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []scopedFindToolsQuery {
+	servers := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		if entry.Server != "" {
+			servers[strings.ToLower(entry.Server)] = struct{}{}
+		}
+	}
+	parsed := make([]scopedFindToolsQuery, 0, len(queries))
+	for _, query := range queries {
+		if prefix, rest, ok := strings.Cut(query, ":"); ok {
+			server := strings.ToLower(strings.TrimSpace(prefix))
+			if _, known := servers[server]; known {
+				parsed = append(parsed, scopedFindToolsQuery{server: server, tokens: tokenizeFindTools(rest)})
+				continue
+			}
+		}
+		parsed = append(parsed, scopedFindToolsQuery{tokens: tokenizeFindTools(query)})
+	}
+	return parsed
+}
+
 func tokenizeFindTools(value string) []string {
 	parts := findToolsTokenSeparator.Split(strings.ToLower(value), -1)
 	return slices.DeleteFunc(parts, func(part string) bool { return part == "" })
@@ -183,7 +218,7 @@ func scoreFindToolToken(entry FindToolCatalogEntry, token string) int {
 }
 
 func buildFindToolsDescription(entries []FindToolCatalogEntry) string {
-	const usage = "Search deferred MCP tools by keyword, activate exact tool names, or scope queries with a server prefix. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools. At most 20 tools are returned and activated per call; call again for more.\n\n"
+	const usage = "Search deferred MCP tools by keyword, activate exact tool names, or scope a query to one server with a \"server: terms\" prefix. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools. At most 20 tools are returned and activated per call; call again for more.\n\n"
 	groups := groupFindToolsEntries(entries)
 	catalog := detailedFindToolsCatalog(groups)
 	if estimatedFindToolsTokens(usage+catalog) > findToolsCatalogTokens {

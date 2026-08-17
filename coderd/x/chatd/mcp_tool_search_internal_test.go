@@ -103,6 +103,8 @@ func TestDeriveDeferredMCPActivations(t *testing.T) {
 	firstWeight := estimateDeferredMCPToolTokens(candidates[:1])
 	require.Equal(t, []string{"server__first"}, deriveDeferredMCPActivations(rows, candidates, firstWeight),
 		"a token budget sheds the least recent activations")
+	require.Equal(t, []string{"server__first"}, deriveDeferredMCPActivations(rows, candidates, 0.001),
+		"the newest activation survives a budget smaller than its own schema")
 }
 
 func TestFlattenMCPParameterText(t *testing.T) {

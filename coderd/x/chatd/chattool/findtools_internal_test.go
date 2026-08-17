@@ -83,6 +83,24 @@ func TestSearchTools(t *testing.T) {
 			"tool description match outranks server metadata match")
 		require.Len(t, result.Matches, 2)
 	})
+	t.Run("server prefix scope", func(t *testing.T) {
+		t.Parallel()
+		scopedEntries := []FindToolCatalogEntry{
+			{Name: "ci__status", Description: "Pipeline status", Server: "ci"},
+			{Name: "github__get_commit", Description: "Get commit status", Server: "github"},
+		}
+		result := SearchTools(scopedEntries, FindToolsArgs{Queries: []string{"github: status"}})
+		require.Equal(t, []string{"github__get_commit"}, result.Activated,
+			"a known server prefix restricts matches to that server")
+
+		result = SearchTools(scopedEntries, FindToolsArgs{Queries: []string{"github:"}})
+		require.Equal(t, []string{"github__get_commit"}, result.Activated,
+			"a bare server prefix lists that server's tools")
+
+		result = SearchTools(scopedEntries, FindToolsArgs{Queries: []string{"error: status"}})
+		require.Len(t, result.Matches, 2,
+			"an unknown prefix is searched as plain keywords")
+	})
 	t.Run("unicode terms", func(t *testing.T) {
 		t.Parallel()
 		unicodeEntries := []FindToolCatalogEntry{
