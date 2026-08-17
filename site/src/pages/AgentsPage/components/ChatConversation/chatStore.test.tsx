@@ -1409,7 +1409,7 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("ignores message_part updates while chat is waiting", async () => {
+	it("applies message_part updates while a stale chat status reads waiting", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-1";
@@ -1479,14 +1479,15 @@ describe("useChatStore", () => {
 		await waitFor(() => {
 			// Stream state is preserved after status=waiting (the
 			// durable message event handles cleanup via
-			// needsStreamReset). Only new message_parts should be
-			// blocked by the shouldApplyMessagePart gate.
+			// needsStreamReset).
 			expect(result.current.streamState).not.toBeNull();
 			expect(result.current.streamState?.blocks).toEqual([
 				{ type: "response", text: "first" },
 			]);
 		});
 
+		// A late part arriving while the status still reads "waiting"
+		// is current content (the status has not caught up yet).
 		act(() => {
 			mockSocket.emitData({
 				type: "message_part",
@@ -1502,11 +1503,8 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			// The late message_part should not be applied because
-			// shouldApplyMessagePart gates on waiting.
-			// Stream state still shows the original "first".
 			expect(result.current.streamState?.blocks).toEqual([
-				{ type: "response", text: "first" },
+				{ type: "response", text: "firstlate" },
 			]);
 		});
 	});
@@ -4384,7 +4382,7 @@ describe("thinking indicator event ordering", () => {
 		});
 	});
 
-	it("discards buffered parts when status transitions to pending", async () => {
+	it("discards buffered parts when status transitions to waiting", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		immediateAnimationFrame();
 
