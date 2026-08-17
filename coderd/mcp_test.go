@@ -385,7 +385,7 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		// middleware read and the delete transaction.
 		store.stale.Store(true)
 		mAudit.ResetLogs()
-		err := client.DeleteMCPServerConfig(ctx, config.ID)
+		err := client.DeleteMCPServerConfig(ctx, firstUser.OrganizationID, config.ID)
 		require.NoError(t, err)
 
 		logs := mAudit.AuditLogs()
@@ -576,7 +576,7 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		config := createMCPServerConfig(t, client, firstUser.OrganizationID, "audit-delete-denied", true)
 
 		mAudit.ResetLogs()
-		err := memberClient.DeleteMCPServerConfig(ctx, config.ID)
+		err := memberClient.DeleteMCPServerConfig(ctx, firstUser.OrganizationID, config.ID)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
