@@ -423,6 +423,17 @@ export const useChatStore = (
 		let historyResetPending = false;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
+		// Latch set when the stream delivers an authoritative "waiting"
+		// status, cleared on any other stream status. A part arriving
+		// while the latch is set belongs to an episode the server already
+		// closed (closed episodes drain for up to 15s server-side) and is
+		// dropped; a REST-hydrated "waiting" never sets the latch, so
+		// parts still flow when the REST status lags a live turn.
+		let streamReportedWaiting = false;
+
+		const shouldKeepMessagePart = (): boolean =>
+			store.getSnapshot().chatStatus !== "waiting" || !streamReportedWaiting;
+
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
 				return;
@@ -430,6 +441,10 @@ export const useChatStore = (
 			partsFlushTimer = setTimeout(() => {
 				partsFlushTimer = null;
 				if (disposed || activeChatIDRef.current !== chatID) {
+					return;
+				}
+				if (!shouldKeepMessagePart()) {
+					partsBuf.length = 0;
 					return;
 				}
 				store.applyMessageParts(partsBuf.splice(0));
@@ -447,7 +462,8 @@ export const useChatStore = (
 				clearTimeout(partsFlushTimer);
 				partsFlushTimer = null;
 			}
-			if (activeChatIDRef.current !== chatID) {
+			if (activeChatIDRef.current !== chatID || !shouldKeepMessagePart()) {
+				partsBuf.length = 0;
 				return;
 			}
 			store.applyMessageParts(partsBuf.splice(0));
@@ -512,6 +528,9 @@ export const useChatStore = (
 							continue;
 						}
 						commitHistoryReplacement();
+						if (!shouldKeepMessagePart()) {
+							continue;
+						}
 						const part = streamEvent.message_part?.part;
 						if (part) {
 							store.clearRetryState();
@@ -610,6 +629,7 @@ export const useChatStore = (
 								continue;
 							}
 
+							streamReportedWaiting = nextStatus === "waiting";
 							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
 							store.applyServerChatStatus(nextStatus);
@@ -631,6 +651,7 @@ export const useChatStore = (
 								kind: "generic",
 								message: "Chat processing failed.",
 							};
+							streamReportedWaiting = false;
 							wsStatusReceivedRef.current = true;
 							store.applyServerChatStatus("error");
 							store.setStreamError(reason);
@@ -686,7 +707,9 @@ export const useChatStore = (
 							clearTimeout(partsFlushTimer);
 							partsFlushTimer = null;
 						}
-						store.applyMessageParts(partsBuf.splice(0));
+						if (shouldKeepMessagePart()) {
+							store.applyMessageParts(partsBuf.splice(0));
+						}
 					}
 				}
 			});
