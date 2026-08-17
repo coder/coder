@@ -10410,6 +10410,221 @@ func (d *panicOnInTxDB) InTx(f func(database.Store) error, opts *database.TxOpti
 	return d.Store.InTx(f, opts)
 }
 
+func TestMCPToolSearchGenerationFlows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("search activates tools within and across turns", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mcpSrv := newTestMCPServer("search-mcp")
+		addTestMCPTextTool(mcpSrv, "alpha", "Alpha deferred action", "alpha: ")
+		addTestMCPTextTool(mcpSrv, "beta", "Beta deferred action", "beta: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+
+		var (
+			streamCount atomic.Int32
+			requestsMu  sync.Mutex
+			requests    []recordedOpenAIRequest
+		)
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			requestsMu.Lock()
+			requests = append(requests, recordOpenAIRequest(req))
+			requestsMu.Unlock()
+			switch streamCount.Add(1) {
+			case 1:
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAIToolCallChunk(chattool.FindToolsName, `{"names":["search-mcp__alpha","search-mcp__beta"]}`),
+				)
+			default:
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			}
+		})
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			DisplayName: "Search MCP",
+			Slug:        "search-mcp",
+			Url:         mcpTS.URL,
+			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.ForceMCPToolSearch = true
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "deferred search",
+			ModelConfigID:  model.ID,
+			MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("find deferred actions"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		requestsMu.Lock()
+		recorded := append([]recordedOpenAIRequest(nil), requests...)
+		requestsMu.Unlock()
+		require.Len(t, recorded, 3)
+		require.Contains(t, recorded[0].Tools, "read_file")
+		require.Contains(t, recorded[0].Tools, chattool.FindToolsName)
+		require.NotContains(t, recorded[0].Tools, "search-mcp__alpha")
+		require.NotContains(t, recorded[0].Tools, "search-mcp__beta")
+		for _, request := range recorded[1:] {
+			require.Contains(t, request.Tools, chattool.FindToolsName)
+			require.Contains(t, request.Tools, "search-mcp__alpha")
+			require.Contains(t, request.Tools, "search-mcp__beta")
+			require.Less(t,
+				slices.Index(request.Tools, "search-mcp__alpha"),
+				slices.Index(request.Tools, "search-mcp__beta"),
+			)
+		}
+	})
+
+	t.Run("direct call activates schema on next step", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mcpSrv := newTestMCPServer("direct-mcp")
+		addTestMCPTextTool(mcpSrv, "echo", "Echo deferred input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+
+		var (
+			streamCount atomic.Int32
+			requestsMu  sync.Mutex
+			requests    []recordedOpenAIRequest
+		)
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			requestsMu.Lock()
+			requests = append(requests, recordOpenAIRequest(req))
+			requestsMu.Unlock()
+			if streamCount.Add(1) == 1 {
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAIToolCallChunk("direct-mcp__echo", `{"input":"hello"}`),
+				)
+			}
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		})
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			DisplayName: "Direct MCP",
+			Slug:        "direct-mcp",
+			Url:         mcpTS.URL,
+			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.ForceMCPToolSearch = true
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "direct deferred call",
+			ModelConfigID:  model.ID,
+			MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("call the deferred tool directly"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		requestsMu.Lock()
+		recorded := append([]recordedOpenAIRequest(nil), requests...)
+		requestsMu.Unlock()
+		require.Len(t, recorded, 2)
+		require.NotContains(t, recorded[0].Tools, "direct-mcp__echo")
+		require.Contains(t, recorded[1].Tools, "direct-mcp__echo")
+		require.True(t, openAIMessagesContain(recorded[1].Messages, "echo: hello"))
+	})
+
+	t.Run("below threshold preserves wire tools", func(t *testing.T) {
+		t.Parallel()
+
+		run := func(t *testing.T, experimentEnabled bool) []byte {
+			t.Helper()
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			mcpSrv := newTestMCPServer("small-mcp")
+			addTestMCPTextTool(mcpSrv, "echo", "Echo input", "echo: ")
+			mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+			t.Cleanup(mcpTS.Close)
+			var toolsJSON []byte
+			var toolsMu sync.Mutex
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				encoded, err := json.Marshal(req.Tools)
+				require.NoError(t, err)
+				toolsMu.Lock()
+				toolsJSON = encoded
+				toolsMu.Unlock()
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			})
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+			model.ContextLimit = 100_000
+			model = updateChatModelContextLimit(t, db, model)
+			mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+				DisplayName: "Small MCP",
+				Slug:        "small-mcp",
+				Url:         mcpTS.URL,
+				CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+				UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			})
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+				if !experimentEnabled {
+					cfg.Experiments = slices.DeleteFunc(slices.Clone(cfg.Experiments), func(experiment codersdk.Experiment) bool {
+						return experiment == codersdk.ExperimentMCPToolSearch
+					})
+				}
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				Title:          "small deferred catalog",
+				ModelConfigID:  model.ID,
+				MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("finish"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			toolsMu.Lock()
+			defer toolsMu.Unlock()
+			return append([]byte(nil), toolsJSON...)
+		}
+
+		require.Equal(t, run(t, false), run(t, true))
+	})
+}
+
 // TestMCPServerToolInvocation verifies that when a chat has
 // mcp_server_ids set, the chat loop connects to those MCP servers,
 // discovers their tools, and the LLM can invoke them.

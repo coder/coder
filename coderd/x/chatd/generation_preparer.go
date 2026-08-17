@@ -642,12 +642,14 @@ func (server *Server) prepareGeneration(
 				)
 			},
 		})
-		tools = append(tools, findTools)
+		tools, activeToolNames, allowInactiveTools = configureDeferredMCPToolSearch(
+			tools,
+			activeToolNames,
+			deferredCandidates,
+			findTools,
+			deriveDeferredMCPActivations(promptRows, deferredCandidates),
+		)
 		builtinToolNames[chattool.FindToolsName] = true
-		allowInactiveTools = deferredMCPToolNameSet(deferredCandidates)
-		activeToolNames = slices.DeleteFunc(activeToolNames, func(name string) bool { return allowInactiveTools[name] })
-		activeToolNames = append(activeToolNames, chattool.FindToolsName)
-		activeToolNames = append(activeToolNames, deriveDeferredMCPActivations(promptRows, deferredCandidates)...)
 	}
 
 	toolNameToConfigID := make(map[string]uuid.UUID)

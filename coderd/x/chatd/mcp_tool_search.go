@@ -48,6 +48,33 @@ func decideMCPToolSearch(input mcpToolSearchInput) mcpToolSearchDecision {
 	return decision
 }
 
+func configureDeferredMCPToolSearch(
+	tools []fantasy.AgentTool,
+	activeToolNames []string,
+	candidates []deferredMCPTool,
+	findTools fantasy.AgentTool,
+	activations []string,
+) ([]fantasy.AgentTool, []string, map[string]bool) {
+	candidateNames := deferredMCPToolNameSet(candidates)
+	ordered := make([]fantasy.AgentTool, 0, len(tools)+1)
+	for _, tool := range tools {
+		if !candidateNames[tool.Info().Name] {
+			ordered = append(ordered, tool)
+		}
+	}
+	ordered = append(ordered, findTools)
+	for _, tool := range tools {
+		if candidateNames[tool.Info().Name] {
+			ordered = append(ordered, tool)
+		}
+	}
+
+	activeToolNames = slices.DeleteFunc(activeToolNames, func(name string) bool { return candidateNames[name] })
+	activeToolNames = append(activeToolNames, chattool.FindToolsName)
+	activeToolNames = append(activeToolNames, activations...)
+	return ordered, activeToolNames, candidateNames
+}
+
 func estimateDeferredMCPToolTokens(candidates []deferredMCPTool) float64 {
 	chars := 0
 	for _, candidate := range candidates {

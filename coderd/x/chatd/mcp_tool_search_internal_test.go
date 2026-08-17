@@ -2,14 +2,18 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -88,6 +92,8 @@ func TestDeriveDeferredMCPActivations(t *testing.T) {
 		{Role: database.ChatMessageRoleTool, Content: malformed, ContentVersion: chatprompt.CurrentContentVersion},
 	}
 	require.Equal(t, []string{"server__second", "server__first"}, deriveDeferredMCPActivations(rows, candidates))
+	require.Equal(t, []string{"server__first"}, deriveDeferredMCPActivations(rows[1:], candidates),
+		"activations before a compaction summary are absent from the surviving prompt window")
 }
 
 func TestFlattenMCPParameterText(t *testing.T) {
@@ -97,4 +103,145 @@ func TestFlattenMCPParameterText(t *testing.T) {
 	})
 	require.Contains(t, text, "repository")
 	require.Contains(t, text, "Repository name")
+}
+
+type deferredExternalTestTool struct {
+	deferredTestAgentTool
+	configID uuid.UUID
+}
+
+func (t deferredExternalTestTool) MCPServerConfigID() uuid.UUID { return t.configID }
+
+func TestConfigureDeferredMCPToolSearchGenerationFlows(t *testing.T) {
+	t.Parallel()
+
+	hot := deferredTestAgentTool{info: fantasy.ToolInfo{Name: "read_file", Description: "Read a file"}}
+	first := testDeferredTool("github__create_issue", "Create an issue", nil)
+	second := testDeferredTool("github__list_issues", "List issues", nil)
+	candidates := []deferredMCPTool{first, second}
+	findTools := chattool.FindTools(chattool.FindToolsOptions{Entries: deferredMCPToolEntries(candidates)})
+	allTools := []fantasy.AgentTool{hot, first.tool, second.tool}
+	allActive := []string{"read_file", first.tool.Info().Name, second.tool.Info().Name}
+
+	ordered, active, allowInactive := configureDeferredMCPToolSearch(allTools, allActive, candidates, findTools, nil)
+	require.Equal(t, []string{"read_file", chattool.FindToolsName}, captureWireToolNames(t, ordered, active))
+	require.Equal(t, map[string]bool{
+		first.tool.Info().Name:  true,
+		second.tool.Info().Name: true,
+	}, allowInactive)
+
+	result := chattool.SearchTools(deferredMCPToolEntries(candidates), chattool.FindToolsArgs{Names: []string{second.tool.Info().Name}})
+	resultJSON, err := json.Marshal(result)
+	require.NoError(t, err)
+	resultContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult("find-1", chattool.FindToolsName, resultJSON, false, false),
+	})
+	require.NoError(t, err)
+	history := []database.ChatMessage{{
+		Role: database.ChatMessageRoleTool, Content: resultContent, ContentVersion: chatprompt.CurrentContentVersion,
+	}}
+	activations := deriveDeferredMCPActivations(history, candidates)
+	require.Equal(t, []string{second.tool.Info().Name}, activations)
+
+	ordered, active, _ = configureDeferredMCPToolSearch(allTools, allActive, candidates, findTools, activations)
+	require.Equal(t,
+		[]string{"read_file", chattool.FindToolsName, second.tool.Info().Name},
+		captureWireToolNames(t, ordered, active),
+	)
+	// Re-preparing the following turn from the same surviving history produces
+	// the same activation set without separate persisted state.
+	require.Equal(t, activations, deriveDeferredMCPActivations(history, candidates))
+}
+
+func TestConfigureDeferredMCPToolSearchDirectCallAndCompaction(t *testing.T) {
+	t.Parallel()
+
+	candidate := testDeferredTool("github__create_issue", "Create an issue", nil)
+	candidates := []deferredMCPTool{candidate}
+	directCall, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall("direct-1", candidate.tool.Info().Name, []byte(`{"title":"bug"}`)),
+	})
+	require.NoError(t, err)
+	preSummary := []database.ChatMessage{{
+		Role: database.ChatMessageRoleAssistant, Content: directCall, ContentVersion: chatprompt.CurrentContentVersion,
+	}}
+	activation := deriveDeferredMCPActivations(preSummary, candidates)
+	require.Equal(t, []string{candidate.tool.Info().Name}, activation)
+
+	findTools := chattool.FindTools(chattool.FindToolsOptions{Entries: deferredMCPToolEntries(candidates)})
+	ordered, active, _ := configureDeferredMCPToolSearch(
+		[]fantasy.AgentTool{candidate.tool},
+		[]string{candidate.tool.Info().Name},
+		candidates,
+		findTools,
+		activation,
+	)
+	require.Equal(t,
+		[]string{chattool.FindToolsName, candidate.tool.Info().Name},
+		captureWireToolNames(t, ordered, active),
+	)
+
+	// Prompt preparation passes only the post-summary history window, so an
+	// activation before chat_summarized naturally lapses after compaction.
+	require.Empty(t, deriveDeferredMCPActivations(nil, candidates))
+}
+
+func TestMCPToolSearchBelowThresholdPreservesWireTools(t *testing.T) {
+	t.Parallel()
+
+	hot := deferredTestAgentTool{info: fantasy.ToolInfo{Name: "read_file"}}
+	candidate := testDeferredTool("github__list_issues", "List issues", nil)
+	tools := []fantasy.AgentTool{hot, candidate.tool}
+	active := []string{"read_file", candidate.tool.Info().Name}
+	withoutExperiment := captureWireToolNames(t, tools, active)
+
+	decision := decideMCPToolSearch(mcpToolSearchInput{
+		experimentEnabled: true,
+		contextWindow:     100_000,
+		candidates:        []deferredMCPTool{candidate},
+	})
+	require.False(t, decision.apply)
+	require.Equal(t, withoutExperiment, captureWireToolNames(t, tools, active))
+}
+
+func TestMCPToolSearchExploreAllowlist(t *testing.T) {
+	t.Parallel()
+
+	hot := deferredTestAgentTool{info: fantasy.ToolInfo{Name: "read_file"}}
+	external := deferredExternalTestTool{
+		deferredTestAgentTool: deferredTestAgentTool{info: fantasy.ToolInfo{Name: "github__list_issues"}},
+		configID:              uuid.New(),
+	}
+	tools := []fantasy.AgentTool{hot, external}
+	exploreActive := allowedExploreToolNames(tools)
+	require.Equal(t, []string{"read_file", external.Info().Name}, exploreActive)
+
+	candidate := deferredMCPTool{tool: external}
+	findTools := chattool.FindTools(chattool.FindToolsOptions{Entries: deferredMCPToolEntries([]deferredMCPTool{candidate})})
+	_, deferredActive, _ := configureDeferredMCPToolSearch(tools, exploreActive, []deferredMCPTool{candidate}, findTools, nil)
+	require.Equal(t, []string{"read_file", chattool.FindToolsName}, deferredActive)
+}
+
+func captureWireToolNames(t *testing.T, tools []fantasy.AgentTool, active []string) []string {
+	t.Helper()
+	var names []string
+	model := &chattest.FakeModel{
+		ProviderName: "test",
+		ModelName:    "test",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			for _, tool := range call.Tools {
+				names = append(names, tool.GetName())
+			}
+			return func(yield func(fantasy.StreamPart) bool) {
+				yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
+			}, nil
+		},
+	}
+	_, err := chatloop.GenerateAssistant(context.Background(), chatloop.GenerateAssistantOptions{
+		Model:       model,
+		Tools:       tools,
+		ActiveTools: active,
+	})
+	require.NoError(t, err)
+	return names
 }
