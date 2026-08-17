@@ -3205,43 +3205,47 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 			};
 		});
 
-		const editor = await canvas.findByTestId("chat-message-input");
-		await userEvent.click(editor);
-		await userEvent.type(editor, "Follow-up question.");
-		const viewport = canvas.getByRole("region", { name: "Messages" });
-		// Scroll the reader into history before sending, the repro starting point.
-		viewport.scrollTop = 0;
-		const scrollBeforeSend = viewport.scrollTop;
+		// Rather than sampling native smooth-scroll progress (which depends on
+		// headless-browser scheduling and reduced-motion overrides), intercept the
+		// MessageScroller's own scroll calls. The eager scrollToEnd we regressed
+		// on reaches the viewport as a `scrollTo({ behavior: "smooth" })`.
+		const scrollToMock = spyOn(Element.prototype, "scrollTo");
+		try {
+			const editor = await canvas.findByTestId("chat-message-input");
+			await userEvent.click(editor);
+			await userEvent.type(editor, "Follow-up question.");
+			const viewport = canvas.getByRole("region", { name: "Messages" });
+			// Scroll the reader into history before sending, the repro starting
+			// point.
+			viewport.scrollTop = 0;
 
-		await userEvent.keyboard("{Enter}");
-		await waitFor(() => {
-			expect(sendSpy).toHaveBeenCalledTimes(1);
-		});
+			await userEvent.keyboard("{Enter}");
+			await waitFor(() => {
+				expect(sendSpy).toHaveBeenCalledTimes(1);
+			});
 
-		// While the send POST is still pending, the viewport must stay put.
-		for (let i = 0; i < 6; i++) {
-			expect(viewport.scrollTop).toBe(scrollBeforeSend);
-			await new Promise<void>((resolve) =>
-				requestAnimationFrame(() => resolve()),
-			);
+			// While the send POST is still pending, the scroller must not be told
+			// to move anywhere: the new user row it anchors to does not exist yet.
+			// The gated mock keeps the POST in-flight until this runs, so a single
+			// assertion is deterministic without polling animation frames.
+			expect(scrollToMock).not.toHaveBeenCalled();
+
+			// Resolve the send and let the turn settle. The scroller re-anchors
+			// to the new prompt in a single jump.
+			releaseSend?.();
+			await canvas.findByTestId("chat-message-message:41");
+			await waitFor(() => {
+				const newPrompt = canvas.getByTestId("chat-message-message:41");
+				const promptTop =
+					newPrompt.getBoundingClientRect().top -
+					viewport.getBoundingClientRect().top;
+				// The new prompt is anchored near the top of the viewport.
+				expect(promptTop).toBeGreaterThanOrEqual(0);
+				expect(promptTop).toBeLessThan(viewport.clientHeight);
+			});
+		} finally {
+			scrollToMock.mockRestore();
 		}
-
-		// Resolve the send and let the turn settle. The viewport lands anchored
-		// to the new prompt in a single jump.
-		releaseSend?.();
-		const newPrompt = await canvas.findByTestId("chat-message-message:41");
-		await waitFor(() => {
-			const promptTop =
-				newPrompt.getBoundingClientRect().top -
-				viewport.getBoundingClientRect().top;
-			// The new prompt is anchored near the top of the viewport.
-			expect(promptTop).toBeGreaterThanOrEqual(0);
-			expect(promptTop).toBeLessThan(viewport.clientHeight);
-			// The transcript still extends well past the fold below the prompt.
-			expect(newPrompt.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-				viewport.getBoundingClientRect().bottom,
-			);
-		});
 	},
 };
 

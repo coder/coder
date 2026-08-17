@@ -1722,6 +1722,9 @@ const AgentChatPage: FC = () => {
 				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;
 			}
+			// /compact appends no visible prompt row, so there is no anchor to
+			// take the scroller; move the reader to the live edge explicitly.
+			scrollToEnd({ behavior: "smooth" });
 			return;
 		}
 
@@ -1896,6 +1899,12 @@ const AgentChatPage: FC = () => {
 					}
 				}
 			}
+		}
+		if (response.queued && insertedMessages.length === 0) {
+			// A queued send that promotes no durable head appends no prompt row,
+			// so the scroller has no anchor to follow; move the reader to the
+			// live edge explicitly.
+			scrollToEnd({ behavior: "smooth" });
 		}
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
