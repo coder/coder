@@ -14,6 +14,10 @@ import {
 import { DateTimeRangeFilter } from "./DateTimeRangeFilter";
 import type { TimeRange } from "./timeRange";
 
+// Narrower than the SelectFilter default so the search input keeps most
+// of the row on wide viewports.
+const FILTER_WIDTH = 150;
+
 interface ListSessionsFilterProps {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
@@ -58,11 +62,16 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 						value={timeRange}
 						defaultValue={defaultTimeRange}
 						onChange={onTimeRangeChange}
+						width={FILTER_WIDTH}
 					/>
-					<UserMenu menu={menus.user} placeholder="All users" />
-					<ProviderFilter menu={menus.provider} />
-					<ClientFilter menu={menus.client} />
-					<ModelFilter menu={menus.model} />
+					<UserMenu
+						menu={menus.user}
+						placeholder="All users"
+						width={FILTER_WIDTH}
+					/>
+					<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
+					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
+					<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
 				</>
 			}
 		/>

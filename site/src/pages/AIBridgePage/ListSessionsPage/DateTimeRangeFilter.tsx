@@ -25,6 +25,8 @@ interface DateTimeRangeFilterProps {
 	defaultValue: TimeRange;
 	onChange: (value: TimeRange) => void;
 	now?: Date;
+	/** Matches the SelectFilter trigger metrics in the filter row. */
+	width?: number;
 }
 
 interface FieldState {
@@ -51,6 +53,7 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	defaultValue,
 	onChange,
 	now,
+	width = 200,
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
@@ -159,10 +162,10 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 				<Button
 					variant="outline"
 					aria-label="Filter by time range"
-					className="shrink-0 grow"
-					style={{ flexBasis: 200 }}
+					className="grow justify-start"
+					style={{ flexBasis: width }}
 				>
-					<CalendarIcon className="size-4 text-content-secondary" />
+					<CalendarIcon className="size-4 shrink-0 text-content-secondary" />
 					<span className="truncate text-left">{triggerLabel}</span>
 				</Button>
 			</PopoverTrigger>
