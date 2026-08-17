@@ -274,9 +274,9 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
 	// Validate the client secret and record which secret the token is minted
 	// against. Public clients have none to validate and their tokens reference
-	// none; the PKCE verification below is their only proof of possession,
-	// which makes the code ownership check further down load-bearing rather
-	// than defense in depth.
+	// none; the PKCE verification below is their only proof of possession, so
+	// the code ownership check further down is what binds the code to the
+	// client rather than a redundant check behind the secret.
 	var appSecretID uuid.NullUUID
 	if !app.IsPublic() {
 		secret, err := ParseFormattedSecret(req.ClientSecret)
