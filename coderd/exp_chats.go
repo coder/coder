@@ -1263,23 +1263,21 @@ func validateChatMCPServerIDs(
 		return unique, nil, nil
 	}
 
-	configs, err := db.GetMCPServerConfigsByOrganizationAndIDs(ctx, database.GetMCPServerConfigsByOrganizationAndIDsParams{
+	configs, err := db.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
 		OrganizationID: organizationID,
 		IDs:            unique,
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("get MCP server configs for organization: %w", err)
+		return nil, nil, xerrors.Errorf("get enabled MCP server configs for organization: %w", err)
 	}
 
-	enabled := make(map[uuid.UUID]struct{}, len(configs))
+	valid := make(map[uuid.UUID]struct{}, len(configs))
 	for _, config := range configs {
-		if config.Enabled {
-			enabled[config.ID] = struct{}{}
-		}
+		valid[config.ID] = struct{}{}
 	}
-	invalid = make([]uuid.UUID, 0, len(unique)-len(enabled))
+	invalid = make([]uuid.UUID, 0, len(unique)-len(valid))
 	for _, id := range unique {
-		if _, ok := enabled[id]; !ok {
+		if _, ok := valid[id]; !ok {
 			invalid = append(invalid, id)
 		}
 	}

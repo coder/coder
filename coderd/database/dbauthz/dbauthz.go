@@ -3783,6 +3783,10 @@ func (q *querier) GetEnabledMCPServerConfigsByOrganization(ctx context.Context, 
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEnabledMCPServerConfigsByOrganization)(ctx, organizationID)
 }
 
+func (q *querier) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEnabledMCPServerConfigsByOrganizationAndIDs)(ctx, arg)
+}
+
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
 // scaletest agentfake path calls this query directly via a connection to the
 // database. There is no production code path that uses this method, and it is
@@ -4075,10 +4079,6 @@ func (q *querier) GetMCPServerConfigsByOrganization(ctx context.Context, organiz
 		return nil, xerrors.Errorf("prepare sql filter: %w", err)
 	}
 	return q.db.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
-}
-
-func (q *querier) GetMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetMCPServerConfigsByOrganizationAndIDs)(ctx, arg)
 }
 
 func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {

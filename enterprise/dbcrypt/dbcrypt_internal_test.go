@@ -1031,12 +1031,12 @@ func TestMCPServerConfigs(t *testing.T) {
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
-	t.Run("GetMCPServerConfigsByOrganizationAndIDs", func(t *testing.T) {
+	t.Run("GetEnabledMCPServerConfigsByOrganizationAndIDs", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetMCPServerConfigsByOrganizationAndIDs(ctx, database.GetMCPServerConfigsByOrganizationAndIDsParams{
+		cfgs, err := crypt.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
 			OrganizationID: cfg.OrganizationID,
 			IDs:            []uuid.UUID{cfg.ID},
 		})

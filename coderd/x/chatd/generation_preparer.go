@@ -911,27 +911,18 @@ func latestAssistantText(messages []database.ChatMessage) string {
 	return ""
 }
 
-// Returns enabled requested configs visible to the chat organization. Filtering
-// here preserves the pre-org-scoping behavior of skipping disabled configs.
 func enabledMCPServerConfigsForChatOrg(
 	ctx context.Context,
 	db database.Store,
 	organizationID uuid.UUID,
 	ids []uuid.UUID,
 ) ([]database.MCPServerConfig, error) {
-	configs, err := db.GetMCPServerConfigsByOrganizationAndIDs(ctx, database.GetMCPServerConfigsByOrganizationAndIDsParams{
+	configs, err := db.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
 		OrganizationID: organizationID,
 		IDs:            ids,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("get MCP server configs for organization: %w", err)
+		return nil, xerrors.Errorf("get enabled MCP server configs for organization: %w", err)
 	}
-
-	enabled := make([]database.MCPServerConfig, 0, len(configs))
-	for _, cfg := range configs {
-		if cfg.Enabled {
-			enabled = append(enabled, cfg)
-		}
-	}
-	return enabled, nil
+	return configs, nil
 }

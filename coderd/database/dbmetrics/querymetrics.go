@@ -2025,6 +2025,14 @@ func (m queryMetricsStore) GetEnabledMCPServerConfigsByOrganization(ctx context.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetEnabledMCPServerConfigsByOrganizationAndIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledMCPServerConfigsByOrganizationAndIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAgentTokensByTemplateID(ctx, arg)
@@ -2350,14 +2358,6 @@ func (m queryMetricsStore) GetMCPServerConfigsByOrganization(ctx context.Context
 	r0, r1 := m.s.GetMCPServerConfigsByOrganization(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByOrganization").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByOrganization").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetMCPServerConfigsByOrganizationAndIDs(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByOrganizationAndIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByOrganizationAndIDs").Inc()
 	return r0, r1
 }
 

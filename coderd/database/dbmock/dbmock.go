@@ -3779,6 +3779,21 @@ func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigsByOrganization(ctx, o
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigsByOrganization", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigsByOrganization), ctx, organizationID)
 }
 
+// GetEnabledMCPServerConfigsByOrganizationAndIDs mocks base method.
+func (m *MockStore) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEnabledMCPServerConfigsByOrganizationAndIDs", ctx, arg)
+	ret0, _ := ret[0].([]database.MCPServerConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEnabledMCPServerConfigsByOrganizationAndIDs indicates an expected call of GetEnabledMCPServerConfigsByOrganizationAndIDs.
+func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigsByOrganizationAndIDs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigsByOrganizationAndIDs), ctx, arg)
+}
+
 // GetExternalAgentTokensByTemplateID mocks base method.
 func (m *MockStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	m.ctrl.T.Helper()
@@ -4392,21 +4407,6 @@ func (m *MockStore) GetMCPServerConfigsByOrganization(ctx context.Context, organ
 func (mr *MockStoreMockRecorder) GetMCPServerConfigsByOrganization(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigsByOrganization", reflect.TypeOf((*MockStore)(nil).GetMCPServerConfigsByOrganization), ctx, organizationID)
-}
-
-// GetMCPServerConfigsByOrganizationAndIDs mocks base method.
-func (m *MockStore) GetMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMCPServerConfigsByOrganizationAndIDs", ctx, arg)
-	ret0, _ := ret[0].([]database.MCPServerConfig)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetMCPServerConfigsByOrganizationAndIDs indicates an expected call of GetMCPServerConfigsByOrganizationAndIDs.
-func (mr *MockStoreMockRecorder) GetMCPServerConfigsByOrganizationAndIDs(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigsByOrganizationAndIDs", reflect.TypeOf((*MockStore)(nil).GetMCPServerConfigsByOrganizationAndIDs), ctx, arg)
 }
 
 // GetMCPServerUserToken mocks base method.

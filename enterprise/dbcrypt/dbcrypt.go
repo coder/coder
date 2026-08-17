@@ -749,8 +749,8 @@ func (db *dbCrypt) GetMCPServerConfigsByOrganization(ctx context.Context, organi
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetMCPServerConfigsByOrganizationAndIDs(ctx, arg)
+func (db *dbCrypt) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, arg)
 	if err != nil {
 		return nil, err
 	}

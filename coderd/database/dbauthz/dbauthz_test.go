@@ -1699,14 +1699,14 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetAuthorizedMCPServerConfigs(gomock.Any(), orgID, gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
 		check.Args(orgID, emptyPreparedAuthorized{}).Asserts().Returns([]database.MCPServerConfig{configA, configB})
 	}))
-	s.Run("GetMCPServerConfigsByOrganizationAndIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.GetMCPServerConfigsByOrganizationAndIDsParams{
+	s.Run("GetEnabledMCPServerConfigsByOrganizationAndIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
 			OrganizationID: uuid.New(),
 			IDs:            []uuid.UUID{uuid.New(), uuid.New()},
 		}
 		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{ID: arg.IDs[0], OrganizationID: arg.OrganizationID})
 		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{ID: arg.IDs[1], OrganizationID: arg.OrganizationID})
-		dbm.EXPECT().GetMCPServerConfigsByOrganizationAndIDs(gomock.Any(), arg).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
+		dbm.EXPECT().GetEnabledMCPServerConfigsByOrganizationAndIDs(gomock.Any(), arg).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
 		check.Args(arg).Asserts(configA, policy.ActionRead, configB, policy.ActionRead).OutOfOrder().Returns([]database.MCPServerConfig{configA, configB})
 	}))
 	s.Run("GetMCPServerUserToken", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

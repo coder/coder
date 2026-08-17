@@ -556,6 +556,7 @@ type sqlcQuerier interface {
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabledChatModelConfigsRow, error)
 	GetEnabledMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
+	GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]MCPServerConfig, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
 	// non-deleted external agents on the latest build of every running workspace
 	// of the given template. "Running" means the latest build has
@@ -649,7 +650,6 @@ type sqlcQuerier interface {
 	GetMCPServerConfigByIDForUpdate(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
 	GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg GetMCPServerConfigByOrganizationAndSlugParams) (MCPServerConfig, error)
 	GetMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
-	GetMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg GetMCPServerConfigsByOrganizationAndIDsParams) ([]MCPServerConfig, error)
 	GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (MCPServerUserToken, error)
 	GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]MCPServerUserToken, error)
 	// Must be called from within a transaction. The row lock is released

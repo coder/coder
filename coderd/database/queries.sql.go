@@ -17213,6 +17213,80 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigsByOrganization(ctx context.Contex
 	return items, nil
 }
 
+const getEnabledMCPServerConfigsByOrganizationAndIDs = `-- name: GetEnabledMCPServerConfigsByOrganizationAndIDs :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
+FROM
+    mcp_server_configs
+WHERE
+    organization_id = $1::uuid
+    AND id = ANY($2::uuid[])
+    AND enabled = TRUE
+ORDER BY
+    display_name ASC
+`
+
+type GetEnabledMCPServerConfigsByOrganizationAndIDsParams struct {
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	IDs            []uuid.UUID `db:"ids" json:"ids"`
+}
+
+func (q *sqlQuerier) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigsByOrganizationAndIDs, arg.OrganizationID, pq.Array(arg.IDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerConfig
+	for rows.Next() {
+		var i MCPServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconURL,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ModelIntent,
+			&i.AllowInPlanMode,
+			&i.ForwardCoderHeaders,
+			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getForcedMCPServerConfigsByOrganization = `-- name: GetForcedMCPServerConfigsByOrganization :many
 SELECT
     id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
@@ -17451,79 +17525,6 @@ ORDER BY
 
 func (q *sqlQuerier) GetMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error) {
 	rows, err := q.db.QueryContext(ctx, getMCPServerConfigsByOrganization, organizationID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []MCPServerConfig
-	for rows.Next() {
-		var i MCPServerConfig
-		if err := rows.Scan(
-			&i.ID,
-			&i.DisplayName,
-			&i.Slug,
-			&i.Description,
-			&i.IconURL,
-			&i.Transport,
-			&i.Url,
-			&i.AuthType,
-			&i.OAuth2ClientID,
-			&i.OAuth2ClientSecret,
-			&i.OAuth2ClientSecretKeyID,
-			&i.OAuth2AuthURL,
-			&i.OAuth2TokenURL,
-			&i.OAuth2Scopes,
-			&i.APIKeyHeader,
-			&i.APIKeyValue,
-			&i.APIKeyValueKeyID,
-			&i.CustomHeaders,
-			&i.CustomHeadersKeyID,
-			pq.Array(&i.ToolAllowList),
-			pq.Array(&i.ToolDenyList),
-			&i.Availability,
-			&i.Enabled,
-			&i.CreatedBy,
-			&i.UpdatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ModelIntent,
-			&i.AllowInPlanMode,
-			&i.ForwardCoderHeaders,
-			&i.OAuth2RevocationURL,
-			&i.OrganizationID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getMCPServerConfigsByOrganizationAndIDs = `-- name: GetMCPServerConfigsByOrganizationAndIDs :many
-SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id
-FROM
-    mcp_server_configs
-WHERE
-    organization_id = $1::uuid
-    AND id = ANY($2::uuid[])
-ORDER BY
-    display_name ASC
-`
-
-type GetMCPServerConfigsByOrganizationAndIDsParams struct {
-	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
-	IDs            []uuid.UUID `db:"ids" json:"ids"`
-}
-
-func (q *sqlQuerier) GetMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg GetMCPServerConfigsByOrganizationAndIDsParams) ([]MCPServerConfig, error) {
-	rows, err := q.db.QueryContext(ctx, getMCPServerConfigsByOrganizationAndIDs, arg.OrganizationID, pq.Array(arg.IDs))
 	if err != nil {
 		return nil, err
 	}

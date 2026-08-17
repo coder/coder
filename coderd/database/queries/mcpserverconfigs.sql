@@ -47,7 +47,7 @@ WHERE
 ORDER BY
     display_name ASC;
 
--- name: GetMCPServerConfigsByOrganizationAndIDs :many
+-- name: GetEnabledMCPServerConfigsByOrganizationAndIDs :many
 SELECT
     *
 FROM
@@ -55,6 +55,7 @@ FROM
 WHERE
     organization_id = @organization_id::uuid
     AND id = ANY(@ids::uuid[])
+    AND enabled = TRUE
 ORDER BY
     display_name ASC;
 
