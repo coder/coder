@@ -168,9 +168,10 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	// elsewhere. Other members see enabled ACL-granted configs, redacted.
 	// The update leg also requires config read so a custom role granting
 	// update without read cannot lift the read filtering below.
-	hasFullView := (api.Authorize(r, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) &&
+	hasFullView := ((api.Authorize(r, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) &&
 		api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID))) ||
-		api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.InOrg(organization.ID))
+		api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.InOrg(organization.ID))) &&
+		api.mcpServerConfigReadInKeyScope(r, organization.ID)
 
 	var configs []database.MCPServerConfig
 	var err error
@@ -237,6 +238,24 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// mcpServerConfigReadInKeyScope reports whether the caller's API key scope
+// permits reading MCP server configs. The full-view list fetch bypasses row
+// authorization with system access, so the key's scope must be enforced here.
+// Owner roles make the authorize outcome depend only on the scope dimension.
+func (api *API) mcpServerConfigReadInKeyScope(r *http.Request, organizationID uuid.UUID) bool {
+	caller := httpmw.UserAuthorization(r.Context())
+	scopeOnly := rbac.Subject{
+		Type:         caller.Type,
+		FriendlyName: caller.FriendlyName,
+		ID:           caller.ID,
+		Roles:        rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Scope:        caller.Scope,
+	}
+	err := api.HTTPAuth.Authorizer.Authorize(r.Context(), scopeOnly,
+		policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organizationID))
+	return err == nil
 }
 
 // @Summary Create MCP server config

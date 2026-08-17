@@ -676,6 +676,51 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 	}
 }
 
+func TestMCPServerConfigsScopedKeyFullView(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	_ = createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "enabled-server", true)
+	_ = createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "disabled-server", false)
+
+	_, auditor := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID,
+		rbac.ScopedRoleOrgAuditor(firstUser.OrganizationID))
+
+	// MCP config scopes are not user-mintable, so seed scoped keys directly.
+	newScopedClient := func(userID uuid.UUID, scopes ...database.APIKeyScope) *codersdk.Client {
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: userID,
+			Scopes: append(database.APIKeyScopes{"organization:read"}, scopes...),
+		})
+		client := codersdk.New(adminClient.URL)
+		client.SetSessionToken(token)
+		return client
+	}
+
+	// A key whose scope covers reading MCP configs keeps the full view.
+	fullViewConfigs, err := newScopedClient(firstUser.UserID,
+		"mcp_server_config:update", "mcp_server_config:read").MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, fullViewConfigs, 2)
+
+	// Update-or-audit roles make the caller full-view eligible, but a key
+	// scoped without mcp_server_config:read must not receive config data.
+	for name, client := range map[string]*codersdk.Client{
+		"AdminUpdateScope":  newScopedClient(firstUser.UserID, "mcp_server_config:update"),
+		"AuditorAuditScope": newScopedClient(auditor.ID, "audit_log:read"),
+	} {
+		configs, err := client.MCPServerConfigs(ctx, firstUser.OrganizationID)
+		require.NoError(t, err, name)
+		require.Empty(t, configs, name)
+	}
+}
+
 func TestMCPServerConfigACL(t *testing.T) {
 	t.Parallel()
 
