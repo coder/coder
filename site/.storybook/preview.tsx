@@ -1,11 +1,5 @@
 import "../src/index.css";
 import "../src/theme/globalFonts";
-import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
-import CssBaseline from "@mui/material/CssBaseline";
-import {
-	ThemeProvider as MuiThemeProvider,
-	StyledEngineProvider,
-} from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import type { Decorator, Parameters } from "@storybook/react-vite";
 import { StrictMode } from "react";
@@ -14,6 +8,7 @@ import { withRouter } from "storybook-addon-remix-react-router";
 import { TooltipProvider } from "../src/components/Tooltip/Tooltip";
 import themes, { baseModeFor, isConcreteThemeName } from "../src/theme";
 import { AppearanceProvider } from "../src/theme/appearance";
+import { ThemeContextProvider } from "../src/theme/context";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
@@ -112,20 +107,15 @@ const withTheme: Decorator = (Story, context) => {
 
 	return (
 		<StrictMode>
-			<StyledEngineProvider injectFirst>
-				<MuiThemeProvider theme={themes[concreteName]}>
-					<EmotionThemeProvider theme={themes[concreteName]}>
-						<AppearanceProvider
-							externalImages={themes[concreteName].externalImages}
-						>
-							<TooltipProvider delayDuration={100}>
-								<CssBaseline />
-								<Story />
-							</TooltipProvider>
-						</AppearanceProvider>
-					</EmotionThemeProvider>
-				</MuiThemeProvider>
-			</StyledEngineProvider>
+			<ThemeContextProvider theme={themes[concreteName]}>
+				<AppearanceProvider
+					externalImages={themes[concreteName].externalImages}
+				>
+					<TooltipProvider delayDuration={100}>
+						<Story />
+					</TooltipProvider>
+				</AppearanceProvider>
+			</ThemeContextProvider>
 		</StrictMode>
 	);
 };

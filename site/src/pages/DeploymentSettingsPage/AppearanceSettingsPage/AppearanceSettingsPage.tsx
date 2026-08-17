@@ -9,7 +9,6 @@ import {
 import type { UpdateAppearanceConfig } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
@@ -20,7 +19,6 @@ import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 // the command line would be a significantly worse user experience.
 const AppearanceSettingsPage: FC = () => {
 	const { appearance, entitlements } = useDashboard();
-	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
 	const queryClient = useQueryClient();
 	const updateAppearanceMutation = useMutation(updateAppearance(queryClient));
 	const { permissions } = useAuthenticated();
@@ -61,8 +59,7 @@ const AppearanceSettingsPage: FC = () => {
 					isEntitled={
 						entitlements.features.appearance.entitlement !== "not_entitled"
 					}
-					isPremium={hasPremiumLicense}
-					permissions={permissions}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			</RequirePermission>
 		</>
