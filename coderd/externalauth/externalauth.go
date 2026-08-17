@@ -114,7 +114,6 @@ type Config struct {
 	// (e.g., "https://api.github.com" for GitHub). Derived from
 	// defaults when not explicitly configured.
 	APIBaseURL string
-	// HTTPClient is the HTTP client used for git provider API calls.
 	// If nil, http.DefaultClient is used. The value is read once at
 	// the first successful Git() call; later assignments have no
 	// effect because the provider is memoized.
@@ -165,7 +164,6 @@ type Config struct {
 	// RefreshGroup deduplicates concurrent requests.
 	RefreshGroup SingleflightGroup
 
-	// gitProviderMu protects gitProvider.
 	gitProviderMu sync.Mutex
 	// gitProvider memoizes the provider so the GitHub ETag response
 	// cache survives across Git calls.
@@ -940,8 +938,7 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-// httpClient is the client git providers use for API calls; if nil,
-// http.DefaultClient is used.
+// If httpClient is nil, http.DefaultClient is used.
 func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL, httpClient *http.Client) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}

@@ -43,9 +43,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestConfigGitMemoizesProvider verifies that Config.Git returns the
-// same provider on every call, so the provider's ETag cache survives
-// across calls and later polls send conditional requests.
 func TestConfigGitMemoizesProvider(t *testing.T) {
 	t.Parallel()
 
@@ -96,9 +93,6 @@ func TestConfigGitMemoizesProvider(t *testing.T) {
 	assert.Equal(t, int64(1), conditionalRequests.Load(), "second poll should have revalidated with If-None-Match using the cache from the first poll")
 }
 
-// TestConfigGitRetriesOnConstructorError verifies that a provider
-// construction error is not cached, so a later call retries instead
-// of being stuck with the first failure for the Config's lifetime.
 func TestConfigGitRetriesOnConstructorError(t *testing.T) {
 	t.Parallel()
 

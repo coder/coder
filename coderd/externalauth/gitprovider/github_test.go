@@ -1088,13 +1088,9 @@ func TestConditionalRequestReuse(t *testing.T) {
 
 		branch := gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"}
 
-		// First poll fails to decode; the body must not be cached
-		// with its ETag.
 		_, err = gp.ResolveBranchPullRequest(context.Background(), "test-token", branch)
 		require.Error(t, err)
 
-		// Second poll must refetch in full: no If-None-Match should
-		// be sent for an entry that failed to decode.
 		_, err = gp.ResolveBranchPullRequest(context.Background(), "test-token", branch)
 		require.Error(t, err)
 
