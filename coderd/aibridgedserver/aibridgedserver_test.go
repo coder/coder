@@ -1763,7 +1763,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// A priced model does not increment unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Nil(t, promhelp.MetricValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6"}))
 				},
 			},
 			{
@@ -1910,7 +1910,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// A missing price row increments unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6"}))
 				},
 			},
 			{
@@ -2159,7 +2159,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// A missing price row increments unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6"}))
 				},
 			},
 			{
@@ -2326,7 +2326,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// The metric names the provider that failed to resolve.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic-eu", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "unknown", "model": "claude-sonnet-4-6"}))
 				},
 			},
 			{

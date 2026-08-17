@@ -132,8 +132,7 @@ const IdpSyncPage: FC = () => {
 				{!isIdpSyncEnabled ? (
 					<PaywallPremium
 						message="IdP Sync"
-						description="Configure group and role mappings to manage permissions outside of Coder. You need a Premium license to use this feature."
-						documentationLink={docs("/admin/users/idp-sync")}
+						description="Configure group and role mappings to manage permissions outside of Coder."
 						canViewPremium={permissions.viewAllLicenses}
 					/>
 				) : (
