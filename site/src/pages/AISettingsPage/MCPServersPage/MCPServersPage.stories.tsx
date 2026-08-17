@@ -151,6 +151,41 @@ export const ListSwitchesOrganization: Story = {
 	},
 };
 
+export const ListDisambiguatesCollidingOrganizationNames: Story = {
+	parameters: {
+		organizations: [
+			{
+				...MockDefaultOrganization,
+				name: "org-a",
+				display_name: "Dev",
+			},
+			{
+				...MockOrganization2,
+				name: "org-b",
+				display_name: "Dev",
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/mcp-servers",
+				searchParams: { [orgSearchParam]: "org-a" },
+			},
+			routing: { path: "/ai/settings/mcp-servers" },
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("button", {
+				name: /Organization Dev \(org-a\)/,
+			}),
+		).toBeVisible();
+	},
+};
+
 export const AddUsesDefaultOrganization: Story = {
 	render: () => <AddMCPServerPage />,
 	parameters: {
