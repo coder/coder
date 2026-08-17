@@ -198,6 +198,17 @@ const createComponents = (
 		hr: () => (
 			<hr className="my-6 border-0 border-t border-solid border-border-default" />
 		),
+		// Markdown tables: streamdown's default table renderer nests two
+		// bordered boxes around the table. With Tailwind preflight enabled
+		// (since the MUI removal), both borders render, producing a double
+		// frame. Keep the row separators and use a single outer frame.
+		table: ({ children }: MarkdownComponentProps) => (
+			<div className="my-4 overflow-x-auto overflow-y-auto rounded-md border border-solid border-border-default bg-surface-primary">
+				<table className="w-full divide-y divide-border border-collapse">
+					{children}
+				</table>
+			</div>
+		),
 		// Table cells: streamdown defaults to text-sm (14px).
 		// Drop the explicit size so cells inherit the 13px base.
 		th: ({ children }: MarkdownComponentProps) => (
@@ -207,6 +218,23 @@ const createComponents = (
 		),
 		td: ({ children }: MarkdownComponentProps) => (
 			<td className="px-4 py-2">{children}</td>
+		),
+		// List indentation. Tailwind preflight now zeroes the browser's
+		// default list margin/padding (it was previously disabled), which left
+		// markdown lists flush-left. Restore the indentation and the vertical
+		// rhythm that existed before the MUI removal.
+		ul: ({ children }: MarkdownComponentProps) => (
+			<ul className="my-4 list-disc pl-10 first:mt-0 last:mb-0 [&_li]:pl-1">
+				{children}
+			</ul>
+		),
+		ol: ({ children }: MarkdownComponentProps) => (
+			<ol className="my-4 list-decimal pl-10 first:mt-0 last:mb-0 [&_li]:pl-1">
+				{children}
+			</ol>
+		),
+		li: ({ children }: MarkdownComponentProps) => (
+			<li className="py-0.5">{children}</li>
 		),
 		// Inline code only, fenced blocks are handled by the pre override.
 		code: ({ children }: MarkdownComponentProps) => (
@@ -227,7 +255,7 @@ const createComponents = (
 					return (
 						<ScrollArea
 							orientation="both"
-							className="my-4 rounded-md border border-solid border-border-default bg-surface-primary"
+							className="my-4 rounded-md bg-surface-primary"
 							scrollBarClassName="w-1.5"
 							horizontalScrollBarClassName="h-1.5"
 						>

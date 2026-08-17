@@ -6,16 +6,16 @@ import { cn } from "#/utils/cn";
 import { getFileReferenceDisplay } from "./fileReferenceDisplay";
 
 const fileReferenceChipVariants = cva(
-	"inline-flex min-h-5 max-w-[300px] select-none items-center gap-1 rounded-md border border-border-default bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-[13px] font-normal leading-none text-inherit shadow-sm transition-colors",
+	"inline-flex min-h-5 max-w-[300px] select-none items-center gap-1 rounded-md border-0 bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-[13px] font-normal leading-none text-inherit shadow-sm transition-colors",
 	{
 		variants: {
 			interactive: {
-				true: "cursor-pointer hover:border-border-secondary hover:bg-surface-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+				true: "cursor-pointer hover:bg-surface-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
 				false: "cursor-default",
 			},
 			selected: {
 				true: "border-content-link bg-content-link/10 text-content-primary ring-1 ring-content-link/40",
-				false: "",
+				false: "border-0",
 			},
 		},
 		defaultVariants: {
