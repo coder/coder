@@ -1,40 +1,127 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import { PremiumPageView } from "./PremiumPageView";
 
 const meta: Meta<typeof PremiumPageView> = {
 	title: "pages/DeploymentSettingsPage/PremiumPageView",
 	component: PremiumPageView,
+	args: {
+		hasLicense: false,
+		isTrial: false,
+		canRequestTrial: true,
+		trialDaysRemaining: undefined,
+		isLoadingLicenses: false,
+		isSubmitting: false,
+		onSubmit: fn(),
+	},
 };
 
 export default meta;
 
 type Story = StoryObj<typeof PremiumPageView>;
 
-const expectHeaderBadge = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
+export const NoLicense: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
 
-	await expect(
-		canvas.getByRole("heading", { name: "Premium", level: 1 }),
-	).toBeVisible();
-	// The title and the badge beside it are the only exact "Premium" matches.
-	await expect(canvas.getAllByText("Premium")).toHaveLength(2);
+		await expect(canvas.getByLabelText("Email")).toBeVisible();
+		// The acknowledgement gates submission.
+		await expect(
+			canvas.getByRole("button", { name: "Start trial" }),
+		).toBeDisabled();
+		await expect(
+			canvas.getByText(
+				"Acknowledge the database requirements to start your trial.",
+			),
+		).toBeVisible();
+		// Requesting a trial replaces the old contact-sales upsell.
+		await expect(
+			canvas.queryByRole("link", { name: /contact sales/i }),
+		).not.toBeInTheDocument();
+	},
 };
 
-export const Enterprise: Story = {
+export const NoLicenseWithoutPermission: Story = {
 	args: {
-		isEnterprise: true,
+		canRequestTrial: false,
 	},
 	play: async ({ canvasElement }) => {
-		await expectHeaderBadge(canvasElement);
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Contact your deployment administrator for Premium."),
+		).toBeVisible();
+		await expect(canvas.queryByLabelText("Email")).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("button", { name: "Start trial" }),
+		).not.toBeInTheDocument();
 	},
 };
 
-export const OSS: Story = {
+export const TrialActive: Story = {
 	args: {
-		isEnterprise: false,
+		hasLicense: true,
+		isTrial: true,
+		trialDaysRemaining: 23,
 	},
 	play: async ({ canvasElement }) => {
-		await expectHeaderBadge(canvasElement);
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByText("23 days remaining")).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: "View licenses" }),
+		).toHaveAttribute("href", "/deployment/licenses");
+		await expect(canvas.queryByLabelText("Email")).not.toBeInTheDocument();
+	},
+};
+
+export const TrialActiveLoading: Story = {
+	args: {
+		hasLicense: true,
+		isTrial: true,
+		trialDaysRemaining: undefined,
+		isLoadingLicenses: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByTestId("trial-remaining-skeleton")).toBeVisible();
+		// A missing expiry must never surface as NaN.
+		await expect(canvas.queryByText(/NaN/)).not.toBeInTheDocument();
+	},
+};
+
+export const TrialExpiryUnavailable: Story = {
+	args: {
+		hasLicense: true,
+		isTrial: true,
+		trialDaysRemaining: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Your Premium trial is active."),
+		).toBeVisible();
+		await expect(canvas.queryByText(/NaN/)).not.toBeInTheDocument();
+	},
+};
+
+export const LicenseActive: Story = {
+	args: {
+		hasLicense: true,
+		isTrial: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Copy stays license-neutral: this state also covers Enterprise licenses.
+		await expect(
+			canvas.getByRole("heading", { name: "A license is installed", level: 1 }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: "View licenses" }),
+		).toHaveAttribute("href", "/deployment/licenses");
+		await expect(canvas.queryByLabelText("Email")).not.toBeInTheDocument();
 	},
 };

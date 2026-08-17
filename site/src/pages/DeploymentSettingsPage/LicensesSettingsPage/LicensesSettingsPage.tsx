@@ -6,6 +6,7 @@ import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { entitlements, refreshEntitlements } from "#/api/queries/entitlements";
 import { insightsUserStatusCounts } from "#/api/queries/insights";
+import { licenses, licensesKey } from "#/api/queries/licenses";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { pageTitle } from "#/utils/page";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
@@ -44,7 +45,7 @@ const LicensesSettingsPage: FC = () => {
 			mutationFn: API.removeLicense,
 			onSuccess: () => {
 				toast.success("Successfully removed license.");
-				void queryClient.invalidateQueries({ queryKey: ["licenses"] });
+				void queryClient.invalidateQueries({ queryKey: licensesKey });
 			},
 			onError: (error) => {
 				toast.error("Failed to remove license.", {
@@ -53,10 +54,7 @@ const LicensesSettingsPage: FC = () => {
 			},
 		});
 
-	const { data: licenses, isLoading } = useQuery({
-		queryKey: ["licenses"],
-		queryFn: () => API.getLicenses(),
-	});
+	const { data: licensesList, isLoading } = useQuery(licenses());
 
 	useEffect(() => {
 		if (!success) {
@@ -87,7 +85,7 @@ const LicensesSettingsPage: FC = () => {
 				}
 				userLimitActual={entitlementsQuery.data?.features.user_limit?.actual}
 				userLimitLimit={entitlementsQuery.data?.features.user_limit?.limit}
-				licenses={licenses}
+				licenses={licensesList}
 				isRemovingLicense={isRemovingLicense}
 				removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
 				activeUsers={userStatusCount?.active}

@@ -1334,6 +1334,62 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Request a trial license
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/licenses/trial \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/licenses/trial`
+
+> Body parameter
+
+```json
+{
+  "company_name": "Acme Corp",
+  "country": "United States",
+  "developers": "string",
+  "email": "jane.doe@example.com",
+  "first_name": "Jane",
+  "job_title": "Engineering Manager",
+  "last_name": "Doe",
+  "phone_number": "+14155552671"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                               | Required | Description           |
+|--------|------|------------------------------------------------------------------------------------|----------|-----------------------|
+| `body` | body | [codersdk.CreateTrialLicenseRequest](schemas.md#codersdkcreatetriallicenserequest) | true     | Trial license request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "claims": {},
+  "id": 0,
+  "uploaded_at": "2019-08-24T14:15:22Z",
+  "uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                         |
+|--------|--------------------------------------------------------------|-------------|------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.License](schemas.md#codersdklicense) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Delete license
 
 ### Code samples

@@ -1,6 +1,6 @@
 import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import * as Yup from "yup";
 import { countries } from "#/api/countriesGenerated";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -10,19 +10,12 @@ import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { FormField } from "#/components/FormField/FormField";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
-import { Label } from "#/components/Label/Label";
 import { PasswordField } from "#/components/PasswordField/PasswordField";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
+import { SelectItem } from "#/components/Select/Select";
+import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
+import { numberOfDevelopersOptions } from "#/modules/licenses/trialLicense";
 import {
-	type FormHelpers,
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
@@ -72,82 +65,6 @@ const validationSchema = Yup.object({
 		newsletter_releases: Yup.bool(),
 	}),
 });
-
-// Keep in sync with cli/login.go (developerBuckets).
-const numberOfDevelopersOptions = [
-	"1 - 50",
-	"51 - 100",
-	"101 - 200",
-	"201 - 500",
-	"501 - 1000",
-	"1001 - 2500",
-	"2500+",
-];
-
-const Field: FC<{
-	label: string;
-	id: string;
-	error?: boolean;
-	helperText?: ReactNode;
-	className?: string;
-	children: ReactNode;
-}> = ({ label, id, error, helperText, className, children }) => (
-	<div className={cn("flex flex-col gap-2", className)}>
-		<Label htmlFor={id}>{label}</Label>
-		{children}
-		{helperText && (
-			<span
-				className={cn(
-					"text-xs text-left",
-					error ? "text-content-destructive" : "text-content-secondary",
-				)}
-			>
-				{helperText}
-			</span>
-		)}
-	</div>
-);
-
-type SelectFieldProps = FormHelpers & {
-	label: string;
-	className?: string;
-	onValueChange: (value: string) => void;
-	placeholder?: string;
-	children: ReactNode;
-	disabled?: boolean;
-};
-
-const SelectField: FC<SelectFieldProps> = ({
-	label,
-	id,
-	error,
-	helperText,
-	className,
-	value,
-	onValueChange,
-	placeholder,
-	children,
-	disabled,
-}) => (
-	<Field
-		label={label}
-		id={id}
-		error={error}
-		helperText={helperText}
-		className={className}
-	>
-		<Select
-			value={String(value ?? "")}
-			onValueChange={onValueChange}
-			disabled={disabled}
-		>
-			<SelectTrigger id={id}>
-				<SelectValue placeholder={placeholder} />
-			</SelectTrigger>
-			<SelectContent>{children}</SelectContent>
-		</Select>
-	</Field>
-);
 
 interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;

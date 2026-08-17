@@ -2608,6 +2608,13 @@ class ApiMethods {
 		return response.data;
 	};
 
+	createTrialLicense = async (
+		data: TypesGen.CreateTrialLicenseRequest,
+	): Promise<TypesGen.License> => {
+		const response = await this.axios.post("/api/v2/licenses/trial", data);
+		return response.data;
+	};
+
 	removeLicense = async (licenseId: number): Promise<void> => {
 		await this.axios.delete(`/api/v2/licenses/${licenseId}`);
 	};

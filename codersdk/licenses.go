@@ -23,6 +23,18 @@ type AddLicenseRequest struct {
 	License string `json:"license" validate:"required"`
 }
 
+// CreateTrialLicenseRequest defines the input payload for requesting a trial license.
+type CreateTrialLicenseRequest struct {
+	Email       string `json:"email"        validate:"required,email,max=254"      example:"jane.doe@example.com"  format:"email" maxLength:"254"`
+	FirstName   string `json:"first_name"   validate:"required,min=1,max=60"       example:"Jane"                   minLength:"1" maxLength:"60"`
+	LastName    string `json:"last_name"    validate:"required,min=1,max=60"       example:"Doe"                    minLength:"1" maxLength:"60"`
+	PhoneNumber string `json:"phone_number" validate:"required"                    example:"+14155552671"           pattern:"^\\+?[\\d\\s\\-\\.\\(\\)]{7,20}$"`
+	JobTitle    string `json:"job_title"    validate:"required,min=2,max=100"      example:"Engineering Manager"    minLength:"2" maxLength:"100"`
+	CompanyName string `json:"company_name" validate:"required,min=2,max=100"      example:"Acme Corp"              minLength:"2" maxLength:"100"`
+	Country     string `json:"country"      validate:"required"                    example:"United States"`
+	Developers  string `json:"developers"   validate:"required"`
+}
+
 type License struct {
 	ID         int32     `json:"id"`
 	UUID       uuid.UUID `json:"uuid" format:"uuid"`
@@ -98,6 +110,20 @@ func (l *License) FeaturesClaims() (map[FeatureName]int64, error) {
 
 func (c *Client) AddLicense(ctx context.Context, r AddLicenseRequest) (License, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/licenses", r)
+	if err != nil {
+		return License{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return License{}, ReadBodyAsError(res)
+	}
+	var l License
+	return l, ReadBodyAsJSONUseNumber(res, &l)
+}
+
+// CreateTrialLicense requests a trial license from the Coder licensor and install it.
+func (c *Client) CreateTrialLicense(ctx context.Context, r CreateTrialLicenseRequest) (License, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/licenses/trial", r)
 	if err != nil {
 		return License{}, err
 	}

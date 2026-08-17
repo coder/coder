@@ -1,250 +1,76 @@
-import {
-	ActivityIcon,
-	CoinsIcon,
-	ExpandIcon,
-	SquareArrowOutUpRightIcon,
-} from "lucide-react";
 import type { FC } from "react";
-import { PremiumBadge } from "#/components/Badges/Badges";
-import { Button } from "#/components/Button/Button";
-import { Link } from "#/components/Link/Link";
-import { docs } from "#/utils/docs";
+import type * as TypesGen from "#/api/typesGenerated";
+import {
+	PaywallGuidance,
+	PaywallTitle,
+	PREMIUM_DEFAULT_HERO,
+} from "#/components/Paywall/Paywall";
+import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
+import { LicenseActivePanel } from "./LicenseActivePanel";
+import { TrialActivePanel } from "./TrialActivePanel";
+import { TrialRequestForm } from "./TrialRequestForm";
 
-type PremiumPageViewProps = { isEnterprise: boolean };
+interface PremiumPageViewProps {
+	hasLicense: boolean;
+	isTrial: boolean;
+	/** Whether the viewer may request a trial for this deployment. */
+	canRequestTrial: boolean;
+	trialDaysRemaining: number | undefined;
+	isLoadingLicenses: boolean;
+	onSubmit: (request: TypesGen.CreateTrialLicenseRequest) => void;
+	isSubmitting: boolean;
+	error?: unknown;
+}
 
-export const PremiumPageView: FC<PremiumPageViewProps> = ({ isEnterprise }) => {
-	return isEnterprise ? <EnterpriseVersion /> : <OSSVersion />;
-};
-
-const EnterpriseVersion: FC = () => {
-	return (
-		<div className="max-w-4xl">
-			<header className="flex flex-row justify-between align-baseline pb-5">
-				<div>
-					<div className="flex flex-row items-center gap-3">
-						<h1 className="text-3xl m-0 font-semibold">Premium</h1>
-						<PremiumBadge />
-					</div>
-					<p className="text-sm max-w-xl mt-2 text-content-secondary font-medium">
-						As an Enterprise license holder, you already benefit from Coder’s
-						features for secure, large-scale deployments. Upgrade to Coder
-						Premium for enhanced multi-tenant control and flexibility.
-					</p>
-				</div>
-				<Button asChild>
-					<a href="https://coder.com/contact/sales" className="no-underline">
-						<SquareArrowOutUpRightIcon />
-						Contact sales
-					</a>
-				</Button>
-			</header>
-
-			<section className="pb-1">
-				<h2 className="text-sm font-semibold m-0">
-					<Link className="px-0" href={docs("/admin/users/organizations")}>
-						Multi-Organization access controls
-					</Link>
-				</h2>
-				<p className="text-sm max-w-xl text-content-secondary mt-0 font-medium">
-					Manage multiple teams and projects within a single deployment, each
-					with isolated access.
-				</p>
-			</section>
-
-			<section className="pb-1">
-				<h2 className="text-sm font-semibold m-0">
-					<Link className="px-0" href={docs("/admin/users/groups-roles")}>
-						Custom role
-					</Link>
-				</h2>
-				<p className="text-sm max-w-xl text-content-secondary mt-0 font-medium">
-					Configure specific permissions for teams or contractors with tailored
-					roles.
-				</p>
-			</section>
-
-			<section>
-				<h2 className="text-sm font-semibold m-0">
-					<Link className="px-0" href={docs("/admin/users/quotas")}>
-						Org-Level quotas for chargeback
-					</Link>
-				</h2>
-				<p className="text-sm max-w-xl text-content-secondary mt-0 font-medium">
-					Set and monitor resource quotas at the organization level to support
-					internal cost tracking.
-				</p>
-			</section>
-
-			<section className="pt-10">
-				<p className="text-sm max-w-xl text-content-secondary mt-0 font-medium">
-					These Premium features enable you to manage team structure and budget
-					allocation across multiple platform teams.
-				</p>
-			</section>
-		</div>
-	);
-};
-
-const OSSVersion: FC = () => {
-	return (
-		<div className="max-w-4xl">
-			<div className="flex flex-row justify-between align-baseline pb-10">
-				<div>
-					<div className="flex flex-row items-center gap-3">
-						<h1 className="text-3xl m-0 text-content-primary font-semibold">
-							Premium
-						</h1>
-						<PremiumBadge />
-					</div>
-					<p className="text-sm max-w-xl mt-2 text-content-secondary">
-						Coder Premium is designed for enterprises that need to scale their
-						Coder deployment efficiently, securely, and with full control. By
-						upgrading, your team gains access to advanced features enabling
-						governance across all environments.
-					</p>
-				</div>
-				<Button asChild>
-					<a href="https://coder.com/contact/sales" className="no-underline">
-						<SquareArrowOutUpRightIcon />
-						Contact sales
-					</a>
-				</Button>
+export const PremiumPageView: FC<PremiumPageViewProps> = ({
+	hasLicense,
+	isTrial,
+	canRequestTrial,
+	trialDaysRemaining,
+	isLoadingLicenses,
+	onSubmit,
+	isSubmitting,
+	error,
+}) => {
+	let panel: React.ReactNode;
+	if (hasLicense && !isTrial) {
+		panel = <LicenseActivePanel />;
+	} else if (hasLicense) {
+		panel = (
+			<TrialActivePanel
+				daysRemaining={trialDaysRemaining}
+				isLoading={isLoadingLicenses}
+			/>
+		);
+	} else if (canRequestTrial) {
+		panel = (
+			<TrialRequestForm
+				onSubmit={onSubmit}
+				isSubmitting={isSubmitting}
+				error={error}
+			/>
+		);
+	} else {
+		panel = (
+			<div className="flex flex-col gap-2 items-start">
+				<PaywallTitle>{PREMIUM_DEFAULT_HERO}</PaywallTitle>
+				<PaywallGuidance className="mx-0">
+					Contact your deployment administrator for Premium.
+				</PaywallGuidance>
 			</div>
+		);
+	}
 
-			<section className="pb-10 max-w-xl text-sm text-content-secondary">
-				<h2 className="text-xl text-content-primary m-0">
-					<span className="flex flex-row items-center">
-						<ExpandIcon className="size-icon-sm text-content-secondary" />
-						&nbsp; Deploy coder at scale
-					</span>
-				</h2>
-				<p>
-					Equip your enterprise to deploy and manage thousands of workspaces
-					with performance and reliability.
-				</p>
-				<ul className="pl-5">
-					<li>
-						<span className="text-content-primary font-semibold">
-							High availability
-						</span>
-						<br />
-						<span className="font-medium">
-							Scale with automatic failover and load balancing across multiple
-							Coder instances.
-						</span>
-					</li>
-					<li>
-						<span className="text-content-primary font-semibold">
-							Multi-Organization access control
-						</span>
-						<br />
-						<span className="font-medium">
-							Isolate teams, projects, and environments within a single Coder
-							deployment.
-						</span>
-					</li>
-					<li>
-						<span className="text-content-primary font-semibold">
-							Unlimited external authentication integrations
-						</span>
-						<br />
-						<span className="font-medium">
-							Integrate with external service providers like GitHub, JFrog, and
-							Vault.
-						</span>
-					</li>
-				</ul>
-			</section>
-
-			<section className="pb-10 max-w-xl text-sm text-content-secondary">
-				<h2 className="text-xl text-content-primary m-0">
-					<span className="flex flex-row items-center">
-						<CoinsIcon className="size-icon-sm text-content-secondary" />
-						&nbsp; Control infrastructure costs
-					</span>
-				</h2>
-				<p>
-					Optimize cloud usage and maintain cost-effective resource management
-					for your teams.
-				</p>
-				<ul className="pl-5">
-					<li>
-						<span className="text-content-primary font-semibold">
-							Auto-Stop idle workspaces
-						</span>
-						<br />
-						<span className="font-medium">
-							Automatically shut down inactive workspaces to prevent unnecessary
-							costs.
-						</span>
-					</li>
-					<li>
-						<span className="text-content-primary font-semibold">
-							Resource quotas
-						</span>
-						<br />
-						<span className="font-medium">
-							Set user and team-specific limits to control spending and resource
-							allocation.
-						</span>
-					</li>
-					<li>
-						<span className="text-content-primary font-semibold">
-							Usage insights
-						</span>
-						<br />
-						<span className="font-medium">
-							Track workspace usage patterns to make data-driven decisions about
-							infrastructure needs.
-						</span>
-					</li>
-				</ul>
-			</section>
-
-			<section className="pb-5 max-w-xl text-sm text-content-secondary">
-				<h2 className="text-xl text-content-primary m-0">
-					<span className="flex flex-row items-center">
-						<ActivityIcon className="size-icon-sm text-content-secondary" />
-						&nbsp; Govern workspace activity
-					</span>
-				</h2>
-				<p>
-					Maintain security and compliance across your organization with robust
-					governance features.
-				</p>
-				<ul className="pl-5">
-					<li>
-						<span className="text-content-primary font-semibold">
-							Audit logging
-						</span>
-						<br />
-						<span className="font-medium">
-							Capture detailed records of user actions and workspace activity
-							for compliance and security.
-						</span>
-					</li>
-					<li>
-						<span className="text-content-primary font-semibold">
-							Template permissions
-						</span>
-						<br />
-						<span className="font-medium">
-							Control who can create, modify, and access workspace templates
-							across teams.
-						</span>
-					</li>
-					<li>
-						<span className="text-content-primary font-semibold">
-							Workspace command logging
-						</span>
-						<br />
-						<span className="font-medium">
-							Monitor and log critical commands to ensure security and
-							compliance standards are met.
-						</span>
-					</li>
-				</ul>
-			</section>
+	return (
+		<div className="rounded-lg border border-solid border-border-default bg-surface-primary overflow-hidden">
+			<div className="grid grid-cols-1 lg:grid-cols-2 min-h-[640px]">
+				{/* Supergraphic is absolutely positioned at -z-10, so this parent must
+				    establish a stacking context or it renders behind the page. */}
+				<div className="relative isolate overflow-hidden hidden lg:block bg-surface-secondary">
+					<Supergraphic className="bg-[length:auto_180%] bg-[position:20%_50%]" />
+				</div>
+				<div className="flex flex-col justify-center p-8 lg:p-12">{panel}</div>
+			</div>
 		</div>
 	);
 };
