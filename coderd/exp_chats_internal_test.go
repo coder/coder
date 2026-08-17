@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -600,10 +601,27 @@ func TestChatWorkspaceConnAuthorizer(t *testing.T) {
 
 	require.NoError(t, authorize(ctx, owner.ID, ws.ID))
 
+	// Suspending the owner must deny dials even though their roles
+	// still authorize workspace access.
+	_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+		ID:        owner.ID,
+		Status:    database.UserStatusSuspended,
+		UpdatedAt: dbtime.Now(),
+	})
+	require.NoError(t, err)
+	require.ErrorContains(t, authorize(ctx, owner.ID, ws.ID), "not active")
+	_, err = db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+		ID:        owner.ID,
+		Status:    database.UserStatusActive,
+		UpdatedAt: dbtime.Now(),
+	})
+	require.NoError(t, err)
+	require.NoError(t, authorize(ctx, owner.ID, ws.ID))
+
 	// Revoke workspace access by clearing the org's default member
 	// roles, the documented mechanism for revoking capabilities that
 	// plain members otherwise hold.
-	_, err := db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+	_, err = db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
 		ID:                    org.ID,
 		UpdatedAt:             org.UpdatedAt,
 		Name:                  org.Name,
