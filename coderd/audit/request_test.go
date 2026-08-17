@@ -45,3 +45,16 @@ func TestResourceTarget_ChatTitleNotLeaked(t *testing.T) {
 	require.NotContains(t, target, chat.Title,
 		"ResourceTarget for Chat must not contain the title; it should use a UUID prefix")
 }
+
+func TestResourceTarget_MCPServerConfigSlugFallback(t *testing.T) {
+	t.Parallel()
+
+	config := database.MCPServerConfig{
+		DisplayName: "GitHub MCP",
+		Slug:        "github",
+	}
+	require.Equal(t, "GitHub MCP", audit.ResourceTarget(config))
+
+	config.DisplayName = ""
+	require.Equal(t, "github", audit.ResourceTarget(config))
+}

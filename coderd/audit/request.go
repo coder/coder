@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -155,7 +156,9 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// filter but not the primary resource identifier.
 		return typed.ID.String()[:8]
 	case database.MCPServerConfig:
-		return typed.DisplayName
+		// Updates can persist an empty display name; fall back to the
+		// slug so the audit entry stays identifiable and filterable.
+		return cmp.Or(typed.DisplayName, typed.Slug)
 	case database.UserSecret:
 		return typed.Name
 	case database.UserSkill:
