@@ -181,8 +181,8 @@ export const migrateLegacyMCPSelection = (
 };
 
 /**
- * Migrates the pre-org-scoping deployment-wide selection once onto the default
- * organization's key, preserving upgraded users' MCP server selection.
+ * Legacy selections predate organization scoping, so only the default
+ * organization inherits them.
  */
 export const useLegacyMCPSelectionMigration = (
 	organizationId: string,
