@@ -174,6 +174,24 @@ export const ChatWithTurnSummary: Story = {
 	},
 };
 
+export const ClaudeCodeRuntimeChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-claude-code",
+				title: "Fix flaky integration test",
+				runtime: "claude_code",
+				last_model_config_id: undefined,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Claude Code")).toBeInTheDocument();
+		expect(canvas.queryByText("Default model")).not.toBeInTheDocument();
+	},
+};
+
 /**
  * While the chat is streaming again the cached last_turn_summary still
  * holds the previous turn's text. The sidebar replaces it with a live

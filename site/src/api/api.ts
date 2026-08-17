@@ -3287,6 +3287,15 @@ class ExperimentalApiMethods {
 		return response.data as string;
 	};
 
+	getChatRuntimeAvailability = async (): Promise<
+		TypesGen.ChatRuntimeAvailability[]
+	> => {
+		const response = await this.axios.get<TypesGen.ChatRuntimeAvailability[]>(
+			"/api/experimental/chats/runtime-availability",
+		);
+		return response.data;
+	};
+
 	// Chat API methods
 	getChatACL = async (chatId: string): Promise<TypesGen.ChatACL> => {
 		const response = await this.axios.get<TypesGen.ChatACL>(

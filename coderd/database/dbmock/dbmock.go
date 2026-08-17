@@ -861,6 +861,20 @@ func (mr *MockStoreMockRecorder) DeleteChatQueuedMessageReturningCount(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessageReturningCount", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessageReturningCount), ctx, arg)
 }
 
+// DeleteChatRuntimeConfig mocks base method.
+func (m *MockStore) DeleteChatRuntimeConfig(ctx context.Context, arg database.DeleteChatRuntimeConfigParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatRuntimeConfig", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatRuntimeConfig indicates an expected call of DeleteChatRuntimeConfig.
+func (mr *MockStoreMockRecorder) DeleteChatRuntimeConfig(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatRuntimeConfig", reflect.TypeOf((*MockStore)(nil).DeleteChatRuntimeConfig), ctx, arg)
+}
+
 // DeleteCryptoKey mocks base method.
 func (m *MockStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
@@ -3238,6 +3252,21 @@ func (m *MockStore) GetChatRetentionDays(ctx context.Context) (int32, error) {
 func (mr *MockStoreMockRecorder) GetChatRetentionDays(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatRetentionDays", reflect.TypeOf((*MockStore)(nil).GetChatRetentionDays), ctx)
+}
+
+// GetChatRuntimeConfig mocks base method.
+func (m *MockStore) GetChatRuntimeConfig(ctx context.Context, arg database.GetChatRuntimeConfigParams) (database.ChatRuntimeConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatRuntimeConfig", ctx, arg)
+	ret0, _ := ret[0].(database.ChatRuntimeConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatRuntimeConfig indicates an expected call of GetChatRuntimeConfig.
+func (mr *MockStoreMockRecorder) GetChatRuntimeConfig(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatRuntimeConfig", reflect.TypeOf((*MockStore)(nil).GetChatRuntimeConfig), ctx, arg)
 }
 
 // GetChatStreamSyncRows mocks base method.
@@ -8983,6 +9012,21 @@ func (mr *MockStoreMockRecorder) ListChatContextResourcesByChatID(ctx, chatID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).ListChatContextResourcesByChatID), ctx, chatID)
 }
 
+// ListChatRuntimeConfigs mocks base method.
+func (m *MockStore) ListChatRuntimeConfigs(ctx context.Context) ([]database.ChatRuntimeConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListChatRuntimeConfigs", ctx)
+	ret0, _ := ret[0].([]database.ChatRuntimeConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListChatRuntimeConfigs indicates an expected call of ListChatRuntimeConfigs.
+func (mr *MockStoreMockRecorder) ListChatRuntimeConfigs(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatRuntimeConfigs", reflect.TypeOf((*MockStore)(nil).ListChatRuntimeConfigs), ctx)
+}
+
 // ListProvisionerKeysByOrganization mocks base method.
 func (m *MockStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	m.ctrl.T.Helper()
@@ -9966,6 +10010,20 @@ func (m *MockStore) UpdateChatRetryState(ctx context.Context, arg database.Updat
 func (mr *MockStoreMockRecorder) UpdateChatRetryState(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatRetryState", reflect.TypeOf((*MockStore)(nil).UpdateChatRetryState), ctx, arg)
+}
+
+// UpdateChatRuntimeState mocks base method.
+func (m *MockStore) UpdateChatRuntimeState(ctx context.Context, arg database.UpdateChatRuntimeStateParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatRuntimeState", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatRuntimeState indicates an expected call of UpdateChatRuntimeState.
+func (mr *MockStoreMockRecorder) UpdateChatRuntimeState(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatRuntimeState", reflect.TypeOf((*MockStore)(nil).UpdateChatRuntimeState), ctx, arg)
 }
 
 // UpdateChatStatus mocks base method.
@@ -11863,6 +11921,21 @@ func (m *MockStore) UpsertChatRetentionDays(ctx context.Context, retentionDays i
 func (mr *MockStoreMockRecorder) UpsertChatRetentionDays(ctx, retentionDays any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatRetentionDays", reflect.TypeOf((*MockStore)(nil).UpsertChatRetentionDays), ctx, retentionDays)
+}
+
+// UpsertChatRuntimeConfig mocks base method.
+func (m *MockStore) UpsertChatRuntimeConfig(ctx context.Context, arg database.UpsertChatRuntimeConfigParams) (database.ChatRuntimeConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatRuntimeConfig", ctx, arg)
+	ret0, _ := ret[0].(database.ChatRuntimeConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertChatRuntimeConfig indicates an expected call of UpsertChatRuntimeConfig.
+func (mr *MockStoreMockRecorder) UpsertChatRuntimeConfig(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatRuntimeConfig", reflect.TypeOf((*MockStore)(nil).UpsertChatRuntimeConfig), ctx, arg)
 }
 
 // UpsertChatSystemPrompt mocks base method.

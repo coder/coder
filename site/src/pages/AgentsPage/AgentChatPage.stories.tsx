@@ -154,6 +154,35 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 	},
 ];
 
+const CLAUDE_MODEL_CONFIG_ID = "model-config-claude-sonnet";
+const claudeModelCatalog: TypesGen.ChatModelsResponse = {
+	providers: [
+		{
+			provider: "anthropic",
+			available: true,
+			models: [
+				{
+					id: "anthropic:claude-sonnet-4-5",
+					provider: "anthropic",
+					model: "claude-sonnet-4-5",
+					display_name: "Claude Sonnet 4.5",
+				},
+			],
+		},
+	],
+	unsupported_providers: [],
+};
+const claudeModelConfigs: TypesGen.ChatModelConfig[] = [
+	{
+		...MockChatModelConfig,
+		id: CLAUDE_MODEL_CONFIG_ID,
+		ai_provider_id: "provider-anthropic",
+		model: "claude-sonnet-4-5",
+		display_name: "Claude Sonnet 4.5",
+		enabled: true,
+	},
+];
+
 const baseChatFields = {
 	organization_id: "test-org-id",
 	owner_id: MockUserOwner.id,
@@ -161,6 +190,7 @@ const baseChatFields = {
 	owner_name: MockUserOwner.name,
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
+	runtime: "coder",
 	mcp_server_ids: [],
 	labels: {},
 	created_at: "2026-02-18T00:00:00.000Z",
@@ -255,7 +285,11 @@ const buildChatAuthorizationQuery = (
 const buildQueries = (
 	chat: TypesGen.Chat,
 	messagesData: TypesGen.ChatMessagesResponse,
-	opts?: { diffUrl?: string },
+	opts?: {
+		diffUrl?: string;
+		modelCatalog?: TypesGen.ChatModelsResponse;
+		modelConfigs?: TypesGen.ChatModelConfig[];
+	},
 ) => {
 	const diffStatus: TypesGen.ChatDiffStatus = {
 		chat_id: CHAT_ID,
@@ -299,8 +333,11 @@ const buildQueries = (
 			key: workspaceByIdKey(mockWorkspace.id),
 			data: mockWorkspace,
 		},
-		{ key: chatModelsKey, data: mockModelCatalog },
-		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
+		{ key: chatModelsKey, data: opts?.modelCatalog ?? mockModelCatalog },
+		{
+			key: chatModelConfigs().queryKey,
+			data: opts?.modelConfigs ?? mockModelConfigs,
+		},
 		{ key: mcpServersKey, data: [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
@@ -873,9 +910,134 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 export default meta;
 type Story = StoryObj<typeof AgentChatPageLayout>;
 
+const sendClaudeCodeMessage = async (
+	canvasElement: HTMLElement,
+	text: string,
+	modelConfigId?: string,
+) => {
+	const sendSpy = spyOn(
+		API.experimental,
+		"createChatMessage",
+	).mockResolvedValue({
+		queued: false,
+		message: {
+			...MockChatMessage,
+			id: 100,
+			chat_id: CHAT_ID,
+			role: "user",
+			content: [{ type: "text", text }],
+			...(modelConfigId ? { model_config_id: modelConfigId } : {}),
+		},
+	});
+	const canvas = within(canvasElement);
+	const editor = await canvas.findByRole("textbox", { name: "Chat message" });
+	await userEvent.click(editor);
+	await userEvent.type(editor, text);
+	await userEvent.keyboard("{Enter}");
+	await waitFor(() => expect(sendSpy).toHaveBeenCalledTimes(1));
+	return sendSpy;
+};
+
 // ---------------------------------------------------------------------------
 // Stories
 // ---------------------------------------------------------------------------
+
+export const ClaudeCodeSendsWithoutModel: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Claude Code runtime default",
+				status: "waiting",
+				runtime: "claude_code",
+				last_model_config_id: "",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{
+				modelCatalog: claudeModelCatalog,
+				modelConfigs: [],
+			},
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const text = "Use the runtime default";
+		const sendSpy = await sendClaudeCodeMessage(canvasElement, text);
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				model_config_id: undefined,
+				content: [{ type: "text", text }],
+			}),
+		);
+	},
+};
+
+export const ClaudeCodeSendsSelectedModel: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Claude Code model selection",
+				status: "waiting",
+				runtime: "claude_code",
+				last_model_config_id: "",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{
+				modelCatalog: claudeModelCatalog,
+				modelConfigs: claudeModelConfigs,
+			},
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
+			{
+				provider: {
+					id: "provider-anthropic",
+					type: "anthropic",
+					name: "anthropic",
+					display_name: "Anthropic",
+					icon: "",
+					enabled: true,
+					deleted: false,
+				},
+				has_user_api_key: false,
+				has_provider_api_key: true,
+				byok_enabled: true,
+			},
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("combobox", { name: "Default" }),
+		);
+		await userEvent.click(
+			await within(canvasElement.ownerDocument.body).findByRole("option", {
+				name: /Claude Sonnet 4.5/,
+			}),
+		);
+		const text = "Use Claude Sonnet";
+		const sendSpy = await sendClaudeCodeMessage(
+			canvasElement,
+			text,
+			CLAUDE_MODEL_CONFIG_ID,
+		);
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				model_config_id: CLAUDE_MODEL_CONFIG_ID,
+				content: [{ type: "text", text }],
+			}),
+		);
+	},
+};
 
 /** Multi-turn conversation with rich markdown rendering: headings, tables,
  *  ordered/unordered lists, nested lists, code blocks, blockquotes,

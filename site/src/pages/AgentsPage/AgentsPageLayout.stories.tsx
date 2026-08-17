@@ -24,6 +24,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
+	MockDefaultOrganization,
 	MockNoPermissions,
 	MockPermissions,
 	MockUserOwner,
@@ -434,6 +435,84 @@ const mockChats = (chats: Chat[]) => {
 };
 
 export const EmptyState: Story = {};
+
+export const CreatesClaudeCodeChat: Story = {
+	parameters: {
+		experiments: ["agents-runtime-config"],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatRuntimeAvailability").mockResolvedValue([
+			{
+				organization_id: MockDefaultOrganization.id,
+				runtime: "claude_code",
+			},
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const createSpy = spyOn(API.experimental, "createChat").mockResolvedValue({
+			...MockChat,
+			id: "claude-code-chat",
+			runtime: "claude_code",
+			organization_id: MockDefaultOrganization.id,
+		});
+
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await screen.findByRole("menuitemcheckbox", {
+				name: /Run with Claude Code/,
+			}),
+		);
+		expect(await canvas.findByText("Claude Code")).toBeVisible();
+
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.type(input, "Build a server");
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+
+		await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+		expect(createSpy).toHaveBeenCalledWith({
+			organization_id: MockDefaultOrganization.id,
+			content: [{ type: "text", text: "Build a server" }],
+			client_type: "ui",
+			runtime: "claude_code",
+		});
+	},
+};
+
+export const ClaudeCodeAvailabilityLoading: Story = {
+	parameters: {
+		experiments: ["agents-runtime-config"],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatRuntimeAvailability").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByRole("alert")).toHaveTextContent(
+			"Checking Claude Code availability...",
+		);
+	},
+};
+
+export const ClaudeCodeAvailabilityError: Story = {
+	parameters: {
+		experiments: ["agents-runtime-config"],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatRuntimeAvailability").mockRejectedValue(
+			new Error("Claude Code availability could not be loaded"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByRole("alert", {}, { timeout: 5000 }),
+		).toHaveTextContent("Claude Code availability could not be loaded");
+	},
+};
 
 export const WithChatList: Story = {
 	beforeEach: () => {

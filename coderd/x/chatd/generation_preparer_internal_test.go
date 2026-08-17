@@ -121,7 +121,7 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "clamp reasoning effort",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages: []chatstate.Message{
@@ -214,7 +214,7 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "computer use transport",
 		ClientType:        database.ChatClientTypeApi,
 		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
@@ -292,14 +292,14 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 	parent := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 	})
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "subagent attribution",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages: []chatstate.Message{
@@ -376,7 +376,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "derive-chat",
 			ClientType:        database.ChatClientTypeUi,
 			InitialMessages: []chatstate.Message{
@@ -411,7 +411,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 						Content:        mustMarshalText(t, text),
 						Visibility:     database.ChatMessageVisibilityBoth,
 						ContentVersion: chatprompt.CurrentContentVersion,
-						ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+						ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID.UUID, Valid: true},
 					},
 				},
 			})
@@ -493,7 +493,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "derive-chat-error",
 			ClientType:        database.ChatClientTypeUi,
 			InitialMessages: []chatstate.Message{

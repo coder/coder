@@ -304,6 +304,14 @@ export const getModelOptionsFromConfigs = (
 	});
 };
 
+// Claude Code injects Anthropic credentials, so runtime chats cannot use
+// other provider types.
+const anthropicProviderType = "anthropic" satisfies TypesGen.AIProviderType;
+export const filterAnthropicModelOptions = (
+	options: readonly ModelSelectorOption[],
+): readonly ModelSelectorOption[] =>
+	options.filter((option) => option.provider === anthropicProviderType);
+
 // Read slice of a react-query result. The field types come from UseQueryResult
 // by indexed access, not Pick (which would distribute over v5's status union),
 // so they track the library rather than being hand-maintained.

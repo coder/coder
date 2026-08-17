@@ -2281,6 +2281,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "runtime": "coder",
       "shared": true,
       "status": "waiting",
       "summary": "string",
@@ -2375,6 +2376,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "runtime": "coder",
   "shared": true,
   "status": "waiting",
   "summary": "string",
@@ -2417,6 +2419,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
 | `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `runtime`               | [codersdk.ChatRuntime](#codersdkchatruntime)                    | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
 | `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
@@ -3604,6 +3607,64 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|
 | ``, `read` |
 
+## codersdk.ChatRuntime
+
+```json
+"coder"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)               |
+|------------------------|
+| `claude_code`, `coder` |
+
+## codersdk.ChatRuntimeAvailability
+
+```json
+{
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "runtime": "coder"
+}
+```
+
+### Properties
+
+| Name              | Type                                         | Required | Restrictions | Description |
+|-------------------|----------------------------------------------|----------|--------------|-------------|
+| `organization_id` | string                                       | false    |              |             |
+| `runtime`         | [codersdk.ChatRuntime](#codersdkchatruntime) | false    |              |             |
+
+## codersdk.ChatRuntimeConfig
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "enabled": true,
+  "model": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "permission_mode": "string",
+  "runtime": "coder",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name              | Type                                         | Required | Restrictions | Description                                                                                                                                                                             |
+|-------------------|----------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`      | string                                       | false    |              |                                                                                                                                                                                         |
+| `enabled`         | boolean                                      | false    |              |                                                                                                                                                                                         |
+| `model`           | string                                       | false    |              | Model optionally pins the default model the runtime agent uses. A per-message model selection on the chat overrides this pin; empty falls through to the runtime agent's own default.   |
+| `organization_id` | string                                       | false    |              |                                                                                                                                                                                         |
+| `permission_mode` | string                                       | false    |              | Permission mode optionally sets the permission mode the runtime agent runs with (e.g. acceptEdits). Empty means the runtime default.                                                    |
+| `runtime`         | [codersdk.ChatRuntime](#codersdkchatruntime) | false    |              |                                                                                                                                                                                         |
+| `template_id`     | string                                       | false    |              | Template ID is the template chat workspaces are created from. The template must provide the runtime's agent executable (e.g. the claude-agent-acp adapter for the claude_code runtime). |
+| `updated_at`      | string                                       | false    |              |                                                                                                                                                                                         |
+
 ## codersdk.ChatStatus
 
 ```json
@@ -4204,6 +4265,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "pin_order": 0,
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "runtime": "coder",
     "shared": true,
     "status": "waiting",
     "summary": "string",
@@ -4908,6 +4970,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "plan_mode": "plan",
   "reasoning_effort": "string",
+  "runtime": "coder",
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
     {
@@ -4924,20 +4987,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
-|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
-| `labels`               | object                                                    | false    |              |                                                                                                                                            |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                            |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                                                                  |
+|------------------------|-----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                                                                                                                                                                              |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                                                                                                                                              |
+| `labels`               | object                                                    | false    |              |                                                                                                                                                                                                                                                                                              |
+| » `[any property]`     | string                                                    | false    |              |                                                                                                                                                                                                                                                                                              |
+| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                                                                                                                                                                              |
+| `model_config_id`      | string                                                    | false    |              |                                                                                                                                                                                                                                                                                              |
+| `organization_id`      | string                                                    | false    |              |                                                                                                                                                                                                                                                                                              |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                                                                                                                                                                              |
+| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                                                                                                                                                                              |
+| `runtime`              | [codersdk.ChatRuntime](#codersdkchatruntime)              | false    |              | Runtime selects the generation runtime for the chat. Empty means the built-in coder runtime. External runtimes (claude_code) require an enabled org runtime config; the server creates and binds a workspace from the configured template, and the runtime cannot be changed after creation. |
+| `system_prompt`        | string                                                    | false    |              |                                                                                                                                                                                                                                                                                              |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                                                                                                                   |
+| `workspace_id`         | string                                                    | false    |              |                                                                                                                                                                                                                                                                                              |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -7597,9 +7661,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                  |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                           |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `agents-runtime-config`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -14538,6 +14602,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name     | Type                                                                | Required | Restrictions | Description |
 |----------|---------------------------------------------------------------------|----------|--------------|-------------|
 | `prices` | array of [codersdk.AIModelPriceUpsert](#codersdkaimodelpriceupsert) | false    |              |             |
+
+## codersdk.UpsertChatRuntimeConfigRequest
+
+```json
+{
+  "enabled": true,
+  "model": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "permission_mode": "string",
+  "runtime": "coder",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc"
+}
+```
+
+### Properties
+
+| Name              | Type                                         | Required | Restrictions | Description |
+|-------------------|----------------------------------------------|----------|--------------|-------------|
+| `enabled`         | boolean                                      | false    |              |             |
+| `model`           | string                                       | false    |              |             |
+| `organization_id` | string                                       | false    |              |             |
+| `permission_mode` | string                                       | false    |              |             |
+| `runtime`         | [codersdk.ChatRuntime](#codersdkchatruntime) | false    |              |             |
+| `template_id`     | string                                       | false    |              |             |
 
 ## codersdk.UpsertGroupAIBudgetRequest
 

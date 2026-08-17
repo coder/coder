@@ -943,6 +943,10 @@ The dynamic tools timeout goroutine is responsible for waiting for the dynamic t
 
 The abandon chat goroutine is responsible for abandoning the chat. It is spawned whenever the event processing logic determines that the chat no longer needs to be owned by the runner. It applies the `Abandon` transition on the core state machine after checking that the chat is still owned by the runner.
 
+## TODO: External chat runtimes
+
+TODO(PR author): Document the experiment-gated external runtime dispatch, ACP turn lifecycle, runtime state persistence, model selection, and shared completion behavior introduced by this change.
+
 ## Runner cleanup
 
 When the manager cleans up a runner, the runner must cancel all goroutines it has spawned and unsubscribe from pubsub.

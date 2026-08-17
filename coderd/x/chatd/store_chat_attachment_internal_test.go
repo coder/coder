@@ -290,7 +290,7 @@ func TestStoreChatAttachment_SerializesCapCheck(t *testing.T) {
 		OrganizationID:    workspace.OrganizationID,
 		OwnerID:           user.ID,
 		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 
 	for i := range codersdk.MaxChatFileIDs - 1 {

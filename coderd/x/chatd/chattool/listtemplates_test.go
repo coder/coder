@@ -817,9 +817,10 @@ func TestTemplateAgentsAllowedEnforcement(t *testing.T) {
 	t.Run("CreateWorkspace", func(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
 			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+				Runtime:           database.ChatRuntimeCoder,
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,
-				LastModelConfigID: model.ID,
+				LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 				Title:             "allowed-create",
 				Status:            database.ChatStatusWaiting,
 				ClientType:        database.ChatClientTypeApi,
@@ -845,10 +846,11 @@ func TestTemplateAgentsAllowedEnforcement(t *testing.T) {
 			chat, err := db.InsertChat(ctx, database.InsertChatParams{
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,
-				LastModelConfigID: model.ID,
+				LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 				Title:             "blocked-create",
 				Status:            database.ChatStatusWaiting,
 				ClientType:        database.ChatClientTypeApi,
+				Runtime:           database.ChatRuntimeCoder,
 			})
 			require.NoError(t, err)
 

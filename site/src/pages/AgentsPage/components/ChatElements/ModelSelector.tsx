@@ -1,5 +1,5 @@
 import { CheckIcon, InfoIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -56,6 +56,7 @@ interface ModelSelectorProps {
 	 * clear control.
 	 */
 	unsetLabel?: string;
+	unsetHint?: string;
 	emptyMessage?: string;
 	formatProviderLabel?: (provider: string) => string;
 	className?: string;
@@ -101,6 +102,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	disabled = false,
 	placeholder = "Select model",
 	unsetLabel,
+	unsetHint,
 	emptyMessage = "No models found.",
 	formatProviderLabel = defaultFormatProviderLabel,
 	className,
@@ -114,6 +116,8 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
+	const unsetTriggerHintId = useId();
+	const unsetOptionHintId = useId();
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen) {
 			setSearch("");
@@ -149,6 +153,11 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
+			{unsetHint && (
+				<span id={unsetTriggerHintId} className="sr-only">
+					{unsetHint}
+				</span>
+			)}
 			<PopoverTrigger asChild disabled={isDisabled}>
 				<Button
 					aria-label={
@@ -157,6 +166,9 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 							: triggerLabel
 					}
 					aria-expanded={open}
+					aria-describedby={
+						!value && unsetHint ? unsetTriggerHintId : undefined
+					}
 					aria-haspopup="listbox"
 					disabled={isDisabled}
 					role="combobox"
@@ -219,17 +231,29 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 								<CommandGroup className="p-1">
 									<CommandItem
 										value="__unset__"
+										aria-label={unsetLabel}
+										aria-describedby={unsetHint ? unsetOptionHintId : undefined}
 										onSelect={() => {
 											onValueChange("");
 											handleOpenChange(false);
 										}}
 										className={cn(
-											"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
+											"items-start gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
 											!value && "bg-surface-secondary",
 										)}
 									>
-										<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
-											{unsetLabel}
+										<span className="min-w-0 text-left">
+											<span className="block truncate text-xs font-medium leading-[18px] text-content-secondary">
+												{unsetLabel}
+											</span>
+											{unsetHint && (
+												<span
+													id={unsetOptionHintId}
+													className="mt-0.5 block text-2xs font-normal leading-4 text-content-secondary"
+												>
+													{unsetHint}
+												</span>
+											)}
 										</span>
 										<CheckIcon
 											className={cn(

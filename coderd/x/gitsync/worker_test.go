@@ -955,7 +955,7 @@ func TestWorker(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "integration-test",
 	})
 

@@ -1721,6 +1721,65 @@ func AllChatReasoningEffortValues() []ChatReasoningEffort {
 	}
 }
 
+// Generation runtime backing a chat: coder chats use the built-in LLM pipeline, claude_code chats delegate turns to a Claude Code agent running inside the bound workspace.
+type ChatRuntime string
+
+const (
+	ChatRuntimeCoder      ChatRuntime = "coder"
+	ChatRuntimeClaudeCode ChatRuntime = "claude_code"
+)
+
+func (e *ChatRuntime) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatRuntime(s)
+	case string:
+		*e = ChatRuntime(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatRuntime: %T", src)
+	}
+	return nil
+}
+
+type NullChatRuntime struct {
+	ChatRuntime ChatRuntime `json:"chat_runtime"`
+	Valid       bool        `json:"valid"` // Valid is true if ChatRuntime is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatRuntime) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatRuntime, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatRuntime.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatRuntime) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatRuntime), nil
+}
+
+func (e ChatRuntime) Valid() bool {
+	switch e {
+	case ChatRuntimeCoder,
+		ChatRuntimeClaudeCode:
+		return true
+	}
+	return false
+}
+
+func AllChatRuntimeValues() []ChatRuntime {
+	return []ChatRuntime{
+		ChatRuntimeCoder,
+		ChatRuntimeClaudeCode,
+	}
+}
+
 type ChatStatus string
 
 const (
@@ -4960,7 +5019,7 @@ type Chat struct {
 	UpdatedAt                time.Time               `db:"updated_at" json:"updated_at"`
 	ParentChatID             uuid.NullUUID           `db:"parent_chat_id" json:"parent_chat_id"`
 	RootChatID               uuid.NullUUID           `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID        uuid.UUID               `db:"last_model_config_id" json:"last_model_config_id"`
+	LastModelConfigID        uuid.NullUUID           `db:"last_model_config_id" json:"last_model_config_id"`
 	LastReasoningEffort      NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
 	Archived                 bool                    `db:"archived" json:"archived"`
 	LastError                pqtype.NullRawMessage   `db:"last_error" json:"last_error"`
@@ -4995,6 +5054,8 @@ type Chat struct {
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
+	Runtime                  ChatRuntime             `db:"runtime" json:"runtime"`
+	RuntimeState             pqtype.NullRawMessage   `db:"runtime_state" json:"runtime_state"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5165,6 +5226,20 @@ type ChatQueuedMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
+// Per-organization admin configuration for external chat runtimes, e.g. which template backs Claude Code chats.
+type ChatRuntimeConfig struct {
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	Runtime        ChatRuntime `db:"runtime" json:"runtime"`
+	TemplateID     uuid.UUID   `db:"template_id" json:"template_id"`
+	Enabled        bool        `db:"enabled" json:"enabled"`
+	// Optional model identifier pinned for the runtime. Empty means the runtime default.
+	Model string `db:"model" json:"model"`
+	// Optional permission mode the runtime agent runs with. Empty means the runtime default.
+	PermissionMode string    `db:"permission_mode" json:"permission_mode"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ChatTable struct {
 	ID                uuid.UUID             `db:"id" json:"id"`
 	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`
@@ -5178,7 +5253,7 @@ type ChatTable struct {
 	UpdatedAt         time.Time             `db:"updated_at" json:"updated_at"`
 	ParentChatID      uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
 	RootChatID        uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	LastModelConfigID uuid.NullUUID         `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived          bool                  `db:"archived" json:"archived"`
 	LastError         pqtype.NullRawMessage `db:"last_error" json:"last_error"`
 	Mode              NullChatMode          `db:"mode" json:"mode"`
@@ -5220,6 +5295,10 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
+	// Generation runtime for this chat. Immutable after creation.
+	Runtime ChatRuntime `db:"runtime" json:"runtime"`
+	// Runtime-specific persistent state, e.g. the ACP session ID and adapter capabilities for claude_code chats.
+	RuntimeState pqtype.NullRawMessage `db:"runtime_state" json:"runtime_state"`
 }
 
 type ChatUsageLimitConfig struct {

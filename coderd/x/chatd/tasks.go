@@ -285,7 +285,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 	partialMessages, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
 		parts:          parts,
-		modelConfigID:  chat.LastModelConfigID,
+		modelConfigID:  chat.LastModelConfigID.UUID,
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         s.opts.Logger,
 		interruptedAt:  interruptedAt,
@@ -716,7 +716,7 @@ func committedPendingLocalToolCancellationMessages(
 			Role:           database.ChatMessageRoleTool,
 			Content:        content,
 			Visibility:     database.ChatMessageVisibilityBoth,
-			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
+			ModelConfigID:  chat.LastModelConfigID,
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
 	}

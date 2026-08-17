@@ -141,7 +141,7 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "builtin tool schemas",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages: []chatstate.Message{{

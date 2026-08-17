@@ -148,6 +148,7 @@ type sqlcQuerier interface {
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
+	DeleteChatRuntimeConfig(ctx context.Context, arg DeleteChatRuntimeConfigParams) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
@@ -488,6 +489,7 @@ type sqlcQuerier interface {
 	// dbpurge. Returns 30 (days) when no value has been configured.
 	// A value of 0 disables chat purging entirely.
 	GetChatRetentionDays(ctx context.Context) (int32, error)
+	GetChatRuntimeConfig(ctx context.Context, arg GetChatRuntimeConfigParams) (ChatRuntimeConfig, error)
 	GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]GetChatStreamSyncRowsRow, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
 	// GetChatSystemPromptConfig returns both chat system prompt settings in a
@@ -1255,6 +1257,7 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	ListChatRuntimeConfigs(ctx context.Context) ([]ChatRuntimeConfig, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
@@ -1463,6 +1466,7 @@ type sqlcQuerier interface {
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
+	UpdateChatRuntimeState(ctx context.Context, arg UpdateChatRuntimeStateParams) error
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	// The history_version fence lets background summary writes ignore worker-only
 	// updates while losing to newer message history.
@@ -1641,6 +1645,7 @@ type sqlcQuerier interface {
 	UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error
 	UpsertChatPlanModeInstructions(ctx context.Context, value string) error
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
+	UpsertChatRuntimeConfig(ctx context.Context, arg UpsertChatRuntimeConfigParams) (ChatRuntimeConfig, error)
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error
 	UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error

@@ -49,6 +49,9 @@ const anthropicModels: ModelSelectorOption[] = [
 
 const allModels: ModelSelectorOption[] = [...openAIModels, ...anthropicModels];
 
+const unsetHint =
+	"Uses the model your administrator configured for this runtime. If none is set, Claude Code keeps the model from your previous message until you pick one.";
+
 const effortModel: ModelSelectorOption = {
 	...MockModelSelectorOption,
 	id: "openai/gpt-5",
@@ -200,6 +203,60 @@ export const NoOptions: Story = {
 	args: {
 		options: [],
 		value: "",
+	},
+};
+
+const ModelSelectorWithUnsetHint = ({
+	onValueChange,
+}: {
+	onValueChange: (value: string) => void;
+}) => {
+	const [value, setValue] = useState("");
+	return (
+		<ModelSelector
+			options={openAIModels}
+			value={value}
+			onValueChange={(nextValue) => {
+				setValue(nextValue);
+				onValueChange(nextValue);
+			}}
+			placeholder="Default"
+			unsetLabel="Default"
+			unsetHint={unsetHint}
+		/>
+	);
+};
+
+export const UnsetHint: Story = {
+	render: (args) => (
+		<ModelSelectorWithUnsetHint onValueChange={args.onValueChange} />
+	),
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const trigger = canvas.getByRole("combobox", { name: "Default" });
+		expect(trigger).toHaveAccessibleDescription(unsetHint);
+
+		await userEvent.click(trigger);
+		const defaultOption = await body.findByRole("option", { name: "Default" });
+		await waitFor(() =>
+			expect(within(defaultOption).getByText(unsetHint)).toBeVisible(),
+		);
+		expect(defaultOption).toHaveAccessibleDescription(unsetHint);
+
+		await userEvent.click(body.getByRole("option", { name: /GPT-4o Mini/ }));
+		expect(args.onValueChange).toHaveBeenCalledWith("openai/gpt-4o-mini");
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("combobox", { name: "GPT-4o Mini" }),
+			).toBeVisible();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: "GPT-4o Mini" }),
+		);
+		await userEvent.click(await body.findByRole("option", { name: "Default" }));
+		expect(args.onValueChange).toHaveBeenLastCalledWith("");
 	},
 };
 

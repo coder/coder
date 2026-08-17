@@ -1360,7 +1360,7 @@ func TestChatContextHydration(t *testing.T) {
 		return dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
 			Status:            status,
 		})
@@ -1485,7 +1485,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             fmt.Sprintf("owner chat %d", i+1),
 		})
 	}
@@ -1495,7 +1495,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           member.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             fmt.Sprintf("member chat %d", i+1),
 		})
 	}
@@ -1657,7 +1657,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 			dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    org.ID,
 				OwnerID:           paginationUser.ID,
-				LastModelConfigID: modelCfg.ID,
+				LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 				Title:             fmt.Sprintf("pagination chat %d", i+1),
 			})
 		}
@@ -1746,13 +1746,13 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	ownerChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "shared owner chat",
 	})
 	recipientChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           recipient.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "recipient chat",
 	})
 
@@ -1866,13 +1866,13 @@ func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 	ownerChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "shared owner chat",
 	})
 	recipientChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           recipient.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "recipient chat",
 	})
 
@@ -1968,7 +1968,7 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 	ownerChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "shared owner chat",
 	})
 	sharedACL := database.ChatACL{
@@ -2029,7 +2029,7 @@ func TestLinkChatFilesDeduplicatesInput(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
 		OwnerID:        user.ID,
@@ -11019,12 +11019,12 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 	chat1 := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: mc.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: mc.ID, Valid: true},
 	})
 	chat2 := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: mc.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: mc.ID, Valid: true},
 	})
 
 	insertMessage := func(chatID uuid.UUID, runtimeMs int64, createdAt time.Time, deleted bool) {
@@ -12429,11 +12429,12 @@ func TestInsertChatMessages(t *testing.T) {
 		)
 
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelConfigA.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelConfigA.ID, Valid: true},
 			Title:             "test-chat-" + uuid.NewString(),
 		})
 		require.NoError(t, err)
@@ -12483,8 +12484,8 @@ func TestInsertChatMessages(t *testing.T) {
 
 		gotChat, err := store.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, modelConfigA.ID, chat.LastModelConfigID)
-		require.Equal(t, modelConfigB.ID, gotChat.LastModelConfigID)
+		require.Equal(t, uuid.NullUUID{UUID: modelConfigA.ID, Valid: true}, chat.LastModelConfigID)
+		require.Equal(t, uuid.NullUUID{UUID: modelConfigB.ID, Valid: true}, gotChat.LastModelConfigID)
 	})
 
 	t.Run("SameModelDoesNotBreakAnything", func(t *testing.T) {
@@ -12496,7 +12497,7 @@ func TestInsertChatMessages(t *testing.T) {
 
 		gotChat, err := store.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, modelConfigA.ID, gotChat.LastModelConfigID)
+		require.Equal(t, uuid.NullUUID{UUID: modelConfigA.ID, Valid: true}, gotChat.LastModelConfigID)
 	})
 
 	t.Run("BatchInsertMultipleMessages", func(t *testing.T) {
@@ -12571,7 +12572,7 @@ func insertChatMessagesInvertedTimestamps(t *testing.T, db database.Store, sqlDB
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 	})
 
 	count := len(roles)
@@ -12726,11 +12727,12 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	newChat := func(t *testing.T) database.Chat {
 		t.Helper()
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "test-chat-" + uuid.NewString(),
 		})
 		require.NoError(t, err)
@@ -15142,11 +15144,12 @@ func TestChatPinOrderQueries(t *testing.T) {
 		t.Helper()
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    orgID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           ownerID,
-			LastModelConfigID: modelCfgID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfgID, Valid: true},
 			Title:             title,
 		})
 		require.NoError(t, err)
@@ -15318,21 +15321,23 @@ func TestChatPinOrderConstraints(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		parent, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "parent",
 		})
 		require.NoError(t, err)
 
 		child, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "child",
 			ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
@@ -15349,11 +15354,12 @@ func TestChatPinOrderConstraints(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "will be archived",
 		})
 		require.NoError(t, err)
@@ -15413,11 +15419,12 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "labeled-chat",
 			Labels: pqtype.NullRawMessage{
 				RawMessage: labelsJSON,
@@ -15442,11 +15449,12 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "no-labels-chat",
 		})
 		require.NoError(t, err)
@@ -15460,11 +15468,12 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "owner-fields-chat-" + uuid.NewString(),
 		})
 		require.NoError(t, err)
@@ -15488,20 +15497,22 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		parent, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "owner-fields-parent-" + uuid.NewString(),
 		})
 		require.NoError(t, err)
 		child, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "owner-fields-child-" + uuid.NewString(),
 			ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
@@ -15523,11 +15534,12 @@ func TestChatLabels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "update-labels-chat",
 		})
 		require.NoError(t, err)
@@ -15566,11 +15578,12 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             "original-title",
 			Labels: pqtype.NullRawMessage{
 				RawMessage: labelsJSON,
@@ -15607,11 +15620,12 @@ func TestChatLabels(t *testing.T) {
 			labelsJSON, err := json.Marshal(tc.labels)
 			require.NoError(t, err)
 			_, err = db.InsertChat(ctx, database.InsertChatParams{
+				Runtime:           database.ChatRuntimeCoder,
 				OrganizationID:    org.ID,
 				Status:            database.ChatStatusWaiting,
 				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           owner.ID,
-				LastModelConfigID: modelCfg.ID, Title: tc.title,
+				LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true}, Title: tc.title,
 				Labels: pqtype.NullRawMessage{
 					RawMessage: labelsJSON,
 					Valid:      true,
@@ -15703,11 +15717,12 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "summary-chat",
 	})
 	require.NoError(t, err)
@@ -15845,8 +15860,9 @@ func TestUpdateChatSummary(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "summary-chat",
+		Runtime:           database.ChatRuntimeCoder,
 	})
 	require.NoError(t, err)
 	require.False(t, chat.Summary.Valid)
@@ -15966,8 +15982,9 @@ func TestUpdateChatWorkspaceBindingNoOp(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           owner.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "binding-chat",
+		Runtime:           database.ChatRuntimeCoder,
 	})
 	require.NoError(t, err)
 
@@ -16044,11 +16061,12 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "chat-debug-rollback-" + uuid.NewString(),
 	})
 	require.NoError(t, err)
@@ -16235,11 +16253,12 @@ func TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls(t *te
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "chat-debug-step-boundaries-" + uuid.NewString(),
 	})
 	require.NoError(t, err)
@@ -16491,11 +16510,12 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "chat-finalize-" + uuid.NewString(),
 	})
 	require.NoError(t, err)
@@ -16928,21 +16948,23 @@ func TestChatDebugSQLGuards(t *testing.T) {
 	require.NoError(t, err)
 
 	chatA, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "chat-guard-A-" + uuid.NewString(),
 	})
 	require.NoError(t, err)
 
 	chatB, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "chat-guard-B-" + uuid.NewString(),
 	})
 	require.NoError(t, err)
@@ -17060,11 +17082,12 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "chat-debug-coalesce-" + uuid.NewString(),
 	})
 	require.NoError(t, err)
@@ -17173,11 +17196,12 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "chat-step-coalesce-" + uuid.NewString(),
 	})
 	require.NoError(t, err)
@@ -17296,11 +17320,12 @@ func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "chat-debug-null-msg-" + uuid.NewString(),
 	})
 	require.NoError(t, err)
@@ -17392,11 +17417,12 @@ func TestDeleteChatDebugDataAfterMessageIDStartedBeforeFiltersNewerRuns(t *testi
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "chat-debug-started-before-" + uuid.NewString(),
 	})
 	require.NoError(t, err)
@@ -17502,11 +17528,12 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "chat-debug-by-chat-" + uuid.NewString(),
 	})
 	require.NoError(t, err)
@@ -17590,11 +17617,12 @@ func TestGetChatsFilter(t *testing.T) {
 	createRoot := func(title string) database.Chat {
 		t.Helper()
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             title,
 		})
 		require.NoError(t, err)
@@ -17604,11 +17632,12 @@ func TestGetChatsFilter(t *testing.T) {
 	createChild := func(root database.Chat, title string) database.Chat {
 		t.Helper()
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			Runtime:           database.ChatRuntimeCoder,
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             title,
 			ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
@@ -17884,8 +17913,9 @@ func TestGetChatsSearch(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             title,
+			Runtime:           database.ChatRuntimeCoder,
 		})
 		require.NoError(t, err)
 		return chat
@@ -17898,10 +17928,11 @@ func TestGetChatsSearch(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 			Title:             title,
 			ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+			Runtime:           database.ChatRuntimeCoder,
 		})
 		require.NoError(t, err)
 		return chat
@@ -18111,11 +18142,12 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		Runtime:           database.ChatRuntimeCoder,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelCfg.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 		Title:             "test-chat-" + uuid.NewString(),
 	})
 	require.NoError(t, err)

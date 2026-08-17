@@ -1419,3 +1419,175 @@ export const LongWorkspaceNameMobile: Story = {
 		}
 	},
 };
+
+const claudeModelOptions = [
+	{
+		id: "model-config-claude-sonnet",
+		provider: "anthropic",
+		model: "claude-sonnet-4-5",
+		displayName: "Claude Sonnet 4.5",
+	},
+	{
+		id: "model-config-claude-haiku",
+		provider: "anthropic",
+		model: "claude-haiku-4-5",
+		displayName: "Claude Haiku 4.5",
+	},
+] as const;
+
+/**
+ * Claude Code runtime pinned with no Anthropic model options: the
+ * composer shows only the "Claude Code" badge and sending works
+ * without model options.
+ */
+export const ClaudeCodePinned: Story = {
+	args: {
+		claudeCodeEnabled: true,
+		onClaudeCodeToggle: fn(),
+		hasModelOptions: false,
+		modelOptions: [],
+		selectedModel: "",
+		onSend: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const badge = await canvas.findByTestId("claude-code-badge");
+		expect(badge).toBeVisible();
+		expect(badge).toHaveTextContent("Claude Code");
+		expect(canvas.queryByText("Select model")).not.toBeInTheDocument();
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
+		await userEvent.click(input);
+		await userEvent.type(input, "Use the runtime default");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("Use the runtime default");
+		});
+	},
+};
+
+/**
+ * Claude Code chats need no chat model, so the "set up a model" notice
+ * stays hidden even when the model catalog is empty.
+ */
+export const ClaudeCodeHidesModelSetupNotice: Story = {
+	args: {
+		claudeCodeEnabled: true,
+		onClaudeCodeToggle: fn(),
+		hasModelOptions: false,
+		modelOptions: [],
+		selectedModel: "",
+		canConfigureAgentSetup: false,
+		modelCount: 0,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTestId("claude-code-badge")).toBeVisible();
+		expect(
+			canvas.queryByText(/To chat with Coder Agents/),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** The plus menu offers "Run with Claude Code" when a toggle is wired. */
+export const ClaudeCodeMenuItem: Story = {
+	args: {
+		onClaudeCodeToggle: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		const body = within(document.body);
+		const descriptionText =
+			"Delegate turns to Claude Code in a dedicated workspace. Anthropic models only; no attachments, plan mode, or MCP.";
+		const item = await body.findByRole("menuitemcheckbox", {
+			name: "Run with Claude Code",
+		});
+		const description = body.getByText(descriptionText);
+		await waitFor(() => expect(description).toBeVisible());
+		expect(item).toHaveAttribute("aria-describedby", description.id);
+		expect(item).toHaveAccessibleDescription(descriptionText);
+		expect(item).toHaveAttribute("aria-checked", "false");
+		await userEvent.click(item);
+		await waitFor(() => {
+			expect(args.onClaudeCodeToggle).toHaveBeenCalledWith(true);
+		});
+	},
+};
+
+/**
+ * Claude Code chats with Anthropic model options render a picker with
+ * an explicit Default row next to the badge; picking a model reports
+ * its config id.
+ */
+export const ClaudeCodeModelPicker: Story = {
+	args: {
+		claudeCodeEnabled: true,
+		onClaudeCodeToggle: fn(),
+		hasModelOptions: false,
+		modelOptions: [...claudeModelOptions],
+		selectedModel: "",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTestId("claude-code-badge")).toBeVisible();
+		const trigger = canvas.getByRole("combobox", { name: "Default" });
+		await userEvent.click(trigger);
+		const body = within(document.body);
+		const defaultOption = await body.findByRole("option", {
+			name: /Default/,
+		});
+		// The popover fades in; wait out the enter animation.
+		await waitFor(() => expect(defaultOption).toBeVisible());
+		await userEvent.click(
+			await body.findByRole("option", { name: /Claude Haiku 4.5/ }),
+		);
+		await waitFor(() => {
+			expect(args.onModelChange).toHaveBeenCalledWith(
+				"model-config-claude-haiku",
+			);
+		});
+	},
+};
+
+/** Picking the Default row clears an active Claude Code model pick. */
+export const ClaudeCodeModelPickerClearsToDefault: Story = {
+	args: {
+		claudeCodeEnabled: true,
+		onClaudeCodeToggle: fn(),
+		hasModelOptions: false,
+		modelOptions: [...claudeModelOptions],
+		selectedModel: "model-config-claude-sonnet",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("combobox", {
+			name: "Claude Sonnet 4.5",
+		});
+		await userEvent.click(trigger);
+		const body = within(document.body);
+		await userEvent.click(await body.findByRole("option", { name: /Default/ }));
+		await waitFor(() => {
+			expect(args.onModelChange).toHaveBeenCalledWith("");
+		});
+	},
+};
+
+/** Dismissing the pinned badge exits Claude Code mode. */
+export const ClaudeCodeBadgeDismiss: Story = {
+	args: {
+		claudeCodeEnabled: true,
+		onClaudeCodeToggle: fn(),
+		modelOptions: [],
+		selectedModel: "",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const badge = await canvas.findByTestId("claude-code-badge");
+		await userEvent.click(
+			within(badge).getByRole("button", { name: "Disable Claude Code" }),
+		);
+		await waitFor(() => {
+			expect(args.onClaudeCodeToggle).toHaveBeenCalledWith(false);
+		});
+	},
+};

@@ -284,7 +284,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		parent := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		})
 		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 		ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
@@ -392,7 +392,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 			http.Error(rw, "hook consumer down", http.StatusInternalServerError)
 		})
 
-		tools := server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID)
+		tools := server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID.UUID)
 		tool := findToolByName(tools, spawnAgentToolName)
 		require.NotNil(t, tool)
 		input, err := json.Marshal(spawnAgentArgs{
@@ -536,7 +536,7 @@ func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 	})
 
 	model, config, _, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelBuildOptions{})
@@ -920,7 +920,7 @@ func runSpawnAgentTool(
 		t,
 		server,
 		parentChat,
-		parentChat.LastModelConfigID,
+		parentChat.LastModelConfigID.UUID,
 		spawnAgentToolName,
 		args,
 	)
@@ -1031,7 +1031,7 @@ func TestSpawnAgent_GeneralInheritsParentModelWhenOmitted(t *testing.T) {
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-	require.Equal(t, parentChat.LastModelConfigID, childChat.LastModelConfigID)
+	require.Equal(t, parentChat.LastModelConfigID.UUID, childChat.LastModelConfigID.UUID)
 }
 
 func TestSpawnAgent_GeneralUsesConfiguredModelOverride(t *testing.T) {
@@ -1058,7 +1058,7 @@ func TestSpawnAgent_GeneralUsesConfiguredModelOverride(t *testing.T) {
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
+	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID.UUID)
 	require.False(t, childChat.PlanMode.Valid)
 }
 
@@ -1253,7 +1253,7 @@ func TestSpawnAgent_GeneralHonorsPersonalModelOverrides(t *testing.T) {
 			require.Equal(
 				t,
 				tt.wantModelID(parentModel, deploymentModel, personalModel),
-				childChat.LastModelConfigID,
+				childChat.LastModelConfigID.UUID,
 			)
 			require.False(t, childChat.PlanMode.Valid)
 		})
@@ -1310,7 +1310,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenCredentialsUnavailable(t 
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-	require.Equal(t, model.ID, childChat.LastModelConfigID)
+	require.Equal(t, model.ID, childChat.LastModelConfigID.UUID)
 	require.False(t, childChat.PlanMode.Valid)
 	require.Len(t, logSink.entriesAtLevelWithMessage(
 		slog.LevelInfo,
@@ -1379,7 +1379,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenProviderDisabled(t *testi
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-	require.Equal(t, model.ID, childChat.LastModelConfigID)
+	require.Equal(t, model.ID, childChat.LastModelConfigID.UUID)
 	require.False(t, childChat.PlanMode.Valid)
 	require.Len(t, logSink.entriesAtLevelWithMessage(
 		slog.LevelInfo,
@@ -1524,7 +1524,7 @@ func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T)
 
 	// The chats table enforces a foreign key for last_model_config_id, so
 	// use a synthetic parent value here to exercise the override path.
-	parentChat.LastModelConfigID = uuid.Nil
+	parentChat.LastModelConfigID = uuid.NullUUID{}
 	child, err := server.createChildSubagentChatWithOptions(
 		ctx,
 		parentChat,
@@ -1536,7 +1536,7 @@ func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T)
 
 	childChat, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
-	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
+	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID.UUID)
 }
 
 func TestSpawnAgent_ExplicitModelConfigID(t *testing.T) {
@@ -1570,12 +1570,12 @@ func TestSpawnAgent_ExplicitModelConfigID(t *testing.T) {
 
 			childChat, err := db.GetChatByID(ctx, childID)
 			require.NoError(t, err)
-			require.Equal(t, selectedModel.ID, childChat.LastModelConfigID)
+			require.Equal(t, selectedModel.ID, childChat.LastModelConfigID.UUID)
 			require.False(t, childChat.LastReasoningEffort.Valid)
 
 			parentAfter, err := db.GetChatByID(ctx, parentChat.ID)
 			require.NoError(t, err)
-			require.Equal(t, parentModel.ID, parentAfter.LastModelConfigID)
+			require.Equal(t, parentModel.ID, parentAfter.LastModelConfigID.UUID)
 		})
 	}
 }
@@ -1619,7 +1619,7 @@ func TestSpawnAgent_ExplicitModelSkipsConfiguredOverrides(t *testing.T) {
 			})
 			childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
 			require.NoError(t, err)
-			require.Equal(t, selectedModel.ID, childChat.LastModelConfigID)
+			require.Equal(t, selectedModel.ID, childChat.LastModelConfigID.UUID)
 		})
 	}
 }
@@ -1662,7 +1662,7 @@ func TestSpawnAgent_ExplicitModelBeatsConfiguredOverrides(t *testing.T) {
 	})
 	baselineChild, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, baselineResp))
 	require.NoError(t, err)
-	require.Equal(t, personalModel.ID, baselineChild.LastModelConfigID)
+	require.Equal(t, personalModel.ID, baselineChild.LastModelConfigID.UUID)
 	require.Equal(
 		t,
 		database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortLow, Valid: true},
@@ -1676,7 +1676,7 @@ func TestSpawnAgent_ExplicitModelBeatsConfiguredOverrides(t *testing.T) {
 	})
 	childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
 	require.NoError(t, err)
-	require.Equal(t, selectedModel.ID, childChat.LastModelConfigID)
+	require.Equal(t, selectedModel.ID, childChat.LastModelConfigID.UUID)
 	require.False(t, childChat.LastReasoningEffort.Valid)
 }
 
@@ -1702,7 +1702,7 @@ func TestSpawnAgent_ExplicitReasoningEffort(t *testing.T) {
 		})
 		childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
 		require.NoError(t, err)
-		require.Equal(t, parentModel.ID, childChat.LastModelConfigID)
+		require.Equal(t, parentModel.ID, childChat.LastModelConfigID.UUID)
 		require.Equal(
 			t,
 			database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
@@ -1733,7 +1733,7 @@ func TestSpawnAgent_ExplicitReasoningEffort(t *testing.T) {
 		})
 		childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
 		require.NoError(t, err)
-		require.Equal(t, selectedModel.ID, childChat.LastModelConfigID)
+		require.Equal(t, selectedModel.ID, childChat.LastModelConfigID.UUID)
 		require.Equal(
 			t,
 			database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortLow, Valid: true},
@@ -1766,7 +1766,7 @@ func TestSpawnAgent_ExplicitReasoningEffort(t *testing.T) {
 		})
 		childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
 		require.NoError(t, err)
-		require.Equal(t, deploymentModel.ID, childChat.LastModelConfigID)
+		require.Equal(t, deploymentModel.ID, childChat.LastModelConfigID.UUID)
 		require.Equal(
 			t,
 			database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
@@ -1990,7 +1990,7 @@ func TestListSubagentModels(t *testing.T) {
 		t,
 		server,
 		parentChat,
-		parentChat.LastModelConfigID,
+		parentChat.LastModelConfigID.UUID,
 		listSubagentModelsToolName,
 		struct{}{},
 	)
@@ -2055,7 +2055,7 @@ func TestListSubagentModels_NotAvailableForChildChats(t *testing.T) {
 		t,
 		server,
 		childChat,
-		childChat.LastModelConfigID,
+		childChat.LastModelConfigID.UUID,
 		listSubagentModelsToolName,
 		struct{}{},
 	)
@@ -2084,7 +2084,7 @@ func TestSpawnAgent_ExploreUsesConfiguredModelOverride(t *testing.T) {
 		t,
 		server,
 		parentChat,
-		parentChat.LastModelConfigID,
+		parentChat.LastModelConfigID.UUID,
 		spawnAgentToolName,
 		spawnAgentArgs{Type: subagentTypeExplore, Prompt: "investigate the codebase"},
 	)
@@ -2095,7 +2095,7 @@ func TestSpawnAgent_ExploreUsesConfiguredModelOverride(t *testing.T) {
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
+	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID.UUID)
 	require.True(t, childChat.Mode.Valid)
 	require.Equal(t, database.ChatModeExplore, childChat.Mode.ChatMode)
 	require.False(t, childChat.PlanMode.Valid)
@@ -2129,8 +2129,8 @@ func TestSpawnAgent_ExploreFallsBackToCurrentTurnModel(t *testing.T) {
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
-	require.Equal(t, parentModel.ID, parentChat.LastModelConfigID)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID.UUID)
+	require.Equal(t, parentModel.ID, parentChat.LastModelConfigID.UUID)
 }
 
 func TestSpawnAgent_ExploreHonorsPersonalModelOverrides(t *testing.T) {
@@ -2336,7 +2336,7 @@ func TestSpawnAgent_ExploreHonorsPersonalModelOverrides(t *testing.T) {
 			require.Equal(
 				t,
 				tt.wantModelID(parentModel, currentTurnModel, deploymentModel, personalModel),
-				childChat.LastModelConfigID,
+				childChat.LastModelConfigID.UUID,
 			)
 			require.True(t, childChat.Mode.Valid)
 			require.Equal(t, database.ChatModeExplore, childChat.Mode.ChatMode)
@@ -2528,7 +2528,7 @@ func TestSpawnAgent_ExploreSnapshotsTurnStateParentState(t *testing.T) {
 	tools := server.subagentTools(
 		ctx,
 		func() database.Chat { return turnParent },
-		turnParent.LastModelConfigID,
+		turnParent.LastModelConfigID.UUID,
 	)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
@@ -2605,7 +2605,7 @@ func TestSpawnAgent_ExploreFallsBackOnInvalidUUID(t *testing.T) {
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID.UUID)
 }
 
 func TestSpawnAgent_ExploreFallsBackWhenOverrideIsUnavailable(t *testing.T) {
@@ -2640,7 +2640,7 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideIsUnavailable(t *testing.T) {
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID.UUID)
 }
 
 func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *testing.T) {
@@ -2687,7 +2687,7 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
-	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
+	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID.UUID)
 }
 
 func TestDefaultSystemPromptPlanningGuidance_SteersSubagentSelection(t *testing.T) {
@@ -2715,7 +2715,7 @@ func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-all",
 	)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID.UUID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2736,7 +2736,7 @@ func TestSpawnAgent_DescriptionSteersGeneralForSubstantialResearch(t *testing.T)
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-selection-guidance",
 	)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID.UUID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2760,7 +2760,7 @@ func TestSpawnAgent_DescriptionIncludesComputerUseWithMissingProviderKey(t *test
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-missing-key",
 	)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID.UUID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2794,7 +2794,7 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID.UUID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2874,7 +2874,7 @@ func TestSpawnAgent_InvalidTypeAndCredentialErrorAreDistinct(t *testing.T) {
 		t,
 		server,
 		parentChat,
-		parentChat.LastModelConfigID,
+		parentChat.LastModelConfigID.UUID,
 		spawnAgentToolName,
 		spawnAgentArgs{Type: "invalid", Prompt: "delegate work"},
 	)
@@ -2886,7 +2886,7 @@ func TestSpawnAgent_InvalidTypeAndCredentialErrorAreDistinct(t *testing.T) {
 		t,
 		server,
 		parentChat,
-		parentChat.LastModelConfigID,
+		parentChat.LastModelConfigID.UUID,
 		spawnAgentToolName,
 		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "open browser"},
 	)
@@ -3086,7 +3086,7 @@ func TestSpawnAgent_NotAvailableForChildChats(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, childChat.ParentChatID.Valid, "child chat must have a parent")
 
-	tools := server.subagentTools(ctx, func() database.Chat { return childChat }, childChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return childChat }, childChat.LastModelConfigID.UUID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 
@@ -3123,7 +3123,7 @@ func TestSpawnAgent_NotAvailableForExploreChats(t *testing.T) {
 	currentChat, err := db.GetChatByID(ctx, exploreChat.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return currentChat }, currentChat.LastModelConfigID)
+	tools := server.subagentTools(ctx, func() database.Chat { return currentChat }, currentChat.LastModelConfigID.UUID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 
@@ -3189,7 +3189,7 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 				t,
 				server,
 				parentChat,
-				parentChat.LastModelConfigID,
+				parentChat.LastModelConfigID.UUID,
 				"wait_agent",
 				waitAgentArgs{ChatID: childID.String()},
 			), false)
@@ -3200,7 +3200,7 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 				t,
 				server,
 				parentChat,
-				parentChat.LastModelConfigID,
+				parentChat.LastModelConfigID.UUID,
 				"message_agent",
 				messageAgentArgs{ChatID: childID.String(), Message: "follow up"},
 			), false)
@@ -3212,7 +3212,7 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 				t,
 				server,
 				parentChat,
-				parentChat.LastModelConfigID,
+				parentChat.LastModelConfigID.UUID,
 				"interrupt_agent",
 				interruptAgentArgs{ChatID: childID.String()},
 			), false)
@@ -3277,7 +3277,7 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 				t,
 				server,
 				unrelatedChat,
-				unrelatedChat.LastModelConfigID,
+				unrelatedChat.LastModelConfigID.UUID,
 				tt.toolName,
 				tt.args,
 			), true)
@@ -3322,7 +3322,7 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 		t,
 		server,
 		parentChat,
-		parentChat.LastModelConfigID,
+		parentChat.LastModelConfigID.UUID,
 		spawnAgentToolName,
 		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "take a screenshot"},
 	)
@@ -3385,7 +3385,7 @@ func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 		t,
 		server,
 		parentChat,
-		parentChat.LastModelConfigID,
+		parentChat.LastModelConfigID.UUID,
 		spawnAgentToolName,
 		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "check the UI"},
 	)
@@ -4272,7 +4272,7 @@ func TestWaitAgentToolSchema(t *testing.T) {
 
 	tool := findToolByName(server.subagentTools(ctx, func() database.Chat {
 		return parent
-	}, parent.LastModelConfigID), "wait_agent")
+	}, parent.LastModelConfigID.UUID), "wait_agent")
 	require.NotNil(t, tool)
 
 	timeoutSeconds, ok := tool.Info().Parameters["timeout_seconds"].(map[string]any)
@@ -4309,7 +4309,7 @@ func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {
 			t,
 			server,
 			parent,
-			parent.LastModelConfigID,
+			parent.LastModelConfigID.UUID,
 			"wait_agent",
 			waitAgentArgs{ChatID: child.ID.String(), TimeoutSeconds: &oneSecond},
 		)
@@ -4351,7 +4351,7 @@ func TestWaitAgentErrorStatusReturnsStructuredPayload(t *testing.T) {
 		t,
 		server,
 		parent,
-		parent.LastModelConfigID,
+		parent.LastModelConfigID.UUID,
 		"wait_agent",
 		waitAgentArgs{ChatID: child.ID.String()},
 	), false)
@@ -4468,7 +4468,7 @@ func TestWaitAgentErrorStatusSurfacesLastErrorDetail(t *testing.T) {
 		t,
 		server,
 		parent,
-		parent.LastModelConfigID,
+		parent.LastModelConfigID.UUID,
 		"wait_agent",
 		waitAgentArgs{ChatID: child.ID.String()},
 	), false)
@@ -4508,7 +4508,7 @@ func TestWaitAgentTimeoutGapCompletesWithError(t *testing.T) {
 			t,
 			server,
 			parent,
-			parent.LastModelConfigID,
+			parent.LastModelConfigID.UUID,
 			"wait_agent",
 			waitAgentArgs{ChatID: child.ID.String(), TimeoutSeconds: &oneSecond},
 		)
@@ -4567,7 +4567,7 @@ func TestWaitAgentTimeoutGapSurfacesLastErrorDetail(t *testing.T) {
 			t,
 			server,
 			parent,
-			parent.LastModelConfigID,
+			parent.LastModelConfigID.UUID,
 			"wait_agent",
 			waitAgentArgs{ChatID: child.ID.String(), TimeoutSeconds: &oneSecond},
 		)
@@ -4625,7 +4625,7 @@ func TestWaitAgentErrorStatusUnrecognizedLastError(t *testing.T) {
 		t,
 		server,
 		parent,
-		parent.LastModelConfigID,
+		parent.LastModelConfigID.UUID,
 		"wait_agent",
 		waitAgentArgs{ChatID: child.ID.String()},
 	), false)
@@ -4699,7 +4699,7 @@ func TestListAgents(t *testing.T) {
 		parent := newParent(t, ctx, "list-agents-empty")
 
 		result := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
+			ctx, t, server, parent, parent.LastModelConfigID.UUID,
 			"list_agents", listAgentsArgs{},
 		), false)
 
@@ -4720,7 +4720,7 @@ func TestListAgents(t *testing.T) {
 		})
 
 		result := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
+			ctx, t, server, parent, parent.LastModelConfigID.UUID,
 			"list_agents", listAgentsArgs{},
 		), false)
 
@@ -4754,7 +4754,7 @@ func TestListAgents(t *testing.T) {
 
 		limit := 2
 		first := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
+			ctx, t, server, parent, parent.LastModelConfigID.UUID,
 			"list_agents", listAgentsArgs{Limit: &limit},
 		), false)
 		require.Equal(t, float64(3), first["total"])
@@ -4765,7 +4765,7 @@ func TestListAgents(t *testing.T) {
 
 		offset := 2
 		second := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
+			ctx, t, server, parent, parent.LastModelConfigID.UUID,
 			"list_agents", listAgentsArgs{Limit: &limit, Offset: &offset},
 		), false)
 		require.Equal(t, float64(3), second["total"])
@@ -4788,7 +4788,7 @@ func TestListAgents(t *testing.T) {
 		setChatStatus(ctx, t, db, older.ID, database.ChatStatusWaiting, "")
 
 		result := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
+			ctx, t, server, parent, parent.LastModelConfigID.UUID,
 			"list_agents", listAgentsArgs{},
 		), false)
 		ids := listAgentsChatIDs(t, result)
@@ -4812,7 +4812,7 @@ func TestListAgents(t *testing.T) {
 		require.NoError(t, server.ArchiveChat(ctx, parent))
 
 		result := requireToolResponseMap(t, runSubagentTool(
-			ctx, t, server, parent, parent.LastModelConfigID,
+			ctx, t, server, parent, parent.LastModelConfigID.UUID,
 			"list_agents", listAgentsArgs{},
 		), false)
 		require.Equal(t, float64(0), result["total"])
@@ -4826,7 +4826,7 @@ func TestListAgents(t *testing.T) {
 		child := newChild(t, ctx, parent, "delegated-caller", database.NullChatMode{})
 
 		resp := runSubagentTool(
-			ctx, t, server, child, child.LastModelConfigID,
+			ctx, t, server, child, child.LastModelConfigID.UUID,
 			"list_agents", listAgentsArgs{},
 		)
 		require.True(t, resp.IsError, "list_agents on a delegated chat must return an error")

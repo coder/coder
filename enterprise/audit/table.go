@@ -491,6 +491,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
+		"runtime":                     ActionTrack,  // Immutable after creation.
+		"runtime_state":               ActionIgnore, // Internal runtime session state.
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,

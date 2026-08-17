@@ -1028,7 +1028,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	chat := database.Chat{
 		ID:                chatID,
 		OwnerID:           ownerID,
-		LastModelConfigID: modelConfigID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		Status:            database.ChatStatusRunning,
 		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
 		Title:             chatprompt.FallbackTitle(userPrompt),
@@ -1187,7 +1187,7 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 	chat := database.Chat{
 		ID:                chatID,
 		OwnerID:           ownerID,
-		LastModelConfigID: modelConfigID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		Status:            database.ChatStatusWaiting,
 		Title:             chatprompt.FallbackTitle(userPrompt),
 	}
@@ -3552,7 +3552,7 @@ func TestGetWorkspaceConnBumpsWorkspaceUsage(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OwnerID:           user.ID,
 		OrganizationID:    org.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 	})
 
@@ -3804,7 +3804,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, provider.ID, false)
 
-		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{}, model.ID)
+		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{Runtime: database.ChatRuntimeCoder}, model.ID)
 		require.NoError(t, err)
 		require.Equal(t, model.ID, resolved)
 	})
@@ -3819,7 +3819,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		disabledProvider := newProvider(t, db, false)
 		model := newModelConfig(t, db, disabledProvider.ID, false)
 
-		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{}, model.ID)
+		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{Runtime: database.ChatRuntimeCoder}, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 

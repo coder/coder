@@ -751,7 +751,7 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 		OwnerID:           user.ID,
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		LastModelConfigID: webSearchModel.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: webSearchModel.ID, Valid: true},
 		Title:             "root",
 		ClientType:        database.ChatClientTypeApi,
 	})
@@ -767,7 +767,7 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
 		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
-		LastModelConfigID: webSearchModel.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: webSearchModel.ID, Valid: true},
 		Title:             "explore",
 		Mode: database.NullChatMode{
 			ChatMode: database.ChatModeExplore,
@@ -1447,13 +1447,13 @@ func insertParentWithActiveChild(
 	parent = dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "parent",
 	})
 	child = dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "child",
 		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
@@ -1878,7 +1878,7 @@ func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusRunning,
 		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "reject invalid queued model config",
 	})
 
@@ -2106,7 +2106,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	storedChat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusWaiting, storedChat.Status)
-	require.Equal(t, modelConfigC.ID, storedChat.LastModelConfigID)
+	require.Equal(t, modelConfigC.ID, storedChat.LastModelConfigID.UUID)
 
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
@@ -2411,7 +2411,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "stale-requires-action",
 		DynamicTools:      nullRawMessage(dynamicToolsJSON),
 		ClientType:        database.ChatClientTypeApi,
@@ -2503,7 +2503,7 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "orphaned-chat",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages: []chatstate.Message{
@@ -2568,7 +2568,7 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		Title:             "waiting-chat",
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 
 	// Start a replica with a short stale threshold.
@@ -2610,7 +2610,7 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		Title:             "error-persisted",
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
 
 	// Write a minimal structured last_error payload through the
@@ -3778,7 +3778,7 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        user.ID,
-		ModelConfigID: chatResult.LastModelConfigID,
+		ModelConfigID: chatResult.LastModelConfigID.UUID,
 		Results: []codersdk.ToolResult{{
 			ToolCallID: toolCallID,
 			Output:     toolResultOutput,
@@ -4068,7 +4068,7 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        user.ID,
-		ModelConfigID: chatResult.LastModelConfigID,
+		ModelConfigID: chatResult.LastModelConfigID.UUID,
 		Results: []codersdk.ToolResult{{
 			ToolCallID: toolCallID,
 			Output:     json.RawMessage(`{"result":"dynamic output"}`),
@@ -4218,7 +4218,7 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 			submitErr := server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 				ChatID:        chat.ID,
 				UserID:        user.ID,
-				ModelConfigID: chatResult.LastModelConfigID,
+				ModelConfigID: chatResult.LastModelConfigID.UUID,
 				Results: []codersdk.ToolResult{{
 					ToolCallID: toolCallID,
 					Output:     json.RawMessage(`{"result":"concurrent output"}`),
@@ -4313,7 +4313,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "after-id-test",
 		Status:            database.ChatStatusWaiting,
 	})
@@ -6249,7 +6249,7 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 		created, err := chatstate.CreateChat(dbauthz.AsSystemRestricted(ctx), db, ps, chatstate.CreateChatInput{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
-			LastModelConfigID: model.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 			Title:             "provider-runner-replay-active",
 			MCPServerIDs:      []uuid.UUID{},
 			ClientType:        database.ChatClientTypeApi,
@@ -8259,7 +8259,7 @@ func createPlanSubagentChatWithHistory(
 	rootChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    orgID,
 		OwnerID:           userID,
-		LastModelConfigID: modelID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
 		Title:             "plan subagent active tools root",
 		Status:            database.ChatStatusWaiting,
 		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
@@ -8269,7 +8269,7 @@ func createPlanSubagentChatWithHistory(
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    orgID,
 		OwnerID:           userID,
-		LastModelConfigID: modelID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
 		Title:             "plan subagent active tools",
 		Status:            database.ChatStatusWaiting,
 		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
@@ -8682,7 +8682,7 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           user.ID,
 				Title:             "original title",
-				LastModelConfigID: model.ID,
+				LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 			})
 			message := insertUserTextMessage(
 				t,
@@ -11817,7 +11817,7 @@ func TestEditMessageWithModelConfigOverride(t *testing.T) {
 
 	storedChat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, modelB.ID, storedChat.LastModelConfigID,
+	require.Equal(t, modelB.ID, storedChat.LastModelConfigID.UUID,
 		"edit must update last_model_config_id so the assistant turn picks up the new model")
 }
 
@@ -11860,7 +11860,7 @@ func TestEditMessagePreservesModelConfigByDefault(t *testing.T) {
 
 	storedChat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, modelA.ID, storedChat.LastModelConfigID,
+	require.Equal(t, modelA.ID, storedChat.LastModelConfigID.UUID,
 		"edit without model override must not change last_model_config_id")
 }
 
@@ -11969,7 +11969,7 @@ func TestEditMessageRejectsUnknownModelConfig(t *testing.T) {
 
 	storedChat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, modelA.ID, storedChat.LastModelConfigID)
+	require.Equal(t, modelA.ID, storedChat.LastModelConfigID.UUID)
 }
 
 func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
@@ -11984,7 +11984,7 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "promote-reasoning-effort",
 		Status:            database.ChatStatusError,
 	})
@@ -12526,7 +12526,7 @@ func TestAdvisorGating_ChildChat(t *testing.T) {
 		OwnerID:           user.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
-		LastModelConfigID: model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		Title:             "advisor-root-parent",
 	})
 

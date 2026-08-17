@@ -1198,6 +1198,7 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("InsertChat", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertChatParams{
+			Runtime:    database.ChatRuntimeCoder,
 			Status:     database.ChatStatusWaiting,
 			ClientType: database.ChatClientTypeUi,
 		})
@@ -1291,6 +1292,36 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatRetryState(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+	}))
+	s.Run("UpdateChatRuntimeState", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateChatRuntimeStateParams{ID: chat.ID}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatRuntimeState(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate)
+	}))
+	s.Run("GetChatRuntimeConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		cfg := testutil.Fake(s.T(), faker, database.ChatRuntimeConfig{})
+		arg := database.GetChatRuntimeConfigParams{OrganizationID: cfg.OrganizationID, Runtime: cfg.Runtime}
+		dbm.EXPECT().GetChatRuntimeConfig(gomock.Any(), arg).Return(cfg, nil).AnyTimes()
+		check.Args(arg).Asserts().Returns(cfg)
+	}))
+	s.Run("ListChatRuntimeConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		cfg := testutil.Fake(s.T(), faker, database.ChatRuntimeConfig{})
+		dbm.EXPECT().ListChatRuntimeConfigs(gomock.Any()).Return([]database.ChatRuntimeConfig{cfg}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatRuntimeConfig{cfg})
+	}))
+	s.Run("UpsertChatRuntimeConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		cfg := testutil.Fake(s.T(), faker, database.ChatRuntimeConfig{})
+		arg := testutil.Fake(s.T(), faker, database.UpsertChatRuntimeConfigParams{OrganizationID: cfg.OrganizationID, Runtime: cfg.Runtime})
+		dbm.EXPECT().UpsertChatRuntimeConfig(gomock.Any(), arg).Return(cfg, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(cfg)
+	}))
+	s.Run("DeleteChatRuntimeConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		cfg := testutil.Fake(s.T(), faker, database.ChatRuntimeConfig{})
+		arg := database.DeleteChatRuntimeConfigParams{OrganizationID: cfg.OrganizationID, Runtime: cfg.Runtime}
+		dbm.EXPECT().DeleteChatRuntimeConfig(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetDatabaseNow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		now := time.Now()

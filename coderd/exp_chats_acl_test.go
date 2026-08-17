@@ -280,7 +280,7 @@ func TestChatACLSubChatInheritance(t *testing.T) {
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "child chat",
 	})
 
@@ -416,7 +416,7 @@ func TestSharedReaderStreamChat(t *testing.T) {
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "shared stream chat",
 	})
 	insertAssistantMessage(t, db, chat.ID, modelConfig.ID)
@@ -468,19 +468,19 @@ func TestListChatsSharedScope(t *testing.T) {
 	sharedChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "shared with viewer",
 	})
 	viewerChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           viewer.ID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "viewer owned",
 	})
 	unsharedChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "not shared with viewer",
 	})
 
@@ -568,7 +568,7 @@ func TestChatSharingDisabled(t *testing.T) {
 	chat := dbgen.Chat(t, store, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
-		LastModelConfigID: modelConfig.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Title:             "disabled sharing",
 	})
 	err := store.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{

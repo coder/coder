@@ -153,7 +153,7 @@ func createTestChat(t *testing.T, f *testFixture) chatstate.CreateChatResult {
 	res, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
 		OrganizationID:    f.Org.ID,
 		OwnerID:           f.User.ID,
-		LastModelConfigID: f.Model.ID,
+		LastModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
 		InitialMessages: []chatstate.Message{

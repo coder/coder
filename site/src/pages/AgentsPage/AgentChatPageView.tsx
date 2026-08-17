@@ -154,6 +154,7 @@ interface AgentChatPageViewProps {
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	isClaudeCodeChat?: boolean;
 	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
@@ -348,6 +349,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isModelCatalogLoading = false,
 	planModeEnabled,
 	onPlanModeToggle,
+	isClaudeCodeChat,
 	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
@@ -972,6 +974,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onReasoningEffortChange={onReasoningEffortChange}
 								planModeEnabled={planModeEnabled}
 								onPlanModeToggle={onPlanModeToggle}
+								isClaudeCodeChat={isClaudeCodeChat}
 								isModelCatalogLoading={isModelCatalogLoading}
 								workspaceOptions={workspaceOptions}
 								chatOrganizationId={organizationId}
@@ -1065,6 +1068,7 @@ interface AgentChatPageLoadingViewProps {
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	isClaudeCodeChat?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	showRightPanel: boolean;
@@ -1087,6 +1091,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	isModelCatalogLoading = false,
 	planModeEnabled,
 	onPlanModeToggle,
+	isClaudeCodeChat,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	showRightPanel,
@@ -1142,6 +1147,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={onPlanModeToggle}
+						claudeCodeEnabled={isClaudeCodeChat}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 						canConfigureAgentSetup={false}

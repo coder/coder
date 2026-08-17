@@ -335,7 +335,7 @@ func TestGenerator(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OwnerID:           u.ID,
 			OrganizationID:    o.ID,
-			LastModelConfigID: m.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: m.ID, Valid: true},
 		})
 		require.NotEqual(t, uuid.Nil, chat.ID)
 		require.Equal(t, database.ChatStatusWaiting, chat.Status)
@@ -346,7 +346,7 @@ func TestGenerator(t *testing.T) {
 		chat2 := dbgen.Chat(t, db, database.Chat{
 			OwnerID:           u.ID,
 			OrganizationID:    o.ID,
-			LastModelConfigID: m.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: m.ID, Valid: true},
 			Title:             "custom-title",
 			Status:            database.ChatStatusRunning,
 		})
@@ -368,7 +368,7 @@ func TestGenerator(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OwnerID:           u.ID,
 			OrganizationID:    o.ID,
-			LastModelConfigID: m.ID,
+			LastModelConfigID: uuid.NullUUID{UUID: m.ID, Valid: true},
 		})
 
 		// Defaults.

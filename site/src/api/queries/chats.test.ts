@@ -150,6 +150,7 @@ const makeChat = (
 	owner_id: "owner-1",
 	owner_username: "owner",
 	last_model_config_id: "model-1",
+	runtime: "coder",
 	mcp_server_ids: [],
 	labels: {},
 	title: `Chat ${id}`,
