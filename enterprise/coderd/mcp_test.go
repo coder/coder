@@ -71,6 +71,44 @@ func requireMCPServerConfigRequestStatus(
 	require.Equal(t, wantStatus, res.StatusCode)
 }
 
+func TestMCPServerConfigListUpdateOnlyRoleIsFiltered(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureCustomRoles: 1,
+			},
+		},
+	})
+
+	enabled := createMCPServerConfigForOrganization(t, owner, firstUser.OrganizationID, "visible-mcp")
+	disabled := createMCPServerConfigForOrganization(t, owner, firstUser.OrganizationID, "hidden-mcp")
+	//nolint:gocritic // Owner access sets up the disabled fixture.
+	_, err := owner.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, disabled.ID,
+		codersdk.UpdateMCPServerConfigRequest{Enabled: ptr.Ref(false)})
+	require.NoError(t, err)
+
+	//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
+	role, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+		Name:           "mcp-update-only",
+		OrganizationID: firstUser.OrganizationID.String(),
+		OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			codersdk.ResourceMCPServerConfig: {codersdk.ActionUpdate},
+		}),
+	})
+	require.NoError(t, err)
+	updateOnly, _ := coderdtest.CreateAnotherUser(t, owner, firstUser.OrganizationID,
+		rbac.RoleIdentifier{Name: role.Name, OrganizationID: firstUser.OrganizationID})
+
+	configs, err := updateOnly.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.Equal(t, enabled.ID, configs[0].ID)
+	require.Empty(t, configs[0].URL)
+}
+
 func TestMCPServerConfigCollectionOrganizationIsolation(t *testing.T) {
 	t.Parallel()
 
