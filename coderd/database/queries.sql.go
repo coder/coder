@@ -17675,6 +17675,7 @@ func (q *sqlQuerier) GetMCPServerUserTokensByUserID(ctx context.Context, userID 
 
 const insertMCPServerConfig = `-- name: InsertMCPServerConfig :one
 INSERT INTO mcp_server_configs (
+    id,
     organization_id,
     display_name,
     slug,
@@ -17708,7 +17709,7 @@ INSERT INTO mcp_server_configs (
     updated_by
 ) VALUES (
     $1::uuid,
-    $2::text,
+    $2::uuid,
     $3::text,
     $4::text,
     $5::text,
@@ -17727,23 +17728,25 @@ INSERT INTO mcp_server_configs (
     $18::text,
     $19::text,
     $20::text,
-    $21::text[],
+    $21::text,
     $22::text[],
-    $23::text,
-    $24::boolean,
+    $23::text[],
+    $24::text,
     $25::boolean,
     $26::boolean,
     $27::boolean,
-    $28,
+    $28::boolean,
     $29,
-    $30::uuid,
-    $31::uuid
+    $30,
+    $31::uuid,
+    $32::uuid
 )
 RETURNING
     id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl
 `
 
 type InsertMCPServerConfigParams struct {
+	ID                      uuid.UUID      `db:"id" json:"id"`
 	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
 	DisplayName             string         `db:"display_name" json:"display_name"`
 	Slug                    string         `db:"slug" json:"slug"`
@@ -17779,6 +17782,7 @@ type InsertMCPServerConfigParams struct {
 
 func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error) {
 	row := q.db.QueryRowContext(ctx, insertMCPServerConfig,
+		arg.ID,
 		arg.OrganizationID,
 		arg.DisplayName,
 		arg.Slug,
