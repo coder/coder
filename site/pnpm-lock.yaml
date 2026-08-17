@@ -240,8 +240,8 @@ importers:
         specifier: 1.0.7
         version: 1.0.7(tailwindcss@3.4.19(tsx@4.22.4)(yaml@2.8.3))
       tzdata:
-        specifier: 1.0.46
-        version: 1.0.46
+        specifier: 1.0.50
+        version: 1.0.50
       ua-parser-js:
         specifier: 1.0.41
         version: 1.0.41
@@ -5720,8 +5720,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  tzdata@1.0.46:
-    resolution: {integrity: sha512-zJ4Jv3KCgN3dFeSADpIfHKt9bdIY7TjK3ELaij6oFvyyQBuIZ9LwMlR51vJvMQvRWQ9cS2v92xeZ0sQW4hXCWA==, tarball: https://registry.npmjs.org/tzdata/-/tzdata-1.0.46.tgz}
+  tzdata@1.0.50:
+    resolution: {integrity: sha512-+G+bW5+iFchPDAV3SAlZ2xa3bFpq0BKMDFWQHACYxsojs6ySBqQ7PeBSXZsu5289NsYdBW2zmZsxji9DyosTZA==, tarball: https://registry.npmjs.org/tzdata/-/tzdata-1.0.50.tgz}
 
   ua-parser-js@1.0.41:
     resolution: {integrity: sha512-LbBDqdIC5s8iROCUjMbW1f5dJQTEFB1+KO9ogbvlb3nm9n4YHa5p4KTvFPWvh2Hs8gZMBuiB1/8+pdfe/tDPug==, tarball: https://registry.npmjs.org/ua-parser-js/-/ua-parser-js-1.0.41.tgz}
@@ -12060,7 +12060,7 @@ snapshots:
 
   typescript@6.0.2: {}
 
-  tzdata@1.0.46: {}
+  tzdata@1.0.50: {}
 
   ua-parser-js@1.0.41: {}
 
