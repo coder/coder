@@ -169,7 +169,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					onTouchStart={onTriggerTouchStart}
 				>
 					<span className="truncate">{triggerLabel}</span>
-					<ChevronDownIcon open={open} className="size-icon-sm" />
+					<ChevronDownIcon open={open} className="size-3.5" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
