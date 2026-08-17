@@ -44,8 +44,10 @@ const validationSchema = Yup.object({
 	callback_url: Yup.string()
 		.trim()
 		.required("Please enter a callback URL.")
-		.test("http-url", "Callback URL must be a valid URL.", (value) =>
-			isHttpUrl(value),
+		.test(
+			"http-url",
+			"Callback URL must be an http or https URL (e.g. https://app.example.com/oauth/callback).",
+			(value) => isHttpUrl(value),
 		),
 	icon: iconValidator,
 });

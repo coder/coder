@@ -763,7 +763,7 @@ export const UnsavedChangesPrompt: Story = {
 	},
 };
 
-// Regression for #27980: single-label hosts must be accepted.
+// Regression coverage for #27980.
 export const AddOpenAICompatSingleLabelHost: Story = {
 	args: {
 		initialValues: {
@@ -791,7 +791,6 @@ export const AddOpenAICompatSingleLabelHost: Story = {
 	},
 };
 
-// Required check still fires.
 export const AddOpenAICompatEmptyEndpointBlocked: Story = {
 	args: {
 		initialValues: {

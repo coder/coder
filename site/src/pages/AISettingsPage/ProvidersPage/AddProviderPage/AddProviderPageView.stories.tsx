@@ -65,8 +65,7 @@ export const AddCopilot: Story = {
 	},
 };
 
-// Server validation errors for base_url must render inline on the Endpoint
-// input via backendFieldName, not only in the top-of-form ErrorAlert.
+// Server base_url errors must render inline on the Endpoint input, not only in the top-of-form ErrorAlert.
 export const WithBaseUrlValidationError: Story = {
 	args: {
 		provider: addableProviders.find((p) => p.value === "openai-compat")!,
@@ -90,11 +89,11 @@ export const WithBaseUrlValidationError: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /add provider/i }),
 		);
-		// The endpoint input renders the server field error inline (via
-		// backendFieldName), distinct from the top-of-form ErrorAlert.
 		const endpointInput = canvas.getByLabelText(/^endpoint\s*\*?$/i);
 		await waitFor(() =>
 			expect(endpointInput).toHaveAttribute("aria-invalid", "true"),
 		);
+		// Guard the visible diagnostic too, not just the invalid state.
+		expect(await canvas.findAllByText("server base_url error")).toHaveLength(2);
 	},
 };
