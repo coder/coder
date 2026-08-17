@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -346,16 +347,46 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 		waitSecs = min(max(waitSecs, 1), 120)
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-		// A failed watch dial (e.g. a proxy rejecting websocket upgrades)
-		// must not break awaiting; the REST poll ticker covers it.
-		events, closer, err := expClient.WatchChats(ctx)
-		if err != nil {
-			events = nil
-		} else {
-			defer func() {
-				_ = closer.Close()
-			}()
+		// Start the advertised deadline before dialing so a stalled
+		// websocket upgrade cannot extend the wait past wait_secs.
+		timer := time.NewTimer(time.Duration(waitSecs) * time.Second)
+		defer timer.Stop()
+
+		// Dial asynchronously: a slow or failed watch dial (e.g. a proxy
+		// stalling or rejecting upgrades) must not block the REST poller.
+		// The events channel stays nil until the dial succeeds; a missed
+		// transition in that window is caught by the next poll tick.
+		type watchDial struct {
+			events <-chan codersdk.ChatWatchEvent
+			closer io.Closer
 		}
+		watchCtx, cancelWatch := context.WithCancel(ctx)
+		defer cancelWatch()
+		dialed := make(chan watchDial, 1)
+		go func() {
+			events, closer, err := expClient.WatchChats(watchCtx)
+			if err != nil {
+				return
+			}
+			dialed <- watchDial{events: events, closer: closer}
+		}()
+		var (
+			events      <-chan codersdk.ChatWatchEvent
+			watchCloser io.Closer
+		)
+		defer func() {
+			cancelWatch()
+			if watchCloser == nil {
+				select {
+				case dial := <-dialed:
+					watchCloser = dial.closer
+				default:
+				}
+			}
+			if watchCloser != nil {
+				_ = watchCloser.Close()
+			}
+		}()
 
 		chat, err := expClient.GetChat(ctx, chatID)
 		if err != nil {
@@ -364,9 +395,6 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 		if !chatStatusBusy(chat.Status) {
 			return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
 		}
-
-		timer := time.NewTimer(time.Duration(waitSecs) * time.Second)
-		defer timer.Stop()
 		// Chat status events are published only on the owner's channel, so
 		// shared-chat callers need polling to observe transitions.
 		poller := time.NewTicker(5 * time.Second)
@@ -389,6 +417,10 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 				if !chatStatusBusy(chat.Status) {
 					return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
 				}
+			case dial := <-dialed:
+				events = dial.events
+				watchCloser = dial.closer
+				dialed = nil
 			case event, ok := <-events:
 				if !ok {
 					// A dropped watch stream must not end the wait early;
@@ -431,7 +463,7 @@ var ListChats = Tool[ListChatsArgs, ListChatsResponse]{
 				},
 				"query": map[string]any{
 					"type":        "string",
-					"description": "Optional chat search query.",
+					"description": "Optional chat search query using fielded terms; bare text is rejected. Supported fields: title:<text>, repo:<owner/name>, pr:<number>, pr_title:<text>, pr_status:<draft|open|merged|closed>, archived:<true|false>, has_unread:<true|false>, source:<created_by_me|shared_with_me>. Quote values containing spaces, e.g. title:\"failed deployment\".",
 				},
 				"limit": map[string]any{
 					"type":        "integer",
