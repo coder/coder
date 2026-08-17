@@ -103,7 +103,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 									id={filename}
 									className="overflow-hidden rounded-lg border border-solid border-surface-quaternary"
 								>
-									<header className="flex items-center gap-2 border-0 border-b border-solid border-surface-quaternary px-4 py-2 text-[13px] font-medium">
+									<header className="flex items-center gap-2 border-0 border-b border-solid border-surface-quaternary px-4 py-2 text-sm font-medium">
 										<div className="flex items-center gap-2">
 											<TemplateFileIcon className="text-content-secondary size-icon-xs" />
 											<span
