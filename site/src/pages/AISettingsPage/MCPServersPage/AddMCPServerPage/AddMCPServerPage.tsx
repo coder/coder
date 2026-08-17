@@ -22,11 +22,12 @@ const AddMCPServerPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const organizationPermissionsQuery = useQuery(
-		organizationsPermissions(
+	const organizationPermissionsQuery = useQuery({
+		...organizationsPermissions(
 			organizations.map((organization) => organization.id),
 		),
-	);
+		enabled: !permissions.editDeploymentConfig,
+	});
 	const viewableOrganizations = permissions.editDeploymentConfig
 		? organizations
 		: organizations.filter(

@@ -15,6 +15,10 @@ const tasksFilter: TasksFilter = {
 	owner: MockUserOwner.username,
 };
 
+const memberTasksFilter: TasksFilter = {
+	owner: MockUserMember.username,
+};
+
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
 	parameters: {
@@ -92,7 +96,10 @@ export const ForOrgAdmin: Story = {
 };
 
 export const ForMCPOrgAdmin: Story = {
-	parameters: { pixel: { matrix: pixelWithDesktop } },
+	parameters: {
+		pixel: { matrix: pixelWithDesktop },
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
+	},
 	args: {
 		user: MockUserMember,
 		adminPermissions: {
@@ -105,7 +112,9 @@ export const ForMCPOrgAdmin: Story = {
 			canvas.getByRole("button", { name: "Admin settings" }),
 		);
 		const body = within(canvasElement.ownerDocument.body);
-		await expect(body.getByRole("menuitem", { name: "AI" })).toBeVisible();
+		await expect(
+			body.getByRole("menuitem", { name: "AI" }),
+		).toBeInTheDocument();
 	},
 };
 

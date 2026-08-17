@@ -32,11 +32,12 @@ const UpdateMCPServerPage: FC = () => {
 	const { organizations } = useDashboard();
 	const { serverId } = useParams<{ serverId: string }>();
 	const [searchParams] = useSearchParams();
-	const organizationPermissionsQuery = useQuery(
-		organizationsPermissions(
+	const organizationPermissionsQuery = useQuery({
+		...organizationsPermissions(
 			organizations.map((organization) => organization.id),
 		),
-	);
+		enabled: !permissions.editDeploymentConfig,
+	});
 	const viewableOrganizations = permissions.editDeploymentConfig
 		? organizations
 		: organizations.filter(

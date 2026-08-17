@@ -16,11 +16,12 @@ const MCPServersPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const organizationPermissionsQuery = useQuery(
-		organizationsPermissions(
+	const organizationPermissionsQuery = useQuery({
+		...organizationsPermissions(
 			organizations.map((organization) => organization.id),
 		),
-	);
+		enabled: !permissions.editDeploymentConfig,
+	});
 	const authorizedOrganizations = permissions.editDeploymentConfig
 		? organizations
 		: organizations.filter(

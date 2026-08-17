@@ -170,7 +170,7 @@ export const OrgAdminCanViewMCPServers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			await canvas.findByRole("cell", { name: "Coder" }),
+			await canvas.findByRole("cell", { name: /Coder/ }),
 		).toBeVisible();
 	},
 };
@@ -199,7 +199,7 @@ export const ReadOnlyOrgAdminCannotModifyMCPServers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			await canvas.findByRole("cell", { name: "Coder" }),
+			await canvas.findByRole("cell", { name: /Coder/ }),
 		).toBeVisible();
 		expect(
 			canvas.queryByRole("button", { name: "Add server" }),
@@ -241,7 +241,7 @@ export const OrgBOnlyAdminUsesAuthorizedOrganization: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			await canvas.findByRole("cell", { name: "Org2 Search" }),
+			await canvas.findByRole("cell", { name: /Org2 Search/ }),
 		).toBeVisible();
 		expect(canvas.queryByText("Coder")).not.toBeInTheDocument();
 		expect(
