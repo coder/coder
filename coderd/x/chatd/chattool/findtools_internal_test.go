@@ -69,6 +69,20 @@ func TestSearchTools(t *testing.T) {
 		require.Len(t, capped.Matches, findToolsMaxMatches)
 		require.Len(t, capped.Activated, findToolsMaxMatches)
 	})
+	t.Run("server metadata", func(t *testing.T) {
+		t.Parallel()
+		serverEntries := []FindToolCatalogEntry{
+			{Name: "tracker__create", Description: "Create an item", Server: "tracker", ServerDescription: "Project tracking"},
+			{Name: "docs__create", Description: "Create a project document", Server: "docs", ServerDescription: "Documentation"},
+		}
+		result := SearchTools(serverEntries, FindToolsArgs{Queries: []string{"tracking"}})
+		require.Equal(t, []string{"tracker__create"}, result.Activated)
+
+		result = SearchTools(serverEntries, FindToolsArgs{Queries: []string{"project"}})
+		require.Equal(t, "docs__create", result.Matches[0].Name,
+			"tool description match outranks server metadata match")
+		require.Len(t, result.Matches, 2)
+	})
 	t.Run("unicode terms", func(t *testing.T) {
 		t.Parallel()
 		unicodeEntries := []FindToolCatalogEntry{

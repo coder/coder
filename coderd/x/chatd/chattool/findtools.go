@@ -171,6 +171,13 @@ func scoreFindToolToken(entry FindToolCatalogEntry, token string) int {
 	if slices.Contains(tokenizeFindTools(entry.ParameterText), token) {
 		score++
 	}
+	// Server metadata is shown in catalog headers, so its terms must be
+	// searchable too. It applies to every tool on the server, so it
+	// scores below tool-specific matches.
+	if slices.Contains(tokenizeFindTools(entry.Server), token) ||
+		slices.Contains(tokenizeFindTools(entry.ServerDescription), token) {
+		score++
+	}
 	return score
 }
 
