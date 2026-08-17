@@ -121,18 +121,14 @@ export const displayNameValidator = (displayName: string): Yup.StringSchema =>
 
 export const iconValidator = Yup.string().label("Icon").max(256);
 
-// isHttpUrl reports whether a value parses as an absolute http(s) URL.
-// It matches codersdk.validateAIProviderBaseURL, accepting single-label
-// hosts such as http://localai:8080/v1 while rejecting non-http schemes
-// and non-URL values.
+// isHttpUrl reports whether value parses as an absolute URL with an http
+// or https scheme. Single-label hosts such as http://localai:8080/v1 are
+// accepted; non-http schemes, relative paths, and unparsable values are
+// rejected.
 export const isHttpUrl = (value: string | undefined): boolean => {
-	if (!value) {
+	if (!value || !/^https?:\/\/[^/]/i.test(value)) {
 		return false;
 	}
-	try {
-		const url = new URL(value);
-		return url.protocol === "http:" || url.protocol === "https:";
-	} catch {
-		return false;
-	}
+	const url = URL.parse(value);
+	return url?.protocol === "http:" || url?.protocol === "https:";
 };

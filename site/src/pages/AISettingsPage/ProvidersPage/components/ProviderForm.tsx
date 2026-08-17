@@ -168,7 +168,11 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		baseUrl: Yup.string()
 			.trim()
 			.required("Endpoint is required")
-			.test("http-url", "Endpoint must be a valid URL", isHttpUrl),
+			.test(
+				"http-url",
+				"Endpoint must be an http or https URL (e.g. https://api.example.com/).",
+				isHttpUrl,
+			),
 		apiKey: editing
 			? Yup.string()
 			: Yup.string().required("API key is required"),
@@ -258,7 +262,11 @@ const makeCopilotSchema = (editing: boolean) =>
 		baseUrl: Yup.string()
 			.trim()
 			.required("Endpoint is required")
-			.test("http-url", "Endpoint must be a valid URL", isHttpUrl),
+			.test(
+				"http-url",
+				"Endpoint must be an http or https URL (e.g. https://api.example.com/).",
+				isHttpUrl,
+			),
 		enabled: Yup.boolean(),
 	});
 
