@@ -1277,192 +1277,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/experimental/mcp-servers/{mcpserverconfig}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Get MCP server config",
-                "operationId": "get-mcp-server-config",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.MCPServerConfig"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "delete": {
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Delete MCP server config",
-                "operationId": "delete-mcp-server-config",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Update MCP server config",
-                "operationId": "update-mcp-server-config",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update MCP server config request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateMCPServerConfigRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.MCPServerConfig"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/mcp-servers/{mcpserverconfig}/oauth2/connect": {
-            "get": {
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Initiate MCP server OAuth2 connect",
-                "operationId": "initiate-mcp-server-oauth2-connect",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "307": {
-                        "description": "Temporary Redirect"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/mcp-servers/{mcpserverconfig}/oauth2/disconnect": {
-            "delete": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Disconnect MCP server OAuth2 token",
-                "operationId": "disconnect-mcp-server-oauth2-token",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.MCPServerOAuth2DisconnectResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/experimental/mcp/servers/{mcpServer}/oauth2/callback": {
             "get": {
                 "produces": [
@@ -1510,6 +1324,44 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/mcp/servers/{mcpServer}/oauth2/disconnect": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Disconnect MCP server OAuth2 token",
+                "operationId": "disconnect-mcp-server-oauth2-token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpServer",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2DisconnectResponse"
+                        }
                     }
                 },
                 "security": [
@@ -1599,6 +1451,186 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.MCPServerConfig"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Get MCP server config",
+                "operationId": "get-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Delete MCP server config",
+                "operationId": "delete-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Update MCP server config",
+                "operationId": "update-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update MCP server config request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateMCPServerConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/oauth2/connect": {
+            "get": {
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Initiate MCP server OAuth2 connect",
+                "operationId": "initiate-mcp-server-oauth2-connect",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "307": {
+                        "description": "Temporary Redirect"
                     }
                 },
                 "security": [
