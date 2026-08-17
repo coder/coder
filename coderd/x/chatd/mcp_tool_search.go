@@ -58,10 +58,23 @@ func collectDeferredMCPCandidates(input deferredMCPCandidateInput) []deferredMCP
 		if !toolAllowedForTurn(tool, input.planMode, input.parentChatID, input.approvedMCPConfigIDs) {
 			continue
 		}
-		serverName, _, _ := strings.Cut(tool.Info().Name, "__")
-		candidates = append(candidates, deferredMCPTool{tool: tool, server: serverName})
+		candidates = append(candidates, deferredMCPTool{tool: tool, server: workspaceMCPServerName(tool)})
 	}
 	return candidates
+}
+
+// workspaceMCPServerName prefers the wrapper's unsanitized routing name
+// because sanitization can truncate the model-facing name before the
+// "__" separator, which would otherwise catalog each such tool under a
+// fake single-tool server that prefix scoping cannot reach.
+func workspaceMCPServerName(tool fantasy.AgentTool) string {
+	if namer, ok := tool.(interface{ ServerName() string }); ok {
+		return namer.ServerName()
+	}
+	if server, _, ok := strings.Cut(tool.Info().Name, "__"); ok {
+		return server
+	}
+	return ""
 }
 
 type mcpToolSearchDecision struct {
@@ -149,6 +162,7 @@ func deferredMCPToolEntries(candidates []deferredMCPTool) []chattool.FindToolCat
 			Server:            candidate.server,
 			ServerDescription: candidate.serverDescription,
 			ParameterText:     flattenMCPParameterText(info.Parameters),
+			SchemaTokens:      estimateDeferredMCPToolTokens([]deferredMCPTool{candidate}),
 		})
 	}
 	return entries

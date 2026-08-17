@@ -616,8 +616,10 @@ func (server *Server) prepareGeneration(
 		model.Provider(), model.ModelID(), strconv.FormatBool(toolSearch.apply),
 	).Observe(toolSearch.estimatedTokens)
 	if toolSearch.apply {
+		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchThresholdDivisor
 		findTools := chattool.FindTools(chattool.FindToolsOptions{
-			Entries: deferredMCPToolEntries(deferredCandidates),
+			Entries:           deferredMCPToolEntries(deferredCandidates),
+			SchemaTokenBudget: activationTokenBudget,
 			OnCall: func(callCtx context.Context, call chattool.FindToolsCall) {
 				server.metrics.FindToolsCallsTotal.Inc()
 				server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
@@ -639,8 +641,7 @@ func (server *Server) prepareGeneration(
 			activeToolNames,
 			deferredCandidates,
 			findTools,
-			deriveDeferredMCPActivations(promptRows, deferredCandidates,
-				float64(modelConfig.ContextLimit)/mcpToolSearchThresholdDivisor),
+			deriveDeferredMCPActivations(promptRows, deferredCandidates, activationTokenBudget),
 		)
 		builtinToolNames[chattool.FindToolsName] = true
 	}

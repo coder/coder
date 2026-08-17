@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 type deferredTestAgentTool struct {
@@ -165,6 +166,17 @@ func TestCollectDeferredMCPCandidates(t *testing.T) {
 	noWorkspace := input
 	noWorkspace.includeWorkspaceTools = false
 	require.Equal(t, []string{"github__create_issue", "linear__create_issue"}, names(collectDeferredMCPCandidates(noWorkspace)))
+
+	longServer := strings.Repeat("s", 70)
+	truncated := chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{Name: longServer + "__echo"}, nil, nil)
+	require.NotContains(t, truncated.Info().Name, "__",
+		"sanitization must drop the separator for this scenario to be meaningful")
+	truncatedInput := deferredMCPCandidateInput{
+		workspaceMCPTools:     []fantasy.AgentTool{truncated},
+		includeWorkspaceTools: true,
+	}
+	require.Equal(t, longServer, collectDeferredMCPCandidates(truncatedInput)[0].server,
+		"the server comes from the unsanitized routing name, not the capped model name")
 }
 
 func TestConfigureDeferredMCPToolSearchGenerationFlows(t *testing.T) {
@@ -185,7 +197,7 @@ func TestConfigureDeferredMCPToolSearchGenerationFlows(t *testing.T) {
 		second.tool.Info().Name: true,
 	}, allowInactive)
 
-	result := chattool.SearchTools(deferredMCPToolEntries(candidates), chattool.FindToolsArgs{Names: []string{second.tool.Info().Name}})
+	result := chattool.SearchTools(deferredMCPToolEntries(candidates), chattool.FindToolsArgs{Names: []string{second.tool.Info().Name}}, 0)
 	resultJSON, err := json.Marshal(result)
 	require.NoError(t, err)
 	resultContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{

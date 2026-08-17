@@ -27,6 +27,9 @@ type FindToolCatalogEntry struct {
 	Server            string
 	ServerDescription string
 	ParameterText     string
+	// SchemaTokens is the estimated prompt weight of the tool's full
+	// definition, used to cap how much one search may activate.
+	SchemaTokens float64
 }
 
 // FindToolsCall records one catalog search for logging and metrics.
@@ -40,7 +43,11 @@ type FindToolsCall struct {
 
 type FindToolsOptions struct {
 	Entries []FindToolCatalogEntry
-	OnCall  func(context.Context, FindToolsCall)
+	// SchemaTokenBudget caps the aggregate SchemaTokens one search may
+	// activate, so a result never reports activations that the
+	// activation budget would immediately shed. <= 0 means unbounded.
+	SchemaTokenBudget float64
+	OnCall            func(context.Context, FindToolsCall)
 }
 
 type FindToolsArgs struct {
@@ -70,7 +77,7 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 			if len(args.Queries) == 0 && len(args.Names) == 0 {
 				return fantasy.NewTextErrorResponse("at least one query or name is required"), nil
 			}
-			result := SearchTools(entries, args)
+			result := SearchTools(entries, args, options.SchemaTokenBudget)
 			if options.OnCall != nil {
 				options.OnCall(ctx, FindToolsCall{
 					Queries:       args.Queries,
@@ -89,8 +96,10 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 // remaining match slots with the top-scored keyword matches. The shared
 // cap and summary-length descriptions keep the persisted result small
 // enough that generic tool-result truncation can never corrupt the
-// activation JSON that later steps re-derive activations from.
-func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs) FindToolsResult {
+// activation JSON that later steps re-derive activations from. A
+// positive schemaTokenBudget additionally stops admitting matches once
+// their aggregate schema weight would exceed it, keeping at least one.
+func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, schemaTokenBudget float64) FindToolsResult {
 	byName := make(map[string]FindToolCatalogEntry, len(entries))
 	for _, entry := range entries {
 		byName[entry.Name] = entry
@@ -129,6 +138,7 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs) FindToolsRe
 	})
 	matches := make([]FindToolsMatch, 0, findToolsMaxMatches)
 	activatedSet := make(map[string]struct{}, findToolsMaxMatches)
+	usedSchemaTokens := 0.0
 	appendMatch := func(entry FindToolCatalogEntry) {
 		if _, exists := activatedSet[entry.Name]; exists {
 			return
@@ -136,6 +146,10 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs) FindToolsRe
 		if len(matches) >= findToolsMaxMatches {
 			return
 		}
+		if len(matches) > 0 && schemaTokenBudget > 0 && usedSchemaTokens+entry.SchemaTokens > schemaTokenBudget {
+			return
+		}
+		usedSchemaTokens += entry.SchemaTokens
 		matches = append(matches, FindToolsMatch{
 			Name:        entry.Name,
 			Description: truncateFindToolsSummary(entry.Description, 80),
