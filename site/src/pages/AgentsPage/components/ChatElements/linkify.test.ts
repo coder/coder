@@ -122,6 +122,20 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
+	it("linkifies angle-bracket autolinks and keeps the brackets as text", () => {
+		expect(splitTextForLinks("see <https://coder.com/docs> now")).toEqual([
+			{ kind: "text", value: "see <" },
+			{ kind: "url", value: "https://coder.com/docs" },
+			{ kind: "text", value: "> now" },
+		]);
+	});
+
+	it("keeps non-http angle-bracket autolinks as text", () => {
+		expect(splitTextForLinks("<mailto:x@y.com> and <ftp://host>")).toEqual([
+			{ kind: "text", value: "<mailto:x@y.com> and <ftp://host>" },
+		]);
+	});
+
 	it("keeps markdown link syntax as literal text", () => {
 		expect(
 			splitTextForLinks("read [policy](http://localhost:3000/policy) first"),

@@ -25,18 +25,26 @@ export const splitTextForLinks = (text: string): LinkSegment[] => {
 		if (start === undefined || end === undefined) {
 			return;
 		}
-		const value = text.slice(start, end);
+		// Angle-bracket autolinks (<url>) include the brackets in the node
+		// range; keep the brackets as text and slice only the inner URL.
+		let urlStart = start;
+		let urlEnd = end;
+		if (text[start] === "<" && text[end - 1] === ">") {
+			urlStart += 1;
+			urlEnd -= 1;
+		}
+		const value = text.slice(urlStart, urlEnd);
 		// Autolink literals span exactly the URL text. The scheme check
 		// excludes email and www autolinks plus [text](url) nodes, whose
 		// slices would leak markdown syntax.
 		if (!/^https?:\/\//i.test(value)) {
 			return;
 		}
-		if (start > lastIndex) {
-			segments.push({ kind: "text", value: text.slice(lastIndex, start) });
+		if (urlStart > lastIndex) {
+			segments.push({ kind: "text", value: text.slice(lastIndex, urlStart) });
 		}
 		segments.push({ kind: "url", value });
-		lastIndex = end;
+		lastIndex = urlEnd;
 	});
 	if (lastIndex < text.length) {
 		segments.push({ kind: "text", value: text.slice(lastIndex) });
