@@ -20,11 +20,9 @@ type ChatIconConfig = {
 };
 
 /**
- * Binds the shared segmented Spinner into the icon slot. The sidebar
- * status icon can stay mounted for the lifetime of a long-running
- * chat, so it uses the stepped Spinner instead of a smooth
- * `animate-spin` icon that would keep the page rendering at the
- * display refresh rate.
+ * Binds the shared Spinner into the icon slot. The status icon stays
+ * mounted for the lifetime of a long-running chat, so it needs the
+ * cheap stepped Spinner rather than a smooth `animate-spin` icon.
  */
 const RunningSpinner: FC<SVGProps<SVGSVGElement>> = (props) => (
 	<Spinner loading {...props} />

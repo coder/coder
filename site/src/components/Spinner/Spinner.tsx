@@ -46,9 +46,6 @@ export function Spinner({
 			xmlns="http://www.w3.org/2000/svg"
 			fill="currentColor"
 			className={cn(
-				// A discrete stepped rotation over static leaves renders 10
-				// updates/s instead of animating each leaf at the display
-				// refresh rate, keeping long-lived spinners cheap.
 				!isPixel() && "animate-spin-discrete motion-reduce:animate-none",
 				spinnerVariants({ size, className }),
 			)}
