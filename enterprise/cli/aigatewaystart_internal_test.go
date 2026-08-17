@@ -26,19 +26,19 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// mockReloader fails the first failUntil reloads with err, then succeeds.
-// after runs at the end of every reload, letting a test hang the retry loop.
+// mockReloader returns err for the first failUntil Reload calls, then nil.
+// onReload runs at the end of every reload, letting a test hang the retry loop.
 type mockReloader struct {
 	calls     atomic.Int32
 	failUntil int32
 	err       error
-	after     func()
+	onReload  func()
 }
 
 func (r *mockReloader) Reload(context.Context) error {
 	failed := r.calls.Add(1) <= r.failUntil
-	if r.after != nil {
-		r.after()
+	if r.onReload != nil {
+		r.onReload()
 	}
 	if failed {
 		return r.err
@@ -179,7 +179,7 @@ func TestStandaloneGatewayLoadProviders(t *testing.T) {
 			// reloaderAfter needs daemon which only exists once the gateway is constructed,
 			// nothing reloads until loadProviders below.
 			if tc.reloaderAfter != nil {
-				reloader.after = func() { tc.reloaderAfter(t, gateway.daemon, cancel) }
+				reloader.onReload = func() { tc.reloaderAfter(t, gateway.daemon, cancel) }
 			}
 
 			err := gateway.loadProviders(ctx)

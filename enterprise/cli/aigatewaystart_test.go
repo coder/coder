@@ -64,17 +64,21 @@ type aiGatewayDeployment struct {
 	upstreamHits *atomic.Int32
 }
 
-func setupAIGatewayDeployment(ctx context.Context, t *testing.T) *aiGatewayDeployment {
-	t.Helper()
-
+func setupAIGatewayCoderdenttestDeployment(t *testing.T) (*codersdk.Client, codersdk.CreateFirstUserResponse) {
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+	return coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{codersdk.FeatureAIBridge: 1},
 		},
 	})
+}
+
+func setupAIGatewayDeployment(ctx context.Context, t *testing.T) *aiGatewayDeployment {
+	t.Helper()
+
+	client, firstUser := setupAIGatewayCoderdenttestDeployment(t)
 
 	//nolint:gocritic // Owner role is needed for gateway key management.
 	key, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "e2e"})
@@ -202,14 +206,7 @@ func TestAIGatewayStartE2E_InvalidKey(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	dv := coderdtest.DeploymentValues(t)
-	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-	client, _ := coderdenttest.New(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{DeploymentValues: dv},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{codersdk.FeatureAIBridge: 1},
-		},
-	})
+	client, _ := setupAIGatewayCoderdenttestDeployment(t)
 
 	inv, _ := newCLI(t,
 		"ai-gateway", "start",
