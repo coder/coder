@@ -1980,9 +1980,12 @@ func chatWorkspaceConnAuthorizer(db database.Store, authorizer rbac.Authorizer) 
 		if err != nil {
 			return xerrors.Errorf("fetch chat workspace: %w", err)
 		}
-		subject, _, err := httpmw.UserRBACSubject(ctx, db, ownerID, rbac.ScopeAll)
+		subject, ownerStatus, err := httpmw.UserRBACSubject(ctx, db, ownerID, rbac.ScopeAll)
 		if err != nil {
 			return xerrors.Errorf("load chat owner authorization: %w", err)
+		}
+		if ownerStatus != database.UserStatusActive {
+			return xerrors.Errorf("chat owner account is not active: %s", ownerStatus)
 		}
 		if authorizer.Authorize(ctx, subject, policy.ActionApplicationConnect, workspace.RBACObject()) == nil {
 			return nil

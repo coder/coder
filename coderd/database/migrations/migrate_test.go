@@ -1190,14 +1190,14 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
-func TestMigration000570RemoveAgentsAccessRole(t *testing.T) {
+func TestMigration000571RemoveAgentsAccessRole(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 570
+	const migrationVersion = 571
 
 	sqlDB := testSQLDB(t)
 
-	// Migrate up to the migration before 000570.
+	// Migrate up to the migration before 000571.
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
 	for {
@@ -1270,7 +1270,7 @@ func TestMigration000570RemoveAgentsAccessRole(t *testing.T) {
 	}
 	require.NoError(t, tx.Commit())
 
-	// Run migration 000570.
+	// Run migration 000571.
 	version, _, err := next()
 	require.NoError(t, err)
 	require.EqualValues(t, migrationVersion, version)
