@@ -388,11 +388,10 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 				}
 			case event, ok := <-events:
 				if !ok {
-					chat, err := expClient.GetChat(ctx, chatID)
-					if err != nil {
-						return AwaitChatResponse{}, xerrors.Errorf("get chat after watch closed: %w", err)
-					}
-					return AwaitChatResponse{TimedOut: chatStatusBusy(chat.Status), Chat: chatToolStatus(deps, chat)}, nil
+					// A dropped watch stream must not end the wait early;
+					// the poll ticker keeps observing until the timer fires.
+					events = nil
+					continue
 				}
 				if event.Chat.ID == chatID && !chatStatusBusy(event.Chat.Status) {
 					chat, err := expClient.GetChat(ctx, chatID)
@@ -609,15 +608,18 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 			}
 		}
 		var nextBeforeID, nextAfterID int64
-		if resp.HasMore && len(resp.Messages) > 0 {
+		if len(resp.Messages) > 0 {
 			if args.AfterID > 0 {
+				// Forward pollers need a cursor from every nonempty page,
+				// even the last one, or a page of filtered-out internal
+				// messages would leave them stuck replaying the same page.
 				nextAfterID = resp.Messages[0].ID
 				for _, msg := range resp.Messages {
 					if msg.ID > nextAfterID {
 						nextAfterID = msg.ID
 					}
 				}
-			} else {
+			} else if resp.HasMore {
 				nextBeforeID = resp.Messages[0].ID
 				for _, msg := range resp.Messages {
 					if msg.ID < nextBeforeID {

@@ -379,10 +379,20 @@ func TestChatTools(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.False(t, secondPage.HasMore)
-		require.Zero(t, secondPage.NextAfterID)
+		require.Equal(t, last.ID, secondPage.NextAfterID)
 		require.Len(t, secondPage.Messages, 1)
 		require.Equal(t, last.ID, secondPage.Messages[0].ID)
 		require.Greater(t, secondPage.Messages[0].ID, firstPage.Messages[0].ID)
+
+		finalPage, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{
+			ChatID:  chat.ID.String(),
+			AfterID: secondPage.NextAfterID,
+			Limit:   2,
+		})
+		require.NoError(t, err)
+		require.False(t, finalPage.HasMore)
+		require.Zero(t, finalPage.NextAfterID)
+		require.Empty(t, finalPage.Messages)
 	})
 
 	t.Run("ListChatsByLabel", func(t *testing.T) {
