@@ -48,9 +48,10 @@ Each item carries one of four states:
 5. **part.** Log defined. The historical sense landed. The modern computing
    sense, a record of activity including attempts and requests, is owed with
    section 4.
-6. **open.** "Audit journal" names a category, not one particular journal.
-   Deliberately held back for the comparison section, where the existing
-   mechanism's name is in view.
+6. **drop.** "Audit journal" names a category, not one particular journal. Moot:
+   the phrase is retired. `audit_approach.md` now records that "audit" is an
+   action and is never used to modify another noun, so there is no compound left
+   to explain.
 7. **open.** The word "audit" is currently claimed by `audit_logs`, and the
    rename recommendation stands. Held back for the same reason as 2.6.
 
@@ -193,6 +194,13 @@ argument against dropping, that this document should be readable alone, was
 weighed and rejected: it is readable alone as an account of the distinction,
 which is its subject, and a reader who needs the mechanics of reconciliation is
 already being sent to the approach document.
+
+**"Audit journal" is retired, not merely deprecated.** The defect is the
+attributive use of an action word, which turns the action into a kind of thing.
+Accounting qualifies a journal by its contents and never by its purpose or its
+audience, which is why `entity_journal` is well named and why purpose belongs in
+a sentence rather than in a compound. Recorded in `audit_approach.md` under
+Terminology.
 
 **The similarities are stated before the distinction, not after.** A reader who
 has confused the two is owed an account of why the confusion is reasonable

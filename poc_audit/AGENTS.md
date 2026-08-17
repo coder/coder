@@ -36,9 +36,10 @@ Do not treat Derived or Open content as decided.
   because it is the one this directory is most often going to be asked. **Still
   a draft**, tracked in `journal_vs_log.working_state.md`, which is scaffolding
   rather than design and is to be deleted when the document is finished.
-- [Audit Approach](audit_approach.md). What makes an event auditable, audit as
-  an integrity property, reconciliation in the accounting sense, and the
-  relationship to the existing mechanism. Defines "entry" and "record".
+- [Audit Approach](audit_approach.md). What makes an event auditable,
+  recordkeeping as an integrity property, where recordkeeping stops and auditing
+  begins, reconciliation in the accounting sense, and the relationship to the
+  existing table. Defines "entry", "record", and "audit trail".
 - [Entity Model](entity_model.md). The entities this work deals with, the
   actors in scope, sandbox occupancy, identity independence, and attribution.
   Authoritative for "actor", "sandbox", `workspace_agent`, "AI agent", and the
@@ -76,10 +77,10 @@ renderer and commit both.
 Two collisions matter enough to state up front. Both are defined in full in
 the documents above.
 
-- **"Audit"** never refers to the existing mechanism named `audit_logs`. The
-  two are independent systems that happen to share a word, and the documents
-  recommend renaming the older one. Where the existing mechanism is meant, it
-  is named explicitly.
+- **"Audit"** never refers to the existing database table named `audit_logs`.
+  The two are independent systems that happen to share a word, and the
+  documents recommend renaming the older one. Where the existing mechanism is
+  meant, it is named explicitly.
 - **"Agent"** has three senses. Unqualified it means an agent in the
   principal and agent relation. The other two are always written in full, as
   `workspace_agent` and "AI agent". This applies to prose and rendered text,

@@ -143,7 +143,7 @@ nothing preventing a reference to the wrong kind of thing.
 
 Two consequences worth stating. The type belongs to a closed set, since a value
 outside it names no table and makes the reference unresolvable. And the pair
-appears in both roles the audit journal needs, a subject and an actor, so
+appears in both roles the journal needs, a subject and an actor, so
 neither is a special case of the other.
 
 The actors this document currently covers:

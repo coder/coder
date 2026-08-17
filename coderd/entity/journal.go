@@ -1,5 +1,5 @@
 // Package entity owns the lifecycle of entities, the identities and
-// credentials issued to them, and the audit journal accounting for both.
+// credentials issued to them, and the journal accounting for both.
 //
 // See DIRECTORY.md in this directory for what belongs here and why, and
 // poc_audit/audit_approach.md for the approach the journal implements.

@@ -18,14 +18,72 @@ alongside this one.
 
 Terms used in this document with a specific meaning.
 
-**Audit.** The subject of this document: the keeping of a journal of persistent
-state changes, against which the state of the world can be reconciled. It never
-refers to the existing mechanism named `audit_logs`, which does something
-different and is discussed under the relationship section below. Where the
-existing mechanism is meant, it is named explicitly.
+**Audit.** An action. To audit is to examine an account and satisfy oneself that
+it is faithful. The word is from Latin `audire`, to hear: accounts were read
+aloud and the auditor listened, which is why the office is an auditor rather
+than an inspector, and why `audience` is a cognate.
 
-**Entry.** An element of the audit journal. The journal is composed of entries.
-An entry is a reflection and recording of an event.
+Two parties are always in view. One keeps the records and renders them. The
+other receives them, examines them, and is owed the answer. The stance is
+skeptical and demands proof. It is not adversarial by design, though it could
+become so were the party rendering trying to get away with something and the
+party receiving isn't going to let them.
+
+One focus of this document is what the system must do for auditing to be
+possible. It never refers to the existing database table named `audit_logs`,
+which does something different and is discussed under the relationship section
+below. Where the existing mechanism is meant, it is named explicitly.
+
+As a noun, "audit" names one performance of the action, as in "at the next
+audit". **It is (almost) never used to modify another noun.** Not "audit
+journal", and not "audit log". Naming a record for the activity it supports
+turns an action into a kind of thing, which is how "audit log" came to name a
+log that nobody audits. Accounting does not do this either: it qualifies a
+journal by its contents, as in a sales journal or a cash receipts journal, and
+never by its purpose or by who will read it. (The exception is "audit trail";
+see below.)
+
+Where purpose or audience matters, the prose says so rather than the name: the
+journal is kept for auditing, or is rendered to an auditor. "Auditable" is
+permissible, being the adjective of the verb.
+
+**Journal.** A book of original entry. The distinction between a journal and a
+log, and why this work needs the former, is the subject of
+`poc_audit/journal_vs_log.md`.
+
+**Book of original entry.** The accounting term for a journal's position in the
+sequence of recordkeeping, and the reason the journal is not merely one record
+among several. An entry is made there **first**, at the very beginning of the
+process, before anything is derived from it. Every other view, including any
+statement of current state, is downstream of it and owes its content to it.
+
+A single database transaction that writes an entry and a current state row
+together collapses that sequence in practice, and ours does. The order is then
+not observable in time. It remains true in dependency: the entry is the origin
+and the state is the derived thing, whichever the storage engine writes first.
+
+**Journalizing, posting, and auditing.** Three actions, deliberately
+distinguished from each other. Journalizing is making the original entry.
+Posting is carrying entries into the derived view. Auditing is the examination
+of what results. They are performed at different times and, in a mature
+arrangement, by different parties. Collapsing all three into "a database write"
+loses every distinction this document depends on, which is why the words are
+kept.
+
+**Audit trail.** A collection of data sufficient to follow a transaction from
+end to end, almost always heterogeneous in source: records from several systems,
+plus documents and other evidence that are not records at all. **It is not a
+data structure.** No table is an audit trail, and no table becomes one by being
+named after it.
+
+The question worth asking is therefore never "is this table an audit trail?" but
+**"can a complete audit trail be constructed from what we have?"** That question
+has an answer that can be wrong, and finding it wrong is useful. The journal
+described here is one contribution toward such a trail. So, for what it covers,
+is the mechanism named `audit_logs`.
+
+**Entry.** An element of the journal. The journal is composed of entries. An
+entry is a reflection and recording of an event.
 
 **Record.** The stored representation of something, typically a row in a
 database table. An entry is usually implemented as a record in some table, but
@@ -41,6 +99,59 @@ deals with, are defined in `poc_audit/entity_model.md` rather than here, since
 they are facts about entities rather than about audit. The bare word "agent"
 refers to the legal sense of principal vs. agent.
 
+### Recordkeeping, and where auditing stops
+
+Auditing needs a boundary. Without one the word expands until it names
+everything the system does with its own history, and a word that names
+everything distinguishes nothing.
+
+**Recordkeeping** is the name for the rest of it: making entries, carrying them
+into whatever derived view exists, and holding both for as long as the
+obligation lasts. It is what the party holding the records does, and it goes on
+whether or not anyone ever asks to see the result. (Accounting calls its own
+version bookkeeping. The word is not used here, because most of what this system
+keeps is not a book.)
+
+Recordkeeping covers:
+
+- **Journalizing**, making the original entry.
+- **Posting**, carrying entries into a derived view.
+- **Retention**, holding both for as long as the obligation to account lasts.
+
+Auditing covers:
+
+- **Rendering**, producing the account for the party entitled to it.
+- **Examination** of what was rendered.
+- **Forming a view** about whether it is faithful.
+
+Rendering is performed by the party that keeps the records, and belongs to the
+audit all the same. It stands at the beginning of that interaction rather than
+at the end of recordkeeping: it happens because someone asked, and what is
+produced is shaped by what was asked for. Recordkeeping is unconditional and
+rendering is not.
+
+Together the two are what the duty to account requires. One party keeps, and
+renders when called upon. The other receives and examines.
+
+### What this work is, under that distinction
+
+**The proof of concept is primarily recordkeeping. Auditing is a stretch goal.**
+
+The journal, the entries, the identities they name, and the reconciliation that
+is not yet written are all recordkeeping. An audit happens when a party asks for
+an account and examines what it gets, and nothing here performs that or stands
+in for the party who does.
+
+The distinction sets what success looks like. The value of this work is that it
+makes an audit possible and gives one something to find. It is not that an audit
+has been performed, and no artifact produced here should be described as though
+it were the answer to one.
+
+A note on vocabulary. "Record" is restricted elsewhere in this document to mean
+a stored representation, as against an entry. **"Recordkeeping" is exempt from
+that restriction.** It is a compound naming an activity, and the activity
+includes making entries as much as storing them.
+
 ### What makes an event auditable
 
 An auditable event is one that has a **persistent effect on system state**.
@@ -53,9 +164,9 @@ This is narrower than an activity log:
   auditable events.
 - Some failures do produce persistent state change. Those are auditable.
 
-### Audit as an integrity property
+### Recordkeeping as an integrity property
 
-The event is the persistent state change itself. An entry in the audit journal
+The event is the persistent state change itself. An entry in the journal
 is a reflection and recording of that event, not a part of it. The journal
 observes events external to itself, and additions to the journal are therefore
 not themselves events.
@@ -70,7 +181,7 @@ violations of it are detected.
 
 ### The ideal, and the reality
 
-The ideal is exactly one audit journal entry per persistent state change.
+The ideal is exactly one journal entry per persistent state change.
 
 That ideal is not achieved in reality. The design must reflect that rather than
 assume coherence. Divergence between the journal and the world is a normal
@@ -81,7 +192,7 @@ construction.
 
 Reconciliation is used here in the sense it carries in accounting and double
 entry bookkeeping: the actual state of the world is verified to be the same as
-that which the audit journal describes.
+that which the journal describes.
 
 - In accounting, reconciliation runs on a cycle, typically monthly.
 - Here, reconciliation does not need to wait for a cycle boundary. It can begin
@@ -91,6 +202,28 @@ that which the audit journal describes.
   transaction. The approach must not presume a transaction manager, so
   coherence is achieved after the fact rather than atomically. Reconciliation
   is the mechanism that achieves it.
+
+### Reconciliation belongs to recordkeeping
+
+Reconciliation is a recordkeeping activity, and treating it as the part of this
+system that performs the auditing is a mistake worth naming.
+
+A recordkeeper reconciles to find its own errors before anyone else does. In
+accounting this is ordinary diligence, and a reconciliation is classed as an
+internal control rather than as evidence.
+
+An auditor does something else, and the profession has separate words for it. It
+**reperforms** the reconciliation, independently executing the same steps to see
+whether it arrives at the same answer, which tests both the control and the
+balance. Separately it seeks **confirmation** from a third party, and the
+governing rule is that the response must reach the auditor directly rather than
+through the party being audited.
+
+The distinction is not pedantic. A reconciliation we perform on our own records
+is evidence offered, not evidence obtained, and accepting such a reconciliation
+without testing what underlies it is explicitly inadequate as evidence in an
+audit. We can build something that makes an auditor's work possible and cheap.
+We cannot build something that discharges it.
 
 ### Reconciliation is out of scope for this phase
 
@@ -229,6 +362,24 @@ Reconciliation in accounting does not stop at identifying a discrepancy; it
 produces adjusting entries. An audit approach therefore needs a resolution
 policy as well as a detection mechanism, and the two are separable decisions.
 
+### Separating the party who acts from the party who records
+
+Accounting has a control for this and calls it **segregation of duties**: the
+party who records a transaction is not the party who authorized it or who holds
+the asset. Banking has a close relative in **dual control**, where an action
+requires two people who cannot be the same person.
+
+The rule that an entity may not write entries about itself, stated in
+`coderd/entity/DIRECTORY.md`, is a weak form of the same idea. It separates the
+actor from the author of the entry, and no more. It does not separate
+authorization from custody, and it does not require two parties to concur before
+an act takes effect.
+
+**The product cannot support the stronger form yet.** Dual control needs a
+notion of two parties who must both assent, which nothing in this system
+expresses. This is recorded as a direction rather than a proposal, for a later
+stage of maturity.
+
 ### Apparent authority and ratification
 
 If an AI agent stands in a genuine relation of principal and agent, then two
@@ -259,7 +410,7 @@ observation, not to fix terminology.
 
 Verifiable facts about the existing codebase, recorded for reference.
 
-### The existing request audit mechanism
+### The existing request recording mechanism
 
 `coderd/audit` has three properties that constrain where it can be used:
 
@@ -312,6 +463,23 @@ when deletion is requested.
 is used for cloud instance identity. The direction is inbound: the instance
 announces itself and proves its identity. Nothing enumerates instances and
 compares.
+
+### The two directions of testing already have names
+
+Auditing practice names the two directions separately, and they correspond to
+the divergence classes above.
+
+**Vouching** goes from a record to the evidence behind it, and tests occurrence:
+whether what was recorded happened. It finds what is called a phantom here.
+
+**Tracing** goes from the evidence to the records, and tests completeness:
+whether what happened was recorded. It finds an orphan.
+
+The profession states the same asymmetry this approach arrives at. Vouching
+cannot show whether everything was recorded, which is exactly why tracing exists
+as a separate procedure rather than a byproduct of the first. Walking our own
+entries and probing outward is vouching. Enumerating the world and comparing
+inward is tracing, and it is the one that needs an ability we do not have.
 
 ### Cost of registering with the existing machinery
 
