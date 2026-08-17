@@ -157,8 +157,6 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          # Fail loudly: the refresh has already failed at this point, and a
-          # missing webhook means nobody is being told about it.
           if [ -z "${SLACK_WEBHOOK}" ]; then
             echo "::error::AIGATEWAY_PRICES_SLACK_WEBHOOK is not set; the failure alert could not be sent."
             exit 1
