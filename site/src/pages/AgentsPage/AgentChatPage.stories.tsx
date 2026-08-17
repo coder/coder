@@ -2399,10 +2399,8 @@ export const DurableUpdateFansOutToOlderPage: Story = {
 };
 
 /**
- * A message_part arriving over the stream while the chat record still
- * reads "waiting" (status lagging a new turn). The streamed thinking
- * block must render. The play asserts on the disclosure header because
- * smoothed body text never reveals in the test iframe
+ * The streamed thinking block is asserted via its disclosure header
+ * because smoothed body text never reveals in the test iframe
  * (requestAnimationFrame is suspended).
  */
 export const StreamedPartWhileStatusWaiting: Story = {
