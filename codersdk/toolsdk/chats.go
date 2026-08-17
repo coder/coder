@@ -347,10 +347,27 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 		waitSecs = min(max(waitSecs, 1), 120)
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-		// Start the advertised deadline before dialing so a stalled
-		// websocket upgrade cannot extend the wait past wait_secs.
-		timer := time.NewTimer(time.Duration(waitSecs) * time.Second)
-		defer timer.Stop()
+		// Every request in the wait window runs under this deadline so a
+		// stalled websocket upgrade or REST call cannot extend the wait
+		// past wait_secs.
+		waitCtx, cancelWait := context.WithTimeout(ctx, time.Duration(waitSecs)*time.Second)
+		defer cancelWait()
+
+		// finalStatus reports the chat state once the wait window closes.
+		// It gets a short independent timeout so the closing status fetch
+		// itself cannot hang the tool.
+		finalStatus := func() (AwaitChatResponse, error) {
+			if ctx.Err() != nil {
+				return AwaitChatResponse{}, ctx.Err()
+			}
+			finalCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			defer cancel()
+			chat, err := expClient.GetChat(finalCtx, chatID)
+			if err != nil {
+				return AwaitChatResponse{}, xerrors.Errorf("get chat after wait: %w", err)
+			}
+			return AwaitChatResponse{TimedOut: chatStatusBusy(chat.Status), Chat: chatToolStatus(deps, chat)}, nil
+		}
 
 		// Dial asynchronously: a slow or failed watch dial (e.g. a proxy
 		// stalling or rejecting upgrades) must not block the REST poller.
@@ -360,11 +377,9 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 			events <-chan codersdk.ChatWatchEvent
 			closer io.Closer
 		}
-		watchCtx, cancelWatch := context.WithCancel(ctx)
-		defer cancelWatch()
 		dialed := make(chan watchDial, 1)
 		go func() {
-			events, closer, err := expClient.WatchChats(watchCtx)
+			events, closer, err := expClient.WatchChats(waitCtx)
 			if err != nil {
 				return
 			}
@@ -375,7 +390,7 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 			watchCloser io.Closer
 		)
 		defer func() {
-			cancelWatch()
+			cancelWait()
 			if watchCloser == nil {
 				select {
 				case dial := <-dialed:
@@ -388,8 +403,11 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 			}
 		}()
 
-		chat, err := expClient.GetChat(ctx, chatID)
+		chat, err := expClient.GetChat(waitCtx, chatID)
 		if err != nil {
+			if waitCtx.Err() != nil {
+				return finalStatus()
+			}
 			return AwaitChatResponse{}, xerrors.Errorf("get chat: %w", err)
 		}
 		if !chatStatusBusy(chat.Status) {
@@ -401,17 +419,14 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 		defer poller.Stop()
 		for {
 			select {
-			case <-ctx.Done():
-				return AwaitChatResponse{}, ctx.Err()
-			case <-timer.C:
-				chat, err := expClient.GetChat(ctx, chatID)
-				if err != nil {
-					return AwaitChatResponse{}, xerrors.Errorf("get chat after timeout: %w", err)
-				}
-				return AwaitChatResponse{TimedOut: chatStatusBusy(chat.Status), Chat: chatToolStatus(deps, chat)}, nil
+			case <-waitCtx.Done():
+				return finalStatus()
 			case <-poller.C:
-				chat, err := expClient.GetChat(ctx, chatID)
+				chat, err := expClient.GetChat(waitCtx, chatID)
 				if err != nil {
+					if waitCtx.Err() != nil {
+						return finalStatus()
+					}
 					return AwaitChatResponse{}, xerrors.Errorf("get chat while polling: %w", err)
 				}
 				if !chatStatusBusy(chat.Status) {
@@ -424,13 +439,16 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 			case event, ok := <-events:
 				if !ok {
 					// A dropped watch stream must not end the wait early;
-					// the poll ticker keeps observing until the timer fires.
+					// the poll ticker keeps observing until the window closes.
 					events = nil
 					continue
 				}
 				if event.Chat.ID == chatID && !chatStatusBusy(event.Chat.Status) {
-					chat, err := expClient.GetChat(ctx, chatID)
+					chat, err := expClient.GetChat(waitCtx, chatID)
 					if err != nil {
+						if waitCtx.Err() != nil {
+							return finalStatus()
+						}
 						return AwaitChatResponse{}, xerrors.Errorf("get chat after status change: %w", err)
 					}
 					return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
