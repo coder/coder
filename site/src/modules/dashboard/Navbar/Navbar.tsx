@@ -35,7 +35,6 @@ export const Navbar: React.FC = () => {
 		permissions.viewAIGatewayKeys ||
 		permissions.editDeploymentConfig;
 	const canCreateChat = permissions.createChat;
-	const canCreateWorkspace = permissions.createWorkspace;
 	const canViewWorkspacesNav = canViewWorkspaces(permissions);
 	const canViewTemplatesNav = canViewTemplates(permissions);
 
@@ -61,7 +60,6 @@ export const Navbar: React.FC = () => {
 				canViewHealth,
 			}}
 			canCreateChat={canCreateChat}
-			canCreateWorkspace={canCreateWorkspace}
 			canViewWorkspaces={canViewWorkspacesNav}
 			canViewTemplates={canViewTemplatesNav}
 			proxyContextValue={proxyContextValue}

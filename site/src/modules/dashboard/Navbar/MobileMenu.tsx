@@ -43,7 +43,6 @@ const itemStyles = {
 type MobileMenuProps = {
 	proxyContextValue?: ProxyContextValue;
 	adminPermissions: AdminSettingsPermissions;
-	canCreateWorkspace: boolean;
 	canViewWorkspaces: boolean;
 	canViewTemplates: boolean;
 	user?: TypesGen.User;
@@ -55,7 +54,6 @@ type MobileMenuProps = {
 export const MobileMenu: FC<MobileMenuProps> = ({
 	adminPermissions,
 	proxyContextValue,
-	canCreateWorkspace,
 	canViewWorkspaces,
 	canViewTemplates,
 	user,
@@ -76,12 +74,6 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 			to: "/templates",
 			enabled: canViewTemplates,
 			message: restrictedNavMessages.templates,
-		},
-		{
-			label: "Agents",
-			to: "/agents",
-			enabled: canCreateWorkspace,
-			message: restrictedNavMessages.agents,
 		},
 	];
 
@@ -124,6 +116,9 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 						</DropdownMenuItem>
 					),
 				)}
+				<DropdownMenuItem asChild className={itemStyles.default}>
+					<Link to="/agents">Agents</Link>
+				</DropdownMenuItem>
 				{canViewWorkspaces && (
 					<>
 						<DropdownMenuSeparator />

@@ -6,8 +6,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 
-// TODO(PLAT-460): placeholder copy, replace once the final messages are
-// available.
 export const restrictedNavMessages = {
 	workspaces:
 		"Workspaces are not available for your account. Contact your administrator to request access.",
@@ -15,8 +13,6 @@ export const restrictedNavMessages = {
 		"Templates are not available for your account. Contact your administrator to request access.",
 	tasks:
 		"Tasks are not available for your account. Contact your administrator to request access.",
-	agents:
-		"Agents need permission to create workspaces. Contact your administrator to request access.",
 } as const;
 
 type RestrictedNavItemProps = {

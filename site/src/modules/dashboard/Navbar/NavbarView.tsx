@@ -34,7 +34,6 @@ interface NavbarViewProps {
 	onSignOut: () => void;
 	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
-	canCreateWorkspace: boolean;
 	canViewWorkspaces: boolean;
 	canViewTemplates: boolean;
 	proxyContextValue?: ProxyContextValue;
@@ -54,7 +53,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	onSignOut,
 	adminPermissions,
 	canCreateChat,
-	canCreateWorkspace,
 	canViewWorkspaces,
 	canViewTemplates,
 	proxyContextValue,
@@ -89,7 +87,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				className="ml-4 hidden md:flex"
 				user={user}
 				canCreateChat={canCreateChat}
-				canCreateWorkspace={canCreateWorkspace}
 				canViewWorkspaces={canViewWorkspaces}
 				canViewTemplates={canViewTemplates}
 			/>
@@ -157,7 +154,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					<MobileMenu
 						proxyContextValue={proxyContextValue}
 						adminPermissions={adminPermissions}
-						canCreateWorkspace={canCreateWorkspace}
 						canViewWorkspaces={canViewWorkspaces}
 						canViewTemplates={canViewTemplates}
 						user={user}
@@ -174,7 +170,6 @@ interface NavItemsProps {
 	className?: string;
 	user: TypesGen.User;
 	canCreateChat: boolean;
-	canCreateWorkspace: boolean;
 	canViewWorkspaces: boolean;
 	canViewTemplates: boolean;
 }
@@ -183,7 +178,6 @@ const NavItems: FC<NavItemsProps> = ({
 	className,
 	user,
 	canCreateChat,
-	canCreateWorkspace,
 	canViewWorkspaces,
 	canViewTemplates,
 }) => {
@@ -233,26 +227,18 @@ const NavItems: FC<NavItemsProps> = ({
 				</RestrictedNavItem>
 			)}
 			<TasksNavItem user={user} canViewWorkspaces={canViewWorkspaces} />
-			{canCreateChat &&
-				(canCreateWorkspace ? (
-					<NavLink
-						className={({ isActive }) => {
-							return cn(linkStyles.base, linkStyles.default, {
-								[linkStyles.active]: isActive,
-							});
-						}}
-						to="/agents"
-					>
-						Agents
-					</NavLink>
-				) : (
-					<RestrictedNavItem
-						className={cn(linkStyles.base, linkStyles.disabled)}
-						message={restrictedNavMessages.agents}
-					>
-						Agents
-					</RestrictedNavItem>
-				))}
+			{canCreateChat && (
+				<NavLink
+					className={({ isActive }) => {
+						return cn(linkStyles.base, linkStyles.default, {
+							[linkStyles.active]: isActive,
+						});
+					}}
+					to="/agents"
+				>
+					Agents
+				</NavLink>
+			)}
 		</nav>
 	);
 };

@@ -42,7 +42,6 @@ const meta: Meta<typeof MobileMenu> = {
 		isDefaultOpen: true,
 		canViewWorkspaces: true,
 		canViewTemplates: true,
-		canCreateWorkspace: true,
 		adminPermissions: {
 			canViewDeployment: true,
 			canViewOrganizations: true,
@@ -103,7 +102,6 @@ export const WithoutWorkspaceAccess: Story = {
 		adminPermissions: {},
 		canViewWorkspaces: false,
 		canViewTemplates: false,
-		canCreateWorkspace: false,
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);

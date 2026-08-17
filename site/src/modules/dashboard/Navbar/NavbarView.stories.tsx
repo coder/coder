@@ -40,7 +40,6 @@ const meta: Meta<typeof NavbarView> = {
 			canViewHealth: true,
 		},
 		canCreateChat: true,
-		canCreateWorkspace: true,
 		canViewWorkspaces: true,
 		canViewTemplates: true,
 		supportLinks: [],
@@ -131,18 +130,19 @@ export const WithoutWorkspaceAccess: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: true,
-		canCreateWorkspace: false,
 		canViewWorkspaces: false,
 		canViewTemplates: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		for (const label of ["Workspaces", "Templates", "Tasks", "Agents"]) {
+		for (const label of ["Workspaces", "Templates", "Tasks"]) {
 			expect(
 				canvas.queryByRole("link", { name: label }),
 			).not.toBeInTheDocument();
 		}
+		// Agents only needs chat access.
+		canvas.getByRole("link", { name: "Agents" });
 
 		await userEvent.hover(canvas.getByText("Workspaces"));
 		const body = within(canvasElement.ownerDocument.body);
@@ -161,7 +161,6 @@ export const TemplatesOnly: Story = {
 		user: MockUserMember,
 		adminPermissions: { canViewAuditLog: true },
 		canCreateChat: false,
-		canCreateWorkspace: false,
 		canViewWorkspaces: false,
 		canViewTemplates: true,
 	},
@@ -173,33 +172,6 @@ export const TemplatesOnly: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "Workspaces" }),
 		).not.toBeInTheDocument();
-	},
-};
-
-// A workspace creation ban leaves the workspace UI usable.
-export const WithoutWorkspaceCreation: Story = {
-	parameters: { pixel: { matrix: pixelWithDesktop } },
-	args: {
-		user: MockUserMember,
-		adminPermissions: {},
-		canCreateChat: true,
-		canCreateWorkspace: false,
-		canViewWorkspaces: true,
-		canViewTemplates: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await canvas.findByRole("link", { name: "Workspaces" });
-		expect(
-			canvas.queryByRole("link", { name: "Agents" }),
-		).not.toBeInTheDocument();
-
-		await userEvent.hover(canvas.getByText("Agents"));
-		const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-			"tooltip",
-		);
-		expect(tooltip).toHaveTextContent(/permission to create workspaces/i);
 	},
 };
 
