@@ -231,11 +231,8 @@ export const MergedMessagesRenderInIDOrder: Story = {
 	},
 };
 
-// A chat finalizing an interruption has no stream state but is still
-// busy, so the composer must match the running case: Stop button
-// shown, Send button hidden. Covers the I1 state (interrupting with
-// a queued message), which previously rendered as idle because the
-// composer treated only "running" as streaming.
+// Interrupting is busy without stream state; interrupt retries are
+// rejected by the backend, so Stop stays present but disabled.
 export const InterruptingShowsBusyComposer: Story = {
 	render: () => {
 		const store = buildInterruptingStore();
@@ -243,18 +240,15 @@ export const InterruptingShowsBusyComposer: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The queued message confirms the chat is mid-interruption
-		// (backend state I1), not idle.
 		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
-		expect(canvas.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+		expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
 		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
 	},
 };
 
 // Control for InterruptingShowsBusyComposer: a running chat with an
-// identical history and queue renders the same busy composer, so the
-// rendering above follows the active-chat statuses rather than any
-// interrupting-specific path.
+// identical history and queue renders the same busy composer, but
+// with Stop enabled since an interrupt is still legal.
 export const RunningShowsBusyComposer: Story = {
 	render: () => {
 		const store = buildInterruptingStore();
@@ -264,7 +258,7 @@ export const RunningShowsBusyComposer: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
-		expect(canvas.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+		expect(canvas.getByRole("button", { name: "Stop" })).toBeEnabled();
 		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
 	},
 };
