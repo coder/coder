@@ -254,7 +254,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        }
+        },
+        "mcp_tool_search_force_defer": true
       }
     },
     "allow_workspace_renames": true,

@@ -40,13 +40,14 @@ type generationPrepared struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
 
-	Model             chatprovider.Model
-	Prompt            []fantasy.Message
-	Tools             []fantasy.AgentTool
-	ActiveTools       []string
-	ProviderTools     []chatloop.ProviderTool
-	ModelRoute        aiGatewayModelRoute
-	ModelBuildOptions modelBuildOptions
+	Model              chatprovider.Model
+	Prompt             []fantasy.Message
+	Tools              []fantasy.AgentTool
+	ActiveTools        []string
+	AllowInactiveTools map[string]bool
+	ProviderTools      []chatloop.ProviderTool
+	ModelRoute         aiGatewayModelRoute
+	ModelBuildOptions  modelBuildOptions
 
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
@@ -827,6 +828,7 @@ func (s *taskStarter) executeLocalTools(
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
+			AllowInactiveTools: prepared.AllowInactiveTools,
 			ProviderTools:      prepared.ProviderTools,
 			ToolCalls:          allowed,
 			ExclusiveToolNames: prepared.ExclusiveToolNames,

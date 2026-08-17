@@ -912,6 +912,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			"fake", "fake-model",
 			map[string]bool{},
 			[]string{"screenshot"},
+			nil,
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
@@ -961,6 +962,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			"fake", "fake-model",
 			map[string]bool{},
 			[]string{"screenshot"},
+			nil,
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
@@ -1005,6 +1007,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			"fake", "fake-model",
 			map[string]bool{},
 			[]string{"echo"},
+			nil,
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
@@ -1053,6 +1056,7 @@ func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 		"fake", "fake-model",
 		map[string]bool{},
 		[]string{"interrupt_agent"},
+		nil,
 		map[string]struct{}{},
 		nil,
 		defaultToolResultBytes,
@@ -1093,6 +1097,7 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 		"fake", "fake-model",
 		map[string]bool{},
 		[]string{"interrupt_agent"},
+		nil,
 		map[string]struct{}{},
 		nil,
 		defaultToolResultBytes,
@@ -1102,4 +1107,33 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 	errOutput, ok := result.Result.(fantasy.ToolResultOutputContentError)
 	require.True(t, ok, "expected error output, got %T", result.Result)
 	require.Contains(t, errOutput.Error.Error(), "close_agent")
+}
+
+func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
+	t.Parallel()
+	tool := fantasy.NewAgentTool(
+		"server__direct",
+		"direct",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("ok"), nil
+		},
+	)
+	result := executeSingleTool(
+		context.Background(),
+		map[string]fantasy.AgentTool{"server__direct": tool},
+		fantasy.ToolCallContent{ToolCallID: "call-direct", ToolName: "server__direct", Input: "{}"},
+		NewMetrics(prometheus.NewRegistry()),
+		slog.Make(),
+		"fake", "fake-model",
+		map[string]bool{},
+		[]string{"find_tools"},
+		map[string]bool{"server__direct": true},
+		map[string]struct{}{},
+		nil,
+		defaultToolResultBytes,
+		nil,
+	)
+	text, ok := result.Result.(fantasy.ToolResultOutputContentText)
+	require.True(t, ok)
+	require.Equal(t, "ok", text.Text)
 }

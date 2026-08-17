@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -529,8 +530,30 @@ func (server *Server) prepareGeneration(
 		builtinToolNames[t.Info().Name] = true
 	}
 
+	mcpConfigByID := make(map[uuid.UUID]database.MCPServerConfig, len(mcpConnectConfigs))
+	for _, config := range mcpConnectConfigs {
+		mcpConfigByID[config.ID] = config
+	}
+	deferredCandidates := make([]deferredMCPTool, 0, len(mcpTools)+len(workspaceMCPTools))
+	for _, tool := range mcpTools {
+		if !toolAllowedForTurn(tool, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs) {
+			continue
+		}
+		candidate := deferredMCPTool{tool: tool}
+		if identified, ok := tool.(mcpclient.MCPToolIdentifier); ok {
+			if config, exists := mcpConfigByID[identified.MCPServerConfigID()]; exists {
+				candidate.server = config.Slug
+				candidate.serverDescription = config.Description
+			}
+		}
+		deferredCandidates = append(deferredCandidates, candidate)
+	}
 	tools = append(tools, mcpTools...)
 	if !isExploreSubagent {
+		for _, tool := range workspaceMCPTools {
+			serverName, _, _ := strings.Cut(tool.Info().Name, "__")
+			deferredCandidates = append(deferredCandidates, deferredMCPTool{tool: tool, server: serverName})
+		}
 		tools = append(tools, workspaceMCPTools...)
 	}
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
@@ -589,6 +612,42 @@ func (server *Server) prepareGeneration(
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
 		activeToolNames = allowedExploreToolNames(tools)
+	}
+	var allowInactiveTools map[string]bool
+	toolSearch := decideMCPToolSearch(mcpToolSearchInput{
+		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
+		forceDefer:        server.forceMCPToolSearch,
+		contextWindow:     modelConfig.ContextLimit,
+		candidates:        deferredCandidates,
+	})
+	server.metrics.DeferredMCPToolTokens.WithLabelValues(
+		model.Provider(), model.ModelID(), strconv.FormatBool(toolSearch.apply),
+	).Observe(toolSearch.estimatedTokens)
+	if toolSearch.apply {
+		findTools := chattool.FindTools(chattool.FindToolsOptions{
+			Entries: deferredMCPToolEntries(deferredCandidates),
+			OnCall: func(callCtx context.Context, call chattool.FindToolsCall) {
+				server.metrics.FindToolsCallsTotal.Inc()
+				server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
+				server.metrics.FindToolsActivationsTotal.Add(float64(len(call.Activated)))
+				if call.MatchCount == 0 {
+					server.metrics.FindToolsEmptyTotal.Inc()
+				}
+				logger.Info(callCtx, "deferred MCP tool search",
+					slog.F("queries", call.Queries),
+					slog.F("names", call.Names),
+					slog.F("match_count", call.MatchCount),
+					slog.F("activated", call.Activated),
+					slog.F("total_deferred", call.TotalDeferred),
+				)
+			},
+		})
+		tools = append(tools, findTools)
+		builtinToolNames[chattool.FindToolsName] = true
+		allowInactiveTools = deferredMCPToolNameSet(deferredCandidates)
+		activeToolNames = slices.DeleteFunc(activeToolNames, func(name string) bool { return allowInactiveTools[name] })
+		activeToolNames = append(activeToolNames, chattool.FindToolsName)
+		activeToolNames = append(activeToolNames, deriveDeferredMCPActivations(promptRows, deferredCandidates)...)
 	}
 
 	toolNameToConfigID := make(map[string]uuid.UUID)
@@ -675,6 +734,7 @@ func (server *Server) prepareGeneration(
 		Prompt:               prompt,
 		Tools:                tools,
 		ActiveTools:          activeToolNames,
+		AllowInactiveTools:   allowInactiveTools,
 		ProviderTools:        providerTools,
 		ModelRoute:           modelRoute,
 		ModelBuildOptions:    modelOpts,

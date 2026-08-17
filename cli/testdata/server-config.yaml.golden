@@ -799,6 +799,10 @@ chat:
   # How many pending chats a worker should acquire per polling cycle.
   # (default: 10, type: int)
   acquireBatchSize: 10
+  # Force MCP tool schemas behind find_tools regardless of size. The mcp-tool-search
+  # experiment must also be enabled.
+  # (default: false, type: bool)
+  mcpToolSearchForceDefer: false
   # Force chat debug logging on for every chat, bypassing the runtime admin and user
   # opt-in settings.
   # (default: false, type: bool)

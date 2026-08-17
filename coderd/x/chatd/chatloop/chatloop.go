@@ -238,10 +238,11 @@ type AssistantOutcome struct {
 
 // ExecuteLocalToolsOptions configures one local tool execution batch.
 type ExecuteLocalToolsOptions struct {
-	Tools         []fantasy.AgentTool
-	ActiveTools   []string
-	ProviderTools []ProviderTool
-	ToolCalls     []fantasy.ToolCallContent
+	Tools              []fantasy.AgentTool
+	ActiveTools        []string
+	AllowInactiveTools map[string]bool
+	ProviderTools      []ProviderTool
+	ToolCalls          []fantasy.ToolCallContent
 
 	ExclusiveToolNames map[string]bool
 	BuiltinToolNames   map[string]bool
@@ -594,6 +595,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		opts.Clock,
 		opts.Tools,
 		opts.ActiveTools,
+		opts.AllowInactiveTools,
 		opts.ProviderTools,
 		localCalls,
 		opts.Metrics,
@@ -1057,6 +1059,7 @@ func executeTools(
 	clock quartz.Clock,
 	allTools []fantasy.AgentTool,
 	activeTools []string,
+	allowInactiveTools map[string]bool,
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
 	metrics *Metrics,
@@ -1141,6 +1144,7 @@ func executeTools(
 				model,
 				builtinToolNames,
 				activeTools,
+				allowInactiveTools,
 				providerRunnerNames,
 				resultProviderMetadata,
 				maxResultBytes,
@@ -1262,6 +1266,7 @@ func executeSingleTool(
 	provider, model string,
 	builtinToolNames map[string]bool,
 	activeTools []string,
+	allowInactiveTools map[string]bool,
 	providerRunnerNames map[string]struct{},
 	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
 	maxResultBytes int,
@@ -1294,7 +1299,7 @@ func executeSingleTool(
 	}
 
 	_, isProviderRunner := providerRunnerNames[resolvedName]
-	if !isProviderRunner && !isToolActive(resolvedName, activeTools) {
+	if !isProviderRunner && !isToolActive(resolvedName, activeTools) && !allowInactiveTools[resolvedName] {
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
 		}

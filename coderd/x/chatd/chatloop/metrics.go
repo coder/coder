@@ -27,17 +27,22 @@ const (
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
 type Metrics struct {
-	Chats                    *prometheus.GaugeVec
-	MessageCount             *prometheus.HistogramVec
-	PromptSizeBytes          *prometheus.HistogramVec
-	ToolResultSizeBytes      *prometheus.HistogramVec
-	ToolResultTruncatedTotal *prometheus.CounterVec
-	ToolErrorsTotal          *prometheus.CounterVec
-	TTFTSeconds              *prometheus.HistogramVec
-	CompactionTotal          *prometheus.CounterVec
-	StepsTotal               *prometheus.CounterVec
-	StreamRetriesTotal       *prometheus.CounterVec
-	StreamBufferDroppedTotal prometheus.Counter
+	Chats                     *prometheus.GaugeVec
+	MessageCount              *prometheus.HistogramVec
+	PromptSizeBytes           *prometheus.HistogramVec
+	ToolResultSizeBytes       *prometheus.HistogramVec
+	ToolResultTruncatedTotal  *prometheus.CounterVec
+	ToolErrorsTotal           *prometheus.CounterVec
+	TTFTSeconds               *prometheus.HistogramVec
+	CompactionTotal           *prometheus.CounterVec
+	StepsTotal                *prometheus.CounterVec
+	StreamRetriesTotal        *prometheus.CounterVec
+	StreamBufferDroppedTotal  prometheus.Counter
+	FindToolsCallsTotal       prometheus.Counter
+	FindToolsEmptyTotal       prometheus.Counter
+	FindToolsMatchCount       prometheus.Histogram
+	FindToolsActivationsTotal prometheus.Counter
+	DeferredMCPToolTokens     *prometheus.HistogramVec
 }
 
 // NewMetrics creates a new Metrics instance registered with the
@@ -109,6 +114,38 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "stream_retries_total",
 			Help:      "Total LLM stream retries.",
 		}, []string{"provider", "model", "kind"}),
+		FindToolsCallsTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "find_tools_calls_total",
+			Help:      "Total find_tools calls.",
+		}),
+		FindToolsEmptyTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "find_tools_empty_total",
+			Help:      "Total find_tools calls with no matches.",
+		}),
+		FindToolsMatchCount: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "find_tools_match_count",
+			Help:      "Number of matches returned by find_tools calls.",
+			Buckets:   prometheus.LinearBuckets(0, 2, 11),
+		}),
+		FindToolsActivationsTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "find_tools_activations_total",
+			Help:      "Total deferred tool activations returned by find_tools.",
+		}),
+		DeferredMCPToolTokens: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "deferred_mcp_tool_tokens",
+			Help:      "Estimated MCP tool schema tokens considered for deferral per generation.",
+			Buckets:   prometheus.ExponentialBuckets(128, 2, 12),
+		}, []string{"provider", "model", "applied"}),
 		StreamBufferDroppedTotal: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,

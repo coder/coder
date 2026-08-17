@@ -200,6 +200,7 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
+	forceMCPToolSearch       bool
 
 	// Configuration
 	pendingChatAcquireInterval time.Duration
@@ -3048,6 +3049,9 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
+	// ForceMCPToolSearch ignores the schema-size threshold for development and tests.
+	// The mcp-tool-search experiment remains required.
+	ForceMCPToolSearch bool
 
 	PrometheusRegistry prometheus.Registerer
 
@@ -3155,6 +3159,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		},
 		aibridgeTransportFactory:   cfg.AIBridgeTransportFactory,
 		experiments:                cfg.Experiments,
+		forceMCPToolSearch:         cfg.ForceMCPToolSearch,
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		maxChatsPerAcquire:         maxChatsPerAcquire,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,

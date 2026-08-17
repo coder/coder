@@ -4342,6 +4342,17 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
 		{
+			Name:        "Chat: MCP Tool Search Force Defer",
+			Description: "Force MCP tool schemas behind find_tools regardless of size. The mcp-tool-search experiment must also be enabled.",
+			Flag:        "chat-mcp-tool-search-force-defer",
+			Env:         "CODER_CHAT_MCP_TOOL_SEARCH_FORCE_DEFER",
+			Value:       &c.AI.Chat.MCPToolSearchForceDefer,
+			Default:     "false",
+			Group:       &deploymentGroupChat,
+			YAML:        "mcpToolSearchForceDefer",
+			Hidden:      true,
+		},
+		{
 			Name:        "Chat: Debug Logging Enabled",
 			Description: "Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.",
 			Flag:        "chat-debug-logging-enabled",
@@ -5089,13 +5100,14 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
-	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
-	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
-	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
-	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
-	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	AcquireBatchSize        serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled     serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	MCPToolSearchForceDefer serpent.Bool     `json:"mcp_tool_search_force_defer" typescript:",notnull"`
+	HookURL                 serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret              serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout             serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled             serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure       serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -5398,6 +5410,7 @@ const (
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentOAuth2                    Experiment = "oauth2"                      // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
+	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
@@ -5451,6 +5464,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
+	ExperimentMCPToolSearch,
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,

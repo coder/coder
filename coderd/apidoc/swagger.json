@@ -15843,6 +15843,9 @@
 				},
 				"hook_url": {
 					"$ref": "#/definitions/serpent.URL"
+				},
+				"mcp_tool_search_force_defer": {
+					"type": "boolean"
 				}
 			}
 		},
@@ -18676,6 +18679,7 @@
 				"workspace-usage",
 				"oauth2",
 				"mcp-server-http",
+				"mcp-tool-search",
 				"workspace-build-updates",
 				"nats_pubsub",
 				"workspace-capable-licensing",
@@ -18692,6 +18696,7 @@
 				"ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
 				"ExperimentExample": "This isn't used for anything.",
 				"ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
+				"ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
 				"ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
 				"ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
 				"ExperimentOAuth2": "Enables OAuth2 provider functionality.",
@@ -18706,6 +18711,7 @@
 				"Enables the new workspace usage tracking.",
 				"Enables OAuth2 provider functionality.",
 				"Enables the MCP HTTP server functionality.",
+				"Defers MCP tool schemas behind a searchable catalog in agent chats.",
 				"Enables publishing workspace build updates to the all builds pubsub channel.",
 				"Enables embedded NATS pubsub.",
 				"Counts only users holding the workspace-create permission toward the license seat limit.",
@@ -18721,6 +18727,7 @@
 				"ExperimentWorkspaceUsage",
 				"ExperimentOAuth2",
 				"ExperimentMCPServerHTTP",
+				"ExperimentMCPToolSearch",
 				"ExperimentWorkspaceBuildUpdates",
 				"ExperimentNATSPubsub",
 				"ExperimentWorkspaceCapableLicensing",
