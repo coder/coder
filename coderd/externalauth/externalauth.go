@@ -916,12 +916,12 @@ func ConvertConfig(ctx context.Context, logger slog.Logger, instrument *promoaut
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
-		logger := logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type))
-
 		// Applies defaults to the config entry.
 		// This allows users to very simply state that they type is "GitHub",
 		// apply their client secret and ID, and have the UI appear nicely.
 		applyDefaultsToConfig(&entry)
+
+		logger := logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type))
 
 		valid := codersdk.NameValid(entry.ID)
 		if valid != nil {
