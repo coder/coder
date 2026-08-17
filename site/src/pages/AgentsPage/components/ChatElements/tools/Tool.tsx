@@ -15,6 +15,7 @@ import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
 import { ExecuteTool as ExecuteToolComponent } from "./ExecuteTool";
+import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
@@ -985,6 +986,97 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const parseStringList = (value: unknown): string[] | null => {
+	if (typeof value === "string") {
+		try {
+			return parseStringList(JSON.parse(value));
+		} catch {
+			return null;
+		}
+	}
+	if (!Array.isArray(value)) {
+		return null;
+	}
+	const strings: string[] = [];
+	for (const item of value) {
+		if (typeof item !== "string") {
+			return null;
+		}
+		const trimmed = item.trim();
+		if (trimmed) {
+			strings.push(trimmed);
+		}
+	}
+	return strings;
+};
+
+const parseFindToolsMatches = (value: unknown): FindToolsMatch[] | null => {
+	if (typeof value === "string") {
+		try {
+			return parseFindToolsMatches(JSON.parse(value));
+		} catch {
+			return null;
+		}
+	}
+	if (!Array.isArray(value)) {
+		return null;
+	}
+	const matches: FindToolsMatch[] = [];
+	for (const item of value) {
+		const record = asRecord(item);
+		if (
+			!record ||
+			typeof record.name !== "string" ||
+			typeof record.description !== "string"
+		) {
+			return null;
+		}
+		matches.push({
+			name: record.name,
+			description: record.description,
+		});
+	}
+	return matches;
+};
+
+const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
+	const parsedArgs = parseArgs(props.args);
+	const queries = parsedArgs
+		? parsedArgs.queries === undefined
+			? []
+			: parseStringList(parsedArgs.queries)
+		: null;
+	const names = parsedArgs
+		? parsedArgs.names === undefined
+			? []
+			: parseStringList(parsedArgs.names)
+		: null;
+	const searchTerms = queries && names ? [...queries, ...names] : null;
+	const parsedResult = parseArgs(props.result);
+	const matches =
+		props.status === "running" && props.result === undefined
+			? []
+			: parsedResult
+				? parseFindToolsMatches(parsedResult.matches)
+				: null;
+	if (!searchTerms || !matches) {
+		return <GenericToolRenderer {...props} />;
+	}
+
+	const errorMessage = parsedResult
+		? asString(parsedResult.error || parsedResult.message)
+		: "";
+	return (
+		<FindToolsTool
+			queries={searchTerms}
+			matches={matches}
+			status={props.status}
+			isError={props.isError}
+			errorMessage={errorMessage || undefined}
+		/>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // process_signal promotes soft failures (success=false
 // in the result body, isError=false at protocol level) so the generic
@@ -1033,6 +1125,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 // ---------------------------------------------------------------------------
 
 export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
+	find_tools: FindToolsRenderer,
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
 	process_signal: ProcessSignalRenderer,

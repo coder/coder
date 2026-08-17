@@ -571,6 +571,114 @@ export const LifecycleHookNoticeAfterEditedMessage: Story = {
 	},
 };
 
+export const FindToolsSearchResult: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "find-tools-1",
+						tool_name: "find_tools",
+						args: {
+							queries: JSON.stringify(["github issues", "pull requests"]),
+						},
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "find-tools-1",
+						tool_name: "find_tools",
+						result: {
+							matches: JSON.stringify([
+								{
+									name: "github__list_issues",
+									description: "List issues in a GitHub repository.",
+								},
+								{
+									name: "github__list_pull_requests",
+									description: "List pull requests in a GitHub repository.",
+								},
+							]),
+							activated: JSON.stringify([
+								"github__list_issues",
+								"github__list_pull_requests",
+							]),
+							total_deferred: "24",
+						},
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summary = canvas.getByRole("button", {
+			name: "Searched tools: github issues, pull requests -> 2 matched",
+		});
+		expect(summary).toBeVisible();
+		expect(canvas.queryByText("github__list_issues")).not.toBeInTheDocument();
+		await userEvent.click(summary);
+		expect(canvas.getByText("github__list_issues")).toBeVisible();
+		expect(
+			canvas.getByText("List issues in a GitHub repository."),
+		).toBeVisible();
+		expect(canvas.getByText("github__list_pull_requests")).toBeVisible();
+		expect(
+			canvas.getByText("List pull requests in a GitHub repository."),
+		).toBeVisible();
+	},
+};
+
+export const FindToolsMalformedResultUsesDefaultRenderer: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "find-tools-invalid",
+						tool_name: "find_tools",
+						args: { queries: JSON.stringify(["github"]) },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "find-tools-invalid",
+						tool_name: "find_tools",
+						result: { matches: "not-json" },
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText(/Searched tools:/)).not.toBeInTheDocument();
+		expect(canvas.getByRole("button", { name: "find_tools" })).toBeVisible();
+	},
+};
+
 export const DurableListTemplatesToolLifecycle: Story = {
 	args: {
 		...defaultArgs,
