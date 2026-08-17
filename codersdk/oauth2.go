@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -299,13 +300,7 @@ func AdvertisedOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod 
 }
 
 func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
-	switch m {
-	case OAuth2TokenEndpointAuthMethodClientSecretBasic,
-		OAuth2TokenEndpointAuthMethodClientSecretPost,
-		OAuth2TokenEndpointAuthMethodNone:
-		return true
-	}
-	return false
+	return slices.Contains(AllOAuth2TokenEndpointAuthMethods(), m)
 }
 
 // OAuth2ClientType is how a client authenticates at the token endpoint
