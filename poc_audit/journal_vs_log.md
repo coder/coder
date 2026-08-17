@@ -57,7 +57,8 @@ English in the mid fourteenth century as the name for a book of the daily church
 offices. By the late fifteenth century it names a book of daily accounts, a
 sense classical Latin already had for `diurnus`.
 
-In double entry bookkeeping a journal is a **book of original entry**.
+In double entry bookkeeping a journal is a **book of original entry**. It sits at
+the very beginning of the recordkeeping process, and nothing precedes it.
 Transactions are written there first, in the order they occur, and are afterwards
 posted to the ledger. The journal is where an event is recorded for the first
 time; everything else is derived from it.

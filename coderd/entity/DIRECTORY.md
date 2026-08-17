@@ -1,8 +1,8 @@
 # coderd/entity
 
 This directory owns the lifecycle of entities: their creation and destruction,
-the identities and credentials issued to them, and the audit journals that
-account for all of it.
+the identities and credentials issued to them, and the journals kept for
+auditing all of it.
 
 It is new, and it is close to empty. What follows describes what the directory
 is for, so that the intent does not have to be inferred from whatever happens
@@ -114,8 +114,8 @@ lifecycle function to compose them rather than duplicate them.
 **An entity may not write entries about itself.** An account is rendered to a
 party, by someone answerable to that party. An entity reporting on its own
 conduct is not an account of it, and a journal that admitted such entries would
-be a log of what its subjects chose to say. That is not what an audit journal
-is: it is neither a raw log nor a record of activity, and its entries are
+be a log of what its subjects chose to say. That is not what a journal kept for
+auditing is: it is neither a raw log nor a record of activity, and its entries are
 written by the party accounting for the entity rather than by the entity.
 
 **The journal is entity-agnostic; creation is entity-specific.** One journal
