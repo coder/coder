@@ -40,6 +40,7 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
 	mcpServerConfigs,
@@ -937,10 +938,16 @@ const AgentChatPage: FC = () => {
 	const chatQuery = useQuery({
 		...openChat(agentId ?? ""),
 		enabled: Boolean(agentId),
-		// Poll while the binding is unresolved: repair happens on chat reads
-		// and watch events cannot be relied on for retries because an idle
-		// workspace publishes none.
+		// Poll while the chat runs (this override replaces openChat's
+		// interval, and queued_for_capacity depends on the poll) or while
+		// the binding is unresolved: repair happens on chat reads and watch
+		// events cannot be relied on for retries because an idle workspace
+		// publishes none.
 		refetchInterval: ({ state }) => {
+			const openPollMs = getOpenChatPollInterval(state.data);
+			if (openPollMs !== false) {
+				return openPollMs;
+			}
 			const workspaceId = state.data?.workspace_id;
 			const workspace = workspaceId
 				? queryClient.getQueryData<TypesGen.Workspace>(
