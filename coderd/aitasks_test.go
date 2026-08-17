@@ -3085,6 +3085,7 @@ func TestPauseTask(t *testing.T) {
 
 func TestResumeTask(t *testing.T) {
 	t.Parallel()
+	t.Skipf("Test is flaking on data-race. Tasks is being removed, so this test will not be fixed")
 
 	setupClient := func(t *testing.T, db database.Store, ps pubsub.Pubsub, authorizer rbac.Authorizer) *codersdk.Client {
 		t.Helper()

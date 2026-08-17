@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -2125,17 +2125,27 @@ func TestListChats_Search(t *testing.T) {
 		require.NotContains(t, ids, noMatch.ID)
 	})
 
-	t.Run("NoSearchableWordsReturns400", func(t *testing.T) {
+	t.Run("NoSearchableWordsReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-		ctx, client, _, _, _ := setup(t)
+		ctx, client, db, firstUser, modelConfig := setup(t)
 
-		_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+		// "or" is a real lexeme (an operator only between operands), so
+		// search:"or" matches the control chat; search:"!!!" has no lexemes and
+		// matches nothing.
+		control := createChat(t, db, firstUser, modelConfig.ID, "fix this or that")
+		backfillSearchTsv(ctx, t, db)
+
+		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: `search:"or"`,
+		})
+		require.NoError(t, err)
+		require.Contains(t, chatIDs(chats), control.ID)
+
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: `search:"!!!"`,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "search", sdkErr.Validations[0].Field)
-		require.Contains(t, sdkErr.Validations[0].Detail, "no searchable words")
+		require.NoError(t, err)
+		require.Empty(t, chats)
 	})
 
 	t.Run("ComposesWithRepoFilterAndArchivedDefault", func(t *testing.T) {
@@ -8289,8 +8299,6 @@ func TestChatMessageWithFiles(t *testing.T) {
 		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
-		messagesBefore, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "one too many"},
@@ -8303,9 +8311,27 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "attachment limit")
 
-		messagesAfter, err := client.GetChatMessages(ctx, chat.ID, nil)
+		// getChatMessages reads history before queued messages, so a promotion
+		// can make one response miss the message in both places. Wait for the
+		// queue to empty, then read history again because promotion inserts a
+		// history row.
+		require.Eventually(t, func() bool {
+			m, err := client.GetChatMessages(ctx, chat.ID, nil)
+			return err == nil && len(m.QueuedMessages) == 0
+		}, testutil.WaitLong, testutil.IntervalMedium)
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
-		require.Len(t, messagesAfter.Messages, len(messagesBefore.Messages), "rejected send should not persist a message")
+		for _, msg := range messages.Messages {
+			for _, part := range msg.Content {
+				require.NotContains(t, part.Text, "one too many", "rejected send should not persist a message")
+			}
+		}
+		for _, queued := range messages.QueuedMessages {
+			for _, part := range queued.Content {
+				require.NotContains(t, part.Text, "one too many", "rejected send should not queue a message")
+			}
+		}
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
@@ -9297,6 +9323,35 @@ func TestCompactChat(t *testing.T) {
 		require.False(t, persisted.CompactionRequestedAt.Valid)
 	})
 
+	t.Run("FromErrorState", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+		chat := seedCompactableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusError,
+			LastError: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`{"message":"context overflow"}`),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+
+		// Response snapshot only: a worker may already be mutating
+		// the persisted row.
+		compacted, err := client.CompactChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, compacted.ID)
+		require.Equal(t, codersdk.ChatStatusRunning, compacted.Status)
+		require.Nil(t, compacted.LastError,
+			"compaction from the error state clears last_error")
+	})
+
 	t.Run("Busy", func(t *testing.T) {
 		t.Parallel()
 
@@ -9318,6 +9373,7 @@ func TestCompactChat(t *testing.T) {
 		_, err = client.CompactChat(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
 		require.Contains(t, sdkErr.Message, "Cannot compact the chat in its current state")
+		require.Contains(t, sdkErr.Detail, "Compaction is not available while the chat is generating.")
 	})
 
 	t.Run("Archived", func(t *testing.T) {
@@ -10572,7 +10628,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		dynamicTools := []mcp.Tool{{
 			Name:        dynamicToolName,
 			Description: "a test dynamic tool",
-			InputSchema: mcp.ToolInputSchema{Type: "object"},
+			InputSchema: map[string]any{"type": "object"},
 		}}
 		dtJSON, err := json.Marshal(dynamicTools)
 		require.NoError(t, err)
@@ -15197,7 +15253,7 @@ func TestSubmitToolResults(t *testing.T) {
 		dynamicTools := []mcp.Tool{{
 			Name:        dynamicToolName,
 			Description: "a test dynamic tool",
-			InputSchema: mcp.ToolInputSchema{Type: "object"},
+			InputSchema: map[string]any{"type": "object"},
 		}}
 		dtJSON, err := json.Marshal(dynamicTools)
 		require.NoError(t, err)

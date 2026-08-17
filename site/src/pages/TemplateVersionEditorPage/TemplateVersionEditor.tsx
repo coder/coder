@@ -223,7 +223,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<TopbarIconButton asChild>
-									<RouterLink to={templateLink}>
+									<RouterLink
+										to={templateLink}
+										aria-label="Back to the template"
+									>
 										<ChevronLeftIcon />
 									</RouterLink>
 								</TopbarIconButton>

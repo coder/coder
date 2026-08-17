@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -212,14 +213,59 @@ func TestRequestCompaction_ClearedByNewTurn(t *testing.T) {
 		"EditMessage starts a new turn and must clear the marker")
 }
 
+func TestRequestCompaction_FreshHistoryEpoch(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		attempts int
+	}{
+		{name: "unspent budget", attempts: 0},
+		{name: "one below the cap", attempts: chatretry.MaxAttempts - 1},
+		{name: "exhausted budget", attempts: chatretry.MaxAttempts},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			seeded := seedState(t, f, chatstate.StateE0)
+			for range tc.attempts {
+				_, err := f.DB.IncrementChatGenerationAttempt(ctx, seeded.chatID)
+				require.NoError(t, err)
+			}
+			_, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
+				ID:         seeded.chatID,
+				RetryState: []byte(`{"attempt":1}`),
+			})
+			require.NoError(t, err)
+			before := f.readChat(ctx, t, seeded.chatID)
+
+			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
+				return err
+			}))
+
+			chat := f.readChat(ctx, t, seeded.chatID)
+			require.Zero(t, chat.GenerationAttempt)
+			require.Greater(t, chat.HistoryVersion, before.HistoryVersion,
+				"epoch must advance past every version the previous turn's episode keys used")
+			require.Equal(t, chat.SnapshotVersion, chat.HistoryVersion)
+			require.False(t, chat.RetryState.Valid,
+				"a stale retry payload must not survive into the fresh epoch, even at attempt 0 where the generation_attempt trigger cannot clear it")
+		})
+	}
+}
+
 // TestRequestCompaction_RejectedWhenBusyOrArchived pins the matrix
-// boundaries callers rely on for 409 mapping: only W admits the
-// transition.
+// boundaries callers rely on for 409 mapping: only W, E0, and E1
+// admit the transition.
 func TestRequestCompaction_RejectedWhenBusyOrArchived(t *testing.T) {
 	t.Parallel()
 
 	for _, from := range []chatstate.ExecutionState{
-		chatstate.StateR0, chatstate.StateE0, chatstate.StateXW,
+		chatstate.StateR0, chatstate.StateXW,
 	} {
 		t.Run(string(from), func(t *testing.T) {
 			t.Parallel()

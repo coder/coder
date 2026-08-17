@@ -84,9 +84,10 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishError:       {StateE0},
 	},
 	StateE0: {
-		TransitionSetArchived: {StateXE0},
-		TransitionSendMessage: {StateR0},
-		TransitionEditMessage: {StateR0},
+		TransitionSetArchived:       {StateXE0},
+		TransitionSendMessage:       {StateR0},
+		TransitionEditMessage:       {StateR0},
+		TransitionRequestCompaction: {StateR0},
 	},
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
@@ -94,6 +95,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1},
 		TransitionPromoteQueuedMessage: {StateR0, StateR1},
+		TransitionRequestCompaction:    {StateR1},
 	},
 	StateR0: {
 		TransitionSendMessage:             {StateR1, StateI1},

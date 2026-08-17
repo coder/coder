@@ -43,6 +43,7 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	getChatListQueryString,
 	infiniteChats,
 	interruptChat,
 	invalidateChatACL,
@@ -1791,6 +1792,27 @@ describe("chatListKey shape", () => {
 	});
 });
 
+describe("getChatListQueryString", () => {
+	it("emits sidebar query shapes accepted by searchquery.Chats", () => {
+		// These strings must match TestSearchChatsFrontendEmitted in
+		// coderd/searchquery/search_test.go.
+		expect(getChatListQueryString(toChatListParams())).toBe("archived:false");
+		expect(
+			getChatListQueryString(toChatListParams({ chatStatus: "unread" })),
+		).toBe("archived:false has_unread:true");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					prStatuses: ["draft", "closed"],
+					sources: ["created_by_me", "shared_with_me"],
+				}),
+			),
+		).toBe(
+			"archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
+		);
+	});
+});
+
 describe("chatsByWorkspace", () => {
 	it("disables the query when no workspace IDs are given", () => {
 		expect(chatsByWorkspace([]).enabled).toBe(false);
@@ -2462,6 +2484,48 @@ describe("mergeWatchedChatSummary", () => {
 				eventKind: "status_change",
 			}).context,
 		).toBe(context);
+	});
+
+	it("keeps the repaired build_id when the event snapshot carries a stale binding", () => {
+		const cachedChat = makeChat("chat-1", {
+			workspace_id: "workspace-1",
+			agent_id: "agent-new",
+			build_id: "build-new",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			workspace_id: "workspace-1",
+			agent_id: "agent-old",
+			build_id: "build-old",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+		});
+		expect(merged.build_id).toBe("build-new");
+		expect(merged.agent_id).toBe("agent-new");
+	});
+
+	it("adopts a fresh build_id when the event snapshot agrees on the agent", () => {
+		const cachedChat = makeChat("chat-1", {
+			workspace_id: "workspace-1",
+			agent_id: "agent-1",
+			build_id: "build-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			workspace_id: "workspace-1",
+			agent_id: "agent-1",
+			build_id: "build-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).build_id,
+		).toBe("build-new");
 	});
 
 	it("merges fresh status updates without clobbering a newer title snapshot", () => {
