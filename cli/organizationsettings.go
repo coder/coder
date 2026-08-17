@@ -66,6 +66,22 @@ func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent
 			},
 		},
 		{
+			Name:    "default-org-member-roles",
+			Aliases: []string{"defaultorgmemberroles", "default-member-roles"},
+			Short:   "Roles granted to every member of the organization.",
+			Patch: func(ctx context.Context, cli *codersdk.Client, org uuid.UUID, input json.RawMessage) (any, error) {
+				var req codersdk.UpdateOrganizationRequest
+				err := json.Unmarshal(input, &req)
+				if err != nil {
+					return nil, xerrors.Errorf("unmarshalling default organization member roles: %w", err)
+				}
+				return cli.UpdateOrganization(ctx, org.String(), req)
+			},
+			Fetch: func(ctx context.Context, cli *codersdk.Client, org uuid.UUID) (any, error) {
+				return cli.Organization(ctx, org)
+			},
+		},
+		{
 			Name:    "workspace-sharing",
 			Aliases: []string{"workspacesharing"},
 			Short:   "Workspace sharing settings for the organization.",

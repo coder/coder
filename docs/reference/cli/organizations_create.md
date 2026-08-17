@@ -16,6 +16,14 @@ coder organizations create [flags] <organization name>
 
 ## Options
 
+### --default-org-member-roles
+
+|      |                           |
+|------|---------------------------|
+| Type | <code>string-array</code> |
+
+Roles granted to every member of the organization. Pass an empty string to grant no roles.
+
 ### -y, --yes
 
 |      |                   |

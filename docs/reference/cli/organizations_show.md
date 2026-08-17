@@ -49,7 +49,7 @@ Only print the organization ID.
 |         |                                                                                                                     |
 |---------|---------------------------------------------------------------------------------------------------------------------|
 | Type    | <code>[id\|name\|display name\|icon\|description\|created at\|updated at\|default\|default org member roles]</code> |
-| Default | <code>id,name,default</code>                                                                                        |
+| Default | <code>id,name,default,default org member roles</code>                                                               |
 
 Columns to display in table output.
 

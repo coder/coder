@@ -163,3 +163,70 @@ func TestUpdateOrganizationSync(t *testing.T) {
 		require.JSONEq(t, string(expectedData), buf.String())
 	})
 }
+
+func TestUpdateDefaultOrgMemberRoles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		owner, _ := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inv, root := clitest.New(t, "organization", "settings", "set", "default-org-member-roles")
+		//nolint:gocritic // Using the owner, testing the cli not perms
+		clitest.SetupConfig(t, owner, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		inv.Stdin = bytes.NewBufferString(`{"default_org_member_roles": ["organization-template-admin"]}`)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		var updated codersdk.Organization
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &updated))
+		require.Equal(t, []string{codersdk.RoleOrganizationTemplateAdmin}, updated.DefaultOrgMemberRoles)
+
+		// Now read it back
+		inv, root = clitest.New(t, "organization", "settings", "show", "default-org-member-roles")
+		//nolint:gocritic // Using the owner, testing the cli not perms
+		clitest.SetupConfig(t, owner, root)
+
+		buf = new(bytes.Buffer)
+		inv.Stdout = buf
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		var fetched codersdk.Organization
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &fetched))
+		require.Equal(t, []string{codersdk.RoleOrganizationTemplateAdmin}, fetched.DefaultOrgMemberRoles)
+	})
+
+	t.Run("NonBuiltInRoleRejected", func(t *testing.T) {
+		t.Parallel()
+
+		owner, _ := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inv, root := clitest.New(t, "organization", "settings", "set", "default-org-member-roles")
+		//nolint:gocritic // Using the owner, testing the cli not perms
+		clitest.SetupConfig(t, owner, root)
+
+		inv.Stdout = new(bytes.Buffer)
+		inv.Stdin = bytes.NewBufferString(`{"default_org_member_roles": ["not-a-built-in-role"]}`)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "Invalid default_org_member_roles entry")
+	})
+}

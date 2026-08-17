@@ -110,6 +110,9 @@ type CreateOrganizationRequest struct {
 	DisplayName string `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
 	Description string `json:"description,omitempty"`
 	Icon        string `json:"icon,omitempty"`
+	// DefaultOrgMemberRoles, when non-nil, sets the org's default member
+	// roles instead of the deployment-wide default.
+	DefaultOrgMemberRoles *[]string `json:"default_org_member_roles,omitempty"`
 }
 
 type UpdateOrganizationRequest struct {

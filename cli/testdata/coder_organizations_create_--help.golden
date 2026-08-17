@@ -6,6 +6,10 @@ USAGE:
   Create a new organization.
 
 OPTIONS:
+      --default-org-member-roles string-array
+          Roles granted to every member of the organization. Pass an empty
+          string to grant no roles.
+
   -y, --yes bool
           Bypass confirmation prompts.
 

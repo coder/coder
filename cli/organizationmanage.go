@@ -12,6 +12,7 @@ import (
 )
 
 func (r *RootCmd) createOrganization() *serpent.Command {
+	var defaultOrgMemberRoles []string
 	cmd := &serpent.Command{
 		Use:   "create <organization name>",
 		Short: "Create a new organization.",
@@ -19,6 +20,12 @@ func (r *RootCmd) createOrganization() *serpent.Command {
 			serpent.RequireNArgs(1),
 		),
 		Options: serpent.OptionSet{
+			{
+				Name:        "default-org-member-roles",
+				Flag:        "default-org-member-roles",
+				Description: "Roles granted to every member of the organization. Pass an empty string to grant no roles.",
+				Value:       serpent.StringArrayOf(&defaultOrgMemberRoles),
+			},
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
@@ -42,9 +49,23 @@ func (r *RootCmd) createOrganization() *serpent.Command {
 				return xerrors.Errorf("organization %q already exists", orgName)
 			}
 
-			organization, err := client.CreateOrganization(inv.Context(), codersdk.CreateOrganizationRequest{
+			req := codersdk.CreateOrganizationRequest{
 				Name: orgName,
-			})
+			}
+			if inv.ParsedFlags().Changed("default-org-member-roles") {
+				// An empty flag value parses to a nil slice. Send an
+				// allocated empty slice so the request carries [] rather
+				// than null, which the server reads as "unspecified".
+				roles := make([]string, 0, len(defaultOrgMemberRoles))
+				for _, role := range defaultOrgMemberRoles {
+					if role != "" {
+						roles = append(roles, role)
+					}
+				}
+				req.DefaultOrgMemberRoles = &roles
+			}
+
+			organization, err := client.CreateOrganization(inv.Context(), req)
 			if err != nil {
 				return xerrors.Errorf("failed to create organization: %w", err)
 			}
