@@ -3,6 +3,7 @@ package coderd
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -36,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -5932,6 +5935,138 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+const chatFileDownloadURLDuration = 5 * time.Minute
+
+type chatFileDownloadClaims struct {
+	jwtutils.RegisteredClaims
+	FileID uuid.UUID `json:"file_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (c chatFileDownloadClaims) Validate(expected jwt.Expected) error {
+	if c.FileID == uuid.Nil {
+		return xerrors.New("file ID is required")
+	}
+	if c.UserID == uuid.Nil {
+		return xerrors.New("user ID is required")
+	}
+	return c.RegisteredClaims.Validate(expected)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Create chat file download URL
+// @ID create-chat-file-download-url
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param file path string true "File ID" format(uuid)
+// @Success 200 {object} codersdk.ChatFileDownloadURLResponse
+// @Router /api/experimental/chats/files/{file}/download-url [post]
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	fileID, err := uuid.Parse(chi.URLParam(r, "file"))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid file ID.",
+		})
+		return
+	}
+
+	chatFile, err := api.Database.GetChatFileByID(ctx, fileID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat file.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	now := time.Now()
+	expiresAt := now.Add(chatFileDownloadURLDuration)
+	claims := chatFileDownloadClaims{
+		RegisteredClaims: jwtutils.RegisteredClaims{
+			Expiry:   jwt.NewNumericDate(expiresAt),
+			IssuedAt: jwt.NewNumericDate(now),
+		},
+		FileID: fileID,
+		UserID: httpmw.APIKey(r).UserID,
+	}
+	token, err := jwtutils.Sign(ctx, api.ChatFileTokenKeyCache, claims)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create chat file download URL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	downloadURL := api.AccessURL.JoinPath("api", "experimental", "chats", "files", fileID.String(), "download")
+	query := downloadURL.Query()
+	query.Set("token", token)
+	downloadURL.RawQuery = query.Encode()
+	digest := sha256.Sum256(chatFile.Data)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatFileDownloadURLResponse{
+		URL:       downloadURL.String(),
+		ExpiresAt: expiresAt,
+		SHA256:    fmt.Sprintf("%x", digest),
+		SizeBytes: int64(len(chatFile.Data)),
+		Name:      chatFile.Name,
+		MimeType:  chatFile.Mimetype,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Download chat file with signed token
+// @ID download-chat-file
+// @Tags Chats
+// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Param file path string true "File ID" format(uuid)
+// @Param token query string true "Signed download token"
+// @Success 200
+// @Router /api/experimental/chats/files/{file}/download [get]
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	fileID, err := uuid.Parse(chi.URLParam(r, "file"))
+	if err != nil {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var claims chatFileDownloadClaims
+	if err := jwtutils.Verify(ctx, api.ChatFileTokenKeyCache, r.URL.Query().Get("token"), &claims); err != nil || claims.FileID != fileID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	subject, status, err := httpmw.UserRBACSubject(ctx, api.Database, claims.UserID, rbac.ScopeAll)
+	if err != nil || status != database.UserStatusActive {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	chatFile, err := api.Database.GetChatFileByID(dbauthz.As(ctx, subject), fileID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat file.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	api.serveChatFile(rw, r, chatFile)
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Get chat file
@@ -5968,6 +6103,10 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	api.serveChatFile(rw, r, chatFile)
+}
+
+func (api *API) serveChatFile(rw http.ResponseWriter, r *http.Request, chatFile database.ChatFile) {
 	rw.Header().Set("Content-Type", chatFile.Mimetype)
 	disposition := "attachment"
 	if chatfiles.IsInlineRenderableStoredMediaType(chatFile.Mimetype) {
@@ -5982,7 +6121,7 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
 	rw.WriteHeader(http.StatusOK)
 	if _, err := rw.Write(chatFile.Data); err != nil {
-		api.Logger.Debug(ctx, "failed to write chat file response", slog.Error(err))
+		api.Logger.Debug(r.Context(), "failed to write chat file response", slog.Error(err))
 	}
 }
 

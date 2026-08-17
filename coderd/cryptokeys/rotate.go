@@ -46,6 +46,7 @@ var defaultRotatedFeatures = []database.CryptoKeyFeature{
 	database.CryptoKeyFeatureWorkspaceAppsToken,
 	database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 	database.CryptoKeyFeatureOIDCConvert,
+	database.CryptoKeyFeatureChatFilesToken,
 	database.CryptoKeyFeatureTailnetResume,
 }
 
@@ -273,6 +274,8 @@ func generateNewSecret(feature database.CryptoKeyFeature, startsAt time.Time, ke
 		return generateKey(64)
 	case database.CryptoKeyFeatureOIDCConvert:
 		return generateKey(64)
+	case database.CryptoKeyFeatureChatFilesToken:
+		return generateKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateKey(64)
 	case database.CryptoKeyFeatureNATSCA:
@@ -297,6 +300,8 @@ func tokenDuration(feature database.CryptoKeyFeature) time.Duration {
 	case database.CryptoKeyFeatureWorkspaceAppsToken:
 		return WorkspaceAppsTokenDuration
 	case database.CryptoKeyFeatureOIDCConvert:
+		return OIDCConvertTokenDuration
+	case database.CryptoKeyFeatureChatFilesToken:
 		return OIDCConvertTokenDuration
 	case database.CryptoKeyFeatureTailnetResume:
 		return TailnetResumeTokenDuration

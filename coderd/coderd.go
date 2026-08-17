@@ -323,6 +323,7 @@ type Options struct {
 	AppSigningKeyCache    cryptokeys.SigningKeycache
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
+	ChatFileTokenKeyCache cryptokeys.SigningKeycache
 	// NATSCACache serves the NATS cluster mTLS CA via the generic signing key
 	// cache for the nats_ca feature. SigningKey returns the active CA
 	// (a *NATSCA); VerifyingKey returns a specific CA by sequence. The key
@@ -590,6 +591,17 @@ func New(options *Options) *API {
 		)
 		if err != nil {
 			options.Logger.Fatal(ctx, "failed to properly instantiate oidc convert signing cache", slog.Error(err))
+		}
+	}
+
+	if options.ChatFileTokenKeyCache == nil {
+		options.ChatFileTokenKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("chat_file_token_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureChatFilesToken,
+		)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to properly instantiate chat file token signing cache", slog.Error(err))
 		}
 	}
 
@@ -1359,6 +1371,10 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserAIProviderKey)
 			})
 		})
+		r.Group(func(r chi.Router) {
+			r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
+			r.Get("/chats/files/{file}/download", api.downloadChatFile)
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1371,6 +1387,7 @@ func New(options *Options) *API {
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)
+				r.Post("/{file}/download-url", api.postChatFileDownloadURL)
 				r.Get("/{file}", api.chatFileByID)
 			})
 			r.Route("/config", func(r chi.Router) {
@@ -2493,6 +2510,7 @@ func (api *API) Close() error {
 	}
 	_ = api.NetworkTelemetryBatcher.Close()
 	_ = api.OIDCConvertKeyCache.Close()
+	_ = api.ChatFileTokenKeyCache.Close()
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
 	if api.NATSCACache != nil {
