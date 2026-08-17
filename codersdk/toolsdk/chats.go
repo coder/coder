@@ -481,7 +481,7 @@ var ListChats = Tool[ListChatsArgs, ListChatsResponse]{
 				},
 				"query": map[string]any{
 					"type":        "string",
-					"description": "Optional chat search query using fielded terms; bare text is rejected. Supported fields: title:<text>, repo:<owner/name>, pr:<number>, pr_title:<text>, pr_status:<draft|open|merged|closed>, archived:<true|false>, has_unread:<true|false>, source:<created_by_me|shared_with_me>. Quote values containing spaces, e.g. title:\"failed deployment\".",
+					"description": "Optional chat search query using fielded terms; bare text is rejected. Supported fields: search:<text> (full-text, cannot combine with title, pr_title, or pr), title:<text>, repo:<owner/name>, pr:<number>, pr_title:<text>, pr_status:<draft|open|merged|closed>, diff_url:<url>, archived:<true|false>, has_unread:<true|false>, source:<created_by_me|shared_with_me>. Quote values containing spaces, e.g. search:\"failed deployment\".",
 				},
 				"limit": map[string]any{
 					"type":        "integer",
