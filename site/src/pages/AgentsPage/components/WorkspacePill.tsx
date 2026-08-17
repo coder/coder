@@ -234,7 +234,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								<MonitorIcon className="mt-px size-3.5 shrink-0" />
 								<span className="flex min-w-0 flex-col">
 									<span className="truncate">View Workspace</span>
-									<span className="truncate text-[0.7rem] font-normal text-content-secondary">
+									<span className="truncate text-[0.7rem] font-normal text-content-disabled">
 										{statusLabel}
 									</span>
 								</span>
