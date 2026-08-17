@@ -220,7 +220,7 @@ export const TemplateCustomizationsStep: FC<
 
 const ProvisionerWarning: FC = () => {
 	return (
-		<Alert severity="warning" prominent className="my-4">
+		<Alert severity="error" prominent className="my-4">
 			This organization does not have any provisioners. Before you create a
 			template, you&apos;ll need to configure a provisioner.{" "}
 			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
