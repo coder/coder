@@ -965,6 +965,26 @@ export const MockTemplate: TypesGen.Template = {
 	disable_module_cache: false,
 };
 
+export const MockAIEgressPolicyEmpty: TypesGen.AIEgressPolicy = {
+	template_id: MockTemplate.id,
+	revision: 0,
+	rules: [],
+	updated_at: "0001-01-01T00:00:00Z",
+	updated_by: "00000000-0000-0000-0000-000000000000",
+};
+
+export const MockAIEgressPolicy: TypesGen.AIEgressPolicy = {
+	...MockAIEgressPolicyEmpty,
+	revision: 7,
+	rules: [
+		{ host: "github.com", ports: [443] },
+		{ host: "api.example.com", ports: [80, 443] },
+		{ host: "registry.example.com" },
+	],
+	updated_at: "2026-08-17T12:00:00Z",
+	updated_by: "11111111-1111-1111-1111-111111111111",
+};
+
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
 	"README.md": "# Example\n\nThis is an example template.",
 	"main.tf": `// Provides info about the workspace.

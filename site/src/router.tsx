@@ -100,6 +100,12 @@ const WorkspaceSharingPage = lazy(
 		),
 );
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
+const TemplateAIEgressPolicyPage = lazy(
+	() =>
+		import(
+			"./pages/TemplateSettingsPage/TemplateAIEgressPolicyPage/TemplateAIEgressPolicyPage"
+		),
+);
 const TemplatePermissionsPage = lazy(
 	() =>
 		import(
@@ -513,6 +519,10 @@ const templateRouter = () => {
 					<Route path="permissions" element={<TemplatePermissionsPage />} />
 					<Route path="variables" element={<TemplateVariablesPage />} />
 					<Route path="schedule" element={<TemplateSchedulePage />} />
+					<Route
+						path="ai-egress-policy"
+						element={<TemplateAIEgressPolicyPage />}
+					/>
 				</Route>
 
 				<Route path="versions">

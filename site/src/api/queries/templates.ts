@@ -10,6 +10,7 @@ import {
 	type GetTemplatesQuery,
 } from "#/api/api";
 import type {
+	AIEgressPolicy,
 	CreateTemplateRequest,
 	CreateTemplateVersionRequest,
 	ProvisionerJob,
@@ -17,13 +18,14 @@ import type {
 	Template,
 	TemplateRole,
 	TemplateVersion,
+	UpdateAIEgressPolicyRequest,
 	UpdateTemplateMeta,
 	UsersRequest,
 } from "#/api/typesGenerated";
 import { delay } from "#/utils/delay";
 import { getTemplateVersionFiles } from "#/utils/templateVersion";
 
-const templateKey = (templateId: string) => ["template", templateId];
+const templateKey = (templateId: string) => ["template", templateId] as const;
 const templateListsKey = ["templates", "list"] as const;
 
 export const template = (templateId: string) => {
@@ -32,6 +34,33 @@ export const template = (templateId: string) => {
 		queryFn: async () => API.getTemplate(templateId),
 	} satisfies QueryOptions<Template>;
 };
+
+export const templateAIEgressPolicyKey = (templateId: string) =>
+	[...templateKey(templateId), "aiEgressPolicy"] as const;
+
+export const templateAIEgressPolicy = (templateId: string) => ({
+	queryKey: templateAIEgressPolicyKey(templateId),
+	queryFn: (): Promise<AIEgressPolicy> =>
+		API.getTemplateAIEgressPolicy(templateId),
+});
+
+export const updateTemplateAIEgressPolicy = (
+	templateId: string,
+	queryClient: QueryClient,
+) =>
+	mutationOptions({
+		mutationFn: (
+			request: UpdateAIEgressPolicyRequest,
+		): Promise<AIEgressPolicy> =>
+			API.updateTemplateAIEgressPolicy(templateId, request),
+		onSuccess: async (policy) => {
+			queryClient.setQueryData(templateAIEgressPolicyKey(templateId), policy);
+			await queryClient.invalidateQueries({
+				queryKey: templateAIEgressPolicyKey(templateId),
+				refetchType: "none",
+			});
+		},
+	});
 
 export const templateByNameKey = (organization: string, name: string) => [
 	organization,

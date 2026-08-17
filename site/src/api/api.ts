@@ -2106,6 +2106,26 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getTemplateAIEgressPolicy = async (
+		templateId: string,
+	): Promise<TypesGen.AIEgressPolicy> => {
+		const response = await this.axios.get<TypesGen.AIEgressPolicy>(
+			`/api/v2/templates/${templateId}/ai-egress-policy`,
+		);
+		return response.data;
+	};
+
+	updateTemplateAIEgressPolicy = async (
+		templateId: string,
+		request: TypesGen.UpdateAIEgressPolicyRequest,
+	): Promise<TypesGen.AIEgressPolicy> => {
+		const response = await this.axios.put<TypesGen.AIEgressPolicy>(
+			`/api/v2/templates/${templateId}/ai-egress-policy`,
+			request,
+		);
+		return response.data;
+	};
+
 	getTemplateACLAvailable = async (
 		templateId: string,
 		options: TypesGen.UsersRequest,

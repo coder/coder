@@ -19,6 +19,9 @@ export const Sidebar: React.FC = () => {
 				<SettingsSidebarNavItem href="schedule">
 					Schedule
 				</SettingsSidebarNavItem>
+				<SettingsSidebarNavItem href="ai-egress-policy">
+					AI Egress Policy
+				</SettingsSidebarNavItem>
 			</div>
 		</BaseSidebar>
 	);
