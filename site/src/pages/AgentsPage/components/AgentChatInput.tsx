@@ -1184,7 +1184,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					</div>
 				)}
 				{isEditingHistoryMessage && editingQueuedMessageID === null && (
-					<div className="flex items-center justify-between border-b border-border-warning/50 px-3 py-1.5">
+					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
 							Editing will delete all subsequent messages and restart the
