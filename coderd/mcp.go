@@ -1240,7 +1240,7 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	configID, parsed := httpmw.ParseUUIDParam(rw, r, "mcpserverconfig")
+	configID, parsed := httpmw.ParseUUIDParam(rw, r, "mcpServer")
 	if !parsed {
 		return
 	}

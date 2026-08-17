@@ -659,7 +659,7 @@ func TestPostChats(t *testing.T) {
 			OrganizationID: firstUser.OrganizationID,
 			Enabled:        true,
 		})
-		disabledCfg, err := client.Client.UpdateMCPServerConfig(ctx, enabledCfg.ID, codersdk.UpdateMCPServerConfigRequest{
+		disabledCfg, err := client.Client.UpdateMCPServerConfig(ctx, enabledCfg.OrganizationID, enabledCfg.ID, codersdk.UpdateMCPServerConfigRequest{
 			Enabled: ptr.Ref(false),
 		})
 		require.NoError(t, err)
@@ -734,7 +734,7 @@ func TestPostChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = client.Client.UpdateMCPServerConfig(ctx, cfg.ID, codersdk.UpdateMCPServerConfigRequest{
+		_, err = client.Client.UpdateMCPServerConfig(ctx, cfg.OrganizationID, cfg.ID, codersdk.UpdateMCPServerConfigRequest{
 			Enabled: ptr.Ref(false),
 		})
 		require.NoError(t, err)
@@ -761,7 +761,7 @@ func TestPostChats(t *testing.T) {
 			OrganizationID: firstUser.OrganizationID,
 			Enabled:        true,
 		})
-		_, err = client.Client.UpdateMCPServerConfig(ctx, secondCfg.ID, codersdk.UpdateMCPServerConfigRequest{
+		_, err = client.Client.UpdateMCPServerConfig(ctx, secondCfg.OrganizationID, secondCfg.ID, codersdk.UpdateMCPServerConfigRequest{
 			Enabled: ptr.Ref(false),
 		})
 		require.NoError(t, err)

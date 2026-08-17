@@ -45,6 +45,10 @@ func ExtractMCPServerConfigParam(db database.Store) func(http.Handler) http.Hand
 				})
 				return
 			}
+			if config.OrganizationID != OrganizationParam(r).ID {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
 
 			ctx = context.WithValue(ctx, mcpServerConfigParamContextKey{}, config)
 			next.ServeHTTP(rw, r.WithContext(ctx))

@@ -147,7 +147,7 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.False(t, configs[0].AllowInPlanMode)
 	require.False(t, configs[0].ForwardCoderHeaders)
 
-	fetched, err := client.MCPServerConfigByID(ctx, created.ID)
+	fetched, err := client.MCPServerConfigByID(ctx, created.OrganizationID, created.ID)
 	require.NoError(t, err)
 	require.Equal(t, created.ID, fetched.ID)
 	require.False(t, fetched.AllowInPlanMode)
@@ -159,7 +159,7 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	newAvail := "force_on"
 	allowInPlanMode := true
 	forwardCoderHeaders := true
-	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+	updated, err := client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		DisplayName:         &newName,
 		Availability:        &newAvail,
 		AllowInPlanMode:     &allowInPlanMode,
@@ -183,19 +183,38 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.True(t, configs[0].AllowInPlanMode)
 	require.True(t, configs[0].ForwardCoderHeaders)
 
-	fetched, err = client.MCPServerConfigByID(ctx, created.ID)
+	fetched, err = client.MCPServerConfigByID(ctx, created.OrganizationID, created.ID)
 	require.NoError(t, err)
 	require.True(t, fetched.AllowInPlanMode)
 	require.True(t, fetched.ForwardCoderHeaders)
 
 	// Delete it.
-	err = client.DeleteMCPServerConfig(ctx, created.ID)
+	err = client.DeleteMCPServerConfig(ctx, created.OrganizationID, created.ID)
 	require.NoError(t, err)
 
 	// Verify it's gone.
 	configs, err = client.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Empty(t, configs)
+}
+
+func TestMCPServerConfigWrongOrganization(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	config := createMCPServerConfig(t, client, firstUser.OrganizationID, "wrong-org", true)
+	otherOrganization := dbgen.Organization(t, db, database.Organization{})
+
+	_, err := client.MCPServerConfigByID(ctx, otherOrganization.ID, config.ID)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 }
 
 func TestMCPServerConfigsNonAdmin(t *testing.T) {
@@ -234,7 +253,7 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 		for _, config := range auditorConfigs {
 			require.NotEmpty(t, config.URL, "%s: %s", name, config.Slug)
 			if !config.Enabled {
-				fetched, err := auditorClient.MCPServerConfigByID(ctx, config.ID)
+				fetched, err := auditorClient.MCPServerConfigByID(ctx, config.OrganizationID, config.ID)
 				require.NoError(t, err, name)
 				require.NotEmpty(t, fetched.URL, name)
 			}
@@ -313,7 +332,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 	}
 
 	// Admin get-by-ID endpoint.
-	adminSingle, err := adminClient.MCPServerConfigByID(ctx, created.ID)
+	adminSingle, err := adminClient.MCPServerConfigByID(ctx, created.OrganizationID, created.ID)
 	require.NoError(t, err)
 	assertNoSecrets(t, "admin get-by-id", adminSingle)
 
@@ -335,7 +354,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 	}
 
 	// Non-admin get-by-ID endpoint.
-	memberSingle, err := memberClient.MCPServerConfigByID(ctx, created.ID)
+	memberSingle, err := memberClient.MCPServerConfigByID(ctx, created.OrganizationID, created.ID)
 	require.NoError(t, err)
 	assertNoSecrets(t, "member get-by-id", memberSingle)
 	assert.Empty(t, memberSingle.OAuth2ClientID, "member should not see OAuth2ClientID")
@@ -446,14 +465,14 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.Equal(t, "https://auth.example.com/revoke", created.OAuth2RevocationURL)
 
 	newRevocationURL := "https://auth.example.com/revoke2"
-	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+	updated, err := client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		OAuth2RevocationURL: &newRevocationURL,
 	})
 	require.NoError(t, err)
 	require.Equal(t, newRevocationURL, updated.OAuth2RevocationURL)
 
 	invalidURL := "not a url"
-	_, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+	_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		OAuth2RevocationURL: &invalidURL,
 	})
 	require.Error(t, err)
@@ -463,7 +482,7 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 
 	// Plaintext URLs are rejected on save, not later at disconnect.
 	plaintextURL := "http://auth.example.com/revoke"
-	_, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+	_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		OAuth2RevocationURL: &plaintextURL,
 	})
 	require.ErrorAs(t, err, &sdkErr)
@@ -489,20 +508,20 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 
 	// An explicit empty string clears the stored URL.
 	emptyURL := ""
-	updated, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+	updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		OAuth2RevocationURL: &emptyURL,
 	})
 	require.NoError(t, err)
 	require.Empty(t, updated.OAuth2RevocationURL)
 
-	updated, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+	updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		OAuth2RevocationURL: &newRevocationURL,
 	})
 	require.NoError(t, err)
 	require.Equal(t, newRevocationURL, updated.OAuth2RevocationURL)
 
 	newAuth := "user_oidc"
-	updated, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+	updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		AuthType: &newAuth,
 	})
 	require.NoError(t, err)
@@ -611,7 +630,7 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 		seedToken(ctx, t, config.ID)
 
 		newURL := "https://mcp.example.com/grant-url-change-moved"
-		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
 			URL: &newURL,
 		})
 		require.NoError(t, err)
@@ -625,7 +644,7 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 		seedToken(ctx, t, config.ID)
 
 		authType := "none"
-		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
 			AuthType: &authType,
 		})
 		require.NoError(t, err)
@@ -639,7 +658,7 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 		seedToken(ctx, t, config.ID)
 
 		movedEndpoint := "https://auth.example.com/other-endpoint"
-		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
 			OAuth2TokenURL: &movedEndpoint,
 		})
 		require.NoError(t, err)
@@ -653,7 +672,7 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 		seedToken(ctx, t, config.ID)
 
 		newClientID := "cid-2"
-		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
 			OAuth2ClientID: &newClientID,
 		})
 		require.NoError(t, err)
@@ -668,7 +687,7 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 
 		displayName := "Grant Invalidation renamed"
 		newSecret := "rotated-secret"
-		_, err := adminClient.UpdateMCPServerConfig(ctx, config.ID, codersdk.UpdateMCPServerConfigRequest{
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
 			DisplayName:        &displayName,
 			OAuth2ClientSecret: &newSecret,
 		})
@@ -693,7 +712,7 @@ func TestMCPServerConfigsOAuth2CallbackRejectsSupersededConfig(t *testing.T) {
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if id := configID.Load(); id != nil {
 			movedURL := "https://attacker.example.com/superseded"
-			_, err := adminClient.UpdateMCPServerConfig(ctx, *id, codersdk.UpdateMCPServerConfigRequest{
+			_, err := adminClient.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, *id, codersdk.UpdateMCPServerConfigRequest{
 				URL: &movedURL,
 			})
 			assert.NoError(t, err)
@@ -780,7 +799,7 @@ func TestMCPServerConfigsUserOIDCRequiresDeploymentPerms(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 
 	userOIDC := "user_oidc"
-	_, err = orgAdminClient.UpdateMCPServerConfig(ctx, orgAdminOwned.ID, codersdk.UpdateMCPServerConfigRequest{
+	_, err = orgAdminClient.UpdateMCPServerConfig(ctx, orgAdminOwned.OrganizationID, orgAdminOwned.ID, codersdk.UpdateMCPServerConfigRequest{
 		AuthType: &userOIDC,
 	})
 	require.ErrorAs(t, err, &sdkErr)
@@ -791,14 +810,14 @@ func TestMCPServerConfigsUserOIDCRequiresDeploymentPerms(t *testing.T) {
 
 	// The URL determines where chat owners' OIDC tokens are sent.
 	newURL := "https://attacker.example.com/exfil"
-	_, err = orgAdminClient.UpdateMCPServerConfig(ctx, deploymentOwned.ID, codersdk.UpdateMCPServerConfigRequest{
+	_, err = orgAdminClient.UpdateMCPServerConfig(ctx, deploymentOwned.OrganizationID, deploymentOwned.ID, codersdk.UpdateMCPServerConfigRequest{
 		URL: &newURL,
 	})
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 
 	updatedURL := "https://mcp.example.com/deployment-oidc-v2"
-	updated, err := adminClient.UpdateMCPServerConfig(ctx, deploymentOwned.ID, codersdk.UpdateMCPServerConfigRequest{
+	updated, err := adminClient.UpdateMCPServerConfig(ctx, deploymentOwned.OrganizationID, deploymentOwned.ID, codersdk.UpdateMCPServerConfigRequest{
 		URL: &updatedURL,
 	})
 	require.NoError(t, err)
@@ -1967,12 +1986,8 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 			return http.ErrUseLastResponse
 		}
 
-		connectURL, err := memberClient.URL.Parse(
-			"/api/experimental/mcp-servers/" + created.ID.String() + "/oauth2/connect",
-		)
-		require.NoError(t, err)
-
-		req, err := http.NewRequestWithContext(ctx, "GET", connectURL.String(), nil)
+		connectURL := memberClient.MCPServerOAuth2ConnectURL(created.OrganizationID, created.ID)
+		req, err := http.NewRequestWithContext(ctx, "GET", connectURL, nil)
 		require.NoError(t, err)
 		req.AddCookie(&http.Cookie{
 			Name:  codersdk.SessionTokenCookie,
@@ -2228,7 +2243,7 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{mcpConfigA.ID, mcpConfigB.ID}, fetched.MCPServerIDs)
 
-	err = client.DeleteMCPServerConfig(ctx, mcpConfigA.ID)
+	err = client.DeleteMCPServerConfig(ctx, mcpConfigA.OrganizationID, mcpConfigA.ID)
 	require.NoError(t, err)
 
 	fetched, err = expClient.GetChat(ctx, chat.ID)
@@ -2835,7 +2850,7 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
 
 	// The single-config endpoint agrees.
-	single, err := memberClient.MCPServerConfigByID(ctx, created.ID)
+	single, err := memberClient.MCPServerConfigByID(ctx, created.OrganizationID, created.ID)
 	require.NoError(t, err)
 	require.False(t, single.AuthConnected)
 	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
