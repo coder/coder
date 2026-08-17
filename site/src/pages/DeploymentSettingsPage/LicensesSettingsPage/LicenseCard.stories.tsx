@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { expect, fn, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockLicenseResponse } from "#/testHelpers/entities";
 
 import { LicenseCard } from "./LicenseCard";
@@ -40,7 +40,7 @@ export const Default: Story = {
 };
 
 export const CollapsesProducts: Story = {
-	play: async ({ canvasElement, userEvent }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Products")).toBeVisible();
 		await userEvent.click(canvas.getByRole("button", { name: /#1/ }));

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, waitFor, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { CoderWorkspacesProductCard } from "./CoderWorkspacesProductCard";
 
 const meta: Meta<typeof CoderWorkspacesProductCard> = {
@@ -26,7 +26,7 @@ export const Default: Story = {
 };
 
 export const TooltipInteraction: Story = {
-	play: async ({ canvasElement, userEvent }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.tab();
 		await expect(

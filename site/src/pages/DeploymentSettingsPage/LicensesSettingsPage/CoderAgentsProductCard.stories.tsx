@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, waitFor, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { CoderAgentsProductCard } from "./CoderAgentsProductCard";
 
 const meta: Meta<typeof CoderAgentsProductCard> = {
@@ -43,7 +43,7 @@ export const Default: Story = {
 };
 
 export const TooltipInteractions: Story = {
-	play: async ({ canvasElement, userEvent, step }) => {
+	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
 		await step("open the Total Agent hours tooltip from keyboard", async () => {
 			await userEvent.tab();
