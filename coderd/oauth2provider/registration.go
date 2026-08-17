@@ -371,7 +371,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			Icon:         req.LogoURI,
 			CallbackURL:  req.RedirectURIs[0], // Primary redirect URI
 			RedirectUris: req.RedirectURIs,
-			// Carried through verbatim. The guard above rejects a request that
+			// Carried through unchanged. The guard above rejects a request that
 			// would change the type, so re-deriving it here could only ever
 			// differ for a legacy row whose stored type and auth method
 			// disagree, silently converting it to public while it still holds a
