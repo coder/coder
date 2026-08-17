@@ -19,6 +19,10 @@ import (
 // tokens.
 const tokensPerMillion = 1_000_000
 
+// unknownProviderType labels a metric whose provider did not resolve to a
+// configured type.
+const unknownProviderType = "unknown"
+
 // tokenUsageCost holds the cost-attribution columns snapshotted onto a token
 // usage record. A field left unset (Valid == false) is recorded as SQL NULL; a
 // price or cost of 0 is recorded as 0, which is distinct from NULL.
@@ -71,10 +75,10 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		// Only reachable if the provider was deleted mid-request.
-		s.logger.Info(ctx, "no configured provider found for interception, recording token usage with NULL cost",
+		s.logger.Warn(ctx, "no configured provider found for interception, recording token usage with NULL cost",
 			slog.F("provider_name", intc.ProviderName), slog.F("model", intc.Model))
 		if s.metrics != nil {
-			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.ProviderName, intc.Model).Inc()
+			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.ProviderName, unknownProviderType, intc.Model).Inc()
 		}
 		return result, nil
 	case err != nil:
@@ -93,7 +97,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 		s.logger.Info(ctx, "no price found for model, recording token usage with NULL cost",
 			slog.F("provider", configuredType), slog.F("model", intc.Model))
 		if s.metrics != nil {
-			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(configuredType, intc.Model).Inc()
+			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.ProviderName, configuredType, intc.Model).Inc()
 		}
 		return result, nil
 	case err != nil:
