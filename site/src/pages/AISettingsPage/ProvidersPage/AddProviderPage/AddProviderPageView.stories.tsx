@@ -86,9 +86,9 @@ export const WithBaseUrlValidationError: Story = {
 			"http://localai:8080/v1",
 		);
 		await userEvent.type(canvas.getByLabelText(/api key/i), "sk-local");
-		await userEvent.click(
-			canvas.getByRole("button", { name: /add provider/i }),
-		);
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
 		const endpointInput = canvas.getByLabelText(/^endpoint\s*\*?$/i);
 		await waitFor(() =>
 			expect(endpointInput).toHaveAttribute("aria-invalid", "true"),

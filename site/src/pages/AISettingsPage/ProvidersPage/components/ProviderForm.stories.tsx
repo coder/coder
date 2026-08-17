@@ -763,7 +763,8 @@ export const UnsavedChangesPrompt: Story = {
 	},
 };
 
-// Regression coverage for #27980.
+// Regression coverage for #27980. The create form must accept endpoints with
+// single-label hosts such as http://localai:8080/v1.
 export const AddOpenAICompatSingleLabelHost: Story = {
 	args: {
 		initialValues: {
