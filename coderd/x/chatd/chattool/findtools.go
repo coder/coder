@@ -17,7 +17,7 @@ const (
 	findToolsCatalogTokens = 4000
 )
 
-var findToolsTokenSeparator = regexp.MustCompile(`[^a-z0-9]+`)
+var findToolsTokenSeparator = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 
 // FindToolCatalogEntry is the searchable metadata for one deferred tool.
 type FindToolCatalogEntry struct {

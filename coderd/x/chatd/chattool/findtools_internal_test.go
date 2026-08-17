@@ -69,6 +69,18 @@ func TestSearchTools(t *testing.T) {
 		require.Len(t, capped.Matches, findToolsMaxMatches)
 		require.Len(t, capped.Activated, findToolsMaxMatches)
 	})
+	t.Run("unicode terms", func(t *testing.T) {
+		t.Parallel()
+		unicodeEntries := []FindToolCatalogEntry{
+			{Name: "docs__検索", Description: "ドキュメント検索"},
+			{Name: "docs__erstellen", Description: "Dokument ERSTELLEN"},
+		}
+		result := SearchTools(unicodeEntries, FindToolsArgs{Queries: []string{"検索"}})
+		require.Equal(t, []string{"docs__検索"}, result.Activated)
+
+		result = SearchTools(unicodeEntries, FindToolsArgs{Queries: []string{"Erstellen"}})
+		require.Equal(t, []string{"docs__erstellen"}, result.Activated)
+	})
 	t.Run("result descriptions are summarized", func(t *testing.T) {
 		t.Parallel()
 		long := []FindToolCatalogEntry{{
