@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -18,8 +19,11 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -563,4 +567,52 @@ func TestIsZeroChatModelCallConfigCoversEveryField(t *testing.T) {
 		require.Falsef(t, isZeroChatModelCallConfig(config),
 			"isZeroChatModelCallConfig ignores field %s", field.Name)
 	}
+}
+
+// TestChatWorkspaceConnAuthorizer verifies the chatd workspace-dial
+// authorizer against real RBAC state: revoking the owner's
+// organization-workspace-access role after a chat is bound must deny
+// subsequent internal dials.
+func TestChatWorkspaceConnAuthorizer(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	authorize := chatWorkspaceConnAuthorizer(db, rbac.NewAuthorizer(prometheus.NewRegistry()))
+
+	// Plain members receive workspace access through the org's
+	// default member roles (organization-workspace-access).
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         owner.ID,
+		OrganizationID: org.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+	})
+
+	require.NoError(t, authorize(ctx, owner.ID, ws.ID))
+
+	// Revoke workspace access by clearing the org's default member
+	// roles, the documented mechanism for revoking capabilities that
+	// plain members otherwise hold.
+	_, err := db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+		ID:                    org.ID,
+		UpdatedAt:             org.UpdatedAt,
+		Name:                  org.Name,
+		DisplayName:           org.DisplayName,
+		Description:           org.Description,
+		Icon:                  org.Icon,
+		DefaultOrgMemberRoles: []string{},
+	})
+	require.NoError(t, err)
+
+	require.Error(t, authorize(ctx, owner.ID, ws.ID))
 }

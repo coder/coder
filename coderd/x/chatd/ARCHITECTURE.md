@@ -855,6 +855,13 @@ The generation goroutine supports:
 - file links
 - workspace binding
 - plan mode
+
+<!-- TODO(human): document the workspace conn authorization gate: chatd
+re-checks the chat owner's exec-level workspace access (via the
+Config.AuthorizeWorkspaceConn callback wired from coderd) before every
+internal agent conn use, so revoking workspace access takes effect on
+the next tool call rather than persisting through a bound chat. -->
+
 - respecting model configuration
 - provider-specific tools like web search and computer use
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)

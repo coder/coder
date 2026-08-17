@@ -1719,6 +1719,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
+		authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 	}
 	server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		dialed = append(dialed, agentID)
@@ -1791,6 +1792,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    30 * time.Second,
+		authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 	}
 	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		return nil, nil, xerrors.New("dial failed")
@@ -2488,6 +2490,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
+		authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 	}
 	server.agentConnFn = func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		switch id {
@@ -2583,6 +2586,7 @@ func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
+		authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 	}
 	server.agentConnFn = func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		return nil, nil, dialErr
@@ -2729,6 +2733,7 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 				clock:                          clock,
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    defaultDialTimeout,
+				authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 			}
 			server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				return nil, nil, xerrors.New("should not be called")
@@ -2894,6 +2899,7 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 				clock:                          clock,
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    10 * time.Millisecond,
+				authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 			}
 			dialEntered := make(chan struct{})
 			var closeDialEntered sync.Once
@@ -3004,6 +3010,7 @@ func TestGetWorkspaceConn_DisconnectedStatusDialSuccessDoesNotEscalate(t *testin
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    10 * time.Millisecond,
+		authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 	}
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
@@ -3073,6 +3080,7 @@ func TestGetWorkspaceConn_CacheHitDisconnectedRetriesDialBeforeEscalating(t *tes
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    10 * time.Millisecond,
+		authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 	}
 	newConn := agentconnmock.NewMockAgentConn(ctrl)
 	newConn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
@@ -3155,6 +3163,7 @@ func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    10 * time.Millisecond,
+		authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 	}
 	// Dial blocks forever (simulates unreachable agent).
 	server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -3227,7 +3236,8 @@ func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		// Use a very long dial timeout so the parent cancel fires
 		// first.
-		dialTimeout: 10 * time.Minute,
+		dialTimeout:              10 * time.Minute,
+		authorizeWorkspaceConnFn: allowAllWorkspaceConnForTest,
 	}
 	// Signal when the dial goroutine has started so we can
 	// cancel the parent at the right time without time.Sleep.
@@ -3313,6 +3323,7 @@ func TestGetWorkspaceConn_PreflightExternalAgentTimedOut(t *testing.T) {
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
+		authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 	}
 	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		t.Fatal("unexpected agent dial for external agent preflight")
@@ -3382,6 +3393,7 @@ func TestGetWorkspaceConn_PreflightExternalAgentConnectingDials(t *testing.T) {
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
+		authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 	}
 	server.agentConnFn = func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		dialed = true
@@ -3468,7 +3480,8 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		// Generous timeout so the dial error fires well before
 		// the timeout.
-		dialTimeout: defaultDialTimeout,
+		dialTimeout:              defaultDialTimeout,
+		authorizeWorkspaceConnFn: allowAllWorkspaceConnForTest,
 	}
 	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		// Return an error immediately (not a timeout).
@@ -3585,6 +3598,7 @@ func TestGetWorkspaceConnBumpsWorkspaceUsage(t *testing.T) {
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    testutil.WaitLong,
+		authorizeWorkspaceConnFn:       allowAllWorkspaceConnForTest,
 		usageTracker:                   tracker,
 		agentConnFn: func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)

@@ -128,6 +128,8 @@ func experimentsOrDefault(experiments codersdk.Experiments) codersdk.Experiments
 	return experiments
 }
 
+func allowAllWorkspaceConnForTest(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+
 // newInternalTestServer creates a passive Server for internal tests with
 // custom provider API keys. Pass withInternalTestServerWorker to start the
 // background chat worker for tests that need real execution.
@@ -158,6 +160,7 @@ func newInternalTestServer(
 		ProviderAPIKeys:            keys,
 		Experiments:                experimentsOrDefault(cfg.experiments),
 		AIBridgeTransportFactory:   cfg.transportFactory,
+		AuthorizeWorkspaceConn:     allowAllWorkspaceConnForTest,
 	})
 	if cfg.startWorker {
 		server.Start()
