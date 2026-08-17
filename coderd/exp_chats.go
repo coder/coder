@@ -498,27 +498,45 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	sdkChats := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
-	api.enrichChatWithWorkspaceAgentIDs(ctx, sdkChats)
+	api.enrichChatsWithMissingAgentIDs(ctx, sdkChats)
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
 }
 
-// enrichChatWithWorkspaceAgentIDs fills missing AgentIDs for chats with a bound
-// workspace, since chatd persists the binding lazily. Best-effort and
-// response-only; on error the field stays null.
-func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []codersdk.Chat) {
-	missingChats := make([]*codersdk.Chat, 0, len(chats))
+// enrichChatsWithMissingAgentIDs skips existing bindings on list reads to avoid
+// one authorization check per bound workspace.
+func (api *API) enrichChatsWithMissingAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	api.enrichChatAgentIDs(ctx, chats, func(chat *codersdk.Chat) bool {
+		return chat.AgentID == nil
+	})
+}
+
+// repairChatAgentIDs handles stale bindings left by workspace rebuilds. List
+// reads skip this work to avoid authorization checks for bound workspaces.
+func (api *API) repairChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	api.enrichChatAgentIDs(ctx, chats, func(*codersdk.Chat) bool {
+		return true
+	})
+}
+
+// enrichChatAgentIDs performs best-effort response-only updates.
+func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat, shouldEnrich func(*codersdk.Chat) bool) {
+	candidateChats := make([]*codersdk.Chat, 0, len(chats))
 	var workspaceIDs []uuid.UUID
-	addMissing := func(chat *codersdk.Chat) {
-		if chat.AgentID == nil && chat.WorkspaceID != nil {
-			missingChats = append(missingChats, chat)
-			workspaceIDs = append(workspaceIDs, *chat.WorkspaceID)
+	addCandidate := func(chat *codersdk.Chat) {
+		if chat.WorkspaceID == nil || !shouldEnrich(chat) {
+			return
 		}
+		candidateChats = append(candidateChats, chat)
+		workspaceIDs = append(workspaceIDs, *chat.WorkspaceID)
 	}
 	for i := range chats {
-		addMissing(&chats[i])
+		addCandidate(&chats[i])
 		for j := range chats[i].Children {
-			addMissing(&chats[i].Children[j])
+			addCandidate(&chats[i].Children[j])
 		}
+	}
+	if len(candidateChats) == 0 {
+		return
 	}
 
 	slices.SortFunc(workspaceIDs, func(a, b uuid.UUID) int {
@@ -531,8 +549,10 @@ func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []cod
 	}
 
 	agentsByWorkspace := make(map[uuid.UUID][]database.WorkspaceAgent)
+	latestBuildIDs := make(map[uuid.UUID]uuid.UUID)
 	for _, row := range rows {
 		agentsByWorkspace[row.WorkspaceID] = append(agentsByWorkspace[row.WorkspaceID], row.WorkspaceAgent)
+		latestBuildIDs[row.WorkspaceID] = row.BuildID
 	}
 	agentIDs := make(map[uuid.UUID]uuid.UUID, len(agentsByWorkspace))
 	for workspaceID, agents := range agentsByWorkspace {
@@ -544,10 +564,22 @@ func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []cod
 		agentIDs[workspaceID] = agent.ID
 	}
 
-	for _, chat := range missingChats {
+	for _, chat := range candidateChats {
+		// Preserve bindings that still resolve in the latest build instead
+		// of replacing them with the selected agent.
+		if chat.AgentID != nil && slices.ContainsFunc(
+			agentsByWorkspace[*chat.WorkspaceID],
+			func(agent database.WorkspaceAgent) bool { return agent.ID == *chat.AgentID },
+		) {
+			continue
+		}
 		if agentID, ok := agentIDs[*chat.WorkspaceID]; ok {
 			id := agentID
 			chat.AgentID = &id
+			// Pair the agent with its build so the response never mixes
+			// the latest build's agent with a previous build's ID.
+			buildID := latestBuildIDs[*chat.WorkspaceID]
+			chat.BuildID = &buildID
 		}
 	}
 }
@@ -1637,7 +1669,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	enriched := []codersdk.Chat{sdkChat}
-	api.enrichChatWithWorkspaceAgentIDs(ctx, enriched)
+	api.repairChatAgentIDs(ctx, enriched)
 	sdkChat = enriched[0]
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
