@@ -426,6 +426,10 @@
 			overflow-y: scroll !important;
 		}
 	}
+
+	p {
+		margin-block: 1em;
+	}
 }
 
 @layer utilities {
