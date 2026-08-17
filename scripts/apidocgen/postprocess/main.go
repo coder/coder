@@ -48,6 +48,23 @@ curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 
 See some common [use cases](../../reference/index.md#use-cases) for the REST API.
 
+## Request size limits
+
+An endpoint that accepts a JSON body reads at most 4 MiB of it. Endpoints that
+take larger payloads set a higher limit of their own: ` + "`POST /api/v2/files`" + `
+accepts 100 MiB, for example. A body that exceeds the limit that applies to it
+is answered with ` + "`413 Payload Too Large`" + `, and the response names the limit
+that was exceeded:
+
+` + "````json" + `
+{
+  "message": "Request body too large.",
+  "detail": "Maximum request body size is 4194304 bytes."
+}
+` + "````" + `
+
+The limits are fixed. There is no deployment option that raises them.
+
 ## Sections
 
 <children>
