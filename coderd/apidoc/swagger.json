@@ -18861,6 +18861,10 @@
 				"no_refresh": {
 					"type": "boolean"
 				},
+				"redirect_url": {
+					"description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OAuth callback domain is different from the ACCESS_URL\ndomain. The path component is ignored.",
+					"type": "string"
+				},
 				"regex": {
 					"description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
 					"type": "string"
@@ -20488,7 +20492,7 @@
 					}
 				},
 				"redirect_url": {
-					"description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OIDC callback domain is different from the ACCESS_URL\ndomain.",
+					"description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OIDC callback domain is different from the ACCESS_URL\ndomain. The path component is ignored.",
 					"allOf": [
 						{
 							"$ref": "#/definitions/serpent.URL"
