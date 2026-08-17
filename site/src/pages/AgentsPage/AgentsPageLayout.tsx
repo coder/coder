@@ -1,4 +1,4 @@
-import { type FC, type RefObject, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -18,6 +18,8 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	addChildToParentInCache,
 	applyChatArchiveStateToCaches,
+	applyWatchedChatArchived,
+	applyWatchedChatCreatedOrUnarchived,
 	archiveChat,
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
@@ -36,9 +38,7 @@ import {
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
 	readInfiniteChatsCache,
-	removeChatEntity,
 	removeChatFromChatsByWorkspace,
-	removeChildFromParentInCache,
 	reorderPinnedChat,
 	shouldInvalidateChatSearches,
 	shouldInvalidateChatsByWorkspace,
@@ -119,8 +119,6 @@ export interface AgentsPageOutletContext {
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
 	onChatReady: () => void;
-	/** Ref attached to the chat scroll container by AgentChatPage. */
-	scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -611,20 +609,12 @@ const AgentsPageLayout: FC = () => {
 					}
 
 					if (chatEvent.kind === "deleted") {
-						// Drop the chat from the flat root list (root or
-						// cascade via root_chat_id) and from any parent's
-						// embedded children (individual child archive).
-						updateInfiniteChatsCache(queryClient, (chats) =>
-							chats.filter(
-								(c) =>
-									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
-							),
-						);
-						removeChildFromParentInCache(queryClient, updatedChat.id);
-						removeChatEntity(queryClient, updatedChat.id);
-						removeChatFromChatsByWorkspace(queryClient, updatedChat.id);
-						void invalidateChatsByWorkspace(queryClient);
-						void invalidateChatSearches(queryClient);
+						// The server publishes `deleted` when a chat is
+						// archived (one event per family member); there is
+						// no hard-delete wire event. Patch archive state in
+						// place so an open route stays mounted and flips to
+						// its read-only state.
+						applyWatchedChatArchived(queryClient, updatedChat);
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
@@ -657,11 +647,23 @@ const AgentsPageLayout: FC = () => {
 								updatedChat,
 								updatedChat.parent_chat_id,
 							);
+							// A family unarchive and a new sub-agent with a
+							// mounted initial fetch both need entity recovery.
+							const cachedChat = queryClient.getQueryData<TypesGen.Chat>(
+								chatEntityKey(updatedChat.id),
+							);
+							if (
+								cachedChat?.archived ||
+								(cachedChat === undefined &&
+									queryClient.getQueryState(chatEntityKey(updatedChat.id)) !==
+										undefined)
+							) {
+								applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
+							}
 						} else {
+							// `created` also fires for unarchive transitions.
+							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
 							prependToInfiniteChatsCache(queryClient, updatedChat);
-							void invalidateChatListQueries(queryClient);
-							void invalidateChatsByWorkspace(queryClient);
-							void invalidateChatSearches(queryClient);
 						}
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
@@ -740,8 +742,6 @@ const AgentsPageLayout: FC = () => {
 		]),
 	);
 
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
 	// State for the shared rename-chat dialog. Lifted here so both the
 	// sidebar menu and the chat top bar open the same dialog instance.
 	const [chatPendingRename, setChatPendingRename] =
@@ -764,7 +764,6 @@ const AgentsPageLayout: FC = () => {
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
 		onExpandSidebar: () => setIsSidebarCollapsed(false),
 		onChatReady: () => {},
-		scrollContainerRef,
 	};
 
 	return (

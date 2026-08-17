@@ -1,12 +1,42 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps } from "react";
 import { expect, within } from "storybook/test";
-import { MockGroup, MockPermissions } from "#/testHelpers/entities";
+import {
+	GROUP_MEMBER_AVATAR_LIMIT,
+	getGroupMemberAvatarsQueryKey,
+} from "#/api/queries/groups";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
+import type { UsersFilter } from "#/components/Filter/UsersFilter";
+import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
+import {
+	MockGroup,
+	MockOrganization,
+	MockPermissions,
+	MockUserMember,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
+
+type FilterProps = ComponentProps<typeof UsersFilter>;
 
 const meta: Meta<typeof GroupsPageView> = {
 	title: "pages/OrganizationGroupsPage",
 	component: GroupsPageView,
 	args: {
+		canCreateGroup: true,
+		groupsEnabled: true,
+		filterProps: getDefaultFilterProps<FilterProps>({
+			values: {},
+			menus: {},
+		}),
+		groupsQuery: {
+			...mockSuccessResult,
+			totalRecords: 1,
+		} as UsePaginatedQueryResult,
 		permissions: MockPermissions,
 	},
 };
@@ -19,23 +49,42 @@ const mockGroupWithSpend: GroupWithSpend = {
 	spend: undefined,
 };
 
+// AI-budget and pagination stories aren't about membership, so give their
+// groups no members. Rows with a zero count skip the per-row avatar fetch.
 const aiGroup = (id: string, name: string): GroupWithSpend => ({
 	...mockGroupWithSpend,
 	id,
 	name,
 	display_name: name,
+	total_member_count: 0,
 });
+
+// Seeds the per-row member avatar preview query for a group so the row renders
+// avatars deterministically without hitting the network.
+const seedAvatars = (
+	groupName: string,
+	users: ReadonlyArray<typeof MockUserOwner>,
+	totalCount: number,
+) => ({
+	key: getGroupMemberAvatarsQueryKey(
+		MockOrganization.name,
+		groupName,
+		GROUP_MEMBER_AVATAR_LIMIT,
+	),
+	data: { users, count: totalCount },
+});
+
+export const Default: Story = {};
 
 export const NotEnabled: Story = {
 	args: {
-		groups: [{ ...mockGroupWithSpend }],
-		canCreateGroup: true,
+		groups: [mockGroupWithSpend],
 		groupsEnabled: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
 	},
 };
@@ -52,23 +101,94 @@ export const NotEnabledWithoutLicenseAccess: Story = {
 			canvas.getByText(/contact your deployment administrator/i),
 		).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Learn about Premium" }),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 	},
 };
 
 export const WithGroups: Story = {
 	args: {
-		groups: [{ ...mockGroupWithSpend }],
-		canCreateGroup: true,
-		groupsEnabled: true,
+		groups: [mockGroupWithSpend],
+	},
+	parameters: {
+		queries: [seedAvatars(MockGroup.name, [MockUserOwner, MockUserMember], 2)],
+	},
+};
+
+// A group with more members than fit in the preview: the row shows the capped
+// avatars plus a "+N" badge derived from total_member_count.
+export const WithMemberAvatars: Story = {
+	args: {
+		groups: [
+			{
+				...mockGroupWithSpend,
+				id: "with-members",
+				name: "with-members",
+				display_name: "With members",
+				total_member_count: 8,
+			},
+		],
+	},
+	parameters: {
+		queries: [
+			seedAvatars(
+				"with-members",
+				Array.from({ length: GROUP_MEMBER_AVATAR_LIMIT }, (_, i) => ({
+					...MockUserOwner,
+					id: `preview-${i}`,
+					username: `member-${i}`,
+				})),
+				8,
+			),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("+3")).toBeInTheDocument();
+		await expect(canvas.getByText("8 members")).toBeInTheDocument();
+	},
+};
+
+const totalRecords = 15;
+const totalPages = 3;
+const limit = totalRecords / totalPages;
+
+// Multiple pages of results with the search field in use.
+export const WithSearchAndPagination: Story = {
+	args: {
+		groups: Array.from({ length: limit }, (_, i) =>
+			aiGroup(`group-${i}`, `Group ${i}`),
+		),
+		filterProps: getDefaultFilterProps<FilterProps>({
+			query: "group",
+			values: {},
+			menus: {},
+			used: true,
+		}),
+		groupsQuery: {
+			...mockSuccessResult,
+			totalRecords,
+			totalPages,
+			limit,
+			hasNextPage: true,
+		} as UsePaginatedQueryResult,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByLabelText("Filter")).toHaveValue("group");
+	},
+};
+
+// Groups still loading: the pagination + table render their loading states.
+export const Loading: Story = {
+	args: {
+		groups: undefined,
+		groupsQuery: mockInitialRenderResult as UsePaginatedQueryResult,
 	},
 };
 
 export const WithAIBudgets: Story = {
 	args: {
-		canCreateGroup: true,
-		groupsEnabled: true,
 		showAIBudget: true,
 		groups: [
 			{
@@ -165,13 +285,12 @@ export const WithAIBudgets: Story = {
 export const WithAIBudgetsLoading: Story = {
 	args: {
 		groups: undefined,
-		canCreateGroup: true,
-		groupsEnabled: true,
 		showAIBudget: true,
+		groupsQuery: mockInitialRenderResult as UsePaginatedQueryResult,
 	},
 };
 
-// Spend still loading: every AI budget cell falls back to an em dash.
+// Spend still loading: every AI spend cell falls back to an em dash.
 export const WithAIBudgetsSpendLoading: Story = {
 	args: {
 		groups: [aiGroup("ai-loading", "Spend loading")],
@@ -211,8 +330,6 @@ export const WithAIBudgetsSpendError: Story = {
 export const WithAIBudgetsSpendUnavailable: Story = {
 	args: {
 		groups: [aiGroup("ai-unavailable", "Spend unavailable")],
-		canCreateGroup: true,
-		groupsEnabled: true,
 		showAIBudget: true,
 	},
 	play: async ({ canvasElement }) => {
@@ -223,25 +340,24 @@ export const WithAIBudgetsSpendUnavailable: Story = {
 	},
 };
 
-// AI Bridge hidden: no AI budget column.
+// AI Bridge hidden: no AI spend column.
 export const WithoutAIBudgetColumn: Story = {
 	args: {
 		groups: [aiGroup("ai-hidden", "No AI column")],
-		canCreateGroup: true,
-		groupsEnabled: true,
 		showAIBudget: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByText("AI budget")).not.toBeInTheDocument();
+		expect(canvas.queryByText("AI spend")).not.toBeInTheDocument();
 	},
 };
 
 export const WithDisplayGroup: Story = {
 	args: {
 		groups: [{ ...mockGroupWithSpend, name: "front-end" }],
-		canCreateGroup: true,
-		groupsEnabled: true,
+	},
+	parameters: {
+		queries: [seedAvatars("front-end", [MockUserOwner, MockUserMember], 2)],
 	},
 };
 
@@ -249,14 +365,32 @@ export const EmptyGroup: Story = {
 	args: {
 		groups: [],
 		canCreateGroup: false,
-		groupsEnabled: true,
 	},
 };
 
 export const EmptyGroupWithPermission: Story = {
 	args: {
 		groups: [],
-		canCreateGroup: true,
-		groupsEnabled: true,
+	},
+};
+
+// A search that matches nothing shows filter-aware copy, not the
+// create-first-group empty state.
+export const NoSearchResults: Story = {
+	args: {
+		groups: [],
+		filterProps: getDefaultFilterProps<FilterProps>({
+			query: "nomatch",
+			values: {},
+			menus: {},
+			used: true,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("No groups match your search"),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("No groups yet")).not.toBeInTheDocument();
 	},
 };

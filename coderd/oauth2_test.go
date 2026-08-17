@@ -442,6 +442,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 					HashedSecret: []byte(hashedCode),
 					AppID:        apps.Default.ID,
 					UserID:       user.ID,
+					Scope:        string(database.ApiKeyScopeCoderAll),
 				})
 				return err
 			},
@@ -498,6 +499,11 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			var verifier string
 			if test.defaultCode != nil {
 				code = *test.defaultCode
+				// These subtests exercise malformed/expired code_
+				// handling; the code lookup fails before code_verifier is
+				// ever compared, but it still has to satisfy RFC 7636
+				// §4.1's format floor to reach that point.
+				verifier = strings.Repeat("a", 43)
 			} else {
 				var err error
 				code, verifier, err = authorizationFlow(ctx, userClient, valid)
@@ -732,6 +738,7 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 				AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 				APIKeyID:    newKey.ID,
 				UserID:      user.ID,
+				Scope:       string(database.ApiKeyScopeCoderAll),
 			})
 			require.NoError(t, err)
 

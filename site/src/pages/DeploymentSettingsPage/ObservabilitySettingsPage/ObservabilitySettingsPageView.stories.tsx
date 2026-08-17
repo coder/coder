@@ -79,10 +79,10 @@ export const OSS: Story = {
 
 		await expect(canvas.getByText("Audit Logging")).toBeVisible();
 		await expect(
-			canvas.getByRole("link", { name: "Learn about Premium" }),
+			canvas.getByRole("link", { name: "Start trial for free" }),
 		).toHaveAttribute("href", "/deployment/premium");
 		await expect(
-			canvas.getByRole("link", { name: "Read the documentation" }),
+			canvas.getByRole("link", { name: "Learn more about premium" }),
 		).toBeVisible();
 		await expect(
 			canvas.queryByText("Audit Logs Retention"),
@@ -99,7 +99,7 @@ export const OSSWithoutLicenseAccess: Story = {
 			canvas.getByText(/contact your deployment administrator/i),
 		).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Learn about Premium" }),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -110,7 +110,7 @@ export const Entitled: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.queryByRole("link", { name: "Learn about Premium" }),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 		await expect(canvas.getByText("Audit Logs Retention")).toBeVisible();
 	},

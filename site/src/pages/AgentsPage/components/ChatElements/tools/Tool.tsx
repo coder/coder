@@ -1,8 +1,8 @@
-import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { useTheme } from "#/theme/context";
 import { cn } from "#/utils/cn";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
@@ -16,6 +16,7 @@ import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
 import { ExecuteTool as ExecuteToolComponent } from "./ExecuteTool";
 import { ListAgentsTool } from "./ListAgentsTool";
+import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
@@ -573,6 +574,24 @@ const ListAgentsRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const ListSubagentModelsRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const models = rec && Array.isArray(rec.models) ? rec.models : [];
+
+	return (
+		<ListSubagentModelsTool
+			models={models}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
 const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
@@ -698,6 +717,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
+	modelIntent,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const question = parsedArgs ? asString(parsedArgs.question) : "";
@@ -723,10 +743,6 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 		(typeof result === "string" && (hasError || resolvedResultType === "error")
 			? result
 			: "");
-	const advisorModel = rec ? asString(rec.advisor_model) : "";
-	const remainingUses = rec
-		? asNumber(rec.remaining_uses, { parseString: true })
-		: undefined;
 
 	return (
 		<AdvisorTool
@@ -736,8 +752,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 			resultType={resolvedResultType}
 			advice={advice}
 			errorMessage={errorMessage || undefined}
-			advisorModel={advisorModel || undefined}
-			remainingUses={remainingUses}
+			modelIntent={modelIntent}
 		/>
 	);
 };
@@ -1028,6 +1043,7 @@ export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	start_workspace: StartWorkspaceRenderer,
 	list_templates: ListTemplatesRenderer,
 	list_agents: ListAgentsRenderer,
+	list_subagent_models: ListSubagentModelsRenderer,
 	read_template: ReadTemplateRenderer,
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,

@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
@@ -15,6 +14,7 @@ import {
 import { Label } from "#/components/Label/Label";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
+import { useTheme } from "#/theme/context";
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 
