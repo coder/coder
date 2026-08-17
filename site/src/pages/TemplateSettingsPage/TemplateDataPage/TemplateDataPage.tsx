@@ -58,33 +58,32 @@ const TemplateDataPage: FC = () => {
 					createAndBuildMutation.isPending || promoteMutation.isPending
 				}
 				error={createAndBuildMutation.error ?? promoteMutation.error}
-				onRefresh={() => {
+				onRefresh={async () => {
 					createAndBuildMutation.reset();
 					promoteMutation.reset();
-					createAndBuildMutation.mutate(
-						{
+
+					try {
+						const newVersion = await createAndBuildMutation.mutateAsync({
 							template_id: template.id,
 							provisioner: "terraform",
 							storage_method: "file",
 							file_id: activeVersion.job.file_id,
 							tags: activeVersion.job.tags,
 							message: "Refreshed template data",
-						},
-						{
-							onSuccess: async (newVersion) => {
-								await queryClient.invalidateQueries({
-									queryKey: templateVersionsQueryKey(template.id),
-								});
-								promoteMutation.mutate(newVersion.id, {
-									onSuccess: () => {
-										toast.success(
-											`Template "${template.name}" data refreshed successfully.`,
-										);
-									},
-								});
-							},
-						},
-					);
+						});
+						await queryClient.invalidateQueries({
+							queryKey: templateVersionsQueryKey(template.id),
+						});
+						await promoteMutation.mutateAsync(newVersion.id);
+						toast.success(
+							`Template "${template.name}" data refreshed successfully.`,
+						);
+					} catch {
+						// Whichever mutation failed records the error, and the view
+						// renders it above the refresh button. Letting the rejection
+						// escape would only surface it a second time, as an unhandled
+						// rejection.
+					}
 				}}
 			/>
 		</>
