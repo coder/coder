@@ -2399,6 +2399,67 @@ export const DurableUpdateFansOutToOlderPage: Story = {
 };
 
 /**
+ * A message_part arriving over the stream while the chat record still
+ * reads "waiting" (status lagging a new turn). The streamed thinking
+ * block must render. The play asserts on the disclosure header because
+ * smoothed body text never reveals in the test iframe
+ * (requestAnimationFrame is suspended).
+ */
+export const StreamedPartWhileStatusWaiting: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Stale status stream",
+				status: "waiting",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:05:00.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Start the next turn" }],
+					},
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "reasoning",
+									text: "Streaming while the chat still reads waiting",
+								},
+							},
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Start the next turn");
+		// The disclosure header is the only "Thinking" text in the DOM
+		// at this point: the generic indicator is suppressed at status
+		// "waiting".
+		expect(await canvas.findByText("Thinking")).toBeVisible();
+	},
+};
+
+/**
  * Live agent turn with streaming reasoning and a back-to-back flurry of
  * in-progress file tool calls. The persisted history establishes context
  * (an earlier completed read+write pair); the WebSocket then streams an
