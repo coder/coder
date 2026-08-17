@@ -962,26 +962,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION drop_cross_org_chat_mcp_server_ids() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    IF NEW.mcp_server_ids IS NULL OR cardinality(NEW.mcp_server_ids) = 0 THEN
-        RETURN NEW;
-    END IF;
-    SELECT COALESCE(
-        array_agg(item.config_id ORDER BY item.position),
-        '{}'::uuid[]
-    )
-    INTO NEW.mcp_server_ids
-    FROM unnest(NEW.mcp_server_ids) WITH ORDINALITY AS item(config_id, position)
-    LEFT JOIN mcp_server_configs AS config ON config.id = item.config_id
-    WHERE config.id IS NULL
-        OR config.organization_id = NEW.organization_id;
-    RETURN NEW;
-END;
-$$;
-
 CREATE FUNCTION enforce_user_ai_budget_override_membership() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -5093,10 +5073,6 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
      JOIN workspace_builds wb ON ((wb.job_id = pj.id)))
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
   GROUP BY pj.id, wb.workspace_id;
-
-CREATE TRIGGER drop_cross_org_chat_mcp_server_ids BEFORE INSERT OR UPDATE OF mcp_server_ids ON chats FOR EACH ROW EXECUTE FUNCTION drop_cross_org_chat_mcp_server_ids();
-
-COMMENT ON TRIGGER drop_cross_org_chat_mcp_server_ids ON chats IS 'Rolling-upgrade compatibility: drops config IDs written by pre-organization-scoping replicas that resolve to another organization''s config.';
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 

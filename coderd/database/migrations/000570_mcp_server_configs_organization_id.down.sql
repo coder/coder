@@ -1,6 +1,3 @@
-DROP TRIGGER IF EXISTS drop_cross_org_chat_mcp_server_ids ON chats;
-DROP FUNCTION IF EXISTS drop_cross_org_chat_mcp_server_ids();
-
 -- Configs created outside the default organization cannot move to the
 -- deployment-wide table because slugs may collide across organizations.
 -- Delete them; the delete trigger from 000510 removes their IDs from chats.

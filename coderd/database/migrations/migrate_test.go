@@ -3210,19 +3210,8 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	// the configs now belong to the default organization only.
 	require.Empty(t, getChatIDs(t, chats[1].id))
 
-	dropTriggerExists := func(t *testing.T) bool {
-		t.Helper()
-		var exists bool
-		err := sqlDB.QueryRowContext(ctx, `
-			SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'drop_cross_org_chat_mcp_server_ids')
-		`).Scan(&exists)
-		require.NoError(t, err)
-		return exists
-	}
-	require.True(t, dropTriggerExists(t))
-
-	// The compatibility trigger drops cross-organization config IDs, keeps
-	// same-organization IDs, and passes unknown IDs through as written.
+	// An organization-created config referenced by a chat exercises the down
+	// sweep: the config is deleted and its chat references removed.
 	orgLocalConfigID := uuid.New()
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO mcp_server_configs (
@@ -3230,28 +3219,9 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 		) VALUES ($1, $2, 'Org-local config', 'migration-568-org-local', 'https://mcp.example.com/org-local', 'none')
 	`, orgLocalConfigID, otherOrgID)
 	require.NoError(t, err)
-	danglingID := uuid.New()
-	staleWriteChatID := uuid.New()
-	_, err = sqlDB.ExecContext(ctx, `
-		INSERT INTO chats (
-			id, owner_id, organization_id, last_model_config_id, title,
-			mcp_server_ids, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, 'Migration 568 stale write', $5, $6, $6)
-	`, staleWriteChatID, userID, otherOrgID, modelConfigID, pq.Array([]uuid.UUID{configs[1].id, orgLocalConfigID, danglingID}), now)
-	require.NoError(t, err)
-	require.Equal(t, []uuid.UUID{orgLocalConfigID, danglingID}, getChatIDs(t, staleWriteChatID))
-
-	// Remove the unknown-ID simulation row so the down-migration assertions
-	// below can prove no dangling references remain.
-	_, err = sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, staleWriteChatID)
-	require.NoError(t, err)
-
-	// The trigger drops the cross-organization ID on update too, leaving the
-	// organization-created config to exercise the down sweep: the config is
-	// deleted and its chat references removed.
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
-	`, chats[1].id, pq.Array([]uuid.UUID{configs[1].id, orgLocalConfigID}))
+	`, chats[1].id, pq.Array([]uuid.UUID{orgLocalConfigID}))
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{orgLocalConfigID}, getChatIDs(t, chats[1].id))
 
@@ -3275,6 +3245,4 @@ func TestMigration000570MCPServerConfigsOrganizationID(t *testing.T) {
 	`).Scan(&danglingIDs)
 	require.NoError(t, err)
 	require.Zero(t, danglingIDs)
-
-	require.False(t, dropTriggerExists(t))
 }
