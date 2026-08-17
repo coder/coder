@@ -1,4 +1,4 @@
-import { type FC, type RefObject, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -119,8 +119,6 @@ export interface AgentsPageOutletContext {
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
 	onChatReady: () => void;
-	/** Ref attached to the chat scroll container by AgentChatPage. */
-	scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -744,8 +742,6 @@ const AgentsPageLayout: FC = () => {
 		]),
 	);
 
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
 	// State for the shared rename-chat dialog. Lifted here so both the
 	// sidebar menu and the chat top bar open the same dialog instance.
 	const [chatPendingRename, setChatPendingRename] =
@@ -768,7 +764,6 @@ const AgentsPageLayout: FC = () => {
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
 		onExpandSidebar: () => setIsSidebarCollapsed(false),
 		onChatReady: () => {},
-		scrollContainerRef,
 	};
 
 	return (

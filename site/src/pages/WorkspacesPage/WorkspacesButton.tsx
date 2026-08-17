@@ -102,7 +102,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 									<span className="truncate text-content-primary">
 										{template.display_name || template.name || "[Unnamed]"}
 									</span>
-									<span className="truncate text-[13px] text-content-secondary">
+									<span className="truncate text-xs font-normal text-content-secondary">
 										{activeDeveloperLabel(template.active_user_count)}
 									</span>
 								</div>

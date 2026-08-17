@@ -271,6 +271,11 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
 				StateHash:           hashOAuth2State(params.state),
 				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: params.redirectURIProvided},
+				// Scope negotiation lands in a later phase. Until the
+				// requested scope is validated against the app's allowlist,
+				// persisting it here would store unvalidated client input, so
+				// the code records an unrestricted grant.
+				Scope: string(database.ApiKeyScopeCoderAll),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert oauth2 authorization code: %w", err)

@@ -1,24 +1,38 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, waitFor, within } from "storybook/test";
-import { StreamingOutput } from "./StreamingOutput";
+import { AssistantOutput } from "./AssistantOutput";
 import {
 	buildLiveStatus,
 	buildReconnectState,
 	buildRetryState,
 	buildStreamRenderState,
 	pinFixtureClock,
+	type StoryStreamRenderState,
 } from "./storyFixtures";
 
-// StreamingOutput renders inside a ConversationItem > Message > MessageContent
-// chain, but it's self-contained enough to render standalone.
+// Mirrors how ConversationTimeline normalizes a live row before handing it to
+// AssistantOutput.
+const LiveAssistantOutput = ({
+	streamState,
+	streamTools,
+	liveStatus,
+}: StoryStreamRenderState) => (
+	<AssistantOutput
+		keyPrefix="stream"
+		blocks={streamState?.blocks ?? []}
+		tools={streamTools}
+		isStreaming={liveStatus.phase === "streaming"}
+		liveStatus={liveStatus}
+	/>
+);
 
-const meta: Meta<typeof StreamingOutput> = {
-	title: "pages/AgentsPage/ChatConversation/StreamingOutput",
-	component: StreamingOutput,
+const meta: Meta<typeof LiveAssistantOutput> = {
+	title: "pages/AgentsPage/ChatConversation/AssistantOutput",
+	component: LiveAssistantOutput,
 	beforeEach: pinFixtureClock,
 };
 export default meta;
-type Story = StoryObj<typeof StreamingOutput>;
+type Story = StoryObj<typeof LiveAssistantOutput>;
 
 /** Transport reconnects render a non-terminal reconnecting callout. */
 export const ReconnectingAfterDisconnect: Story = {
@@ -245,11 +259,7 @@ export const StartingShowsThinkingActivity: Story = {
 };
 
 export const ResponseDoesNotRenderActivitySlot: Story = {
-	args: {
-		streamState: responseStreamState.streamState,
-		streamTools: responseStreamState.streamTools,
-		liveStatus: responseStreamState.liveStatus,
-	},
+	args: responseStreamState,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
@@ -258,22 +268,20 @@ export const ResponseDoesNotRenderActivitySlot: Story = {
 
 /** Tool-only streams use running tool affordances instead of generic thinking. */
 export const RunningToolsSuppressThinkingActivity: Story = {
-	args: {
-		...buildStreamRenderState([
-			{
-				type: "tool-call",
-				tool_name: "execute",
-				tool_call_id: "tc-1",
-				args: { command: "ls -la" },
-			},
-			{
-				type: "tool-call",
-				tool_name: "read_file",
-				tool_call_id: "tc-2",
-				args: { path: "README.md" },
-			},
-		]),
-	},
+	args: buildStreamRenderState([
+		{
+			type: "tool-call",
+			tool_name: "execute",
+			tool_call_id: "tc-1",
+			args: { command: "ls -la" },
+		},
+		{
+			type: "tool-call",
+			tool_name: "read_file",
+			tool_call_id: "tc-2",
+			args: { path: "README.md" },
+		},
+	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
@@ -334,18 +342,10 @@ export const EditFilesEmptyDeltaKeepsRunningHeight: Story = {
 		return (
 			<div className="flex flex-col gap-2">
 				<div data-testid="running-edit-files">
-					<StreamingOutput
-						streamState={editFilesRunningState.streamState}
-						streamTools={editFilesRunningState.streamTools}
-						liveStatus={editFilesRunningState.liveStatus}
-					/>
+					<LiveAssistantOutput {...editFilesRunningState} />
 				</div>
 				<div data-testid="empty-delta-edit-files">
-					<StreamingOutput
-						streamState={editFilesEmptyDeltaState.streamState}
-						streamTools={editFilesEmptyDeltaState.streamTools}
-						liveStatus={editFilesEmptyDeltaState.liveStatus}
-					/>
+					<LiveAssistantOutput {...editFilesEmptyDeltaState} />
 				</div>
 			</div>
 		);
