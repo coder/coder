@@ -260,6 +260,30 @@ func TestChatTools(t *testing.T) {
 			MimeType: "text/plain",
 		}}, attachingMessage.Files)
 
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+		fileOnly, err := expClient.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "file-only.txt", bytes.NewReader([]byte("file only")))
+		require.NoError(t, err)
+		_, err = expClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeFile, FileID: fileOnly.ID}},
+		})
+		require.NoError(t, err)
+		messages, err = testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{ChatID: chat.ID.String()})
+		require.NoError(t, err)
+		var fileOnlyMessage *toolsdk.ChatToolMessage
+		for i := range messages.Messages {
+			if len(messages.Messages[i].Files) == 1 && messages.Messages[i].Files[0].ID == fileOnly.ID.String() {
+				fileOnlyMessage = &messages.Messages[i]
+				break
+			}
+		}
+		require.NotNil(t, fileOnlyMessage)
+		require.Empty(t, fileOnlyMessage.Text)
+		require.Equal(t, []toolsdk.ChatToolMessageFile{{
+			ID:       fileOnly.ID.String(),
+			Name:     "file-only.txt",
+			MimeType: "text/plain",
+		}}, fileOnlyMessage.Files)
+
 		duplicateA, err := expClient.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "duplicate.txt", bytes.NewReader([]byte("a")))
 		require.NoError(t, err)
 		duplicateB, err := expClient.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "duplicate.txt", bytes.NewReader([]byte("bb")))
@@ -481,6 +505,84 @@ func TestChatTools(t *testing.T) {
 			t.Fatal(ctx.Err())
 		}
 		coderdtest.WaitForChatSettled(ctx, t, api, running.ID)
+
+		sharedClient, sharedUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		sharedStreamStarted := make(chan struct{})
+		sharedProviderRelease := make(chan struct{})
+		var sharedProviderStartedOnce sync.Once
+		var sharedProviderReleaseOnce sync.Once
+		releaseSharedProvider := func() { sharedProviderReleaseOnce.Do(func() { close(sharedProviderRelease) }) }
+		t.Cleanup(releaseSharedProvider)
+		sharedBlockingURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if req.Stream {
+				sharedProviderStartedOnce.Do(func() { close(sharedStreamStarted) })
+				select {
+				case <-sharedProviderRelease:
+				case <-req.Context().Done():
+				}
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Released.")...)
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title": "Shared Await Test"}`)
+		})
+		sharedBlockingModel := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, sharedBlockingURL)
+		sharedRunning, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Wait for shared release."}},
+			ModelConfigID:  &sharedBlockingModel.ID,
+		})
+		require.NoError(t, err)
+		select {
+		case <-sharedStreamStarted:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		err = expClient.UpdateChatACL(ctx, sharedRunning.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatRole{sharedUser.ID.String(): codersdk.ChatRoleRead},
+		})
+		require.NoError(t, err)
+		acl, err := expClient.GetChatACL(ctx, sharedRunning.ID)
+		require.NoError(t, err)
+		require.Len(t, acl.Users, 1)
+		require.Equal(t, sharedUser.ID, acl.Users[0].ID)
+		require.Equal(t, codersdk.ChatRoleRead, acl.Users[0].Role)
+
+		sharedGetSeen := make(chan struct{})
+		sharedGetRelease := make(chan struct{})
+		sharedAwaitClient := codersdk.New(sharedClient.URL)
+		sharedAwaitClient.SetSessionToken(sharedClient.SessionToken())
+		sharedAwaitClient.HTTPClient = &http.Client{Transport: &signalPathTransport{
+			path:    "/api/experimental/chats/" + sharedRunning.ID.String(),
+			seen:    sharedGetSeen,
+			release: sharedGetRelease,
+		}}
+		t.Cleanup(sharedAwaitClient.HTTPClient.CloseIdleConnections)
+		sharedAwaitDeps, err := toolsdk.NewDeps(sharedAwaitClient)
+		require.NoError(t, err)
+		sharedAwaitCtx := testutil.Context(t, testutil.WaitMedium)
+		sharedResult := make(chan awaitResult, 1)
+		go func() {
+			response, err := toolsdk.AwaitChat.Handler(sharedAwaitCtx, sharedAwaitDeps, toolsdk.AwaitChatArgs{
+				ChatID:   sharedRunning.ID.String(),
+				WaitSecs: 20,
+			})
+			sharedResult <- awaitResult{response: response, err: err}
+		}()
+		select {
+		case <-sharedGetSeen:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		close(sharedGetRelease)
+		releaseSharedProvider()
+		select {
+		case awaited := <-sharedResult:
+			require.NoError(t, awaited.err)
+			require.False(t, awaited.response.TimedOut)
+			require.Equal(t, codersdk.ChatStatusWaiting, awaited.response.Chat.Status)
+		case <-sharedAwaitCtx.Done():
+			t.Fatal(sharedAwaitCtx.Err())
+		}
+		coderdtest.WaitForChatSettled(ctx, t, api, sharedRunning.ID)
 
 		timeoutStarted := make(chan struct{})
 		timeoutRelease := make(chan struct{})

@@ -364,6 +364,10 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 
 		timer := time.NewTimer(time.Duration(waitSecs) * time.Second)
 		defer timer.Stop()
+		// Chat status events are published only on the owner's channel, so
+		// shared-chat callers need polling to observe transitions.
+		poller := time.NewTicker(5 * time.Second)
+		defer poller.Stop()
 		for {
 			select {
 			case <-ctx.Done():
@@ -374,6 +378,14 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 					return AwaitChatResponse{}, xerrors.Errorf("get chat after timeout: %w", err)
 				}
 				return AwaitChatResponse{TimedOut: chatStatusBusy(chat.Status), Chat: chatToolStatus(deps, chat)}, nil
+			case <-poller.C:
+				chat, err := expClient.GetChat(ctx, chatID)
+				if err != nil {
+					return AwaitChatResponse{}, xerrors.Errorf("get chat while polling: %w", err)
+				}
+				if !chatStatusBusy(chat.Status) {
+					return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
+				}
 			case event, ok := <-events:
 				if !ok {
 					chat, err := expClient.GetChat(ctx, chatID)
@@ -497,15 +509,11 @@ func userFacingText(parts []codersdk.ChatMessagePart) string {
 }
 
 func chatToolMessage(msg codersdk.ChatMessage) (ChatToolMessage, bool) {
-	text := userFacingText(msg.Content)
-	if text == "" {
-		return ChatToolMessage{}, false
-	}
 	toolMessage := ChatToolMessage{
 		ID:        msg.ID,
 		Role:      msg.Role,
 		CreatedAt: msg.CreatedAt,
-		Text:      text,
+		Text:      userFacingText(msg.Content),
 	}
 	for _, part := range msg.Content {
 		if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid {
@@ -515,6 +523,9 @@ func chatToolMessage(msg codersdk.ChatMessage) (ChatToolMessage, bool) {
 				MimeType: part.MediaType,
 			})
 		}
+	}
+	if toolMessage.Text == "" && len(toolMessage.Files) == 0 {
+		return ChatToolMessage{}, false
 	}
 	return toolMessage, true
 }
