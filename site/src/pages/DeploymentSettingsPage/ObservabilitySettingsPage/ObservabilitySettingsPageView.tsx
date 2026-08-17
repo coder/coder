@@ -1,8 +1,6 @@
 import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
-import { Badges, PremiumBadge } from "#/components/Badges/Badges";
-import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -16,12 +14,12 @@ import OptionsTable from "../OptionsTable";
 type ObservabilitySettingsPageViewProps = {
 	options: SerpentOption[];
 	featureAuditLogEnabled: boolean;
-	isPremium: boolean;
+	canViewPremium: boolean;
 };
 
 export const ObservabilitySettingsPageView: FC<
 	ObservabilitySettingsPageViewProps
-> = ({ options, featureAuditLogEnabled, isPremium }) => {
+> = ({ options, featureAuditLogEnabled, canViewPremium }) => {
 	return (
 		<div className="flex flex-col gap-12">
 			<div>
@@ -40,30 +38,16 @@ export const ObservabilitySettingsPageView: FC<
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				{featureAuditLogEnabled || isPremium ? (
-					<Badges>{<PremiumBadge />}</Badges>
+				{featureAuditLogEnabled ? (
+					<OptionsTable
+						options={options.filter((o) => o.name === "Audit Logs Retention")}
+					/>
 				) : (
-					<>
-						<Alert severity="info">
-							Audit logging lets auditors monitor user operations across your
-							deployment. It requires a Premium license.{" "}
-							<a
-								href={docs("/admin/security/audit-logs")}
-								target="_blank"
-								rel="noreferrer"
-								className="text-content-link font-medium"
-							>
-								Read the Audit Logs documentation
-							</a>
-							.
-						</Alert>
-						<br />
-						<PaywallSmall
-							message="Audit Logs"
-							canViewPremium
-							description="A Premium license is required for access to Audit Log monitoring."
-						/>
-					</>
+					<PaywallPremium
+						message="Audit Logging"
+						description="Audit logging lets auditors monitor user operations across your deployment. You need a Premium license to use this feature."
+						canViewPremium={canViewPremium}
+					/>
 				)}
 			</div>
 

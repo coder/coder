@@ -1588,7 +1588,7 @@ func isFailedRefresh(existingToken *oauth2.Token, err error) bool {
 			// previous 403 case caused token destruction on
 			// rate-limited refresh attempts.
 			return true
-		case http.StatusInternalServerError, http.StatusTooManyRequests:
+		case http.StatusInternalServerError, http.StatusTooManyRequests, http.StatusServiceUnavailable:
 			// These do not indicate a failed refresh, but could be a temporary issue.
 			return false
 		}
