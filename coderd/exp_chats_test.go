@@ -11277,16 +11277,6 @@ func TestGetChatFile(t *testing.T) {
 	})
 }
 
-type chatFileDownloadTestClaims struct {
-	jwtutils.RegisteredClaims
-	FileID uuid.UUID `json:"file_id"`
-	UserID uuid.UUID `json:"user_id"`
-}
-
-func (c chatFileDownloadTestClaims) Validate(expected jwt.Expected) error {
-	return c.RegisteredClaims.Validate(expected)
-}
-
 func TestChatFileDownloadURL(t *testing.T) {
 	t.Parallel()
 
@@ -11344,7 +11334,7 @@ func TestChatFileDownloadURL(t *testing.T) {
 		client, key := newClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		uploaded, _ := uploadPNG(t, ctx, client, firstUser.OrganizationID, "expired.png")
-		token, err := jwtutils.Sign(ctx, key, chatFileDownloadTestClaims{
+		token, err := jwtutils.Sign(ctx, key, coderd.ChatFileDownloadClaims{
 			RegisteredClaims: jwtutils.RegisteredClaims{
 				Expiry:   jwt.NewNumericDate(time.Now().Add(-time.Minute)),
 				IssuedAt: jwt.NewNumericDate(time.Now().Add(-2 * time.Minute)),

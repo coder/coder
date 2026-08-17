@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"mime"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,6 +30,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -5935,15 +5938,15 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-const chatFileDownloadURLDuration = 5 * time.Minute
-
-type chatFileDownloadClaims struct {
+// ChatFileDownloadClaims are the signed claims embedded in a chat file
+// download URL token.
+type ChatFileDownloadClaims struct {
 	jwtutils.RegisteredClaims
 	FileID uuid.UUID `json:"file_id"`
 	UserID uuid.UUID `json:"user_id"`
 }
 
-func (c chatFileDownloadClaims) Validate(expected jwt.Expected) error {
+func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
 	if c.FileID == uuid.Nil {
 		return xerrors.New("file ID is required")
 	}
@@ -5988,8 +5991,8 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 	}
 
 	now := time.Now()
-	expiresAt := now.Add(chatFileDownloadURLDuration)
-	claims := chatFileDownloadClaims{
+	expiresAt := now.Add(cryptokeys.ChatFilesTokenDuration)
+	claims := ChatFileDownloadClaims{
 		RegisteredClaims: jwtutils.RegisteredClaims{
 			Expiry:   jwt.NewNumericDate(expiresAt),
 			IssuedAt: jwt.NewNumericDate(now),
@@ -6007,14 +6010,12 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 	}
 
 	downloadURL := api.AccessURL.JoinPath("api", "experimental", "chats", "files", fileID.String(), "download")
-	query := downloadURL.Query()
-	query.Set("token", token)
-	downloadURL.RawQuery = query.Encode()
+	downloadURL.RawQuery = url.Values{"token": {token}}.Encode()
 	digest := sha256.Sum256(chatFile.Data)
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatFileDownloadURLResponse{
 		URL:       downloadURL.String(),
 		ExpiresAt: expiresAt,
-		SHA256:    fmt.Sprintf("%x", digest),
+		SHA256:    hex.EncodeToString(digest[:]),
 		SizeBytes: int64(len(chatFile.Data)),
 		Name:      chatFile.Name,
 		MimeType:  chatFile.Mimetype,
@@ -6040,7 +6041,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var claims chatFileDownloadClaims
+	var claims ChatFileDownloadClaims
 	if err := jwtutils.Verify(ctx, api.ChatFileTokenKeyCache, r.URL.Query().Get("token"), &claims); err != nil || claims.FileID != fileID {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -6064,7 +6065,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	api.serveChatFile(rw, r, chatFile)
+	api.serveChatFile(ctx, rw, chatFile)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -6103,10 +6104,10 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.serveChatFile(rw, r, chatFile)
+	api.serveChatFile(r.Context(), rw, chatFile)
 }
 
-func (api *API) serveChatFile(rw http.ResponseWriter, r *http.Request, chatFile database.ChatFile) {
+func (api *API) serveChatFile(ctx context.Context, rw http.ResponseWriter, chatFile database.ChatFile) {
 	rw.Header().Set("Content-Type", chatFile.Mimetype)
 	disposition := "attachment"
 	if chatfiles.IsInlineRenderableStoredMediaType(chatFile.Mimetype) {
@@ -6121,7 +6122,7 @@ func (api *API) serveChatFile(rw http.ResponseWriter, r *http.Request, chatFile 
 	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
 	rw.WriteHeader(http.StatusOK)
 	if _, err := rw.Write(chatFile.Data); err != nil {
-		api.Logger.Debug(r.Context(), "failed to write chat file response", slog.Error(err))
+		api.Logger.Debug(ctx, "failed to write chat file response", slog.Error(err))
 	}
 }
 

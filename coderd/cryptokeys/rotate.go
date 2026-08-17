@@ -20,6 +20,9 @@ import (
 const (
 	WorkspaceAppsTokenDuration = time.Minute
 	OIDCConvertTokenDuration   = time.Minute * 5
+	// ChatFilesTokenDuration is also the lifetime of minted chat file
+	// download URLs, keeping key retention aligned with token expiry.
+	ChatFilesTokenDuration     = time.Minute * 5
 	TailnetResumeTokenDuration = time.Hour * 24
 	// NATSCAOverlap is how long a NATS cluster CA certificate stays valid past
 	// the end of its active-signing window (startsAt + keyDuration). The next CA
@@ -302,7 +305,7 @@ func tokenDuration(feature database.CryptoKeyFeature) time.Duration {
 	case database.CryptoKeyFeatureOIDCConvert:
 		return OIDCConvertTokenDuration
 	case database.CryptoKeyFeatureChatFilesToken:
-		return OIDCConvertTokenDuration
+		return ChatFilesTokenDuration
 	case database.CryptoKeyFeatureTailnetResume:
 		return TailnetResumeTokenDuration
 	case database.CryptoKeyFeatureNATSCA:
