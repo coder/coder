@@ -60,6 +60,18 @@ WHERE
 			user_name ILIKE concat('%', @name, '%')
 		ELSE true
 	END
+	-- Filter by exact username
+	AND CASE
+		WHEN @exact_username :: text != '' THEN
+			lower(user_username) = lower(@exact_username)
+		ELSE true
+	END
+	-- Filter by exact email
+	AND CASE
+		WHEN @exact_email :: text != '' THEN
+			lower(user_email) = lower(@exact_email)
+		ELSE true
+	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was

@@ -73,6 +73,7 @@ import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import { getWorkspaceAgents } from "#/utils/workspace";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -130,6 +131,9 @@ import {
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+
+const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
+
 class CompactCommandPendingError extends Error {}
 
 /** @internal Exported for testing. */
@@ -445,6 +449,7 @@ export const isWatchedWorkspaceViewUnchanged = (
 	const prevApps = prevAgent?.apps ?? [];
 	const nextApps = nextAgent?.apps ?? [];
 	return (
+		prev.latest_build.id === next.latest_build.id &&
 		prev.latest_build.status === next.latest_build.status &&
 		prev.health.healthy === next.health.healthy &&
 		prev.name === next.name &&
@@ -462,6 +467,24 @@ export const isWatchedWorkspaceViewUnchanged = (
 			);
 		})
 	);
+};
+
+/**
+ * True when a running workspace has agents but the chat's agent ID is absent
+ * from the latest build (stale after a rebuild, or not yet persisted). Chat
+ * reads can return a repaired ID, so callers should refetch the chat.
+ *
+ * @internal Exported for testing.
+ */
+export const isChatAgentBindingUnresolved = (
+	workspace: TypesGen.Workspace | undefined,
+	chatAgentId: string | undefined,
+): boolean => {
+	if (!workspace || workspace.latest_build.status !== "running") {
+		return false;
+	}
+	const agents = getWorkspaceAgents(workspace);
+	return agents.length > 0 && !agents.some((agent) => agent.id === chatAgentId);
 };
 
 const buildAttachmentMediaTypes = (
@@ -913,6 +936,21 @@ const AgentChatPage: FC = () => {
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
+		// Poll while the binding is unresolved: repair happens on chat reads
+		// and watch events cannot be relied on for retries because an idle
+		// workspace publishes none.
+		refetchInterval: ({ state }) => {
+			const workspaceId = state.data?.workspace_id;
+			const workspace = workspaceId
+				? queryClient.getQueryData<TypesGen.Workspace>(
+						workspaceByIdKey(workspaceId),
+					)
+				: undefined;
+			return isChatAgentBindingUnresolved(workspace, state.data?.agent_id)
+				? AGENT_BINDING_REPAIR_POLL_MS
+				: false;
+		},
+		refetchIntervalInBackground: false,
 	});
 	const chatMessagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
@@ -995,6 +1033,7 @@ const AgentChatPage: FC = () => {
 		chatModelsQuery.data,
 	);
 
+	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
 	const applyWatchedWorkspaceUpdate = useEffectEvent(
@@ -1015,6 +1054,18 @@ const AgentChatPage: FC = () => {
 					return next;
 				},
 			);
+			// Refetch once per chat/build/binding key for immediate repair
+			// after a rebuild; the chat query's refetchInterval owns retries
+			// when repair fails, so the latch never blocks recovery.
+			if (!agentId || !isChatAgentBindingUnresolved(next, chatAgentId)) {
+				return;
+			}
+			const refetchKey = `${agentId}:${next.latest_build.id}:${chatAgentId ?? ""}`;
+			if (agentBindingRefetchKeyRef.current === refetchKey) {
+				return;
+			}
+			agentBindingRefetchKeyRef.current = refetchKey;
+			void invalidateChatEntity(queryClient, agentId);
 		},
 	);
 	useEffect(() => {
