@@ -283,7 +283,7 @@ func TestUpdateClientConfiguration_ClientTypeIsImmutable(t *testing.T) {
 
 // TestUpdateClientConfiguration_LegacyAuthMethodMismatch covers clients that
 // registered before client_type was derived from token_endpoint_auth_method.
-// Registration persisted the requested auth method verbatim while hardcoding
+// Registration persisted whatever auth method was requested while hardcoding
 // client_type to "confidential", and "none" has always passed validation, so
 // apps stored as confidential with an auth method of "none" exist in any
 // deployment where a native or MCP client self-registered. That is the exact
@@ -329,7 +329,7 @@ func TestUpdateClientConfiguration_LegacyAuthMethodMismatch(t *testing.T) {
 				TokenEndpointAuthMethod: sql.NullString{String: "none", Valid: true},
 				DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
 			})
-			// Registration minted a secret unconditionally back then.
+			// Registration issued a secret unconditionally back then.
 			_ = dbgen.OAuth2ProviderAppSecret(t, db, database.OAuth2ProviderAppSecret{AppID: legacy.ID})
 
 			logger := slogtest.Make(t, nil)
