@@ -45,5 +45,5 @@ codersdk/aiproviders_bedrock.go @ibetitsmike @johnstcn
 # aigateway-prices-refresh workflow proposes updates to both from live
 # models.dev data, and they carry customer-visible cost numbers, so every
 # refresh needs a review from someone who owns them.
-coderd/aibridge/prices/data/prices.json @evgeniy-scherbina
-site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json @evgeniy-scherbina
+coderd/aibridge/prices/data/prices.json @evgeniy-scherbina @ssncferreira @johnstcn
+site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json @evgeniy-scherbina @ssncferreira @johnstcn
