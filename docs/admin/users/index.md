@@ -201,6 +201,12 @@ contains `jane`.
 
 The following filters are supported:
 
+- `username` - Matches the exact username of the user. The match ignores
+  letter case.
+- `email` - Matches the exact email address of the user. The match ignores
+  letter case.
+- `name` - Matches part of the display name of the user. The match ignores
+  letter case.
 - `status` - Indicates the status of the user. It can be either `active`,
   `dormant` or `suspended`.
 - `role` - Represents the role of the user. You can refer to the
