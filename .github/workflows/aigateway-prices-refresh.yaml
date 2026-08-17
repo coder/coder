@@ -147,12 +147,12 @@ jobs:
       - name: Send Slack notification on failure
         if: failure()
         env:
-          SLACK_WEBHOOK: ${{ secrets.AIBRIDGE_PRICES_SLACK_WEBHOOK }}
+          SLACK_WEBHOOK: ${{ secrets.AIGATEWAY_PRICES_SLACK_WEBHOOK }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           if [ -z "${SLACK_WEBHOOK}" ]; then
-            echo "::warning::AIBRIDGE_PRICES_SLACK_WEBHOOK is not set; skipping notification."
+            echo "::warning::AIGATEWAY_PRICES_SLACK_WEBHOOK is not set; skipping notification."
             exit 0
           fi
           text=":warning: *AI model price book refresh failed.*\nThe generator fails by design when upstream drops a model pinned in scripts/aibridgepricesgen/overrides.jq or curated in curation.json. Logs: ${RUN_URL}"
