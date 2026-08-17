@@ -29,7 +29,7 @@ interface DateTimeRangeFilterProps {
 
 interface FieldState {
 	text: string;
-	error: boolean;
+	touched: boolean;
 }
 
 const EXAMPLES = ["Now", "15:43", "2026-08-13 11:43"];
@@ -60,22 +60,22 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	// leaks out.
 	const [fromField, setFromField] = useState<FieldState>({
 		text: "",
-		error: false,
+		touched: false,
 	});
 	const [toField, setToField] = useState<FieldState>({
 		text: "",
-		error: false,
+		touched: false,
 	});
 
 	const handleOpenChange = useEffectEvent((next: boolean) => {
 		if (next) {
 			setFromField({
 				text: toFieldText(value.startedAfter, currentTime),
-				error: false,
+				touched: false,
 			});
 			setToField({
 				text: toFieldText(value.startedBefore, currentTime),
-				error: false,
+				touched: false,
 			});
 		}
 		setOpen(next);
@@ -83,22 +83,29 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 
 	const parsedFrom = parseTimeExpression(fromField.text, currentTime);
 	const parsedTo = parseTimeExpression(toField.text, currentTime);
-	// "now" resolves to the current moment on every render, so compare with
-	// the same tolerance used when prefilling the inputs.
-	const unchanged =
+
+	const fromError =
+		fromField.text !== "" && parsedFrom === null
+			? "Enter a valid time, e.g. 2026-08-13 11:43"
+			: null;
+	const toError =
+		toField.text !== "" && parsedTo === null
+			? "Enter a valid time, e.g. 2026-08-13 11:43"
+			: null;
+	const rangeError =
+		fromError === null &&
+		toError === null &&
 		parsedFrom !== null &&
 		parsedTo !== null &&
-		Math.abs(parsedFrom.getTime() - value.startedAfter.getTime()) <
-			NOW_TOLERANCE_MS &&
-		Math.abs(parsedTo.getTime() - value.startedBefore.getTime()) <
-			NOW_TOLERANCE_MS;
+		parsedFrom.getTime() >= parsedTo.getTime()
+			? "From must be before To"
+			: null;
+
+	// Apply is only useful when something actually changed; untouched
+	// fields resolve back to the committed range.
+	const modified = fromField.touched || toField.touched;
 	const applyDisabled =
-		fromField.error ||
-		toField.error ||
-		parsedFrom === null ||
-		parsedTo === null ||
-		unchanged ||
-		parsedFrom.getTime() >= parsedTo.getTime();
+		!modified || fromError !== null || toError !== null || rangeError !== null;
 
 	const triggerLabel = isDefault
 		? "Last 24 hours"
@@ -121,20 +128,20 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 						<Input
 							id="time-range-from"
 							aria-label="Start of time range"
-							aria-invalid={fromField.error}
+							aria-invalid={fromError !== null}
 							placeholder="now"
-							className={cn(fromField.error && "border-border-destructive")}
+							className={cn(fromError !== null && "border-border-destructive")}
 							value={fromField.text}
 							onChange={(event) => {
 								const text = event.target.value;
-								setFromField({
-									text,
-									error:
-										text !== "" &&
-										parseTimeExpression(text, currentTime) === null,
-								});
+								setFromField({ text, touched: true });
 							}}
 						/>
+						{fromError !== null && (
+							<span className="text-sm text-content-destructive">
+								{fromError}
+							</span>
+						)}
 					</div>
 					<div className="flex flex-col gap-1.5">
 						<Label htmlFor="time-range-to" className="text-content-primary">
@@ -143,22 +150,27 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 						<Input
 							id="time-range-to"
 							aria-label="End of time range"
-							aria-invalid={toField.error}
+							aria-invalid={toError !== null}
 							placeholder="now"
-							className={cn(toField.error && "border-border-destructive")}
+							className={cn(toError !== null && "border-border-destructive")}
 							value={toField.text}
 							onChange={(event) => {
 								const text = event.target.value;
-								setToField({
-									text,
-									error:
-										text !== "" &&
-										parseTimeExpression(text, currentTime) === null,
-								});
+								setToField({ text, touched: true });
 							}}
 						/>
+						{toError !== null && (
+							<span className="text-sm text-content-destructive">
+								{toError}
+							</span>
+						)}
 					</div>
-					<div className="flex items-center justify-end">
+					<div className="flex flex-col items-end gap-2">
+						{rangeError !== null && (
+							<span className="text-sm text-content-destructive">
+								{rangeError}
+							</span>
+						)}
 						<Button
 							size="sm"
 							disabled={applyDisabled}

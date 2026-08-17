@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import { stringifyFilter } from "#/components/Filter/filterQuery";
 
 export type TimeRange = {
 	startedAfter: Date;
@@ -174,24 +175,19 @@ export const withDefaultTimeRange = (
 
 /**
  * Builds a filter query string that replaces any existing time range in
- * values with the given range while preserving all other filters. The
- * timestamps are quoted because RFC 3339 values contain colons that the
- * query parser would otherwise treat as key/value separators.
+ * values with the given range while preserving all other filters.
+ * stringifyFilter quotes the RFC 3339 values because the backend query
+ * parser treats unquoted colons as key/value separators.
  */
 export const setTimeRangeInQuery = (
 	values: Record<string, string | undefined>,
 	range: TimeRange,
 ): string => {
-	const parts: string[] = [];
-	for (const [key, value] of Object.entries(values)) {
-		if (!value || key === "started_after" || key === "started_before") {
-			continue;
-		}
-		parts.push(value.includes(" ") ? `${key}:"${value}"` : `${key}:${value}`);
-	}
-	parts.push(`started_after:"${toRFC3339(range.startedAfter)}"`);
-	parts.push(`started_before:"${toRFC3339(range.startedBefore)}"`);
-	return parts.join(" ");
+	return stringifyFilter({
+		...values,
+		started_after: toRFC3339(range.startedAfter),
+		started_before: toRFC3339(range.startedBefore),
+	});
 };
 
 /** Extracts an explicit time range from filter values, or null if absent. */

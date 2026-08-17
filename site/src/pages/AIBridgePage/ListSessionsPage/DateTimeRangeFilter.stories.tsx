@@ -166,7 +166,7 @@ export const ApplyCommitsSelection: Story = {
 	},
 };
 
-export const InvalidExpressionDisablesApply: Story = {
+export const InvalidExpressionShowsError: Story = {
 	args: {
 		onChange: fn(),
 	},
@@ -180,6 +180,9 @@ export const InvalidExpressionDisablesApply: Story = {
 		const fromInput = await body.findByLabelText("Start of time range");
 		await fireEvent.change(fromInput, { target: { value: "30d" } });
 		expect(fromInput).toHaveAttribute("aria-invalid", "true");
+		expect(
+			body.getByText("Enter a valid time, e.g. 2026-08-13 11:43"),
+		).toBeInTheDocument();
 		expect(body.getByRole("button", { name: "Apply" })).toBeDisabled();
 
 		await userEvent.keyboard("{Escape}");
@@ -187,7 +190,7 @@ export const InvalidExpressionDisablesApply: Story = {
 	},
 };
 
-export const ReversedRangeDisablesApply: Story = {
+export const ReversedRangeShowsError: Story = {
 	args: {
 		onChange: fn(),
 	},
@@ -198,13 +201,14 @@ export const ReversedRangeDisablesApply: Story = {
 			canvas.getByRole("button", { name: "Filter by time range" }),
 		);
 
-		// From after To is not a valid range.
+		// From after To is not a valid range and gets its own message.
 		const fromInput = await body.findByLabelText("Start of time range");
 		const toInput = body.getByLabelText("End of time range");
 		await fireEvent.change(fromInput, {
 			target: { value: "2026-08-13 16:00" },
 		});
 		await fireEvent.change(toInput, { target: { value: "2026-08-13 08:00" } });
+		expect(body.getByText("From must be before To")).toBeInTheDocument();
 		expect(body.getByRole("button", { name: "Apply" })).toBeDisabled();
 
 		await userEvent.keyboard("{Escape}");
