@@ -1051,7 +1051,6 @@ const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
 	if (!queries || !names) {
 		return <GenericToolRenderer {...props} />;
 	}
-	const searchTerms = [...queries, ...names];
 	const parsedResult = parseArgs(props.result);
 	let matches: FindToolsMatch[] | null = [];
 	if (props.status !== "running" || props.result !== undefined) {
@@ -1066,7 +1065,8 @@ const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
 		: "";
 	return (
 		<FindToolsTool
-			queries={searchTerms}
+			queries={queries}
+			names={names}
 			matches={matches}
 			status={props.status}
 			isError={props.isError}

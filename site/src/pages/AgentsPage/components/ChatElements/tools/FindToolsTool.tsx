@@ -9,6 +9,7 @@ export type FindToolsMatch = {
 
 type FindToolsToolProps = {
 	queries: readonly string[];
+	names: readonly string[];
 	matches: readonly FindToolsMatch[];
 	status: ToolStatus;
 	isError: boolean;
@@ -17,12 +18,14 @@ type FindToolsToolProps = {
 
 export const FindToolsTool: FC<FindToolsToolProps> = ({
 	queries,
+	names,
 	matches,
 	status,
 	isError,
 	errorMessage,
 }) => {
-	const queryLabel = queries.join(", ") || "tools";
+	const queryLabel =
+		[...queries, ...names.map((name) => `name:${name}`)].join(", ") || "tools";
 	const label =
 		status === "running"
 			? `Searching tools: ${queryLabel}`
