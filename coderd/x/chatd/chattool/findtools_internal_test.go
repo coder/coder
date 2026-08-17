@@ -180,8 +180,25 @@ func TestFindToolsSharedSchemaBudget(t *testing.T) {
 	require.Equal(t, []string{"server__a", "server__b"}, activated(`{"names":["server__a","server__b"]}`))
 	require.Equal(t, []string{"server__c"}, activated(`{"names":["server__c","server__d"]}`),
 		"the second call spends the remaining shared budget, not a fresh one")
-	require.Equal(t, []string{"server__d"}, activated(`{"names":["server__d"]}`),
-		"an exhausted budget still keeps the first match")
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__d"]}`})
+	require.NoError(t, err)
+	require.True(t, resp.IsError,
+		"a call whose claims cannot fit the remaining budget errors instead of over-claiming")
+
+	huge := FindTools(FindToolsOptions{
+		Entries:           []FindToolCatalogEntry{{Name: "server__huge", SchemaTokens: 500}},
+		SchemaTokenBudget: 200,
+	})
+	resp, err = huge.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__huge"]}`})
+	require.NoError(t, err)
+	var hugeResult FindToolsResult
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &hugeResult))
+	require.Equal(t, []string{"server__huge"}, hugeResult.Activated,
+		"an untouched budget may over-claim once; derivation's newest-keep retains the sole claim")
+	resp, err = huge.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__huge"]}`})
+	require.NoError(t, err)
+	require.True(t, resp.IsError, "the spent budget rejects further activations")
 }
 
 func TestBuildFindToolsDescription(t *testing.T) {

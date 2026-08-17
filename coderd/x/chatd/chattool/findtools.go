@@ -3,7 +3,6 @@ package chattool
 import (
 	"context"
 	"fmt"
-	"math"
 	"regexp"
 	"slices"
 	"strconv"
@@ -21,6 +20,8 @@ const (
 )
 
 var findToolsTokenSeparator = regexp.MustCompile(`[^\p{L}\p{N}]+`)
+
+const findToolsBudgetExhausted = "the schema activation budget for this conversation is exhausted; call a cataloged tool directly by name to activate it in place of the least recently used schema"
 
 // FindToolCatalogEntry is the searchable metadata for one deferred tool.
 type FindToolCatalogEntry struct {
@@ -92,17 +93,26 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse("at least one query or name is required"), nil
 			}
 			budgetMu.Lock()
-			effectiveBudget := remainingBudget
-			if options.SchemaTokenBudget > 0 && effectiveBudget <= 0 {
-				// Keep SearchTools's first-match guarantee without
-				// flipping an exhausted budget into "unbounded".
-				effectiveBudget = math.SmallestNonzeroFloat64
+			if options.SchemaTokenBudget > 0 && remainingBudget <= 0 {
+				budgetMu.Unlock()
+				return fantasy.NewTextErrorResponse(findToolsBudgetExhausted), nil
 			}
-			result := SearchTools(entries, args, effectiveBudget)
+			result := SearchTools(entries, args, remainingBudget)
 			if options.SchemaTokenBudget > 0 {
+				admitted := 0.0
 				for _, name := range result.Activated {
-					remainingBudget -= schemaTokensByName[name]
+					admitted += schemaTokensByName[name]
 				}
+				// Derivation retains a single over-budget claim via its
+				// newest-keep rule, but only when it is the turn's sole
+				// claim, which is exactly when the budget is untouched.
+				// Any other over-claim would be silently shed on the
+				// next request, so fail it loudly instead.
+				if admitted > remainingBudget && remainingBudget < options.SchemaTokenBudget {
+					budgetMu.Unlock()
+					return fantasy.NewTextErrorResponse(findToolsBudgetExhausted), nil
+				}
+				remainingBudget -= admitted
 			}
 			budgetMu.Unlock()
 			if options.OnCall != nil {
