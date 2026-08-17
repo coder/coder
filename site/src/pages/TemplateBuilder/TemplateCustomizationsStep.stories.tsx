@@ -41,9 +41,6 @@ const permittedOrgsKey = permittedOrganizations({
 	action: "create",
 }).queryKey;
 
-const provisionersKey = (organizationId: string) =>
-	getProvisionerDaemonsKey(organizationId);
-
 const meta: Meta<typeof TemplateCustomizationsStep> = {
 	title: "pages/TemplateBuilder/TemplateCustomizationsStep",
 	component: TemplateCustomizationsStep,
@@ -98,7 +95,7 @@ export const SingleOrganizationSubmits: Story = {
 		queries: [
 			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
 			{
-				key: provisionersKey(MockDefaultOrganization.id),
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
 				data: [MockProvisioner],
 			},
 		],
@@ -129,7 +126,7 @@ export const MissingNameError: Story = {
 		queries: [
 			{ key: permittedOrgsKey, data: [MockDefaultOrganization] },
 			{
-				key: provisionersKey(MockDefaultOrganization.id),
+				key: getProvisionerDaemonsKey(MockDefaultOrganization.id),
 				data: [MockProvisioner],
 			},
 		],

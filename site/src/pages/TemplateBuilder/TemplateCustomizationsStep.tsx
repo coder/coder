@@ -101,13 +101,12 @@ export const TemplateCustomizationsStep: FC<
 	}, [hasProvisioners, onProvisionerStatusChange]);
 
 	// Auto-select when exactly one org is available.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: form.setFieldValue is stable
 	useEffect(() => {
 		if (orgOptions.length === 1 && !selectedOrg) {
 			setSelectedOrg(orgOptions[0]);
 			void form.setFieldValue("organization_id", orgOptions[0].id);
 		}
-	}, [orgOptions, selectedOrg]);
+	}, [orgOptions, selectedOrg, form]);
 
 	const handleOrgChange = (org: Organization | null) => {
 		setSelectedOrg(org);

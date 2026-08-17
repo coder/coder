@@ -191,12 +191,9 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		navigateToStep(nearestVisible(target, state));
 	};
 
-	const handleCreate = useCallback(
-		(values: CustomizationsFormValues) => {
-			onCreateTemplate(state, values);
-		},
-		[onCreateTemplate, state],
-	);
+	const handleCreate = (values: CustomizationsFormValues) => {
+		onCreateTemplate(state, values);
+	};
 
 	const handleProvisionerStatusChange = useCallback(
 		(value: boolean | undefined) => {

@@ -210,10 +210,7 @@ export function wizardReducer(
 				hasProvisioners: action.value,
 			};
 		case "RESET_CUSTOMIZATIONS":
-			// Reset provisioner detection so re-entering the step re-detects
-			// provisioners. The organization lives in the step's form and is
-			// re-selected on remount; base-derived fields are left intact (they
-			// are re-seeded by SET_BASE when the base changes).
+			// Re-detect provisioners when the step is re-entered.
 			return {
 				...state,
 				hasProvisioners: undefined,
