@@ -136,6 +136,59 @@ export const OpenPrefillsNowForCurrentBoundary: Story = {
 	},
 };
 
+export const BlurNormalizesUnderspecifiedInput: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		);
+
+		// A clock-only expression resolves to the current day once the
+		// input loses focus, so the user sees what will be applied.
+		const fromInput = await body.findByLabelText("Start of time range");
+		await userEvent.click(fromInput);
+		await fireEvent.change(fromInput, { target: { value: "12:34" } });
+		await userEvent.tab();
+		await waitFor(() => {
+			expect(fromInput).toHaveValue("2026-08-13 12:34:00");
+		});
+
+		// "now" is already unambiguous and stays untouched.
+		const toInput = body.getByLabelText("End of time range");
+		await userEvent.tab();
+		expect(toInput).toHaveValue("now");
+	},
+};
+
+export const BlurClampsReversedRange: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		);
+
+		// Blurring an out-of-order boundary snaps it back inside the range.
+		const fromInput = await body.findByLabelText("Start of time range");
+		const toInput = body.getByLabelText("End of time range");
+		await userEvent.click(fromInput);
+		await fireEvent.change(fromInput, {
+			target: { value: "2026-08-13 16:00" },
+		});
+		await fireEvent.change(toInput, { target: { value: "2026-08-13 08:00" } });
+		// Tabbing out of From clamps it below To; tabbing out of To then
+		// reformats it without changing the now-valid range.
+		await userEvent.tab();
+		await userEvent.tab();
+		await waitFor(() => {
+			expect(fromInput).toHaveValue("2026-08-13 07:59:59");
+		});
+		expect(toInput).toHaveValue("2026-08-13 08:00:00");
+		expect(body.queryByText("From must be before To")).toBeNull();
+	},
+};
+
 export const ApplyCommitsSelection: Story = {
 	args: {
 		onChange: fn(),

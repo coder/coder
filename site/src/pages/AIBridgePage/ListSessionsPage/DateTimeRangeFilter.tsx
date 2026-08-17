@@ -43,6 +43,9 @@ const toFieldText = (date: Date, now: Date): string =>
 		? "now"
 		: formatTimeExpression(date);
 
+const isNowExpression = (text: string): boolean =>
+	text.trim().toLowerCase() === "now";
+
 export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	value,
 	defaultValue,
@@ -84,6 +87,45 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	const parsedFrom = parseTimeExpression(fromField.text, currentTime);
 	const parsedTo = parseTimeExpression(toField.text, currentTime);
 
+	// Underspecified expressions resolve to absolute local timestamps when
+	// the input loses focus, so the user sees exactly what will be applied.
+	// "now" is left as-is because it is already unambiguous. Out-of-range
+	// values are clamped against the other boundary so the committed range
+	// is always valid.
+	const normalizeFrom = useEffectEvent(() => {
+		setFromField((field) => {
+			if (isNowExpression(field.text)) {
+				return field;
+			}
+			const parsed = parseTimeExpression(field.text, currentTime);
+			if (!parsed) {
+				return field;
+			}
+			const clamped =
+				parsedTo !== null && parsed.getTime() >= parsedTo.getTime()
+					? new Date(parsedTo.getTime() - 1000)
+					: parsed;
+			return { ...field, text: formatTimeExpression(clamped) };
+		});
+	});
+
+	const normalizeTo = useEffectEvent(() => {
+		setToField((field) => {
+			if (isNowExpression(field.text)) {
+				return field;
+			}
+			const parsed = parseTimeExpression(field.text, currentTime);
+			if (!parsed) {
+				return field;
+			}
+			const clamped =
+				parsedFrom !== null && parsed.getTime() <= parsedFrom.getTime()
+					? new Date(parsedFrom.getTime() + 1000)
+					: parsed;
+			return { ...field, text: formatTimeExpression(clamped) };
+		});
+	});
+
 	const fromError =
 		fromField.text !== "" && parsedFrom === null
 			? "Enter a valid time, e.g. 2026-08-13 11:43"
@@ -114,9 +156,14 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size="sm" aria-label="Filter by time range">
+				<Button
+					variant="outline"
+					aria-label="Filter by time range"
+					className="shrink-0 grow"
+					style={{ flexBasis: 200 }}
+				>
 					<CalendarIcon className="size-4 text-content-secondary" />
-					<span className="text-nowrap">{triggerLabel}</span>
+					<span className="truncate text-left">{triggerLabel}</span>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent className="w-80 p-0" align="end">
@@ -136,6 +183,7 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 								const text = event.target.value;
 								setFromField({ text, touched: true });
 							}}
+							onBlur={normalizeFrom}
 						/>
 						{fromError !== null && (
 							<span className="text-sm text-content-destructive">
@@ -158,6 +206,7 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 								const text = event.target.value;
 								setToField({ text, touched: true });
 							}}
+							onBlur={normalizeTo}
 						/>
 						{toError !== null && (
 							<span className="text-sm text-content-destructive">
