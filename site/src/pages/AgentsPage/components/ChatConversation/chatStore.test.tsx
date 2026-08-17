@@ -1503,6 +1503,7 @@ describe("useChatStore", () => {
 				return {
 					streamState: useChatSelector(store, selectStreamState),
 					chatStatus: useChatSelector(store, selectChatStatus),
+					store,
 				};
 			},
 			{ wrapper },
@@ -1566,6 +1567,31 @@ describe("useChatStore", () => {
 
 		// Wait past the coalesced flush window so the drop is
 		// observable rather than "not yet flushed".
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		});
+
+		expect(result.current.streamState?.blocks).toEqual([
+			{ type: "response", text: "first" },
+		]);
+
+		// An optimistic send status must not reopen the window; drain
+		// parts from the closed episode are still dropped.
+		act(() => {
+			result.current.store.setChatStatus("running");
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "drain after send" },
+				},
+			});
+		});
+
 		await act(async () => {
 			await new Promise((resolve) => setTimeout(resolve, 10));
 		});

@@ -428,11 +428,12 @@ export const useChatStore = (
 		// while the latch is set belongs to an episode the server already
 		// closed (closed episodes drain for up to 15s server-side) and is
 		// dropped; a REST-hydrated "waiting" never sets the latch, so
-		// parts still flow when the REST status lags a live turn.
+		// parts still flow when the REST status lags a live turn. An
+		// optimistic status write carries no liveness signal; only a
+		// stream status event clears the latch.
 		let streamReportedWaiting = false;
 
-		const shouldKeepMessagePart = (): boolean =>
-			store.getSnapshot().chatStatus !== "waiting" || !streamReportedWaiting;
+		const shouldKeepMessagePart = (): boolean => !streamReportedWaiting;
 
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
