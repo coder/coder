@@ -52,6 +52,9 @@ const BudgetDocsLink: FC = () => (
 		target="_blank"
 		rel="noreferrer"
 		size="sm"
+		// The link's default left padding reads as a stray gap when the link
+		// wraps to its own line under the helper text.
+		className="pl-0"
 	>
 		Learn how budgets apply across groups
 	</Link>
