@@ -258,21 +258,15 @@ func seedRefreshToken(ctx context.Context, t *testing.T, db database.Store, app 
 }
 
 // authorizeCode runs a full authorization and returns the issued code with the
-// verifier that redeems it. authorizeQuery in authorize_test.go discards the
-// verifier, which the exchange needs.
+// verifier that redeems it. The query is authorizeQuery's, with the challenge
+// swapped for one whose verifier is kept, since the exchange needs it and
+// authorizeQuery discards its own.
 func authorizeCode(ctx context.Context, t *testing.T, client *codersdk.Client, clientID, scope string) (code, verifier string) {
 	t.Helper()
 
 	verifier, challenge := oauth2providertest.GeneratePKCE(t)
-	query := url.Values{}
-	query.Set("client_id", clientID)
-	query.Set("response_type", "code")
-	query.Set("state", authorizeState)
+	query := authorizeQuery(t, clientID, scope)
 	query.Set("code_challenge", challenge)
-	query.Set("code_challenge_method", "S256")
-	if scope != "" {
-		query.Set("scope", scope)
-	}
 
 	resp := sendAuthorizeRequest(ctx, t, client, http.MethodPost, query)
 	defer resp.Body.Close()
