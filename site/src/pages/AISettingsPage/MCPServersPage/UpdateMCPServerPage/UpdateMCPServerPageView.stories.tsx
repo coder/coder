@@ -19,6 +19,7 @@ const meta: Meta<typeof UpdateMCPServerPageView> = {
 		server: MockCoderMCPServer,
 		listPath: "/ai/settings/mcp-servers",
 		isSaving: false,
+		canSelectUserOIDC: true,
 		isDeleting: false,
 		onUpdateServer,
 		onDeleteServer: fn(async () => undefined),
@@ -62,5 +63,51 @@ export const Default: Story = {
 			);
 		});
 		expect(onUpdateServer.mock.calls[0]?.[1]).not.toHaveProperty("enabled");
+	},
+};
+
+export const UserOIDCRequiresDeploymentPermission: Story = {
+	args: {
+		canSelectUserOIDC: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: /authentication method/i }),
+		);
+		await expect(
+			body.getByRole("option", { name: "OAuth2" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("option", { name: "User OIDC identity" }),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByLabelText(/display name/i)).toBeEnabled();
+	},
+};
+
+export const DeleteOnly: Story = {
+	args: {
+		onUpdateServer: undefined,
+		onToggleEnabled: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
+		await expect(canvas.getByLabelText(/^slug/i)).toBeDisabled();
+		await expect(canvas.getByLabelText(/server url/i)).toBeDisabled();
+		await expect(
+			canvas.getByRole("button", { name: "Update server" }),
+		).toBeDisabled();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Server actions" }),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: "Remove" }),
+		).toBeEnabled();
 	},
 };

@@ -8,6 +8,7 @@ interface UpdateMCPServerPageViewProps {
 	listPath: string;
 	isSaving: boolean;
 	isDeleting: boolean;
+	canSelectUserOIDC: boolean;
 	onUpdateServer?: (
 		serverId: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
@@ -22,6 +23,7 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	listPath,
 	isSaving,
 	isDeleting,
+	canSelectUserOIDC,
 	onUpdateServer,
 	onDeleteServer,
 	onToggleEnabled,
@@ -36,6 +38,7 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 				listPath={listPath}
 				isSaving={isSaving}
 				isDeleting={isDeleting}
+				canSelectUserOIDC={canSelectUserOIDC}
 				onUpdateServer={onUpdateServer}
 				onDeleteServer={onDeleteServer}
 				onToggleEnabled={onToggleEnabled}

@@ -143,6 +143,7 @@ const UpdateMCPServerPage: FC = () => {
 								listPath={listPath}
 								isSaving={updateMutation.isPending}
 								isDeleting={deleteMutation.isPending}
+								canSelectUserOIDC={permissions.editDeploymentConfig}
 								onCancel={() => void navigate(listPath)}
 								onUpdateServer={
 									canUpdateServer

@@ -30,6 +30,7 @@ interface MCPServerFormFieldsProps {
 	isDisabled: boolean;
 	canSubmit: boolean;
 	isEditing: boolean;
+	canSelectUserOIDC: boolean;
 	onCancel?: () => void;
 	showDetails: boolean;
 	setShowDetails: (open: boolean) => void;
@@ -45,6 +46,7 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	isDisabled,
 	canSubmit,
 	isEditing,
+	canSelectUserOIDC,
 	onCancel,
 	showDetails,
 	setShowDetails,
@@ -178,6 +180,7 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 							form={form}
 							formId={formId}
 							disabled={isDisabled}
+							canSelectUserOIDC={canSelectUserOIDC}
 						/>
 					</CollapsibleSection>
 

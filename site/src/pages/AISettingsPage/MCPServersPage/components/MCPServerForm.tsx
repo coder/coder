@@ -20,6 +20,7 @@ type MCPServerFormCreateProps = {
 	listPath?: string;
 	isSaving: boolean;
 	isDeleting?: false;
+	canSelectUserOIDC: boolean;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
@@ -34,6 +35,7 @@ type MCPServerFormEditProps = {
 	listPath: string;
 	isSaving: boolean;
 	isDeleting: boolean;
+	canSelectUserOIDC: boolean;
 	onCreateServer?: undefined;
 	onUpdateServer?: (
 		serverId: string,
@@ -51,6 +53,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	listPath,
 	isSaving,
 	isDeleting = false,
+	canSelectUserOIDC,
 	onCreateServer,
 	onUpdateServer,
 	onDeleteServer,
@@ -75,14 +78,15 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				);
 			} else if (onCreateServer) {
 				await onCreateServer(buildCreateMCPServerConfigRequest(values));
+				form.resetForm();
 			}
 		},
 	});
 
 	const isDisabled = isSaving || isDeleting;
-	const canSubmit =
-		(!isEditing || Boolean(onUpdateServer)) &&
-		canSubmitMCPServerForm(form.values, isDisabled);
+	const areFieldsDisabled =
+		isDisabled || (isEditing && onUpdateServer === undefined);
+	const canSubmit = canSubmitMCPServerForm(form.values, areFieldsDisabled);
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,
 	);
@@ -108,9 +112,10 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				<MCPServerFormFields
 					form={form}
 					isSaving={isSaving}
-					isDisabled={isDisabled}
+					isDisabled={areFieldsDisabled}
 					canSubmit={canSubmit}
 					isEditing={isEditing}
+					canSelectUserOIDC={canSelectUserOIDC}
 					onCancel={onCancel}
 					showDetails={showDetails}
 					setShowDetails={setShowDetails}

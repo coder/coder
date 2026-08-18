@@ -105,6 +105,7 @@ const AddMCPServerPage: FC = () => {
 						<AddMCPServerPageView
 							isSaving={createMutation.isPending}
 							canCreate={canCreate}
+							canSelectUserOIDC={permissions.editDeploymentConfig}
 							canViewServerList={canViewServerList}
 							organizations={creatableOrganizations}
 							organization={organization}

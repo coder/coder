@@ -10,6 +10,7 @@ interface AddMCPServerPageViewProps {
 	isSaving: boolean;
 	canCreate: boolean;
 	canViewServerList: boolean;
+	canSelectUserOIDC: boolean;
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
@@ -23,6 +24,7 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 	isSaving,
 	canCreate,
 	canViewServerList,
+	canSelectUserOIDC,
 	organizations,
 	organization,
 	onSelectOrganization,
@@ -46,6 +48,7 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 						canViewServerList ? mcpServersPath(organization) : undefined
 					}
 					isSaving={isSaving}
+					canSelectUserOIDC={canSelectUserOIDC}
 					onCreateServer={onCreateServer}
 					onCancel={canViewServerList ? onCancel : undefined}
 				/>

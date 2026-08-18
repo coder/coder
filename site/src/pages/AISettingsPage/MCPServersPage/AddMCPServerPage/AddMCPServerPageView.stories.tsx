@@ -12,6 +12,7 @@ const meta: Meta<typeof AddMCPServerPageView> = {
 	args: {
 		isSaving: false,
 		canCreate: true,
+		canSelectUserOIDC: true,
 		canViewServerList: true,
 		organizations: [MockDefaultOrganization],
 		organization: MockDefaultOrganization,
@@ -68,5 +69,31 @@ export const Default: Story = {
 				}),
 			);
 		});
+		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("");
+		await expect(canvas.getByLabelText(/^slug/i)).toHaveValue("");
+		await expect(canvas.getByLabelText(/server url/i)).toHaveValue("");
+		await expect(addButton).toBeDisabled();
+	},
+};
+
+export const UserOIDCRequiresDeploymentPermission: Story = {
+	args: {
+		canSelectUserOIDC: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: /authentication method/i }),
+		);
+		await expect(
+			body.getByRole("option", { name: "OAuth2" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("option", { name: "User OIDC identity" }),
+		).not.toBeInTheDocument();
 	},
 };

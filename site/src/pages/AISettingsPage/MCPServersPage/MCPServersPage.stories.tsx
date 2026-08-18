@@ -18,6 +18,7 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withToaster,
 } from "#/testHelpers/storybook";
 import AddMCPServerPage from "./AddMCPServerPage/AddMCPServerPage";
 import MCPServersPage from "./MCPServersPage";
@@ -135,7 +136,7 @@ const DetailRedirectProbe: FC = () => {
 const meta = {
 	title: "pages/AISettingsPage/MCPServersPage/MCPServersPage",
 	component: MCPServersPage,
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
@@ -412,10 +413,23 @@ export const OrgAdminCanAddMCPServer: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		await expect(await canvas.findByLabelText(/display name/i)).toBeVisible();
 		await expect(
 			canvas.getByRole("button", { name: "Add server" }),
 		).toBeVisible();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: /authentication method/i }),
+		);
+		await expect(
+			body.getByRole("option", { name: "OAuth2" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("option", { name: "User OIDC identity" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -475,7 +489,17 @@ export const CreateOnlyOrgAdminCanAddMCPServer: Story = {
 				expect.objectContaining({ display_name: "GitHub" }),
 			);
 		});
-		await expect(canvas.getByLabelText(/display name/i)).toBeVisible();
+		await expect(
+			await body.findByText(
+				`MCP server "${MockOrganization2MCPServer.display_name}" added.`,
+			),
+		).toBeInTheDocument();
+		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("");
+		await expect(canvas.getByLabelText(/^slug/i)).toHaveValue("");
+		await expect(canvas.getByLabelText(/server url/i)).toHaveValue("");
+		await expect(
+			canvas.getByRole("button", { name: "Add server" }),
+		).toBeDisabled();
 	},
 };
 
@@ -815,6 +839,7 @@ export const OrgAdminCanUpdateMCPServer: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		await expect(await canvas.findByLabelText(/display name/i)).toHaveValue(
 			"Coder",
 		);
@@ -824,6 +849,18 @@ export const OrgAdminCanUpdateMCPServer: Story = {
 		await expect(
 			canvas.getByRole("switch", { name: "Server enabled" }),
 		).toBeEnabled();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: /authentication method/i }),
+		);
+		await expect(
+			body.getByRole("option", { name: "OAuth2" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("option", { name: "User OIDC identity" }),
+		).not.toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: "Server actions" }),
 		).not.toBeInTheDocument();
@@ -871,6 +908,16 @@ export const UserOIDCOrgAdminCannotUpdate: Story = {
 		await expect(
 			canvas.getByRole("switch", { name: "Server enabled" }),
 		).toBeDisabled();
+		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await expect(
+			canvas.getByLabelText(/authentication method/i),
+		).toBeDisabled();
+		await expect(
+			canvas.getByLabelText(/authentication method/i),
+		).toHaveTextContent("User OIDC identity");
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Server actions" }),
 		);
@@ -914,6 +961,28 @@ export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 		await expect(
 			canvas.getByRole("switch", { name: "Server enabled" }),
 		).toBeDisabled();
+		await expect(canvas.getByLabelText(/^slug/i)).toBeDisabled();
+		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
+		await expect(canvas.getByLabelText(/server url/i)).toBeDisabled();
+		await expect(canvas.getByLabelText(/^transport/i)).toBeDisabled();
+		await userEvent.click(canvas.getByRole("button", { name: /details/i }));
+		await expect(canvas.getByLabelText(/^description/i)).toBeDisabled();
+		await expect(canvas.getByLabelText(/^icon/i)).toBeDisabled();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await expect(
+			canvas.getByLabelText(/authentication method/i),
+		).toBeDisabled();
+		await expect(canvas.getByLabelText(/client id/i)).toBeDisabled();
+		await expect(canvas.getByLabelText(/client secret/i)).toBeDisabled();
+		await userEvent.click(canvas.getByRole("button", { name: /behavior/i }));
+		await expect(canvas.getByLabelText(/^availability/i)).toBeDisabled();
+		await expect(
+			canvas.getByRole("switch", { name: "Model intent" }),
+		).toBeDisabled();
+		await expect(canvas.getByLabelText(/tool allow list/i)).toBeDisabled();
+		await expect(canvas.getByLabelText(/tool deny list/i)).toBeDisabled();
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Server actions" }),
 		);
