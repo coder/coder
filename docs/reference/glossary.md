@@ -153,7 +153,7 @@ Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/c
 
 ### Coding agent
 
-An AI agent that reads and writes code on a developer's behalf, such as Claude Code, run through Coder Agents.
+An AI agent that reads and writes code on a developer's behalf, such as Claude Code.
 Refer to [AI in Coder](../ai-coder/index.md).
 
 ### Community
