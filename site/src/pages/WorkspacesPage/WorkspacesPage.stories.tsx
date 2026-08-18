@@ -253,6 +253,10 @@ export const EmptyWithoutTemplates: Story = {
 				key: getTemplatesQueryKey(),
 				data: [],
 			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 25, offset: 0 }),
+				data: { workspaces: [], count: 0 },
+			},
 		],
 		reactRouter: reactRouterParameters({
 			location: { path: "/workspaces" },
@@ -264,9 +268,6 @@ export const EmptyWithoutTemplates: Story = {
 				},
 			],
 		}),
-	},
-	beforeEach: () => {
-		spyOn(API, "getWorkspaces").mockResolvedValue({ workspaces: [], count: 0 });
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
