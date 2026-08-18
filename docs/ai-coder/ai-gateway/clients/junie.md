@@ -6,7 +6,11 @@
 
 [Junie CLI](https://junie.jetbrains.com/docs/junie-cli.html) supports AI Gateway
 through [custom model profiles](https://www.jetbrains.com/help/junie/custom-llm-models.html).
-Both the OpenAI and Anthropic endpoints are supported.
+
+| Provider  | API type          | Endpoint                 |
+|-----------|-------------------|--------------------------|
+| OpenAI    | `OpenAIResponses` | `/openai/v1/responses`   |
+| Anthropic | `Anthropic`       | `/anthropic/v1/messages` |
 
 For Junie inside JetBrains IDEs, refer to [JetBrains IDEs](./jetbrains.md).
 
@@ -37,10 +41,6 @@ Create `~/.junie/models/ai-gateway.json` for the OpenAI endpoint:
   "fasterModel": { "id": "gpt-5.4-mini" }
 }
 ```
-
-> [!IMPORTANT]
-> Use the `OpenAIResponses` API type. Junie sends a `stop` sequence on the Chat
-> Completions API, which OpenAI reasoning models reject.
 
 Or for the Anthropic endpoint:
 
