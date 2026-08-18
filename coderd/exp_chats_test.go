@@ -307,6 +307,42 @@ func (s *failNextUpsertChatSystemPromptStore) UpsertChatSystemPrompt(ctx context
 	return s.Store.UpsertChatSystemPrompt(ctx, prompt)
 }
 
+// failNextAcquireLockStore lets a test force the next advisory lock
+// acquisition for one lock ID to fail with a deadline error, simulating a
+// lock wait that timed out. The failure state is shared across InTx
+// wrappers.
+type failNextAcquireLockStore struct {
+	database.Store
+
+	lockID              int64
+	failNextAcquireLock *atomic.Bool
+}
+
+func newFailNextAcquireLockStore(store database.Store, lockID int64) *failNextAcquireLockStore {
+	return &failNextAcquireLockStore{
+		Store:               store,
+		lockID:              lockID,
+		failNextAcquireLock: &atomic.Bool{},
+	}
+}
+
+func (s *failNextAcquireLockStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextAcquireLockStore{
+			Store:               tx,
+			lockID:              s.lockID,
+			failNextAcquireLock: s.failNextAcquireLock,
+		})
+	}, txOpts)
+}
+
+func (s *failNextAcquireLockStore) AcquireLock(ctx context.Context, id int64) error {
+	if id == s.lockID && s.failNextAcquireLock.CompareAndSwap(true, false) {
+		return context.DeadlineExceeded
+	}
+	return s.Store.AcquireLock(ctx, id)
+}
+
 // failNextUpsertChatPlanModeInstructionsStore lets a test force the plan-mode
 // instructions upsert to fail once, sharing its failure state across InTx
 // wrappers.
@@ -13126,6 +13162,51 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		})
 		require.NoError(t, err)
 		require.Empty(t, mAudit.AuditLogs())
+	})
+
+	// The advisory lock only exists for audit change detection, so a lock
+	// wait that times out must not fail a write that succeeded before the
+	// audit wiring existed: the handler falls back to the unaudited write
+	// path and emits no entry.
+	t.Run("AuditLockFailureFallsBackWithoutEntry", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextAcquireLockStore(rawDB, database.LockIDChatInstructionSystemPrompt)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.failNextAcquireLock.Store(true)
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "Prompt written despite lock timeout.",
+		})
+		require.NoError(t, err)
+		require.Empty(t, mAudit.AuditLogs())
+
+		resp, err := client.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Prompt written despite lock timeout.", resp.SystemPrompt)
+
+		// The next PUT reacquires the lock normally and audits the change
+		// against the fallback-written value.
+		mAudit.ResetLogs()
+		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "Prompt written after lock recovery.",
+		})
+		require.NoError(t, err)
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
 	})
 
 	// The derived New must match the getter's computed effective state on

@@ -4549,8 +4549,8 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 // chatInstructionSettingsLockTimeout bounds how long a request waits for the
 // per-setting advisory lock. The only other holders are sibling requests
 // holding it for a single upsert, so a short bound cannot strand a waiter:
-// on expiry the request fails with 500 instead of hanging until the client
-// deadline.
+// on expiry the request falls back to the unaudited write path instead of
+// hanging until the client deadline.
 const chatInstructionSettingsLockTimeout = 5 * time.Second
 
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
@@ -4600,6 +4600,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		noChange    bool
 		oldCaptured bool
 		oldReadErr  error
+		lockErr     error
 	)
 	// The per-setting advisory lock serializes the audit change-detection
 	// with the write: two concurrent identical PUTs both still succeed,
@@ -4610,6 +4611,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	defer lockCancel()
 	err := api.Database.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(lockCtx, database.LockIDChatInstructionSystemPrompt); err != nil {
+			lockErr = err
 			return xerrors.Errorf("acquire chat instruction setting write lock: %w", err)
 		}
 
@@ -4668,12 +4670,17 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		if oldReadErr != nil {
-			// The Old capture failed before anything was written, so the
-			// transaction was abandoned at no cost: write directly
-			// exactly as main does, emit no entry, and warn.
-			api.Logger.Warn(ctx, "audit old capture failed, writing chat system prompt without an audit entry",
-				slog.Error(oldReadErr))
+		auditSetupErr := lockErr
+		if auditSetupErr == nil {
+			auditSetupErr = oldReadErr
+		}
+		if auditSetupErr != nil {
+			// The audit-added lock wait or Old capture failed before
+			// anything was written, so the transaction was abandoned at
+			// no cost: write directly exactly as main does, emit no
+			// entry, and warn.
+			api.Logger.Warn(ctx, "audit change detection failed, writing chat system prompt without an audit entry",
+				slog.Error(auditSetupErr))
 			commitAudit(false)
 			if mainErr := api.Database.InTx(func(tx database.Store) error {
 				if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
@@ -4693,8 +4700,10 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusNoContent)
 			return
 		}
-		// This endpoint was transactional on main, so begin, lock, write,
-		// commit and rollback errors all surface exactly as main's.
+		// This endpoint was transactional on main, so begin, write,
+		// commit and rollback errors all surface exactly as main's. The
+		// advisory lock is audit-added, so its failure falls back above
+		// instead of surfacing.
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat system prompt configuration.",
 			Detail:  err.Error(),
