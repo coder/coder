@@ -3178,12 +3178,7 @@ func (api *API) workspaceAvailableUsers(rw http.ResponseWriter, r *http.Request)
 
 	minimalUsers := make([]codersdk.MinimalUser, 0, len(users))
 	for _, user := range users {
-		minimalUsers = append(minimalUsers, codersdk.MinimalUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			Name:      user.Name,
-			AvatarURL: user.AvatarURL,
-		})
+		minimalUsers = append(minimalUsers, db2sdk.MinimalUser(user))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, minimalUsers)

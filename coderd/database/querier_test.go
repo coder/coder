@@ -19129,3 +19129,31 @@ func TestGetAIModelPrices(t *testing.T) {
 		})
 	}
 }
+
+// TestGetTemplateVersionByIDPopulatesCreatedByEmail pins the created_by_email
+// projection on the template_version_with_user view. The email is joined from
+// visible_users, so this fails if the view or the visible_users email column
+// regresses.
+func TestGetTemplateVersionByIDPopulatesCreatedByEmail(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	got, err := db.GetTemplateVersionByID(ctx, version.ID)
+	require.NoError(t, err)
+	require.Equal(t, user.Email, got.CreatedByEmail)
+	require.Equal(t, user.Username, got.CreatedByUsername)
+}
