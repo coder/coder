@@ -55,6 +55,8 @@ const DOCS = resolve(
 );
 const OUT_CONTENT = resolve(siteRoot, "content/docs");
 const OUT_PUBLIC = resolve(siteRoot, "public");
+// fumadocs-mdx's generated, gitignored typed source: an index of OUT_CONTENT.
+const DOT_SOURCE = resolve(siteRoot, ".source");
 
 // coder/coder repository slug and ref that source-tree links (targets outside
 // the docs/ corpus) are pointed at on GitHub, since they can never resolve to a
@@ -205,6 +207,15 @@ mkdirSync(OUT_CONTENT, { recursive: true });
 // Keep the tracked placeholder so a clean checkout still has the source dir
 // (and the working tree stays clean for CI's unstaged-file check).
 writeFileSync(join(OUT_CONTENT, ".gitkeep"), "");
+
+// Drop fumadocs-mdx's stale typed source so the next `fumadocs-mdx` / `next
+// build` rebuilds it from the content written below. fumadocs-mdx skips
+// regeneration when .source is newer than the content it indexes, and the
+// `postinstall: fumadocs-mdx` hook builds .source once against the still-empty
+// content/docs before this sync runs. That stub can end up newer than the
+// freshly synced content, so without this fumadocs-mdx no-ops and ships an
+// empty typed source (tsc: ".source/server.ts is not a module").
+rmSync(DOT_SOURCE, { recursive: true, force: true });
 
 function yamlString(s) {
 	return JSON.stringify(String(s));
