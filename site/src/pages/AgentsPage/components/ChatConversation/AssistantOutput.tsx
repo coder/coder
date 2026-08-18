@@ -1,3 +1,4 @@
+import { PauseIcon } from "lucide-react";
 import type { FC } from "react";
 import { Shimmer } from "../ChatElements";
 import { ToolIcon } from "../ChatElements/tools/ToolIcon";
@@ -6,14 +7,20 @@ import type { LiveStatusModel } from "./liveStatusModel";
 import { BlockList, type BlockListProps } from "./MessageBlocks";
 import { shouldShowGenericThinking } from "./streamingActivity";
 
-const LiveActivitySlot: FC = () => (
+const LiveActivitySlot: FC<{ interrupting?: boolean }> = ({
+	interrupting = false,
+}) => (
 	<div
 		data-testid="live-activity-slot"
 		className="flex h-6 items-center gap-2 text-content-secondary"
 	>
-		<ToolIcon name="thinking" />
+		{interrupting ? (
+			<PauseIcon className="size-4 shrink-0 stroke-[1.5]" />
+		) : (
+			<ToolIcon name="thinking" />
+		)}
 		<Shimmer as="span" className="text-[13px] leading-6">
-			Thinking
+			{interrupting ? "Interrupting" : "Thinking"}
 		</Shimmer>
 	</div>
 );
@@ -43,8 +50,11 @@ export const AssistantOutput: FC<AssistantOutputProps> = ({
 			<BlockList {...blockProps} />
 			{callout && <ChatStatusCallout status={callout} />}
 			{liveStatus &&
-				shouldShowGenericThinking({ liveStatus, blocks, tools }) && (
-					<LiveActivitySlot />
+				(liveStatus.phase === "interrupting" ||
+					shouldShowGenericThinking({ liveStatus, blocks, tools })) && (
+					<LiveActivitySlot
+						interrupting={liveStatus.phase === "interrupting"}
+					/>
 				)}
 		</div>
 	);

@@ -37,10 +37,79 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestConfigGitMemoizesProvider(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	const etag = `"config-git-memo-etag"`
+	var conditionalRequests atomic.Int64
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if inm := r.Header.Get("If-None-Match"); inm != "" {
+			conditionalRequests.Add(1)
+			assert.Equal(t, etag, inm)
+			w.Header().Set("ETag", etag)
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("ETag", etag)
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer srv.Close()
+
+	cfg := &externalauth.Config{
+		Type:       string(codersdk.EnhancedExternalAuthProviderGitHub),
+		APIBaseURL: srv.URL + "/api/v3",
+		HTTPClient: srv.Client(),
+	}
+
+	gp1, err := cfg.Git()
+	require.NoError(t, err)
+	require.NotNil(t, gp1)
+
+	branch := gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"}
+
+	// Cold poll: populates the provider's ETag cache.
+	_, err = gp1.ResolveBranchPullRequest(ctx, "test-token", branch)
+	require.NoError(t, err)
+
+	// Re-resolve the provider, as the worker does on every poll.
+	gp2, err := cfg.Git()
+	require.NoError(t, err)
+	require.NotNil(t, gp2)
+	assert.Same(t, gp1, gp2, "Git must return the same provider instance so its ETag cache survives across calls")
+
+	_, err = gp2.ResolveBranchPullRequest(ctx, "test-token", branch)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(1), conditionalRequests.Load(), "second poll should have revalidated with If-None-Match using the cache from the first poll")
+}
+
+func TestConfigGitRetriesOnConstructorError(t *testing.T) {
+	t.Parallel()
+
+	cfg := &externalauth.Config{
+		Type:       string(codersdk.EnhancedExternalAuthProviderGitLab),
+		APIBaseURL: "://invalid",
+	}
+
+	_, err1 := cfg.Git()
+	require.Error(t, err1)
+
+	_, err2 := cfg.Git()
+	require.Error(t, err2)
+	// A memoized error would be the same instance; a retried
+	// construction produces a fresh error each call.
+	require.NotErrorIs(t, err2, err1, "construction errors must be retried, not memoized")
+}
 
 func TestRefreshToken(t *testing.T) {
 	t.Parallel()
@@ -1076,7 +1145,7 @@ func TestRefreshTokenWithScopes(t *testing.T) {
 	newConfig := func(t *testing.T, scopes []string) *externalauth.Config {
 		t.Helper()
 		instrument := promoauth.NewFactory(prometheus.NewRegistry())
-		configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			ID:           "test",
 			Type:         codersdk.EnhancedExternalAuthProviderAzureDevopsEntra.String(),
 			ClientID:     "id",
@@ -1084,7 +1153,7 @@ func TestRefreshTokenWithScopes(t *testing.T) {
 			AuthURL:      "https://login.microsoftonline.com/tenant/oauth2/authorize",
 			TokenURL:     "https://login.microsoftonline.com/tenant/oauth2/token",
 			Scopes:       scopes,
-		}}, &url.URL{Scheme: "https", Host: "coder.example.com"})
+		}}, &url.URL{Scheme: "https", Host: "coder.example.com"}, nil)
 		require.NoError(t, err)
 		return configs[0]
 	}
@@ -1203,13 +1272,13 @@ func TestValidateToken(t *testing.T) {
 		logs := &bytes.Buffer{}
 		logger := slog.Make(slogjson.Sink(logs)).Leveled(slog.LevelDebug)
 		// ConvertConfig wires the named logger as production does.
-		configs, err := externalauth.ConvertConfig(logger, f, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), logger, f, []codersdk.ExternalAuthConfig{{
 			ID:           providerName,
 			Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			ClientID:     "id",
 			ClientSecret: "secret",
 			ValidateURL:  validateURL,
-		}}, &url.URL{})
+		}}, &url.URL{}, nil)
 		require.NoError(t, err)
 		return configs[0], logs
 	}
@@ -1608,13 +1677,13 @@ func TestExchangeWithClientSecret(t *testing.T) {
 	instrument := promoauth.NewFactory(prometheus.NewRegistry())
 	// This ensures a provider that requires the custom
 	// client secret exchange works.
-	configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+	configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 		// JFrog just happens to require this custom type.
 
 		Type:         codersdk.EnhancedExternalAuthProviderJFrog.String(),
 		ClientID:     "id",
 		ClientSecret: "secret",
-	}}, &url.URL{})
+	}}, &url.URL{}, nil)
 	require.NoError(t, err)
 	config := configs[0]
 
@@ -1740,7 +1809,7 @@ func TestConvertYAML(t *testing.T) {
 	}} {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			output, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, tc.Input, &url.URL{})
+			output, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, tc.Input, &url.URL{}, nil)
 			if tc.Error != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.Error)
@@ -1752,38 +1821,41 @@ func TestConvertYAML(t *testing.T) {
 
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
-		config, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+		client := new(http.Client)
+		config, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
 			AuthURL:      "https://auth.com",
 			TokenURL:     "https://token.com",
+			RedirectURL:  "https://redirect.com",
 			Scopes:       []string{"read"},
-		}}, &url.URL{})
+		}}, &url.URL{Scheme: "https", Host: "default.com"}, client)
 		require.NoError(t, err)
-		require.Equal(t, "https://auth.com?client_id=id&redirect_uri=%2Fexternal-auth%2Fgitlab%2Fcallback&response_type=code&scope=read", config[0].AuthCodeURL(""))
+		require.Equal(t, "https://auth.com?client_id=id&redirect_uri=https%3A%2F%2Fredirect.com%2Fexternal-auth%2Fgitlab%2Fcallback&response_type=code&scope=read", config[0].AuthCodeURL(""))
+		assert.Same(t, client, config[0].HTTPClient, "ConvertConfig must wire the provided client onto every Config")
 	})
 
 	t.Run("RevokeTimeoutSet", func(t *testing.T) {
 		t.Parallel()
-		configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
-		}}, &url.URL{})
+		}}, &url.URL{}, nil)
 		require.NoError(t, err)
 		require.Equal(t, 10*time.Second, configs[0].RevokeTimeout)
 	})
 
 	t.Run("SelfHostedGitLabAPIBaseURL", func(t *testing.T) {
 		t.Parallel()
-		configs, err := externalauth.ConvertConfig(testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
+		configs, err := externalauth.ConvertConfig(context.Background(), testutil.Logger(t), instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
 			AuthURL:      "https://gitlab.corp.com/oauth/authorize",
 			TokenURL:     "https://gitlab.corp.com/oauth/token",
-		}}, &url.URL{})
+		}}, &url.URL{}, nil)
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
 		require.Equal(t, "https://gitlab.corp.com/api/v4", configs[0].APIBaseURL)
@@ -1956,6 +2028,7 @@ func TestApplyDefaultsToConfig_CaseInsensitive(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			configs, err := externalauth.ConvertConfig(
+				context.Background(),
 				testutil.Logger(t),
 				instrument,
 				[]codersdk.ExternalAuthConfig{{
@@ -1964,6 +2037,7 @@ func TestApplyDefaultsToConfig_CaseInsensitive(t *testing.T) {
 					ClientSecret: "test-secret",
 				}},
 				accessURL,
+				nil,
 			)
 			require.NoError(t, err)
 			require.Len(t, configs, 1)

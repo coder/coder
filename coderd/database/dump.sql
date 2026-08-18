@@ -4842,7 +4842,7 @@ CREATE INDEX idx_chats_title_fts ON chats USING gin (to_tsvector('simple'::regco
 
 COMMENT ON INDEX idx_chats_title_fts IS 'Used for full text search. Defined over all rows of the chats table.';
 
-CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (status, updated_at, id) WHERE (archived = false);
+CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (((parent_chat_id IS NULL)), status, updated_at, id) WHERE (archived = false);
 
 CREATE INDEX idx_chats_workspace ON chats USING btree (workspace_id);
 

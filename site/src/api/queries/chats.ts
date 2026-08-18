@@ -548,6 +548,10 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
+	const nextQueuedForCapacity =
+		isStatusEvent && nextStatus !== "running"
+			? false
+			: (cachedChat.queued_for_capacity ?? false);
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
@@ -594,7 +598,8 @@ export const mergeWatchedChatSummary = (
 		nextSummary === cachedChat.summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
-		nextContext === cachedChat.context
+		nextContext === cachedChat.context &&
+		nextQueuedForCapacity === (cachedChat.queued_for_capacity ?? false)
 	) {
 		return cachedChat;
 	}
@@ -612,6 +617,7 @@ export const mergeWatchedChatSummary = (
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 		context: nextContext,
+		queued_for_capacity: nextQueuedForCapacity,
 	};
 };
 
@@ -1148,6 +1154,18 @@ export const chat = (chatId: string) => ({
 	queryKey: chatEntityKey(chatId),
 	queryFn: () => API.experimental.getChat(chatId),
 });
+
+export const getOpenChatPollInterval = (
+	data: TypesGen.Chat | undefined,
+): number | false =>
+	data?.status === "running" && !data.archived ? 5_000 : false;
+
+export const openChat = (chatId: string) =>
+	queryOptions({
+		...chat(chatId),
+		refetchInterval: ({ state }) => getOpenChatPollInterval(state.data),
+		refetchIntervalInBackground: false,
+	});
 
 export const chatACLKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "acl"] as const;

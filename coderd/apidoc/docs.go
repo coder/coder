@@ -17518,6 +17518,10 @@ const docTemplate = `{
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
+                "queued_for_capacity": {
+                    "description": "QueuedForCapacity reports that the chat is waiting for a concurrent\nagent slot. Single-chat reads derive it; list responses leave it false.",
+                    "type": "boolean"
+                },
                 "root_chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -20739,6 +20743,10 @@ const docTemplate = `{
                 "no_refresh": {
                     "type": "boolean"
                 },
+                "redirect_url": {
+                    "description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OAuth callback domain is different from the ACCESS_URL\ndomain. The path component is ignored.",
+                    "type": "string"
+                },
                 "regex": {
                     "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
                     "type": "string"
@@ -20837,6 +20845,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "actual": {
+                    "description": "Actual is the usage measured against Limit, when known: a\npoint-in-time count for most features, or usage accumulated over\nUsagePeriod for features that set one. Its unit matches Limit's;\nFeatureAgentRuntimeHours reports whole hours floored from the\nrecorded milliseconds, with the precise value available in\nActualMs. FeatureAgentRuntimeHours usage can trail by roughly one\nhour because the current hour is not emitted, plus the entitlement\nrefresh interval.",
+                    "type": "integer"
+                },
+                "actual_ms": {
+                    "description": "ActualMs is the precise usage backing Actual, in milliseconds, for\nfeatures measured in time. It has the same freshness as Actual.\nOnly FeatureAgentRuntimeHours sets this field.",
                     "type": "integer"
                 },
                 "enabled": {
@@ -20850,14 +20863,15 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "limit": {
+                    "description": "Limit is the maximum value the license grants for the feature, in the\nfeature's own unit. For FeatureAgentRuntimeHours, an enabled feature\nwith Limit omitted means the license grants unlimited runtime hours.",
                     "type": "integer"
                 },
                 "soft_limit": {
-                    "description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation.\n\nOnly certain features set this field:\n- FeatureAgentRuntimeHours",
+                    "description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation; an unlimited allocation has no thresholds,\nso SoftLimit is omitted alongside the omitted Limit. Only\nFeatureAgentRuntimeHours sets this field.",
                     "type": "integer"
                 },
                 "usage_period": {
-                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit\n- FeatureAgentRuntimeHours",
+                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense). These dates are determined from the license that this\nentitlement comes from, see enterprise/coderd/license/license.go.\nOnly FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this\nfield.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.UsagePeriod"
@@ -22434,7 +22448,7 @@ const docTemplate = `{
                     }
                 },
                 "redirect_url": {
-                    "description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OIDC callback domain is different from the ACCESS_URL\ndomain.",
+                    "description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OIDC callback domain is different from the ACCESS_URL\ndomain. The path component is ignored.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/serpent.URL"

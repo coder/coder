@@ -574,6 +574,7 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
   "features": {
     "property1": {
       "actual": 0,
+      "actual_ms": 0,
       "enabled": true,
       "entitlement": "entitled",
       "hard_limit": 0,
@@ -587,6 +588,7 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
     },
     "property2": {
       "actual": 0,
+      "actual_ms": 0,
       "enabled": true,
       "entitlement": "entitled",
       "hard_limit": 0,
