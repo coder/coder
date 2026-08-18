@@ -215,6 +215,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
                         }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 256 KiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -323,6 +329,12 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadChatFileResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 10 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -2369,7 +2381,7 @@ const docTemplate = `{
                         "description": "OK"
                     },
                     "413": {
-                        "description": "Request Entity Too Large",
+                        "description": "Request body exceeds 64 KiB",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -3169,7 +3181,7 @@ const docTemplate = `{
                         }
                     },
                     "413": {
-                        "description": "Request Entity Too Large",
+                        "description": "Request body exceeds 100 MiB, or a .zip archive exceeds it once expanded",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -11447,7 +11459,7 @@ const docTemplate = `{
                         }
                     },
                     "413": {
-                        "description": "Request Entity Too Large",
+                        "description": "Request body exceeds 8 MiB",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -12319,6 +12331,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
+                    },
+                    "413": {
+                        "description": "Agent log storage limit exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -12433,7 +12451,7 @@ const docTemplate = `{
                         "description": "No Content"
                     },
                     "413": {
-                        "description": "Request Entity Too Large",
+                        "description": "Request body exceeds 64 KiB",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }

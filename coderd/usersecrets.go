@@ -124,7 +124,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {array} codersdk.UserSecret
 // @Failure 400 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
-// @Failure 413 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response "Request body exceeds 8 MiB"
 // @Router /api/v2/users/{user}/secrets/batch [post]
 func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

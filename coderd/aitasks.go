@@ -1138,7 +1138,7 @@ type TaskLogSnapshotEnvelope struct {
 // @Param format query string true "Snapshot format" enums(agentapi)
 // @Param request body object true "Raw snapshot payload (structure depends on format parameter)"
 // @Success 204
-// @Failure 413 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response "Request body exceeds 64 KiB"
 // @Router /api/v2/workspaceagents/me/tasks/{task}/log-snapshot [post]
 func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
 	var (

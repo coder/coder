@@ -43,7 +43,7 @@ const (
 // @Param file formData file true "File to be uploaded. If using tar format, file must conform to ustar (pax may cause problems)."
 // @Success 200 {object} codersdk.UploadResponse "Returns existing file if duplicate"
 // @Success 201 {object} codersdk.UploadResponse "Returns newly created file"
-// @Failure 413 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response "Request body exceeds 100 MiB, or a .zip archive exceeds it once expanded"
 // @Router /api/v2/files [post]
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
