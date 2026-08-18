@@ -4,9 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -58,20 +56,15 @@ func (f *fakeTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOp
 // tests can assert on span attributes.
 type recordingSpan struct {
 	trace.Span
-	mu    sync.Mutex
 	attrs []attribute.KeyValue
 }
 
 func (s *recordingSpan) SetAttributes(kv ...attribute.KeyValue) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.attrs = append(s.attrs, kv...)
 }
 
 func (s *recordingSpan) attributes() []attribute.KeyValue {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.attrs)
+	return s.attrs
 }
 
 const testSessionID = "0123456789abcdef0123456789abcdef"
