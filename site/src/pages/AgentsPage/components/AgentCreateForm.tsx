@@ -88,7 +88,6 @@ export function useEmptyStateDraft() {
 		if (!sentRef.current) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
-				// A quota failure silently discards the draft.
 				emptyInputDraftStorage.set(serializedEditorState);
 			} else {
 				emptyInputDraftStorage.remove();
