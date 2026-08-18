@@ -132,6 +132,9 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	unclaimable := make(map[string]struct{})
 	executedOK := make(map[string]struct{})
 	erroredNames := make(map[string]struct{})
+	// Derivation deduplicates activations by name, so a name an earlier
+	// search already claimed is free for later searches in the step.
+	claimedBySearch := make(map[string]struct{})
 	searchClaimed := 0.0
 	recompute := func() {
 		clear(reserved)
@@ -201,13 +204,16 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 			}
 			budgetMu.Lock()
 			searchEntries := entries
-			if len(reserved) > 0 || len(unclaimable) > 0 {
+			if len(reserved) > 0 || len(unclaimable) > 0 || len(claimedBySearch) > 0 {
 				searchEntries = make([]FindToolCatalogEntry, 0, len(entries))
 				for _, entry := range entries {
 					if _, ok := unclaimable[entry.Name]; ok {
 						continue
 					}
 					if _, ok := reserved[entry.Name]; ok {
+						entry.SchemaTokens = 0
+					}
+					if _, ok := claimedBySearch[entry.Name]; ok {
 						entry.SchemaTokens = 0
 					}
 					searchEntries = append(searchEntries, entry)
@@ -242,6 +248,9 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 					if _, ok := reserved[name]; ok {
 						continue
 					}
+					if _, ok := claimedBySearch[name]; ok {
+						continue
+					}
 					admitted += schemaTokensByName[name]
 				}
 				// Defensive invariant: with allowFirstOverBudget off,
@@ -262,6 +271,11 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 				}
 				searchClaimed += admitted
 				remainingBudget -= admitted
+				for _, name := range result.Activated {
+					if _, ok := reserved[name]; !ok {
+						claimedBySearch[name] = struct{}{}
+					}
+				}
 			}
 			budgetMu.Unlock()
 			// Unclaimable entries stay deferred; report the full count.
@@ -417,27 +431,41 @@ func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []s
 	for _, query := range queries {
 		scoped := false
 		trimmed := strings.TrimSpace(query)
-		for pass := 0; pass < 2 && !scoped; pass++ {
-			exact := pass == 0
+		// The raw query is matched before whitespace normalization so
+		// a whitespace-padded server name retained by collision
+		// handling stays selectable; then the trimmed exact and
+		// case-insensitive passes run as fallbacks.
+		passes := []struct {
+			text  string
+			exact bool
+		}{
+			{text: query, exact: true},
+			{text: trimmed, exact: true},
+			{text: trimmed, exact: false},
+		}
+		for _, pass := range passes {
+			if scoped {
+				break
+			}
 			for _, server := range servers {
 				var rest string
-				if exact {
+				if pass.exact {
 					var ok bool
-					rest, ok = strings.CutPrefix(trimmed, server)
+					rest, ok = strings.CutPrefix(pass.text, server)
 					if !ok {
 						continue
 					}
 				} else {
-					if len(trimmed) < len(server) || !strings.EqualFold(trimmed[:len(server)], server) {
+					if len(pass.text) < len(server) || !strings.EqualFold(pass.text[:len(server)], server) {
 						continue
 					}
-					rest = trimmed[len(server):]
+					rest = pass.text[len(server):]
 				}
 				rest, ok := strings.CutPrefix(strings.TrimLeft(rest, " "), ":")
 				if !ok {
 					continue
 				}
-				parsed = append(parsed, scopedFindToolsQuery{server: server, exact: exact, tokens: tokenizeFindTools(rest)})
+				parsed = append(parsed, scopedFindToolsQuery{server: server, exact: pass.exact, tokens: tokenizeFindTools(rest)})
 				scoped = true
 				break
 			}

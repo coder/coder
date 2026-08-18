@@ -132,6 +132,10 @@ func TestSearchTools(t *testing.T) {
 		result, _ := SearchTools(paddedEntries, FindToolsArgs{Queries: []string{"everything: status"}}, SearchBudget{})
 		require.Equal(t, []string{"everything__status"}, result.Activated,
 			"the exact-form scope matches only its own server, not a whitespace-padded sibling")
+
+		result, _ = SearchTools(paddedEntries, FindToolsArgs{Queries: []string{" everything : ping"}}, SearchBudget{})
+		require.Equal(t, []string{"_everything___ping"}, result.Activated,
+			"the raw query prefix is matched before trimming, so the padded server stays selectable")
 	})
 	t.Run("server names containing colons", func(t *testing.T) {
 		t.Parallel()
@@ -363,6 +367,25 @@ func TestFindToolsDirectCallReservation(t *testing.T) {
 			"the skipped call's weight is not charged, so later searches keep the leftover budget")
 	})
 
+	t.Run("a name claimed by an earlier search is free for later searches", func(t *testing.T) {
+		t.Parallel()
+		tool, _ := newTool(60)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__a"]}`})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__a"]}`})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "derivation deduplicates by name, so a repeated claim costs nothing")
+		var result FindToolsResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, []string{"server__a"}, result.Activated)
+
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__c"]}`})
+		require.NoError(t, err)
+		require.True(t, resp.IsError, "the repeated claim must not have refunded the spent budget")
+	})
+
 	t.Run("an errored prefix call promotes the next observed name", func(t *testing.T) {
 		t.Parallel()
 		tool, observer := newTool(100)
@@ -433,7 +456,10 @@ func TestFindToolsSharedSchemaBudget(t *testing.T) {
 		"a call whose claims cannot fit the remaining budget errors instead of over-claiming")
 
 	huge := FindTools(FindToolsOptions{
-		Entries:           []FindToolCatalogEntry{{Name: "server__huge", SchemaTokens: 500}},
+		Entries: []FindToolCatalogEntry{
+			{Name: "server__huge", SchemaTokens: 500},
+			{Name: "server__other", SchemaTokens: 60},
+		},
 		SchemaTokenBudget: 200,
 	})
 	resp, err = huge.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__huge"]}`})
@@ -444,7 +470,10 @@ func TestFindToolsSharedSchemaBudget(t *testing.T) {
 		"an untouched budget may over-claim once; derivation's newest-keep retains the sole claim")
 	resp, err = huge.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__huge"]}`})
 	require.NoError(t, err)
-	require.True(t, resp.IsError, "the spent budget rejects further activations")
+	require.False(t, resp.IsError, "repeating an already claimed name costs nothing")
+	resp, err = huge.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__other"]}`})
+	require.NoError(t, err)
+	require.True(t, resp.IsError, "the spent budget rejects further new activations")
 }
 
 func TestBuildFindToolsDescription(t *testing.T) {
