@@ -194,7 +194,7 @@ func TestBuffer_ToolCompletions(t *testing.T) {
 
 	key := testEpisodeKey()
 	require.Nil(t, buffer.ToolCompletions(key), "unknown episode has no completions")
-	require.ErrorIs(t, buffer.RecordToolCompletion(key, "call-1", clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
+	require.ErrorIs(t, buffer.RecordToolCompletion(key, 0, "call-1", clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
 
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.Empty(t, buffer.ToolCompletions(key), "episode without a tool batch has no completions")
@@ -207,24 +207,25 @@ func TestBuffer_ToolCompletions(t *testing.T) {
 		{ToolCallID: "call-dup"},
 		{ToolCallID: "call-dup"},
 	}, buffer.ToolCompletions(key))
-	// A completion stamps the first still-running occurrence with its
-	// ID; the duplicate's second occurrence stays running.
+	// A completion stamps the occurrence addressed by its call index,
+	// not the first occurrence with a matching ID: the duplicate's
+	// second occurrence finishing must leave the first still running.
 	clock.Advance(time.Second)
-	firstCompletedAt := clock.Now()
-	require.NoError(t, buffer.RecordToolCompletion(key, "call-dup", firstCompletedAt))
+	secondDupCompletedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolCompletion(key, 2, "call-dup", secondDupCompletedAt))
 	require.Equal(t, []messagepartbuffer.ToolCompletion{
 		{ToolCallID: "call-1"},
-		{ToolCallID: "call-dup", CompletedAt: firstCompletedAt},
 		{ToolCallID: "call-dup"},
+		{ToolCallID: "call-dup", CompletedAt: secondDupCompletedAt},
 	}, buffer.ToolCompletions(key))
 	clock.Advance(2 * time.Second)
-	secondCompletedAt := clock.Now()
-	require.NoError(t, buffer.RecordToolCompletion(key, "call-dup", secondCompletedAt))
+	firstDupCompletedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolCompletion(key, 1, "call-dup", firstDupCompletedAt))
 	completions := buffer.ToolCompletions(key)
 	require.Equal(t, []messagepartbuffer.ToolCompletion{
 		{ToolCallID: "call-1"},
-		{ToolCallID: "call-dup", CompletedAt: firstCompletedAt},
-		{ToolCallID: "call-dup", CompletedAt: secondCompletedAt},
+		{ToolCallID: "call-dup", CompletedAt: firstDupCompletedAt},
+		{ToolCallID: "call-dup", CompletedAt: secondDupCompletedAt},
 	}, completions)
 
 	// The returned slice is a copy: mutating it must not corrupt the
@@ -235,7 +236,7 @@ func TestBuffer_ToolCompletions(t *testing.T) {
 	// A closed episode keeps its recorded completions but accepts no
 	// more, matching the batch-start stamp's lifecycle.
 	require.NoError(t, buffer.CloseEpisode(key))
-	require.ErrorIs(t, buffer.RecordToolCompletion(key, "call-1", clock.Now()), messagepartbuffer.ErrEpisodeClosed)
+	require.ErrorIs(t, buffer.RecordToolCompletion(key, 0, "call-1", clock.Now()), messagepartbuffer.ErrEpisodeClosed)
 	require.True(t, buffer.ToolCompletions(key)[0].CompletedAt.IsZero())
 }
 
@@ -265,7 +266,7 @@ func TestBuffer_CloseEpisodeForBilling(t *testing.T) {
 	require.NoError(t, buffer.StartToolBatch(key, []string{"call-1", "call-2"}))
 	clock.Advance(time.Second)
 	completedAt := clock.Now()
-	require.NoError(t, buffer.RecordToolCompletion(key, "call-1", completedAt))
+	require.NoError(t, buffer.RecordToolCompletion(key, 0, "call-1", completedAt))
 	billing, err = buffer.CloseEpisodeForBilling(key)
 	require.NoError(t, err)
 	require.Zero(t, billing.ModelInvokedAt)
@@ -274,7 +275,7 @@ func TestBuffer_CloseEpisodeForBilling(t *testing.T) {
 		{ToolCallID: "call-1", CompletedAt: completedAt},
 		{ToolCallID: "call-2"},
 	}, billing.ToolCompletions)
-	require.ErrorIs(t, buffer.RecordToolCompletion(key, "call-2", clock.Now()), messagepartbuffer.ErrEpisodeClosed)
+	require.ErrorIs(t, buffer.RecordToolCompletion(key, 1, "call-2", clock.Now()), messagepartbuffer.ErrEpisodeClosed)
 
 	// Closing an already-closed episode still reports its billing, so
 	// an interrupt racing the generation task's own close loses

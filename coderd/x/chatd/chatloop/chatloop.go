@@ -272,9 +272,13 @@ type ExecuteLocalToolsOptions struct {
 	// ordering deterministic, so this callback is the only live signal
 	// that a tool already finished while siblings are still running;
 	// the interrupt path uses it to bill an interrupted batch's
-	// partial window. It is called concurrently from tool goroutines
-	// and must be safe for concurrent use.
-	OnToolComplete func(toolCallID string, completedAt time.Time)
+	// partial window. callIndex is the call's position among the
+	// batch's local (non provider-executed) calls in dispatch order;
+	// it identifies the exact occurrence because duplicate tool call
+	// IDs, which reach execution when lifecycle hooks are disabled,
+	// make the ID alone ambiguous. It is called concurrently from
+	// tool goroutines and must be safe for concurrent use.
+	OnToolComplete func(callIndex int, toolCallID string, completedAt time.Time)
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
@@ -600,10 +604,12 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	)
 	if exclusiveViolation {
 		now := clockNow(opts.Clock)
-		for _, tr := range policyResults {
+		for i, tr := range policyResults {
 			recordToolResultTimestamp(&result, tr.ToolCallID, now)
 			if opts.OnToolComplete != nil {
-				opts.OnToolComplete(tr.ToolCallID, now)
+				// Policy results are index-aligned with localCalls, so
+				// i is the call's occurrence index.
+				opts.OnToolComplete(i, tr.ToolCallID, now)
 			}
 			publishToolAttachments(ctx, opts.Logger, tr, now, publishMessagePart)
 			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
@@ -1165,7 +1171,7 @@ func executeTools(
 	builtinToolNames map[string]bool,
 	maxResultBytes int,
 	toolNameAliases map[string]string,
-	onComplete func(toolCallID string, completedAt time.Time),
+	onComplete func(callIndex int, toolCallID string, completedAt time.Time),
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
@@ -1232,7 +1238,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = clockNow(clock)
 				if onComplete != nil {
-					onComplete(tc.ToolCallID, completedAt[i])
+					onComplete(i, tc.ToolCallID, completedAt[i])
 				}
 			}()
 			results[i] = executeSingleTool(

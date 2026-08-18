@@ -1069,12 +1069,14 @@ type generationAttempt struct {
 	// were rejected before execution. It is always non-nil when
 	// beginGenerationAttempt succeeds.
 	startToolBatch func(toolCallIDs []string)
-	// recordToolCompletion records a tool call's completion instant on
-	// the buffer episode as the batch executes, so an interrupt can
-	// end an already-finished tool's billable window at its real
-	// completion instead of the interrupt instant. It is always
-	// non-nil when beginGenerationAttempt succeeds.
-	recordToolCompletion func(toolCallID string, completedAt time.Time)
+	// recordToolCompletion records a tool call occurrence's completion
+	// instant on the buffer episode as the batch executes, so an
+	// interrupt can end an already-finished tool's billable window at
+	// its real completion instead of the interrupt instant. callIndex
+	// addresses the occurrence within the dispatched batch, matching
+	// the order startToolBatch seeded. It is always non-nil when
+	// beginGenerationAttempt succeeds.
+	recordToolCompletion func(callIndex int, toolCallID string, completedAt time.Time)
 	// closeEpisode closes the attempt's buffer episode. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	closeEpisode func()
@@ -1124,8 +1126,8 @@ func (s *taskStarter) beginGenerationAttempt(
 		startToolBatch: func(toolCallIDs []string) {
 			_ = s.opts.MessagePartBuffer.StartToolBatch(key, toolCallIDs)
 		},
-		recordToolCompletion: func(toolCallID string, completedAt time.Time) {
-			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, toolCallID, completedAt)
+		recordToolCompletion: func(callIndex int, toolCallID string, completedAt time.Time) {
+			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, callIndex, toolCallID, completedAt)
 		},
 		closeEpisode: func() {
 			_ = s.opts.MessagePartBuffer.CloseEpisode(key)

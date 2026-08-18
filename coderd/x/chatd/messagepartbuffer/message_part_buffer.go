@@ -273,12 +273,14 @@ func (b *Buffer) StartToolBatch(key Key, toolCallIDs []string) error {
 // episode's tool batch finished. Tool goroutines report completions as
 // they happen, so an interrupt can bill tools that already finished up
 // to their real completion instead of treating every canceled call as
-// still running. The stamp lands on the first still-running occurrence
-// with the given ID: same-ID occurrences are indistinguishable to
-// callers, and assigning them in seeded order keeps the batch's set of
-// completion states correct. A completion whose ID was never seeded is
-// appended, so an executed call is never dropped.
-func (b *Buffer) RecordToolCompletion(key Key, toolCallID string, completedAt time.Time) error {
+// still running. callIndex addresses the exact occurrence seeded by
+// StartToolBatch: duplicate tool call IDs make the ID alone ambiguous,
+// and stamping the wrong same-ID occurrence would let a finished call
+// mark its still-running twin as done. When callIndex does not match
+// the seeded occurrence, the stamp falls back to the first
+// still-running occurrence with the ID, or is appended, so an executed
+// call is never dropped.
+func (b *Buffer) RecordToolCompletion(key Key, callIndex int, toolCallID string, completedAt time.Time) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -290,6 +292,13 @@ func (b *Buffer) RecordToolCompletion(key Key, toolCallID string, completedAt ti
 	}
 	if episode.closed {
 		return ErrEpisodeClosed
+	}
+	if callIndex >= 0 && callIndex < len(episode.toolCompletions) {
+		entry := &episode.toolCompletions[callIndex]
+		if entry.ToolCallID == toolCallID && entry.CompletedAt.IsZero() {
+			entry.CompletedAt = completedAt
+			return nil
+		}
 	}
 	for i := range episode.toolCompletions {
 		entry := &episode.toolCompletions[i]

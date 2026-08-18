@@ -306,7 +306,12 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		messages := partialMessages
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, s.opts.Clock.Now("chatworker", "interrupt"), interruptedToolBatchBilling{
+		// Reuse the interrupt instant captured when the episode closed:
+		// a fresh clock read here would run while this transaction
+		// waits on the database (and again on retries), inflating the
+		// billed window of a still-running call past the actual
+		// interrupt.
+		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, interruptedToolBatchBilling{
 			batchStartedAt:  episodeBilling.ToolBatchStartedAt,
 			toolCompletions: episodeBilling.ToolCompletions,
 		})
@@ -762,21 +767,26 @@ func committedPendingLocalToolCancellationMessages(
 			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
-		if billing.batchStartedAt.IsZero() || unbilledSubagentToolNames[call.ToolName] {
+		if billing.batchStartedAt.IsZero() {
 			continue
 		}
 		// Only dispatched calls bill: a call with no remaining
-		// occurrence was rejected before execution. A stamped
-		// occurrence finished at that instant; a seeded but unstamped
-		// one was still running, so its window ends at the interrupt.
-		// Strictly-after keeps the earliest call on ties, matching
-		// billableBatchWindow.
+		// occurrence was rejected before execution. Every dispatched
+		// call consumes its occurrence, including unbilled ones, so
+		// same-ID occurrences stay aligned with the history walk. A
+		// stamped occurrence finished at that instant; a seeded but
+		// unstamped one was still running, so its window ends at the
+		// interrupt. Strictly-after keeps the earliest call on ties,
+		// matching billableBatchWindow.
 		queue := pendingOccurrences[call.ToolCallID]
 		if len(queue) == 0 {
 			continue
 		}
 		end := queue[0]
 		pendingOccurrences[call.ToolCallID] = queue[1:]
+		if unbilledSubagentToolNames[call.ToolName] {
+			continue
+		}
 		if end.IsZero() {
 			end = interruptedAt
 		}

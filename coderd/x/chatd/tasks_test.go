@@ -598,7 +598,7 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 	// does. Its result is not published: results publish only after
 	// the whole batch finishes.
 	batch.clock.Advance(3 * time.Second)
-	require.NoError(t, buffer.RecordToolCompletion(batch.key, execCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, execCallID, batch.clock.Now()))
 	// wait_agent is still blocked on its child when the interrupt lands
 	// 5 seconds later.
 	batch.clock.Advance(5 * time.Second)
@@ -671,7 +671,7 @@ func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 	// One occurrence completes 3 seconds in; the other keeps running
 	// until the interrupt lands 3 seconds later, defining the window.
 	batch.clock.Advance(3 * time.Second)
-	require.NoError(t, buffer.RecordToolCompletion(batch.key, dupCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, dupCallID, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
 
 	messages := batch.interrupt(t, f)
@@ -682,6 +682,40 @@ func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 		}
 	}
 	require.Equal(t, []int64{6_000}, billed, "the still-running occurrence bills the full window exactly once")
+}
+
+// Same-ID occurrences with different billing classifications stay
+// correlated: an unbilled wait_agent occurrence finishing early stamps
+// its own occurrence, not the still-running billed execute sharing its
+// ID, so the execute occurrence still bills through to the interrupt.
+func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	dupCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.StartToolBatch(batch.key, []string{dupCallID, dupCallID}))
+	// The unbilled wait_agent occurrence (index 1) completes 3 seconds
+	// in; the billed execute occurrence (index 0) keeps running until
+	// the interrupt 3 seconds later.
+	batch.clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 1, dupCallID, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	var billed []int64
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
+			billed = append(billed, msg.RuntimeMs.Int64)
+		}
+	}
+	require.Equal(t, []int64{6_000}, billed, "the running execute occurrence bills to the interrupt; wait_agent's early completion must not end it at 3s")
 }
 
 // A billed call rejected before execution (hook denial, ambiguous-call
