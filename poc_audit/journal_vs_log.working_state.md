@@ -126,17 +126,25 @@ The core of this section is expected to be a table over these axes.
 2. **done.** Permanence. Stated under The distinctions.
 3. **drop.** Availability, meaning unconditional versus licence-gated.
    Licensing is out of scope for the proof of concept.
-4. **open.** Filterability.
-5. **open.** Unit of record: persistent state change versus request.
-6. **open.** Attempts.
-7. **open.** Failure symmetry.
-8. **open.** Actor: any entity kind versus a user.
-9. **open.** Ordering: distinct monotonic identifiers versus timestamps that tie.
+4. **done.** Filterability. Table row.
+5. **done.** Unit of record. Table row, and already implicit in the two
+   definition sections.
+6. **done.** Attempts. Table row.
+7. **done.** Failure symmetry. Table row, reduced to which failures a journal
+   records at all.
+8. **done.** Actor. Table row. Stated generally, since "a user" is a fact about
+   `audit_logs` rather than about logs, and belongs to section 6.
+9. **done.** Ordering. Table row.
 10. **done.** Reconcilability. Stated under The distinctions.
-11. **open.** Mutability.
-12. **open.** Transactionality.
-13. **open.** Unbypassability.
-14. **open.** Evidentiary standing: a filtered record is not evidence.
+11. **done.** Mutability. Table row.
+12. **done.** Transactionality. Table row, as "when written".
+13. **done.** Unbypassability. **Elevated to a paragraph.** It is what turns
+    completeness from an aspiration into a constraint on every write path, so it
+    reads as a claim about the system rather than about the journal.
+14. **done.** Evidentiary standing. **Elevated to a paragraph.** Distinguished
+    from Authority explicitly: authority settles which account prevails between
+    parties who accept the records, evidence persuades a party who accepts
+    nothing yet.
 15. **done.** Points of similarity, and why the two are so often confused. The
     resemblance is in the form of an entry; the difference shows in what a
     missing entry means. Added after the first draft was read. Numbered here
@@ -238,6 +246,11 @@ rather than against the table originally imagined for section 5.
 **Licensing is out of scope for the proof of concept.** Whether the existing
 table is gated behind a licence has no bearing on anything being built, so 4.4's
 clause, 5.3, and 10.1 are all disposed of on that basis.
+
+**Two of section 5 were elevated, the rest tabulated.** Unbypassability and
+evidentiary standing became paragraphs under The distinctions; the remaining
+eight are a table at the end of it. The table is deliberately terse, since the
+section is illustrative and each row follows from a paragraph above it.
 
 **Section 5 is illustrative, not persuasive.** The table of properties shows
 where the two kinds of record differ. It is not required to argue for each

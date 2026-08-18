@@ -148,8 +148,23 @@ some other account of the same events disagree, the other account is the one in
 question. A log is best effort: useful when it is there, unremarkable when it is
 not, and never by itself the thing that settles a question.
 
+**Evidentiary standing.** A journal has to satisfy a party that did not produce
+it, because that is what an audit is: someone skeptical asking whether the
+account is faithful. A record that may be sampled, filtered, or trimmed cannot
+do that work, since any absence in it has an innocent explanation available and
+therefore proves nothing. Authority settles which account prevails between
+parties who already accept the records. Evidence is what persuades a party who
+accepts nothing yet.
+
 **Completeness.** A log may be sampled, because an estimate tolerates gaps. A
 journal may not, because an account with gaps is not an account.
+
+**Unbypassability.** A log tolerates being bypassed. Code paths that write no
+line are ordinary and nobody calls them defects. A journal cannot: a write path
+that produces no entry leaves the account incomplete, and an incomplete account
+is not an account. This is what turns completeness from an aspiration into a
+constraint on the whole system, because it is a claim about every path that
+changes state rather than a claim about the journal.
 
 **Permanence.** A log may be discarded once the estimate it supported is no
 longer interesting. A journal may not, because the obligation outlives the
@@ -161,6 +176,19 @@ there, and a record permitted to omit things cannot support the comparison: a
 discrepancy might be a real divergence, or might be a line nobody wrote. Against
 a journal the same discrepancy has one explanation left, which is why it can be
 escalated rather than shrugged at.
+
+The rest are worth listing rather than arguing. Each follows from the six above.
+
+| Property       | A log                                  | A journal                                       |
+|----------------|----------------------------------------|-------------------------------------------------|
+| Unit of record | An activity                            | A persistent state change                       |
+| Attempts       | Recorded, and often the point          | Absent, because nothing changed                 |
+| Failures       | Recorded alongside successes           | Recorded only where state changed anyway        |
+| Actor          | Whoever asked, where anyone did        | Whoever acted, of whatever kind                 |
+| Ordering       | By time, which ties                    | By distinct identifiers, so sequence is settled |
+| Filtering      | At write time, by level or by sampling | None available; a filter is a gap               |
+| Mutability     | Trimmed on a retention schedule        | Append only                                     |
+| When written   | Out of band, after the fact            | With the state change it accounts for           |
 
 ### Two hazards in the word "journal"
 
