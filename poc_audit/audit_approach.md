@@ -390,29 +390,64 @@ single entry would discard the distinctions the entries exist to record, and
 would leave that entry impossible to interpret without knowing which of several
 things it was standing for.
 
-### The entry's timestamp is the time of recording
+### Two dates on every entry
 
-The timestamp on an entry is always the time the entry was made. It is not the
-time the event occurred, and it does not become so by being close to it.
+An entry carries two timestamps. Collapsing them into one loses a distinction
+the journal exists to keep.
 
-For a commanded event the two are close enough that the difference never
-surfaces. For an observed one they can be far apart: something that happened on
-a Tuesday and was noticed on a Friday is recorded on the Friday.
+**`recording_date` is the time the entry was made.** It is set inside the
+function that writes the entry. It is never passed in by a caller, never
+overridden, and never backdated for any purpose whatever. A book of original
+entry that misreports when it was written is worth less than one that admits
+the gap.
 
-Where a time of occurrence is known and worth keeping, it belongs somewhere
-other than the entry's timestamp. That timestamp is not to be displaced and not
-to be backdated. A book of original entry that misreports when it was written is
-worth less than one that admits the gap.
+**`effective_date` is the time the event occurred.** It is ordinarily an
+explicit parameter to that same function, because only the caller is in a
+position to know it.
 
-A time of occurrence recovered after the fact is often not a single value. It
-may be known exactly, known only to fall within a window, or not recoverable at
-all. A column forces every case into the shape of the first. Free text can carry
-all three and say which it is.
+Accounting proper would call the second a transaction date. The generalisation
+is deliberate: not everything recorded here is a transaction, and naming the
+column for the commonest case would invite the same error as naming a log for
+the activity somebody hoped it would support.
+
+Two traditions meet at this pair of columns, pointing in opposite directions.
+Accounting dates a journal entry by when the transaction occurred and orders the
+journal by that date, leaving the order of recording to the page rather than to
+any column. Data integrity practice requires the reverse, a timestamp generated
+by the system at the moment of the entry and alterable by nobody. They do not
+truly conflict, since they describe different things: one describes the
+transaction, the other the act of recording. A journal with one date column has
+to choose between them. A journal with two does not.
+
+**The two values are read from the clock at different moments and are therefore
+distinct**, though a clock coarse relative to the interval between them may
+render them equal. That is worth having rather than avoiding, since it reifies
+the principle that the recording comes after the event. `effective_date` is
+never later than `recording_date`.
+
+Where a caller does not know when the event occurred, it reads the clock at the
+earliest moment it can vouch for and uses that. The value is then an upper bound
+rather than a measurement, and it errs in the safe direction: it never claims
+the event happened earlier than can be shown.
+
+What neither column can carry is how good the value in it is. A time known
+exactly, a time known only to fall within a window, and a time taken at the
+moment of detection because nothing better was available all sit in
+`effective_date` looking alike. That qualification belongs in free text beside
+the entry, which can hold all three and say which it is.
 
 This generalises past time. **Reconciliation will never be as tight as
 enforcement before the fact.** What it recovers is more approximate than what
 was enforced, and the record should be able to say so rather than round it to
 something crisper than the evidence supports.
+
+The data integrity tradition mentioned above has a name: **ALCOA**, for
+attributable, legible, contemporaneous, original, and accurate. It began as a
+mnemonic for inspectors in regulated manufacturing and has been adopted well
+beyond it since. Nothing built here falls under that regime, so ALCOA is taken
+as a set of standards worth striving for rather than as a rule that binds.
+Contemporaneous is the one bearing directly here: a record made at the time of
+the activity rather than afterwards.
 
 ### Reconciliation belongs to recordkeeping
 

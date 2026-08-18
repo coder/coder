@@ -327,6 +327,29 @@ and the proof of concept reads every exit as `finish`. That is sound only while
 `dormant` is unreachable. A revision supporting dormancy cannot keep the cheat,
 and will need a source for the intent.
 
+#### The proof of concept machine, written out
+
+Deriving it is mechanical, but the result is worth setting down rather than
+left to be worked out by each reader.
+
+| State     | Meaning                                            |
+|-----------|----------------------------------------------------|
+| `active`  | The identity exists and denotes a live embodiment. |
+| `retired` | Terminal. The identity exists only as history.     |
+
+| From     | Transition  | To        | Kind      |
+|----------|-------------|-----------|-----------|
+| none     | `create`    | `active`  | commanded |
+| `active` | `finish`    | `retired` | observed  |
+| `active` | `terminate` | `retired` | commanded |
+
+Three things to notice, none of which the derivation makes obvious. `retired`
+is reached two ways and left none, so it is the only terminal state and the
+machine has no cycles at all. `active` is entered exactly once, at creation,
+which means an identity that has been retired is never reused. And `dormant`
+is absent from the machine while present in the enum, so any code that switches
+exhaustively over the enum must handle a state that cannot occur.
+
 ### What happens when an AI agent comes into being
 
 Three events occur, and three entries are made:
