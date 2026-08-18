@@ -174,5 +174,7 @@ wins.
 | View enabled servers          | Organization member |
 | OAuth2 connect and disconnect | Organization member |
 
+Creating or updating a server with `auth_type` set to `user_oidc` also requires the `deployment_config:update` permission.
+
 Members only see enabled servers in their own organizations. Sensitive fields
 such as API keys and client secrets are redacted in API responses.
