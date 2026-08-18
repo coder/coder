@@ -26,6 +26,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -131,43 +132,25 @@ type TasksErrorBodyProps = {
 
 const TasksErrorBody: FC<TasksErrorBodyProps> = ({ error, onRetry }) => {
 	return (
-		<TableRow>
-			<TableCell colSpan={999} className="text-center">
-				<div className="rounded-lg w-full min-h-80 flex items-center justify-center">
-					<div className="flex flex-col items-center">
-						<h3 className="m-0 font-medium text-content-primary text-base">
-							{getErrorMessage(error, "Error loading tasks")}
-						</h3>
-						<span className="text-content-secondary text-sm">
-							{getErrorDetail(error) ?? "Please try again"}
-						</span>
-						<Button size="sm" onClick={onRetry} className="mt-4">
-							<RotateCcwIcon />
-							Try again
-						</Button>
-					</div>
-				</div>
-			</TableCell>
-		</TableRow>
+		<TableEmpty
+			message={getErrorMessage(error, "Error loading tasks")}
+			description={getErrorDetail(error) ?? "Please try again"}
+			cta={
+				<Button size="sm" onClick={onRetry}>
+					<RotateCcwIcon />
+					Try again
+				</Button>
+			}
+		/>
 	);
 };
 
 const TasksEmpty: FC = () => {
 	return (
-		<TableRow>
-			<TableCell colSpan={4} className="text-center">
-				<div className="w-full min-h-80 p-4 flex items-center justify-center">
-					<div className="flex flex-col items-center">
-						<h3 className="m-0 font-medium text-content-primary text-base">
-							No tasks found
-						</h3>
-						<span className="text-content-secondary text-sm">
-							Use the form above to run a task
-						</span>
-					</div>
-				</div>
-			</TableCell>
-		</TableRow>
+		<TableEmpty
+			message="No tasks found"
+			description="Use the form above to run a task"
+		/>
 	);
 };
 
@@ -205,7 +188,7 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 	});
 
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
-	// Discard role, breaks Chromatic.
+	// Discard role, breaks snapshot tests.
 	const { role, ...clickableRowProps } = useClickableTableRow({
 		onClick: () => {
 			navigate(taskPageLink);

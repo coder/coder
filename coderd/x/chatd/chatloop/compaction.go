@@ -130,6 +130,11 @@ type CompactionResult struct {
 	UsagePercent     float64
 	ContextTokens    int64
 	ContextLimit     int64
+	// Runtime is the wall-clock duration of the summarization model
+	// call, the compaction step's billable runtime (see
+	// PersistedStep.Runtime). Zero when the run was gated off before
+	// calling the model.
+	Runtime time.Duration
 }
 
 // GenerateCompaction generates one context summary and returns it without
@@ -139,6 +144,9 @@ type CompactionResult struct {
 func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (CompactionResult, error) {
 	if opts.Model == nil {
 		return CompactionResult{}, xerrors.New("chat model is required")
+	}
+	if opts.Clock == nil {
+		return CompactionResult{}, xerrors.New("clock is required")
 	}
 	config, ok := normalizedCompactionGenerateConfig(opts)
 	if !ok {
@@ -171,11 +179,16 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		)
 	}
 
+	summaryStart := opts.Clock.Now()
+	if opts.OnModelStreamStart != nil {
+		opts.OnModelStreamStart()
+	}
 	summary, err := generateCompactionSummary(ctx, opts.Model, opts.Messages, config)
 	if err != nil {
 		publishCompactionError(config, "failed to generate compaction summary")
 		return CompactionResult{}, err
 	}
+	summaryRuntime := opts.Clock.Since(summaryStart)
 	if summary == "" {
 		publishCompactionError(config, "compaction produced an empty summary")
 		return CompactionResult{}, xerrors.New("compaction produced an empty summary")
@@ -191,6 +204,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		UsagePercent:     usagePercent,
 		ContextTokens:    contextTokens,
 		ContextLimit:     contextLimit,
+		Runtime:          summaryRuntime,
 	}
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(map[string]any{

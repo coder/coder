@@ -5,6 +5,7 @@ import type { AssignableRoles } from "#/api/typesGenerated";
 import {
 	MockOrganization,
 	MockOrganizationAuditorRole,
+	MockPermissions,
 	MockRoleWithOrgPermissions,
 } from "#/testHelpers/entities";
 import { CustomRolesPageView } from "./CustomRolesPageView";
@@ -55,6 +56,7 @@ const meta: Meta<typeof CustomRolesPageView> = {
 		canCreateOrgRole: true,
 		canEditDefaultRoles: true,
 		isCustomRolesEnabled: true,
+		permissions: MockPermissions,
 	},
 };
 
@@ -66,6 +68,29 @@ export const Enabled: Story = {};
 export const NotEnabled: Story = {
 	args: {
 		isCustomRolesEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const NotEnabledWithoutLicenseAccess: Story = {
+	args: {
+		isCustomRolesEnabled: false,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -109,23 +134,8 @@ export const EmptyTableUserWithPermission: Story = {
 	},
 };
 
-export const DefaultRolesHidden: Story = {
+export const DefaultRolesSection: Story = {
 	args: {
-		defaultRolesEnabled: false,
-		availableOrgRoles: mockOrgRoles,
-		onUpdateDefaultRoles: async () => {
-			action("onUpdateDefaultRoles")();
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		expect(body.queryByText("Default Roles")).toBeNull();
-	},
-};
-
-export const DefaultRolesEnabled: Story = {
-	args: {
-		defaultRolesEnabled: true,
 		defaultRolesEntitled: true,
 		availableOrgRoles: mockOrgRoles,
 		onUpdateDefaultRoles: async () => {
@@ -136,7 +146,6 @@ export const DefaultRolesEnabled: Story = {
 
 export const DefaultRolesNotEntitled: Story = {
 	args: {
-		defaultRolesEnabled: true,
 		defaultRolesEntitled: false,
 		availableOrgRoles: mockOrgRoles,
 		onUpdateDefaultRoles: async () => {
@@ -159,7 +168,6 @@ export const DefaultRolesEmpty: Story = {
 			...MockOrganization,
 			default_org_member_roles: [],
 		},
-		defaultRolesEnabled: true,
 		defaultRolesEntitled: true,
 		availableOrgRoles: mockOrgRoles,
 		onUpdateDefaultRoles: async () => {
@@ -168,9 +176,8 @@ export const DefaultRolesEmpty: Story = {
 	},
 };
 
-export const DefaultRolesHiddenWithoutEditPermission: Story = {
+export const DefaultRolesReadOnlyWithoutEditPermission: Story = {
 	args: {
-		defaultRolesEnabled: true,
 		defaultRolesEntitled: true,
 		canEditDefaultRoles: false,
 		availableOrgRoles: mockOrgRoles,
@@ -180,13 +187,16 @@ export const DefaultRolesHiddenWithoutEditPermission: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		expect(body.queryByText("Default Roles")).toBeNull();
+		// The section is visible read-only; only the edit button is hidden.
+		await body.findByText("Default Roles");
+		expect(
+			body.queryByRole("button", { name: /edit default roles/i }),
+		).toBeNull();
 	},
 };
 
 export const DefaultRolesEditDialog: Story = {
 	args: {
-		defaultRolesEnabled: true,
 		defaultRolesEntitled: true,
 		availableOrgRoles: mockOrgRoles,
 		onUpdateDefaultRoles: async () => {

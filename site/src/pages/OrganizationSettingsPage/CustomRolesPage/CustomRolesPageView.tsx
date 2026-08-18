@@ -10,8 +10,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
@@ -21,11 +20,12 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
-import { docs } from "#/utils/docs";
+import type { Permissions } from "#/modules/permissions";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
 
@@ -39,7 +39,7 @@ interface CustomRolesPageViewProps {
 	canDeleteOrgRole: boolean;
 	canEditDefaultRoles: boolean;
 	isCustomRolesEnabled: boolean;
-	defaultRolesEnabled?: boolean;
+	permissions: Permissions;
 	defaultRolesEntitled?: boolean;
 	availableOrgRoles?: AssignableRoles[];
 	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
@@ -56,28 +56,26 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	canDeleteOrgRole,
 	canEditDefaultRoles,
 	isCustomRolesEnabled,
-	defaultRolesEnabled,
+	permissions,
 	defaultRolesEntitled,
 	availableOrgRoles,
 	onUpdateDefaultRoles,
 	isUpdatingDefaultRoles,
 }) => {
-	const showDefaultRoles =
-		defaultRolesEnabled && canEditDefaultRoles && Boolean(onUpdateDefaultRoles);
-
 	return (
 		<div className="flex flex-col gap-8">
 			{!isCustomRolesEnabled && (
-				<PaywallPremium
+				<PaywallSmall
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
-					documentationLink={docs("/admin/users/groups-roles")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
-			{showDefaultRoles && onUpdateDefaultRoles && (
+			{onUpdateDefaultRoles && (
 				<DefaultRolesSection
 					organization={organization}
 					availableOrgRoles={availableOrgRoles}
+					canEditDefaultRoles={canEditDefaultRoles}
 					defaultRolesEntitled={Boolean(defaultRolesEntitled)}
 					isUpdatingDefaultRoles={Boolean(isUpdatingDefaultRoles)}
 					onUpdateDefaultRoles={onUpdateDefaultRoles}
@@ -130,6 +128,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 interface DefaultRolesSectionProps {
 	organization: Organization;
 	availableOrgRoles?: AssignableRoles[];
+	canEditDefaultRoles: boolean;
 	defaultRolesEntitled: boolean;
 	isUpdatingDefaultRoles: boolean;
 	onUpdateDefaultRoles: (roles: string[]) => Promise<void>;
@@ -138,6 +137,7 @@ interface DefaultRolesSectionProps {
 const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 	organization,
 	availableOrgRoles,
+	canEditDefaultRoles,
 	defaultRolesEntitled,
 	isUpdatingDefaultRoles,
 	onUpdateDefaultRoles,
@@ -153,23 +153,33 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 						{!defaultRolesEntitled && <PremiumBadge />}
 					</h2>
 					<span className="text-sm text-content-secondary leading-relaxed">
-						Roles attached to every member of this organization. An empty
-						selection limits new members to the floor permissions only.
+						Roles granted to every member of this organization, current and
+						future, in addition to any roles assigned directly. Removing a role
+						here removes it from all members that are not assigned that role
+						directly.
 					</span>
 				</span>
-				<Button
-					type="button"
-					variant="outline"
-					onClick={() => setIsEditing(true)}
-					disabled={isUpdatingDefaultRoles || !defaultRolesEntitled}
-				>
-					Edit default roles
-				</Button>
+				{canEditDefaultRoles && (
+					<Button
+						type="button"
+						variant="outline"
+						onClick={() => setIsEditing(true)}
+						disabled={
+							isUpdatingDefaultRoles ||
+							!defaultRolesEntitled ||
+							!availableOrgRoles
+						}
+					>
+						Edit default roles
+					</Button>
+				)}
 			</div>
 			<div className="text-sm">
 				{organization.default_org_member_roles.length === 0 ? (
 					<span className="text-content-secondary">
-						No default roles. New members receive only the floor.
+						No default roles. Members have only the permissions of their
+						directly assigned roles, which excludes creating and using
+						workspaces.
 					</span>
 				) : (
 					<DefaultRolesSummary
@@ -274,31 +284,27 @@ const RoleTableBody: FC<RoleTableProps> = ({
 	}
 	if (roles.length === 0) {
 		return (
-			<TableRow className="h-14">
-				<TableCell colSpan={999}>
-					<EmptyState
-						message="No custom roles yet"
-						description={
-							canCreateOrgRole && isCustomRolesEnabled
-								? "Create your first custom role"
-								: !isCustomRolesEnabled
-									? "Upgrade to a premium license to create a custom role"
-									: "You don't have permission to create a custom role"
-						}
-						cta={
-							canCreateOrgRole &&
-							isCustomRolesEnabled && (
-								<Button asChild>
-									<RouterLink to="create">
-										<PlusIcon />
-										Create custom role
-									</RouterLink>
-								</Button>
-							)
-						}
-					/>
-				</TableCell>
-			</TableRow>
+			<TableEmpty
+				message="No custom roles yet"
+				description={
+					canCreateOrgRole && isCustomRolesEnabled
+						? "Create your first custom role"
+						: !isCustomRolesEnabled
+							? "Upgrade to a premium license to create a custom role"
+							: "You don't have permission to create a custom role"
+				}
+				cta={
+					canCreateOrgRole &&
+					isCustomRolesEnabled && (
+						<Button asChild>
+							<RouterLink to="create">
+								<PlusIcon />
+								Create custom role
+							</RouterLink>
+						</Button>
+					)
+				}
+			/>
 		);
 	}
 	return (

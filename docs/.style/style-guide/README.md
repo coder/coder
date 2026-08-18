@@ -20,16 +20,17 @@ The doctrine for adding Vale rules lives in [`README.md`](../README.md).
 
 ## Sections
 
-| Page                                                                  | Covers                                                                                                                                                                                |
-|-----------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Audience and scope](./audience-and-scope.md)                         | One audience per page; one outcome per page; declare both up front; Coder personas                                                                                                    |
-| [Voice and tone](./voice-and-tone.md)                                 | Second person; no first-person singular; "we" as the company, not the software; active voice; present tense                                                                           |
-| [Word choice](./word-choice.md)                                       | Canonical brand and product names; "refer to" over "see"; "select" over "click"; weasel words; plain English for product actions; keep internal-only references out of published docs |
-| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | WCAG target; inclusive pronouns and substitutions; descriptive link text; alt text; page descriptions; heading structure; reading level                                               |
-| [Capitalization and punctuation](./capitalization-and-punctuation.md) | Sentence-case headings; no gerund leads; no em-dashes; commas; US-style quotation                                                                                                     |
-| [Formatting](./formatting.md)                                         | Bold for UI; italics for emphasis; code font for identifiers; language fences on code blocks; callouts; tabs; lists; tables; links; images; screenshots sparingly                     |
-| [Numbers, units, and dates](./numbers-units-and-dates.md)             | Digits everywhere; non-breaking space between number and unit; `Month Day, Year` dates; 12-hour time with AM/PM                                                                       |
-| [Editor setup](./editor-setup.md)                                     | Vale editor integration for VS Code, Cursor, JetBrains, and Neovim (placeholder)                                                                                                      |
+| Page                                                                  | Covers                                                                                                                                                                                                      |
+|-----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Audience and scope](./audience-and-scope.md)                         | One audience per page; one outcome per page; declare both up front; Coder personas                                                                                                                          |
+| [Voice and tone](./voice-and-tone.md)                                 | Second person; no first-person singular; "we" as the company, not the software; active voice; present tense; sentence and paragraph budgets; verbs over noun forms; pronoun referents                       |
+| [Procedural writing](./procedural-writing.md)                         | One instruction per step; condition before instruction; step length; callouts inform, steps instruct; warnings state the consequence                                                                        |
+| [Word choice](./word-choice.md)                                       | Canonical brand and product names; one term per concept; "refer to" over "see"; "select" over "click"; weasel words; plain English for product actions; keep internal-only references out of published docs |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | WCAG target; inclusive pronouns and substitutions; descriptive link text; alt text; page descriptions; heading structure; reading level                                                                     |
+| [Capitalization and punctuation](./capitalization-and-punctuation.md) | Sentence-case headings; no gerund leads; no em-dashes; commas; US-style quotation                                                                                                                           |
+| [Formatting](./formatting.md)                                         | Bold for UI; italics for emphasis; code font for identifiers; language fences on code blocks; callouts; tabs; lists; tables; links; images; screenshots sparingly                                           |
+| [Numbers, units, and dates](./numbers-units-and-dates.md)             | Digits everywhere; non-breaking space between number and unit; `Month Day, Year` dates; 12-hour time with AM/PM                                                                                             |
+| [Editor setup](./editor-setup.md)                                     | Vale editor integration for VS Code, Cursor, JetBrains, and Neovim (placeholder)                                                                                                                            |
 
 ## Conventions for editing Coder docs
 
@@ -103,9 +104,10 @@ The public page is frozen pending the redirect.
 
 When this guide doesn't cover something, consult:
 
-| Type of guidance         | Reference                                                                               |
-|--------------------------|-----------------------------------------------------------------------------------------|
-| Spelling                 | [Merriam-Webster](https://www.merriam-webster.com/)                                     |
-| Style, nontechnical      | [The Chicago Manual of Style](https://www.chicagomanualofstyle.org/home.html)           |
-| Style, technical         | [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/welcome/) |
-| Style, developer-focused | [Google developer documentation style guide](https://developers.google.com/style)       |
+| Type of guidance          | Reference                                                                               |
+|---------------------------|-----------------------------------------------------------------------------------------|
+| Spelling                  | [Merriam-Webster](https://www.merriam-webster.com/)                                     |
+| Style, nontechnical       | [The Chicago Manual of Style](https://www.chicagomanualofstyle.org/home.html)           |
+| Style, technical          | [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/welcome/) |
+| Style, developer-focused  | [Google developer documentation style guide](https://developers.google.com/style)       |
+| Style, procedural writing | [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/) (Issue 9, 2025)  |

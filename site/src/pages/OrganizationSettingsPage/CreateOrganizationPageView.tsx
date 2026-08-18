@@ -1,4 +1,3 @@
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
 import type { FC } from "react";
@@ -9,16 +8,14 @@ import type { CreateOrganizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badges, PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
+import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
+import { Label } from "#/components/Label/Label";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
 import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { docs } from "#/utils/docs";
+import { Textarea } from "#/components/Textarea/Textarea";
+import type { Permissions } from "#/modules/permissions";
+import { cn } from "#/utils/cn";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -42,11 +39,12 @@ interface CreateOrganizationPageViewProps {
 	error: unknown;
 	onSubmit: (values: CreateOrganizationRequest) => Promise<void>;
 	isEntitled: boolean;
+	permissions: Permissions;
 }
 
 export const CreateOrganizationPageView: FC<
 	CreateOrganizationPageViewProps
-> = ({ error, onSubmit, isEntitled }) => {
+> = ({ error, onSubmit, isEntitled, permissions }) => {
 	const form = useFormik<CreateOrganizationRequest>({
 		initialValues: {
 			name: "",
@@ -59,6 +57,11 @@ export const CreateOrganizationPageView: FC<
 	});
 	const navigate = useNavigate();
 	const getFieldHelpers = getFormHelpers(form, error);
+	const descriptionField = getFieldHelpers("description", {
+		maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+	});
+	const descriptionErrorId = `${descriptionField.id}-error`;
+	const descriptionHelperId = `${descriptionField.id}-helper`;
 
 	return (
 		<div className="flex flex-row font-medium">
@@ -79,29 +82,11 @@ export const CreateOrganizationPageView: FC<
 						</div>
 					)}
 
-					<Badges>
-						<Tooltip>
-							{isEntitled && (
-								<TooltipTrigger asChild>
-									<span>
-										<PremiumBadge />
-									</span>
-								</TooltipTrigger>
-							)}
-
-							<TooltipContent
-								sideOffset={-28}
-								collisionPadding={16}
-								className="p-0"
-							>
-								<PopoverPaywall
-									message="Organizations"
-									description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-									documentationLink={docs("/admin/users/organizations")}
-								/>
-							</TooltipContent>
-						</Tooltip>
-					</Badges>
+					{isEntitled && (
+						<Badges>
+							<PremiumBadge />
+						</Badges>
+					)}
 
 					<header className="flex flex-col items-center">
 						<h1 className="text-3xl font-semibold m-0">New Organization</h1>
@@ -112,11 +97,11 @@ export const CreateOrganizationPageView: FC<
 					</header>
 				</div>
 				{!isEntitled ? (
-					<div className="min-w-fit mx-auto">
+					<div className="mx-auto w-full max-w-4xl">
 						<PaywallPremium
 							message="Organizations"
 							description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-							documentationLink={docs("/admin/users/organizations")}
+							canViewPremium={permissions.viewAllLicenses}
 						/>
 					</div>
 				) : (
@@ -130,23 +115,54 @@ export const CreateOrganizationPageView: FC<
 								disabled={form.isSubmitting}
 								className="flex flex-col gap-6 w-full border-none"
 							>
-								<TextField
-									{...getFieldHelpers("name")}
-									onChange={onChangeTrimmed(form)}
-									fullWidth
+								<FormField
+									field={getFieldHelpers("name")}
 									label="Slug"
+									onChange={onChangeTrimmed(form)}
 								/>
-								<TextField
-									{...getFieldHelpers("display_name")}
-									fullWidth
+								<FormField
+									field={getFieldHelpers("display_name")}
 									label="Display name"
 								/>
-								<TextField
-									{...getFieldHelpers("description")}
-									multiline
-									label="Description"
-									rows={2}
-								/>
+								<div className="flex flex-col gap-2">
+									<Label htmlFor={descriptionField.id}>Description</Label>
+									<Textarea
+										id={descriptionField.id}
+										name={descriptionField.name}
+										value={descriptionField.value}
+										onChange={descriptionField.onChange}
+										onBlur={descriptionField.onBlur}
+										rows={2}
+										aria-invalid={descriptionField.error}
+										aria-describedby={
+											descriptionField.error
+												? descriptionErrorId
+												: descriptionField.helperText
+													? descriptionHelperId
+													: undefined
+										}
+										className={cn(
+											descriptionField.error && "border-border-destructive",
+										)}
+									/>
+									{descriptionField.error ? (
+										<span
+											id={descriptionErrorId}
+											className="text-xs text-content-destructive"
+										>
+											{descriptionField.helperText}
+										</span>
+									) : (
+										descriptionField.helperText && (
+											<span
+												id={descriptionHelperId}
+												className="text-xs text-content-secondary"
+											>
+												{descriptionField.helperText}
+											</span>
+										)
+									)}
+								</div>
 								<IconField
 									{...getFieldHelpers("icon")}
 									onChange={onChangeTrimmed(form)}

@@ -35,6 +35,8 @@ type CreateChatInput struct {
 	DynamicTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
 	InitialMessages   []Message
+	// FileIDs are linked atomically with the initial messages.
+	FileIDs []uuid.UUID
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -131,6 +133,9 @@ func insertChat(
 		if err != nil {
 			return xerrors.Errorf("insert initial messages: %w", err)
 		}
+		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs); err != nil {
+			return err
+		}
 		refreshed, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("reload chat after initial messages: %w", err)
@@ -183,6 +188,7 @@ type executionStateUpdate struct {
 	LastError                pqtype.NullRawMessage
 	RequiresActionDeadlineAt sql.NullTime
 	CompactionRequestedAt    sql.NullTime
+	GrantHistoryEpoch        bool
 }
 
 func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error) {
@@ -195,6 +201,7 @@ func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error)
 		LastError:                u.LastError,
 		RequiresActionDeadlineAt: u.RequiresActionDeadlineAt,
 		CompactionRequestedAt:    u.CompactionRequestedAt,
+		GrantHistoryEpoch:        u.GrantHistoryEpoch,
 	})
 }
 
@@ -676,12 +683,18 @@ type RequestCompactionResult struct {
 	Chat database.Chat
 }
 
-// RequestCompaction records a manual compaction request and hands ownership
-// off to a worker. The transition changes no history, so the previous runner
-// cannot detect the work from its existing running snapshot. Clearing ownership
-// makes ChatMachine.Update publish an ownership hint for worker acquisition.
+// RequestCompaction records a manual compaction request, clears any
+// prior error, and hands ownership off to a worker. The transition
+// changes no history, so the previous runner cannot detect the work
+// from its existing running snapshot. Clearing ownership makes
+// ChatMachine.Update publish an ownership hint for worker acquisition.
+//
+// The compaction turn gets the same fresh history epoch a history
+// change would grant: a full retry budget regardless of how the
+// previous turn spent its own, and message part episode keys that
+// cannot collide with episodes the failed turn's replica retains.
 func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResult, error) {
-	chat, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
+	_, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
 	if err != nil {
 		return RequestCompactionResult{}, err
 	}
@@ -694,9 +707,10 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 		Archived:                 false,
 		WorkerID:                 uuid.NullUUID{},
 		RunnerID:                 uuid.NullUUID{},
-		LastError:                chat.LastError,
+		LastError:                pqtype.NullRawMessage{},
 		RequiresActionDeadlineAt: sql.NullTime{},
 		CompactionRequestedAt:    sql.NullTime{Time: now, Valid: true},
+		GrantHistoryEpoch:        true,
 	})
 	if err != nil {
 		return RequestCompactionResult{}, xerrors.Errorf("set running: %w", err)

@@ -13,6 +13,7 @@ import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
+import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Link as DocsLink } from "#/components/Link/Link";
 import {
@@ -24,7 +25,6 @@ import {
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
-import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
@@ -45,7 +45,6 @@ export type ProviderFormValues = {
 	enabled: boolean;
 };
 
-const HTTP_SCHEME_REGEX = /^https?:\/\//i;
 // AWS Bedrock InvokeModel URL, e.g. https://bedrock-runtime.{region}.amazonaws.com
 const BEDROCK_INVOKE_MODEL_URL_REGEX =
 	/^https:\/\/bedrock-runtime\.([a-z0-9-]+)\.amazonaws\.com\/?$/i;
@@ -166,10 +165,8 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
 		icon: Yup.string(),
-		baseUrl: Yup.string()
-			.url("Endpoint must be a valid URL")
-			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
-			.required("Endpoint is required"),
+		// URL shape is validated by the backend; the form only checks presence.
+		baseUrl: Yup.string().required("Endpoint is required"),
 		apiKey: editing
 			? Yup.string()
 			: Yup.string().required("API key is required"),
@@ -201,7 +198,6 @@ const makeBedrockSchema = (editing: boolean) =>
 			.oneOf(["invoke-model", "mantle"] as const)
 			.required(),
 		baseUrl: Yup.string()
-			.url("Endpoint must be a valid URL")
 			.when("protocol", {
 				is: "mantle",
 				then: (schema) =>
@@ -257,10 +253,7 @@ const makeCopilotSchema = (editing: boolean) =>
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
 		icon: Yup.string(),
-		baseUrl: Yup.string()
-			.url("Endpoint must be a valid URL")
-			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
-			.required("Endpoint is required"),
+		baseUrl: Yup.string().required("Endpoint is required"),
 		enabled: Yup.boolean(),
 	});
 
@@ -394,10 +387,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			<div className="text-xs text-content-secondary">
 				Optional. URL or emoji shown for this provider.
 			</div>
-			<IconPickerField
+			<IconField
 				id="icon"
 				value={form.values.icon}
-				onChange={handleIconChange}
+				label={null}
+				onChange={(event) => handleIconChange(event.target.value)}
+				onPickEmoji={handleIconChange}
 			/>
 		</div>
 	);
@@ -501,7 +496,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						{iconField}
 						<FormField
 							required
-							field={getFieldHelpers("baseUrl")}
+							field={getFieldHelpers("baseUrl", {
+								backendFieldName: "base_url",
+							})}
 							label="Endpoint"
 							description={
 								typeSelectValue === "copilot" ? (
@@ -585,7 +582,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						</div>
 						<FormField
 							required
-							field={getFieldHelpers("baseUrl")}
+							field={getFieldHelpers("baseUrl", {
+								backendFieldName: "base_url",
+							})}
 							label="Endpoint"
 							description={
 								<>

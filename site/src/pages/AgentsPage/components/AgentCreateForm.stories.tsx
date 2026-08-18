@@ -1,4 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import { delay } from "msw";
+import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import {
 	expect,
 	fn,
@@ -9,6 +12,7 @@ import {
 	within,
 } from "storybook/test";
 import { API } from "#/api/api";
+import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
@@ -18,18 +22,17 @@ import {
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
+import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentCreateForm } from "./AgentCreateForm";
+import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
 
-// Query key used by permittedOrganizations() in the form.
-const permittedOrgsKey = [
-	"organizations",
-	"permitted",
-	{ object: { resource_type: "chat" }, action: "create" },
-];
+const permittedOrgsKey = permittedOrganizationsKey({
+	object: { resource_type: "chat", owner_id: "me" },
+	action: "create",
+});
 
 const modelConfigID = "model-config-1";
 const claudeModelConfigID = "model-config-claude";
@@ -132,19 +135,27 @@ type Story = StoryObj<typeof AgentCreateForm>;
 
 const defaultArgs = meta.args;
 
-const mockPermittedOrganizations = (permissions: Record<string, boolean>) => {
+const mockPermittedOrganizations = (
+	permissions: Record<string, boolean>,
+	delayMs = 0,
+) => {
 	spyOn(API, "getOrganizations").mockResolvedValue([
 		MockDefaultOrganization,
 		MockOrganization2,
 	]);
-	spyOn(API, "checkAuthorization").mockResolvedValue(permissions);
+	spyOn(API, "checkAuthorization").mockImplementation(async () => {
+		if (delayMs > 0) {
+			await delay(delayMs);
+		}
+		return permissions;
+	});
 };
 
 export const Default: Story = {};
 
 const submitMessage = async (canvasElement: HTMLElement, message: string) => {
 	const canvas = within(canvasElement);
-	const input = canvas.getByTestId("chat-message-input");
+	const input = canvas.getByRole("textbox", { name: "Chat message" });
 	await userEvent.click(input);
 	await userEvent.keyboard(message);
 	await userEvent.click(canvas.getByRole("button", { name: "Send" }));
@@ -570,8 +581,8 @@ export const WithWorkspaces: Story = {
 		await userEvent.click(
 			body.getByText("Attach workspace").closest("button")!,
 		);
-		// Wait for the workspace combobox dropdown to appear so
-		// Chromatic captures it.
+		// Wait for the workspace combobox dropdown to appear so snapshot tests
+		// capture it.
 		await body.findByPlaceholderText("Search workspaces...");
 	},
 };
@@ -790,32 +801,6 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 	},
 };
 
-export const UsageLimitExceeded: Story = {
-	args: {
-		...defaultArgs,
-		createError: Object.assign(
-			new Error("Request failed with status code 409"),
-			{
-				isAxiosError: true,
-				response: {
-					status: 409,
-					statusText: "Conflict",
-					data: {
-						message: "Chat usage limit exceeded.",
-						spent_micros: 900_000,
-						limit_micros: 500_000,
-						resets_at: "2026-03-16T00:00:00Z",
-					},
-					headers: {},
-					config: {},
-				},
-				config: {},
-				toJSON: () => ({}),
-			},
-		),
-	},
-};
-
 export const HookDispatchFailed: Story = {
 	args: {
 		...defaultArgs,
@@ -922,24 +907,496 @@ export const WithOrganizationPicker: Story = {
 		queries: [
 			{
 				key: permittedOrgsKey,
-				data: [MockDefaultOrganization, MockOrganization2],
+				data: [MockOrganization2, MockDefaultOrganization],
 			},
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Verify the org picker rendered (component didn't crash).
-		await waitFor(() => {
-			expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
+		const organizationPicker = canvas.getByRole("button", {
+			name: "Organization: My Organization",
 		});
-		// Type into the chat input to trigger re-renders. If the
-		// permittedOrgs fallback is referentially unstable, this
-		// causes a render cascade that hits React's update limit.
-		const input = canvas.getByTestId("chat-message-input");
+		await expect(organizationPicker).toBeVisible();
+
+		const input = canvas.getByRole("textbox", { name: "Chat message" });
 		await userEvent.click(input);
 		await userEvent.keyboard("hello world");
-		// The org picker should still be present after typing.
-		expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("button", {
+				name: "Organization: My Organization",
+			}),
+		).toBeVisible();
+	},
+};
+
+export const RestrictedMultiOrganizationUser: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		// Model agents-access: "me" supplies the owner for member-scoped chat:create.
+		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(
+				Object.entries(checks).map(([id, check]) => [
+					id,
+					check.object.owner_id === "me" &&
+						check.object.organization_id === MockOrganization2.id,
+				]),
+			),
+		);
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	play: async ({ canvasElement, args }) => {
+		await submitMessage(canvasElement, "test message");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					organizationId: MockOrganization2.id,
+				}),
+			);
+		});
+	},
+};
+
+export const RestrictedUserKeepsPersistedWorkspace: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		workspaceOptions: [
+			{
+				...MockWorkspace,
+				id: "ws-permitted-org",
+				name: "permitted-workspace",
+				organization_id: MockOrganization2.id,
+			},
+		],
+		workspaceCount: 1,
+	},
+	beforeEach: () => {
+		localStorage.setItem("agents.selected-workspace-id", "ws-permitted-org");
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement, args }) => {
+		await submitMessage(canvasElement, "test message");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					organizationId: MockOrganization2.id,
+					workspaceId: "ws-permitted-org",
+				}),
+			);
+		});
+	},
+};
+
+export const RestrictedUserKeepsPersistedAttachments: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem(
+			"agents.persisted-attachments",
+			JSON.stringify([
+				{
+					fileId: "file-permitted-org",
+					fileName: "notes.txt",
+					fileType: "text/plain",
+					lastModified: 1700000000000,
+					organizationId: MockOrganization2.id,
+				},
+			]),
+		);
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument();
+		});
+		const stored = localStorage.getItem("agents.persisted-attachments");
+		expect(stored).toContain("file-permitted-org");
+	},
+};
+
+export const OrganizationAuthorizationFailure: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem(emptyInputStorageKey, "draft message");
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		spyOn(API, "checkAuthorization").mockRejectedValue(
+			new Error("authorization check failed"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findAllByText(/authorization check failed/i);
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+	},
+};
+
+export const LoadingWorkspacesBlocksSendUntilValidated: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	args: {
+		...defaultArgs,
+		workspaceOptions: [],
+		isWorkspacesLoading: true,
+	},
+	beforeEach: () => {
+		localStorage.setItem(emptyInputStorageKey, "draft message");
+		localStorage.setItem("agents.selected-workspace-id", "ws-default-org");
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Wait for permissions to settle before checking workspace validation.
+		await canvas.findByRole("button", {
+			name: "Organization: My Organization",
+		});
+		await expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+	},
+};
+
+export const DelayedOrganizationAuthorization: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	beforeEach: () => {
+		localStorage.setItem(emptyInputStorageKey, "draft message");
+		mockPermittedOrganizations(
+			{
+				[MockDefaultOrganization.id]: true,
+				[MockOrganization2.id]: true,
+			},
+			1_500,
+		);
+	},
+	args: {
+		...defaultArgs,
+		workspaceOptions: [
+			{
+				...MockWorkspace,
+				id: "ws-provisional",
+				name: "provisional-workspace",
+				organization_id: MockDefaultOrganization.id,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		await expect(sendButton).toBeDisabled();
+		await expect(
+			canvas.getByRole("button", { name: "More options" }),
+		).toBeDisabled();
+		// dispatchEvent returns false when a handler accepted the drop
+		// via preventDefault, giving a race-free accepted/ignored signal.
+		const dropFile = (name: string): boolean => {
+			const dataTransfer = new DataTransfer();
+			dataTransfer.items.add(new File(["hello"], name, { type: "text/plain" }));
+			return canvas.getByTestId("chat-composer").dispatchEvent(
+				new DragEvent("drop", {
+					bubbles: true,
+					cancelable: true,
+					dataTransfer,
+				}),
+			);
+		};
+		// Pending authorization leaves attachments without a valid org, so drops
+		// must be ignored.
+		expect(dropFile("drop.txt")).toBe(true);
+		expect(canvas.queryByLabelText("Remove drop.txt")).not.toBeInTheDocument();
+		// The pending option list is unfiltered, so the picker must stay hidden.
+		expect(
+			canvas.queryByRole("button", { name: /organization/i }),
+		).not.toBeInTheDocument();
+		await waitFor(() => expect(sendButton).toBeEnabled(), { timeout: 3_000 });
+		await canvas.findByRole("button", { name: /organization/i });
+		// Positive control: once settled the same drop is accepted and
+		// attaches, so the pending-state assertions exercised a real path.
+		expect(dropFile("after.txt")).toBe(false);
+		await waitFor(() =>
+			expect(canvas.getByLabelText("Remove after.txt")).toBeInTheDocument(),
+		);
+	},
+};
+
+// Mutable permissions let play functions change authorization across refetches.
+// The story-local QueryClient exposes those refetches; the preview client's
+// instance is inaccessible and uses infinite stale time.
+const revocablePermissions: Record<string, boolean> = {};
+let revocableQueryClient: QueryClient | undefined;
+
+const withRevocableQueryClient: Decorator = (Story) => {
+	const [queryClient] = useState(
+		() =>
+			new QueryClient({
+				defaultOptions: {
+					queries: {
+						staleTime: Number.POSITIVE_INFINITY,
+						retry: false,
+					},
+				},
+			}),
+	);
+	revocableQueryClient = queryClient;
+	return (
+		<QueryClientProvider client={queryClient}>
+			<Story />
+		</QueryClientProvider>
+	);
+};
+
+const mockRevocablePermissions = (permissions: Record<string, boolean>) => {
+	for (const key of Object.keys(revocablePermissions)) {
+		delete revocablePermissions[key];
+	}
+	Object.assign(revocablePermissions, permissions);
+	spyOn(API, "getOrganizations").mockResolvedValue([
+		MockDefaultOrganization,
+		MockOrganization2,
+	]);
+	spyOn(API, "checkAuthorization").mockImplementation(async () => ({
+		...revocablePermissions,
+	}));
+};
+
+const revocableStoryContext = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	decorators: [withRevocableQueryClient],
+};
+
+const allOrganizationsPermitted = {
+	[MockDefaultOrganization.id]: true,
+	[MockOrganization2.id]: true,
+};
+
+export const RevokedSelectionDoesNotResurrect: Story = {
+	...revocableStoryContext,
+	beforeEach: () => {
+		mockRevocablePermissions(allOrganizationsPermitted);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByRole("button", {
+			name: "Organization: My Organization",
+		});
+		await userEvent.click(trigger);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /My Organization 2/ }),
+		);
+		await canvas.findByRole("button", {
+			name: "Organization: My Organization 2",
+		});
+
+		revocablePermissions[MockOrganization2.id] = false;
+		await revocableQueryClient?.invalidateQueries();
+		await waitFor(() =>
+			expect(
+				canvas.queryByRole("button", { name: /organization/i }),
+			).not.toBeInTheDocument(),
+		);
+
+		revocablePermissions[MockOrganization2.id] = true;
+		await revocableQueryClient?.invalidateQueries();
+		await canvas.findByRole("button", {
+			name: "Organization: My Organization",
+		});
+	},
+};
+
+export const RevokedOrgChangeClearsStoredWorkspace: Story = {
+	...revocableStoryContext,
+	args: {
+		...defaultArgs,
+		workspaceOptions: [
+			{
+				...MockWorkspace,
+				id: "ws-default-org",
+				name: "default-workspace",
+				organization_id: MockDefaultOrganization.id,
+			},
+		],
+		workspaceCount: 1,
+	},
+	beforeEach: () => {
+		localStorage.setItem("agents.selected-workspace-id", "ws-default-org");
+		mockRevocablePermissions(allOrganizationsPermitted);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByLabelText("Remove workspace default-workspace"),
+			).toBeInTheDocument(),
+		);
+
+		revocablePermissions[MockDefaultOrganization.id] = false;
+		await revocableQueryClient?.invalidateQueries();
+		await waitFor(() =>
+			expect(
+				canvas.queryByLabelText("Remove workspace default-workspace"),
+			).not.toBeInTheDocument(),
+		);
+
+		revocablePermissions[MockDefaultOrganization.id] = true;
+		await revocableQueryClient?.invalidateQueries();
+		await canvas.findByRole("button", {
+			name: "Organization: My Organization 2",
+		});
+		expect(
+			canvas.queryByLabelText("Remove workspace default-workspace"),
+		).not.toBeInTheDocument();
+		expect(localStorage.getItem("agents.selected-workspace-id")).toBeNull();
+	},
+};
+
+export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
+	...revocableStoryContext,
+	args: {
+		...defaultArgs,
+		workspaceOptions: [
+			{
+				...MockWorkspace,
+				id: "ws-org-2",
+				name: "org2-workspace",
+				organization_id: MockOrganization2.id,
+			},
+		],
+	},
+	beforeEach: () => {
+		localStorage.setItem("agents.selected-workspace-id", "ws-org-2");
+		mockRevocablePermissions({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByLabelText("Remove workspace org2-workspace");
+
+		revocablePermissions[MockOrganization2.id] = false;
+		await revocableQueryClient?.invalidateQueries();
+		await canvas.findByText(/don't have permission/i);
+
+		revocablePermissions[MockOrganization2.id] = true;
+		await revocableQueryClient?.invalidateQueries();
+		await canvas.findByLabelText("Remove workspace org2-workspace");
+		expect(localStorage.getItem("agents.selected-workspace-id")).toBe(
+			"ws-org-2",
+		);
+	},
+};
+
+export const SingleOrgIgnoresStalePermittedCache: Story = {
+	parameters: {
+		showOrganizations: false,
+		organizations: [MockDefaultOrganization],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockOrganization2],
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	play: async ({ canvasElement, args }) => {
+		await submitMessage(canvasElement, "test message");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					organizationId: MockDefaultOrganization.id,
+				}),
+			);
+		});
+	},
+};
+
+export const RevokedPendingOrgClosesConfirmDialog: Story = {
+	...revocableStoryContext,
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([
+				{
+					fileId: "file-default-org",
+					fileName: "notes.txt",
+					fileType: "text/plain",
+					lastModified: 1700000000000,
+					organizationId: MockDefaultOrganization.id,
+				},
+			]),
+		);
+		mockRevocablePermissions(allOrganizationsPermitted);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await waitFor(() =>
+			expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument(),
+		);
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: "Organization: My Organization",
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /My Organization 2/ }),
+		);
+		await body.findByText(
+			"Changing organization will remove your current attachments.",
+		);
+
+		revocablePermissions[MockOrganization2.id] = false;
+		await revocableQueryClient?.invalidateQueries();
+		await waitFor(() =>
+			expect(
+				body.queryByText(
+					"Changing organization will remove your current attachments.",
+				),
+			).not.toBeInTheDocument(),
+		);
+		expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument();
 	},
 };
 
@@ -1035,14 +1492,27 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
-		// Deliberately do not pre-seed permittedOrgsKey. Let the
-		// mocked API calls drive the async permission resolution.
 	},
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
 	beforeEach: () => {
+		localStorage.clear();
+		// Another org's persisted attachment must survive a visit while
+		// the user has no chat permission anywhere.
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([
+				{
+					fileId: "file-other-org",
+					fileName: "keep.txt",
+					fileType: "text/plain",
+					lastModified: 1000,
+					organizationId: MockOrganization2.id,
+				},
+			]),
+		);
 		mockPermittedOrganizations({
 			[MockDefaultOrganization.id]: false,
 			[MockOrganization2.id]: false,
@@ -1050,36 +1520,17 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-
-		// Wait for the permitted orgs query to resolve. The org picker
-		// should disappear since no org is permitted.
 		await waitFor(
 			() => {
-				expect(
-					canvas.queryByTestId("compact-org-selector"),
-				).not.toBeInTheDocument();
+				expect(canvas.getByText(/don't have permission/i)).toBeInTheDocument();
 			},
 			{ timeout: 3000 },
 		);
-
-		// Type a message and submit the form.
-		const input = canvas.getByTestId("chat-message-input");
-		await userEvent.click(input);
-		await userEvent.keyboard("test message");
-		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
-
-		// Verify onCreateChat was called with a non-empty organizationId.
-		await waitFor(() => {
-			expect(args.onCreateChat).toHaveBeenCalled();
-		});
-		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
-			.calls[0]?.[0] as { organizationId: string } | undefined;
-		if (!options) {
-			throw new Error("Expected onCreateChat to receive options");
-		}
-		expect(options.organizationId).not.toBe("");
-		// It should fall back to the default org from the dashboard.
-		expect(options.organizationId).toBe(MockDefaultOrganization.id);
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		expect(args.onCreateChat).not.toHaveBeenCalled();
+		expect(
+			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
+		).toContain("file-other-org");
 	},
 };
 
@@ -1128,5 +1579,51 @@ export const PermittedOrgsResolvesToSubset: Story = {
 			throw new Error("Expected onCreateChat to receive options");
 		}
 		expect(options.organizationId).toBe(MockOrganization2.id);
+	},
+};
+
+/**
+ * Member-scoped roles like agents-access grant chat:create only on
+ * chats the user owns, so the per-org check must carry owner context
+ * for the picker to render.
+ */
+export const MemberScopedPermissionsShowOrgPicker: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	beforeEach: () => {
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(
+				Object.entries(checks).map(([id, check]) => [
+					id,
+					check.object.owner_id === "me",
+				]),
+			),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const picker = await canvas.findByRole(
+			"button",
+			{ name: /^Organization:/ },
+			{ timeout: 3000 },
+		);
+		await userEvent.click(picker);
+		await screen.findByRole("option", {
+			name: MockDefaultOrganization.display_name,
+		});
+		await userEvent.click(
+			screen.getByRole("option", { name: MockOrganization2.display_name }),
+		);
+		expect(
+			canvas.getByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
 	},
 };

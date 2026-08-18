@@ -974,6 +974,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			options.ExternalAuthConfigs, err = externalauth.ConvertConfig(
+				ctx,
+				logger,
 				oauthInstrument,
 				mergedExternalAuthProviders,
 				vals.AccessURL.Value(),
@@ -3122,6 +3124,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.RevokeURL = v.Value
 		case "VALIDATE_URL":
 			provider.ValidateURL = v.Value
+		case "REDIRECT_URL":
+			provider.RedirectURL = v.Value
 		case "REGEX":
 			provider.Regex = v.Value
 		case "DEVICE_FLOW":

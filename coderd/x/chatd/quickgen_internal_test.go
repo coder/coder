@@ -588,7 +588,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		nil,
 		"openai",
 		database.ChatModelConfig{Model: "test-model"},
-		model,
+		chatprovider.NewModel(model, nil),
 		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
@@ -657,7 +657,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 		nil,
 		fantasyopenai.Name,
 		database.ChatModelConfig{Model: "gpt-4o-mini", Options: modelConfigRaw},
-		model,
+		chatprovider.NewModel(model, nil),
 		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		&generatedChatTitle{},
@@ -884,7 +884,7 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 
 	title, _, err := generateStructuredTitleWithUsage(
 		t.Context(),
-		model,
+		model.LanguageModel(),
 		nil,
 		titleGenerationPrompt,
 		"summarize failed workspace build logs",
@@ -993,7 +993,7 @@ func newOpenAICompatStructuredOutputServer(
 	return server, requests
 }
 
-func openAICompatTestModel(t *testing.T, baseURL string) fantasy.LanguageModel {
+func openAICompatTestModel(t *testing.T, baseURL string) chatprovider.Model {
 	t.Helper()
 
 	model, err := chatprovider.ModelFromConfig(
@@ -1008,6 +1008,7 @@ func openAICompatTestModel(t *testing.T, baseURL string) fantasy.LanguageModel {
 			},
 		},
 		chatprovider.UserAgent(),
+		nil,
 		nil,
 		nil,
 	)
@@ -1041,7 +1042,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		server, requests := newOpenAICompatStructuredOutputServer(t, "propose_turn_status_label", `{"label":"Submitted PR"}`)
 		model := openAICompatTestModel(t, server.URL)
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model.LanguageModel(), turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 		require.Len(t, requests, 1)

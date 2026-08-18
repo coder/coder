@@ -49,17 +49,17 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
       - name: check changed files
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -141,12 +141,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -276,7 +276,7 @@ jobs:
   #   runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
   #   steps:
   #     - name: Checkout
-  #       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+  #       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
   #       with:
   #         fetch-depth: 1
   #         # See: https://github.com/stefanzweifel/git-auto-commit-action?tab=readme-ov-file#commits-made-by-this-action-do-not-trigger-new-workflow-runs
@@ -311,12 +311,12 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Depth 2 makes the PR merge commit's first parent (the base
           # branch tip) available so lint/emdash can diff against HEAD^
@@ -367,8 +367,12 @@ jobs:
       - name: Verify helm version
         run: helm version --short
 
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
+
       - name: make lint
-        run: make --output-sync=line -j lint
+        # Bound concurrent lint targets to keep peak memory below the runner limit.
+        run: make --output-sync=line -j"$(nproc)" lint
 
       - name: Save golangci-lint cache
         # Only the default branch is trusted to write the cache, so PR
@@ -397,12 +401,12 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-8' || 'ubuntu-24.04' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -427,12 +431,12 @@ jobs:
     if: ${{ !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -482,12 +486,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -523,7 +527,7 @@ jobs:
     # `make test` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
     # some of the preceding steps are slow.
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -533,7 +537,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -559,7 +563,7 @@ jobs:
         uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -601,8 +605,15 @@ jobs:
         # Normalize file modification timestamps so that go test can use the
         # cache from the previous CI run. See https://github.com/golang/go/issues/58571
         # for more details.
+        #
+        # mtimehash only optimizes cache hits, so a missing binary must not
+        # fail the job before any tests run (coder/internal#1630).
         run: |
-          find . -type f ! -path ./.git/\*\* | mtimehash
+          if command -v mtimehash >/dev/null 2>&1; then
+            find . -type f ! -path ./.git/\*\* | mtimehash
+          else
+            echo "::warning::mtimehash not found; skipping file timestamp normalization (Go test cache may be cold)"
+          fi
           find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
 
       - name: Normalize Terraform Path for Caching
@@ -658,11 +669,12 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # Our macOS runners have 8 cores.
-          # Even though this parallelism seems high, we've observed relatively low flakiness in the past.
-          # See https://github.com/coder/coder/pull/21091#discussion_r2609891540.
+          # Our macOS runners have 8 cores. test-parallelism-tests matches
+          # Linux's rather than the previous 16, to rule out scheduler
+          # contention as a contributor to the macOS test-go-pg timeouts
+          # tracked in coder/internal#1365.
           test-parallelism-packages: "8"
-          test-parallelism-tests: "16"
+          test-parallelism-tests: "8"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
@@ -733,15 +745,15 @@ jobs:
     # `make test` to ensure we receive a trace of running goroutines.
     # Setting this to the timeout +5m should work quite well even if
     # some of the preceding steps are slow.
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -804,15 +816,19 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    timeout-minutes: 25
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-race` to ensure we receive a trace of running goroutines.
+    # Setting this to the timeout +5m should work quite well even if
+    # some of the preceding steps are slow.
+    timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -888,12 +904,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -917,12 +933,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -955,12 +971,12 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -981,6 +997,9 @@ jobs:
         env:
           NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
         working-directory: site
+
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
 
       - run: make site/e2e/bin/coder
         name: make coder
@@ -1066,12 +1085,12 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         name: Checkout
         with:
           persist-credentials: false
 
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         name: Install dependencies
         with:
           run_install: true
@@ -1100,12 +1119,12 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # 0 is required here for version.sh to work.
           fetch-depth: 0
@@ -1165,7 +1184,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -1204,12 +1223,12 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -1257,18 +1276,18 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: GHCR Login
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1308,7 +1327,7 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: "zulu"
           java-version: "11.0"
@@ -1487,7 +1506,7 @@ jobs:
         id: attest_main
         if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.main_digest != ''
         continue-on-error: true
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.main_digest }}
@@ -1497,7 +1516,7 @@ jobs:
         id: attest_latest
         if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.latest_digest != ''
         continue-on-error: true
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
@@ -1507,7 +1526,7 @@ jobs:
         id: attest_version
         if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.version_digest != ''
         continue-on-error: true
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.version_digest }}
@@ -1624,12 +1643,12 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false

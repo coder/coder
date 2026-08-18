@@ -31,7 +31,7 @@ func (c *Client) EvaluateTemplateVersion(ctx context.Context, templateVersionID 
 	}
 
 	var dynResp DynamicParametersResponse
-	return dynResp, json.NewDecoder(res.Body).Decode(&dynResp)
+	return dynResp, ReadBodyAsJSON(res, &dynResp)
 }
 
 func ValidateNewWorkspaceParameters(richParameters []TemplateVersionParameter, buildParameters []WorkspaceBuildParameter) error {

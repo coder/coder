@@ -10,6 +10,9 @@ import { CreateTemplateGalleryPageView } from "./CreateTemplateGalleryPageView";
 const meta: Meta<typeof CreateTemplateGalleryPageView> = {
 	title: "pages/CreateTemplateGalleryPage",
 	component: CreateTemplateGalleryPageView,
+	args: {
+		templateBuilderEnabled: true,
+	},
 };
 
 export default meta;

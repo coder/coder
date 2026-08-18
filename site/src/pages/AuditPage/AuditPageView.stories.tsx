@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
+import { expect, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -13,6 +14,7 @@ import {
 	MockAuditLog,
 	MockAuditLog2,
 	MockAuditLog3,
+	MockPermissions,
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { pixelWithTablet } from "#/testHelpers/pixel";
@@ -43,6 +45,7 @@ const meta: Meta<typeof AuditPageView> = {
 		isAuditLogVisible: true,
 		filterProps: defaultFilterProps,
 		showOrgDetails: false,
+		permissions: MockPermissions,
 	},
 };
 
@@ -90,6 +93,29 @@ export const NotVisible: Story = {
 	args: {
 		isAuditLogVisible: false,
 		auditsQuery: mockInitialRenderResult,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const NotVisibleWithoutLicenseAccess: Story = {
+	args: {
+		...NotVisible.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
 	},
 };
 

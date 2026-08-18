@@ -346,11 +346,10 @@ export const WithMemberAIBudget: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(await canvas.findByText("AI budget")).toBeInTheDocument();
+		await expect(await canvas.findByText("AI spend")).toBeInTheDocument();
 		await expect(await canvas.findByText("Budget group")).toBeInTheDocument();
-		// Dates depend on the runner's timezone; match loosely.
 		await expect(
-			await canvas.findByText(/^AI budget period: \w+ \d+ - \w+ \d+, 2026$/),
+			await canvas.findByText("AI budget period: June 1 - July 1, 2026"),
 		).toBeInTheDocument();
 
 		await expect(
@@ -359,13 +358,13 @@ export const WithMemberAIBudget: Story = {
 
 		const body = within(document.body);
 		await userEvent.click(
-			within(canvas.getByText("AI budget")).getByRole("button", {
+			within(canvas.getByText("AI spend")).getByRole("button", {
 				name: "More info",
 			}),
 		);
 		await expect(
 			await body.findByText(
-				/^Monthly AI spend for this user\. Resets .*The group's default limit is \$7,000 per member\.$/,
+				/^Approximate monthly AI spend for this user\. Resets .*The group's default limit is \$7,000 per member\.$/,
 			),
 		).toBeInTheDocument();
 		await userEvent.click(
@@ -392,7 +391,7 @@ export const WithoutMemberAIBudgetColumn: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Group members" });
-		expect(canvas.queryByText("AI budget")).not.toBeInTheDocument();
+		expect(canvas.queryByText("AI spend")).not.toBeInTheDocument();
 		expect(canvas.queryByText("Budget group")).not.toBeInTheDocument();
 		expect(canvas.queryByText(/AI budget period/)).not.toBeInTheDocument();
 	},
@@ -429,12 +428,14 @@ export const AIBudgetActionDisabledForOtherGroup: Story = {
 
 		// Without a group default budget, the header note ends at the reset date.
 		await userEvent.click(
-			within(canvas.getByText("AI budget")).getByRole("button", {
+			within(canvas.getByText("AI spend")).getByRole("button", {
 				name: "More info",
 			}),
 		);
 		await expect(
-			await body.findByText(/^Monthly AI spend for this user\. Resets .*\.$/),
+			await body.findByText(
+				/^Approximate monthly AI spend for this user\. Resets .*\.$/,
+			),
 		).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
 

@@ -8,6 +8,7 @@ import (
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
@@ -59,7 +60,7 @@ func (t *Trigger) PreflightPendingToolCalls(
 			ToolUseID: toolCall.ToolCallID,
 			ToolName:  toolCall.ToolName,
 			ToolInput: json.RawMessage(toolCall.Input),
-		}, agenthooks.EventPreToolUse)
+		}, agenthooks.EventPreToolUse, dispatch.CapacityClassGeneration)
 		if err != nil {
 			denied, ok := errors.AsType[*deniedError](err)
 			if !ok {
@@ -139,7 +140,7 @@ func (t *Trigger) PostToolUseResults(
 			}
 			continue
 		}
-		result, err := t.Trigger(ctx, chat, msg, agenthooks.EventPostToolUse)
+		result, err := t.Trigger(ctx, chat, msg, agenthooks.EventPostToolUse, dispatch.CapacityClassGeneration)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err

@@ -130,6 +130,10 @@
 		--surface-red: 0 93% 94%;
 		--surface-purple: 259, 100%, 95%;
 		--surface-magenta: 289 100% 98%;
+		/*
+		  Brand supergraphic used as a decorative background on premium upsell surfaces.
+		*/
+		--supergraphic-url: url("/supergraphic/supergraphic-light.webp");
 		--border-purple: 255 92% 76%;
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
@@ -203,6 +207,7 @@
 		--surface-red: 0 75% 15%;
 		--surface-purple: 268, 68%, 17%;
 		--surface-magenta: 291, 74%, 15%;
+		--supergraphic-url: url("/supergraphic/supergraphic-dark.webp");
 		--border-purple: 255 92% 76%;
 		--border-default: 240 4% 16%;
 		--border-success: 142 76% 36%;
@@ -364,6 +369,10 @@
 		@apply h-full;
 	}
 
+	body {
+		@apply bg-surface-primary text-content-primary font-sans antialiased;
+	}
+
 	button,
 	input {
 		@apply font-sans;
@@ -418,17 +427,18 @@
 		}
 	}
 
-	/*
-	  This is a temporary fix for MUI Modals/Popovers until they are removed.
-	  When html has scrollbar-gutter: stable, the browser reserves space for the scrollbar.
-	  MUI Modals/Popovers, when locking body scroll, add `overflow: hidden` and `padding-right`
-	  to the body to compensate for the scrollbar they are hiding. This added padding-right
-	  conflicts with the already reserved gutter space, causing a layout shift.
-	  This rule overrides MUI's added padding-right on the body specifically when MUI
-	  is likely to have set both overflow:hidden and padding-right.
-	*/
-	body[style*="overflow: hidden"][style*="padding-right"] {
-		padding-right: 0px;
+	h2 {
+		font-size: 1.5em;
+		font-weight: bold;
+	}
+
+	h3,
+	p {
+		margin-block: 1em;
+	}
+
+	h4 {
+		margin-block: 1.33em;
 	}
 }
 

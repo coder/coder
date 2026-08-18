@@ -1,9 +1,8 @@
 # Deploy AI Gateway as a standalone service
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway requires a [Premium](../ai-governance.md) license.
+> Community deployments cannot access AI Gateway.
 
 When AI traffic needs dedicated compute, independent scaling, or a separate network endpoint, you can deploy AI Gateway separately from the Coder control plane (`coderd`).
 
@@ -15,7 +14,7 @@ A standalone AI Gateway serves client traffic on its own listener and maintains 
 Standalone AI Gateway requires:
 
 - Coder v2.36.0 or later.
-- A Coder license with the [AI Governance Add-On](../ai-governance.md).
+- A [Premium license with AI Governance](../ai-governance.md).
 - AI Gateway enabled on the Coder control plane with `CODER_AI_GATEWAY_ENABLED=true` or `--ai-gateway-enabled=true`.
 - The full Coder image or a Coder binary that includes the `coder ai-gateway start` command.
 

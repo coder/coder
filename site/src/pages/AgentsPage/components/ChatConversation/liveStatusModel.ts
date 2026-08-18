@@ -1,5 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import type { ChatDetailError } from "./chatError";
 import { getErrorTitle } from "./chatStatusHelpers";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
@@ -40,6 +40,15 @@ export type LiveStatusModel =
 			provider?: string;
 			statusCode?: number;
 	  } & LiveStatusBase);
+
+export const shouldRenderLiveAssistant = (
+	liveStatus: LiveStatusModel,
+): boolean =>
+	liveStatus.phase === "streaming" ||
+	liveStatus.phase === "starting" ||
+	liveStatus.phase === "retrying" ||
+	liveStatus.phase === "reconnecting" ||
+	liveStatus.hasAccumulatedOutput;
 
 export type DeriveLiveStatusParams = {
 	streamState: StreamState | null;
