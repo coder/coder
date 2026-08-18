@@ -125,13 +125,10 @@ deployments include 1,000 Agent Workspace Builds, primarily for proof-of-concept
 use and basic workflows. Community deployments do not have access to
 [AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md).
 
-Premium deployments include a shared usage pool of Agent Workspace Builds for
-automated workflows, along with limits that scale proportionately with user
-count. Usage counts are measured and sent to Coder via
-[usage data reporting](./usage-data-reporting.md). Coder Tasks and other AI
-features continue to function normally even if the limit is breached. Admins
-will receive a warning to [contact their account team](https://coder.com/contact)
-to remediate.
+Premium deployments include a shared usage pool of Agent Workspace Builds for automated workflows, along with limits that scale proportionately with user count.
+Usage counts are measured and sent to Coder for billing and reporting.
+Coder Tasks and other AI features continue to function normally even if the limit is breached.
+Admins receive a warning to [contact their account team](https://coder.com/contact) to remediate.
 
 ### Tracking Agent Workspace Builds
 
