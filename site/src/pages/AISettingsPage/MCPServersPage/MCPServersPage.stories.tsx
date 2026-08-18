@@ -833,6 +833,53 @@ export const OrgAdminCanUpdateMCPServer: Story = {
 	},
 };
 
+export const UserOIDCOrgAdminCannotUpdate: Story = {
+	render: () => <UpdateMCPServerPage />,
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: true,
+			updateAnyMCPServerConfig: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers/mcp-coder" },
+			routing: { path: "/ai/settings/mcp-servers/:serverId" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: {
+				view: true,
+				update: true,
+				delete: true,
+			},
+		});
+		spyOn(API.experimental, "getMCPServerConfig").mockResolvedValue({
+			...MockCoderMCPServer,
+			auth_type: "user_oidc",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(await canvas.findByLabelText(/display name/i)).toHaveValue(
+			"Coder",
+		);
+		await expect(
+			canvas.getByRole("button", { name: "Update server" }),
+		).toBeDisabled();
+		await expect(
+			canvas.getByRole("switch", { name: "Server enabled" }),
+		).toBeDisabled();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Server actions" }),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: "Remove" }),
+		).toBeEnabled();
+	},
+};
+
 export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 	render: () => <UpdateMCPServerPage />,
 	parameters: {

@@ -72,6 +72,11 @@ const UpdateMCPServerPage: FC = () => {
 		enabled: Boolean(serverId) && canManage,
 	});
 	const server = serverQuery.data;
+	// The backend rejects any update touching a user_oidc server without
+	// deployment permission, so org-level update grants cannot manage them.
+	const canUpdateServer =
+		permissions.editDeploymentConfig ||
+		(canUpdate && server?.auth_type !== "user_oidc");
 	const updateMutation = useMutation(
 		updateMCPServerConfig(queryClient, organization?.id ?? ""),
 	);
@@ -140,7 +145,7 @@ const UpdateMCPServerPage: FC = () => {
 								isDeleting={deleteMutation.isPending}
 								onCancel={() => void navigate(listPath)}
 								onUpdateServer={
-									canUpdate
+									canUpdateServer
 										? async (id, req) => {
 												try {
 													const updated = await updateMutation.mutateAsync({
@@ -183,7 +188,7 @@ const UpdateMCPServerPage: FC = () => {
 										: undefined
 								}
 								onToggleEnabled={
-									canUpdate
+									canUpdateServer
 										? (enabled) => {
 												updateMutation.mutate(
 													{ id: server.id, req: { enabled } },
