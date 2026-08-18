@@ -635,6 +635,7 @@ type sqlcQuerier interface {
 	// "last" must use id order.
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
+	GetLatestAIBridgeInterceptionByInitiator(ctx context.Context, initiatorID uuid.UUID) (AIBridgeInterception, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
@@ -1412,6 +1413,11 @@ type sqlcQuerier interface {
 	UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error)
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
+	// Merges client-supplied work context into the annotations object. The keys
+	// are built explicitly so no other annotation key can be written through
+	// this query, and jsonb_strip_nulls drops the arguments left NULL so they
+	// keep whatever value the row already holds.
+	UpdateAIBridgeInterceptionAnnotations(ctx context.Context, arg UpdateAIBridgeInterceptionAnnotationsParams) (AIBridgeInterception, error)
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	// Records heartbeat liveness for an active Gateway DRPC session. The database sets the
 	// timestamp so it stays consistent regardless of clock drift between API

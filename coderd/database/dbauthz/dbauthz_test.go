@@ -6716,6 +6716,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args().Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns([]database.AIBridgeInterception{a, b})
 	}))
 
+	s.Run("GetLatestAIBridgeInterceptionByInitiator", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		initID := uuid.UUID{3}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: uuid.UUID{2}, InitiatorID: initID})
+		db.EXPECT().GetLatestAIBridgeInterceptionByInitiator(gomock.Any(), initID).Return(intc, nil).AnyTimes()
+		check.Args(initID).Asserts(intc, policy.ActionRead).Returns(intc)
+	}))
+
 	s.Run("GetAIBridgeTokenUsagesByInterceptionID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		intID := uuid.UUID{2}
 		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
@@ -6858,6 +6865,15 @@ func (s *MethodTestSuite) TestAIBridge() {
 		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intcID})
 		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intcID).Return(intc, nil).AnyTimes() // Validation.
 		db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), params).Return(intc, nil).AnyTimes()
+		check.Args(params).Asserts(intc, policy.ActionUpdate).Returns(intc)
+	}))
+
+	s.Run("UpdateAIBridgeInterceptionAnnotations", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		intcID := uuid.UUID{1}
+		params := database.UpdateAIBridgeInterceptionAnnotationsParams{ID: intcID}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intcID})
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intcID).Return(intc, nil).AnyTimes() // Validation.
+		db.EXPECT().UpdateAIBridgeInterceptionAnnotations(gomock.Any(), params).Return(intc, nil).AnyTimes()
 		check.Args(params).Asserts(intc, policy.ActionUpdate).Returns(intc)
 	}))
 

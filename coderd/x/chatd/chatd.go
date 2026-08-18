@@ -3532,7 +3532,8 @@ func filterExternalMCPConfigsForTurn(
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file",
+		"annotate_interception":
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
@@ -3605,29 +3606,30 @@ func activeToolNamesForTurn(
 
 func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	builtinExplorePolicy := map[string]bool{
-		"read_file":            true,
-		"write_file":           false,
-		"edit_files":           false,
-		"execute":              true,
-		"process_output":       true,
-		"process_list":         false,
-		"process_signal":       false,
-		"list_templates":       false,
-		"read_template":        false,
-		"create_workspace":     false,
-		"start_workspace":      false,
-		"stop_workspace":       false,
-		"propose_plan":         false,
-		"spawn_agent":          false,
-		"wait_agent":           false,
-		"message_agent":        false,
-		"interrupt_agent":      false,
-		"close_agent":          false,
-		"list_agents":          false,
-		"list_subagent_models": false,
-		"read_skill":           true,
-		"read_skill_file":      true,
-		"ask_user_question":    false,
+		"read_file":             true,
+		"write_file":            false,
+		"edit_files":            false,
+		"execute":               true,
+		"process_output":        true,
+		"process_list":          false,
+		"process_signal":        false,
+		"list_templates":        false,
+		"read_template":         false,
+		"create_workspace":      false,
+		"start_workspace":       false,
+		"stop_workspace":        false,
+		"propose_plan":          false,
+		"spawn_agent":           false,
+		"wait_agent":            false,
+		"message_agent":         false,
+		"interrupt_agent":       false,
+		"close_agent":           false,
+		"list_agents":           false,
+		"list_subagent_models":  false,
+		"read_skill":            true,
+		"read_skill_file":       true,
+		"ask_user_question":     false,
+		"annotate_interception": true,
 	}
 
 	toolNames := make([]string, 0, len(allTools))

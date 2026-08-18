@@ -4155,6 +4155,21 @@ func (mr *MockStoreMockRecorder) GetLastUpdateCheck(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateCheck", reflect.TypeOf((*MockStore)(nil).GetLastUpdateCheck), ctx)
 }
 
+// GetLatestAIBridgeInterceptionByInitiator mocks base method.
+func (m *MockStore) GetLatestAIBridgeInterceptionByInitiator(ctx context.Context, initiatorID uuid.UUID) (database.AIBridgeInterception, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestAIBridgeInterceptionByInitiator", ctx, initiatorID)
+	ret0, _ := ret[0].(database.AIBridgeInterception)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestAIBridgeInterceptionByInitiator indicates an expected call of GetLatestAIBridgeInterceptionByInitiator.
+func (mr *MockStoreMockRecorder) GetLatestAIBridgeInterceptionByInitiator(ctx, initiatorID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestAIBridgeInterceptionByInitiator", reflect.TypeOf((*MockStore)(nil).GetLatestAIBridgeInterceptionByInitiator), ctx, initiatorID)
+}
+
 // GetLatestCryptoKeyByFeature mocks base method.
 func (m *MockStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
@@ -9730,6 +9745,21 @@ func (m *MockStore) UnsetDefaultChatModelConfigs(ctx context.Context) error {
 func (mr *MockStoreMockRecorder) UnsetDefaultChatModelConfigs(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnsetDefaultChatModelConfigs", reflect.TypeOf((*MockStore)(nil).UnsetDefaultChatModelConfigs), ctx)
+}
+
+// UpdateAIBridgeInterceptionAnnotations mocks base method.
+func (m *MockStore) UpdateAIBridgeInterceptionAnnotations(ctx context.Context, arg database.UpdateAIBridgeInterceptionAnnotationsParams) (database.AIBridgeInterception, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAIBridgeInterceptionAnnotations", ctx, arg)
+	ret0, _ := ret[0].(database.AIBridgeInterception)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAIBridgeInterceptionAnnotations indicates an expected call of UpdateAIBridgeInterceptionAnnotations.
+func (mr *MockStoreMockRecorder) UpdateAIBridgeInterceptionAnnotations(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIBridgeInterceptionAnnotations", reflect.TypeOf((*MockStore)(nil).UpdateAIBridgeInterceptionAnnotations), ctx, arg)
 }
 
 // UpdateAIBridgeInterceptionEnded mocks base method.

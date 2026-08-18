@@ -25,6 +25,32 @@ WHERE
 	AND ended_at IS NULL
 RETURNING *;
 
+-- name: UpdateAIBridgeInterceptionAnnotations :one
+-- Merges client-supplied work context into the annotations object. The keys
+-- are built explicitly so no other annotation key can be written through
+-- this query, and jsonb_strip_nulls drops the arguments left NULL so they
+-- keep whatever value the row already holds.
+UPDATE aibridge_interceptions
+	SET annotations = annotations || jsonb_strip_nulls(jsonb_build_object(
+		'linear_issue_id', sqlc.narg('linear_issue_id')::text,
+		'repo', sqlc.narg('repo')::text,
+		'branch', sqlc.narg('branch')::text
+	))
+WHERE
+	id = @id::uuid
+RETURNING *;
+
+-- name: GetLatestAIBridgeInterceptionByInitiator :one
+SELECT
+	*
+FROM
+	aibridge_interceptions
+WHERE
+	initiator_id = @initiator_id::uuid
+ORDER BY
+	started_at DESC
+LIMIT 1;
+
 -- name: GetAIBridgeInterceptionLineageByToolCallID :one
 -- Look up the parent interception and the root of the thread by finding
 -- which interception recorded a tool usage with the given tool call ID.
