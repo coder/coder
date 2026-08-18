@@ -47,6 +47,14 @@ export const PublishingEnabled: Story = {
 			},
 		],
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Publishing enabled")).toBeVisible();
+		await expect(canvas.getByText("Yes")).toBeVisible();
+		await expect(canvas.getByText("Last published")).toBeVisible();
+		await expect(canvas.queryByText("Never")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Failing since")).not.toBeInTheDocument();
+	},
 };
 
 const settingsWithFailure: HealthcheckReport = {
