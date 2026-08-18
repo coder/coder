@@ -73,6 +73,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		refreshed := requireTokenResponse(t, status, body)
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
 			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
+		require.Equal(t, "workspace:ssh", refreshed.Scope)
 	})
 
 	// An app with no allowlist negotiates the unrestricted sentinel, and the
@@ -110,6 +111,12 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
 		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
 		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		// RFC 6749 §5.1 requires the response to state the granted scope when it
+		// differs from the request. This client asked for nothing and was granted
+		// the app's allowlist, so the response is the only place it learns the
+		// bounds the calls below are about to hit.
+		require.Equal(t, scopeInCatalog, token.Scope)
 
 		asApp := codersdk.New(client.URL)
 		asApp.SetSessionToken(token.AccessToken)
