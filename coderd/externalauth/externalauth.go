@@ -297,7 +297,7 @@ func (c *Config) refreshAndValidateWithLease(ctx context.Context, db database.St
 	r := retry.New(initial, maximum)
 	lockID := database.GenLockID(fmt.Sprintf("external-auth-refresh:%s-%s", c.ID, externalAuthLink.UserID.String()))
 	gotLease := false
-	for {
+	for !gotLease {
 		// A refresh can take an arbitrary amount of time, so to avoid holding a
 		// connection to the database during that time, we only lock temporarily to
 		// mark the row as being refreshed if not already being refreshed.
@@ -342,7 +342,7 @@ func (c *Config) refreshAndValidateWithLease(ctx context.Context, db database.St
 		switch {
 		case gotLease:
 			// We now hold the lock.
-			goto refresh
+			break
 		case err != nil:
 			// Some kind of DB error.
 			return externalAuthLink, err
@@ -362,7 +362,6 @@ func (c *Config) refreshAndValidateWithLease(ctx context.Context, db database.St
 		}
 	}
 
-refresh:
 	defer func() {
 		refreshErr = errors.Join(refreshErr, db.SetExternalAuthLinkRefreshLease(ctx, database.SetExternalAuthLinkRefreshLeaseParams{
 			ProviderID:            externalAuthLink.ProviderID,
