@@ -569,17 +569,10 @@ export const useChatStore = (
 						continue;
 					}
 
-					// Only flush buffered parts before events that
-					// need them applied first. `message` events
-					// commit durable state that must include all
-					// stream parts. `error` events should surface
-					// partial output. Other events (status, retry,
-					// queue_update) must not flush. Status changes
-					// need to be visible before parts so the
-					// Thinking indicator can render, and retry
-					// clears stream state which a flush would
-					// re-populate.
-					if (streamEvent.type === "message" || streamEvent.type === "error") {
+					// Flush buffered parts before a durable message
+					// commits them. Other events must not flush because
+					// some clear the stream and a flush would restore it.
+					if (streamEvent.type === "message") {
 						flushMessageParts();
 					}
 
@@ -648,10 +641,14 @@ export const useChatStore = (
 								kind: "generic",
 								message: "Chat processing failed.",
 							};
-							streamReportedWaiting = false;
+							// An error ends the turn. Clear the partial
+							// stream so no tool keeps spinning.
+							discardBufferedParts();
+							streamReportedWaiting = true;
 							wsStatusReceivedRef.current = true;
 							store.applyServerChatStatus("error");
 							store.setStreamError(reason);
+							store.clearStreamState();
 							store.clearRetryState();
 							setChatErrorReasonEvent(chatID, reason);
 							updateSidebarChat((chat) =>

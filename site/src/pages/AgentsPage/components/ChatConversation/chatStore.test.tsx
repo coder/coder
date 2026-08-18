@@ -41,6 +41,7 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	selectChatStatus,
+	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
@@ -53,6 +54,8 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./chatStore";
+import { deriveLiveStatus } from "./liveStatusModel";
+import { buildStreamTools } from "./streamState";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
@@ -2908,6 +2911,328 @@ describe("useChatStore", () => {
 			provider: "anthropic",
 			retryable: true,
 			statusCode: 429,
+		});
+	});
+
+	// Regression coverage for a chat that stopped with an error but kept the
+	// streamed tool spinning. The error event must clear the partial stream.
+	it("clears the in-flight streamed tool after a terminal error event", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+
+		const chatID = "chat-error-clears-running-tool";
+		const existingMessage = buildMessage(
+			chatID,
+			1,
+			"user",
+			"create a workspace",
+		);
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					store,
+					hasStreamState: useChatSelector(store, selectHasStreamState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+					streamState: useChatSelector(store, selectStreamState),
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// A create_workspace tool call begins but never gets a result.
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					part: {
+						type: "tool-call",
+						tool_call_id: "create-workspace-1",
+						tool_name: "create_workspace",
+						args: { name: "dev" },
+					},
+				},
+			});
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		// A tool call with no result renders as running.
+		await waitFor(() => {
+			expect(
+				result.current.streamState?.toolCalls["create-workspace-1"]?.name,
+			).toBe("create_workspace");
+		});
+		expect(
+			buildStreamTools(
+				result.current.streamState?.toolCalls,
+				result.current.streamState?.toolResults,
+			),
+		).toMatchObject([{ id: "create-workspace-1", status: "running" }]);
+
+		// The session ends unexpectedly so the server emits an error.
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: {
+					message: "The chat session ended unexpectedly.",
+					kind: "generic",
+					retryable: false,
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("error");
+			expect(result.current.streamError).toMatchObject({
+				kind: "generic",
+				message: "The chat session ended unexpectedly.",
+			});
+		});
+
+		// The partial stream is cleared so the tool stops spinning.
+		expect(result.current.streamState).toBeNull();
+		expect(result.current.hasStreamState).toBe(false);
+		expect(
+			buildStreamTools(
+				result.current.streamState?.toolCalls,
+				result.current.streamState?.toolResults,
+			),
+		).toEqual([]);
+
+		const liveStatus = deriveLiveStatus({
+			streamState: result.current.streamState,
+			retryState: null,
+			reconnectState: null,
+			streamError: result.current.streamError,
+			persistedError: null,
+			isAwaitingFirstStreamChunk: false,
+			chatStatus: result.current.chatStatus,
+		});
+		expect(liveStatus.phase).toBe("failed");
+		expect(liveStatus.hasAccumulatedOutput).toBe(false);
+	});
+
+	// Parts that arrive during or after the error must not restore the stream.
+	it("does not re-populate the stream from late parts after a terminal error", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+
+		const chatID = "chat-error-late-parts";
+		const existingMessage = buildMessage(
+			chatID,
+			1,
+			"user",
+			"create a workspace",
+		);
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Send an error and a part in the same frame. The part must be dropped.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "error",
+					chat_id: chatID,
+					error: {
+						message: "The chat session ended unexpectedly.",
+						kind: "generic",
+						retryable: false,
+					},
+				},
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						part: {
+							type: "tool-call",
+							tool_call_id: "create-workspace-1",
+							tool_name: "create_workspace",
+							args: { name: "dev" },
+						},
+					},
+				},
+			]);
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		// A part in a later frame must also be dropped.
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					part: { type: "text", text: "late partial output" },
+				},
+			});
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("error");
+		});
+		expect(result.current.streamState).toBeNull();
+	});
+
+	// The error drops late parts. The next turn must stream again once a new
+	// status event arrives.
+	it("re-enables streaming parts on the next turn after a terminal error", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+
+		const chatID = "chat-error-next-turn";
+		const existingMessage = buildMessage(
+			chatID,
+			1,
+			"user",
+			"create a workspace",
+		);
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// The first turn errors out.
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: {
+					message: "The chat session ended unexpectedly.",
+					kind: "generic",
+					retryable: false,
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("error");
+			expect(result.current.streamState).toBeNull();
+		});
+
+		// The user sends again and the server starts a new turn.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+
+		// Parts from the new turn must flow again.
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "retry output" },
+				},
+			});
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "retry output" },
+			]);
 		});
 	});
 
