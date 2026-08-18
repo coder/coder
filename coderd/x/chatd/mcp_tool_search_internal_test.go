@@ -230,6 +230,14 @@ func TestCollectDeferredMCPCandidates(t *testing.T) {
 	}
 	require.Equal(t, longServer, collectDeferredMCPCandidates(truncatedInput)[0].server,
 		"the server comes from the unsanitized routing name, not the capped model name")
+
+	padded := chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{Name: " everything __echo"}, nil, nil)
+	paddedInput := deferredMCPCandidateInput{
+		workspaceMCPTools:     []fantasy.AgentTool{padded},
+		includeWorkspaceTools: true,
+	}
+	require.Equal(t, "everything", collectDeferredMCPCandidates(paddedInput)[0].server,
+		"surrounding whitespace is trimmed so scope matching and catalog display see the canonical name")
 }
 
 func TestConfigureDeferredMCPToolSearchGenerationFlows(t *testing.T) {

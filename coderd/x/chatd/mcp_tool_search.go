@@ -67,9 +67,12 @@ func collectDeferredMCPCandidates(input deferredMCPCandidateInput) []deferredMCP
 // because sanitization can truncate the model-facing name before the
 // "__" separator, which would otherwise catalog each such tool under a
 // fake single-tool server that prefix scoping cannot reach.
+// Workspace config validation allows surrounding whitespace in server
+// names, which find_tools trims from queries, so the catalog name is
+// trimmed too; routing keeps the raw name.
 func workspaceMCPServerName(tool fantasy.AgentTool) string {
 	if namer, ok := tool.(interface{ ServerName() string }); ok {
-		return namer.ServerName()
+		return strings.TrimSpace(namer.ServerName())
 	}
 	if server, _, ok := strings.Cut(tool.Info().Name, "__"); ok {
 		return server
