@@ -210,9 +210,23 @@ func TestMCPServerConfigShareOnlyRoleRoutes(t *testing.T) {
 			},
 		},
 	})
-	config := createMCPServerConfigForOrganization(t, owner, firstUser.OrganizationID, "share-only-mcp")
+	//nolint:gocritic // Owner access creates a secret-bearing redaction fixture.
+	config, err := owner.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "share-only-mcp",
+		Slug:          "share-only-mcp",
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/share-only-mcp",
+		AuthType:      "api_key",
+		APIKeyHeader:  "X-Api-Key",
+		APIKeyValue:   "share-only-secret",
+		Availability:  "default_on",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.NoError(t, err)
 	//nolint:gocritic // Owner access removes the default ACL grant.
-	err := owner.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+	err = owner.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
 		GroupRoles: map[string]codersdk.MCPServerConfigRole{
 			firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
 		},
@@ -230,6 +244,26 @@ func TestMCPServerConfigShareOnlyRoleRoutes(t *testing.T) {
 	require.NoError(t, err)
 	shareOnly, _ := coderdtest.CreateAnotherUser(t, owner, firstUser.OrganizationID,
 		rbac.RoleIdentifier{Name: role.Name, OrganizationID: firstUser.OrganizationID})
+
+	requireListed := func(enabled bool) {
+		configs, err := shareOnly.MCPServerConfigs(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, config.ID, configs[0].ID)
+		require.Equal(t, enabled, configs[0].Enabled)
+		require.Equal(t, "api_key", configs[0].AuthType)
+		require.True(t, configs[0].HasAPIKey)
+		require.Empty(t, configs[0].URL)
+		require.Empty(t, configs[0].Transport)
+		require.Empty(t, configs[0].APIKeyHeader)
+	}
+	requireListed(true)
+
+	//nolint:gocritic // Owner access disables the fixture before share-only listing is retested.
+	_, err = owner.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, config.ID,
+		codersdk.UpdateMCPServerConfigRequest{Enabled: ptr.Ref(false)})
+	require.NoError(t, err)
+	requireListed(false)
 
 	_, err = shareOnly.MCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID)
 	require.NoError(t, err)

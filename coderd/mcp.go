@@ -180,7 +180,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		configs, err = api.Database.GetMCPServerConfigsByOrganization(dbauthz.AsSystemRestricted(ctx), organization.ID)
 	} else if api.mcpServerConfigReadInKeyScope(r, organization.ID) {
 		seen := make(map[uuid.UUID]struct{})
-		for _, action := range []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete} {
+		for _, action := range []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare} {
 			prepared, prepareErr := api.HTTPAuth.AuthorizeSQLFilter(r, action, rbac.ResourceMCPServerConfig.Type)
 			if prepareErr != nil {
 				httpapi.InternalServerError(rw, prepareErr)
@@ -202,12 +202,13 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		slices.SortFunc(configs, func(a, b database.MCPServerConfig) int {
 			return strings.Compare(a.DisplayName, b.DisplayName)
 		})
-		// Mutation-authorized callers keep disabled configs in the redacted
+		// Management-authorized callers keep disabled configs in the redacted
 		// list so they can still reach and manage them.
 		configs = slices.DeleteFunc(configs, func(config database.MCPServerConfig) bool {
 			return !config.Enabled &&
 				!api.Authorize(r, policy.ActionUpdate, config) &&
-				!api.Authorize(r, policy.ActionDelete, config)
+				!api.Authorize(r, policy.ActionDelete, config) &&
+				!api.Authorize(r, policy.ActionShare, config)
 		})
 	}
 	if err != nil {
