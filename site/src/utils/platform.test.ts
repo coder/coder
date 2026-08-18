@@ -1,4 +1,4 @@
-import { isMac, isWindows, supportsCoderDesktop } from "./platform";
+import { isLinux, isMac, isWindows, supportsCoderDesktop } from "./platform";
 
 const setPlatform = (value: string) => {
 	Object.defineProperty(window.navigator, "platform", {
@@ -28,6 +28,7 @@ describe("platform", () => {
 		setMaxTouchPoints(0);
 		expect(isMac()).toBe(true);
 		expect(isWindows()).toBe(false);
+		expect(isLinux()).toBe(false);
 		expect(supportsCoderDesktop()).toBe(true);
 	});
 
@@ -35,13 +36,23 @@ describe("platform", () => {
 		setPlatform("Win32");
 		expect(isWindows()).toBe(true);
 		expect(isMac()).toBe(false);
+		expect(isLinux()).toBe(false);
 		expect(supportsCoderDesktop()).toBe(true);
 	});
 
-	it("treats Linux and other platforms as unsupported", () => {
+	it("detects Linux", () => {
 		setPlatform("Linux x86_64");
+		expect(isLinux()).toBe(true);
 		expect(isMac()).toBe(false);
 		expect(isWindows()).toBe(false);
+		expect(supportsCoderDesktop()).toBe(true);
+	});
+
+	it("treats other platforms as unsupported", () => {
+		setPlatform("CrOS x86_64");
+		expect(isMac()).toBe(false);
+		expect(isWindows()).toBe(false);
+		expect(isLinux()).toBe(false);
 		expect(supportsCoderDesktop()).toBe(false);
 	});
 
