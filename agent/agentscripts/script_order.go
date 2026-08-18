@@ -27,6 +27,7 @@ type lifecycleExecutor struct {
 	logger          slog.Logger
 	getScriptLogger func(uuid.UUID) ScriptLogger
 	run             func(context.Context, codersdk.WorkspaceAgentScript, ExecuteOption) error
+	reportSkipped   func(context.Context, codersdk.WorkspaceAgentScript, ExecuteOption)
 }
 
 func (e lifecycleExecutor) execute(ctx context.Context, scripts []codersdk.WorkspaceAgentScript, option ExecuteOption) error {
@@ -127,6 +128,9 @@ func (e lifecycleExecutor) executeScript(
 		e.logSkipped(ctx, script, scriptsByAddress, evaluation)
 		if err := manager.UpdateOutcome(unit.ID(script.ResourceAddress), unit.OutcomeSkipped); err != nil {
 			return xerrors.Errorf("mark script %q skipped: %w", script.ResourceAddress, err)
+		}
+		if e.reportSkipped != nil {
+			e.reportSkipped(ctx, script, option)
 		}
 		return nil
 	case unit.DecisionRunnable:

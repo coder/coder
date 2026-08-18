@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/quartz"
 
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -139,6 +140,89 @@ func TestLifecycleExecutorRequirements(t *testing.T) {
 			} else {
 				require.Equal(t, []string{test.wantSkipLog}, outputs)
 			}
+		})
+	}
+}
+
+func TestLifecycleExecutorReportsSkippedWithoutRunning(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	failure := xerrors.New("script failed")
+	ran := make(chan string, 2)
+	type skippedReport struct {
+		address string
+		option  ExecuteOption
+	}
+	reported := make(chan skippedReport, 1)
+	executor := lifecycleExecutor{
+		clock:           quartz.NewReal(),
+		logger:          slogtest.Make(t, nil),
+		getScriptLogger: newScriptOrderTestLogs().logger,
+		run: func(_ context.Context, script codersdk.WorkspaceAgentScript, _ ExecuteOption) error {
+			ran <- script.ResourceAddress
+			return failure
+		},
+		reportSkipped: func(_ context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption) {
+			reported <- skippedReport{address: script.ResourceAddress, option: option}
+		},
+	}
+	clone := scriptOrderTestScript("coder_script.clone")
+	install := scriptOrderTestScript(
+		"coder_script.install",
+		scriptOrderTestDependency("coder_script.clone", codersdk.WorkspaceAgentScriptDependencyRequirementSuccess),
+	)
+
+	err := executor.execute(ctx, []codersdk.WorkspaceAgentScript{clone, install}, ExecuteStartScripts)
+	require.ErrorIs(t, err, failure)
+	require.Equal(t, "coder_script.clone", testutil.RequireReceive(ctx, t, ran))
+	require.Empty(t, ran, "skipped script must not launch its command")
+	require.Equal(t, skippedReport{
+		address: "coder_script.install",
+		option:  ExecuteStartScripts,
+	}, testutil.RequireReceive(ctx, t, reported))
+}
+
+func TestRunnerReportsSkippedTiming(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		option    ExecuteOption
+		wantStage proto.Timing_Stage
+	}{
+		{name: "startup", option: ExecuteStartScripts, wantStage: proto.Timing_START},
+		{name: "shutdown", option: ExecuteStopScripts, wantStage: proto.Timing_STOP},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			completed := make(chan *proto.Timing, 1)
+			runner := New(Options{
+				Clock:  quartz.NewReal(),
+				Logger: slogtest.Make(t, nil),
+			})
+			runner.scriptCompleted = func(_ context.Context, request *proto.WorkspaceAgentScriptCompletedRequest) (*proto.WorkspaceAgentScriptCompletedResponse, error) {
+				completed <- request.Timing
+				return &proto.WorkspaceAgentScriptCompletedResponse{}, nil
+			}
+			t.Cleanup(func() {
+				require.NoError(t, runner.Close())
+			})
+			script := scriptOrderTestScript("coder_script.install")
+
+			runner.reportSkipped(ctx, script, test.option)
+			timing := testutil.RequireReceive(ctx, t, completed)
+
+			require.Equal(t, script.ID[:], timing.ScriptId)
+			require.Equal(t, timing.Start.AsTime(), timing.End.AsTime())
+			require.False(t, timing.Start.AsTime().IsZero())
+			require.Zero(t, timing.ExitCode)
+			require.Equal(t, test.wantStage, timing.Stage)
+			require.Equal(t, proto.Timing_SKIPPED, timing.Status)
 		})
 	}
 }

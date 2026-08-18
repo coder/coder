@@ -20,6 +20,7 @@ import (
 func TestScriptCompleted(t *testing.T) {
 	t.Parallel()
 
+	skippedAt := dbtime.Now()
 	tests := []struct {
 		scriptID     uuid.UUID
 		timing       *agentproto.Timing
@@ -33,6 +34,17 @@ func TestScriptCompleted(t *testing.T) {
 				Start:    timestamppb.New(dbtime.Now()),
 				End:      timestamppb.New(dbtime.Now().Add(time.Second)),
 				Status:   agentproto.Timing_OK,
+				ExitCode: 0,
+			},
+			expectInsert: true,
+		},
+		{
+			scriptID: uuid.New(),
+			timing: &agentproto.Timing{
+				Stage:    agentproto.Timing_START,
+				Start:    timestamppb.New(skippedAt),
+				End:      timestamppb.New(skippedAt),
+				Status:   agentproto.Timing_SKIPPED,
 				ExitCode: 0,
 			},
 			expectInsert: true,
@@ -195,6 +207,8 @@ func protoScriptTimingStatusToDatabase(stage agentproto.Timing_Status) database.
 		dbStatus = database.WorkspaceAgentScriptTimingStatusTimedOut
 	case agentproto.Timing_PIPES_LEFT_OPEN:
 		dbStatus = database.WorkspaceAgentScriptTimingStatusPipesLeftOpen
+	case agentproto.Timing_SKIPPED:
+		dbStatus = database.WorkspaceAgentScriptTimingStatusSkipped
 	}
 	return dbStatus
 }

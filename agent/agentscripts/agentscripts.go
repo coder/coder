@@ -235,6 +235,7 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 			clock:           r.Clock,
 			logger:          r.Logger,
 			getScriptLogger: r.GetScriptLogger,
+			reportSkipped:   r.reportSkipped,
 			run: func(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption) error {
 				if err := r.trackRun(ctx, script, option); err != nil {
 					return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
@@ -256,6 +257,47 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		})
 	}
 	return eg.Wait()
+}
+
+func (r *Runner) reportSkipped(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption) {
+	logger := r.Logger.With(
+		slog.F("log_source_id", script.LogSourceID),
+		slog.F("resource_address", script.ResourceAddress),
+	)
+	if r.scriptCompleted == nil {
+		logger.Debug(ctx, "r.scriptCompleted unexpectedly nil")
+		return
+	}
+
+	timestamp := r.Clock.Now("agent_scripts", "skipped_timing").UTC()
+	err := r.trackCommandGoroutine(func() {
+		var stage proto.Timing_Stage
+		switch option {
+		case ExecuteStartScripts:
+			stage = proto.Timing_START
+		case ExecuteStopScripts:
+			stage = proto.Timing_STOP
+		}
+
+		reportCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		_, err := r.scriptCompleted(reportCtx, &proto.WorkspaceAgentScriptCompletedRequest{
+			Timing: &proto.Timing{
+				ScriptId: script.ID[:],
+				Start:    timestamppb.New(timestamp),
+				End:      timestamppb.New(timestamp),
+				Stage:    stage,
+				Status:   proto.Timing_SKIPPED,
+			},
+		})
+		if err != nil {
+			logger.Warn(ctx, "reporting skipped script", slog.Error(err))
+		}
+	})
+	if err != nil {
+		logger.Warn(ctx, "reporting skipped script: track command goroutine", slog.Error(err))
+	}
 }
 
 // trackRun wraps "run" with metrics.

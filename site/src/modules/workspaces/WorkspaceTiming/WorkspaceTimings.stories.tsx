@@ -73,6 +73,58 @@ export const FailedScript: Story = {
 	},
 };
 
+const skippedScriptTiming = {
+	...WorkspaceTimingsResponse.agent_script_timings[0],
+	display_name: "Install tools",
+	started_at: "2024-10-14T11:31:10.852776Z",
+	ended_at: "2024-10-14T11:31:10.852776Z",
+	status: "skipped" as const,
+};
+
+const earlierSkippedScriptTiming = {
+	...skippedScriptTiming,
+	display_name: "Configure workspace",
+	started_at: "2024-10-14T11:31:09.852776Z",
+	ended_at: "2024-10-14T11:31:09.852776Z",
+};
+
+export const SkippedScript: Story = {
+	args: {
+		agentScriptTimings: [earlierSkippedScriptTiming, skippedScriptTiming],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const detailsButton = canvas.getByRole("button", {
+			name: "View run startup scripts details",
+		});
+		await user.click(detailsButton);
+		const skippedBar = await canvas.findByLabelText("Install tools: skipped");
+		await user.hover(skippedBar);
+		await within(canvasElement.ownerDocument.body).findByText(
+			"Script was skipped.",
+		);
+	},
+};
+
+export const MixedScriptOutcomes: Story = {
+	args: {
+		agentScriptTimings: [
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				display_name: "Clone repository",
+			},
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[1],
+				display_name: "Install dependencies",
+				status: "exit_failure",
+				exit_code: 1,
+			},
+			skippedScriptTiming,
+		],
+	},
+};
+
 // Navigate into a provisioning stage
 export const NavigateToPlanStage: Story = {
 	play: async ({ canvasElement }) => {
