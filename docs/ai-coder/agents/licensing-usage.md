@@ -19,7 +19,7 @@ This usage-based model is designed for enterprise workloads, where large develop
 
 ## How Agent Time is measured
 
-Agent Time is the cumulative duration during which an AI agent is actively processing a task on behalf of the user.
+Agent Time is the cumulative duration during which an AI agent is actively processing a task for the user.
 It is measured per interaction step and summed across the duration of a conversation.
 
 **Includes:**
