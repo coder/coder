@@ -126,6 +126,10 @@ func TestGetManifest(t *testing.T) {
 				RunOnStart:       true,
 				RunOnStop:        false,
 				TimeoutSeconds:   60,
+				ResourceAddress:  "coder_script.install",
+				Dependencies: json.RawMessage(`[
+					{"prerequisite_resource_address":"coder_script.clone","requirement":"success"}
+				]`),
 			},
 			{
 				ID:               uuid.New(),
@@ -138,6 +142,8 @@ func TestGetManifest(t *testing.T) {
 				RunOnStart:       false,
 				RunOnStop:        true,
 				TimeoutSeconds:   30,
+				ResourceAddress:  "coder_script.clone",
+				Dependencies:     json.RawMessage(`[]`),
 			},
 		}
 		metadata = []database.WorkspaceAgentMetadatum{
@@ -202,6 +208,11 @@ func TestGetManifest(t *testing.T) {
 				RunOnStop:        scripts[0].RunOnStop,
 				StartBlocksLogin: scripts[0].StartBlocksLogin,
 				Timeout:          durationpb.New(time.Duration(scripts[0].TimeoutSeconds) * time.Second),
+				ResourceAddress:  scripts[0].ResourceAddress,
+				Dependencies: []*agentproto.WorkspaceAgentScriptDependency{{
+					PrerequisiteResourceAddress: "coder_script.clone",
+					Requirement:                 agentproto.WorkspaceAgentScriptDependency_REQUIREMENT_SUCCESS,
+				}},
 			},
 			{
 				Id:               scripts[1].ID[:],
@@ -213,6 +224,7 @@ func TestGetManifest(t *testing.T) {
 				RunOnStop:        scripts[1].RunOnStop,
 				StartBlocksLogin: scripts[1].StartBlocksLogin,
 				Timeout:          durationpb.New(time.Duration(scripts[1].TimeoutSeconds) * time.Second),
+				ResourceAddress:  scripts[1].ResourceAddress,
 			},
 		}
 		protoMetadata = []*agentproto.WorkspaceAgentMetadata_Description{

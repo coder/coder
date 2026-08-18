@@ -2992,3 +2992,56 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 	require.Equal(t, "confidential", stillConfidential,
 		"the backfill aligns the declaration to what is enforced, so the enforced value must be unchanged")
 }
+
+func TestMigration000571WorkspaceAgentScriptOrder(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion uint = 571
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.Equal(t, migrationVersion, version)
+
+	rows, err := sqlDB.Query(`
+		SELECT column_name, data_type, is_nullable, column_default
+		FROM information_schema.columns
+		WHERE table_name = 'workspace_agent_scripts'
+			AND column_name IN ('resource_address', 'dependencies')
+		ORDER BY column_name
+	`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	type column struct {
+		name         string
+		dataType     string
+		nullable     string
+		defaultValue string
+	}
+	var columns []column
+	for rows.Next() {
+		var got column
+		require.NoError(t, rows.Scan(&got.name, &got.dataType, &got.nullable, &got.defaultValue))
+		columns = append(columns, got)
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, []column{
+		{name: "dependencies", dataType: "jsonb", nullable: "NO", defaultValue: "'[]'::jsonb"},
+		{name: "resource_address", dataType: "text", nullable: "NO", defaultValue: "''::text"},
+	}, columns)
+}

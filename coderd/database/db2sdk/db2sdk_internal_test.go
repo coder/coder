@@ -9,7 +9,48 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
+
+func TestWorkspaceAgentScriptDependencies(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := WorkspaceAgentScript(database.GetWorkspaceAgentScriptsByAgentIDsRow{
+			ResourceAddress: "coder_script.install",
+			Dependencies: json.RawMessage(`[
+				{"prerequisite_resource_address":"coder_script.clone","requirement":"success"}
+			]`),
+		})
+		require.NoError(t, err)
+		require.Equal(t, "coder_script.install", got.ResourceAddress)
+		require.Equal(t, []codersdk.WorkspaceAgentScriptDependency{{
+			PrerequisiteResourceAddress: "coder_script.clone",
+			Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+		}}, got.Dependencies)
+	})
+
+	for _, tc := range []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "Malformed", raw: `[`, want: "decode dependencies"},
+		{name: "EmptyAddress", raw: `[{"requirement":"success"}]`, want: "empty prerequisite resource address"},
+		{name: "InvalidRequirement", raw: `[{"prerequisite_resource_address":"coder_script.clone","requirement":"eventually"}]`, want: "unsupported requirement"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := WorkspaceAgentScript(database.GetWorkspaceAgentScriptsByAgentIDsRow{
+				Dependencies: json.RawMessage(tc.raw),
+			})
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
 
 func TestAggregateTokenMetadata(t *testing.T) {
 	t.Parallel()
