@@ -123,7 +123,7 @@ Refer to [Coder Desktop](../user-guides/desktop/index.md).
 
 ### Coder extension for VS Code
 
-The editor extension that connects VS Code, and forks such as Cursor and Windsurf, to Coder workspaces.
+The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to Coder workspaces.
 Refer to [VS Code](../user-guides/workspace-access/vscode.md).
 
 ### Coder Tasks
@@ -514,7 +514,7 @@ Refer to [Support bundle](../support/support-bundle.md).
 
 ### Supported editors and IDEs
 
-The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Windsurf](../user-guides/workspace-access/windsurf.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Fleet](../user-guides/workspace-access/jetbrains/fleet.md).
+The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Devin Desktop](../user-guides/workspace-access/devin-desktop.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Fleet](../user-guides/workspace-access/jetbrains/fleet.md).
 
 ### Swagger
 
