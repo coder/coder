@@ -3074,10 +3074,14 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 		await userEvent.click(editor);
 		await userEvent.keyboard("/compact");
 		// The menu offers only the personal skill (the built-in command
-		// yields); first Enter accepts it, second Enter submits.
-		expect(
-			await within(document.body).findByText("Personal compact skill"),
-		).toBeVisible();
+		// yields); first Enter accepts it, second Enter submits. The menu item
+		// exists before the popover finishes positioning, so wait for
+		// visibility rather than asserting it once.
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText("Personal compact skill"),
+			).toBeVisible();
+		});
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard("{Enter}");
 
