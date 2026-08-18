@@ -57,6 +57,13 @@ function useComboboxState(): ComboboxStateValue {
 	return context;
 }
 
+// cmdk keeps a running count of the rows it renders; both the content wrapper
+// and the list drive a `data-empty` styling group from it so `ComboboxEmpty`
+// and empty-state padding can toggle via CSS.
+function useComboboxIsEmpty(): boolean {
+	return (useCommandState((state) => state.filtered.count) ?? 0) === 0;
+}
+
 type ComboboxProps = {
 	open?: boolean;
 	/** Fired when Radix requests a close (escape / outside press). */
@@ -153,16 +160,14 @@ export const ComboboxContent: FC<ComboboxContentProps> = ({
 	...props
 }) => {
 	const anchorRef = useContext(ComboboxAnchorContext);
-	// cmdk keeps a running count of the rows it renders; drive the `data-empty`
-	// styling group from it so `ComboboxEmpty` can show/hide via CSS.
-	const count = useCommandState((state) => state.filtered.count) ?? 0;
+	const isEmpty = useComboboxIsEmpty();
 
 	return (
 		<PopoverContent
 			disablePortal
 			align={align}
 			sideOffset={sideOffset}
-			data-empty={count === 0 ? "" : undefined}
+			data-empty={isEmpty ? "" : undefined}
 			onOpenAutoFocus={(event) => event.preventDefault()}
 			onInteractOutside={(event) => {
 				const target = event.target as Node | null;
@@ -186,12 +191,12 @@ export const ComboboxList: FC<ComboboxListProps> = ({
 	className,
 	...props
 }) => {
-	const count = useCommandState((state) => state.filtered.count) ?? 0;
+	const isEmpty = useComboboxIsEmpty();
 
 	return (
 		<CommandPrimitive.List
 			data-slot="combobox-list"
-			data-empty={count === 0 ? "" : undefined}
+			data-empty={isEmpty ? "" : undefined}
 			className={cn(
 				"max-h-96 scroll-py-1 overflow-y-auto overscroll-contain p-1",
 				className,

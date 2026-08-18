@@ -61,7 +61,6 @@ export function FilterCombobox({
 		activeOptions,
 		activeOptionsLoading,
 		activeOptionsError,
-		retryActiveOptions,
 		listedCategories,
 		valueSuggestions,
 		valueSuggestionsLoading,
@@ -69,18 +68,7 @@ export function FilterCombobox({
 		searchResults,
 		searchResultsLoading,
 		chipValues,
-		toggleFilterMenu,
-		selectCategory,
-		selectCategoryOption,
-		selectValueSuggestion,
-		selectSearchResult,
-		handleRemoveChip,
-		setInputRef,
-		handleInputFocus,
-		handleInputKeyDown,
-		handleItemHighlighted,
-		handleInputValueChange,
-		handleDismiss,
+		actions,
 	} = useFilterCombobox({
 		value,
 		onChange,
@@ -116,12 +104,12 @@ export function FilterCombobox({
 	return (
 		<Combobox
 			open={open}
-			onDismiss={handleDismiss}
+			onDismiss={actions.dismiss}
 			value={chipValues}
-			onRemoveValue={handleRemoveChip}
+			onRemoveValue={actions.removeChip}
 			inputValue={inputValue}
-			onInputValueChange={handleInputValueChange}
-			onItemHighlighted={handleItemHighlighted}
+			onInputValueChange={actions.onInputValueChange}
+			onItemHighlighted={actions.onItemHighlighted}
 			label={placeholder}
 		>
 			<ComboboxInputGroup className={className}>
@@ -158,14 +146,14 @@ export function FilterCombobox({
 									</Badge>
 								)}
 								<ComboboxChipsInput
-									ref={setInputRef}
+									ref={actions.setInputRef}
 									aria-label={placeholder}
 									aria-invalid={invalid || undefined}
 									placeholder={
 										selected.length > 0 || activeCategory ? "" : placeholder
 									}
-									onFocus={handleInputFocus}
-									onKeyDown={handleInputKeyDown}
+									onFocus={actions.onInputFocus}
+									onKeyDown={actions.onInputKeyDown}
 								/>
 							</>
 						)}
@@ -188,7 +176,7 @@ export function FilterCombobox({
 							// aria-activedescendant keyboard navigation still works.
 							event.preventDefault();
 						}}
-						onClick={toggleFilterMenu}
+						onClick={actions.toggleMenu}
 					>
 						<ListFilterIcon aria-hidden className="size-icon-sm" />
 					</InputGroupButton>
@@ -207,9 +195,9 @@ export function FilterCombobox({
 						showValueSuggestions={showValueSuggestions}
 						typeaheadLoading={typeaheadLoading}
 						typeaheadError={typeaheadError}
-						onSelectCategory={selectCategory}
-						onSelectSuggestion={selectValueSuggestion}
-						onSelectSearchResult={selectSearchResult}
+						onSelectCategory={actions.selectCategory}
+						onSelectSuggestion={actions.selectValueSuggestion}
+						onSelectSearchResult={actions.selectSearchResult}
 					/>
 				) : (
 					<CategoryOptionsList
@@ -218,8 +206,8 @@ export function FilterCombobox({
 						activeOptions={activeOptions}
 						activeOptionsLoading={activeOptionsLoading}
 						activeOptionsError={activeOptionsError}
-						retryActiveOptions={retryActiveOptions}
-						onSelectOption={selectCategoryOption}
+						retryActiveOptions={actions.retryActiveOptions}
+						onSelectOption={actions.selectCategoryOption}
 					/>
 				)}
 			</ComboboxContent>

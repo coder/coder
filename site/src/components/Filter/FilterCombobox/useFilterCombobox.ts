@@ -421,6 +421,7 @@ export const useFilterCombobox = ({
 	};
 
 	return {
+		// Reactive state the view renders from.
 		open,
 		isBrowsing,
 		inputValue,
@@ -430,7 +431,6 @@ export const useFilterCombobox = ({
 		activeOptions,
 		activeOptionsLoading,
 		activeOptionsError,
-		retryActiveOptions,
 		listedCategories,
 		valueSuggestions,
 		valueSuggestionsLoading,
@@ -438,21 +438,25 @@ export const useFilterCombobox = ({
 		searchResults,
 		searchResultsLoading,
 		chipValues,
-		toggleFilterMenu,
-		selectCategory,
-		selectCategoryOption,
-		selectValueSuggestion,
-		selectSearchResult,
-		handleRemoveChip,
-		setInputRef: (node: HTMLInputElement | null) => {
-			storeInputRef.current = node;
+		// Imperative handlers, grouped so the view wires intent, not internals.
+		actions: {
+			setInputRef: (node: HTMLInputElement | null) => {
+				storeInputRef.current = node;
+			},
+			toggleMenu: toggleFilterMenu,
+			dismiss: handleDismiss,
+			removeChip: handleRemoveChip,
+			retryActiveOptions,
+			selectCategory,
+			selectCategoryOption,
+			selectValueSuggestion,
+			selectSearchResult,
+			onInputFocus: handleInputFocus,
+			onInputKeyDown: handleInputKeyDown,
+			onInputValueChange: handleInputValueChange,
+			onItemHighlighted: (highlightedValue: string | undefined) => {
+				highlightedItemRef.current = highlightedValue ?? null;
+			},
 		},
-		handleInputFocus,
-		handleInputKeyDown,
-		handleItemHighlighted: (highlightedValue: string | undefined) => {
-			highlightedItemRef.current = highlightedValue ?? null;
-		},
-		handleInputValueChange,
-		handleDismiss,
 	};
 };
