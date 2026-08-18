@@ -91,8 +91,8 @@ test("OSTab adopts the shared OS when the set offers it", async () => {
 
 test("detectOS maps Linux, macOS, and Windows user agents to an offered label", () => {
 	// detectOS is UA-driven and pure once the UA is injected, so the three regexes
-	// are asserted directly rather than through a browser. Both jsdom render tests
-	// preseed storage and never reach this branch.
+	// are asserted directly rather than through a browser (the first-visit render
+	// test also drives this path through the component under jsdom's Linux UA).
 	const all = ["macOS", "Linux", "Windows"];
 	assert.equal(
 		detectOS(all, "Mozilla/5.0 (X11; Linux x86_64) Gecko Firefox/130.0"),
@@ -120,20 +120,29 @@ test("detectOS returns undefined when the OS is not offered or is unknown", () =
 		),
 		undefined,
 	);
+	// Android contains the string "Linux" but must not be treated as Linux.
+	assert.equal(
+		detectOS(
+			["macOS", "Linux", "Windows"],
+			"Mozilla/5.0 (Linux; Android 11) AppleWebKit",
+		),
+		undefined,
+	);
 	// An empty UA (server render) detects nothing.
 	assert.equal(detectOS(["macOS", "Windows", "Linux"], ""), undefined);
 });
 
-test("OSTab selects a real panel on a first visit with empty storage", async () => {
-	// Neither test above exercises the first-visit branch (both preseed storage).
-	// With empty storage the component runs detectOS and either seeds the detected
-	// OS (when this set offers it) or keeps its default first tab; either way a
-	// real, non-empty offered panel is active, never the empty box.
-	await renderOSTab(["macOS", "Windows"]);
-	const active = activePanelText();
-	assert.ok(
-		active === "macOS panel" || active === "Windows panel",
-		`expected a real offered panel to be active, got: ${JSON.stringify(
+test("OSTab seeds the detected OS on a first visit with empty storage", async () => {
+	// The other render tests preseed storage; this one exercises the first-visit
+	// detection branch. jsdom's UA is Linux, so a set that offers Linux must seed
+	// it (detectOS -> sessionStorage) and activate the Linux panel, never the empty
+	// box. The set lists Linux precisely so the detected OS is offered and the
+	// seeding path actually runs (a macOS/Windows-only set would fall through).
+	await renderOSTab(["Linux", "macOS", "Windows"]);
+	assert.equal(
+		activePanelText(),
+		"Linux panel",
+		`expected the detected OS panel to be active, got: ${JSON.stringify(
 			panelStates(),
 		)}`,
 	);

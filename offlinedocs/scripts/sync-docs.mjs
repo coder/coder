@@ -239,7 +239,16 @@ for (const rel of manifestMd) {
 		for (let i = 0; i < frontmatterEnd; i++) drop.add(i);
 		if (h1Line >= 0) {
 			drop.add(h1Line);
-			if (lines[h1Line + 1] === "") drop.add(h1Line + 1);
+			let after = h1Line + 1;
+			if (lines[after] === "") {
+				drop.add(after);
+				after++;
+			}
+			// A decorative `---` thematic break directly under the stripped H1 (a
+			// heading/body separator in the source) would otherwise become the first
+			// body line and render as a stray <hr> under the injected frontmatter.
+			// Drop that single rule line; real body content is untouched.
+			if (/^---\s*$/.test(lines[after] ?? "")) drop.add(after);
 		}
 		body = lines.filter((_, i) => !drop.has(i)).join("\n");
 	}

@@ -51,7 +51,7 @@ function escapeValue(value: string): string {
 // The current user agent string (userAgent + platform), or "" when there is no
 // navigator (server render). Split out from detectOS so detectOS stays a pure
 // function of its inputs and can be unit-tested against fixed UA strings.
-export function currentUserAgent(): string {
+function currentUserAgent(): string {
 	if (typeof navigator === "undefined") return "";
 	return `${navigator.userAgent} ${navigator.platform ?? ""}`;
 }

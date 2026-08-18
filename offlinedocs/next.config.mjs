@@ -1,9 +1,7 @@
 // Next.js configuration for the offlinedocs static export. It wires the Fumadocs
-// MDX plugin into the build (createMDX/withMDX) and pins the settings that make
-// the docs a self-contained static bundle: a production-only static export into
-// out/, the workspace root pinned to this folder, trailing-slash routes emitted
-// as <route>/index.html, and unoptimized images. It exists to produce the
+// MDX plugin into the build (createMDX/withMDX) and produces the
 // coder_docs_<version>.tgz artifact the release pipeline ships for offline use.
+// Each build setting is documented at its field below.
 
 import { createMDX } from "fumadocs-mdx/next";
 

@@ -265,9 +265,9 @@ export function stripHtmlComments(content) {
 				pos = line.length;
 			} else if (tick !== -1 && (start === -1 || tick < start)) {
 				result += line.slice(pos, tick);
-				const span = inlineCodeSpan(line, tick);
-				result += line.slice(tick, tick + span);
-				pos = tick + span;
+				const spanLen = inlineCodeSpanLen(line, tick);
+				result += line.slice(tick, tick + spanLen);
+				pos = tick + spanLen;
 			} else {
 				result += line.slice(pos, start);
 				pos = start + 4;
@@ -283,15 +283,14 @@ export function stripHtmlComments(content) {
 	};
 }
 
-// Number of characters at `line[start]` (a backtick run) to treat as opaque
-// inline code: the whole span when the run is matched by a later run of the
-// same length, or just the run itself when it is unmatched (literal backticks).
-// Callers copy that many characters verbatim and resume scanning after them, so
-// a matched span is skipped as a unit while a stray backtick passes through
-// without hiding the text after it. CommonMark code-span rule; spans crossing
-// line boundaries are not handled (processing is per-line) and the corpus has
-// none.
-function inlineCodeSpan(line, start) {
+// Length of the opaque inline-code run at `line[start]` (a backtick run): the
+// whole span when the run is closed by a later run of the same length, or just
+// the run itself when it is unmatched (literal backticks). CommonMark code-span
+// rule; spans crossing line boundaries are not handled (processing is per-line).
+// The corpus does have multi-line inline-code spans, but none that contain
+// `<!--`, so stripHtmlComments never has to reach across a line to keep a
+// comment marker inside inline code opaque.
+function inlineCodeSpanLen(line, start) {
 	let n = 0;
 	while (line[start + n] === "`") n++;
 	let k = start + n;
@@ -322,9 +321,9 @@ function mapOutsideInlineCode(line, fn) {
 			i = j;
 			continue;
 		}
-		const span = inlineCodeSpan(line, i);
-		out += line.slice(i, i + span);
-		i += span;
+		const spanLen = inlineCodeSpanLen(line, i);
+		out += line.slice(i, i + spanLen);
+		i += spanLen;
 	}
 	return out;
 }
