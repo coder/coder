@@ -220,6 +220,28 @@ confidential clients must include PKCE parameters:
      "$CODER_URL/oauth2/tokens"
    ```
 
+## Scopes
+
+An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions. A token can never do more than its user can.
+
+Scope names come from the same vocabulary as [API key scopes](../users/sessions-tokens.md#api-key-scopes): individual `resource:action` names such as `workspace:ssh`, and `coder:` composites such as `coder:workspaces.access` that stand for a set of them. `coder:all` records an unrestricted grant.
+
+A client asks for a scope with the `scope` parameter on the authorization request, space separated:
+
+```txt
+https://coder.example.com/oauth2/authorize?
+  client_id=your-client-id&
+  response_type=code&
+  scope=coder:workspaces.access&
+  code_challenge=$CODE_CHALLENGE&
+  code_challenge_method=S256&
+  redirect_uri=https://yourapp.example.com/callback
+```
+
+An application registered through [Dynamic Client Registration](#dynamic-client-registration) can declare a `scope` field, which acts as an allowlist. The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing. Applications created through the web UI or the management API declare no allowlist, so any requested scope is honored and a request that names no scope is granted `coder:all`.
+
+The consent page states the scope being granted before the user approves it, and refreshing a token keeps the scope originally granted.
+
 ## Discovery Endpoints
 
 Coder provides OAuth2 discovery endpoints for programmatic integration:
@@ -367,7 +389,8 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 
 As an experimental feature, the current implementation has limitations:
 
-- No scope system - all tokens have full API access
+- A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
+- A `scope` parameter on a refresh request is ignored, and the refreshed token keeps the scope originally granted
 - No client credentials grant support
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1
   deprecated this flow due to token leakage risks, and requests return

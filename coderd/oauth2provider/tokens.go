@@ -55,11 +55,11 @@ var (
 // database: the request was well-formed and the deployment's data is not. This
 // returns errUnstorableScope instead, which Tokens() maps to invalid_scope.
 //
-// The empty case is defensive only. The column is NOT NULL with
-// CHECK (scope <> ”), and authorization always writes at least the
-// unrestricted sentinel, so a row cannot reach here empty. Treating it as
-// unrestricted rather than as an error would silently widen a grant, so it is
-// rejected too.
+// The empty case is defensive only. The column is NOT NULL with a CHECK
+// constraint rejecting the empty string, and authorization always writes at
+// least the unrestricted sentinel, so a row cannot reach here empty. Treating
+// it as unrestricted rather than as an error would silently widen a grant, so
+// it is rejected too.
 func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 	names := strings.Fields(scope)
 	if len(names) == 0 {
