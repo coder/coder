@@ -223,6 +223,8 @@ const isStoredProxyLatencyReport = (
 		typeof record.accurate === "boolean" &&
 		typeof record.latencyMS === "number" &&
 		Number.isFinite(record.latencyMS) &&
+		// Negative latency would sort ahead of every real measurement.
+		record.latencyMS >= 0 &&
 		record.at instanceof Date &&
 		!Number.isNaN(record.at.getTime()) &&
 		(record.nextHopProtocol === undefined ||
