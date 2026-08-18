@@ -42,6 +42,23 @@ var extraBlockedPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("5f00::/16"),         // RFC 9602 segment routing SIDs.
 }
 
+// ParseAllowedPrefix parses an allowed CIDR and converts IPv4-mapped IPv6
+// prefixes to equivalent IPv4 prefixes. Prefixes shorter than the 96-bit
+// IPv4-mapped marker cannot be represented as IPv4 ranges.
+func ParseAllowedPrefix(raw string) (netip.Prefix, error) {
+	prefix, err := netip.ParsePrefix(raw)
+	if err != nil {
+		return netip.Prefix{}, err
+	}
+	if !prefix.Addr().Is4In6() {
+		return prefix, nil
+	}
+	if prefix.Bits() < 96 {
+		return netip.Prefix{}, xerrors.Errorf("IPv4-mapped IPv6 prefix length must be at least 96 bits")
+	}
+	return netip.PrefixFrom(prefix.Addr().Unmap(), prefix.Bits()-96), nil
+}
+
 // IPv4-mapped IPv6 addresses are normalized before checking so mapped private
 // addresses cannot bypass IPv4 restrictions. Allowed prefixes take precedence.
 func isBlockedAddr(addr netip.Addr, allowed []netip.Prefix) bool {
