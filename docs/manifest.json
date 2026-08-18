@@ -320,9 +320,9 @@
 							"path": "./user-guides/workspace-access/cursor.md"
 						},
 						{
-							"title": "Windsurf",
-							"description": "Access your Coder workspace with Windsurf, the AI-powered code editor, over SSH.",
-							"path": "./user-guides/workspace-access/windsurf.md"
+							"title": "Devin Desktop",
+							"description": "Access your Coder workspace with Devin Desktop (formerly Windsurf), the AI-powered code editor, over SSH.",
+							"path": "./user-guides/workspace-access/devin-desktop.md"
 						},
 						{
 							"title": "Antigravity",
@@ -1199,7 +1199,7 @@
 									"title": "Standalone Deployment",
 									"description": "Deploy and operate AI Gateway as a standalone service",
 									"path": "./ai-coder/ai-gateway/standalone.md",
-									"state": ["ai governance add-on"]
+									"state": ["premium"]
 								},
 								{
 									"title": "Authentication",

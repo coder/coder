@@ -5,6 +5,7 @@ import {
 	useEffect,
 	useReducer,
 	useRef,
+	useState,
 } from "react";
 
 import { useQuery } from "react-query";
@@ -105,6 +106,16 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	const currentIndex = nearestVisible(clampedIndex, state);
 	const currentStep = WIZARD_STEPS[currentIndex];
 
+	// The highest sidebar group the user has reached. It never shrinks on
+	// backward navigation, so completed steps stay green and clickable in the
+	// SelectionSummary sidebar like a browser back-stack.
+	const [maxReachedGroup, setMaxReachedGroup] = useState<1 | 2 | 3>(
+		currentStep.group,
+	);
+	if (currentStep.group > maxReachedGroup) {
+		setMaxReachedGroup(currentStep.group);
+	}
+
 	// Rewrite the URL whenever it disagrees with the resolved step.
 	useEffect(() => {
 		if (searchParams.get("step") === currentStep.id) {
@@ -159,6 +170,22 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			return;
 		}
 		navigateToStep(nextIndex);
+	};
+
+	// Sidebar step labels and the base-template row call this to jump to a
+	// specific wizard step. Skipped steps resolve to the nearest visible one
+	// (so jumping to base-parameters lands on base-infra when the base has no
+	// parameters).
+	const navigateToStepId = (stepId: StepId) => {
+		const target = WIZARD_STEPS.findIndex((s) => s.id === stepId);
+		if (target < 0) {
+			return;
+		}
+		if (currentStep.id === "customizations" && stepId !== "customizations") {
+			dispatch({ type: "RESET_CUSTOMIZATIONS" });
+			onClearCreateError?.();
+		}
+		navigateToStep(nearestVisible(target, state));
 	};
 
 	const handleProvisionerStatusChange = useCallback(
@@ -302,6 +329,8 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				<div className="w-64 shrink-0 hidden md:block sticky top-[72px] self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
+						maxReachedStep={maxReachedGroup}
+						onNavigateStep={navigateToStepId}
 						onNavigateModule={navigateToModule}
 						selectedTemplate={
 							state.selectedBase

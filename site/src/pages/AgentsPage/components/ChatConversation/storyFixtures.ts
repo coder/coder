@@ -12,7 +12,7 @@ import type {
 	StreamState,
 } from "./types";
 
-type StoryStreamRenderState = {
+export type StoryStreamRenderState = {
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	liveStatus: LiveStatusModel;
@@ -25,6 +25,7 @@ const DEFAULT_LIVE_STATUS_PARAMS: DeriveLiveStatusParams = {
 	streamError: null,
 	persistedError: null,
 	isAwaitingFirstStreamChunk: false,
+	chatStatus: null,
 };
 
 export const buildLiveStatus = (
@@ -82,13 +83,6 @@ export const buildRetryState = (
 	retryingAt: "2026-03-10T00:00:02.000Z",
 	...overrides,
 });
-
-export const textResponseStreamParts = [
-	{
-		type: "text",
-		text: "Storybook streamed answer.",
-	},
-] satisfies readonly TypesGen.ChatMessagePart[];
 
 export const pinFixtureClock = () => {
 	const real = Date.now;

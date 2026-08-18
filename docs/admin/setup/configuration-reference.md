@@ -1584,6 +1584,14 @@ OIDC claim field to use as the name.
 - YAML key: `oidc.nameField`
 - Default value: `name`
 
+### Redirect URL
+
+Optional override of the default redirect url which uses the deployment's access url. Useful in situations where a deployment has more than 1 domain. Using this setting can also break OIDC, so use with caution.
+
+- Environment variable: `CODER_OIDC_REDIRECT_URL`
+- CLI flag: [`--oidc-redirect-url`](../../reference/cli/server.md#--oidc-redirect-url)
+- YAML key: `oidc.oidc-redirect-url`
+
 ### Regex group filter
 
 If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.

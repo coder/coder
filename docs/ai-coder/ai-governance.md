@@ -143,17 +143,3 @@ entitlement limits.
 
 <small>Agent Workspace Build usage showing current consumption against
 entitlement limits in the Licenses page.</small>
-
-## Identifying AI seat consumers
-
-When AI Governance is licensed, the **Users** table and
-**Organization Members** table display an **AI add-on** column that shows
-whether each user is consuming an AI seat:
-
-- A green check icon indicates the user is actively consuming an AI seat.
-- A gray X icon indicates the user is not consuming an AI seat.
-
-A user consumes an AI seat when they use AI features such as AI Gateway or
-Coder Agents. The column helps administrators identify which users contribute to
-the organization's AI seat count, making it easier to manage seat
-allocations and stay within license limits.

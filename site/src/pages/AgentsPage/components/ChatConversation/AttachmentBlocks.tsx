@@ -17,6 +17,7 @@ import {
 	type AttachmentFailure,
 	attachmentFailureFromError,
 	getChatFileURL,
+	handleAttachmentDownloadClick,
 	isAbortError,
 	probeAttachmentFailure,
 } from "../../utils/chatAttachments";
@@ -54,17 +55,40 @@ const ATTACHMENT_FALLBACK_EXTENSIONS: Record<string, string> = {
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document":
 		"docx",
 	"application/x-tar": "tar",
+	"application/xml": "xml",
 	"image/jpeg": "jpg",
+	"image/svg+xml": "svg",
+	"text/csv": "csv",
 	"text/markdown": "md",
 	"text/plain": "txt",
 };
 
-const sanitizeAttachmentExtension = (value: string): string => {
-	const sanitized = value
+const sanitizeAttachmentExtension = (value: string): string =>
+	value
 		.replace(/[^a-z0-9]/gi, "")
 		.slice(0, 4)
-		.toLowerCase();
-	return sanitized || "file";
+		.toLowerCase() || "file";
+
+const getMediaTypeExtension = (mediaType: string): string | null => {
+	if (mediaType === "application/octet-stream") {
+		return null;
+	}
+	const mapped = ATTACHMENT_FALLBACK_EXTENSIONS[mediaType];
+	if (mapped) {
+		return mapped;
+	}
+	const [type, subtype = ""] = mediaType.split("/");
+	// Unmapped non-image subtypes are not assumed to be filename extensions.
+	return type === "image" && /^[a-z0-9]{1,8}$/i.test(subtype)
+		? subtype.toLowerCase()
+		: null;
+};
+
+const getNameExtension = (name: string): string | null => {
+	const lastDot = name.lastIndexOf(".");
+	return lastDot > 0 && lastDot < name.length - 1
+		? name.slice(lastDot + 1)
+		: null;
 };
 
 const getAttachmentExtension = (
@@ -74,20 +98,14 @@ const getAttachmentExtension = (
 	if (mapped) {
 		return mapped;
 	}
-	const trimmedName = block.name?.trim();
-	if (trimmedName) {
-		const lastDot = trimmedName.lastIndexOf(".");
-		// Keep dotfiles like `.env` out of the extension path, while still
-		// allowing ordinary `name.ext` filenames to contribute a fallback.
-		if (lastDot > 0 && lastDot < trimmedName.length - 1) {
-			return sanitizeAttachmentExtension(trimmedName.slice(lastDot + 1));
-		}
+	const nameExtension = getNameExtension(block.name?.trim() ?? "");
+	if (nameExtension) {
+		return sanitizeAttachmentExtension(nameExtension);
 	}
-	const subtype = block.media_type.split("/")[1] ?? "";
-	if (subtype.endsWith("+json")) {
-		return "json";
-	}
-	return sanitizeAttachmentExtension(subtype);
+	return (
+		getMediaTypeExtension(block.media_type) ??
+		sanitizeAttachmentExtension(block.media_type.split("/")[1] ?? "")
+	);
 };
 
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
@@ -123,11 +141,16 @@ const getAttachmentDownloadName = (
 	block: Pick<FileAttachmentBlock, "media_type" | "name">,
 ): string => {
 	const name = block.name?.trim();
-	if (name) {
+	if (!name) {
+		const extension = getAttachmentExtension(block);
+		return extension === "file" ? "attachment" : `attachment.${extension}`;
+	}
+	// Kept even when the name's extension disagrees with the media type.
+	if (name.startsWith(".") || getNameExtension(name)) {
 		return name;
 	}
-	const extension = getAttachmentExtension(block);
-	return extension === "file" ? "attachment" : `attachment.${extension}`;
+	const mediaExtension = getMediaTypeExtension(block.media_type);
+	return mediaExtension ? `${name}.${mediaExtension}` : name;
 };
 
 const getAttachmentBadgeLabel = (
@@ -141,24 +164,35 @@ const DownloadOverlay: FC<{
 	href: string;
 	displayName: string;
 	downloadName: string;
-}> = ({ href, displayName, downloadName }) => (
-	<a
-		href={href}
-		download={downloadName}
-		onClick={(event) => event.stopPropagation()}
-		aria-label={`Download ${displayName}`}
-		className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-	>
-		<DownloadIcon aria-hidden="true" className="size-3.5" />
-	</a>
-);
+	mediaType: string;
+}> = ({ href, displayName, downloadName, mediaType }) => {
+	return (
+		<a
+			href={href}
+			download={downloadName}
+			onClick={(event) => {
+				event.stopPropagation();
+				void handleAttachmentDownloadClick(event, {
+					href,
+					fileName: downloadName,
+					mediaType,
+				});
+			}}
+			aria-label={`Download ${displayName}`}
+			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+		>
+			<DownloadIcon aria-hidden="true" className="size-3.5" />
+		</a>
+	);
+};
 
 const AttachmentPreviewFrame: FC<{
 	href: string | null;
 	displayName: string;
 	downloadName: string;
+	mediaType: string;
 	children: ReactNode;
-}> = ({ href, displayName, downloadName, children }) => {
+}> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
 		<div className="group/attachment relative inline-flex flex-col items-start">
 			{children}
@@ -167,6 +201,7 @@ const AttachmentPreviewFrame: FC<{
 					href={href}
 					displayName={displayName}
 					downloadName={downloadName}
+					mediaType={mediaType}
 				/>
 			) : null}
 		</div>
@@ -385,6 +420,7 @@ const RemoteTextAttachmentButton: FC<{
 			href={frameHref}
 			displayName={fileName ?? "Pasted text"}
 			downloadName={downloadName}
+			mediaType={mediaType ?? ""}
 		>
 			{button}
 		</AttachmentPreviewFrame>
@@ -530,7 +566,14 @@ const FileCard: FC<{
 		<a
 			href={href}
 			download={downloadName}
-			onClick={(event) => event.stopPropagation()}
+			onClick={(event) => {
+				event.stopPropagation();
+				void handleAttachmentDownloadClick(event, {
+					href,
+					fileName: downloadName,
+					mediaType: block.media_type,
+				});
+			}}
 			aria-label={`Download ${displayName}`}
 			className="inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border-default bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary"
 		>
@@ -616,6 +659,7 @@ export const AttachmentBlock: FC<{
 				href={href}
 				displayName={displayName}
 				downloadName={downloadName}
+				mediaType={block.media_type}
 			>
 				{button}
 			</AttachmentPreviewFrame>
@@ -641,6 +685,7 @@ export const AttachmentBlock: FC<{
 				href={href}
 				displayName={displayName}
 				downloadName={downloadName}
+				mediaType={block.media_type}
 			>
 				{image}
 			</AttachmentPreviewFrame>

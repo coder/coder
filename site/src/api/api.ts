@@ -365,6 +365,12 @@ type Claims = {
 	license_expires: number;
 	// nbf is a standard JWT claim for "not before" - the license valid from date
 	nbf?: number;
+	// iat is a standard JWT claim for "issued at"; the merged
+	// usage_period.issued_at is stamped from the winning license's iat.
+	iat?: number;
+	// exp is a standard JWT claim for "expires at" (end of grace period);
+	// it stamps usage_period.end, and nbf stamps usage_period.start.
+	exp?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;
@@ -3415,9 +3421,9 @@ class ExperimentalApiMethods {
 	};
 
 	/**
-	 * Requests a manual context compaction on an idle chat. The
-	 * compaction runs asynchronously through the chat worker and
-	 * bypasses the automatic usage threshold.
+	 * Requests a manual context compaction on an idle or errored chat,
+	 * clearing any stored error. The compaction runs asynchronously
+	 * through the chat worker and bypasses the automatic usage threshold.
 	 */
 	compactChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { useRef } from "react";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -27,6 +26,7 @@ import {
 	MockChat,
 	MockChatMessage,
 	MockChatQueuedMessage,
+	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
@@ -35,6 +35,7 @@ import {
 	MockOrganizationMember2,
 	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceAgent,
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
@@ -50,7 +51,6 @@ import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 // Layout wrapper: provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentChatPageLayout: FC = () => {
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	return (
 		<div className="flex h-full">
 			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -74,7 +74,6 @@ const AgentChatPageLayout: FC = () => {
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
 							onChatReady: () => {},
-							scrollContainerRef,
 						} satisfies AgentsPageOutletContext
 					}
 				/>
@@ -257,7 +256,10 @@ const buildChatAuthorizationQuery = (
 const buildQueries = (
 	chat: TypesGen.Chat,
 	messagesData: TypesGen.ChatMessagesResponse,
-	opts?: { diffUrl?: string },
+	opts?: {
+		diffUrl?: string;
+		mcpServers?: readonly TypesGen.MCPServerConfig[];
+	},
 ) => {
 	const diffStatus: TypesGen.ChatDiffStatus = {
 		chat_id: CHAT_ID,
@@ -303,7 +305,7 @@ const buildQueries = (
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
-		{ key: mcpServersKey, data: [] },
+		{ key: mcpServersKey, data: opts?.mcpServers ?? [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
 				action: "share",
@@ -2208,6 +2210,76 @@ export const SidebarWithSingleRepo: Story = {
 		},
 	},
 };
+
+const rebuiltWorkspaceAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "rebuilt-agent-1",
+};
+const rebuiltWorkspace: TypesGen.Workspace = {
+	...mockWorkspace,
+	latest_build: {
+		...mockWorkspace.latest_build,
+		id: "rebuilt-build-1",
+		resources: [
+			{
+				...mockWorkspace.latest_build.resources[0],
+				agents: [rebuiltWorkspaceAgent],
+			},
+		],
+	},
+};
+const rebuildRecoveryChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	agent_id: "stale-agent-1",
+	title: "Rebuild recovery",
+	status: "waiting",
+};
+
+export const RecoversSidebarAfterWorkspaceRebuild: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			...rebuildRecoveryChat,
+			agent_id: rebuiltWorkspaceAgent.id,
+		});
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					rebuildRecoveryChat,
+					{ messages: [], queued_messages: [], has_more: false },
+					{ diffUrl: undefined },
+				),
+				workspaceByIdKey(mockWorkspace.id),
+			),
+			{ key: workspaceByIdKey(mockWorkspace.id), data: rebuiltWorkspace },
+		],
+		webSocket: {
+			"watch-ws": [
+				{
+					event: "message",
+					data: JSON.stringify({
+						type: "data",
+						data: rebuiltWorkspace,
+					} satisfies TypesGen.ServerSentEvent),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const terminalTab = await canvas.findByRole(
+			"tab",
+			{ name: "Terminal" },
+			{ timeout: 5000 },
+		);
+		expect(terminalTab).toBeVisible();
+	},
+};
+
 /**
  * Streaming reasoning part via WebSocket, renders inline text.
  */
@@ -2327,6 +2399,65 @@ export const DurableUpdateFansOutToOlderPage: Story = {
 			expect(canvas.getAllByText("Fresh revision")).toHaveLength(1);
 		});
 		expect(canvas.queryByText("Old revision")).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * The streamed thinking block is asserted via its disclosure header
+ * because smoothed body text never reveals in the test iframe
+ * (requestAnimationFrame is suspended).
+ */
+export const StreamedPartWhileStatusWaiting: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Stale status stream",
+				status: "waiting",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:05:00.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Start the next turn" }],
+					},
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "reasoning",
+									text: "Streaming while the chat still reads waiting",
+								},
+							},
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Start the next turn");
+		// The disclosure header is the only "Thinking" text in the DOM
+		// at this point: the generic indicator is suppressed at status
+		// "waiting".
+		expect(await canvas.findByText("Thinking")).toBeVisible();
 	},
 };
 
@@ -3146,6 +3277,119 @@ export const SendResponseAfterChatSwitch: Story = {
 				canvas.queryByTestId("live-activity-slot"),
 			).not.toBeInTheDocument();
 		});
+	},
+};
+
+export const RemoveLastMCPServer: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Remove last MCP server",
+				status: "waiting",
+				mcp_server_ids: [MockMCPServerConfig.id],
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{
+				diffUrl: undefined,
+				mcpServers: [MockMCPServerConfig],
+			},
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({ queued: false });
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Remove MCP Server" }),
+		);
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Send without MCP tools");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				mcp_server_ids: [],
+			}),
+		);
+	},
+};
+
+/**
+ * The send flow renders the durable user row once the server accepts the
+ * prompt, before the assistant turn produces any output.
+ */
+export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Durable send",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		let releaseSend: (() => void) | undefined;
+		const sendGate = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockImplementation(async () => {
+			await sendGate;
+			return {
+				queued: false,
+				message: {
+					...MockChatMessage,
+					id: 60,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [{ type: "text", text: "Durable prompt" }],
+				},
+			};
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Durable prompt");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
+		expect(
+			timeline.queryByTestId("chat-message-message:60"),
+		).not.toBeInTheDocument();
+
+		releaseSend?.();
+		expect(
+			await timeline.findByTestId("chat-message-message:60"),
+		).toHaveTextContent("Durable prompt");
+		// The turn is still waiting on its first chunk, so the durable row is in
+		// place before any assistant output exists.
+		expect(canvas.getByTestId("live-activity-slot")).toBeVisible();
 	},
 };
 

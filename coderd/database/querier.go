@@ -86,9 +86,6 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
-	// Reports whether search text tokenizes to an empty tsquery (e.g. '!!!').
-	// Used to reject input that would silently match nothing.
-	ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -321,6 +318,7 @@ type sqlcQuerier interface {
 	// so a returned row is itself proof the secret is valid.
 	GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error)
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
+	GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	// Lock the provider row until the model-config write completes. The
 	// transaction alone does not stop a concurrent soft-delete or disable
@@ -872,6 +870,20 @@ type sqlcQuerier interface {
 	// the events that happened on and between the two dates. Both dates are
 	// inclusive.
 	GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg GetTotalUsageDCManagedAgentsV1Params) (int64, error)
+	// Gets the total Coder Agent runtime in milliseconds between two timestamps.
+	// The start bound is inclusive and the end bound is exclusive.
+	//
+	// Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
+	// rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
+	// one row per hourly bucket deployment-wide, with created_at at the bucket
+	// start, enforced by the unique partial index
+	// idx_usage_events_agent_runtime (which also keeps SUM from counting a
+	// bucket twice and serves this query). The result is bucket-granular: a
+	// bucket counts entirely against the period containing its start. See
+	// enterprise/coderd/usage/generator.go for what a bucket holds. If a
+	// usage_events retention policy ever lands, this must move to the daily
+	// rollup and accept day-granularity bounds.
+	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)
@@ -1280,6 +1292,11 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
+	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
+	// is held the key cannot be deleted, and a committed deletion is observed as
+	// no rows by later calls.
+	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
@@ -1430,6 +1447,10 @@ type sqlcQuerier interface {
 	// requires-action deadline, and the manual compaction request marker.
 	// Callers compose this with transition mutations inside a single
 	// ChatMachine.Update transaction.
+	//
+	// grant_history_epoch gives a turn that inserts no history the same
+	// fresh retry budget and message part episode keys a history change
+	// would grant, mirroring the chat_messages trigger postcondition.
 	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified

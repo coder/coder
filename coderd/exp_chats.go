@@ -357,7 +357,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; quote multi-word values; cannot be combined with title, pr_title, or pr). Bare terms are not supported; use `title:<value>` or `search:<value>`."
+// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]
@@ -379,28 +379,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 			Validations: errs,
 		})
 		return
-	}
-
-	// Reject text that tokenizes to nothing; it would silently match no rows.
-	if searchParams.Search != "" {
-		isEmpty, err := api.Database.ChatSearchQueryIsEmpty(ctx, searchParams.Search)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate search query.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if isEmpty {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid chat search query.",
-				Validations: []codersdk.ValidationError{{
-					Field:  "search",
-					Detail: "Search query contains no searchable words.",
-				}},
-			})
-			return
-		}
 	}
 
 	var labelFilter pqtype.NullRawMessage
@@ -520,27 +498,45 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	sdkChats := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
-	api.enrichChatWithWorkspaceAgentIDs(ctx, sdkChats)
+	api.enrichChatsWithMissingAgentIDs(ctx, sdkChats)
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
 }
 
-// enrichChatWithWorkspaceAgentIDs fills missing AgentIDs for chats with a bound
-// workspace, since chatd persists the binding lazily. Best-effort and
-// response-only; on error the field stays null.
-func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []codersdk.Chat) {
-	missingChats := make([]*codersdk.Chat, 0, len(chats))
+// enrichChatsWithMissingAgentIDs skips existing bindings on list reads to avoid
+// one authorization check per bound workspace.
+func (api *API) enrichChatsWithMissingAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	api.enrichChatAgentIDs(ctx, chats, func(chat *codersdk.Chat) bool {
+		return chat.AgentID == nil
+	})
+}
+
+// repairChatAgentIDs handles stale bindings left by workspace rebuilds. List
+// reads skip this work to avoid authorization checks for bound workspaces.
+func (api *API) repairChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	api.enrichChatAgentIDs(ctx, chats, func(*codersdk.Chat) bool {
+		return true
+	})
+}
+
+// enrichChatAgentIDs performs best-effort response-only updates.
+func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat, shouldEnrich func(*codersdk.Chat) bool) {
+	candidateChats := make([]*codersdk.Chat, 0, len(chats))
 	var workspaceIDs []uuid.UUID
-	addMissing := func(chat *codersdk.Chat) {
-		if chat.AgentID == nil && chat.WorkspaceID != nil {
-			missingChats = append(missingChats, chat)
-			workspaceIDs = append(workspaceIDs, *chat.WorkspaceID)
+	addCandidate := func(chat *codersdk.Chat) {
+		if chat.WorkspaceID == nil || !shouldEnrich(chat) {
+			return
 		}
+		candidateChats = append(candidateChats, chat)
+		workspaceIDs = append(workspaceIDs, *chat.WorkspaceID)
 	}
 	for i := range chats {
-		addMissing(&chats[i])
+		addCandidate(&chats[i])
 		for j := range chats[i].Children {
-			addMissing(&chats[i].Children[j])
+			addCandidate(&chats[i].Children[j])
 		}
+	}
+	if len(candidateChats) == 0 {
+		return
 	}
 
 	slices.SortFunc(workspaceIDs, func(a, b uuid.UUID) int {
@@ -553,8 +549,10 @@ func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []cod
 	}
 
 	agentsByWorkspace := make(map[uuid.UUID][]database.WorkspaceAgent)
+	latestBuildIDs := make(map[uuid.UUID]uuid.UUID)
 	for _, row := range rows {
 		agentsByWorkspace[row.WorkspaceID] = append(agentsByWorkspace[row.WorkspaceID], row.WorkspaceAgent)
+		latestBuildIDs[row.WorkspaceID] = row.BuildID
 	}
 	agentIDs := make(map[uuid.UUID]uuid.UUID, len(agentsByWorkspace))
 	for workspaceID, agents := range agentsByWorkspace {
@@ -566,10 +564,22 @@ func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []cod
 		agentIDs[workspaceID] = agent.ID
 	}
 
-	for _, chat := range missingChats {
+	for _, chat := range candidateChats {
+		// Preserve bindings that still resolve in the latest build instead
+		// of replacing them with the selected agent.
+		if chat.AgentID != nil && slices.ContainsFunc(
+			agentsByWorkspace[*chat.WorkspaceID],
+			func(agent database.WorkspaceAgent) bool { return agent.ID == *chat.AgentID },
+		) {
+			continue
+		}
 		if agentID, ok := agentIDs[*chat.WorkspaceID]; ok {
 			id := agentID
 			chat.AgentID = &id
+			// Pair the agent with its build so the response never mixes
+			// the latest build's agent with a previous build's ID.
+			buildID := latestBuildIDs[*chat.WorkspaceID]
+			chat.BuildID = &buildID
 		}
 	}
 }
@@ -1661,7 +1671,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	enriched := []codersdk.Chat{sdkChat}
-	api.enrichChatWithWorkspaceAgentIDs(ctx, enriched)
+	api.repairChatAgentIDs(ctx, enriched)
 	sdkChat = enriched[0]
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
@@ -3410,9 +3420,10 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/experimental/chats/{chat}/compact [post]
 // @x-apidocgen {"skip": true}
 // @Description Experimental: this endpoint is subject to change.
-// @Description Requests a manual context compaction on an idle chat. The
-// @Description compaction runs asynchronously through the chat worker and
-// @Description bypasses the automatic usage threshold.
+// @Description Requests a manual context compaction on an idle or errored
+// @Description chat, clearing any stored error. The compaction runs
+// @Description asynchronously through the chat worker and bypasses the
+// @Description automatic usage threshold.
 func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -3453,12 +3464,9 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 				Detail:  "The chat has no conversation to summarize after the latest compaction.",
 			})
 		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
-			// Covers every non-waiting state: running, interrupting,
-			// requires-action, and error. "Busy" would misdescribe an
-			// errored chat, so keep the message state-neutral.
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Cannot compact the chat in its current state.",
-				Detail:  "Compaction is only available while the chat is idle.",
+				Detail:  "Compaction is not available while the chat is generating.",
 			})
 		default:
 			logger.Error(ctx, "failed to compact chat", slog.Error(err))
@@ -4041,7 +4049,7 @@ func (api *API) resolveChatDiffReference(
 	// PR URL so the caller can still show provider/owner/repo.
 	if reference.RepositoryRef == nil && reference.PullRequestURL != "" {
 		for _, extAuth := range api.ExternalAuthConfigs {
-			gp, err := extAuth.Git(api.HTTPClient)
+			gp, err := extAuth.Git()
 			if err != nil || gp == nil {
 				continue
 			}
@@ -4148,7 +4156,7 @@ func (api *API) resolveExternalAuth(ctx context.Context, origin string) (provide
 		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
 			continue
 		}
-		p, err := extAuth.Git(api.HTTPClient)
+		p, err := extAuth.Git()
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to construct git provider",
 				slog.F("provider_id", extAuth.ID),
@@ -6465,7 +6473,7 @@ func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model 
 		return &chatModelConfigProviderModelError{
 			Response: codersdk.Response{
 				Message: "OpenRouter-like provider configured as type openai does not support slash-namespaced models.",
-				Detail:  "Change the AI provider type to openrouter or openai-compat. The openai type strips the vendor prefix from slash-namespaced model IDs, routing to the wrong upstream provider.",
+				Detail:  "Change the AI provider type to openrouter or openai-compat. Slash-namespaced model IDs on OpenRouter-like gateways require one of those provider types.",
 			},
 		}
 	}
