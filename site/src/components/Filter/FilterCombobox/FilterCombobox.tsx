@@ -23,7 +23,7 @@ import {
 	ComboboxValue,
 } from "./Combobox";
 import { chipToken } from "./filterQuery";
-import type { FilterCategory, SearchResult } from "./types";
+import type { FilterCategory, FilterOption, SearchResult } from "./types";
 import { searchResultToken } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
 
@@ -96,14 +96,6 @@ export function FilterCombobox({
 			(Boolean(getSearchResults) &&
 				searchResultsLoading &&
 				searchResults.length === 0));
-
-	const valueSuggestionsByCategory = new Map<string, typeof valueSuggestions>();
-	for (const suggestion of valueSuggestions) {
-		const group =
-			valueSuggestionsByCategory.get(suggestion.categoryLabel) ?? [];
-		group.push(suggestion);
-		valueSuggestionsByCategory.set(suggestion.categoryLabel, group);
-	}
 
 	const statusMessage = (() => {
 		if (activeCategory) {
@@ -204,158 +196,244 @@ export function FilterCombobox({
 				{/* Keep mounted so polite status announcements stay consistent. */}
 				<ComboboxStatus>{statusMessage}</ComboboxStatus>
 				{showTypeahead ? (
-					<>
-						{listedCategories.length === 0 &&
-							!showValueSuggestions &&
-							!showSearchSection &&
-							!typeaheadLoading &&
-							!typeaheadError && (
-								<ComboboxEmpty>No filters found.</ComboboxEmpty>
-							)}
-						<ComboboxList className="p-3 data-[empty]:p-3">
-							{listedCategories.map((category) => (
-								<ComboboxItem
-									className="gap-2 px-2 py-2.5"
-									key={category.key}
-									value={category.key}
-									showIndicator={false}
-								>
-									{category.icon && (
-										<span
-											aria-hidden
-											className="flex size-icon-sm shrink-0 items-center justify-center text-content-secondary [&>svg]:size-icon-sm"
-										>
-											{category.icon}
-										</span>
-									)}
-									<span className="text-content-primary">{category.label}</span>
-								</ComboboxItem>
-							))}
-							{[...valueSuggestionsByCategory.entries()].map(
-								([categoryLabel, suggestions]) => (
-									<ComboboxGroup key={categoryLabel}>
-										<ComboboxLabel>{categoryLabel}</ComboboxLabel>
-										{suggestions.map((suggestion) => (
-											<ComboboxItem
-												className="gap-2 px-2 py-2.5"
-												key={suggestion.token}
-												value={suggestion.token}
-												showIndicator={false}
-											>
-												{suggestion.option.startIcon ? (
-													<span aria-hidden>{suggestion.option.startIcon}</span>
-												) : null}
-												<span className="text-content-primary">
-													{suggestion.option.label}
-												</span>
-											</ComboboxItem>
-										))}
-									</ComboboxGroup>
-								),
-							)}
-							{showSearchSection && (
-								<ComboboxGroup>
-									<ComboboxLabel>{searchResultsLabel}</ComboboxLabel>
-									{searchResults.map((result) => (
-										<ComboboxItem
-											className="gap-2 px-2 py-2.5"
-											key={result.value}
-											value={searchResultToken(result.value)}
-											showIndicator={false}
-										>
-											{(result.startIcon ?? result.imageUrl !== undefined) ? (
-												<span aria-hidden>
-													{result.startIcon ??
-														(result.imageUrl !== undefined ? (
-															<Avatar
-																src={result.imageUrl}
-																fallback={result.label}
-																size="md"
-															/>
-														) : null)}
-												</span>
-											) : null}
-											<span className="flex min-w-0 flex-col">
-												<span className="truncate text-content-primary">
-													{result.label}
-												</span>
-												{result.subtitle && (
-													<span className="truncate text-xs text-content-secondary">
-														{result.subtitle}
-													</span>
-												)}
-											</span>
-										</ComboboxItem>
-									))}
-								</ComboboxGroup>
-							)}
-							{typeaheadLoading && (
-								<div
-									className="flex items-center justify-center px-2 py-2.5"
-									aria-hidden
-								>
-									<Spinner loading size="sm" />
-								</div>
-							)}
-							{typeaheadError && !typeaheadLoading && (
-								<div className="px-2 py-2.5 text-center text-sm text-content-secondary">
-									Couldn&rsquo;t load suggestions.
-								</div>
-							)}
-						</ComboboxList>
-					</>
-				) : activeOptionsError ? (
-					<div className="flex flex-col items-center gap-2 px-3 py-6 text-center text-sm text-content-secondary">
-						<span>
-							Couldn&rsquo;t load{" "}
-							{activeCategory ? activeCategory.label : "filter"} options.
-						</span>
-						<Button size="sm" variant="outline" onClick={retryActiveOptions}>
-							Retry
-						</Button>
-					</div>
-				) : activeOptionsLoading || activeOptions === undefined ? (
-					<div
-						className="px-3 py-6 text-center text-sm text-content-secondary"
-						aria-hidden
-					>
-						Loading…
-					</div>
+					<TypeaheadList
+						listedCategories={listedCategories}
+						valueSuggestions={valueSuggestions}
+						searchResults={searchResults}
+						searchResultsLabel={searchResultsLabel}
+						showSearchSection={showSearchSection}
+						showValueSuggestions={showValueSuggestions}
+						typeaheadLoading={typeaheadLoading}
+						typeaheadError={typeaheadError}
+					/>
 				) : (
-					<>
-						<ComboboxEmpty>No filters found.</ComboboxEmpty>
-						<ComboboxList className="p-3 data-[empty]:p-3">
-							{activeCategoryKey !== null && (
-								<ComboboxGroup>
-									{activeCategory && (
-										<ComboboxLabel>{activeCategory.label}</ComboboxLabel>
-									)}
-									{activeOptions.map((option) => {
-										const item =
-											option.token ??
-											chipToken(activeCategoryKey, option.value);
-										return (
-											<ComboboxItem
-												className="gap-2 px-2 py-2.5"
-												key={item}
-												value={item}
-												showIndicator={false}
-											>
-												{option.startIcon ? (
-													<span aria-hidden>{option.startIcon}</span>
-												) : null}
-												<span className="text-content-primary">
-													{option.label}
-												</span>
-											</ComboboxItem>
-										);
-									})}
-								</ComboboxGroup>
-							)}
-						</ComboboxList>
-					</>
+					<CategoryOptionsList
+						activeCategory={activeCategory}
+						activeCategoryKey={activeCategoryKey}
+						activeOptions={activeOptions}
+						activeOptionsLoading={activeOptionsLoading}
+						activeOptionsError={activeOptionsError}
+						retryActiveOptions={retryActiveOptions}
+					/>
 				)}
 			</ComboboxContent>
 		</Combobox>
+	);
+}
+
+const OPTION_ITEM_CLASS = "gap-2 px-2 py-2.5";
+
+type ValueSuggestion = {
+	categoryLabel: string;
+	token: string;
+	option: Pick<FilterOption, "label" | "startIcon">;
+};
+
+type TypeaheadListProps = Readonly<{
+	listedCategories: readonly FilterCategory[];
+	valueSuggestions: readonly ValueSuggestion[];
+	searchResults: readonly SearchResult[];
+	searchResultsLabel: string;
+	showSearchSection: boolean;
+	showValueSuggestions: boolean;
+	typeaheadLoading: boolean;
+	typeaheadError: boolean;
+}>;
+
+function TypeaheadList({
+	listedCategories,
+	valueSuggestions,
+	searchResults,
+	searchResultsLabel,
+	showSearchSection,
+	showValueSuggestions,
+	typeaheadLoading,
+	typeaheadError,
+}: TypeaheadListProps) {
+	const valueSuggestionsByCategory = new Map<string, ValueSuggestion[]>();
+	for (const suggestion of valueSuggestions) {
+		const group =
+			valueSuggestionsByCategory.get(suggestion.categoryLabel) ?? [];
+		group.push(suggestion);
+		valueSuggestionsByCategory.set(suggestion.categoryLabel, group);
+	}
+
+	const isEmpty =
+		listedCategories.length === 0 &&
+		!showValueSuggestions &&
+		!showSearchSection &&
+		!typeaheadLoading &&
+		!typeaheadError;
+
+	return (
+		<>
+			{isEmpty && <ComboboxEmpty>No filters found.</ComboboxEmpty>}
+			<ComboboxList className="p-3 data-[empty]:p-3">
+				{listedCategories.map((category) => (
+					<ComboboxItem
+						className={OPTION_ITEM_CLASS}
+						key={category.key}
+						value={category.key}
+						showIndicator={false}
+					>
+						{category.icon && (
+							<span
+								aria-hidden
+								className="flex size-icon-sm shrink-0 items-center justify-center text-content-secondary [&>svg]:size-icon-sm"
+							>
+								{category.icon}
+							</span>
+						)}
+						<span className="text-content-primary">{category.label}</span>
+					</ComboboxItem>
+				))}
+				{[...valueSuggestionsByCategory.entries()].map(
+					([categoryLabel, suggestions]) => (
+						<ComboboxGroup key={categoryLabel}>
+							<ComboboxLabel>{categoryLabel}</ComboboxLabel>
+							{suggestions.map((suggestion) => (
+								<ComboboxItem
+									className={OPTION_ITEM_CLASS}
+									key={suggestion.token}
+									value={suggestion.token}
+									showIndicator={false}
+								>
+									{suggestion.option.startIcon ? (
+										<span aria-hidden>{suggestion.option.startIcon}</span>
+									) : null}
+									<span className="text-content-primary">
+										{suggestion.option.label}
+									</span>
+								</ComboboxItem>
+							))}
+						</ComboboxGroup>
+					),
+				)}
+				{showSearchSection && (
+					<ComboboxGroup>
+						<ComboboxLabel>{searchResultsLabel}</ComboboxLabel>
+						{searchResults.map((result) => (
+							<ComboboxItem
+								className={OPTION_ITEM_CLASS}
+								key={result.value}
+								value={searchResultToken(result.value)}
+								showIndicator={false}
+							>
+								{(result.startIcon ?? result.imageUrl !== undefined) ? (
+									<span aria-hidden>
+										{result.startIcon ??
+											(result.imageUrl !== undefined ? (
+												<Avatar
+													src={result.imageUrl}
+													fallback={result.label}
+													size="md"
+												/>
+											) : null)}
+									</span>
+								) : null}
+								<span className="flex min-w-0 flex-col">
+									<span className="truncate text-content-primary">
+										{result.label}
+									</span>
+									{result.subtitle && (
+										<span className="truncate text-xs text-content-secondary">
+											{result.subtitle}
+										</span>
+									)}
+								</span>
+							</ComboboxItem>
+						))}
+					</ComboboxGroup>
+				)}
+				{typeaheadLoading && (
+					<div
+						className="flex items-center justify-center px-2 py-2.5"
+						aria-hidden
+					>
+						<Spinner loading size="sm" />
+					</div>
+				)}
+				{typeaheadError && !typeaheadLoading && (
+					<div className="px-2 py-2.5 text-center text-sm text-content-secondary">
+						Couldn&rsquo;t load suggestions.
+					</div>
+				)}
+			</ComboboxList>
+		</>
+	);
+}
+
+type CategoryOptionsListProps = Readonly<{
+	activeCategory: FilterCategory | undefined;
+	activeCategoryKey: string | null;
+	activeOptions: readonly FilterOption[] | undefined;
+	activeOptionsLoading: boolean;
+	activeOptionsError: boolean;
+	retryActiveOptions: () => void;
+}>;
+
+function CategoryOptionsList({
+	activeCategory,
+	activeCategoryKey,
+	activeOptions,
+	activeOptionsLoading,
+	activeOptionsError,
+	retryActiveOptions,
+}: CategoryOptionsListProps) {
+	if (activeOptionsError) {
+		return (
+			<div className="flex flex-col items-center gap-2 px-3 py-6 text-center text-sm text-content-secondary">
+				<span>
+					Couldn&rsquo;t load {activeCategory ? activeCategory.label : "filter"}{" "}
+					options.
+				</span>
+				<Button size="sm" variant="outline" onClick={retryActiveOptions}>
+					Retry
+				</Button>
+			</div>
+		);
+	}
+
+	if (activeOptionsLoading || activeOptions === undefined) {
+		return (
+			<div
+				className="px-3 py-6 text-center text-sm text-content-secondary"
+				aria-hidden
+			>
+				Loading…
+			</div>
+		);
+	}
+
+	return (
+		<>
+			<ComboboxEmpty>No filters found.</ComboboxEmpty>
+			<ComboboxList className="p-3 data-[empty]:p-3">
+				{activeCategoryKey !== null && (
+					<ComboboxGroup>
+						{activeCategory && (
+							<ComboboxLabel>{activeCategory.label}</ComboboxLabel>
+						)}
+						{activeOptions.map((option) => {
+							const item =
+								option.token ?? chipToken(activeCategoryKey, option.value);
+							return (
+								<ComboboxItem
+									className={OPTION_ITEM_CLASS}
+									key={item}
+									value={item}
+									showIndicator={false}
+								>
+									{option.startIcon ? (
+										<span aria-hidden>{option.startIcon}</span>
+									) : null}
+									<span className="text-content-primary">{option.label}</span>
+								</ComboboxItem>
+							);
+						})}
+					</ComboboxGroup>
+				)}
+			</ComboboxList>
+		</>
 	);
 }

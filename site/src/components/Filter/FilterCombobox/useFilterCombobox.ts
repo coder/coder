@@ -29,6 +29,46 @@ type UseFilterComboboxOptions = {
 	onSearchResultSelect?: (result: SearchResult) => void;
 };
 
+type CommittedSelection =
+	| { kind: "search"; result: SearchResult }
+	| { kind: "ignore" }
+	| { kind: "category"; key: string }
+	| { kind: "suggestion"; token: string };
+
+const matchCommittedSelection = (
+	token: string,
+	options: {
+		searchResults: readonly SearchResult[];
+		categories: readonly FilterCategory[];
+		chipKeys: readonly string[];
+		allowCategory: boolean;
+		allowSuggestion: boolean;
+	},
+): CommittedSelection | null => {
+	const searchValue = parseSearchResultToken(token);
+	if (searchValue) {
+		const result = options.searchResults.find(
+			(entry) => entry.value === searchValue,
+		);
+		// `__search:` tokens are never chips. If the preview row is gone, drop
+		// the commit instead of writing the internal token into the query.
+		return result ? { kind: "search", result } : { kind: "ignore" };
+	}
+
+	if (options.allowCategory) {
+		const category = options.categories.find((entry) => entry.key === token);
+		if (category) {
+			return { kind: "category", key: category.key };
+		}
+	}
+
+	if (options.allowSuggestion && parseChipToken(token, options.chipKeys)) {
+		return { kind: "suggestion", token };
+	}
+
+	return null;
+};
+
 export const useFilterCombobox = ({
 	value,
 	onChange,
@@ -41,7 +81,6 @@ export const useFilterCombobox = ({
 		[categories],
 	);
 	const [open, setOpen] = useState(false);
-	// True while the popup is browsing categories/typeahead (no active category).
 	const [isBrowsing, setIsBrowsing] = useState(false);
 	const [activeCategoryKey, setActiveCategoryKey] = useState<string | null>(
 		null,
@@ -56,16 +95,17 @@ export const useFilterCombobox = ({
 	const facetModeRef = useRef(false);
 	const isBrowsingRef = useRef(false);
 	const lastEmittedRef = useRef(value);
+	const highlightedItemRef = useRef<string | null>(null);
+	const storeInputRef = useRef<HTMLInputElement | null>(null);
 	const onChangeRef = useRef(onChange);
 	onChangeRef.current = onChange;
-	const getSearchResultsRef = useRef(getSearchResults);
-	getSearchResultsRef.current = getSearchResults;
 	const onSearchResultSelectRef = useRef(onSearchResultSelect);
 	onSearchResultSelectRef.current = onSearchResultSelect;
-	const storeInputRef = useRef<HTMLInputElement | null>(null);
-	const hasSearchResults = Boolean(getSearchResults);
 	const categoriesRef = useRef(categories);
 	categoriesRef.current = categories;
+	const getSearchResultsRef = useRef(getSearchResults);
+	getSearchResultsRef.current = getSearchResults;
+	const hasSearchResults = Boolean(getSearchResults);
 
 	const { debounced: debouncedOnChange, cancelDebounce } = useDebouncedFunction(
 		(query: string) => {
@@ -96,7 +136,37 @@ export const useFilterCombobox = ({
 		setCommittedFreeText(next);
 	};
 
-	// Sync local free-text state when the controlled value changes externally.
+	const restoreFreeTextInput = () => {
+		setInputValue(committedFreeTextRef.current);
+	};
+
+	const resetPopup = (input: "restore" | "clear" | "keep") => {
+		facetModeRef.current = false;
+		setBrowsing(false);
+		setActiveCategoryKey(null);
+		setOpen(false);
+		if (input === "restore") {
+			restoreFreeTextInput();
+		} else if (input === "clear") {
+			setInputValue("");
+		}
+	};
+
+	const enterBrowsing = () => {
+		facetModeRef.current = false;
+		setBrowsing(true);
+		setActiveCategoryKey(null);
+		setOpen(true);
+	};
+
+	const enterCategoryMode = (categoryKey: string, query = "") => {
+		facetModeRef.current = true;
+		setBrowsing(false);
+		setActiveCategoryKey(categoryKey);
+		setInputValue(query);
+		setOpen(true);
+	};
+
 	useEffect(() => {
 		if (value === lastEmittedRef.current) {
 			return;
@@ -110,23 +180,12 @@ export const useFilterCombobox = ({
 		}
 	}, [value, chipKeys]);
 
-	const openCategorySuggestions = () => {
-		facetModeRef.current = false;
-		setBrowsing(true);
-		setOpen(true);
-	};
-
-	/** Opens or closes the category list. Focuses the input when opening so
-	 * keyboard list navigation via aria-activedescendant works. */
 	const toggleFilterMenu = () => {
 		if (open) {
-			setOpen(false);
-			setBrowsing(false);
-			exitFacetMode();
+			resetPopup("restore");
 			return;
 		}
-		openCategorySuggestions();
-		setActiveCategoryKey(null);
+		enterBrowsing();
 		queueMicrotask(() => {
 			storeInputRef.current?.focus();
 		});
@@ -140,7 +199,6 @@ export const useFilterCombobox = ({
 		[chipKeys, value],
 	);
 
-	/** Categories shown in typeahead: all when empty, prefix matches while typing. */
 	const listedCategories = useMemo(() => {
 		if (activeCategoryKey !== null || !isBrowsing) {
 			return [] as FilterCategory[];
@@ -191,25 +249,22 @@ export const useFilterCombobox = ({
 		void activeOptionsQuery.refetch();
 	};
 
-	const suggestionQuerySource =
+	const typeaheadQuerySource =
 		activeCategoryKey === null && isBrowsing ? inputValue.trim() : "";
-	const debouncedSuggestionQuery = useDebouncedValue(
-		suggestionQuerySource,
+	const debouncedTypeaheadQuery = useDebouncedValue(
+		typeaheadQuerySource,
 		SEARCH_DEBOUNCE_MS,
 	);
-	const suggestionQueryPending =
-		suggestionQuerySource.length > 0 &&
-		suggestionQuerySource !== debouncedSuggestionQuery;
+	const typeaheadQueryPending =
+		typeaheadQuerySource.length > 0 &&
+		typeaheadQuerySource !== debouncedTypeaheadQuery;
 
 	const suggestionQueries = useQueries({
 		queries: categories.map((category) => ({
-			queryKey: filterComboboxOptionsKey(
-				category.key,
-				debouncedSuggestionQuery,
-			),
-			queryFn: () => category.getOptions(debouncedSuggestionQuery),
+			queryKey: filterComboboxOptionsKey(category.key, debouncedTypeaheadQuery),
+			queryFn: () => category.getOptions(debouncedTypeaheadQuery),
 			enabled:
-				debouncedSuggestionQuery.length > 0 &&
+				debouncedTypeaheadQuery.length > 0 &&
 				activeCategoryKey === null &&
 				isBrowsing,
 		})),
@@ -217,36 +272,25 @@ export const useFilterCombobox = ({
 
 	// react-query keeps each query's `data` reference stable between renders,
 	// but useQueries returns a fresh array wrapper every render, so memoizing
-	// on it never hit. The map is tiny (a handful of categories), so build it
+	// on it never hits. The map is tiny (a handful of categories), so build it
 	// directly instead of pretending to memoize.
 	const optionsByKey = new Map<string, readonly FilterOption[]>();
-	categories.forEach((category, index) => {
+	for (const [index, category] of categories.entries()) {
 		const options = suggestionQueries[index]?.data;
 		if (options) {
 			optionsByKey.set(category.key, options);
 		}
-	});
+	}
 
-	const valueSuggestions = useMemo(() => {
-		if (activeCategoryKey !== null || !isBrowsing) {
-			return [];
-		}
-		return collectValueSuggestions(
-			inputValue,
-			categories,
-			optionsByKey,
-			chipValues,
-		);
-	}, [
-		activeCategoryKey,
-		isBrowsing,
-		categories,
-		chipValues,
-		inputValue,
-		optionsByKey,
-	]);
-	const valueSuggestionsRef = useRef(valueSuggestions);
-	valueSuggestionsRef.current = valueSuggestions;
+	const valueSuggestions =
+		activeCategoryKey !== null || !isBrowsing
+			? []
+			: collectValueSuggestions(
+					inputValue,
+					categories,
+					optionsByKey,
+					chipValues,
+				);
 
 	// A rejected suggestion query must not leave the popup spinning forever;
 	// treat an error as "done loading" and surface it instead.
@@ -259,42 +303,31 @@ export const useFilterCombobox = ({
 		isBrowsing &&
 		inputValue.trim().length > 0 &&
 		!suggestionsError &&
-		(suggestionQueryPending ||
+		(typeaheadQueryPending ||
 			suggestionQueries.some(
 				(query) =>
 					query.isFetching || (!query.isError && query.data === undefined),
 			));
 
-	const previewQuerySource =
-		activeCategoryKey === null && isBrowsing ? inputValue.trim() : "";
-	const debouncedPreviewQuery = useDebouncedValue(
-		previewQuerySource,
-		SEARCH_DEBOUNCE_MS,
-	);
-	const previewQueryPending =
-		hasSearchResults &&
-		previewQuerySource.length > 0 &&
-		previewQuerySource !== debouncedPreviewQuery;
-
 	const searchResultsQuery = useQuery({
-		queryKey: filterComboboxSearchResultsKey(debouncedPreviewQuery),
+		queryKey: filterComboboxSearchResultsKey(debouncedTypeaheadQuery),
 		queryFn: () => {
 			const loader = getSearchResultsRef.current;
 			if (!loader) {
 				return Promise.resolve([] as SearchResult[]);
 			}
-			return loader(debouncedPreviewQuery);
+			return loader(debouncedTypeaheadQuery);
 		},
 		enabled:
 			hasSearchResults &&
-			debouncedPreviewQuery.length > 0 &&
+			debouncedTypeaheadQuery.length > 0 &&
 			activeCategoryKey === null &&
 			isBrowsing,
 	});
 
 	const searchResults = searchResultsQuery.data ?? [];
 	const searchResultsLoading =
-		previewQueryPending ||
+		(hasSearchResults && typeaheadQueryPending) ||
 		(searchResultsQuery.isFetching && !searchResultsQuery.isError);
 	const typeaheadError =
 		activeCategoryKey === null &&
@@ -302,32 +335,6 @@ export const useFilterCombobox = ({
 		(suggestionsError || (hasSearchResults && searchResultsQuery.isError));
 	const searchResultsRef = useRef(searchResults);
 	searchResultsRef.current = searchResults;
-
-	// The token of the row cmdk currently has highlighted (via
-	// aria-activedescendant), or null when nothing is highlighted. Enter/Tab
-	// commit this row rather than always committing the first option.
-	const highlightedItemRef = useRef<string | null>(null);
-	const handleItemHighlighted = (highlightedValue: string | undefined) => {
-		highlightedItemRef.current = highlightedValue ?? null;
-	};
-
-	const restoreFreeTextInput = () => {
-		setInputValue(committedFreeTextRef.current);
-	};
-
-	const exitFacetMode = () => {
-		facetModeRef.current = false;
-		setActiveCategoryKey(null);
-		restoreFreeTextInput();
-	};
-
-	const enterCategoryMode = (categoryKey: string, query = "") => {
-		facetModeRef.current = true;
-		setBrowsing(false);
-		setActiveCategoryKey(categoryKey);
-		setInputValue(query);
-		setOpen(true);
-	};
 
 	const updateFromChips = (tokens: string[], freeText?: string) => {
 		const nextFreeText =
@@ -338,42 +345,42 @@ export const useFilterCombobox = ({
 		emitQuery(composeFilterQuery(tokens, chipKeys, nextFreeText), true);
 	};
 
-	const selectCategory = (
-		categoryKey: string,
-		options?: Readonly<{ clearMatchedQuery?: boolean }>,
-	) => {
-		if (options?.clearMatchedQuery) {
-			setCommittedNameSearch("");
-			emitQuery(composeFilterQuery(chipValues, chipKeys, ""), true);
-		} else if (activeCategoryKey === null) {
-			setCommittedNameSearch(inputValue);
-			emitQuery(composeFilterQuery(chipValues, chipKeys, inputValue), true);
-		}
+	const selectCategory = (categoryKey: string) => {
+		setCommittedNameSearch("");
+		emitQuery(composeFilterQuery(chipValues, chipKeys, ""), true);
 		enterCategoryMode(categoryKey);
 	};
 
 	const selectValueSuggestion = (token: string) => {
 		updateFromChips([...chipValues, token], "");
-		facetModeRef.current = false;
-		setBrowsing(false);
-		setActiveCategoryKey(null);
-		setInputValue("");
-		setOpen(false);
+		resetPopup("clear");
 	};
 
 	const selectSearchResult = (result: SearchResult) => {
 		onSearchResultSelectRef.current?.(result);
-		facetModeRef.current = false;
-		setBrowsing(false);
-		setActiveCategoryKey(null);
-		setOpen(false);
+		resetPopup("keep");
+	};
+
+	const applyCommittedSelection = (selection: CommittedSelection) => {
+		switch (selection.kind) {
+			case "search":
+				selectSearchResult(selection.result);
+				return;
+			case "ignore":
+				return;
+			case "category":
+				selectCategory(selection.key);
+				return;
+			case "suggestion":
+				selectValueSuggestion(selection.token);
+		}
 	};
 
 	const handleInputFocus = () => {
 		if (activeCategoryKey !== null || facetModeRef.current) {
 			return;
 		}
-		openCategorySuggestions();
+		enterBrowsing();
 	};
 
 	const handleInputValueChange = (
@@ -411,13 +418,15 @@ export const useFilterCombobox = ({
 		setCommittedNameSearch(nextValue);
 		setInputValue(nextValue);
 		emitQuery(composeFilterQuery(chipValues, chipKeys, nextValue), false);
-		openCategorySuggestions();
+		enterBrowsing();
 	};
 
 	const handleOpenChange = (
 		nextOpen: boolean,
 		eventDetails: { reason: string },
 	) => {
+		// Radix reports opens we did not ask for (focus). Ignore those unless the
+		// toggle or an in-progress browsing/facet session already owns the popup.
 		if (
 			nextOpen &&
 			!facetModeRef.current &&
@@ -427,63 +436,37 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		setOpen(nextOpen);
 		if (!nextOpen) {
-			setBrowsing(false);
-			exitFacetMode();
-		} else if (eventDetails.reason === "trigger-press") {
-			facetModeRef.current = false;
-			setBrowsing(true);
-			setActiveCategoryKey(null);
+			resetPopup("restore");
+			return;
 		}
+
+		if (eventDetails.reason === "trigger-press") {
+			enterBrowsing();
+			return;
+		}
+
+		setOpen(true);
 	};
 
 	const handleValueChange = (nextTokens: string[]) => {
 		const added = nextTokens.find((token) => !chipValues.includes(token));
 		if (added) {
-			const searchValue = parseSearchResultToken(added);
-			if (searchValue) {
-				const result = searchResultsRef.current.find(
-					(entry) => entry.value === searchValue,
-				);
-				if (result) {
-					selectSearchResult(result);
-				}
-				return;
-			}
-
-			const matchedCategory = categories.find(
-				(category) => category.key === added,
-			);
-			if (activeCategoryKey === null && matchedCategory) {
-				selectCategory(matchedCategory.key, { clearMatchedQuery: true });
-				return;
-			}
-
-			if (
-				activeCategoryKey === null &&
-				isBrowsingRef.current &&
-				parseChipToken(added, chipKeys)
-			) {
-				selectValueSuggestion(added);
+			const selection = matchCommittedSelection(added, {
+				searchResults: searchResultsRef.current,
+				categories,
+				chipKeys,
+				allowCategory: activeCategoryKey === null,
+				allowSuggestion: activeCategoryKey === null && isBrowsingRef.current,
+			});
+			if (selection) {
+				applyCommittedSelection(selection);
 				return;
 			}
 		}
 
 		updateFromChips(nextTokens);
-		facetModeRef.current = false;
-		setBrowsing(false);
-		setActiveCategoryKey(null);
-		setInputValue(committedFreeTextRef.current);
-		setOpen(false);
-	};
-
-	const exitActiveCategory = () => {
-		facetModeRef.current = false;
-		setBrowsing(false);
-		setActiveCategoryKey(null);
-		restoreFreeTextInput();
-		setOpen(false);
+		resetPopup("restore");
 	};
 
 	const handleInputKeyDown = (event: {
@@ -493,12 +476,10 @@ export const useFilterCombobox = ({
 	}) => {
 		if (event.key === "Backspace" && inputValue === "" && activeCategory) {
 			event.preventDefault();
-			exitActiveCategory();
+			resetPopup("restore");
 			return;
 		}
 
-		// With an empty input and no active category, Backspace/Delete removes
-		// the last committed chip.
 		if (
 			(event.key === "Backspace" || event.key === "Delete") &&
 			inputValue === "" &&
@@ -511,7 +492,6 @@ export const useFilterCombobox = ({
 		}
 
 		// Enter is committed by cmdk through the highlighted item's `onSelect`.
-		// Tab additionally completes the highlighted category/suggestion.
 		const isTabComplete = event.key === "Tab" && !event.shiftKey;
 		if (!isTabComplete || !isBrowsingRef.current) {
 			return;
@@ -523,33 +503,16 @@ export const useFilterCombobox = ({
 		}
 
 		event.preventDefault();
-
-		const searchValue = parseSearchResultToken(highlighted);
-		if (searchValue) {
-			const result = searchResultsRef.current.find(
-				(entry) => entry.value === searchValue,
-			);
-			if (result) {
-				selectSearchResult(result);
-			}
-			return;
+		const selection = matchCommittedSelection(highlighted, {
+			searchResults: searchResultsRef.current,
+			categories: listedCategoriesRef.current,
+			chipKeys,
+			allowCategory: true,
+			allowSuggestion: true,
+		});
+		if (selection) {
+			applyCommittedSelection(selection);
 		}
-
-		const highlightedCategory = listedCategoriesRef.current.find(
-			(category) => category.key === highlighted,
-		);
-		if (highlightedCategory) {
-			selectCategory(highlightedCategory.key, { clearMatchedQuery: true });
-			return;
-		}
-
-		if (parseChipToken(highlighted, chipKeys)) {
-			selectValueSuggestion(highlighted);
-		}
-	};
-
-	const setInputRef = (node: HTMLInputElement | null) => {
-		storeInputRef.current = node;
 	};
 
 	return {
@@ -571,10 +534,14 @@ export const useFilterCombobox = ({
 		searchResultsLoading,
 		chipValues,
 		toggleFilterMenu,
-		setInputRef,
+		setInputRef: (node: HTMLInputElement | null) => {
+			storeInputRef.current = node;
+		},
 		handleInputFocus,
 		handleInputKeyDown,
-		handleItemHighlighted,
+		handleItemHighlighted: (highlightedValue: string | undefined) => {
+			highlightedItemRef.current = highlightedValue ?? null;
+		},
 		handleInputValueChange,
 		handleOpenChange,
 		handleValueChange,
