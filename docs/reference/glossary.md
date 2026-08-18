@@ -24,12 +24,6 @@ It was previously named Agent Boundaries and uses a sandbox backend, `nsjail` by
 This feature requires a Premium license.
 Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
 
-### Agent Workspace Build
-
-A metered workspace build performed on behalf of an AI agent.
-Community and Premium deployments include 1,000 for proof-of-concept use, and a Premium license expands the allowance.
-Refer to [Coder Tasks](../ai-coder/tasks.md).
-
 ### AI Gateway
 
 An LLM gateway in `coderd` that authenticates users, forwards traffic to providers such as OpenAI and Anthropic, audits prompts and tool invocations, and centralizes MCP administration.
@@ -126,12 +120,6 @@ Refer to [Coder Desktop](../user-guides/desktop/index.md).
 The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to Coder workspaces.
 Refer to [VS Code](../user-guides/workspace-access/vscode.md).
 
-### Coder Tasks
-
-An earlier interface for running coding agents such as Claude Code and Aider inside workspaces.
-Coder Tasks is deprecated: it moves to a 12-month Extended Support Release for Premium customers and is removed from new releases starting with v2.37, with [Coder Agents](#coder-agents) as the long-term replacement.
-Refer to [Coder Tasks](../ai-coder/tasks.md).
-
 ### `coder_agent`
 
 The Terraform resource that declares a [workspace agent](#workspace-agent) inside a template.
@@ -165,7 +153,7 @@ Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/c
 
 ### Coding agent
 
-An AI agent that reads and writes code on a developer's behalf, such as Claude Code, run through Coder Tasks or Coder Agents.
+An AI agent that reads and writes code on a developer's behalf, such as Claude Code, run through Coder Agents.
 Refer to [AI in Coder](../ai-coder/index.md).
 
 ### Community
