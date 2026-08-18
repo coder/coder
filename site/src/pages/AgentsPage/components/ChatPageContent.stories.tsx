@@ -241,7 +241,23 @@ export const InterruptingShowsBusyComposer: Story = {
 	render: () => {
 		const store = buildInterruptingStore();
 		return (
-			<StoryChatPageInput store={store} onInterrupt={interruptingOnInterrupt} />
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<div className="flex h-full flex-col">
+					<ChatPageTimeline
+						store={store}
+						persistedError={undefined}
+						hasMoreMessages={false}
+						isFetchingMoreMessages={false}
+						isHydratingMessages={false}
+						hasFetchMoreError={false}
+						onFetchMoreMessages={async () => {}}
+					/>
+					<StoryChatPageInput
+						store={store}
+						onInterrupt={interruptingOnInterrupt}
+					/>
+				</div>
+			</MessageScroller.Provider>
 		);
 	},
 	play: async ({ canvasElement }) => {
@@ -252,6 +268,10 @@ export const InterruptingShowsBusyComposer: Story = {
 			"Interrupting. Waiting for the agent to stop.",
 		);
 		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
+		// The transcript must not claim the agent is still thinking while
+		// the interruption finalizes.
+		expect(canvas.getByText("Interrupting")).toBeInTheDocument();
+		expect(canvas.queryByText("Thinking")).toBeNull();
 
 		await userEvent.click(
 			canvas.getByRole("textbox", { name: "Chat message" }),

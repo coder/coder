@@ -149,6 +149,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		streamError,
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
+		chatStatus,
 	});
 	const streamTools = buildStreamTools(
 		streamState?.toolCalls,

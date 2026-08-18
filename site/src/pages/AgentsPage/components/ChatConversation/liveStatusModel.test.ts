@@ -35,6 +35,7 @@ const derive = (
 		streamError: null,
 		persistedError: null,
 		isAwaitingFirstStreamChunk: false,
+		chatStatus: null,
 		...overrides,
 	});
 
@@ -91,8 +92,24 @@ describe("deriveLiveStatus", () => {
 			{ streamState: buildStreamState() },
 			{ phase: "streaming", hasAccumulatedOutput: false },
 		],
+		[
+			"interrupting",
+			{ chatStatus: "interrupting" as const },
+			{ phase: "interrupting", hasAccumulatedOutput: false },
+		],
 	])("returns %s", (_phase, overrides, expected) => {
 		expect(derive(overrides)).toEqual(expected);
+	});
+
+	it("treats interrupting as outranking stream leftovers", () => {
+		expect(
+			derive({
+				chatStatus: "interrupting",
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+			}),
+		).toEqual({ phase: "interrupting", hasAccumulatedOutput: true });
 	});
 
 	it("uses the persisted error as the idle fallback", () => {
