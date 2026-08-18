@@ -28,7 +28,7 @@ Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
 
 A metered workspace build performed on behalf of an AI agent.
 Community and Premium deployments include 1,000 for proof-of-concept use, and a Premium license expands the allowance.
-Refer to [AI Governance](../ai-coder/ai-governance.md).
+Refer to [Coder Tasks](../ai-coder/tasks.md).
 
 ### AI Gateway
 
@@ -45,7 +45,7 @@ Refer to [AI Gateway Proxy](../ai-coder/ai-gateway/ai-gateway-proxy/index.md).
 
 ### AI Governance
 
-Included with a Premium license, AI Governance unlocks AI Gateway and Agent Firewall and expands Agent Workspace Build allowances.
+Included with a Premium license, AI Governance unlocks AI Gateway and Agent Firewall.
 Refer to [AI Governance](../ai-coder/ai-governance.md).
 
 ### Air-gapped deployment
