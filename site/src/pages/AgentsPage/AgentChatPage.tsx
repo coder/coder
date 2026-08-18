@@ -705,7 +705,6 @@ export function useConversationEditingState(deps: {
 		if (draftStorage) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
-				// A quota failure silently discards the draft.
 				draftStorage.set(serializedEditorState);
 			} else {
 				draftStorage.remove();

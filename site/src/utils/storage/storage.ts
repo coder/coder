@@ -233,12 +233,16 @@ const decodeEnvelope = (raw: string): StoredEnvelope | null => {
 		if (
 			typeof parsed === "object" &&
 			parsed !== null &&
-			!Array.isArray(parsed) &&
-			(parsed as StoredEnvelope).v === 1 &&
-			typeof (parsed as StoredEnvelope).t === "number" &&
-			typeof (parsed as StoredEnvelope).d === "string"
+			!Array.isArray(parsed)
 		) {
-			return parsed as StoredEnvelope;
+			const env = parsed as Record<string, unknown>;
+			if (
+				env.v === 1 &&
+				typeof env.t === "number" &&
+				typeof env.d === "string"
+			) {
+				return { v: 1, t: env.t, d: env.d };
+			}
 		}
 	} catch {
 		// Not JSON, so not an envelope.

@@ -12,7 +12,7 @@ import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import { useStorage } from "#/hooks/useStorage";
 import { getVSCodeHref } from "#/modules/apps/apps";
-import { type VSCodeVariant, vscodeVariantStorage } from "#/utils/storage/keys";
+import { vscodeVariantStorage } from "#/utils/storage/keys";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
@@ -29,10 +29,6 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 	const [variant, setVariant] = useStorage(vscodeVariantStorage);
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
 	const menuContentId = useId();
-
-	const selectVariant = (nextVariant: VSCodeVariant) => {
-		setVariant(nextVariant);
-	};
 
 	const includesVSCodeDesktop = props.displayApps.includes("vscode");
 	const includesVSCodeInsiders = props.displayApps.includes("vscode_insiders");
@@ -67,7 +63,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 				>
 					<DropdownMenuItem
 						onClick={() => {
-							selectVariant("vscode");
+							setVariant("vscode");
 						}}
 					>
 						<VSCodeIcon className="size-3" />
@@ -75,7 +71,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						onClick={() => {
-							selectVariant("vscode-insiders");
+							setVariant("vscode-insiders");
 						}}
 					>
 						<VSCodeInsidersIcon className="size-3" />

@@ -147,7 +147,7 @@ export const persistedAttachmentsStorage = defineStorageKey<
 	defaultValue: null,
 });
 
-export type VSCodeVariant = "vscode" | "vscode-insiders";
+type VSCodeVariant = "vscode" | "vscode-insiders";
 
 export const vscodeVariantStorage = defineStorageKey<VSCodeVariant>({
 	key: "vscode-variant",
@@ -173,7 +173,7 @@ const isRegion = (parsed: unknown): Region | undefined => {
 	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
 		return undefined;
 	}
-	return typeof (parsed as Region).id === "string"
+	return typeof (parsed as Record<string, unknown>).id === "string"
 		? (parsed as Region)
 		: undefined;
 };
