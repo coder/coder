@@ -8,7 +8,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
-import { BlockList } from "../../ChatConversation/ConversationTimeline";
+import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
@@ -262,6 +262,20 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: {
 			workspace_name: "agent-icons",
 			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "find_tools",
+		args: { queries: ["github issues"] },
+		result: {
+			matches: [
+				{
+					name: "github__list_issues",
+					description: "List issues in a GitHub repository.",
+				},
+			],
+			activated: ["github__list_issues"],
+			total_deferred: 12,
 		},
 	},
 	{

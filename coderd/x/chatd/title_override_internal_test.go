@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -709,6 +710,7 @@ func titleOverrideTestServer(db database.Store, logger slog.Logger) *Server {
 	})}
 	return &Server{
 		db:                       db,
+		pubsub:                   dbpubsub.NewInMemory(),
 		logger:                   logger,
 		configCache:              newChatConfigCache(context.Background(), db, quartz.NewReal()),
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),

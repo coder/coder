@@ -344,7 +344,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 								</div>
 								<div
 									className={cn(
-										"text-right font-medium text-[13px]",
+										"text-right font-medium text-sm",
 										getLatencyColor(row.latency_ms.p50),
 									)}
 								>
@@ -398,7 +398,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 									<Avatar fallback={row.username} src={row.avatar_url} />
 									<div className="font-medium">{row.username}</div>
 								</div>
-								<div className="text-right text-[13px] text-content-secondary">
+								<div className="text-right text-sm text-content-secondary">
 									{formatTime(row.seconds)}
 								</div>
 							</div>
@@ -459,7 +459,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 												className="h-full w-full object-contain"
 											/>
 										</div>
-										<div className="text-[13px] font-medium w-[200px]">
+										<div className="text-sm font-medium w-[200px]">
 											{usage.display_name}
 										</div>
 									</div>
@@ -480,7 +480,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											<TooltipArrow className="fill-border" />
 										</TooltipContent>
 									</Tooltip>
-									<div className="flex flex-col text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]">
+									<div className="flex flex-col text-sm font-normal shrink-0 leading-[1.5] text-content-secondary w-[120px]">
 										{formatTime(usage.seconds)}
 										{usage.times_used > 0 && (
 											<span className="text-[12px] text-content-disabled">
@@ -532,12 +532,12 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 								</p>
 							</div>
 							<div className="flex-1 grow-2 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
-								<div className="font-medium text-[13px] text-content-secondary py-1">
+								<div className="font-medium text-sm text-content-secondary py-1">
 									Value
 								</div>
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<div className="font-medium text-[13px] text-content-secondary text-right py-1 cursor-default">
+										<div className="font-medium text-sm text-content-secondary text-right py-1 cursor-default">
 											Count
 										</div>
 									</TooltipTrigger>
@@ -739,7 +739,7 @@ const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 	return (
 		<div
 			{...props}
-			className="flex justify-center items-center text-[13px] py-2 text-content-secondary text-center h-full min-h-[200px]"
+			className="flex justify-center items-center text-sm font-normal py-2 text-content-secondary text-center h-full min-h-[200px]"
 		>
 			{error
 				? getErrorDetail(error) ||

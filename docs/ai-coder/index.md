@@ -6,7 +6,7 @@ workspaces and for background task execution.
 ## Agents in the IDE
 
 Coder [integrates with IDEs](../user-guides/workspace-access/index.md) such as
-Cursor, Windsurf, and Zed that include built-in coding agents to work alongside
+Cursor, Devin Desktop, and Zed that include built-in coding agents to work alongside
 developers. Additionally, template admins can
 [pre-install extensions](https://registry.coder.com/modules/coder/vscode-web)
 for agents such as GitHub Copilot.

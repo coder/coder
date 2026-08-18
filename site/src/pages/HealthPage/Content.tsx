@@ -241,7 +241,7 @@ export const Logs: FC<LogsProps> = ({ className, lines, ...divProps }) => {
 	return (
 		<div
 			className={cn(
-				"font-mono text-[13px] leading-relaxed p-6 bg-surface-secondary overflow-x-auto whitespace-pre-wrap break-all",
+				"font-mono text-sm font-normal leading-relaxed p-6 bg-surface-secondary overflow-x-auto whitespace-pre-wrap break-all",
 				className,
 			)}
 			{...divProps}

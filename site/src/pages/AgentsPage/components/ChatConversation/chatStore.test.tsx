@@ -1409,7 +1409,7 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("ignores message_part updates while chat is waiting", async () => {
+	it("applies message_part updates while a REST-hydrated chat status reads waiting", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-1";
@@ -1427,7 +1427,10 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: buildChat(chatID),
+					// REST hydrates the store with a waiting status, but the
+					// stream has not delivered any status event, so the
+					// server's view may already be ahead.
+					chatRecord: { ...buildChat(chatID), status: "waiting" },
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
@@ -1456,8 +1459,75 @@ describe("useChatStore", () => {
 					role: "assistant",
 					part: {
 						type: "text",
-						text: "first",
+						text: "live output",
 					},
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "live output" },
+			]);
+		});
+	});
+
+	it("drops message_part updates after the stream reports waiting", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-1";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: { ...buildChat(chatID), status: "waiting" },
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+					store,
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "first" },
 				},
 			});
 		});
@@ -1468,6 +1538,10 @@ describe("useChatStore", () => {
 			]);
 		});
 
+		// The stream reports waiting: the turn is over server-side.
+		// A part arriving now comes from the closed episode draining
+		// (the server keeps closed episodes subscribed for replay for
+		// up to 15s) and must not repopulate the stream.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -1477,14 +1551,7 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			// Stream state is preserved after status=waiting (the
-			// durable message event handles cleanup via
-			// needsStreamReset). Only new message_parts should be
-			// blocked by the shouldApplyMessagePart gate.
-			expect(result.current.streamState).not.toBeNull();
-			expect(result.current.streamState?.blocks).toEqual([
-				{ type: "response", text: "first" },
-			]);
+			expect(result.current.chatStatus).toBe("waiting");
 		});
 
 		act(() => {
@@ -1493,20 +1560,70 @@ describe("useChatStore", () => {
 				chat_id: chatID,
 				message_part: {
 					role: "assistant",
-					part: {
-						type: "text",
-						text: "late",
-					},
+					part: { type: "text", text: "late drain" },
+				},
+			});
+		});
+
+		// Wait past the coalesced flush window so the drop is
+		// observable rather than "not yet flushed".
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		});
+
+		expect(result.current.streamState?.blocks).toEqual([
+			{ type: "response", text: "first" },
+		]);
+
+		// An optimistic send status must not reopen the window; drain
+		// parts from the closed episode are still dropped.
+		act(() => {
+			result.current.store.setChatStatus("running");
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "drain after send" },
+				},
+			});
+		});
+
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		});
+
+		expect(result.current.streamState?.blocks).toEqual([
+			{ type: "response", text: "first" },
+		]);
+
+		// The stream reporting running reopens the window: the next
+		// turn's parts must flow again.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "next turn" },
 				},
 			});
 		});
 
 		await waitFor(() => {
-			// The late message_part should not be applied because
-			// shouldApplyMessagePart gates on waiting.
-			// Stream state still shows the original "first".
 			expect(result.current.streamState?.blocks).toEqual([
-				{ type: "response", text: "first" },
+				{ type: "response", text: "firstnext turn" },
 			]);
 		});
 	});
@@ -4384,7 +4501,7 @@ describe("thinking indicator event ordering", () => {
 		});
 	});
 
-	it("discards buffered parts when status transitions to pending", async () => {
+	it("discards buffered parts when status transitions to waiting", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		immediateAnimationFrame();
 
