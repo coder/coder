@@ -1,10 +1,8 @@
 # Devin Desktop
 
-[Devin Desktop](https://windsurf.com/editor) is Cognition's AI-powered code editor
-designed for AI-assisted development. Cognition, the maker of the Devin autonomous
-coding agent, rebranded the Windsurf Editor (formerly Codeium) as Devin Desktop
-on June 2, 2026. If you installed Windsurf before that date, it updated to Devin
-Desktop automatically, your plan, extensions, and settings carried over.
+[Devin Desktop](https://devin.ai/desktop) is Cognition's AI-powered code editor designed for AI-assisted development.
+Cognition, the maker of the Devin autonomous coding agent, rebranded the Windsurf Editor (formerly Codeium) as Devin Desktop on June 2, 2026.
+If you installed Windsurf before that date, it updated to Devin Desktop automatically, and your plan, extensions, and settings were carried over.
 
 Follow this guide to use Devin Desktop to access your Coder workspaces.
 
@@ -15,14 +13,13 @@ You can also use the [devin-desktop module](https://registry.coder.com/modules/c
 
 Devin Desktop can connect to your Coder workspaces via SSH:
 
-1. [Install Devin Desktop](https://docs.windsurf.com/getstarted/overview) on your local machine.
+1. [Install Devin Desktop](https://docs.devin.ai/desktop/install) on your local machine.
 
 1. Open Devin Desktop and select **Get started**.
 
    Import your settings from another IDE, or select **Start fresh**.
 
-1. Complete the setup flow and log in or [create an account](https://windsurf.com)
-   if you don't have one already.
+1. Complete the setup flow and [log in to Devin](https://app.devin.ai/auth/login) or [create a Devin account](https://app.devin.ai/auth/signup) if you don't have one already.
 
 ## Install the Coder extension
 
