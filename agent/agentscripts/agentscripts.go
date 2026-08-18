@@ -20,6 +20,8 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/coder/quartz"
+
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
@@ -56,10 +58,14 @@ type Options struct {
 	SSHServer       *agentssh.Server
 	Filesystem      afero.Fs
 	GetScriptLogger func(logSourceID uuid.UUID) ScriptLogger
+	Clock           quartz.Clock
 }
 
 // New creates a runner for the provided scripts.
 func New(opts Options) *Runner {
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
 	cronCtx, cronCtxCancel := context.WithCancel(context.Background())
 	return &Runner{
 		Options:       opts,
@@ -211,7 +217,7 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		return initErr
 	}
 
-	var eg errgroup.Group
+	var scripts []codersdk.WorkspaceAgentScript
 	for _, script := range r.scripts {
 		runScript := (option == ExecuteStartScripts && script.RunOnStart) ||
 			(option == ExecuteStopScripts && script.RunOnStop) ||
@@ -221,7 +227,26 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		if !runScript {
 			continue
 		}
+		scripts = append(scripts, script)
+	}
 
+	if option == ExecuteStartScripts || option == ExecuteStopScripts {
+		executor := lifecycleExecutor{
+			clock:           r.Clock,
+			logger:          r.Logger,
+			getScriptLogger: r.GetScriptLogger,
+			run: func(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption) error {
+				if err := r.trackRun(ctx, script, option); err != nil {
+					return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
+				}
+				return nil
+			},
+		}
+		return executor.execute(ctx, scripts, option)
+	}
+
+	var eg errgroup.Group
+	for _, script := range scripts {
 		eg.Go(func() error {
 			err := r.trackRun(ctx, script, option)
 			if err != nil {
