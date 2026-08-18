@@ -11,6 +11,7 @@ const renderDashboardRedirect = () => {
 		route: "/",
 		extraRoutes: [
 			{ path: "/workspaces", element: <h1>Workspaces</h1> },
+			{ path: "/templates", element: <h1>Templates</h1> },
 			{ path: "/settings/account", element: <h1>Account</h1> },
 		],
 	});
@@ -23,12 +24,29 @@ describe("DashboardRedirect", () => {
 		await screen.findByText("Workspaces");
 	});
 
-	it("redirects to the account page when the user cannot read workspaces", async () => {
+	it("redirects to the templates page when the user can only read templates", async () => {
 		server.use(
 			http.post("/api/v2/authcheck", () => {
 				return HttpResponse.json({
 					...MockPermissions,
 					viewWorkspaces: false,
+					viewTemplates: true,
+				});
+			}),
+		);
+
+		renderDashboardRedirect();
+
+		await screen.findByText("Templates");
+	});
+
+	it("redirects to the account page when the user can read neither", async () => {
+		server.use(
+			http.post("/api/v2/authcheck", () => {
+				return HttpResponse.json({
+					...MockPermissions,
+					viewWorkspaces: false,
+					viewTemplates: false,
 				});
 			}),
 		);
