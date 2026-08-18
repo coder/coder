@@ -77,4 +77,30 @@ export const PublishingFailing: Story = {
 	},
 };
 
+// During a rolling upgrade an older replica may serve a health report
+// without the usage_publishing field. The section must disappear from the
+// nav instead of crashing the page.
+const { usage_publishing: _, ...reportFromOlderReplica } = MockHealth;
+
+export const HiddenOnOlderReplica: Story = {
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: HEALTH_QUERY_KEY,
+				data: reportFromOlderReplica,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByRole("link", { name: /database/i }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: /usage publishing/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export { Example as UsagePublishing };

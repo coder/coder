@@ -49,7 +49,12 @@ export const HealthLayout: FC = () => {
 		database: "Database",
 		workspace_proxy: "Workspace Proxy",
 		provisioner_daemons: "Provisioner Daemons",
-		usage_publishing: "Usage Publishing",
+		// Older replicas do not report this section, e.g. while a rolling
+		// upgrade serves this frontend alongside an older coderd. A falsy
+		// label hides the section instead of crashing the nav below.
+		usage_publishing: healthStatus?.usage_publishing
+			? ("Usage Publishing" as const)
+			: undefined,
 	} as const;
 	const visibleSections = filterVisibleSections(sections);
 
