@@ -100,6 +100,28 @@ func TestSearchTools(t *testing.T) {
 		result, _ = SearchTools(scopedEntries, FindToolsArgs{Queries: []string{"error: status"}}, SearchBudget{})
 		require.Len(t, result.Matches, 2,
 			"an unknown prefix is searched as plain keywords")
+
+		result, _ = SearchTools(scopedEntries, FindToolsArgs{Queries: []string{"GitHub: status"}}, SearchBudget{})
+		require.Equal(t, []string{"github__get_commit"}, result.Activated,
+			"a case-variant prefix still scopes to its server when no exact-case name collides")
+	})
+	t.Run("case-colliding server names", func(t *testing.T) {
+		t.Parallel()
+		caseEntries := []FindToolCatalogEntry{
+			{Name: "GitHub__enterprise_status", Description: "Enterprise status", Server: "GitHub"},
+			{Name: "github__get_commit", Description: "Get commit status", Server: "github"},
+		}
+		result, _ := SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GitHub: status"}}, SearchBudget{})
+		require.Equal(t, []string{"GitHub__enterprise_status"}, result.Activated,
+			"an exact-case prefix scopes only to its own server")
+
+		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"github: status"}}, SearchBudget{})
+		require.Equal(t, []string{"github__get_commit"}, result.Activated,
+			"the case-colliding sibling stays reachable by its own exact name")
+
+		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GITHUB: status"}}, SearchBudget{})
+		require.Len(t, result.Activated, 2,
+			"a prefix matching no exact-case name falls back to spanning the case-colliding servers")
 	})
 	t.Run("server names containing colons", func(t *testing.T) {
 		t.Parallel()
@@ -296,6 +318,63 @@ func TestFindToolsDirectCallReservation(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__b"]}`})
 		require.NoError(t, err)
 		require.True(t, resp.IsError, "a successful execution pins the reservation even when a later call errors")
+	})
+
+	t.Run("aggregate overflow frees only the prefix derivation retains", func(t *testing.T) {
+		t.Parallel()
+		tool, observer := newTool(100)
+		settler, ok := tool.(interface {
+			ObserveStepToolResults(succeeded, errored []string)
+		})
+		require.True(t, ok)
+		observer.ObserveStepToolCalls([]string{"server__a", "server__b"})
+		settler.ObserveStepToolResults([]string{"server__a", "server__b"}, nil)
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__b"]}`})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+		var result FindToolsResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Empty(t, result.Activated,
+			"a direct call past the retained prefix cannot be reported activated: derivation sheds it")
+		require.Equal(t, 3, result.TotalDeferred, "unclaimable entries still count as deferred")
+
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__a"]}`})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, []string{"server__a"}, result.Activated, "the retained prefix stays free")
+
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__c"]}`})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, []string{"server__c"}, result.Activated,
+			"the skipped call's weight is not charged, so later searches keep the leftover budget")
+	})
+
+	t.Run("an errored prefix call promotes the next observed name", func(t *testing.T) {
+		t.Parallel()
+		tool, observer := newTool(100)
+		settler, ok := tool.(interface {
+			ObserveStepToolResults(succeeded, errored []string)
+		})
+		require.True(t, ok)
+		observer.ObserveStepToolCalls([]string{"server__a", "server__b"})
+		settler.ObserveStepToolResults([]string{"server__b"}, []string{"server__a"})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__b"]}`})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+		var result FindToolsResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, []string{"server__b"}, result.Activated,
+			"the errored call leaves the prefix, so the succeeding call becomes free")
+
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__a"]}`})
+		require.NoError(t, err)
+		require.True(t, resp.IsError,
+			"the errored call is claimable at full weight, which exceeds the leftover budget")
 	})
 
 	t.Run("reserved names stay activatable after the budget is spent", func(t *testing.T) {

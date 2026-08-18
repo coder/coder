@@ -118,11 +118,41 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	var budgetMu sync.Mutex
 	remainingBudget := options.SchemaTokenBudget
 	// Direct calls to deferred tools in the same step are admitted by
-	// derivation before any search activations, so their schema weight
-	// is reserved out of the budget before searches run. Reserved names
-	// stay free to activate because derivation already retains them.
+	// derivation before any search activations, in call order, while
+	// their cumulative weight fits the budget (the first always fits,
+	// mirroring derivation's newest-keep rule). Only that retained
+	// prefix is free to activate; a call past it is unclaimable this
+	// step because derivation marks it seen at its rejected direct-call
+	// position, so no same-step search can inline its schema either.
+	// Errored calls (including calls rejected before execution) leave
+	// the prefix when siblings settle; a name that ever executed
+	// successfully stays, since derivation admits it at full priority.
+	var observedOrder []string
 	reserved := make(map[string]struct{})
+	unclaimable := make(map[string]struct{})
 	executedOK := make(map[string]struct{})
+	erroredNames := make(map[string]struct{})
+	searchClaimed := 0.0
+	recompute := func() {
+		clear(reserved)
+		clear(unclaimable)
+		charged := 0.0
+		for _, name := range observedOrder {
+			if _, errored := erroredNames[name]; errored {
+				if _, ok := executedOK[name]; !ok {
+					continue
+				}
+			}
+			weight := schemaTokensByName[name]
+			if len(reserved) > 0 && charged+weight > options.SchemaTokenBudget {
+				unclaimable[name] = struct{}{}
+				continue
+			}
+			reserved[name] = struct{}{}
+			charged += weight
+		}
+		remainingBudget = options.SchemaTokenBudget - charged - searchClaimed
+	}
 	reserve := func(names []string) {
 		if options.SchemaTokenBudget <= 0 {
 			return
@@ -130,24 +160,16 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 		budgetMu.Lock()
 		defer budgetMu.Unlock()
 		for _, name := range names {
-			weight, ok := schemaTokensByName[name]
-			if !ok {
+			if _, ok := schemaTokensByName[name]; !ok {
 				continue
 			}
-			if _, dup := reserved[name]; dup {
+			if slices.Contains(observedOrder, name) {
 				continue
 			}
-			reserved[name] = struct{}{}
-			remainingBudget -= weight
+			observedOrder = append(observedOrder, name)
 		}
+		recompute()
 	}
-	// Derivation admits errored direct calls only with leftover budget,
-	// so their pre-execution reservation is refunded once the step's
-	// concurrent siblings settle, before this step's searches run.
-	// Calls rejected before execution settle as errored too, so their
-	// reservations refund the same way. Names that ever executed
-	// successfully keep their reservation: derivation admits them at
-	// full priority.
 	settle := func(succeeded, errored []string) {
 		if options.SchemaTokenBudget <= 0 {
 			return
@@ -160,15 +182,9 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 			}
 		}
 		for _, name := range errored {
-			if _, ok := executedOK[name]; ok {
-				continue
-			}
-			if _, ok := reserved[name]; !ok {
-				continue
-			}
-			delete(reserved, name)
-			remainingBudget += schemaTokensByName[name]
+			erroredNames[name] = struct{}{}
 		}
+		recompute()
 	}
 	return findToolsTool{reserveStepCalls: reserve, settleStepResults: settle, AgentTool: fantasy.NewAgentTool(
 		FindToolsName,
@@ -185,12 +201,16 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 			}
 			budgetMu.Lock()
 			searchEntries := entries
-			if len(reserved) > 0 {
-				searchEntries = slices.Clone(entries)
-				for i := range searchEntries {
-					if _, ok := reserved[searchEntries[i].Name]; ok {
-						searchEntries[i].SchemaTokens = 0
+			if len(reserved) > 0 || len(unclaimable) > 0 {
+				searchEntries = make([]FindToolCatalogEntry, 0, len(entries))
+				for _, entry := range entries {
+					if _, ok := unclaimable[entry.Name]; ok {
+						continue
 					}
+					if _, ok := reserved[entry.Name]; ok {
+						entry.SchemaTokens = 0
+					}
+					searchEntries = append(searchEntries, entry)
 				}
 			}
 			searchBudget := remainingBudget
@@ -240,9 +260,12 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 					}
 					return fantasy.NewTextErrorResponse(findToolsBudgetExhausted), nil
 				}
+				searchClaimed += admitted
 				remainingBudget -= admitted
 			}
 			budgetMu.Unlock()
+			// Unclaimable entries stay deferred; report the full count.
+			result.TotalDeferred = len(entries)
 			if options.OnCall != nil {
 				options.OnCall(ctx, FindToolsCall{
 					Queries:       args.Queries,
@@ -293,8 +316,13 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 	for _, entry := range entries {
 		score := 0
 		for _, query := range queries {
-			if query.server != "" && !strings.EqualFold(entry.Server, query.server) {
-				continue
+			if query.server != "" {
+				if query.exact && entry.Server != query.server {
+					continue
+				}
+				if !query.exact && !strings.EqualFold(entry.Server, query.server) {
+					continue
+				}
 			}
 			if query.server != "" && len(query.tokens) == 0 {
 				score++
@@ -355,6 +383,10 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 
 type scopedFindToolsQuery struct {
 	server string
+	// exact scopes to the one server whose name matched byte-for-byte;
+	// otherwise the scope folds case and may span case-colliding
+	// servers.
+	exact  bool
 	tokens []string
 }
 
@@ -362,20 +394,21 @@ type scopedFindToolsQuery struct {
 // prefix names a cataloged server, so queries like "error: timeout"
 // still search normally. Prefixes are matched against full cataloged
 // server names, longest first, because workspace server names may
-// themselves contain ":".
+// themselves contain ":". An exact-case prefix wins before the
+// case-insensitive fallback, so servers whose names differ only by
+// case each stay reachable by their advertised catalog name.
 func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []scopedFindToolsQuery {
 	servers := make([]string, 0, len(entries))
 	seen := make(map[string]struct{}, len(entries))
 	for _, entry := range entries {
-		server := strings.ToLower(entry.Server)
-		if server == "" {
+		if entry.Server == "" {
 			continue
 		}
-		if _, dup := seen[server]; dup {
+		if _, dup := seen[entry.Server]; dup {
 			continue
 		}
-		seen[server] = struct{}{}
-		servers = append(servers, server)
+		seen[entry.Server] = struct{}{}
+		servers = append(servers, entry.Server)
 	}
 	// Longest first, so a server named "jira:prod" wins over "jira"
 	// when both are cataloged.
@@ -383,19 +416,31 @@ func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []s
 	parsed := make([]scopedFindToolsQuery, 0, len(queries))
 	for _, query := range queries {
 		scoped := false
-		trimmed := strings.ToLower(strings.TrimSpace(query))
-		for _, server := range servers {
-			rest, ok := strings.CutPrefix(trimmed, server)
-			if !ok {
-				continue
+		trimmed := strings.TrimSpace(query)
+		for pass := 0; pass < 2 && !scoped; pass++ {
+			exact := pass == 0
+			for _, server := range servers {
+				var rest string
+				if exact {
+					var ok bool
+					rest, ok = strings.CutPrefix(trimmed, server)
+					if !ok {
+						continue
+					}
+				} else {
+					if len(trimmed) < len(server) || !strings.EqualFold(trimmed[:len(server)], server) {
+						continue
+					}
+					rest = trimmed[len(server):]
+				}
+				rest, ok := strings.CutPrefix(strings.TrimLeft(rest, " "), ":")
+				if !ok {
+					continue
+				}
+				parsed = append(parsed, scopedFindToolsQuery{server: server, exact: exact, tokens: tokenizeFindTools(rest)})
+				scoped = true
+				break
 			}
-			rest, ok = strings.CutPrefix(strings.TrimLeft(rest, " "), ":")
-			if !ok {
-				continue
-			}
-			parsed = append(parsed, scopedFindToolsQuery{server: server, tokens: tokenizeFindTools(rest)})
-			scoped = true
-			break
 		}
 		if !scoped {
 			parsed = append(parsed, scopedFindToolsQuery{tokens: tokenizeFindTools(query)})
