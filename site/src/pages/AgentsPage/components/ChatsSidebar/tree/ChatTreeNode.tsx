@@ -151,9 +151,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		isChildChat: isChildNode,
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving,
-		// Subagents are the visible child chats; the menu toggle expands or
-		// collapses them so they no longer have to be discovered by hovering
-		// the status icon. subagentCount gates the item, so leaf chats hide it.
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),
