@@ -5787,11 +5787,14 @@ export const LicenseTelemetryRequiredErrorText =
 // From codersdk/licenses.go
 /**
  * LicenseUsagePublishingFailingWarningText is appended to entitlements
- * warnings when usage event publishing has been failing for longer than
- * the failure threshold. The string is static so clients can match on it.
+ * warnings when usage event publishing is considered failing: events
+ * stuck for longer than the failure threshold, or a permanent rejection
+ * within it. The text states no duration because a fresh permanent
+ * rejection warns immediately. The string is static so clients can match
+ * on it.
  */
 export const LicenseUsagePublishingFailingWarningText =
-	"Coder has been unable to publish usage data to Coder's servers for more than 24 hours. Please check the deployment's connectivity and contact support if the issue persists.";
+	"Coder has been unable to publish usage data to Coder's servers. Please check the deployment's connectivity and contact support if the issue persists.";
 
 // From codersdk/deployment.go
 export interface LinkConfig {

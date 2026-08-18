@@ -19,9 +19,12 @@ const (
 	LicenseAIGovernanceOverLimitWarningText          = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText = "A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued."
 	// LicenseUsagePublishingFailingWarningText is appended to entitlements
-	// warnings when usage event publishing has been failing for longer than
-	// the failure threshold. The string is static so clients can match on it.
-	LicenseUsagePublishingFailingWarningText = "Coder has been unable to publish usage data to Coder's servers for more than 24 hours. Please check the deployment's connectivity and contact support if the issue persists."
+	// warnings when usage event publishing is considered failing: events
+	// stuck for longer than the failure threshold, or a permanent rejection
+	// within it. The text states no duration because a fresh permanent
+	// rejection warns immediately. The string is static so clients can match
+	// on it.
+	LicenseUsagePublishingFailingWarningText = "Coder has been unable to publish usage data to Coder's servers. Please check the deployment's connectivity and contact support if the issue persists."
 )
 
 type AddLicenseRequest struct {
