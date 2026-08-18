@@ -27,7 +27,8 @@ Use the TypeScript language server when available for definitions, references, t
 | One story file   | `pnpm test:storybook src/path/to/component.stories.tsx` |
 | Unit tests       | `pnpm test`                                             |
 | One unit file    | `pnpm test path/to/file.test.ts`                        |
-| Typecheck        | `pnpm check`                                            |
+| Typecheck        | `pnpm lint:types`                                       |
+| Biome check      | `pnpm check`                                            |
 | Lint             | `pnpm lint`                                             |
 | Fix lint         | `pnpm lint:fix`                                         |
 | Format           | `pnpm format`                                           |
