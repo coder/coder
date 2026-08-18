@@ -240,6 +240,16 @@ func TestAIBridgeListSessions(t *testing.T) {
 		// so thread count is 1.
 		require.EqualValues(t, 1, s1.Threads)
 
+		// The initiator identity round-trips through visible_users.email.
+		// Dropping the email in the AIBridge row converter would ship an empty
+		// string here even though MinimalUser.Email is a required field.
+		owner, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, firstUser.UserID, s1.Initiator.ID)
+		require.Equal(t, owner.Username, s1.Initiator.Username)
+		require.NotEmpty(t, s1.Initiator.Email)
+		require.Equal(t, owner.Email, s1.Initiator.Email)
+
 		// Verify session 2 (thread-based).
 		s2 := res.Sessions[1]
 		require.ElementsMatch(t, []string{"openai"}, s2.Providers)

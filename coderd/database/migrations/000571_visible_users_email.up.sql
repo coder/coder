@@ -14,7 +14,8 @@ FROM users;
 
 COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
 
--- Expose created_by_email on template versions (MinimalUser.created_by).
+-- Expose created_by_email on template versions (feeds the created_by
+-- MinimalUser's email).
 CREATE OR REPLACE VIEW template_version_with_user AS
 SELECT
 	template_versions.id,
