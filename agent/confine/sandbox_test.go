@@ -49,18 +49,22 @@ func TestSandboxDeclarationFromEnv(t *testing.T) {
 		{
 			name: "explicit",
 			env: map[string]string{
-				confine.EnvAISandboxCreateScript:      "create-sandbox",
-				confine.EnvAISandboxDestroyScript:     "destroy-sandbox",
-				confine.EnvAISandboxName:              "sandbox_1",
-				confine.EnvAISandboxEgressEnforcement: "forced",
-				confine.EnvAISandboxProxyAddress:      "192.0.2.1:0",
+				confine.EnvAISandboxCreateScript:       "create-sandbox",
+				confine.EnvAISandboxDestroyScript:      "destroy-sandbox",
+				confine.EnvAISandboxPolicyFile:         "/tmp/policy.yaml",
+				confine.EnvAISandboxPolicyReloadScript: "reload-sandbox",
+				confine.EnvAISandboxName:               "sandbox_1",
+				confine.EnvAISandboxEgressEnforcement:  "forced",
+				confine.EnvAISandboxProxyAddress:       "192.0.2.1:0",
 			},
 			want: confine.SandboxDeclaration{
-				CreateScript:      "create-sandbox",
-				DestroyScript:     "destroy-sandbox",
-				Name:              "sandbox_1",
-				EgressEnforcement: codersdk.AISandboxEgressEnforcementForced,
-				ProxyAddress:      "192.0.2.1:0",
+				CreateScript:       "create-sandbox",
+				DestroyScript:      "destroy-sandbox",
+				PolicyFile:         "/tmp/policy.yaml",
+				PolicyReloadScript: "reload-sandbox",
+				Name:               "sandbox_1",
+				EgressEnforcement:  codersdk.AISandboxEgressEnforcementForced,
+				ProxyAddress:       "192.0.2.1:0",
 			},
 		},
 		{
@@ -264,6 +268,127 @@ func TestSandboxControllerDestroyAndSessionClose(t *testing.T) {
 	require.Equal(t, state.response.ChildAgentID, state.sessions[len(state.sessions)-1].ChildAgentID)
 }
 
+func TestSandboxControllerExportsPolicy(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	policyPath := filepath.Join(tempDir, "runtime-network.yaml")
+	createSnapshotPath := filepath.Join(tempDir, "create-policy.yaml")
+	reloadLogPath := filepath.Join(tempDir, "reload.log")
+	state := newSandboxServerState()
+	state.policy = codersdk.AIEgressPolicy{
+		Revision: 7,
+		Rules: []codersdk.AIEgressRule{{
+			Host:  "initial.example",
+			Ports: []int{443},
+		}},
+	}
+	declaration := confine.SandboxDeclaration{
+		CreateScript: fmt.Sprintf(
+			`test -s "$%s" && cp "$%s" %q`,
+			confine.EnvAISandboxPolicyFile,
+			confine.EnvAISandboxPolicyFile,
+			createSnapshotPath,
+		),
+		PolicyFile: policyPath,
+		PolicyReloadScript: fmt.Sprintf(
+			`printf '%%s|%%s\n' "$%s" "$%s" >> %q`,
+			confine.EnvSandboxID,
+			confine.EnvAISandboxPolicyFile,
+			reloadLogPath,
+		),
+		Name:              "sandbox",
+		EgressEnforcement: codersdk.AISandboxEgressEnforcementNone,
+		ProxyAddress:      "127.0.0.1:0",
+	}
+	controller, _ := newSandboxController(t, state, declaration, tempDir)
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- controller.Run(ctx)
+	}()
+
+	eventuallyCtx := testutil.Context(t, testutil.WaitLong)
+	require.True(t, testutil.Eventually(eventuallyCtx, t, func(context.Context) bool {
+		contents, err := os.ReadFile(createSnapshotPath)
+		return err == nil && strings.Contains(string(contents), "initial.example")
+	}, testutil.IntervalFast), "initial policy must exist before the create script runs")
+
+	state.policyUpdates <- codersdk.AIEgressPolicy{
+		Revision: 8,
+		Rules: []codersdk.AIEgressRule{{
+			Host:  "revised.example",
+			Ports: []int{8443},
+		}},
+	}
+	require.True(t, testutil.Eventually(eventuallyCtx, t, func(context.Context) bool {
+		contents, err := os.ReadFile(policyPath)
+		if err != nil || !strings.Contains(string(contents), "revised.example") {
+			return false
+		}
+		reloadLog, err := os.ReadFile(reloadLogPath)
+		if err != nil {
+			return false
+		}
+		return strings.Count(string(reloadLog), "\n") >= 2
+	}, testutil.IntervalFast))
+
+	reloadLog, err := os.ReadFile(reloadLogPath)
+	require.NoError(t, err)
+	require.Contains(t, string(reloadLog), state.response.ID.String()+"|"+policyPath)
+	cancel()
+	require.NoError(t, <-errCh)
+}
+
+func TestSandboxControllerPolicyReloadFailureIsNonFatal(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	policyPath := filepath.Join(tempDir, "runtime-network.yaml")
+	createdPath := filepath.Join(tempDir, "created")
+	state := newSandboxServerState()
+	state.policy = codersdk.AIEgressPolicy{
+		Revision: 7,
+		Rules:    []codersdk.AIEgressRule{{Host: "initial.example"}},
+	}
+	declaration := confine.SandboxDeclaration{
+		CreateScript:       fmt.Sprintf("printf created > %q", createdPath),
+		PolicyFile:         policyPath,
+		PolicyReloadScript: "exit 1",
+		Name:               "sandbox",
+		EgressEnforcement:  codersdk.AISandboxEgressEnforcementNone,
+		ProxyAddress:       "127.0.0.1:0",
+	}
+	controller, _ := newSandboxController(t, state, declaration, tempDir)
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- controller.Run(ctx)
+	}()
+
+	eventuallyCtx := testutil.Context(t, testutil.WaitLong)
+	require.True(t, testutil.Eventually(eventuallyCtx, t, func(context.Context) bool {
+		contents, err := os.ReadFile(createdPath)
+		return err == nil && string(contents) == "created"
+	}, testutil.IntervalFast), "reload failure must not prevent the create script")
+	state.policyUpdates <- codersdk.AIEgressPolicy{
+		Revision: 8,
+		Rules:    []codersdk.AIEgressRule{{Host: "revised.example"}},
+	}
+	require.True(t, testutil.Eventually(eventuallyCtx, t, func(context.Context) bool {
+		contents, err := os.ReadFile(policyPath)
+		if err != nil || !strings.Contains(string(contents), "revised.example") {
+			return false
+		}
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		return len(state.logs) >= 2
+	}, testutil.IntervalFast), "failed reload hooks must not disable later policy updates")
+
+	cancel()
+	require.NoError(t, <-errCh)
+}
+
 func newSandboxController(
 	t *testing.T,
 	state *sandboxServerState,
@@ -313,6 +438,8 @@ type sandboxServerState struct {
 	mu sync.Mutex
 
 	response       agentsdk.CreateAISandboxResponse
+	policy         codersdk.AIEgressPolicy
+	policyUpdates  chan codersdk.AIEgressPolicy
 	sandboxes      []agentsdk.AISandbox
 	createRequests []agentsdk.CreateAISandboxRequest
 	deleted        []uuid.UUID
@@ -323,6 +450,8 @@ type sandboxServerState struct {
 
 func newSandboxServerState() *sandboxServerState {
 	return &sandboxServerState{
+		policy:        codersdk.AIEgressPolicy{Revision: 7},
+		policyUpdates: make(chan codersdk.AIEgressPolicy, 4),
 		response: agentsdk.CreateAISandboxResponse{
 			ID:           uuid.New(),
 			ChildAgentID: uuid.New(),
@@ -362,14 +491,31 @@ func (s *sandboxServerState) ServeHTTP(rw http.ResponseWriter, request *http.Req
 		s.mu.Unlock()
 		writeJSON(rw, map[string]string{})
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v2/workspaceagents/me/ai-egress-policy":
-		writeJSON(rw, codersdk.AIEgressPolicy{Revision: 7})
+		s.mu.Lock()
+		policy := s.policy
+		s.mu.Unlock()
+		writeJSON(rw, policy)
 	case request.Method == http.MethodGet && request.URL.Path == "/api/v2/workspaceagents/me/ai-egress-policy/watch":
 		rw.Header().Set("Content-Type", "text/event-stream")
 		rw.WriteHeader(http.StatusOK)
-		if flusher, ok := rw.(http.Flusher); ok {
-			flusher.Flush()
+		flusher, ok := rw.(http.Flusher)
+		if !ok {
+			return
 		}
-		<-request.Context().Done()
+		flusher.Flush()
+		for {
+			select {
+			case <-request.Context().Done():
+				return
+			case policy := <-s.policyUpdates:
+				data, err := json.Marshal(policy)
+				if err != nil {
+					return
+				}
+				_, _ = fmt.Fprintf(rw, "event: data\ndata: %s\n\n", data)
+				flusher.Flush()
+			}
+		}
 	case request.Method == http.MethodPost && request.URL.Path == "/api/v2/workspaceagents/me/ai-sandbox-sessions":
 		var session agentsdk.PostAISandboxSessionRequest
 		if json.NewDecoder(request.Body).Decode(&session) != nil {

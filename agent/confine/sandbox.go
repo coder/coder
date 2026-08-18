@@ -35,6 +35,12 @@ const (
 	EnvAISandboxEgressEnforcement = "CODER_AI_SANDBOX_EGRESS_ENFORCEMENT"
 	// EnvAISandboxProxyAddress declares the parent-side proxy listen address.
 	EnvAISandboxProxyAddress = "CODER_AI_SANDBOX_PROXY_ADDRESS"
+	// EnvAISandboxPolicyFile declares the coder/sandbox runtime network policy
+	// file written by the controller.
+	EnvAISandboxPolicyFile = "CODER_AI_SANDBOX_POLICY_FILE"
+	// EnvAISandboxPolicyReloadScript declares the command run after each
+	// successful policy file write.
+	EnvAISandboxPolicyReloadScript = "CODER_AI_SANDBOX_POLICY_RELOAD_SCRIPT"
 
 	// EnvAIAgentURL is the coderd URL passed to the sandbox create script.
 	EnvAIAgentURL = "CODER_AI_AGENT_URL"
@@ -58,10 +64,12 @@ var sandboxNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 
 // SandboxDeclaration describes one interim environment-declared AI sandbox.
 type SandboxDeclaration struct {
-	CreateScript      string
-	DestroyScript     string
-	Name              string
-	EgressEnforcement codersdk.AISandboxEgressEnforcement
+	CreateScript       string
+	DestroyScript      string
+	PolicyFile         string
+	PolicyReloadScript string
+	Name               string
+	EgressEnforcement  codersdk.AISandboxEgressEnforcement
 	// ProxyAddress defaults to parent loopback. Isolation technologies that
 	// cannot reach parent loopback, such as Docker, must declare a
 	// bridge-reachable parent address.
@@ -95,6 +103,12 @@ func SandboxDeclarationFromEnv(lookup func(string) (string, bool)) (SandboxDecla
 	}
 	if value, ok := lookup(EnvAISandboxDestroyScript); ok {
 		declaration.DestroyScript = value
+	}
+	if value, ok := lookup(EnvAISandboxPolicyFile); ok {
+		declaration.PolicyFile = value
+	}
+	if value, ok := lookup(EnvAISandboxPolicyReloadScript); ok {
+		declaration.PolicyReloadScript = value
 	}
 	if value, ok := lookup(EnvAISandboxName); ok && value != "" {
 		declaration.Name = value
@@ -304,6 +318,7 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 			slog.F("rule_count", len(policy.Rules)),
 		)
 	}
+	c.exportSandboxPolicy(ctx, sandbox.ID, policy)
 
 	sessionID := uuid.New()
 	batcher := newEventBatcher(c.options.Client, c.options.Logger, sessionID, eventQueueSize)
@@ -333,7 +348,9 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 
 	runCtx, stop := context.WithCancel(ctx)
 	batcherDone := make(chan struct{})
-	go watchPolicy(runCtx, c.options.Client, c.options.Logger, engine)
+	go watchPolicy(runCtx, c.options.Client, c.options.Logger, engine, func(policy codersdk.AIEgressPolicy) {
+		c.exportSandboxPolicy(runCtx, sandbox.ID, policy)
+	})
 	go func() {
 		defer close(batcherDone)
 		batcher.Run(runCtx, eventFlushPeriod)
@@ -446,7 +463,11 @@ func (c *SandboxController) scriptEnvironment(
 	env = setEnv(env, EnvAIAgentURL, c.options.AccessURL.String())
 	env = setEnv(env, EnvAIAgentToken, sandbox.AgentToken)
 	env = setEnv(env, EnvEgressProxy, proxyAddress)
-	return setEnv(env, EnvSandboxID, sandbox.ID.String())
+	env = setEnv(env, EnvSandboxID, sandbox.ID.String())
+	if policyFile := strings.TrimSpace(c.options.Declaration.PolicyFile); policyFile != "" {
+		env = setEnv(env, EnvAISandboxPolicyFile, policyFile)
+	}
+	return env
 }
 
 func (c *SandboxController) runScript(
@@ -512,7 +533,13 @@ func (c *SandboxController) signalDegraded(message string, cause error) {
 	}
 }
 
-func watchPolicy(ctx context.Context, client AgentClient, logger slog.Logger, engine *PolicyEngine) {
+func watchPolicy(
+	ctx context.Context,
+	client AgentClient,
+	logger slog.Logger,
+	engine *PolicyEngine,
+	afterUpdate func(codersdk.AIEgressPolicy),
+) {
 	backoff := time.Second
 	for ctx.Err() == nil {
 		policies, closer, err := client.WatchAIEgressPolicy(ctx)
@@ -529,6 +556,9 @@ func watchPolicy(ctx context.Context, client AgentClient, logger slog.Logger, en
 		backoff = time.Second
 		for policy := range policies {
 			engine.Update(policy)
+			if afterUpdate != nil {
+				afterUpdate(policy)
+			}
 		}
 		if closer != nil {
 			_ = closer.Close()

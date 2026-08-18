@@ -202,7 +202,7 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 
 	runCtx, stop := context.WithCancel(ctx)
 	defer stop()
-	go watchPolicy(runCtx, s.options.Client, s.options.Logger, engine)
+	go watchPolicy(runCtx, s.options.Client, s.options.Logger, engine, nil)
 	go batcher.Run(runCtx, eventFlushPeriod)
 
 	enforcement := codersdk.AISandboxEgressEnforcementAdvisory
