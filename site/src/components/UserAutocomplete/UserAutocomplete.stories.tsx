@@ -24,9 +24,23 @@ export const NoLabel: Story = {
 	},
 };
 
+// The trigger shows the username, not the email, when the selected user has a
+// populated email that differs from the username. Pins the username-primary
+// trigger: a revert to an email-primary label fails this assertion.
+export const SelectedShowsUsernameNotEmail: Story = {
+	args: {
+		value: { ...MockUserOwner, email: "someone-else@example.com" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button");
+		expect(trigger).toHaveTextContent(MockUserOwner.username);
+		expect(trigger).not.toHaveTextContent("someone-else@example.com");
+	},
+};
+
 // The trigger label falls back to the username, never blank, even when the
-// selected user has an empty email. Pins the username-primary trigger so a
-// revert to an email-primary label cannot slip through silently.
+// selected user has an empty email.
 export const SelectedWithoutEmail: Story = {
 	args: {
 		value: { ...MockUserOwner, email: "" },

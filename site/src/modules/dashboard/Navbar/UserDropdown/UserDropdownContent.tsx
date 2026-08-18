@@ -49,7 +49,12 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					<div className="flex flex-col">
 						<span className="text-content-primary">{title}</span>
 						{subtitle && (
-							<span className="text-xs font-semibold">{subtitle}</span>
+							<span
+								data-testid="user-subtitle"
+								className="text-xs font-semibold"
+							>
+								{subtitle}
+							</span>
 						)}
 					</div>
 				</Link>

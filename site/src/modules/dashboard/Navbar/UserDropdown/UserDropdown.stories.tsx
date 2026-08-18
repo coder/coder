@@ -333,7 +333,9 @@ export const NoEmailSubtitle: Story = {
 		await step("omits the subtitle when the email is empty", async () => {
 			const menu = await openDropdown(canvasElement);
 			expect(menu.getByText(MockUserOwner.username)).toBeInTheDocument();
-			expect(menu.queryByText(MockUserOwner.email)).not.toBeInTheDocument();
+			// The guarded subtitle span must be absent, not merely empty, so a
+			// mutation that renders it unconditionally is caught.
+			expect(menu.queryByTestId("user-subtitle")).not.toBeInTheDocument();
 		});
 	},
 };

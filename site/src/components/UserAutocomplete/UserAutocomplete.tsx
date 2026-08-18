@@ -161,8 +161,10 @@ const InnerAutocomplete = <T extends SelectedUser>({
 			setFilter(nextFilter);
 		}, DEBOUNCE_MS);
 
-	// Username is the canonical, unique identifier; use it for the trigger
-	// label, the input prefill, and the filter so all three stay consistent.
+	// Username is the canonical, unique identifier and is required and
+	// non-empty by the MinimalUser contract; use it (via `??` for the null
+	// value case) for the trigger label, the input prefill, and the filter so
+	// all three stay consistent.
 	const selectedInputValue = value?.username ?? "";
 	const selectedFilterValue = value?.username ?? "";
 	// Keep spinner only while typing away from the selected value.
@@ -207,7 +209,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 									fallback={value.username}
 								/>
 							)}
-							{value?.username || "Select a user"}
+							{value?.username ?? "Select a user"}
 						</span>
 						<ChevronDownIcon className="p-0.5" />
 					</Button>
