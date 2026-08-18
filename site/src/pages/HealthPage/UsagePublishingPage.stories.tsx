@@ -26,7 +26,21 @@ const meta = {
 export default meta;
 type Story = StoryObj;
 
-const Example: Story = {};
+// MockHealth reports publishing disabled, the default for deployments
+// without a publishing-enabled license, including air-gapped ones.
+const Example: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Publishing enabled")).toBeVisible();
+		await expect(canvas.getByText("No")).toBeVisible();
+		await expect(canvas.getByText("Last published")).toBeVisible();
+		await expect(canvas.getByText("Never")).toBeVisible();
+		await expect(canvas.queryByText("Failing since")).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText(/usage events have failed to publish/),
+		).not.toBeInTheDocument();
+	},
+};
 
 // Relative to now so the rendered relative-time string is deterministic.
 const lastPublishedAt = new Date(
