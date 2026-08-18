@@ -1901,12 +1901,13 @@ const AgentChatPage: FC = () => {
 				}
 			}
 		}
-		if (
-			response.queued &&
-			!selectIsAwaitingFirstStreamChunk(store.getSnapshot())
-		) {
-			// No active turn awaits its first chunk (no durable head promoted, or
-			// the turn already settled), so nothing anchors; go to the live edge.
+		// A queued send produces an anchor row only when it inserted a message
+		// whose turn still awaits its first stream chunk; otherwise nothing
+		// takes the scroller to the live edge, so scroll explicitly.
+		const producedAnchorRow =
+			insertedMessages.length > 0 &&
+			selectIsAwaitingFirstStreamChunk(store.getSnapshot());
+		if (response.queued && !producedAnchorRow) {
 			scrollToEnd({ behavior: "smooth" });
 		}
 		if (selectedModelConfigID) {
