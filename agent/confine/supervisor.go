@@ -135,7 +135,15 @@ func (s *Supervisor) Run(ctx context.Context) (int, error) {
 		listenAddress = net.JoinHostPort(netns.HostIP(), "0")
 	}
 
-	proxy, err := ListenProxy(listenAddress, engine, batcher.Add)
+	var proxy *Proxy
+	if forced {
+		// Transparent netns traffic arrives in origin form after DNAT. The
+		// sandbox proxy requires explicit proxy request forms, so netns keeps
+		// the existing handler until the library supports transparent traffic.
+		proxy, err = listenLegacyProxy(listenAddress, engine, batcher.Add)
+	} else {
+		proxy, err = ListenProxy(listenAddress, engine, batcher.Add)
+	}
 	if err != nil {
 		return 1, xerrors.Errorf("start egress proxy: %w", err)
 	}
