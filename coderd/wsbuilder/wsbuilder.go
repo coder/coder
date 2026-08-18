@@ -1246,8 +1246,7 @@ func (b *Builder) getPresetParameterValues() ([]database.TemplateVersionPresetPa
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get preset parameters: %w", err)
 	}
-	b.templateVersionPresetParameterValues = new([]database.TemplateVersionPresetParameter)
-	*b.templateVersionPresetParameterValues = presetParameters
+	b.templateVersionPresetParameterValues = &presetParameters
 	return *b.templateVersionPresetParameterValues, nil
 }
 
