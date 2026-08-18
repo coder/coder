@@ -25,6 +25,9 @@ Each process exports metrics for the traffic that it handles:
 
 Refer to [provider configuration](./providers.md) for the provider reload lifecycle these metrics describe.
 
+The `provider` label is the provider instance name.
+Some metrics use the explicit `provider_name` or `provider_type` labels for clarity.
+
 | Metric                                                             | Type      | Labels                                                                     | Purpose                                                                                                                                            |
 |--------------------------------------------------------------------|-----------|----------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
 | `coder_ai_gateway_interceptions_total`                             | counter   | `client`, `initiator_id`, `method`, `model`, `provider`, `route`, `status` | Intercepted requests.                                                                                                                              |
