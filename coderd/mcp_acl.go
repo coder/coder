@@ -111,7 +111,8 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 
 	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
-		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, config.ID)
+		//nolint:gocritic // The ACL write below reauthorizes the locked row for share.
+		current, err := tx.GetMCPServerConfigByIDForUpdate(dbauthz.AsSystemRestricted(ctx), config.ID)
 		if err != nil {
 			return xerrors.Errorf("get MCP server config for update: %w", err)
 		}

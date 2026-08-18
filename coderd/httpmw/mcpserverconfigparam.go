@@ -25,11 +25,12 @@ func MCPServerConfigParam(r *http.Request) database.MCPServerConfig {
 }
 
 // ExtractMCPServerConfigParam reads the "mcpserverconfig" URL parameter.
-// Callers with no read, update, or delete access are concealed as not found,
-// so denied and missing rows both return 404.
+// Callers with none of the admitted actions are concealed as not found, so
+// denied and missing rows both return 404.
 func ExtractMCPServerConfigParam(
 	db database.Store,
 	auth func(r *http.Request, action policy.Action, object rbac.Objecter) bool,
+	actions ...policy.Action,
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -54,10 +55,14 @@ func ExtractMCPServerConfigParam(
 				})
 				return
 			}
-			if config.OrganizationID != OrganizationParam(r).ID ||
-				(!auth(r, policy.ActionRead, config) &&
-					!auth(r, policy.ActionUpdate, config) &&
-					!auth(r, policy.ActionDelete, config)) {
+			admitted := false
+			for _, action := range actions {
+				if auth(r, action, config) {
+					admitted = true
+					break
+				}
+			}
+			if config.OrganizationID != OrganizationParam(r).ID || !admitted {
 				httpapi.ResourceNotFound(rw)
 				return
 			}

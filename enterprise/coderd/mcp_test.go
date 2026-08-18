@@ -122,6 +122,10 @@ func TestMCPServerConfigUpdateOnlyRoleReachesACLExcludedConfigs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, disabled.URL, fetched.URL)
 
+	requireMCPServerConfigRequestStatus(t, updateOnly, http.MethodGet,
+		"/api/experimental/organizations/"+firstUser.OrganizationID.String()+"/mcp-servers/"+disabled.ID.String()+"/oauth2/connect",
+		nil, http.StatusNotFound)
+
 	updatedName := "updated-hidden-mcp"
 	updated, err := updateOnly.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, disabled.ID,
 		codersdk.UpdateMCPServerConfigRequest{DisplayName: &updatedName})
@@ -182,6 +186,10 @@ func TestMCPServerConfigDeleteOnlyRoleReachesDisabled(t *testing.T) {
 	require.False(t, fetched.Enabled)
 	require.Empty(t, fetched.URL)
 
+	requireMCPServerConfigRequestStatus(t, deleteOnly, http.MethodGet,
+		"/api/experimental/organizations/"+firstUser.OrganizationID.String()+"/mcp-servers/"+disabled.ID.String()+"/oauth2/connect",
+		nil, http.StatusNotFound)
+
 	err = deleteOnly.DeleteMCPServerConfig(ctx, firstUser.OrganizationID, disabled.ID)
 	require.NoError(t, err)
 
@@ -189,6 +197,106 @@ func TestMCPServerConfigDeleteOnlyRoleReachesDisabled(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.Equal(t, enabled.ID, configs[0].ID)
+}
+
+func TestMCPServerConfigShareOnlyRoleRoutes(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureCustomRoles: 1,
+			},
+		},
+	})
+	config := createMCPServerConfigForOrganization(t, owner, firstUser.OrganizationID, "share-only-mcp")
+	//nolint:gocritic // Owner access removes the default ACL grant.
+	err := owner.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+
+	//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
+	role, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+		Name:           "mcp-share-only",
+		OrganizationID: firstUser.OrganizationID.String(),
+		OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			codersdk.ResourceMCPServerConfig: {codersdk.ActionShare},
+		}),
+	})
+	require.NoError(t, err)
+	shareOnly, _ := coderdtest.CreateAnotherUser(t, owner, firstUser.OrganizationID,
+		rbac.RoleIdentifier{Name: role.Name, OrganizationID: firstUser.OrganizationID})
+
+	_, err = shareOnly.MCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID)
+	require.NoError(t, err)
+	err = shareOnly.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{})
+	require.NoError(t, err)
+
+	configPath := "/api/experimental/organizations/" + firstUser.OrganizationID.String() + "/mcp-servers/" + config.ID.String()
+	requireMCPServerConfigRequestStatus(t, shareOnly, http.MethodGet, configPath, nil, http.StatusNotFound)
+	requireMCPServerConfigRequestStatus(t, shareOnly, http.MethodGet, configPath+"/oauth2/connect", nil, http.StatusNotFound)
+	requireMCPServerConfigRequestStatus(t, shareOnly, http.MethodPatch, configPath,
+		codersdk.UpdateMCPServerConfigRequest{DisplayName: ptr.Ref("denied-update")}, http.StatusNotFound)
+	requireMCPServerConfigRequestStatus(t, shareOnly, http.MethodDelete, configPath, nil, http.StatusNotFound)
+}
+
+func TestMCPServerConfigReadOnlyRoleCanConnect(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureCustomRoles: 1,
+			},
+		},
+	})
+	//nolint:gocritic // Owner access creates the fixture before read-only authorization is tested.
+	config, err := owner.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:    "read-only-connect",
+		Slug:           "read-only-connect",
+		Transport:      "streamable_http",
+		URL:            "https://mcp.example.com/read-only-connect",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "read-only-client",
+		OAuth2AuthURL:  "https://auth.example.com/authorize",
+		OAuth2TokenURL: "https://auth.example.com/token",
+		Availability:   "default_on",
+		Enabled:        true,
+		ToolAllowList:  []string{},
+		ToolDenyList:   []string{},
+	})
+	require.NoError(t, err)
+	//nolint:gocritic // Owner access removes the default ACL grant.
+	err = owner.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+
+	//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
+	role, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+		Name:           "mcp-read-only",
+		OrganizationID: firstUser.OrganizationID.String(),
+		OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			codersdk.ResourceMCPServerConfig: {codersdk.ActionRead},
+		}),
+	})
+	require.NoError(t, err)
+	readOnly, _ := coderdtest.CreateAnotherUser(t, owner, firstUser.OrganizationID,
+		rbac.RoleIdentifier{Name: role.Name, OrganizationID: firstUser.OrganizationID})
+	readOnly.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	requireMCPServerConfigRequestStatus(t, readOnly, http.MethodGet,
+		"/api/experimental/organizations/"+firstUser.OrganizationID.String()+"/mcp-servers/"+config.ID.String()+"/oauth2/connect",
+		nil, http.StatusTemporaryRedirect)
 }
 
 func TestMCPServerConfigCollectionOrganizationIsolation(t *testing.T) {
