@@ -2073,7 +2073,6 @@ export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
-	readonly mcp_tool_search_force_defer: boolean;
 	readonly hook_url: string;
 	readonly hook_secret: string;
 	readonly hook_timeout: number;

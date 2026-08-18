@@ -802,6 +802,7 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -1075,6 +1076,7 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 	})
 
@@ -1237,6 +1239,7 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -8494,6 +8497,14 @@ func newDebugEnabledTestServer(
 	return server
 }
 
+// withoutMCPToolSearch disables the mcp-tool-search experiment so a
+// test exercises direct MCP tool advertisement instead of deferral.
+func withoutMCPToolSearch(cfg *chatd.Config) {
+	cfg.Experiments = slices.DeleteFunc(slices.Clone(cfg.Experiments), func(experiment codersdk.Experiment) bool {
+		return experiment == codersdk.ExperimentMCPToolSearch
+	})
+}
+
 // newActiveTestServer creates a chatd server that actively polls for
 // and processes pending chats. Use this instead of newTestServer when
 // the test needs the chat loop to actually run. Optional config
@@ -10455,7 +10466,6 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		})
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-			cfg.ForceMCPToolSearch = true
 		})
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID: org.ID,
@@ -10538,7 +10548,6 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		})
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-			cfg.ForceMCPToolSearch = true
 		})
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID: org.ID,
@@ -10562,7 +10571,7 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		require.True(t, openAIMessagesContain(recorded[1].Messages, "echo: hello"))
 	})
 
-	t.Run("below threshold preserves wire tools", func(t *testing.T) {
+	t.Run("experiment gates deferral regardless of catalog size", func(t *testing.T) {
 		t.Parallel()
 
 		run := func(t *testing.T, experimentEnabled bool) []byte {
@@ -10599,9 +10608,7 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 				if !experimentEnabled {
-					cfg.Experiments = slices.DeleteFunc(slices.Clone(cfg.Experiments), func(experiment codersdk.Experiment) bool {
-						return experiment == codersdk.ExperimentMCPToolSearch
-					})
+					withoutMCPToolSearch(cfg)
 				}
 			})
 			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -10621,7 +10628,30 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 			return append([]byte(nil), toolsJSON...)
 		}
 
-		require.Equal(t, run(t, false), run(t, true))
+		toolNames := func(t *testing.T, toolsJSON []byte) []string {
+			t.Helper()
+			var tools []struct {
+				Function struct {
+					Name string `json:"name"`
+				} `json:"function"`
+			}
+			require.NoError(t, json.Unmarshal(toolsJSON, &tools))
+			names := make([]string, 0, len(tools))
+			for _, tool := range tools {
+				names = append(names, tool.Function.Name)
+			}
+			return names
+		}
+
+		withoutExperiment := toolNames(t, run(t, false))
+		require.Contains(t, withoutExperiment, "small-mcp__echo",
+			"without the experiment the MCP schema is advertised directly")
+		require.NotContains(t, withoutExperiment, chattool.FindToolsName)
+
+		withExperiment := toolNames(t, run(t, true))
+		require.Contains(t, withExperiment, chattool.FindToolsName,
+			"the experiment defers every MCP schema behind find_tools, even a small catalog")
+		require.NotContains(t, withExperiment, "small-mcp__echo")
 	})
 }
 
@@ -10717,6 +10747,7 @@ func TestMCPServerToolInvocation(t *testing.T) {
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -10867,6 +10898,7 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
@@ -10981,6 +11013,7 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 		}).AnyTimes()
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -11188,6 +11221,7 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)

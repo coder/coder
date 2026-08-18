@@ -42,7 +42,6 @@ type Metrics struct {
 	FindToolsEmptyTotal       prometheus.Counter
 	FindToolsMatchCount       prometheus.Histogram
 	FindToolsActivationsTotal prometheus.Counter
-	DeferredMCPToolTokens     *prometheus.HistogramVec
 }
 
 // NewMetrics creates a new Metrics instance registered with the
@@ -139,13 +138,6 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "find_tools_activations_total",
 			Help:      "Total deferred tool activations returned by find_tools.",
 		}),
-		DeferredMCPToolTokens: factory.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: metricsNamespace,
-			Subsystem: metricsSubsystem,
-			Name:      "deferred_mcp_tool_tokens",
-			Help:      "Estimated MCP tool schema tokens considered for deferral per generation.",
-			Buckets:   prometheus.ExponentialBuckets(128, 2, 12),
-		}, []string{"provider", "model", "applied"}),
 		StreamBufferDroppedTotal: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,

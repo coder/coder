@@ -38,37 +38,30 @@ func testDeferredTool(name, description string, parameters map[string]any) defer
 
 func TestDecideMCPToolSearch(t *testing.T) {
 	t.Parallel()
-	small := []deferredMCPTool{testDeferredTool("server__small", "small", map[string]any{"value": map[string]any{"type": "string"}})}
-	large := []deferredMCPTool{testDeferredTool("server__large", strings.Repeat("large ", 2000), map[string]any{"value": map[string]any{"type": "string"}})}
+	candidates := []deferredMCPTool{testDeferredTool("server__small", "small", map[string]any{"value": map[string]any{"type": "string"}})}
 
 	tests := []struct {
 		name         string
 		experiment   bool
-		force        bool
-		window       int64
 		candidates   []deferredMCPTool
 		dynamicNames map[string]bool
 		want         bool
 	}{
-		{name: "below", experiment: true, window: 100_000, candidates: small},
-		{name: "above", experiment: true, window: 10_000, candidates: large, want: true},
-		{name: "forced", experiment: true, force: true, window: 100_000, candidates: small, want: true},
-		{name: "experiment off", force: true, window: 10, candidates: large},
-		{name: "empty", experiment: true, force: true},
-		{name: "collision", experiment: true, force: true, candidates: []deferredMCPTool{testDeferredTool(chattool.FindToolsName, "collision", nil)}},
-		{name: "dynamic collision", experiment: true, force: true, candidates: small, dynamicNames: map[string]bool{chattool.FindToolsName: true}},
-		{name: "dynamic no collision", experiment: true, force: true, candidates: small, dynamicNames: map[string]bool{"other": true}, want: true},
+		{name: "experiment on", experiment: true, candidates: candidates, want: true},
+		{name: "experiment off", candidates: candidates},
+		{name: "empty", experiment: true},
+		{name: "collision", experiment: true, candidates: []deferredMCPTool{testDeferredTool(chattool.FindToolsName, "collision", nil)}},
+		{name: "dynamic collision", experiment: true, candidates: candidates, dynamicNames: map[string]bool{chattool.FindToolsName: true}},
+		{name: "dynamic no collision", experiment: true, candidates: candidates, dynamicNames: map[string]bool{"other": true}, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tt.want, decideMCPToolSearch(mcpToolSearchInput{
 				experimentEnabled: tt.experiment,
-				forceDefer:        tt.force,
-				contextWindow:     tt.window,
 				candidates:        tt.candidates,
 				dynamicToolNames:  tt.dynamicNames,
-			}).apply)
+			}))
 		})
 	}
 }
@@ -174,6 +167,39 @@ func TestDeriveDeferredMCPActivationsErroredDirectCallsActivateLast(t *testing.T
 	}
 	require.Equal(t, []string{"server__errored"}, deriveDeferredMCPActivations(erroredOnly, candidates, 0.001),
 		"the newest errored call keeps the first-activation allowance when nothing else activates")
+}
+
+func TestDeriveDeferredMCPActivationsReusedCallIDs(t *testing.T) {
+	t.Parallel()
+	candidates := []deferredMCPTool{
+		testDeferredTool("server__a", "a", nil),
+		testDeferredTool("server__b", "b", nil),
+		testDeferredTool("server__c", "c", nil),
+	}
+	row := func(t *testing.T, role database.ChatMessageRole, parts ...codersdk.ChatMessagePart) database.ChatMessage {
+		t.Helper()
+		content, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		return database.ChatMessage{Role: role, Content: content, ContentVersion: chatprompt.CurrentContentVersion}
+	}
+	// call-1 errors for server__a, is reused for a successful
+	// server__b call, then server__c errors under its own ID. Only
+	// per-call pairing keeps server__b a success: a history-wide
+	// errored-ID set would demote it behind the newer errored
+	// server__c.
+	rows := []database.ChatMessage{
+		row(t, database.ChatMessageRoleAssistant, codersdk.ChatMessageToolCall("call-1", "server__a", []byte(`{}`))),
+		row(t, database.ChatMessageRoleTool, codersdk.ChatMessageToolResult("call-1", "server__a", []byte(`"boom"`), true, false)),
+		row(t, database.ChatMessageRoleAssistant, codersdk.ChatMessageToolCall("call-1", "server__b", []byte(`{}`))),
+		row(t, database.ChatMessageRoleTool, codersdk.ChatMessageToolResult("call-1", "server__b", []byte(`"ok"`), false, false)),
+		row(t, database.ChatMessageRoleAssistant, codersdk.ChatMessageToolCall("call-2", "server__c", []byte(`{}`))),
+		row(t, database.ChatMessageRoleTool, codersdk.ChatMessageToolResult("call-2", "server__c", []byte(`"boom"`), true, false)),
+	}
+	require.Equal(t, []string{"server__b", "server__c", "server__a"}, deriveDeferredMCPActivations(rows, candidates, 0),
+		"a reused tool-call ID pairs each call with its own result, so the later success outranks errored calls")
+	bWeight := estimateDeferredMCPToolTokens(candidates[1:2])
+	require.Equal(t, []string{"server__b"}, deriveDeferredMCPActivations(rows, candidates, bWeight),
+		"under budget the reused-ID success wins over newer errored calls")
 }
 
 func TestFlattenMCPParameterText(t *testing.T) {
@@ -351,7 +377,7 @@ func TestConfigureDeferredMCPToolSearchDirectCallAndCompaction(t *testing.T) {
 	require.Empty(t, deriveDeferredMCPActivations(nil, candidates, 0))
 }
 
-func TestMCPToolSearchBelowThresholdPreservesWireTools(t *testing.T) {
+func TestMCPToolSearchExperimentDisabledPreservesWireTools(t *testing.T) {
 	t.Parallel()
 
 	hot := deferredTestAgentTool{info: fantasy.ToolInfo{Name: "read_file"}}
@@ -360,12 +386,9 @@ func TestMCPToolSearchBelowThresholdPreservesWireTools(t *testing.T) {
 	active := []string{"read_file", candidate.tool.Info().Name}
 	withoutExperiment := captureWireToolNames(t, tools, active)
 
-	decision := decideMCPToolSearch(mcpToolSearchInput{
-		experimentEnabled: true,
-		contextWindow:     100_000,
-		candidates:        []deferredMCPTool{candidate},
-	})
-	require.False(t, decision.apply)
+	require.False(t, decideMCPToolSearch(mcpToolSearchInput{
+		candidates: []deferredMCPTool{candidate},
+	}))
 	require.Equal(t, withoutExperiment, captureWireToolNames(t, tools, active))
 }
 

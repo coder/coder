@@ -1103,8 +1103,7 @@ title: Schemas
       "rawQuery": "string",
       "scheme": "string",
       "user": {}
-    },
-    "mcp_tool_search_force_defer": true
+    }
   }
 }
 ```
@@ -2533,23 +2532,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "rawQuery": "string",
     "scheme": "string",
     "user": {}
-  },
-  "mcp_tool_search_force_defer": true
+  }
 }
 ```
 
 ### Properties
 
-| Name                          | Type                       | Required | Restrictions | Description |
-|-------------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`          | integer                    | false    |              |             |
-| `debug_logging_enabled`       | boolean                    | false    |              |             |
-| `hook_allow_insecure`         | boolean                    | false    |              |             |
-| `hook_enabled`                | boolean                    | false    |              |             |
-| `hook_secret`                 | string                     | false    |              |             |
-| `hook_timeout`                | integer                    | false    |              |             |
-| `hook_url`                    | [serpent.URL](#serpenturl) | false    |              |             |
-| `mcp_tool_search_force_defer` | boolean                    | false    |              |             |
+| Name                    | Type                       | Required | Restrictions | Description |
+|-------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`    | integer                    | false    |              |             |
+| `debug_logging_enabled` | boolean                    | false    |              |             |
+| `hook_allow_insecure`   | boolean                    | false    |              |             |
+| `hook_enabled`          | boolean                    | false    |              |             |
+| `hook_secret`           | string                     | false    |              |             |
+| `hook_timeout`          | integer                    | false    |              |             |
+| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -6006,8 +6003,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        },
-        "mcp_tool_search_force_defer": true
+        }
       }
     },
     "allow_workspace_renames": true,
@@ -6635,8 +6631,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "rawQuery": "string",
         "scheme": "string",
         "user": {}
-      },
-      "mcp_tool_search_force_defer": true
+      }
     }
   },
   "allow_workspace_renames": true,

@@ -17618,9 +17618,6 @@ const docTemplate = `{
                 },
                 "hook_url": {
                     "$ref": "#/definitions/serpent.URL"
-                },
-                "mcp_tool_search_force_defer": {
-                    "type": "boolean"
                 }
             }
         },

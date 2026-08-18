@@ -283,9 +283,6 @@ coderd_chatd_chats{state=""} 0
 # HELP coderd_chatd_compaction_total Total compaction outcomes (only recorded when compaction was triggered or failed).
 # TYPE coderd_chatd_compaction_total counter
 coderd_chatd_compaction_total{provider="",model="",result=""} 0
-# HELP coderd_chatd_deferred_mcp_tool_tokens Estimated MCP tool schema tokens considered for deferral per generation.
-# TYPE coderd_chatd_deferred_mcp_tool_tokens histogram
-coderd_chatd_deferred_mcp_tool_tokens{provider="",model="",applied=""} 0
 # HELP coderd_chatd_find_tools_activations_total Total deferred tool activations returned by find_tools.
 # TYPE coderd_chatd_find_tools_activations_total counter
 coderd_chatd_find_tools_activations_total 0

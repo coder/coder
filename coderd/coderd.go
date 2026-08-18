@@ -933,7 +933,6 @@ func New(options *Options) *API {
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
 				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 				Experiments:                    experiments,
-				ForceMCPToolSearch:             options.DeploymentValues.AI.Chat.MCPToolSearchForceDefer.Value(),
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,

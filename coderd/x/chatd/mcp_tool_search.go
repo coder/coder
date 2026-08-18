@@ -15,7 +15,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const mcpToolSearchThresholdDivisor = 10
+// mcpToolSearchBudgetDivisor scales the activation and catalog budgets
+// to the model context window: activated schemas may re-inline up to
+// ContextLimit / 10 estimated tokens per generation.
+const mcpToolSearchBudgetDivisor = 10
 
 type deferredMCPTool struct {
 	tool              fantasy.AgentTool
@@ -107,38 +110,31 @@ func workspaceMCPServerName(tool fantasy.AgentTool) string {
 	return ""
 }
 
-type mcpToolSearchDecision struct {
-	apply           bool
-	estimatedTokens float64
-}
-
 type mcpToolSearchInput struct {
 	experimentEnabled bool
-	forceDefer        bool
-	contextWindow     int64
 	candidates        []deferredMCPTool
 	dynamicToolNames  map[string]bool
 }
 
-func decideMCPToolSearch(input mcpToolSearchInput) mcpToolSearchDecision {
-	decision := mcpToolSearchDecision{estimatedTokens: estimateDeferredMCPToolTokens(input.candidates)}
+// decideMCPToolSearch reports whether MCP tool schemas are deferred
+// behind find_tools. With the experiment enabled, every generation with
+// deferrable candidates defers.
+func decideMCPToolSearch(input mcpToolSearchInput) bool {
 	if !input.experimentEnabled || len(input.candidates) == 0 {
-		return decision
+		return false
 	}
 	// A client-executed dynamic tool named find_tools would otherwise be
 	// advertised alongside the built-in and capture its calls as
 	// requires_action, so a collision on either surface fails open.
 	if input.dynamicToolNames[chattool.FindToolsName] {
-		return decision
+		return false
 	}
 	for _, candidate := range input.candidates {
 		if candidate.tool.Info().Name == chattool.FindToolsName {
-			return decision
+			return false
 		}
 	}
-	decision.apply = input.forceDefer ||
-		(input.contextWindow > 0 && decision.estimatedTokens > float64(input.contextWindow)/mcpToolSearchThresholdDivisor)
-	return decision
+	return true
 }
 
 func configureDeferredMCPToolSearch(
@@ -274,7 +270,6 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 	}
 	parsedParts := make([][]codersdk.ChatMessagePart, len(rows))
 	findToolsCallIDs := make(map[string]struct{})
-	erroredCallIDs := make(map[string]struct{})
 	for i := range rows {
 		parts, err := chatprompt.ParseContent(rows[i])
 		if err != nil {
@@ -285,17 +280,37 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName == chattool.FindToolsName && part.ToolCallID != "" {
 				findToolsCallIDs[part.ToolCallID] = struct{}{}
 			}
-			if part.Type == codersdk.ChatMessagePartTypeToolResult && part.IsError && part.ToolCallID != "" {
-				erroredCallIDs[part.ToolCallID] = struct{}{}
+		}
+	}
+	// Providers may reuse a tool-call ID in a later step, so each call
+	// pairs with its own result: walking oldest first, a result settles
+	// the oldest still-unpaired call with its ID. A call whose result
+	// was compacted away stays unpaired and counts as successful.
+	type callRef struct{ row, part int }
+	callErrored := make(map[callRef]bool)
+	pendingByID := make(map[string][]callRef)
+	for i := range rows {
+		for j, part := range parsedParts[i] {
+			if part.ToolCallID == "" {
+				continue
+			}
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeToolCall:
+				pendingByID[part.ToolCallID] = append(pendingByID[part.ToolCallID], callRef{row: i, part: j})
+			case codersdk.ChatMessagePartTypeToolResult:
+				if refs := pendingByID[part.ToolCallID]; len(refs) > 0 {
+					callErrored[refs[0]] = part.IsError
+					pendingByID[part.ToolCallID] = refs[1:]
+				}
 			}
 		}
 	}
 	pendingSearch := make(map[string][]string)
 	var erroredNames []string
 	for i := len(rows) - 1; i >= 0; i-- {
-		for _, part := range parsedParts[i] {
+		for j, part := range parsedParts[i] {
 			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName != chattool.FindToolsName {
-				if _, errored := erroredCallIDs[part.ToolCallID]; errored {
+				if callErrored[callRef{row: i, part: j}] {
 					erroredNames = append(erroredNames, part.ToolName)
 					continue
 				}

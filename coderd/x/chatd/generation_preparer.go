@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -605,18 +604,12 @@ func (server *Server) prepareGeneration(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
-	toolSearch := decideMCPToolSearch(mcpToolSearchInput{
+	if decideMCPToolSearch(mcpToolSearchInput{
 		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
-		forceDefer:        server.forceMCPToolSearch,
-		contextWindow:     modelConfig.ContextLimit,
 		candidates:        deferredCandidates,
 		dynamicToolNames:  dynamicToolNames,
-	})
-	server.metrics.DeferredMCPToolTokens.WithLabelValues(
-		model.Provider(), model.ModelID(), strconv.FormatBool(toolSearch.apply),
-	).Observe(toolSearch.estimatedTokens)
-	if toolSearch.apply {
-		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchThresholdDivisor
+	}) {
+		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchBudgetDivisor
 		findTools := chattool.FindTools(chattool.FindToolsOptions{
 			Entries:            deferredMCPToolEntries(deferredCandidates),
 			SchemaTokenBudget:  activationTokenBudget,
