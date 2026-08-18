@@ -25,6 +25,24 @@ type PolicyMonitorOptions struct {
 	AfterUpdate func(codersdk.AIEgressPolicy)
 }
 
+// ControlChannelDestinationOptions returns the exact host and effective port
+// allowance required for the agent's platform control channel.
+func ControlChannelDestinationOptions(accessURL *url.URL) (DestinationOptions, error) {
+	if accessURL == nil || accessURL.Hostname() == "" {
+		return DestinationOptions{}, xerrors.New("AI egress policy access URL is required")
+	}
+	port, err := accessURLPort(accessURL)
+	if err != nil {
+		return DestinationOptions{}, err
+	}
+	host := normalizeHost(accessURL.Hostname())
+	return DestinationOptions{
+		AllowPrivateHost: host,
+		AlwaysAllowHost:  host,
+		AlwaysAllowPort:  port,
+	}, nil
+}
+
 // PolicyMonitor owns a fail-closed policy engine and its live policy watcher.
 type PolicyMonitor struct {
 	options PolicyMonitorOptions
@@ -36,16 +54,13 @@ func NewPolicyMonitor(options PolicyMonitorOptions) (*PolicyMonitor, error) {
 	if options.Client == nil {
 		return nil, xerrors.New("AI egress policy client is required")
 	}
-	if options.AccessURL == nil || options.AccessURL.Hostname() == "" {
-		return nil, xerrors.New("AI egress policy access URL is required")
-	}
-	port, err := accessURLPort(options.AccessURL)
+	destination, err := ControlChannelDestinationOptions(options.AccessURL)
 	if err != nil {
 		return nil, err
 	}
 	return &PolicyMonitor{
 		options: options,
-		engine:  NewPolicyEngine(options.AccessURL.Hostname(), port),
+		engine:  NewPolicyEngine(destination.AlwaysAllowHost, destination.AlwaysAllowPort),
 	}, nil
 }
 

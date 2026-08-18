@@ -61,10 +61,11 @@ func newEmbeddedMicroVMConfig(options MicroVMOptions) (embeddedMicroVMConfig, er
 		return embeddedMicroVMConfig{}, err
 	}
 
-	destination := options.Destination
-	if strings.TrimSpace(destination.AllowPrivateHost) == "" {
-		destination.AllowPrivateHost = agentURL.Hostname()
+	destination, err := ControlChannelDestinationOptions(agentURL)
+	if err != nil {
+		return embeddedMicroVMConfig{}, xerrors.Errorf("configure embedded microVM control channel: %w", err)
 	}
+	destination.LookupNetIP = options.Destination.LookupNetIP
 	evaluator := newPolicyEvaluator(options.Policy, destination)
 	recorder := newSandboxEventRecorder(options.Event)
 	ca, caPEM, err := ephemeralProxyCA()

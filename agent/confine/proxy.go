@@ -71,6 +71,11 @@ type DestinationOptions struct {
 	// This supports a coderd endpoint on a private address without weakening
 	// validation for any other policy destination. It does not bypass policy.
 	AllowPrivateHost string
+	// AlwaysAllowHost and AlwaysAllowPort identify one exact destination that
+	// bypasses the template policy. When set, AlwaysAllowHost also becomes the
+	// private-host exemption so the two control-channel checks cannot diverge.
+	AlwaysAllowHost string
+	AlwaysAllowPort int
 }
 
 type resolvedDestination struct {

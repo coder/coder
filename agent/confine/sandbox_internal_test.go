@@ -97,6 +97,8 @@ func TestSandboxControllerMicroVM(t *testing.T) {
 	require.Equal(t, client.response.AgentToken, options.AgentToken)
 	require.Equal(t, client.response.SessionToken, options.SessionToken)
 	require.Equal(t, "coder.example.com", options.Destination.AllowPrivateHost)
+	require.Equal(t, "coder.example.com", options.Destination.AlwaysAllowHost)
+	require.Equal(t, 443, options.Destination.AlwaysAllowPort)
 	require.NotNil(t, options.Policy)
 	require.NotNil(t, options.Event)
 

@@ -3,6 +3,7 @@
 package confine
 
 import (
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -79,7 +80,7 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 	binaryLink := filepath.Join(t.TempDir(), "coder-link")
 	require.NoError(t, os.Symlink(binaryPath, binaryLink))
 
-	engine := NewPolicyEngine("coder.example.com", 443)
+	engine := NewPolicyEngine("", 0)
 	engine.Update(codersdk.AIEgressPolicy{Revision: 11})
 	var events []NetworkEvent
 	config, err := newEmbeddedMicroVMConfig(MicroVMOptions{
@@ -121,6 +122,17 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 	require.Contains(t, config.agentCommand, "exec /opt/coder agent")
 	//nolint:gosec // The generated command is the value under test.
 	require.NoError(t, exec.Command("sh", "-n", "-c", config.agentCommand).Run())
+
+	decision, err := config.evaluator.EvaluateResolvedIP(
+		t.Context(), "CODER.Example.COM.", 443, netip.MustParseAddr("127.0.0.1"),
+	)
+	require.NoError(t, err)
+	require.Equal(t, sandboxpolicy.ActionAllow, decision.Action)
+	decision, err = config.evaluator.EvaluateResolvedIP(
+		t.Context(), "coder.example.com", 8443, netip.MustParseAddr("203.0.113.10"),
+	)
+	require.NoError(t, err)
+	require.Equal(t, sandboxpolicy.ActionDeny, decision.Action)
 
 	engine.Update(codersdk.AIEgressPolicy{Revision: 12})
 	require.EqualValues(t, 12, config.evaluator.Generation())

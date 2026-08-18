@@ -63,6 +63,66 @@ func TestPolicyEvaluatorMatchesPolicyEngine(t *testing.T) {
 	}
 }
 
+func TestPolicyEvaluatorAlwaysAllowsControlChannel(t *testing.T) {
+	t.Parallel()
+
+	newEvaluator := func() (*PolicyEngine, *policyEvaluator) {
+		engine := NewPolicyEngine("", 0)
+		engine.Update(codersdk.AIEgressPolicy{
+			Revision: 1,
+			Rules: []codersdk.AIEgressRule{{
+				Host:  "policy.example.com",
+				Ports: []int{443},
+			}},
+		})
+		return engine, newPolicyEvaluator(engine, DestinationOptions{
+			LookupNetIP: evaluatorLookup(map[string][]netip.Addr{
+				"coder.example.com":  {netip.MustParseAddr("127.0.0.1")},
+				"policy.example.com": {netip.MustParseAddr("203.0.113.10")},
+				"denied.example.com": {netip.MustParseAddr("203.0.113.11")},
+			}),
+			AllowPrivateHost: "different.example.com",
+			AlwaysAllowHost:  "CODER.Example.COM.",
+			AlwaysAllowPort:  8443,
+		})
+	}
+
+	tests := []struct {
+		name    string
+		host    string
+		port    uint16
+		allowed bool
+	}{
+		{name: "normalized control channel", host: "Coder.Example.Com.", port: 8443, allowed: true},
+		{name: "control channel wrong port", host: "coder.example.com", port: 443, allowed: false},
+		{name: "unaffected policy allow", host: "policy.example.com", port: 443, allowed: true},
+		{name: "unaffected policy deny", host: "denied.example.com", port: 443, allowed: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, evaluator := newEvaluator()
+			decision, err := evaluator.EvaluateName(t.Context(), tt.host, tt.port)
+			require.NoError(t, err)
+			require.Equal(t, tt.allowed, decision.Action == policy.ActionAllow)
+			require.EqualValues(t, 1, decision.Generation)
+		})
+	}
+
+	engine, evaluator := newEvaluator()
+	engine.Update(codersdk.AIEgressPolicy{Revision: 2})
+	decision, err := evaluator.EvaluateName(t.Context(), "CODER.EXAMPLE.COM.", 8443)
+	require.NoError(t, err)
+	require.Equal(t, policy.ActionAllow, decision.Action)
+	require.EqualValues(t, 2, decision.Generation)
+	require.Contains(t, decision.Reason, "platform control channel")
+
+	decision, err = evaluator.EvaluateName(t.Context(), "policy.example.com", 443)
+	require.NoError(t, err)
+	require.Equal(t, policy.ActionDeny, decision.Action)
+	require.EqualValues(t, 2, decision.Generation)
+}
+
 func TestPolicyEvaluatorDestinationValidation(t *testing.T) {
 	t.Parallel()
 

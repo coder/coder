@@ -50,6 +50,33 @@ func (c *policyMonitorTestClient) WatchAIEgressPolicy(ctx context.Context) (<-ch
 	return out, nil, nil
 }
 
+func TestControlChannelDestinationOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		access   string
+		wantHost string
+		wantPort int
+	}{
+		{name: "https default", access: "https://CODER.Example.COM./path", wantHost: "coder.example.com", wantPort: 443},
+		{name: "https explicit", access: "https://coder.example.com:8443", wantHost: "coder.example.com", wantPort: 8443},
+		{name: "http default", access: "http://coder.example.com", wantHost: "coder.example.com", wantPort: 80},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			accessURL, err := url.Parse(tt.access)
+			require.NoError(t, err)
+			options, err := ControlChannelDestinationOptions(accessURL)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantHost, options.AlwaysAllowHost)
+			require.Equal(t, tt.wantPort, options.AlwaysAllowPort)
+			require.Equal(t, options.AlwaysAllowHost, options.AllowPrivateHost)
+		})
+	}
+}
+
 func TestPolicyMonitorFailClosed(t *testing.T) {
 	t.Parallel()
 

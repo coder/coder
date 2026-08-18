@@ -486,6 +486,16 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 		c.signalDegraded("AI egress policy fetch failed; started deny-all (degraded)", fetchErr)
 	}
 	engine := policyMonitor.Engine()
+	destination, err := ControlChannelDestinationOptions(c.options.AccessURL)
+	if err != nil {
+		return xerrors.Errorf("configure AI sandbox control channel: %w", err)
+	}
+	c.options.Logger.Info(ctx, "injected AI sandbox egress allowance",
+		slog.F("host", destination.AlwaysAllowHost),
+		slog.F("port", destination.AlwaysAllowPort),
+		slog.F("reason", "platform control channel"),
+	)
+
 	if !microVMMode {
 		c.exportSandboxPolicy(ctx, sandbox.ID, policy)
 	}
@@ -498,13 +508,7 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 			c.options.Declaration.ProxyAddress,
 			engine,
 			batcher.Add,
-			DestinationOptions{
-				// The exact control-plane host may resolve to a private address in
-				// local and on-prem deployments. It is policy-allowed implicitly,
-				// and this exemption lets only that hostname pass destination range
-				// validation; every other private destination remains denied.
-				AllowPrivateHost: c.options.AccessURL.Hostname(),
-			},
+			destination,
 		)
 		if err != nil {
 			return xerrors.Errorf("start AI sandbox egress proxy: %w", err)
@@ -576,10 +580,8 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 			AgentToken:      sandbox.AgentToken,
 			SessionToken:    sandbox.SessionToken,
 			Policy:          engine,
-			Destination: DestinationOptions{
-				AllowPrivateHost: c.options.AccessURL.Hostname(),
-			},
-			Event: batcher.Add,
+			Destination:     destination,
+			Event:           batcher.Add,
 		})
 		bootCancel()
 		if err != nil {

@@ -13,6 +13,8 @@ type policyEvaluator struct {
 	engine           *PolicyEngine
 	lookupNetIP      func(context.Context, string, string) ([]netip.Addr, error)
 	allowPrivateHost string
+	alwaysAllowHost  string
+	alwaysAllowPort  int
 }
 
 func newPolicyEvaluator(engine *PolicyEngine, options DestinationOptions) *policyEvaluator {
@@ -20,10 +22,21 @@ func newPolicyEvaluator(engine *PolicyEngine, options DestinationOptions) *polic
 	if lookupNetIP == nil {
 		lookupNetIP = net.DefaultResolver.LookupNetIP
 	}
+	alwaysAllowHost := normalizeHost(options.AlwaysAllowHost)
+	allowPrivateHost := normalizeHost(options.AllowPrivateHost)
+	if alwaysAllowHost != "" {
+		allowPrivateHost = alwaysAllowHost
+	}
+	alwaysAllowPort := options.AlwaysAllowPort
+	if !validPort(alwaysAllowPort) {
+		alwaysAllowPort = 0
+	}
 	return &policyEvaluator{
 		engine:           engine,
 		lookupNetIP:      lookupNetIP,
-		allowPrivateHost: normalizeHost(options.AllowPrivateHost),
+		allowPrivateHost: allowPrivateHost,
+		alwaysAllowHost:  alwaysAllowHost,
+		alwaysAllowPort:  alwaysAllowPort,
 	}
 }
 
@@ -44,14 +57,18 @@ func (e *policyEvaluator) EvaluateName(ctx context.Context, host string, port ui
 	if err := ctx.Err(); err != nil {
 		return policy.Decision{}, err
 	}
-	if e == nil || e.engine == nil {
+	if e == nil {
 		return networkPolicyDecision(policy.ActionDeny, 0, "egress policy is unavailable"), nil
 	}
 
 	host = normalizeHost(host)
-	decision := e.engine.Decide(host, int(port))
+	decision, controlChannel := e.decide(host, port)
 	if !decision.Allowed {
 		return networkPolicyDecision(policy.ActionDeny, decision.Revision, "destination is not allowed by the AI egress policy"), nil
+	}
+	allowedReason := "destination is allowed by the AI egress policy"
+	if controlChannel {
+		allowedReason = "destination is the platform control channel"
 	}
 
 	literalHost := strings.Trim(strings.TrimSpace(host), "[]")
@@ -59,7 +76,7 @@ func (e *policyEvaluator) EvaluateName(ctx context.Context, host string, port ui
 		if !e.privateHostAllowed(host) && deniedDestination(address) {
 			return networkPolicyDecision(policy.ActionDeny, decision.Revision, "destination address is in a denied range"), nil
 		}
-		return networkPolicyDecision(policy.ActionAllow, decision.Revision, "destination is allowed by the AI egress policy"), nil
+		return networkPolicyDecision(policy.ActionAllow, decision.Revision, allowedReason), nil
 	}
 
 	lookupCtx, cancel := context.WithTimeout(ctx, destinationTimeout)
@@ -84,7 +101,7 @@ func (e *policyEvaluator) EvaluateName(ctx context.Context, host string, port ui
 			}
 		}
 	}
-	return networkPolicyDecision(policy.ActionAllow, decision.Revision, "destination is allowed by the AI egress policy"), nil
+	return networkPolicyDecision(policy.ActionAllow, decision.Revision, allowedReason), nil
 }
 
 // EvaluateResolvedIP implements policy.Evaluator.
@@ -92,19 +109,23 @@ func (e *policyEvaluator) EvaluateResolvedIP(ctx context.Context, host string, p
 	if err := ctx.Err(); err != nil {
 		return policy.Decision{}, err
 	}
-	if e == nil || e.engine == nil {
+	if e == nil {
 		return networkPolicyDecision(policy.ActionDeny, 0, "egress policy is unavailable"), nil
 	}
 
 	host = normalizeHost(host)
-	decision := e.engine.Decide(host, int(port))
+	decision, controlChannel := e.decide(host, port)
 	if !decision.Allowed {
 		return networkPolicyDecision(policy.ActionDeny, decision.Revision, "destination is not allowed by the AI egress policy"), nil
 	}
 	if !address.IsValid() || !e.privateHostAllowed(host) && deniedDestination(address) {
 		return networkPolicyDecision(policy.ActionDeny, decision.Revision, "resolved destination address is in a denied range"), nil
 	}
-	return networkPolicyDecision(policy.ActionAllow, decision.Revision, "resolved destination is allowed by the AI egress policy"), nil
+	allowedReason := "resolved destination is allowed by the AI egress policy"
+	if controlChannel {
+		allowedReason = "resolved destination is the platform control channel"
+	}
+	return networkPolicyDecision(policy.ActionAllow, decision.Revision, allowedReason), nil
 }
 
 // HasMCPEndpoint implements policy.Evaluator.
@@ -136,6 +157,20 @@ func (e *policyEvaluator) EvaluateMCP(ctx context.Context, _ policy.MCPCall) (po
 		TLS:        policy.TLSPassthrough,
 		Reason:     "MCP inspection is not supported by the AI egress proxy",
 	}, nil
+}
+
+func (e *policyEvaluator) decide(host string, port uint16) (Decision, bool) {
+	if e.controlChannelAllowed(host, port) {
+		return Decision{Allowed: true, Revision: e.Generation()}, true
+	}
+	if e.engine == nil {
+		return Decision{}, false
+	}
+	return e.engine.Decide(host, int(port)), false
+}
+
+func (e *policyEvaluator) controlChannelAllowed(host string, port uint16) bool {
+	return e.alwaysAllowHost != "" && normalizeHost(host) == e.alwaysAllowHost && int(port) == e.alwaysAllowPort
 }
 
 func (e *policyEvaluator) privateHostAllowed(host string) bool {
