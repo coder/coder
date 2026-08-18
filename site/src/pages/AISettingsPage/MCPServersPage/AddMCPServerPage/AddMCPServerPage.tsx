@@ -28,13 +28,17 @@ const AddMCPServerPage: FC = () => {
 		),
 		enabled: !permissions.editDeploymentConfig,
 	});
-	const viewableOrganizations = permissions.editDeploymentConfig
+	const listableOrganizations = permissions.editDeploymentConfig
 		? organizations
-		: organizations.filter(
-				(organization) =>
-					organizationPermissionsQuery.data?.[organization.id]
-						.viewMCPServerConfigs,
-			);
+		: organizations.filter((organization) => {
+				const organizationPermissions =
+					organizationPermissionsQuery.data?.[organization.id];
+				return Boolean(
+					organizationPermissions?.viewMCPServerConfigs ||
+						organizationPermissions?.updateMCPServerConfig ||
+						organizationPermissions?.deleteMCPServerConfig,
+				);
+			});
 	const creatableOrganizations = permissions.editDeploymentConfig
 		? organizations
 		: organizations.filter(
@@ -44,7 +48,7 @@ const AddMCPServerPage: FC = () => {
 			);
 	const requestedOrganizationName = searchParams.get(orgSearchParam);
 	const requestedOrganization =
-		viewableOrganizations.find(
+		listableOrganizations.find(
 			(organization) => organization.name === requestedOrganizationName,
 		) ??
 		creatableOrganizations.find(
@@ -58,23 +62,27 @@ const AddMCPServerPage: FC = () => {
 	const organizationPermissions = organization
 		? organizationPermissionsQuery.data?.[organization.id]
 		: undefined;
-	const canView =
+	const canViewServerList =
 		permissions.editDeploymentConfig ||
-		Boolean(organizationPermissions?.viewMCPServerConfigs);
+		Boolean(
+			organizationPermissions?.viewMCPServerConfigs ||
+				organizationPermissions?.updateMCPServerConfig ||
+				organizationPermissions?.deleteMCPServerConfig,
+		);
 	const canCreate =
 		permissions.editDeploymentConfig ||
 		Boolean(organizationPermissions?.createMCPServerConfig);
 	const canOpenServer =
-		canView &&
-		(permissions.editDeploymentConfig ||
-			Boolean(
-				organizationPermissions?.updateMCPServerConfig ||
-					organizationPermissions?.deleteMCPServerConfig,
-			));
-	// The list page rejects callers without a site-wide view grant, so exit
-	// controls pointing at it are only offered when it is reachable.
-	const canViewServerList =
-		permissions.editDeploymentConfig || permissions.viewAnyMCPServerConfigs;
+		permissions.editDeploymentConfig ||
+		Boolean(
+			organizationPermissions?.updateMCPServerConfig ||
+				organizationPermissions?.deleteMCPServerConfig,
+		);
+	const canOpenAnyServerList =
+		permissions.editDeploymentConfig ||
+		permissions.viewAnyMCPServerConfigs ||
+		permissions.updateAnyMCPServerConfig ||
+		permissions.deleteAnyMCPServerConfig;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const createMutation = useMutation(
@@ -106,7 +114,7 @@ const AddMCPServerPage: FC = () => {
 							isSaving={createMutation.isPending}
 							canCreate={canCreate}
 							canSelectUserOIDC={permissions.editDeploymentConfig}
-							canViewServerList={canViewServerList}
+							canViewServerList={canOpenAnyServerList}
 							organizations={creatableOrganizations}
 							organization={organization}
 							onSelectOrganization={(org) => {
@@ -125,13 +133,15 @@ const AddMCPServerPage: FC = () => {
 										await navigate(
 											updateMCPServerPath(server.id, organization),
 										);
-									} else if (canView) {
+									} else if (canViewServerList) {
 										await navigate(mcpServersPath(organization));
 									}
+									return true;
 								} catch (error) {
 									toast.error(
 										getErrorMessage(error, "Failed to add MCP server."),
 									);
+									return false;
 								}
 							}}
 						/>

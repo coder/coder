@@ -97,11 +97,11 @@ export const NoUpdateTemplates: Story = {
 	},
 };
 
-export const MCPServersForOrgAdmin: Story = {
+export const MCPServersForUpdateOnlyAdmin: Story = {
 	args: {
 		permissions: {
 			...MockNoPermissions,
-			viewAnyMCPServerConfigs: true,
+			updateAnyMCPServerConfig: true,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -109,6 +109,21 @@ export const MCPServersForOrgAdmin: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "MCP servers" }),
 		).toBeVisible();
+	},
+};
+
+export const MCPServersForDeleteOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			deleteAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers");
 	},
 };
 

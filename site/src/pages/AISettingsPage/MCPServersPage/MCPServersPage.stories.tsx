@@ -242,9 +242,11 @@ export const DeleteOnlyOrgAdminCanOpenMCPServer: Story = {
 	parameters: {
 		permissions: {
 			editDeploymentConfig: false,
-			viewAnyMCPServerConfigs: true,
+			viewAnyMCPServerConfigs: false,
 			updateAnyMCPServerConfig: false,
+			deleteAnyMCPServerConfig: true,
 		},
+		organizations: [MockDefaultOrganization, MockOrganization2],
 		reactRouter: reactRouterParameters({
 			location: { path: "/ai/settings/mcp-servers" },
 			routing: [
@@ -258,30 +260,48 @@ export const DeleteOnlyOrgAdminCanOpenMCPServer: Story = {
 	},
 	beforeEach: () => {
 		mockOrganizationPermissions({
-			[MockDefaultOrganization.id]: { view: true, delete: true },
+			[MockDefaultOrganization.id]: { delete: true },
+			[MockOrganization2.id]: { delete: true },
 		});
-		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([
-			MockCoderMCPServer,
-		]);
+		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
+			async (organization) =>
+				organization === MockOrganization2.id
+					? [MockOrganization2MCPServer]
+					: [MockCoderMCPServer],
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(await canvas.findByRole("button", { name: /Coder/ }));
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /Org2 Search/ }),
+		);
 		await expect(
 			await canvas.findByRole("heading", {
-				name: `detail-org:${MockDefaultOrganization.name}`,
+				name: `detail-org:${MockOrganization2.name}`,
 			}),
 		).toBeVisible();
 	},
 };
 
-export const OrgBOnlyAdminUsesAuthorizedOrganization: Story = {
+export const UpdateOnlyOrgAdminUsesAuthorizedOrganization: Story = {
 	parameters: {
 		permissions: {
 			editDeploymentConfig: false,
-			viewAnyMCPServerConfigs: true,
-			createAnyMCPServerConfig: true,
+			viewAnyMCPServerConfigs: false,
+			createAnyMCPServerConfig: false,
 			updateAnyMCPServerConfig: true,
+			deleteAnyMCPServerConfig: false,
 		},
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		reactRouter: reactRouterParameters({
@@ -294,7 +314,7 @@ export const OrgBOnlyAdminUsesAuthorizedOrganization: Story = {
 	},
 	beforeEach: () => {
 		mockOrganizationPermissions({
-			[MockOrganization2.id]: { view: true, create: true, update: true },
+			[MockOrganization2.id]: { update: true },
 		});
 		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
 			async (organization) =>
@@ -500,6 +520,61 @@ export const CreateOnlyOrgAdminCanAddMCPServer: Story = {
 		await expect(
 			canvas.getByRole("button", { name: "Add server" }),
 		).toBeDisabled();
+	},
+};
+
+export const AddFailurePreservesEnteredValues: Story = {
+	render: () => <AddMCPServerPage />,
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: true,
+			createAnyMCPServerConfig: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers/add" },
+			routing: { path: "/ai/settings/mcp-servers/add" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: { view: true, create: true },
+		});
+		spyOn(API.experimental, "createMCPServerConfig").mockRejectedValue(
+			mockApiError({ message: "Invalid client credentials." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			await canvas.findByLabelText(/display name/i),
+			"GitHub",
+		);
+		await userEvent.type(
+			canvas.getByLabelText(/server url/i),
+			"https://api.githubcopilot.com/mcp/",
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: /authentication method/i }),
+		);
+		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
+		await userEvent.type(canvas.getByLabelText(/client id/i), "client-id");
+		await userEvent.type(canvas.getByLabelText(/client secret/i), "secret");
+		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
+		await expect(
+			await body.findByText("Invalid client credentials."),
+		).toBeVisible();
+		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("GitHub");
+		await expect(canvas.getByLabelText(/^slug/i)).toHaveValue("github");
+		await expect(canvas.getByLabelText(/server url/i)).toHaveValue(
+			"https://api.githubcopilot.com/mcp/",
+		);
+		await expect(canvas.getByLabelText(/client id/i)).toHaveValue("client-id");
+		await expect(canvas.getByLabelText(/client secret/i)).toHaveValue("secret");
 	},
 };
 
@@ -816,13 +891,14 @@ export const UpdateShowsDetailLoadError: Story = {
 	},
 };
 
-export const OrgAdminCanUpdateMCPServer: Story = {
+export const UpdateOnlyOrgAdminCanUpdateMCPServer: Story = {
 	render: () => <UpdateMCPServerPage />,
 	parameters: {
 		permissions: {
 			editDeploymentConfig: false,
-			viewAnyMCPServerConfigs: true,
+			viewAnyMCPServerConfigs: false,
 			updateAnyMCPServerConfig: true,
+			deleteAnyMCPServerConfig: false,
 		},
 		reactRouter: reactRouterParameters({
 			location: { path: "/ai/settings/mcp-servers/mcp-coder" },
@@ -831,7 +907,7 @@ export const OrgAdminCanUpdateMCPServer: Story = {
 	},
 	beforeEach: () => {
 		mockOrganizationPermissions({
-			[MockDefaultOrganization.id]: { view: true, update: true },
+			[MockDefaultOrganization.id]: { update: true },
 		});
 		spyOn(API.experimental, "getMCPServerConfig").mockResolvedValue(
 			MockCoderMCPServer,
@@ -932,8 +1008,9 @@ export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 	parameters: {
 		permissions: {
 			editDeploymentConfig: false,
-			viewAnyMCPServerConfigs: true,
+			viewAnyMCPServerConfigs: false,
 			updateAnyMCPServerConfig: false,
+			deleteAnyMCPServerConfig: true,
 		},
 		reactRouter: reactRouterParameters({
 			location: { path: "/ai/settings/mcp-servers/mcp-coder" },
@@ -942,7 +1019,7 @@ export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 	},
 	beforeEach: () => {
 		mockOrganizationPermissions({
-			[MockDefaultOrganization.id]: { view: true, delete: true },
+			[MockDefaultOrganization.id]: { delete: true },
 		});
 		spyOn(API.experimental, "getMCPServerConfig").mockResolvedValue(
 			MockCoderMCPServer,

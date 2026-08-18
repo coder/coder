@@ -38,17 +38,20 @@ const UpdateMCPServerPage: FC = () => {
 		),
 		enabled: !permissions.editDeploymentConfig,
 	});
-	const viewableOrganizations = permissions.editDeploymentConfig
+	const manageableOrganizations = permissions.editDeploymentConfig
 		? organizations
-		: organizations.filter(
-				(organization) =>
-					organizationPermissionsQuery.data?.[organization.id]
-						.viewMCPServerConfigs,
-			);
+		: organizations.filter((organization) => {
+				const organizationPermissions =
+					organizationPermissionsQuery.data?.[organization.id];
+				return Boolean(
+					organizationPermissions?.updateMCPServerConfig ||
+						organizationPermissions?.deleteMCPServerConfig,
+				);
+			});
 	const organization =
-		viewableOrganizations.length > 0
+		manageableOrganizations.length > 0
 			? selectOrganization(
-					viewableOrganizations,
+					manageableOrganizations,
 					searchParams.get(orgSearchParam),
 				)
 			: undefined;
@@ -57,10 +60,7 @@ const UpdateMCPServerPage: FC = () => {
 		: undefined;
 	const canUpdate =
 		permissions.editDeploymentConfig ||
-		Boolean(
-			organizationPermissions?.viewMCPServerConfigs &&
-				organizationPermissions.updateMCPServerConfig,
-		);
+		Boolean(organizationPermissions?.updateMCPServerConfig);
 	const canDelete =
 		permissions.editDeploymentConfig ||
 		Boolean(organizationPermissions?.deleteMCPServerConfig);
@@ -98,7 +98,7 @@ const UpdateMCPServerPage: FC = () => {
 			isFeatureVisible={
 				permissions.editDeploymentConfig ||
 				permissions.updateAnyMCPServerConfig ||
-				permissions.viewAnyMCPServerConfigs
+				permissions.deleteAnyMCPServerConfig
 			}
 		>
 			{organizationPermissionsQuery.isLoadingError ? (

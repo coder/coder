@@ -102,7 +102,7 @@ export const ForOrgAdmin: Story = {
 	},
 };
 
-export const ForMCPOrgAdmin: Story = {
+export const ForMCPUpdateOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
 		pixel: { matrix: pixelWithDesktop },
@@ -110,7 +110,7 @@ export const ForMCPOrgAdmin: Story = {
 		user: MockUserMember,
 		permissions: {
 			...MockNoPermissions,
-			viewAnyMCPServerConfigs: true,
+			updateAnyMCPServerConfig: true,
 		},
 		reactRouter: reactRouterParameters({
 			location: { path: "/" },
@@ -149,6 +149,53 @@ export const ForMCPOrgAdmin: Story = {
 		const aiSettingsLink = body.getByRole("menuitem", { name: "AI" });
 		await expect(aiSettingsLink).toHaveAttribute("href", "/ai/settings");
 		await userEvent.click(aiSettingsLink);
+		await expect(
+			await canvas.findByRole("heading", { name: "MCP servers" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ForMCPDeleteOnlyAdmin: Story = {
+	decorators: [withAuthProvider],
+	parameters: {
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
+		user: MockUserMember,
+		permissions: {
+			...MockNoPermissions,
+			deleteAnyMCPServerConfig: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: [
+				{ path: "/", useStoryElement: true },
+				{
+					path: "/ai/settings",
+					element: (
+						<AuthProvider>
+							<AISettingsIndexRedirect />
+						</AuthProvider>
+					),
+				},
+				{
+					path: "/ai/settings/mcp-servers",
+					element: <h1>MCP servers</h1>,
+				},
+			],
+		}),
+	},
+	args: {
+		user: MockUserMember,
+		adminPermissions: {
+			canViewAISettings: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(body.getByRole("menuitem", { name: "AI" }));
 		await expect(
 			await canvas.findByRole("heading", { name: "MCP servers" }),
 		).toBeInTheDocument();

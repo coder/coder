@@ -103,6 +103,10 @@
 		"object": { "resource_type": "mcp_server_config", "any_org": true },
 		"action": "update"
 	},
+	"deleteAnyMCPServerConfig": {
+		"object": { "resource_type": "mcp_server_config", "any_org": true },
+		"action": "delete"
+	},
 	"editAnySettings": {
 		"object": { "resource_type": "organization", "any_org": true },
 		"action": "update"

@@ -479,7 +479,11 @@ export const AISettingsIndexRedirect = () => {
 		return <Navigate to="/ai/settings/models" replace />;
 	}
 
-	if (permissions.viewAnyMCPServerConfigs) {
+	if (
+		permissions.viewAnyMCPServerConfigs ||
+		permissions.updateAnyMCPServerConfig ||
+		permissions.deleteAnyMCPServerConfig
+	) {
 		return <Navigate to="/ai/settings/mcp-servers" replace />;
 	}
 

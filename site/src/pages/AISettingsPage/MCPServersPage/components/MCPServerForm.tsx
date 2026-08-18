@@ -77,8 +77,12 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					buildUpdateMCPServerConfigRequest(values),
 				);
 			} else if (onCreateServer) {
-				await onCreateServer(buildCreateMCPServerConfigRequest(values));
-				form.resetForm();
+				const created = await onCreateServer(
+					buildCreateMCPServerConfigRequest(values),
+				);
+				if (created === true) {
+					form.resetForm();
+				}
 			}
 		},
 	});

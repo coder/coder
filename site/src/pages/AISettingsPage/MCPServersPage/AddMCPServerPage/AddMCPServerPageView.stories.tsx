@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
 import AddMCPServerPageView from "./AddMCPServerPageView";
 
@@ -18,8 +17,7 @@ const meta: Meta<typeof AddMCPServerPageView> = {
 		organization: MockDefaultOrganization,
 		onSelectOrganization: fn(),
 		onCreateServer: fn(
-			async (req: TypesGen.CreateMCPServerConfigRequest) =>
-				({ ...MockMCPServerConfig, ...req }) as TypesGen.MCPServerConfig,
+			async (_req: TypesGen.CreateMCPServerConfigRequest) => true,
 		),
 		onCancel: fn(),
 	},

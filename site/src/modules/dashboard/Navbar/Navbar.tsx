@@ -31,7 +31,9 @@ export const Navbar: React.FC = () => {
 		permissions.viewAIGatewayKeys ||
 		permissions.editDeploymentConfig ||
 		permissions.viewAnyMCPServerConfigs ||
-		permissions.createAnyMCPServerConfig;
+		permissions.createAnyMCPServerConfig ||
+		permissions.updateAnyMCPServerConfig ||
+		permissions.deleteAnyMCPServerConfig;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();

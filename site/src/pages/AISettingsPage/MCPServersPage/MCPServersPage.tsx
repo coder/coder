@@ -24,11 +24,15 @@ const MCPServersPage: FC = () => {
 	});
 	const authorizedOrganizations = permissions.editDeploymentConfig
 		? organizations
-		: organizations.filter(
-				(organization) =>
-					organizationPermissionsQuery.data?.[organization.id]
-						.viewMCPServerConfigs,
-			);
+		: organizations.filter((organization) => {
+				const organizationPermissions =
+					organizationPermissionsQuery.data?.[organization.id];
+				return Boolean(
+					organizationPermissions?.viewMCPServerConfigs ||
+						organizationPermissions?.updateMCPServerConfig ||
+						organizationPermissions?.deleteMCPServerConfig,
+				);
+			});
 	const organization =
 		authorizedOrganizations.length > 0
 			? selectOrganization(
@@ -41,7 +45,11 @@ const MCPServersPage: FC = () => {
 		: undefined;
 	const canView =
 		permissions.editDeploymentConfig ||
-		Boolean(organizationPermissions?.viewMCPServerConfigs);
+		Boolean(
+			organizationPermissions?.viewMCPServerConfigs ||
+				organizationPermissions?.updateMCPServerConfig ||
+				organizationPermissions?.deleteMCPServerConfig,
+		);
 	const canCreate =
 		permissions.editDeploymentConfig ||
 		Boolean(organizationPermissions?.createMCPServerConfig);
@@ -62,7 +70,10 @@ const MCPServersPage: FC = () => {
 	return (
 		<RequirePermission
 			isFeatureVisible={
-				permissions.editDeploymentConfig || permissions.viewAnyMCPServerConfigs
+				permissions.editDeploymentConfig ||
+				permissions.viewAnyMCPServerConfigs ||
+				permissions.updateAnyMCPServerConfig ||
+				permissions.deleteAnyMCPServerConfig
 			}
 		>
 			<title>{pageTitle("MCP servers", "AI Settings")}</title>
