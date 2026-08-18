@@ -1190,7 +1190,7 @@ func executeTools(
 			settled = append(settled, results[i])
 		}
 	}
-	notifyStepToolResultObservers(toolMap, toolNameAliases, localToolCalls, settled)
+	notifyStepToolResultObservers(toolMap, toolNameAliases, localToolCalls, observed, settled)
 
 	for _, i := range serialIndexes {
 		runCall(i, localToolCalls[i])
@@ -1548,19 +1548,33 @@ type stepToolResultObserver interface {
 // notifyStepToolResultObservers passes the settled sibling outcomes to
 // each distinct called tool that observes them. Serial calls have not
 // run yet, so their own outcomes are absent; observers only need the
-// concurrent siblings they share state with.
-func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
+// concurrent siblings they share state with. Observed calls missing
+// from the executed batch were rejected before execution (for example
+// malformed JSON partitioned into synthetic denials) and settle as
+// errored, since their persisted results always carry IsError.
+func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls, observed []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
+	resolve := func(name string) string {
+		if alias, ok := toolNameAliases[name]; ok {
+			return alias
+		}
+		return name
+	}
 	succeeded := make([]string, 0, len(settled))
 	errored := make([]string, 0, len(settled))
 	for _, tr := range settled {
-		name := tr.ToolName
-		if alias, ok := toolNameAliases[name]; ok {
-			name = alias
-		}
 		if _, isErr := tr.Result.(fantasy.ToolResultOutputContentError); isErr {
-			errored = append(errored, name)
+			errored = append(errored, resolve(tr.ToolName))
 		} else {
-			succeeded = append(succeeded, name)
+			succeeded = append(succeeded, resolve(tr.ToolName))
+		}
+	}
+	executedIDs := make(map[string]struct{}, len(calls))
+	for _, tc := range calls {
+		executedIDs[tc.ToolCallID] = struct{}{}
+	}
+	for _, tc := range observed {
+		if _, ok := executedIDs[tc.ToolCallID]; !ok {
+			errored = append(errored, resolve(tc.ToolName))
 		}
 	}
 	notified := make(map[string]struct{}, len(calls))

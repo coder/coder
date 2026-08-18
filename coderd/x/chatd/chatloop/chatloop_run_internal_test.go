@@ -6,6 +6,7 @@ import (
 	"errors"
 	"iter"
 	"runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -996,6 +997,11 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		},
 	)
 
+	executed := []fantasy.ToolCallContent{
+		{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+		{ToolCallID: "2", ToolName: "failing_tool", Input: "{}"},
+		{ToolCallID: "3", ToolName: "missing_tool", Input: "{}"},
+	}
 	executeTools(
 		context.Background(),
 		quartz.NewReal(),
@@ -1003,12 +1009,10 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		[]fantasy.ToolCallContent{
-			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
-			{ToolCallID: "2", ToolName: "failing_tool", Input: "{}"},
-			{ToolCallID: "3", ToolName: "missing_tool", Input: "{}"},
-		},
-		nil,
+		executed,
+		append(slices.Clone(executed), fantasy.ToolCallContent{
+			ToolCallID: "4", ToolName: "rejected_tool", Input: "{not json",
+		}),
 		NewMetrics(prometheus.NewRegistry()),
 		slog.Make(),
 		"fake", "fake-model",
@@ -1020,8 +1024,8 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 
 	require.Equal(t, 1, notifications, "each called observer is notified once per step")
 	require.Equal(t, []string{"observer_tool"}, gotSucceeded)
-	require.Equal(t, []string{"failing_tool", "missing_tool"}, gotErrored,
-		"error results and unresolvable tools both settle as errored outcomes")
+	require.Equal(t, []string{"failing_tool", "missing_tool", "rejected_tool"}, gotErrored,
+		"error results, unresolvable tools, and observed calls rejected before execution all settle as errored outcomes")
 }
 
 type serialResultObserverTool struct {

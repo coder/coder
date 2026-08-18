@@ -144,10 +144,10 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	// Derivation admits errored direct calls only with leftover budget,
 	// so their pre-execution reservation is refunded once the step's
 	// concurrent siblings settle, before this step's searches run.
-	// Names that ever executed successfully keep their reservation:
-	// derivation admits them at full priority. Hook-denied calls never
-	// produce step results here and stay charged, which only
-	// under-claims.
+	// Calls rejected before execution settle as errored too, so their
+	// reservations refund the same way. Names that ever executed
+	// successfully keep their reservation: derivation admits them at
+	// full priority.
 	settle := func(succeeded, errored []string) {
 		if options.SchemaTokenBudget <= 0 {
 			return
