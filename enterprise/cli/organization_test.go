@@ -359,7 +359,7 @@ func TestEditOrganization(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, before["create"], "member should start with workspace access")
 
-		inv, root := clitest.New(t, "organizations", "edit", "-y", "--clear-default-org-member-roles")
+		inv, root := clitest.New(t, "organizations", "edit", "-y", "--default-org-member-roles", "")
 		//nolint:gocritic // only owners can update orgs
 		clitest.SetupConfig(t, client, root)
 		buf := new(bytes.Buffer)
@@ -414,7 +414,7 @@ func TestEditOrganization(t *testing.T) {
 
 		client, first := setup(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "organizations", "edit", "--clear-default-org-member-roles")
+		inv, root := clitest.New(t, "organizations", "edit", "--default-org-member-roles", "")
 		//nolint:gocritic // only owners can update orgs
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -455,6 +455,29 @@ func TestEditOrganization(t *testing.T) {
 		require.Equal(t, roles, org.DefaultOrgMemberRoles)
 	})
 
+	t.Run("EmptyValueDiscardsEarlierRoles", func(t *testing.T) {
+		t.Parallel()
+
+		client, first := setup(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		// serpent resets the slice on an empty value, so the earlier role
+		// is discarded and the list ends up empty.
+		inv, root := clitest.New(t, "organizations", "edit", "-y",
+			"--default-org-member-roles", codersdk.RoleOrganizationAuditor,
+			"--default-org-member-roles", "")
+		//nolint:gocritic // only owners can update orgs
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = new(bytes.Buffer)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		//nolint:gocritic // only owners can read all orgs
+		org, err := client.Organization(ctx, first.OrganizationID)
+		require.NoError(t, err)
+		require.Empty(t, org.DefaultOrgMemberRoles)
+	})
+
 	t.Run("InvalidFlags", func(t *testing.T) {
 		t.Parallel()
 
@@ -467,23 +490,6 @@ func TestEditOrganization(t *testing.T) {
 				name:          "NoFlags",
 				args:          []string{},
 				errorContains: "no changes requested",
-			},
-			{
-				name:          "MutuallyExclusive",
-				args:          []string{"--default-org-member-roles", codersdk.RoleOrganizationAuditor, "--clear-default-org-member-roles"},
-				errorContains: "mutually exclusive",
-			},
-			{
-				// serpent resets the slice on an empty value, so this
-				// discards the earlier role instead of appending.
-				name:          "EmptyValueDiscardsEarlierRoles",
-				args:          []string{"--default-org-member-roles", codersdk.RoleOrganizationAuditor, "--default-org-member-roles", ""},
-				errorContains: "requires at least one role",
-			},
-			{
-				name:          "EmptyValueAlone",
-				args:          []string{"--default-org-member-roles", ""},
-				errorContains: "requires at least one role",
 			},
 			{
 				name:          "EmptyRoleName",

@@ -60,16 +60,10 @@ func (r *RootCmd) createOrganization() *serpent.Command {
 	return cmd
 }
 
-const (
-	defaultOrgMemberRolesFlag      = "default-org-member-roles"
-	clearDefaultOrgMemberRolesFlag = "clear-default-org-member-roles"
-)
+const defaultOrgMemberRolesFlag = "default-org-member-roles"
 
 func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Command {
-	var (
-		defaultOrgMemberRoles []string
-		clearDefaultRoles     bool
-	)
+	var defaultOrgMemberRoles []string
 	cmd := &serpent.Command{
 		Use:   "edit",
 		Short: "Edit organization settings.",
@@ -80,7 +74,7 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 			},
 			Example{
 				Description: "Grant members no roles at all",
-				Command:     "coder organizations edit --clear-default-org-member-roles",
+				Command:     `coder organizations edit --default-org-member-roles ""`,
 			},
 		),
 		Middleware: serpent.Chain(
@@ -92,35 +86,20 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 				Flag: defaultOrgMemberRolesFlag,
 				Description: "Replaces the roles every member of the organization holds. " +
 					"Accepts a comma-separated list and may be repeated. " +
+					"An empty value removes every role. " +
 					"New organizations start with organization-workspace-access, which grants members access to their own workspaces.",
 				Value: serpent.StringArrayOf(&defaultOrgMemberRoles),
-			},
-			{
-				Name:        clearDefaultOrgMemberRolesFlag,
-				Flag:        clearDefaultOrgMemberRolesFlag,
-				Description: "Remove every default member role, leaving members with no organization roles.",
-				Value:       serpent.BoolOf(&clearDefaultRoles),
 			},
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
-			var err error
-			rolesChanged := inv.ParsedFlags().Changed(defaultOrgMemberRolesFlag)
-			if !rolesChanged && !clearDefaultRoles {
-				return xerrors.Errorf("no changes requested; pass --%s or --%s",
-					defaultOrgMemberRolesFlag, clearDefaultOrgMemberRolesFlag)
-			}
-			if rolesChanged && clearDefaultRoles {
-				return xerrors.Errorf("--%s and --%s are mutually exclusive",
-					defaultOrgMemberRolesFlag, clearDefaultOrgMemberRolesFlag)
+			if !inv.ParsedFlags().Changed(defaultOrgMemberRolesFlag) {
+				return xerrors.Errorf("no changes requested; pass --%s", defaultOrgMemberRolesFlag)
 			}
 
-			roles := []string{}
-			if rolesChanged {
-				roles, err = parseDefaultOrgMemberRoles(defaultOrgMemberRoles)
-				if err != nil {
-					return err
-				}
+			roles, err := parseDefaultOrgMemberRoles(defaultOrgMemberRoles)
+			if err != nil {
+				return err
 			}
 
 			client, err := r.InitClient(inv)
@@ -169,17 +148,12 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 }
 
 // parseDefaultOrgMemberRoles trims and de-duplicates the flag values,
-// preserving the order they were given in. The returned slice is always
-// allocated so the request carries [] rather than null, which the server
-// reads as "unspecified".
+// preserving the order they were given in. An empty set of values means
+// "no roles": serpent resets the slice to nil when any flag value is
+// empty, so `--flag a --flag ""` also lands here. The returned slice is
+// always allocated so the request carries [] rather than null, which the
+// server reads as "unspecified".
 func parseDefaultOrgMemberRoles(values []string) ([]string, error) {
-	// serpent resets the slice to nil when a flag value is empty, so an
-	// empty result cannot be distinguished from an earlier value having
-	// been discarded.
-	if len(values) == 0 {
-		return nil, xerrors.Errorf("--%s requires at least one role; use --%s to remove them all",
-			defaultOrgMemberRolesFlag, clearDefaultOrgMemberRolesFlag)
-	}
 	roles := make([]string, 0, len(values))
 	for _, role := range values {
 		role = strings.TrimSpace(role)

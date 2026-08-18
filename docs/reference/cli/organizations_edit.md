@@ -23,7 +23,7 @@ coder organizations edit [flags]
 
   - Grant members no roles at all:
 
-     $ coder organizations edit --clear-default-org-member-roles
+     $ coder organizations edit --default-org-member-roles ""
 ```
 
 ## Options
@@ -34,15 +34,7 @@ coder organizations edit [flags]
 |------|---------------------------|
 | Type | <code>string-array</code> |
 
-Replaces the roles every member of the organization holds. Accepts a comma-separated list and may be repeated. New organizations start with organization-workspace-access, which grants members access to their own workspaces.
-
-### --clear-default-org-member-roles
-
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
-
-Remove every default member role, leaving members with no organization roles.
+Replaces the roles every member of the organization holds. Accepts a comma-separated list and may be repeated. An empty value removes every role. New organizations start with organization-workspace-access, which grants members access to their own workspaces.
 
 ### -y, --yes
 
