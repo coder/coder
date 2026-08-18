@@ -37,7 +37,7 @@ It is measured per interaction step and summed across the duration of a conversa
 Agent Time does not accrue when a conversation is inactive or awaiting user input.
 Agent Time is measured with millisecond precision and is rounded down to the nearest minute for billing purposes.
 
-## Reaching concurrency and usage limits
+## Concurrency and usage limits
 
 ### Community concurrency limit
 
