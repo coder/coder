@@ -5,9 +5,11 @@ package confine
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -165,9 +167,16 @@ func embeddedAgentCommand(agentURL, agentToken, sessionToken string) string {
 	if sessionToken != "" {
 		environment += " CODER_SESSION_TOKEN=" + shellQuote(sessionToken)
 	}
+	// Guest exec sessions do not inherit init's environment, so the
+	// reserved proxy and CA variables must be applied explicitly or the
+	// agent dials directly and the VM firewall silently drops the traffic.
+	proxyEnv := hostvm.GuestProxyEnv()
+	for _, key := range slices.Sorted(maps.Keys(proxyEnv)) {
+		environment += " " + key + "=" + shellQuote(proxyEnv[key])
+	}
 	command := environment + " exec " + embeddedCoderGuestPath + " agent"
 	return "setsid sh -c " + shellQuote(command) +
-		" </dev/null >/tmp/coder-agent.log 2>&1 &"
+		" </dev/null >" + embeddedAgentLogPath + " 2>&1 &"
 }
 
 func shellQuote(value string) string {

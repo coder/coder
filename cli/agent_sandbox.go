@@ -35,6 +35,7 @@ const (
 )
 
 type agentSandboxInstance interface {
+	AgentLog(context.Context) (string, error)
 	Close(context.Context) error
 }
 
@@ -176,6 +177,24 @@ func agentSandboxWithDeps(agentAuth *AgentAuth, deps agentSandboxDeps) *serpent.
 			if err != nil {
 				return xerrors.Errorf("boot agent sandbox microVM: %w", err)
 			}
+
+			// The guest agent detaches before it can fail, so surface its
+			// first output in the host log where operators can see it.
+			go func() {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+				}
+				logCtx, logCancel := context.WithTimeout(ctx, 30*time.Second)
+				defer logCancel()
+				guestLog, logErr := sandbox.AgentLog(logCtx)
+				if logErr != nil {
+					logger.Warn(logCtx, "read guest agent log", slog.Error(logErr))
+					return
+				}
+				logger.Info(logCtx, "guest agent log tail", slog.F("log", strings.TrimSpace(guestLog)))
+			}()
 
 			<-ctx.Done()
 			logger.Info(context.Background(), "shutting down agent sandbox microVM")

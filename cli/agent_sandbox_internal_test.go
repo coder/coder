@@ -42,6 +42,10 @@ type agentSandboxTestInstance struct {
 	closed bool
 }
 
+func (*agentSandboxTestInstance) AgentLog(context.Context) (string, error) {
+	return "", nil
+}
+
 func (s *agentSandboxTestInstance) Close(context.Context) error {
 	s.closed = true
 	return nil
