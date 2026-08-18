@@ -10686,6 +10686,67 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		requireChatdMetricCounter(t, reg, "coderd_chatd_find_tools_calls_total", 1, nil)
 	})
 
+	t.Run("admission-failed find_tools calls count toward call totals", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mcpSrv := newTestMCPServer("failing-mcp")
+		addTestMCPTextTool(mcpSrv, "echo", "Echo input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(chattool.FindToolsName, `{"queries":["echo"]}`),
+			)
+		})
+		// A pre_tool_use dispatch failure errors admission before the
+		// step commits, so the call never reaches executeLocalTools.
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var request agenthooks.Request
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			if request.Type != agenthooks.EventPreToolUse {
+				_, err := w.Write([]byte(`{}`))
+				require.NoError(t, err)
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(consumer.Close)
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			DisplayName: "Failing MCP",
+			Slug:        "failing-mcp",
+			Url:         mcpTS.URL,
+			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		reg := prometheus.NewRegistry()
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+			cfg.PrometheusRegistry = reg
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "count admission-failed find_tools",
+			ModelConfigID:  model.ID,
+			MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("search"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+
+		requireChatdMetricCounter(t, reg, "coderd_chatd_find_tools_calls_total", 1, nil)
+	})
+
 	t.Run("experiment gates deferral regardless of catalog size", func(t *testing.T) {
 		t.Parallel()
 

@@ -783,17 +783,33 @@ func (s *taskStarter) admitStepToolCalls(
 	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
 		return chathooks.PreToolUseExecutionResult{}, nil
 	}
+	// An admission error discards the whole batch before it can be
+	// committed, so its find_tools calls would otherwise never reach
+	// the executeLocalTools counter; count them at each error exit.
+	countBatch := func() {
+		if !prepared.BuiltinToolNames[chattool.FindToolsName] {
+			return
+		}
+		for _, toolCall := range toolCalls {
+			if toolCall.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
+	}
 	// Check the full batch first: a call removed below still occupies its ID
 	// in the step, so filtering before this would hide the collision.
 	if err := chathooks.RejectDuplicateToolUseIDs(toolCalls); err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	unambiguous, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
 	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
 	if err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	if err := validateOverriddenToolInputs(prepared, preflight); err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	preflight.Denied = append(preflight.Denied, ambiguous...)
