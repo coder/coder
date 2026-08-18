@@ -2395,16 +2395,12 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Callers are authorized to read this workspace, not necessarily the
-	// users and groups on its ACL. "Read this workspace's ACL" and the global
-	// user-read RBAC permission are separate, so we look the ACL entries up
-	// under the System context. This is scoped: we only ever resolve the user
-	// IDs already present on this workspace's ACL (people it is already shared
-	// with), returning MinimalUser identity (id, username, name, email, avatar)
-	// for ACL users and group identity plus a member count for ACL groups (no
-	// member roster). Email is included so callers can disambiguate members who
-	// share a display name. This mirrors the chat ACL and template
-	// available-ACL endpoints.
+	// The caller can read this workspace's ACL but may lack global user-read,
+	// so we resolve ACL entries under the System context. This stays scoped: we
+	// only look up IDs already on the ACL, returning MinimalUser identity
+	// (including email, to disambiguate matching display names) for users, and
+	// group identity plus a member count (no roster) for groups. Mirrors the
+	// chat ACL and template available-ACL endpoints.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
