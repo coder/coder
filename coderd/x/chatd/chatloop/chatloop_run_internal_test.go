@@ -937,6 +937,11 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
 			{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
 		},
+		[]fantasy.ToolCallContent{
+			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+			{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
+			{ToolCallID: "3", ToolName: "denied_tool", Input: "{}"},
+		},
 		NewMetrics(prometheus.NewRegistry()),
 		slog.Make(),
 		"fake", "fake-model",
@@ -946,8 +951,8 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		nil,
 	)
 
-	require.Equal(t, []string{"observer_tool", "other_tool"}, observedNames,
-		"a called observer sees every resolved tool-call name in the step")
+	require.Equal(t, []string{"observer_tool", "other_tool", "denied_tool"}, observedNames,
+		"a called observer sees every observed tool-call name, including calls denied before execution")
 	require.True(t, observedBeforeRun, "observers are notified before any tool call executes")
 	require.False(t, uncalledObserved.Load(), "tools not called this step are not notified")
 }
@@ -1002,6 +1007,7 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 		nil,
 		nil,
 		calls,
+		nil,
 		NewMetrics(prometheus.NewRegistry()),
 		slog.Make(),
 		"fake", "fake-model",

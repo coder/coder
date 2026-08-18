@@ -243,6 +243,11 @@ type ExecuteLocalToolsOptions struct {
 	AllowInactiveTools map[string]bool
 	ProviderTools      []ProviderTool
 	ToolCalls          []fantasy.ToolCallContent
+	// ObservedToolCalls optionally carries the step's full assistant
+	// tool-call batch, including calls denied before execution, so
+	// step observers account for denied siblings that derivation will
+	// still count. Defaults to ToolCalls.
+	ObservedToolCalls []fantasy.ToolCallContent
 
 	ExclusiveToolNames map[string]bool
 	BuiltinToolNames   map[string]bool
@@ -598,6 +603,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		opts.AllowInactiveTools,
 		opts.ProviderTools,
 		localCalls,
+		opts.ObservedToolCalls,
 		opts.Metrics,
 		opts.Logger,
 		provider,
@@ -1062,6 +1068,7 @@ func executeTools(
 	allowInactiveTools map[string]bool,
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
+	observedToolCalls []fantasy.ToolCallContent,
 	metrics *Metrics,
 	logger slog.Logger,
 	provider, model string,
@@ -1112,7 +1119,11 @@ func executeTools(
 		}
 	}
 
-	notifyStepToolCallObservers(toolMap, toolNameAliases, localToolCalls)
+	observed := observedToolCalls
+	if observed == nil {
+		observed = localToolCalls
+	}
+	notifyStepToolCallObservers(toolMap, toolNameAliases, observed)
 
 	results := make([]fantasy.ToolResultContent, len(localToolCalls))
 	completedAt := make([]time.Time, len(localToolCalls))
