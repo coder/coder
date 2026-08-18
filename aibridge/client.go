@@ -59,7 +59,7 @@ func GuessClient(r *http.Request) Client {
 		return ClientCursor
 	case strings.HasPrefix(userAgent, "opencode/"):
 		return ClientOpenCode
-	case strings.HasPrefix(userAgent, "junie:") || strings.HasPrefix(userAgent, "junie/"):
+	case strings.HasPrefix(userAgent, "junie:"):
 		return ClientJunie
 	}
 	return ClientUnknown

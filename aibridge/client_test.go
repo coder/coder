@@ -110,11 +110,6 @@ func TestGuessClient(t *testing.T) {
 			wantClient: aibridge.ClientJunie,
 		},
 		{
-			name:       "junie_cli_versioned",
-			userAgent:  "Junie/2651.6",
-			wantClient: aibridge.ClientJunie,
-		},
-		{
 			name:       "unknown_client",
 			userAgent:  "ccclaude-cli/calude-with-wrong-prefix",
 			wantClient: aibridge.ClientUnknown,
