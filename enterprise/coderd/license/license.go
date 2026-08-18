@@ -238,6 +238,16 @@ func resolveUsagePublishingEnabledSince(ctx context.Context, db database.Store, 
 	} else if !xerrors.Is(err, sql.ErrNoRows) {
 		return time.Time{}, xerrors.Errorf("get usage publishing enabled-since marker: %w", err)
 	}
+	if !now.After(marker.LastSeen) {
+		// A refresh that stalled after capturing now can otherwise move
+		// last_seen backward past what a concurrent replica already
+		// recorded, making the next refresh misread the marker as stale and
+		// spuriously reset the enabled period. Keep last_seen monotonic by
+		// skipping the write; the read above happens just before this
+		// check, so the remaining read-to-write race is far smaller than
+		// the staleness window.
+		return marker.EnabledSince, nil
+	}
 	if marker.EnabledSince.IsZero() || now.Sub(marker.LastSeen) > usagePublishingEnabledMarkerStaleAfter {
 		marker.EnabledSince = now
 	}

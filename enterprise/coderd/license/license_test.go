@@ -4101,6 +4101,41 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
 	})
 
+	t.Run("StaleRefreshDoesNotMoveMarkerBackward", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// Simulate a concurrent replica having just stamped a fresher
+		// observation: last_seen ahead of this refresh's now. The stalled
+		// refresh must not move it backward or reset enabled_since.
+		enabledSince := time.Now().Add(-90 * 24 * time.Hour).UTC()
+		lastSeen := time.Now().Add(time.Hour).UTC()
+		marker, err := json.Marshal(map[string]time.Time{
+			"enabled_since": enabledSince,
+			"last_seen":     lastSeen,
+		})
+		require.NoError(t, err)
+		//nolint:gocritic // Unit test.
+		err = db.UpsertRuntimeConfig(dbauthz.AsSystemRestricted(ctx), database.UpsertRuntimeConfigParams{
+			Key:   license.UsagePublishingEnabledSinceKey,
+			Value: string(marker),
+		})
+		require.NoError(t, err)
+
+		_, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+
+		//nolint:gocritic // Unit test.
+		raw, err := db.GetRuntimeConfig(dbauthz.AsSystemRestricted(ctx), license.UsagePublishingEnabledSinceKey)
+		require.NoError(t, err)
+		var got map[string]time.Time
+		require.NoError(t, json.Unmarshal([]byte(raw), &got))
+		require.True(t, got["enabled_since"].Equal(enabledSince), "enabled_since must be unchanged")
+		require.True(t, got["last_seen"].Equal(lastSeen), "last_seen must not move backward")
+	})
+
 	t.Run("NoLicenseNeverWarns", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
