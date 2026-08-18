@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -66,7 +67,7 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if m != nil {
-			m.PassthroughCount.WithLabelValues(prov.Name(), r.URL.Path, r.Method).Add(1)
+			m.PassthroughCount.WithLabelValues(prov.Name(), passthroughRoute(prov, r), r.Method).Add(1)
 		}
 
 		ctx, span := startSpan(r, tracer)
@@ -74,6 +75,16 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 
 		proxy.ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+// passthroughRoute returns the registered route the request matched, for the
+// "route" metric label. Most PassthroughRoutes are ServeMux subtree patterns
+// (e.g. "/models/"), so r.URL.Path is unbounded but the pattern is not.
+func passthroughRoute(prov provider.Provider, r *http.Request) string {
+	if r.Pattern == "" {
+		return "unknown"
+	}
+	return strings.TrimPrefix(r.Pattern, prov.RoutePrefix())
 }
 
 // rewritePassthroughRequest configures the outbound request for the upstream and
@@ -107,7 +118,7 @@ func newInvalidBaseURLHandler(prov provider.Provider, logger slog.Logger, m *met
 		defer span.End()
 
 		if m != nil {
-			m.PassthroughCount.WithLabelValues(prov.Name(), r.URL.Path, r.Method).Add(1)
+			m.PassthroughCount.WithLabelValues(prov.Name(), passthroughRoute(prov, r), r.Method).Add(1)
 		}
 
 		logger.Warn(ctx, "invalid provider base URL", slog.Error(baseURLErr))

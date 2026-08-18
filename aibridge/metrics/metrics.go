@@ -77,7 +77,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		}, baseLabels),
 
 		// Pessimistic cardinality: 3 providers, 10 routes, 3 methods = up to 90.
-		// NOTE: route is not unbounded because PassthroughRoutes (see provider.go) is a static list.
+		// NOTE: route is the matched ServeMux pattern, not the request path, so it is
+		// bounded by the static PassthroughRoutes list (see passthroughRoute).
 		PassthroughCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "passthrough",
 			Name:      "total",

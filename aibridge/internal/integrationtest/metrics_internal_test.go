@@ -249,6 +249,37 @@ func TestMetrics_PassthroughCount(t *testing.T) {
 	require.Equal(t, 1.0, count)
 }
 
+// "/models/" is registered as a ServeMux subtree pattern, so every path beneath
+// it reaches the passthrough handler. The route label must be the matched
+// pattern, not the request path, or each distinct URL gets its own series.
+func TestMetrics_PassthroughCountBoundedBySubtreeRoute(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	t.Cleanup(upstream.Close)
+
+	m := aibridge.NewMetrics(prometheus.NewRegistry())
+	bridgeServer := newBridgeTestServer(t.Context(), t, upstream.URL,
+		withMetrics(m),
+	)
+
+	for _, path := range []string{
+		"/openai/v1/models/gpt-4.1",
+		"/openai/v1/models/gpt-4o",
+		"/openai/v1/models/anything-a-client-asks-for",
+	} {
+		resp, err := bridgeServer.makeRequest(t, http.MethodGet, path, nil)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	}
+
+	require.Equal(t, 1, promtest.CollectAndCount(m.PassthroughCount),
+		"three paths under one subtree route must share a single series")
+	require.Equal(t, 3.0, promtest.ToFloat64(m.PassthroughCount.WithLabelValues(
+		config.ProviderOpenAI, "/models/", "GET")))
+}
+
 func TestMetrics_PromptCount(t *testing.T) {
 	t.Parallel()
 
