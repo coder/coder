@@ -214,16 +214,20 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up the calling user's OAuth2 tokens so we can populate
-	// auth_connected per server. Attempt to refresh expired tokens
-	// so the status is accurate and the token is ready for use.
-	userTokens, err := api.Database.GetMCPServerUserTokensByUserID(ctx, apiKey.UserID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get user tokens.",
-			Detail:  err.Error(),
-		})
-		return
+	// Read and refresh OAuth2 tokens only when the caller may view them.
+	// Without that permission, auth_connected remains false.
+	var userTokens []database.MCPServerUserToken
+	tokenReadErr := api.HTTPAuth.Authorizer.Authorize(ctx, httpmw.UserAuthorization(ctx),
+		policy.ActionReadPersonal, rbac.ResourceUserObject(apiKey.UserID).RBACObject())
+	if tokenReadErr == nil {
+		userTokens, err = api.Database.GetMCPServerUserTokensByUserID(ctx, apiKey.UserID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get user tokens.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	// Build a config lookup for the refresh helper.
@@ -1056,6 +1060,12 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Do not start an authorization flow when its grant cannot be persisted.
+	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceUserObject(httpmw.APIKey(r).UserID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	// Build the authorization URL. The frontend opens this in a popup.
 	// The callback URL is on our server; after the exchange we store
 	// the token and close the popup.
@@ -1126,6 +1136,14 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+
+	// Authorization codes are one-time credentials. Do not consume one when
+	// the resulting token cannot be persisted.
+	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceUserObject(apiKey.UserID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	config, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
@@ -1329,13 +1347,19 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceUserObject(apiKey.UserID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	var (
 		config database.MCPServerConfig
 		token  database.MCPServerUserToken
 	)
 	// Serializable isolation keeps the revoked token aligned with the row deleted locally.
 	err := api.Database.InTx(func(tx database.Store) error {
-		dbToken, err := tx.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+		//nolint:gocritic // Update permission permits this revocation read.
+		dbToken, err := tx.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
 			MCPServerConfigID: configID,
 			UserID:            apiKey.UserID,
 		})

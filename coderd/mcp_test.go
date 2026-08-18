@@ -751,6 +751,11 @@ func TestMCPServerConfigScopedKeyWithoutPersonalTokenRead(t *testing.T) {
 	scopedClient := codersdk.New(adminClient.URL)
 	scopedClient.SetSessionToken(token)
 
+	configs, err := scopedClient.MCPServerConfigs(ctx, created.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.False(t, configs[0].AuthConnected)
+
 	config, err := scopedClient.MCPServerConfigByID(ctx, created.OrganizationID, created.ID)
 	require.NoError(t, err)
 	require.False(t, config.AuthConnected)
@@ -1485,6 +1490,96 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 	})
 }
 
+func TestMCPServerConfigsOAuth2ScopedKeyAuthorization(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var exchangeRequests atomic.Int64
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		exchangeRequests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"scoped-access-token","token_type":"Bearer"}`))
+	}))
+	t.Cleanup(tokenServer.Close)
+
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:    "OAuth Scoped Key",
+		Slug:           "oauth-scoped-key",
+		Transport:      "streamable_http",
+		URL:            "https://mcp.example.com/oauth-scoped-key",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "cid",
+		OAuth2AuthURL:  "https://auth.example.com/authorize",
+		OAuth2TokenURL: tokenServer.URL,
+		Availability:   "default_on",
+		Enabled:        true,
+		ToolAllowList:  []string{},
+		ToolDenyList:   []string{},
+	})
+	require.NoError(t, err)
+
+	_, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID: firstUser.UserID,
+		Scopes: database.APIKeyScopes{
+			database.ApiKeyScopeMcpServerConfigRead,
+			database.ApiKeyScopeOrganizationRead,
+			database.ApiKeyScopeUserReadPersonal,
+		},
+	})
+	scopedClient := codersdk.New(adminClient.URL)
+	scopedClient.SetSessionToken(token)
+	scopedClient.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	t.Run("ConnectRequiresPersonalTokenUpdate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		connectURL := scopedClient.MCPServerOAuth2ConnectURL(created.OrganizationID, created.ID)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, connectURL, nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: scopedClient.SessionToken()})
+
+		res, err := scopedClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusForbidden, res.StatusCode)
+	})
+
+	t.Run("CallbackRequiresPersonalTokenUpdateBeforeExchange", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		state := "scoped-key-state"
+		callbackURL, err := scopedClient.URL.Parse(
+			"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback",
+		)
+		require.NoError(t, err)
+		query := callbackURL.Query()
+		query.Set("code", "one-time-code")
+		query.Set("state", state)
+		callbackURL.RawQuery = query.Encode()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, callbackURL.String(), nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: scopedClient.SessionToken()})
+		req.AddCookie(&http.Cookie{Name: "mcp_oauth2_state_" + created.ID.String(), Value: state})
+
+		res, err := scopedClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusForbidden, res.StatusCode)
+		require.Zero(t, exchangeRequests.Load())
+	})
+}
+
 func TestMCPServerConfigsOAuth2CallbackRejectsSupersededConfig(t *testing.T) {
 	t.Parallel()
 
@@ -1811,6 +1906,27 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "refresh-token", row.RefreshToken)
+	})
+
+	t.Run("ScopedKeyWithPersonalTokenUpdateOnly", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClient, memberID, db, configID := newDisconnectFixture(t, "disc-update-only", "")
+		seedToken(t, db, configID, memberID)
+
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: memberID,
+			Scopes: database.APIKeyScopes{
+				database.ApiKeyScopeUserUpdatePersonal,
+			},
+		})
+		scopedClient := codersdk.New(memberClient.URL)
+		scopedClient.SetSessionToken(token)
+
+		_, err := scopedClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
+		require.NoError(t, err)
+		requireTokenDeleted(t, db, configID, memberID)
 	})
 
 	t.Run("NoToken", func(t *testing.T) {
