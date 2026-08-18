@@ -90,6 +90,7 @@ const (
 	SubjectTypeAIProviderMetadataReader     SubjectType = "ai_provider_metadata_reader"
 	SubjectTypeSCIMProvisioner              SubjectType = "scim_provisioner"
 	SubjectTypeExternalAuthCoordinator      SubjectType = "external_auth_coordinator"
+	SubjectTypeMCPGatewayTokenBroker        SubjectType = "mcp_gateway_token_broker" // #nosec G101, not a credential.
 )
 
 const (
