@@ -278,13 +278,6 @@ interface ChatPageInputProps {
 		hasFileReferences: boolean,
 	) => void;
 	isEditing: boolean;
-	editingQueuedMessageID: number | null;
-	onStartQueueEdit: (
-		id: number,
-		text: string,
-		fileBlocks: readonly TypesGen.ChatMessagePart[],
-	) => void;
-	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
 	// File parts from the message being edited, converted to
@@ -348,9 +341,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	remountKey,
 	onContentChange,
 	isEditing,
-	editingQueuedMessageID,
-	onStartQueueEdit,
-	onCancelQueueEdit,
 	isEditingHistoryMessage,
 	onCancelHistoryEdit,
 	editingFileBlocks,
@@ -576,9 +566,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
-			editingQueuedMessageID={editingQueuedMessageID}
-			onStartQueueEdit={onStartQueueEdit}
-			onCancelQueueEdit={onCancelQueueEdit}
 			isEditingHistoryMessage={isEditingHistoryMessage}
 			onCancelHistoryEdit={onCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}

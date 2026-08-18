@@ -69,9 +69,6 @@ const StoryChatPageInput: FC<{
 			modelSelectorPlaceholder="Select model"
 			canConfigureAgentSetup={false}
 			isEditing={false}
-			editingQueuedMessageID={null}
-			onStartQueueEdit={fn()}
-			onCancelQueueEdit={fn()}
 			isEditingHistoryMessage={false}
 			onCancelHistoryEdit={fn()}
 			workspaceOptions={[]}

@@ -143,46 +143,20 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
-// Clicking Edit on a message with attachments passes file blocks to onEdit.
-export const EditPassesFileBlocks: Story = {
+// Queued messages retain send and delete actions without exposing edit.
+export const ActionsExcludeEdit: Story = {
 	args: {
-		onEdit: fn(),
-		messages: [
-			buildMessage(1, [
-				{ type: "text", text: "Check this screenshot" },
-				{ type: "file", file_id: "abc-123", media_type: "image/png" },
-			] as ChatQueuedMessage["content"]),
-		],
+		messages: [buildMessage(1, textContent("Run the linter"))],
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const editButton = canvas.getByRole("button", { name: "Edit" });
-		await userEvent.click(editButton);
-		expect(args.onEdit).toHaveBeenCalledWith(1, "Check this screenshot", [
-			{ type: "file", file_id: "abc-123", media_type: "image/png" },
-		]);
-	},
-};
-
-// Clicking Edit on an attachment-only message passes file blocks with empty text.
-export const EditAttachmentOnlyMessage: Story = {
-	args: {
-		onEdit: fn(),
-		messages: [
-			buildMessage(1, [
-				{ type: "file", file_id: "img-1", media_type: "image/png" },
-				{ type: "file", file_id: "img-2", media_type: "image/jpeg" },
-			] as ChatQueuedMessage["content"]),
-		],
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const editButton = canvas.getByRole("button", { name: "Edit" });
-		await userEvent.click(editButton);
-		expect(args.onEdit).toHaveBeenCalledWith(1, "", [
-			{ type: "file", file_id: "img-1", media_type: "image/png" },
-			{ type: "file", file_id: "img-2", media_type: "image/jpeg" },
-		]);
+		expect(canvas.getByRole("button", { name: "Send now" })).toBeVisible();
+		expect(
+			canvas.getByRole("button", { name: "Remove from queue" }),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Edit" }),
+		).not.toBeInTheDocument();
 	},
 };
 

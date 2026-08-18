@@ -96,13 +96,6 @@ interface EditingState {
 		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
 	handleCancelHistoryEdit: () => void;
-	editingQueuedMessageID: number | null;
-	handleStartQueueEdit: (
-		id: number,
-		text: string,
-		fileBlocks: readonly ChatMessagePart[],
-	) => void;
-	handleCancelQueueEdit: () => void;
 	handleSendFromInput: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -824,9 +817,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	});
 
-	const isEditing =
-		editing.editingMessageId !== null ||
-		editing.editingQueuedMessageID !== null;
+	const isEditing = editing.editingMessageId !== null;
 
 	const chatOwnerUsername = chatOwner?.username?.trim();
 	const chatOwnerLabel =
@@ -1011,9 +1002,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								remountKey={editing.remountKey}
 								onContentChange={editing.handleContentChange}
 								isEditing={isEditing}
-								editingQueuedMessageID={editing.editingQueuedMessageID}
-								onStartQueueEdit={editing.handleStartQueueEdit}
-								onCancelQueueEdit={editing.handleCancelQueueEdit}
 								isEditingHistoryMessage={editing.editingMessageId !== null}
 								onCancelHistoryEdit={editing.handleCancelHistoryEdit}
 								editingFileBlocks={editing.editingFileBlocks}
