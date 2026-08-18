@@ -5,9 +5,9 @@
  * directly at call sites.
  *
  * Existing key names and serialized value formats are preserved so
- * upgrading does not lose users' stored preferences. Entity-scoped
- * values additionally gain a last-write envelope (with legacy bare
- * values still readable) so orphans can be expired by the sweep.
+ * upgrading (or rolling back) does not lose users' stored
+ * preferences. Entity-scoped values additionally gain a companion
+ * timestamp key so orphans can be expired by the sweep.
  */
 
 import type {
@@ -323,10 +323,10 @@ const sweepChatDraftAttachments = (raw: string, nowMs: number): SweepAction => {
 
 /**
  * Draft attachment records for a chat, keyed by organization and chat
- * ID (`forId(organizationId, chatId)`). The value keeps its
- * pre-existing record-array format (no envelope) because records carry
- * their own timestamps; domain logic lives in
- * chatDraftAttachmentStorage.ts and works with the raw JSON string.
+ * ID (`forId(organizationId, chatId)`). Records carry their own
+ * timestamps, so the family needs no companion timestamp key; domain
+ * logic lives in chatDraftAttachmentStorage.ts and works with the raw
+ * JSON string.
  */
 export const chatDraftAttachmentsStorage = defineEntityStorageKey<
 	string | null
@@ -336,7 +336,7 @@ export const chatDraftAttachmentsStorage = defineEntityStorageKey<
 	codec: stringCodec,
 	defaultValue: null,
 	ttlMs: draftTtlMs,
-	envelope: false,
+	timestamped: false,
 	entityIdFromSuffix: (suffix) => suffix.split(".").at(-1) ?? suffix,
 	sweepValue: sweepChatDraftAttachments,
 });

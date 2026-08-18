@@ -211,18 +211,70 @@ addEventListener("storage", (event: StorageEvent) => {
 	invalidateAndNotify("local", event.key);
 });
 
-// -- Value envelope for entity-scoped keys ----------------------------------
+// -- Companion timestamps for entity-scoped keys -----------------------------
 
 /**
- * Entity-scoped values are wrapped in a small envelope carrying the
- * last-write time so the sweep can expire orphans whose owning entity
- * was deleted elsewhere. `d` holds the codec-encoded value. Legacy
- * bare values (written before this layer existed) stay readable and
- * get stamped with an envelope by the sweep.
+ * Entity-scoped values keep their legacy raw format so clients from
+ * before and after a deploy can read each other's values. The
+ * last-write time the sweep needs to expire orphans lives in a
+ * companion key under this reserved prefix instead. The companion
+ * also stores a fingerprint of the value bytes, so a value updated by
+ * an old client (which does not touch companions) is detected and
+ * re-stamped rather than expired on a stale timestamp.
  */
-type StoredEnvelope = { v: 1; t: number; d: string };
+const TIMESTAMP_KEY_PREFIX = "coder.storage.timestamps.";
 
-const decodeEnvelope = (raw: string): StoredEnvelope | null => {
+const timestampKeyFor = (key: string): string => TIMESTAMP_KEY_PREFIX + key;
+
+/** FNV-1a 32-bit hash, hex-encoded. Cheap change detection, not crypto. */
+const fingerprint = (raw: string): string => {
+	let hash = 0x811c9dc5;
+	for (let index = 0; index < raw.length; index++) {
+		hash ^= raw.charCodeAt(index);
+		hash = Math.imul(hash, 0x01000193);
+	}
+	return (hash >>> 0).toString(16);
+};
+
+type StoredTimestamp = { t: number; h: string };
+
+const readTimestamp = (key: string): StoredTimestamp | null => {
+	const raw = readRaw("local", timestampKeyFor(key));
+	if (raw === null) {
+		return null;
+	}
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		if (typeof parsed === "object" && parsed !== null) {
+			const record = parsed as Record<string, unknown>;
+			if (typeof record.t === "number" && typeof record.h === "string") {
+				return { t: record.t, h: record.h };
+			}
+		}
+	} catch {
+		// Corrupt companion; caller re-stamps.
+	}
+	return null;
+};
+
+const writeTimestamp = (key: string, valueRaw: string, nowMs: number): void => {
+	writeRaw(
+		"local",
+		timestampKeyFor(key),
+		JSON.stringify({ t: nowMs, h: fingerprint(valueRaw) }),
+	);
+};
+
+const removeTimestamp = (key: string): void => {
+	removeRaw("local", timestampKeyFor(key));
+};
+
+/**
+ * Envelope format written by pre-release builds of this module. The
+ * sweep migrates any remaining envelopes back to raw values with
+ * companion timestamps; regular reads no longer decode it.
+ */
+const decodeLegacyEnvelope = (raw: string): { t: number; d: string } | null => {
 	try {
 		const parsed: unknown = JSON.parse(raw);
 		if (
@@ -236,7 +288,7 @@ const decodeEnvelope = (raw: string): StoredEnvelope | null => {
 				typeof env.t === "number" &&
 				typeof env.d === "string"
 			) {
-				return { v: 1, t: env.t, d: env.d };
+				return { t: env.t, d: env.d };
 			}
 		}
 	} catch {
@@ -245,9 +297,6 @@ const decodeEnvelope = (raw: string): StoredEnvelope | null => {
 	return null;
 };
 
-const encodeEnvelope = (data: string, nowMs: number): string =>
-	JSON.stringify({ v: 1, t: nowMs, d: data } satisfies StoredEnvelope);
-
 // -- Key handles ------------------------------------------------------------
 
 const createHandle = <T>(
@@ -255,7 +304,7 @@ const createHandle = <T>(
 	key: string,
 	codec: StorageCodec<NonNullable<T>>,
 	defaultValue: T,
-	envelope: boolean,
+	timestamped: boolean,
 ): StorageKeyHandle<T> => {
 	const cacheKey = cacheKeyFor(area, key);
 
@@ -263,8 +312,7 @@ const createHandle = <T>(
 		if (raw === null) {
 			return defaultValue;
 		}
-		const data = envelope ? (decodeEnvelope(raw)?.d ?? raw) : raw;
-		const decoded = codec.decode(data);
+		const decoded = codec.decode(raw);
 		return decoded === undefined ? defaultValue : decoded;
 	};
 
@@ -286,6 +334,9 @@ const createHandle = <T>(
 			return;
 		}
 		removeRaw(area, key);
+		if (timestamped) {
+			removeTimestamp(key);
+		}
 		invalidateAndNotify(area, key);
 	};
 
@@ -294,10 +345,14 @@ const createHandle = <T>(
 			remove();
 			return { ok: true };
 		}
-		const data = codec.encode(value as NonNullable<T>);
-		const raw = envelope ? encodeEnvelope(data, Date.now()) : data;
+		const raw = codec.encode(value as NonNullable<T>);
 		const result = writeRaw(area, key, raw);
 		if (result.ok) {
+			if (timestamped) {
+				// Value first, timestamp second: a failed companion write
+				// is stamped by the next sweep.
+				writeTimestamp(key, raw, Date.now());
+			}
 			// Cache the caller's value directly so getSnapshot hands the
 			// exact same reference back.
 			snapshotCache.set(cacheKey, { raw, value });
@@ -352,22 +407,12 @@ type RegisteredEntityFamily = {
 	prefix: string;
 	entity: StorageEntityType;
 	entityIdFromSuffix: (suffix: string) => string;
-	sweepValue: (raw: string, nowMs: number) => SweepAction;
+	ttlMs: number;
+	/** Custom expiry for families whose values embed their own timestamps. */
+	sweepValue?: (raw: string, nowMs: number) => SweepAction;
 };
 
 const entityFamilies: RegisteredEntityFamily[] = [];
-
-const defaultEnvelopeSweep =
-	(ttlMs: number) =>
-	(raw: string, nowMs: number): SweepAction => {
-		const envelope = decodeEnvelope(raw);
-		if (!envelope) {
-			// Legacy bare value: stamp an envelope so its TTL clock starts
-			// now instead of keeping it forever.
-			return { rewrite: encodeEnvelope(raw, nowMs) };
-		}
-		return nowMs - envelope.t > ttlMs ? "remove" : "keep";
-	};
 
 export function defineEntityStorageKey<T>(options: {
 	prefix: string;
@@ -376,10 +421,10 @@ export function defineEntityStorageKey<T>(options: {
 	defaultValue: T;
 	ttlMs: number;
 	/**
-	 * Disable the write-time envelope for families that manage their
-	 * own stored format and timestamps. Requires a custom sweepValue.
+	 * Disable the companion timestamp for families whose values embed
+	 * their own timestamps. Requires a custom sweepValue.
 	 */
-	envelope?: boolean;
+	timestamped?: boolean;
 	/**
 	 * Extracts the owning entity ID from the key part after `prefix`.
 	 * Defaults to the whole suffix; composite-ID families override it.
@@ -393,7 +438,7 @@ export function defineEntityStorageKey<T>(options: {
 		codec,
 		defaultValue,
 		ttlMs,
-		envelope = true,
+		timestamped = true,
 		entityIdFromSuffix = (suffix) => suffix,
 		sweepValue,
 	} = options;
@@ -405,7 +450,8 @@ export function defineEntityStorageKey<T>(options: {
 		prefix,
 		entity,
 		entityIdFromSuffix,
-		sweepValue: sweepValue ?? defaultEnvelopeSweep(ttlMs),
+		ttlMs,
+		sweepValue,
 	});
 
 	// Memoized so hooks receive stable subscribe/getSnapshot identities
@@ -419,7 +465,7 @@ export function defineEntityStorageKey<T>(options: {
 			const key = prefix + idParts.join(".");
 			let handle = handleCache.get(key);
 			if (!handle) {
-				handle = createHandle("local", key, codec, defaultValue, envelope);
+				handle = createHandle("local", key, codec, defaultValue, timestamped);
 				handleCache.set(key, handle);
 			}
 			return handle;
@@ -441,31 +487,53 @@ export function clearEntityStorage(
 	if (!id) {
 		return;
 	}
-	const storage = getAreaStorage("local");
-	if (!storage) {
-		return;
-	}
+	// Collect first: removing keys while enumerating by index skips
+	// entries.
+	const ownedKeys: string[] = [];
 	try {
-		for (let index = storage.length - 1; index >= 0; index--) {
-			const key = storage.key(index);
-			if (!key) {
-				continue;
-			}
+		for (const key of listLocalKeys()) {
+			// Companion timestamps are owned by their value key.
+			const valueKey = key.startsWith(TIMESTAMP_KEY_PREFIX)
+				? key.slice(TIMESTAMP_KEY_PREFIX.length)
+				: key;
 			const owned = entityFamilies.some(
 				(family) =>
 					family.entity === entity &&
-					key.startsWith(family.prefix) &&
-					family.entityIdFromSuffix(key.slice(family.prefix.length)) === id,
+					valueKey.startsWith(family.prefix) &&
+					family.entityIdFromSuffix(valueKey.slice(family.prefix.length)) ===
+						id,
 			);
 			if (owned) {
-				removeRaw("local", key);
-				invalidateAndNotify("local", key);
+				ownedKeys.push(key);
 			}
 		}
 	} catch {
 		// Enumeration failed; stale keys will be caught by the sweep.
 	}
+	for (const key of ownedKeys) {
+		removeRaw("local", key);
+		if (!key.startsWith(TIMESTAMP_KEY_PREFIX)) {
+			removeTimestamp(key);
+			invalidateAndNotify("local", key);
+		}
+	}
 }
+
+/** Snapshot of localStorage key names; safe to mutate storage afterwards. */
+const listLocalKeys = (): string[] => {
+	const storage = getAreaStorage("local");
+	if (!storage) {
+		return [];
+	}
+	const keys: string[] = [];
+	for (let index = 0; index < storage.length; index++) {
+		const key = storage.key(index);
+		if (key !== null) {
+			keys.push(key);
+		}
+	}
+	return keys;
+};
 
 const legacyStorageKeys: string[] = [];
 
@@ -480,36 +548,37 @@ let sweepHasRun = false;
  * Remove expired entity-scoped values and legacy keys. Explicit
  * cleanup cannot catch entities archived or deleted from another
  * client, so this time-based sweep collects those orphans. Runs once
- * per session; call it from App mount.
+ * per page load; call it before rendering the app so readers never
+ * hydrate from values the sweep is about to expire.
  */
 export function sweepExpiredStorage(nowMs = Date.now()): void {
 	if (sweepHasRun) {
 		return;
 	}
 	sweepHasRun = true;
-	const storage = getAreaStorage("local");
-	if (!storage) {
-		return;
-	}
 	for (const key of legacyStorageKeys) {
 		removeRaw("local", key);
 	}
-	try {
-		for (let index = storage.length - 1; index >= 0; index--) {
-			const key = storage.key(index);
-			if (!key) {
-				continue;
+	for (const key of listLocalKeys()) {
+		if (key.startsWith(TIMESTAMP_KEY_PREFIX)) {
+			// Companion whose value key is gone (removed by a client
+			// that does not know about companions).
+			if (readRaw("local", key.slice(TIMESTAMP_KEY_PREFIX.length)) === null) {
+				removeRaw("local", key);
 			}
-			const family = entityFamilies.find((candidate) =>
-				key.startsWith(candidate.prefix),
-			);
-			if (!family) {
-				continue;
-			}
-			const raw = readRaw("local", key);
-			if (raw === null) {
-				continue;
-			}
+			continue;
+		}
+		const family = entityFamilies.find((candidate) =>
+			key.startsWith(candidate.prefix),
+		);
+		if (!family) {
+			continue;
+		}
+		const raw = readRaw("local", key);
+		if (raw === null) {
+			continue;
+		}
+		if (family.sweepValue) {
 			const action = family.sweepValue(raw, nowMs);
 			if (action === "keep") {
 				continue;
@@ -520,11 +589,45 @@ export function sweepExpiredStorage(nowMs = Date.now()): void {
 				writeRaw("local", key, action.rewrite);
 			}
 			invalidateAndNotify("local", key);
+			continue;
 		}
-	} catch {
-		// Enumeration failed; the sweep retries next session.
+		sweepTimestampedKey(family, key, raw, nowMs);
 	}
 }
+
+const sweepTimestampedKey = (
+	family: RegisteredEntityFamily,
+	key: string,
+	raw: string,
+	nowMs: number,
+): void => {
+	const envelope = decodeLegacyEnvelope(raw);
+	if (envelope) {
+		if (nowMs - envelope.t > family.ttlMs) {
+			removeRaw("local", key);
+			removeTimestamp(key);
+		} else {
+			// Unwrap back to the raw value, keeping the original
+			// write time in the companion.
+			writeRaw("local", key, envelope.d);
+			writeTimestamp(key, envelope.d, envelope.t);
+		}
+		invalidateAndNotify("local", key);
+		return;
+	}
+	const stamp = readTimestamp(key);
+	if (!stamp || stamp.h !== fingerprint(raw)) {
+		// No companion (legacy or old-client write) or the value
+		// changed since it was stamped: start the TTL clock now.
+		writeTimestamp(key, raw, nowMs);
+		return;
+	}
+	if (nowMs - stamp.t > family.ttlMs) {
+		removeRaw("local", key);
+		removeTimestamp(key);
+		invalidateAndNotify("local", key);
+	}
+};
 
 /** @internal Reset per-session sweep and cache state between tests. */
 export function _resetStorageForTesting(): void {

@@ -1,7 +1,10 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
-import { preloadReloadStorage } from "./utils/storage/keys";
+import {
+	preloadReloadStorage,
+	sweepExpiredStorage,
+} from "./utils/storage/keys";
 
 console.info(`      -#######          +######-      ########+       ##########  ########+.      ###########
    +#####--######    +#####--#####+   ############    ##########  ####+++#####-   ###########
@@ -22,8 +25,11 @@ window.addEventListener("vite:preloadError", () => {
 	const last = preloadReloadStorage.get();
 	const now = Date.now();
 	if (last === null || now - last > 10_000) {
-		preloadReloadStorage.set(now);
-		location.reload();
+		// Reload only when the guard actually persisted; otherwise a
+		// persistent preload error would reload forever.
+		if (preloadReloadStorage.set(now).ok) {
+			location.reload();
+		}
 	}
 });
 
@@ -36,6 +42,11 @@ if (element === null) {
 if ("serviceWorker" in navigator) {
 	navigator.serviceWorker.register("/serviceWorker.js");
 }
+
+// Sweep before rendering so components never hydrate from values the
+// sweep is about to expire (orphans left by archival/deletion from
+// other clients, and legacy keys).
+sweepExpiredStorage();
 
 const root = createRoot(element);
 root.render(<App />);

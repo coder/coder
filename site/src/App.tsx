@@ -15,7 +15,6 @@ import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { DiffsWorkerPoolProvider } from "./contexts/DiffsWorkerPoolProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { router } from "./router";
-import { sweepExpiredStorage } from "./utils/storage/keys";
 
 const defaultQueryClient = new QueryClient({
 	defaultOptions: {
@@ -70,12 +69,6 @@ export const AppProviders: FC<AppProvidersProps> = ({
 };
 
 export const App: FC = () => {
-	// Collect expired per-entity storage keys and legacy keys once per
-	// session (orphans left by archival/deletion from other clients).
-	useEffect(() => {
-		sweepExpiredStorage();
-	}, []);
-
 	return (
 		<StrictMode>
 			<AppProviders>
