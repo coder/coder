@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
+import { aiModelPrice, upsertAIModelPrices } from "#/api/queries/aiModelPrices";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatModelConfigs,
@@ -13,12 +14,14 @@ import {
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { deriveProviderStates } from "#/modules/aiModels/providerStates";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import UpdateModelPageView from "./UpdateModelPageView";
 
 const UpdateModelPage: FC = () => {
 	const { permissions } = useAuthenticated();
+	const featureVisibility = useFeatureVisibility();
 	const { modelId } = useParams<{ modelId: string }>();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -50,14 +53,27 @@ const UpdateModelPage: FC = () => {
 	const [providerKeyOverride, setProviderKeyOverride] = useState<string | null>(
 		null,
 	);
+	const modelProviderState =
+		providerStates.find((ps) =>
+			ps.modelConfigs.some((m) => m.id === modelId),
+		) ?? null;
 	const selectedProviderState =
 		(providerKeyOverride
 			? providerStates.find((ps) => ps.key === providerKeyOverride)
-			: undefined) ??
-		providerStates.find((ps) =>
-			ps.modelConfigs.some((m) => m.id === modelId),
-		) ??
-		null;
+			: undefined) ?? modelProviderState;
+	const pricingProvider = modelProviderState?.provider ?? "";
+	const pricingModel = model?.model ?? "";
+	const isPricingFeatureAvailable = featureVisibility.aibridge;
+	const isPricingProviderSupported = pricingProvider !== "openai-compat";
+	const canQueryPricing =
+		isPricingFeatureAvailable &&
+		isPricingProviderSupported &&
+		permissions.viewAIModelPrices;
+	const modelPricesQuery = useQuery({
+		...aiModelPrice(pricingProvider, pricingModel),
+		enabled: canQueryPricing && pricingProvider !== "" && pricingModel !== "",
+	});
+	const modelPricesMutation = useMutation(upsertAIModelPrices(queryClient));
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
@@ -76,6 +92,37 @@ const UpdateModelPage: FC = () => {
 					currentDefaultModel={currentDefaultModel}
 					providerStates={providerStates}
 					selectedProviderState={selectedProviderState}
+					modelPricing={modelPricesQuery.data}
+					pricingProvider={modelProviderState?.provider}
+					isPricingLoading={canQueryPricing && modelPricesQuery.isLoading}
+					isPricingFetching={canQueryPricing && modelPricesQuery.isFetching}
+					pricingError={canQueryPricing ? modelPricesQuery.error : undefined}
+					isPricingSaving={modelPricesMutation.isPending}
+					pricingSaveError={modelPricesMutation.error}
+					isPricingFeatureAvailable={isPricingFeatureAvailable}
+					canViewPricing={permissions.viewAIModelPrices}
+					canEditPricing={
+						permissions.viewAIModelPrices && permissions.updateAIModelPrices
+					}
+					onSavePricing={(price) =>
+						new Promise<void>((resolve, reject) => {
+							modelPricesMutation.mutate(
+								{ prices: [price] },
+								{
+									onSuccess: () => {
+										toast.success("Model pricing updated.");
+										resolve();
+									},
+									onError: (error) => {
+										toast.error(
+											getErrorMessage(error, "Failed to update model pricing."),
+										);
+										reject(error);
+									},
+								},
+							);
+						})
+					}
 					onProviderChange={setProviderKeyOverride}
 					isSaving={updateMutation.isPending}
 					isDeleting={deleteMutation.isPending}

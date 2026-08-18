@@ -14,14 +14,17 @@ import (
 // calculation treats the same as zero. Distinguish that from an explicit 0,
 // which declares the model free of charge.
 type AIModelPrice struct {
-	Provider        string    `json:"provider"`
-	Model           string    `json:"model"`
-	InputPrice      *int64    `json:"input_price"`
-	OutputPrice     *int64    `json:"output_price"`
-	CacheReadPrice  *int64    `json:"cache_read_price"`
-	CacheWritePrice *int64    `json:"cache_write_price"`
-	CreatedAt       time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
+	Provider        string `json:"provider"`
+	Model           string `json:"model"`
+	InputPrice      *int64 `json:"input_price"`
+	OutputPrice     *int64 `json:"output_price"`
+	CacheReadPrice  *int64 `json:"cache_read_price"`
+	CacheWritePrice *int64 `json:"cache_write_price"`
+	// IsDefault is true when the model is in Coder's embedded price book.
+	// Default prices cannot be customized through the model prices API.
+	IsDefault bool      `json:"is_default"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 }
 
 // MaxAIModelPricesBytes bounds an upsert request body.

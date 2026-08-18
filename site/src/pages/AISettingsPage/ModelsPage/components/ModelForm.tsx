@@ -20,6 +20,7 @@ import { ModelFormDialogs } from "./ModelFormDialogs";
 import { ModelFormFields } from "./ModelFormFields";
 import { ModelFormBackLink, ModelFormHeader } from "./ModelFormHeader";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
+import { ModelPricingSection } from "./ModelPricingSection";
 
 const indefiniteArticle = (word: string): string =>
 	/^[aeiou]/i.test(word) ? "an" : "a";
@@ -48,6 +49,17 @@ interface ModelFormProps {
 	duplicateSourceModel?: TypesGen.ChatModelConfig;
 	providerStates: readonly ProviderState[];
 	selectedProviderState: ProviderState | null;
+	modelPricing?: TypesGen.AIModelPrice;
+	pricingProvider?: string;
+	isPricingLoading?: boolean;
+	isPricingFetching?: boolean;
+	pricingError?: unknown;
+	isPricingSaving?: boolean;
+	pricingSaveError?: unknown;
+	isPricingFeatureAvailable?: boolean;
+	canViewPricing?: boolean;
+	canEditPricing?: boolean;
+	onSavePricing?: (price: TypesGen.AIModelPriceUpsert) => Promise<void>;
 	onProviderChange: (providerKey: string) => void;
 	isSaving: boolean;
 	isDeleting: boolean;
@@ -70,6 +82,17 @@ export const ModelForm: FC<ModelFormProps> = ({
 	duplicateSourceModel,
 	providerStates,
 	selectedProviderState,
+	modelPricing,
+	pricingProvider,
+	isPricingLoading = false,
+	isPricingFetching = false,
+	pricingError,
+	isPricingSaving = false,
+	pricingSaveError,
+	isPricingFeatureAvailable = false,
+	canViewPricing = false,
+	canEditPricing = false,
+	onSavePricing,
 	onProviderChange,
 	isSaving,
 	isDeleting,
@@ -234,6 +257,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 		!!editingModel &&
 		!!selectedProviderState?.providerConfig &&
 		selectedProviderState.providerConfig.id !== editingModel.ai_provider_id;
+	const hasModelIdentityChange =
+		hasProviderChange ||
+		(isEditing &&
+			!!editingModel &&
+			form.values.model.trim() !== editingModel.model);
 	const canSubmit =
 		!isSaving &&
 		!hasFieldErrors &&
@@ -335,6 +363,25 @@ export const ModelForm: FC<ModelFormProps> = ({
 					showAdvanced={showAdvanced}
 					setShowAdvanced={setShowAdvanced}
 				/>
+				{isEditing && editingModel && onSavePricing && (
+					<ModelPricingSection
+						key={`${pricingProvider ?? selectedProviderType}/${editingModel.model}`}
+						provider={pricingProvider ?? selectedProviderType}
+						model={editingModel.model}
+						price={modelPricing}
+						isLoading={isPricingLoading}
+						isFetching={isPricingFetching}
+						loadError={pricingError}
+						isSaving={isPricingSaving}
+						saveError={pricingSaveError}
+						isFeatureAvailable={isPricingFeatureAvailable}
+						isProviderSupported={pricingProvider !== "openai-compat"}
+						isIdentityDirty={hasModelIdentityChange}
+						canView={canViewPricing}
+						canEdit={canEditPricing}
+						onSave={onSavePricing}
+					/>
+				)}
 			</div>
 			<ModelFormDialogs
 				editingModel={editingModel}
