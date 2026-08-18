@@ -83,6 +83,7 @@ import (
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jobreaper"
+	"github.com/coder/coder/v2/coderd/mcpssrf"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/oauthpki"
@@ -735,7 +736,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			mcpAllowedPrivateCIDRs := make([]netip.Prefix, 0, len(vals.MCPAllowedPrivateCIDRs))
 			for _, cidr := range vals.MCPAllowedPrivateCIDRs {
-				prefix, err := netip.ParsePrefix(cidr)
+				prefix, err := mcpssrf.ParseAllowedPrefix(cidr)
 				if err != nil {
 					return xerrors.Errorf("parse MCP allowed private CIDR %q: %w", cidr, err)
 				}

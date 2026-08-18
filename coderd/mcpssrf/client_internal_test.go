@@ -102,6 +102,62 @@ func TestIsBlockedAddr(t *testing.T) {
 	}
 }
 
+func TestParseAllowedPrefix(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		raw        string
+		wantPrefix string
+		addr       string
+		wantErr    string
+	}{
+		{
+			name:       "MappedIPv4Address",
+			raw:        "::ffff:127.0.0.1/128",
+			wantPrefix: "127.0.0.1/32",
+			addr:       "127.0.0.1",
+		},
+		{
+			name:       "MappedIPv4Network",
+			raw:        "::ffff:10.0.0.0/104",
+			wantPrefix: "10.0.0.0/8",
+			addr:       "10.23.45.67",
+		},
+		{
+			name:    "MappedPrefixTooShort",
+			raw:     "::ffff:0.0.0.0/95",
+			wantErr: "IPv4-mapped IPv6 prefix length must be at least 96 bits",
+		},
+		{
+			name:       "IPv4Unchanged",
+			raw:        "127.0.0.0/8",
+			wantPrefix: "127.0.0.0/8",
+			addr:       "127.0.0.1",
+		},
+		{
+			name:       "IPv6Unchanged",
+			raw:        "::1/128",
+			wantPrefix: "::1/128",
+			addr:       "::1",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			prefix, err := ParseAllowedPrefix(tc.raw)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, netip.MustParsePrefix(tc.wantPrefix), prefix)
+			require.False(t, isBlockedAddr(netip.MustParseAddr(tc.addr), []netip.Prefix{prefix}))
+		})
+	}
+}
+
 func startCanaryServer(t *testing.T) (*httptest.Server, *atomic.Int64) {
 	t.Helper()
 
