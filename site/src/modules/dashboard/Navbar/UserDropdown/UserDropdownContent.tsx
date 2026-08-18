@@ -3,6 +3,7 @@ import {
 	CopyIcon,
 	LogOutIcon,
 	MonitorDownIcon,
+	MonitorIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
@@ -19,7 +20,14 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useClipboard } from "#/hooks/useClipboard";
+import { supportsCoderDesktop } from "#/utils/platform";
 import { SupportIcon } from "../SupportIcon";
+
+// Coder Desktop only ships for macOS and Windows. Rather than deep-linking to a
+// single install method (brew, winget, releases, source, ...), point users at
+// the docs page, which is the canonical hub listing every install method and
+// stays current without frontend changes.
+const CODER_DESKTOP_DOCS_URL = "https://coder.com/docs/user-guides/desktop";
 
 interface UserDropdownContentProps {
 	user: TypesGen.User;
@@ -52,6 +60,18 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			</DropdownMenuItem>
 			{profileExtra}
 			<DropdownMenuSeparator />
+			{supportsCoderDesktop() && (
+				<DropdownMenuItem asChild>
+					<a
+						href={CODER_DESKTOP_DOCS_URL}
+						target="_blank"
+						rel="noreferrer"
+					>
+						<MonitorIcon />
+						<span>Install Coder Desktop</span>
+					</a>
+				</DropdownMenuItem>
+			)}
 			<DropdownMenuItem asChild>
 				<Link to="/install">
 					<MonitorDownIcon />
