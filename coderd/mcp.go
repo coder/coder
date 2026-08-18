@@ -543,8 +543,8 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		sdkConfig = convertMCPServerConfigRedacted(config)
 	}
 
-	// Populate AuthConnected for the calling user. Attempt to
-	// refresh the token so the status is accurate.
+	// Refresh readable token state so AuthConnected reflects the current
+	// OAuth status.
 	if config.AuthType == "oauth2" {
 		tok, err := api.Database.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
 			MCPServerConfigID: config.ID,
