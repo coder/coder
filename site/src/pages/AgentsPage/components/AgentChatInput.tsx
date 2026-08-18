@@ -1156,7 +1156,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"relative z-10 rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
@@ -1184,7 +1184,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					</div>
 				)}
 				{isEditingHistoryMessage && editingQueuedMessageID === null && (
-					<div className="flex items-center justify-between border-b border-border-warning/50 px-3 py-1.5">
+					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
 							Editing will delete all subsequent messages and restart the
