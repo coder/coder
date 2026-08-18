@@ -592,7 +592,7 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 	// this mock clock.
 	// Attempt setup happens before the tools start and is not billable.
 	batch.clock.Advance(2 * time.Second)
-	require.NoError(t, buffer.StartToolBatch(batch.key))
+	require.NoError(t, buffer.StartToolBatch(batch.key, []string{execCallID, waitCallID}))
 	// execute completes 3 seconds into the batch and records its
 	// completion, the way the tool goroutine's completion callback
 	// does. Its result is not published: results publish only after
@@ -622,7 +622,7 @@ func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
 	})
 
 	batch.clock.Advance(2 * time.Second)
-	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key))
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []string{execCallID}))
 	// The tool is still running when the interrupt lands 7 seconds in.
 	batch.clock.Advance(7 * time.Second)
 
@@ -643,10 +643,39 @@ func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
 	})
 
 	batch.clock.Advance(2 * time.Second)
-	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key))
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []string{waitCallID}))
 	batch.clock.Advance(10 * time.Second)
 
 	messages := batch.interrupt(t, f)
+	waitRow := findToolResultMessage(t, messages, waitCallID)
+	require.False(t, waitRow.RuntimeMs.Valid)
+}
+
+// A billed call rejected before execution (hook denial, ambiguous-call
+// rejection) is absent from the batch's dispatched set, so its missing
+// completion is not evidence that it ran: an interrupted batch whose
+// only dispatched call is an unbilled wait_agent bills nothing even
+// though the rejected execute call also receives a cancellation row.
+func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	waitCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	})
+
+	batch.clock.Advance(2 * time.Second)
+	// Only wait_agent was dispatched: execute was rejected before
+	// execution and never ran.
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []string{waitCallID}))
+	batch.clock.Advance(10 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.False(t, execRow.RuntimeMs.Valid)
 	waitRow := findToolResultMessage(t, messages, waitCallID)
 	require.False(t, waitRow.RuntimeMs.Valid)
 }

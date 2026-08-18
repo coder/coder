@@ -824,9 +824,16 @@ func (s *taskStarter) executeLocalTools(
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
-		// Stamp the batch start on the buffer episode so an interrupt
-		// can bill the partial window this step would have reported.
-		attempt.startToolBatch()
+		// Stamp the batch start and the dispatched call IDs on the
+		// buffer episode so an interrupt can bill the partial window
+		// this step would have reported. Only allowed calls are
+		// listed: denied calls never run, so an interrupt must not
+		// treat their missing completions as still-running work.
+		allowedCallIDs := make([]string, 0, len(allowed))
+		for _, tc := range allowed {
+			allowedCallIDs = append(allowedCallIDs, tc.ToolCallID)
+		}
+		attempt.startToolBatch(allowedCallIDs)
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
@@ -1056,10 +1063,12 @@ type generationAttempt struct {
 	// non-nil when beginGenerationAttempt succeeds.
 	startModelInvocation func()
 	// startToolBatch marks the start of the attempt's billable local
-	// tool batch window on the buffer episode, so an interrupt can
-	// bill the window the step would have reported. It is always
-	// non-nil when beginGenerationAttempt succeeds.
-	startToolBatch func()
+	// tool batch window on the buffer episode and records which tool
+	// calls were actually dispatched, so an interrupt can bill the
+	// window the step would have reported without charging calls that
+	// were rejected before execution. It is always non-nil when
+	// beginGenerationAttempt succeeds.
+	startToolBatch func(toolCallIDs []string)
 	// recordToolCompletion records a tool call's completion instant on
 	// the buffer episode as the batch executes, so an interrupt can
 	// end an already-finished tool's billable window at its real
@@ -1112,8 +1121,8 @@ func (s *taskStarter) beginGenerationAttempt(
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
 		},
-		startToolBatch: func() {
-			_ = s.opts.MessagePartBuffer.StartToolBatch(key)
+		startToolBatch: func(toolCallIDs []string) {
+			_ = s.opts.MessagePartBuffer.StartToolBatch(key, toolCallIDs)
 		},
 		recordToolCompletion: func(toolCallID string, completedAt time.Time) {
 			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, toolCallID, completedAt)

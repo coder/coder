@@ -108,11 +108,12 @@ type episodeState struct {
 	// episodes that never execute local tools, such as model
 	// invocations that finish without tool calls.
 	toolBatchStartedAt time.Time
-	// toolCompletedAt maps tool call IDs to the completion instants
-	// recorded by RecordToolCompletion as the batch's tools finish.
-	// Tool results are published only after the whole batch
-	// completes, so these per-tool stamps are the only live view of
-	// which tools already finished when an interrupt lands.
+	// toolCompletedAt holds the batch's dispatched tool call IDs,
+	// seeded with zero times by StartToolBatch and stamped by
+	// RecordToolCompletion as each tool finishes. Tool results are
+	// published only after the whole batch completes, so these
+	// per-tool stamps are the only live view of which tools were
+	// dispatched and which already finished when an interrupt lands.
 	toolCompletedAt map[string]time.Time
 	closed          bool
 	closedAt        time.Time
@@ -231,8 +232,12 @@ func (b *Buffer) StartModelInvocation(key Key) error {
 }
 
 // StartToolBatch stamps the instant the episode begins executing its local
-// tool batch, which starts the batch's billable runtime window.
-func (b *Buffer) StartToolBatch(key Key) error {
+// tool batch, which starts the batch's billable runtime window, and seeds
+// the batch's dispatched tool call IDs with zero completions. Readers can
+// then distinguish a dispatched call that is still running (present, zero)
+// from one never dispatched at all (absent), such as a call denied by a
+// lifecycle hook or rejected as ambiguous before execution.
+func (b *Buffer) StartToolBatch(key Key, toolCallIDs []string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -246,6 +251,14 @@ func (b *Buffer) StartToolBatch(key Key) error {
 		return ErrEpisodeClosed
 	}
 	episode.toolBatchStartedAt = b.opts.Clock.Now("message-part-buffer", "tool-batch-start")
+	if episode.toolCompletedAt == nil {
+		episode.toolCompletedAt = make(map[string]time.Time, len(toolCallIDs))
+	}
+	for _, id := range toolCallIDs {
+		if _, ok := episode.toolCompletedAt[id]; !ok {
+			episode.toolCompletedAt[id] = time.Time{}
+		}
+	}
 	return nil
 }
 
@@ -372,11 +385,12 @@ func (b *Buffer) ToolBatchStartedAt(key Key) time.Time {
 	return episode.toolBatchStartedAt
 }
 
-// ToolCompletionsAt returns a copy of the completion instants recorded
-// by RecordToolCompletion, keyed by tool call ID, or nil when the
-// episode is unknown or recorded none. Read it before CloseEpisode:
-// closed episodes are garbage collected, so reading afterwards races
-// the cleanup loop.
+// ToolCompletionsAt returns a copy of the tool batch's completion map,
+// keyed by tool call ID, or nil when the episode is unknown or never
+// started a batch. Calls seeded by StartToolBatch but not yet stamped
+// by RecordToolCompletion carry the zero time: they were dispatched and
+// are still running. Read it before CloseEpisode: closed episodes are
+// garbage collected, so reading afterwards races the cleanup loop.
 func (b *Buffer) ToolCompletionsAt(key Key) map[string]time.Time {
 	b.mu.Lock()
 	defer b.mu.Unlock()

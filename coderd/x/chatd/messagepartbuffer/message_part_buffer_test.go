@@ -157,14 +157,14 @@ func TestBuffer_ToolBatchStartedAt(t *testing.T) {
 
 	key := testEpisodeKey()
 	require.Zero(t, buffer.ToolBatchStartedAt(key), "unknown episode has no batch stamp")
-	require.ErrorIs(t, buffer.StartToolBatch(key), messagepartbuffer.ErrEpisodeNotFound)
+	require.ErrorIs(t, buffer.StartToolBatch(key, []string{"call-1"}), messagepartbuffer.ErrEpisodeNotFound)
 
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.Zero(t, buffer.ToolBatchStartedAt(key), "episode without a tool batch has no batch stamp")
 	// Attempt setup happens before tools start executing and is not
 	// billable.
 	clock.Advance(time.Second)
-	require.NoError(t, buffer.StartToolBatch(key))
+	require.NoError(t, buffer.StartToolBatch(key, []string{"call-1"}))
 	startedAt := buffer.ToolBatchStartedAt(key)
 	require.Equal(t, clock.Now(), startedAt)
 
@@ -172,7 +172,7 @@ func TestBuffer_ToolBatchStartedAt(t *testing.T) {
 	// no longer accepts a batch start.
 	clock.Advance(1500 * time.Millisecond)
 	require.NoError(t, buffer.CloseEpisode(key))
-	require.ErrorIs(t, buffer.StartToolBatch(key), messagepartbuffer.ErrEpisodeClosed)
+	require.ErrorIs(t, buffer.StartToolBatch(key, []string{"call-1"}), messagepartbuffer.ErrEpisodeClosed)
 	require.Equal(t, startedAt, buffer.ToolBatchStartedAt(key))
 
 	// Episodes that never execute local tools, such as model
@@ -197,11 +197,23 @@ func TestBuffer_ToolCompletionsAt(t *testing.T) {
 	require.ErrorIs(t, buffer.RecordToolCompletion(key, "call-1", clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
 
 	require.NoError(t, buffer.CreateEpisode(key))
-	require.Empty(t, buffer.ToolCompletionsAt(key), "episode without recorded completions has none")
-	// Tools complete at different instants; each keeps its own stamp.
+	require.Empty(t, buffer.ToolCompletionsAt(key), "episode without a tool batch has no completions")
+	// Starting the batch seeds every dispatched call with a zero
+	// completion, marking it dispatched but still running.
+	require.NoError(t, buffer.StartToolBatch(key, []string{"call-1", "call-2"}))
+	require.Equal(t, map[string]time.Time{
+		"call-1": {},
+		"call-2": {},
+	}, buffer.ToolCompletionsAt(key))
+	// Tools complete at different instants; each keeps its own stamp
+	// while the still-running call stays zero.
 	clock.Advance(time.Second)
 	firstCompletedAt := clock.Now()
 	require.NoError(t, buffer.RecordToolCompletion(key, "call-1", firstCompletedAt))
+	require.Equal(t, map[string]time.Time{
+		"call-1": firstCompletedAt,
+		"call-2": {},
+	}, buffer.ToolCompletionsAt(key))
 	clock.Advance(2 * time.Second)
 	secondCompletedAt := clock.Now()
 	require.NoError(t, buffer.RecordToolCompletion(key, "call-2", secondCompletedAt))

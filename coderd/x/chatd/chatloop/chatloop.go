@@ -622,6 +622,12 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 
 	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
 	batchStart := clockNow(opts.Clock)
+	// Completion instants aligned with localCalls by occurrence.
+	// billableBatchWindow reads these instead of the ID-keyed
+	// ToolResultCreatedAt map, where duplicate tool call IDs, which
+	// reach execution when lifecycle hooks are disabled, would
+	// overwrite each other and corrupt the window.
+	orderedCompletions := make([]time.Time, 0, len(localCalls))
 	toolResults := executeTools(
 		ctx,
 		opts.Clock,
@@ -638,6 +644,10 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		opts.ToolNameAliases,
 		opts.OnToolComplete,
 		func(tr fantasy.ToolResultContent, completedAt time.Time) {
+			// onResult fires once per local call in call order, so
+			// appending keeps orderedCompletions aligned with
+			// localCalls even when tool call IDs collide.
+			orderedCompletions = append(orderedCompletions, completedAt)
 			recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 			publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
 			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
@@ -654,7 +664,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	batchRuntime, batchRuntimeToolCallID := billableBatchWindow(
 		batchStart,
 		localCalls,
-		result.toolResultCreatedAt,
+		orderedCompletions,
 		opts.UnbilledToolNames,
 	)
 	return ToolExecutionOutcome{
@@ -673,25 +683,30 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 // union of the billed tools' execution intervals, so parallel calls are
 // billed once rather than summed, and unbilled tools (for example
 // sub-agent orchestration) never extend the window even when they run
-// longest. Returns the tool call whose completion ends the window, with
-// ties broken by call order; (0, "") when no billed tool completed or
-// the window rounds to nothing.
+// longest. completions is aligned with toolCalls by occurrence, so
+// duplicate tool call IDs each keep their own completion. Returns the
+// tool call whose completion ends the window, with ties broken by call
+// order; (0, "") when no billed tool completed or the window rounds to
+// nothing.
 func billableBatchWindow(
 	batchStart time.Time,
 	toolCalls []fantasy.ToolCallContent,
-	completedAt map[string]time.Time,
+	completions []time.Time,
 	unbilledToolNames map[string]bool,
 ) (time.Duration, string) {
 	var (
 		windowEnd  time.Time
 		toolCallID string
 	)
-	for _, tc := range toolCalls {
+	for i, tc := range toolCalls {
+		if i >= len(completions) {
+			break
+		}
 		if unbilledToolNames[tc.ToolName] {
 			continue
 		}
-		end, ok := completedAt[tc.ToolCallID]
-		if !ok {
+		end := completions[i]
+		if end.IsZero() {
 			continue
 		}
 		// Strictly-after keeps the earliest call on ties.

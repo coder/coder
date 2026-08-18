@@ -692,12 +692,16 @@ type interruptedToolBatchBilling struct {
 	// interrupt (crash recovery, state promotion), in which case the
 	// cancellation rows carry no runtime.
 	batchStartedAt time.Time
-	// toolCompletions maps tool call IDs to the completion instants the
-	// live batch recorded as each tool finished. Tools with a recorded
-	// completion end their billable window there, so a batch whose
-	// billed tools all finished early does not bill the longer window
-	// of a still-running unbilled tool such as wait_agent. Tools
-	// without one were still running when the interrupt landed.
+	// toolCompletions holds the live batch's dispatched tool call IDs:
+	// seeded with zero times when the batch started and stamped with
+	// completion instants as each tool finished. A stamped tool ends
+	// its billable window at its completion, so a batch whose billed
+	// tools all finished early does not bill the longer window of a
+	// still-running unbilled tool such as wait_agent. A seeded but
+	// unstamped tool was still running when the interrupt landed. A
+	// tool absent from the map was never dispatched, such as a call
+	// denied by a lifecycle hook or rejected as ambiguous, and bills
+	// nothing even though it too receives a cancellation row.
 	toolCompletions map[string]time.Time
 }
 
@@ -750,12 +754,17 @@ func committedPendingLocalToolCancellationMessages(
 		if billing.batchStartedAt.IsZero() || unbilledSubagentToolNames[call.ToolName] {
 			continue
 		}
-		// A billed tool with a recorded completion finished at that
-		// instant; one without was still running, so its window ends
-		// at the interrupt. Strictly-after keeps the earliest call on
-		// ties, matching billableBatchWindow.
-		end, ok := billing.toolCompletions[call.ToolCallID]
-		if !ok {
+		// Only dispatched calls bill: a call absent from the batch's
+		// completion map was rejected before execution. A dispatched
+		// call with a stamped completion finished at that instant; a
+		// seeded but unstamped one was still running, so its window
+		// ends at the interrupt. Strictly-after keeps the earliest
+		// call on ties, matching billableBatchWindow.
+		end, dispatched := billing.toolCompletions[call.ToolCallID]
+		if !dispatched {
+			continue
+		}
+		if end.IsZero() {
 			end = interruptedAt
 		}
 		if end.After(windowEnd) {

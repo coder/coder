@@ -392,6 +392,51 @@ func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
 	require.Equal(t, "call-execute", outcome.BatchRuntimeToolCallID)
 }
 
+// Duplicate tool call IDs, which reach execution when lifecycle hooks
+// are disabled, must not corrupt the window: completions are tracked per
+// occurrence, so a later short duplicate cannot overwrite an earlier
+// long one and shrink the bill.
+func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().Now()
+	defer trap.Close()
+
+	slowGo := make(chan struct{})
+	fastGo := make(chan struct{})
+	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{
+			blockingTool("slow_tool", slowGo, fantasy.NewTextResponse("done")),
+			blockingTool("fast_tool", fastGo, fantasy.NewTextResponse("done")),
+		},
+		ActiveTools: []string{"slow_tool", "fast_tool"},
+		// Both calls share one ID: an ID-keyed completion map would
+		// let the fast occurrence overwrite the slow one.
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "call-dup", ToolName: "slow_tool", Input: "{}"},
+			{ToolCallID: "call-dup", ToolName: "fast_tool", Input: "{}"},
+		},
+	})
+
+	// Batch start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The fast occurrence completes at 10 seconds.
+	clock.Advance(10 * time.Second)
+	close(fastGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The slow occurrence completes at 60 seconds and must define the
+	// window even though the fast occurrence shares its ID.
+	clock.Advance(50 * time.Second)
+	close(slowGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	outcome := testutil.RequireReceive(ctx, t, resultCh)
+	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
+	require.Equal(t, "call-dup", outcome.BatchRuntimeToolCallID)
+}
+
 // OnToolComplete reports each tool's completion the instant it finishes,
 // while slower siblings are still running, with the same instants the
 // outcome's ToolResultCreatedAt later carries. The interrupt path
