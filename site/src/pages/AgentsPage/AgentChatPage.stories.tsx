@@ -1359,6 +1359,49 @@ export const Loading: Story = {
 	},
 };
 
+const capacityPollingChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Capacity polling",
+	status: "running",
+	queued_for_capacity: false,
+};
+
+export const QueuedForCapacityAfterPolling: Story = {
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(CHAT_ID), data: capacityPollingChat },
+			{
+				key: chatMessagesKey(CHAT_ID),
+				data: {
+					pages: [{ messages: [], queued_messages: [], has_more: false }],
+					pageParams: [undefined],
+				},
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			...capacityPollingChat,
+			queued_for_capacity: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/This agent is queued and will start automatically/),
+		).not.toBeInTheDocument();
+
+		const callout = await canvas.findByRole("alert", undefined, {
+			timeout: 7_000,
+		});
+		expect(API.experimental.getChat).toHaveBeenCalledWith(CHAT_ID);
+		expect(callout).toHaveTextContent(
+			"This agent is queued and will start automatically when capacity is available.",
+		);
+	},
+};
+
 export const OtherUserChatReadOnly: Story = {
 	parameters: {
 		queries: buildQueries(
