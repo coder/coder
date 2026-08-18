@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -810,6 +811,17 @@ func (s *taskStarter) executeLocalTools(
 	var denied []fantasy.ToolResultContent
 	if !exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames) {
 		allowed, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
+	}
+	// find_tools calls are counted here, at the single point every
+	// model-emitted call passes through, because rejections upstream of
+	// the tool (partition denials, hook denials, exclusive-policy
+	// batches) never reach its handler or OnCall.
+	if prepared.BuiltinToolNames[chattool.FindToolsName] {
+		for _, toolCall := range decision.localToolCalls {
+			if toolCall.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
 	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {

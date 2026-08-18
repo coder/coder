@@ -10571,6 +10571,62 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		require.True(t, openAIMessagesContain(recorded[1].Messages, "echo: hello"))
 	})
 
+	t.Run("partition-denied find_tools calls count toward call totals", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mcpSrv := newTestMCPServer("count-mcp")
+		addTestMCPTextTool(mcpSrv, "echo", "Echo input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+
+		var streamCount atomic.Int32
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			switch streamCount.Add(1) {
+			case 1:
+				// Malformed JSON input: partitioned into a synthetic
+				// denial before ExecuteLocalTools, so the tool's own
+				// handler and decode never see this call.
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAIToolCallChunk(chattool.FindToolsName, `{"queries":["echo"`),
+				)
+			default:
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			}
+		})
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			DisplayName: "Count MCP",
+			Slug:        "count-mcp",
+			Url:         mcpTS.URL,
+			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		reg := prometheus.NewRegistry()
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.PrometheusRegistry = reg
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "count denied find_tools",
+			ModelConfigID:  model.ID,
+			MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("search"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		requireChatdMetricCounter(t, reg, "coderd_chatd_find_tools_calls_total", 1, nil)
+	})
+
 	t.Run("experiment gates deferral regardless of catalog size", func(t *testing.T) {
 		t.Parallel()
 

@@ -614,8 +614,10 @@ func (server *Server) prepareGeneration(
 			Entries:            deferredMCPToolEntries(deferredCandidates),
 			SchemaTokenBudget:  activationTokenBudget,
 			CatalogTokenBudget: activationTokenBudget,
+			// Calls total is counted in executeLocalTools, which also
+			// sees calls rejected before the tool runs; OnCall covers
+			// only calls that reach the handler or its decode.
 			OnCall: func(callCtx context.Context, call chattool.FindToolsCall) {
-				server.metrics.FindToolsCallsTotal.Inc()
 				if call.Rejection == "" {
 					server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
 					server.metrics.FindToolsActivationsTotal.Add(float64(len(call.Activated)))
